@@ -1,5 +1,5 @@
 export interface PongoClient {
-  connect(): Promise<void>;
+  connect(): Promise<this>;
 
   close(): Promise<void>;
 
@@ -12,7 +12,7 @@ export interface PongoDb {
 
 export interface PongoCollection<T> {
   createCollection(): Promise<void>;
-  insertOne(document: T): Promise<PongoInsertResult>;
+  insertOne(document: T): Promise<PongoInsertOneResult>;
   updateOne(
     filter: PongoFilter<T>,
     update: PongoUpdate<T>,
@@ -44,15 +44,17 @@ export type PongoUpdate<T> = {
   $push?: { [P in keyof T]?: T[P] };
 };
 
-export interface PongoInsertResult {
+export interface PongoInsertOneResult {
   insertedId: string | null;
-  insertedCount: number | null;
+  acknowledged: boolean;
 }
 
 export interface PongoUpdateResult {
-  modifiedCount: number | null;
+  acknowledged: boolean;
+  modifiedCount: number;
 }
 
 export interface PongoDeleteResult {
-  deletedCount: number | null;
+  acknowledged: boolean;
+  deletedCount: number;
 }
