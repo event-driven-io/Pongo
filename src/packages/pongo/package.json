@@ -48,9 +48,10 @@
   ],
   "peerDependencies": {
     "@types/uuid": "^9.0.8",
-    "uuid": "^9.0.1",
+    "close-with-grace": "^1.3.0",
     "pg": "^8.12.0",
-    "pg-format": "^1.0.4"
+    "pg-format": "^1.0.4",
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@types/node": "20.11.30",

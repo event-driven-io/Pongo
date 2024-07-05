@@ -62,11 +62,11 @@
     "dist"
   ],
   "devDependencies": {
+    "@faker-js/faker": "8.4.1",
+    "@types/mongodb": "^4.0.7",
     "@types/node": "20.11.30",
     "@types/pg": "^8.11.6",
     "@types/pg-format": "^1.0.5",
-    "@faker-js/faker": "8.4.1",
-    "@types/mongodb": "^4.0.7",
     "@types/uuid": "9.0.8",
     "@typescript-eslint/eslint-plugin": "7.9.0",
     "@typescript-eslint/parser": "7.9.0",
@@ -86,7 +86,8 @@
   },
   "peerDependencies": {
     "pg": "^8.12.0",
-    "pg-format": "^1.0.4"
+    "pg-format": "^1.0.4",
+    "close-with-grace": "^1.3.0"
   },
   "workspaces": [
     "packages/pongo"
