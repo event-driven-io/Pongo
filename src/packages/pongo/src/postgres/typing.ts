@@ -44,4 +44,5 @@ export interface PongoCollection<T> {
   ): Promise<PongoUpdateResult>;
   deleteOne(filter: PongoFilter<T>): Promise<PongoDeleteResult>;
   findOne(filter: PongoFilter<T>): Promise<T | null>;
+  find(filter: PongoFilter<T>): Promise<T[]>;
 }

@@ -48,9 +48,13 @@
   ],
   "peerDependencies": {
     "@types/uuid": "^9.0.8",
-    "uuid": "^9.0.1"
+    "uuid": "^9.0.1",
+    "pg": "^8.12.0",
+    "pg-format": "^1.0.4"
   },
   "devDependencies": {
-    "@types/node": "^20.11.30"
+    "@types/node": "20.11.30",
+    "@types/pg": "^8.11.6",
+    "@types/pg-format": "^1.0.5"
   }
 }
