@@ -1,11 +1,11 @@
-import type { QueryResultRow, Pool, QueryResult, PoolClient } from 'pg';
+import type pg from 'pg';
 import format from 'pg-format';
 
-export const sql = async <Result extends QueryResultRow = QueryResultRow>(
-  pool: Pool,
+export const sql = async <Result extends pg.QueryResultRow = pg.QueryResultRow>(
+  pool: pg.Pool,
   sqlText: string,
   ...params: unknown[]
-): Promise<QueryResult<Result>> => {
+): Promise<pg.QueryResult<Result>> => {
   const client = await pool.connect();
   try {
     const query = format(sqlText, ...params);
@@ -16,8 +16,8 @@ export const sql = async <Result extends QueryResultRow = QueryResultRow>(
 };
 
 export const execute = async <Result = void>(
-  pool: Pool,
-  handle: (client: PoolClient) => Promise<Result>,
+  pool: pg.Pool,
+  handle: (client: pg.PoolClient) => Promise<Result>,
 ) => {
   const client = await pool.connect();
   try {

@@ -1,10 +1,10 @@
-import { Pool, type PoolConfig } from 'pg';
+import pg from 'pg';
 
-const pools: Map<string, Pool> = new Map();
+const pools: Map<string, pg.Pool> = new Map();
 
 export const getPool = (
-  connectionStringOrOptions: string | PoolConfig,
-): Pool => {
+  connectionStringOrOptions: string | pg.PoolConfig,
+): pg.Pool => {
   const connectionString =
     typeof connectionStringOrOptions === 'string'
       ? connectionStringOrOptions
@@ -17,7 +17,7 @@ export const getPool = (
 
   return (
     pools.get(connectionString) ??
-    pools.set(connectionString, new Pool(poolOptions)).get(connectionString)!
+    pools.set(connectionString, new pg.Pool(poolOptions)).get(connectionString)!
   );
 };
 
