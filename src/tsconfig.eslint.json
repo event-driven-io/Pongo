@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.shared.json",
+  "include": ["./packages/**/*.ts", "./docs/**/*.ts", "./tsup.config.ts"],
+  "exclude": ["node_modules", "tmp"],
+  "files": [],
+  "compilerOptions": {
+    "noEmit": true /* Do not emit outputs. */
+  }
+}

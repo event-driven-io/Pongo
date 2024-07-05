@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.shared.json",
+  "include": ["docs/**/*.ts", "./tsup.config.ts"],
+  "exclude": ["node_modules", "tmp"],
+  "files": [],
+  "compilerOptions": {
+    "noEmit": true /* Do not emit outputs. */,
+    "paths": {
+      "@event-driven-io/pongo": ["./packages/pongo/src"]
+    }
+  },
+  "references": [
+    {
+      "path": "./packages/pongo/"
+    }
+  ]
+}

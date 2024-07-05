@@ -1,0 +1,8 @@
+--vp-c-brand: #2b0f54;
+--vp-c-brand-light: #ab1f65;
+--vp-c-brand-dark: #2b0f54;
+--vp-home-hero-name-color: var(--vp-c-brand);
+--vp-button-brand-bg: var(--vp-c-brand);
+--vp-button-brand-border: #c9b8a9;
+--vp-button-brand-hover-border: var(--vp-button-brand-border);
+--vp-button-brand-hover-bg: var(--vp-c-brand-light);

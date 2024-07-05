@@ -5,7 +5,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
-.pnpm-debug.log*
 
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
@@ -39,6 +38,7 @@ bower_components
 build/Release
 
 # Dependency directories
+*/node_modules/
 node_modules/
 jspm_packages/
 
@@ -53,9 +53,6 @@ web_modules/
 
 # Optional eslint cache
 .eslintcache
-
-# Optional stylelint cache
-.stylelintcache
 
 # Microbundle cache
 .rpt2_cache/
@@ -72,12 +69,9 @@ web_modules/
 # Yarn Integrity file
 .yarn-integrity
 
-# dotenv environment variable files
+# dotenv environment variables file
 .env
-.env.development.local
-.env.test.local
-.env.production.local
-.env.local
+.env.test
 
 # parcel-bundler cache (https://parceljs.org/)
 .cache
@@ -100,13 +94,6 @@ dist
 # vuepress build output
 .vuepress/dist
 
-# vuepress v2.x temp and cache directory
-.temp
-.cache
-
-# Docusaurus cache and generated files
-.docusaurus
-
 # Serverless directories
 .serverless/
 
@@ -128,3 +115,13 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+
+# vitepress
+src/docs/.vitepress/dist
+src/docs/.vitepress/cache
+lib
+
+.DS_Store
+*/.output
+e2e/esmCompatibility/.output
+src/e2e/esmCompatibility/.output

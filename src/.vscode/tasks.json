@@ -1,0 +1,13 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "npm",
+      "script": "build:ts:watch",
+      "group": "build",
+      "problemMatcher": [],
+      "label": "npm: build:ts:watch",
+      "detail": "tsc  --watch"
+    }
+  ]
+}

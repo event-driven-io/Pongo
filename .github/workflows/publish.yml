@@ -1,0 +1,38 @@
+name: Publish to NPM
+on: [workflow_dispatch]
+
+defaults:
+  run:
+    working-directory: src
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Out Repo
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          registry-url: "https://registry.npmjs.org"
+          node-version-file: ./src/.nvmrc
+          cache: "npm"
+          cache-dependency-path: "./src/package-lock.json"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          NODE_ENV: production
+
+      - name: Set public publishing
+        run: npm config set access public
+
+      - name: Publish package on NPM 📦
+        run: npm publish --ws
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_ENV: production

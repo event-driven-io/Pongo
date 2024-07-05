@@ -1,0 +1,54 @@
+name: Build and test
+
+on:
+  # run it on push to the default repository branch
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "./.github/workflows/build_and_test.yml"
+
+  # run it during pull request
+  pull_request:
+    paths:
+      - "src/**"
+      - "./.github/workflows/build_and_test.yml"
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: src
+
+jobs:
+  build-and-test-code:
+    name: Build application code
+    # use system defined below in the tests matrix
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check Out Repo
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: ./src/.nvmrc
+          cache: "npm"
+          cache-dependency-path: "./src/package-lock.json"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build TS
+        run: npm run build:ts
+
+      - name: Run linting (ESlint and Prettier)
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm run test

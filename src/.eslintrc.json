@@ -1,0 +1,48 @@
+{
+  "env": {
+    "es2023": true,
+    "node": true
+  },
+  "root": true,
+  "plugins": ["@typescript-eslint"],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended",
+    "plugin:@typescript-eslint/recommended-requiring-type-checking",
+    "plugin:prettier/recommended"
+  ],
+  "ignorePatterns": ["**/dist/", "**/lib/", "**/cache/"],
+  "parser": "@typescript-eslint/parser",
+  "parserOptions": {
+    "ecmaVersion": 2023,
+    "sourceType": "module",
+    "project": "./tsconfig.eslint.json"
+  },
+  "rules": {
+    "no-unused-vars": "off",
+    "@typescript-eslint/no-unused-vars": [
+      "error",
+      { "varsIgnorePattern": "^_", "argsIgnorePattern": "^_" }
+    ],
+    "@typescript-eslint/no-misused-promises": ["off"],
+    "@typescript-eslint/prefer-namespace-keyword": "off",
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": ["**.spec.ts"],
+        "patterns": ["node:*"]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["**.spec.ts", "packages/**/src/testing/**", "docs/**"],
+      "rules": { "no-restricted-imports": "off" }
+    }
+  ],
+  "settings": {
+    "import/resolver": {
+      "typescript": {}
+    }
+  }
+}

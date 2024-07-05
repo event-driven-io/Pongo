@@ -1,0 +1,56 @@
+{
+  "name": "@event-driven-io/pongo",
+  "version": "0.0.1",
+  "description": "Pongo - Mongo with strong consistency on top of Postgres",
+  "type": "module",
+  "scripts": {
+    "build": "tsup",
+    "build:ts": "tsc",
+    "build:ts:watch": "tsc  --watch",
+    "test": "run-s test:unit test:int test:e2e",
+    "test:unit": "glob -c \"node --import tsx --test\" **/*.unit.spec.ts",
+    "test:int": "glob -c \"node --import tsx --test\" **/*.int.spec.ts",
+    "test:e2e": "glob -c \"node --import tsx --test\" **/*.e2e.spec.ts",
+    "test:watch": "node --import tsx --test --watch",
+    "test:unit:watch": "glob -c \"node --import tsx --test --watch\" **/*.unit.spec.ts",
+    "test:int:watch": "glob -c \"node --import tsx --test --watch\" **/*.int.spec.ts",
+    "test:e2e:watch": "glob -c \"node --import tsx --test --watch\" **/*.e2e.spec.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/event-driven-io/Pongo.git"
+  },
+  "keywords": [
+    "Event Sourcing"
+  ],
+  "author": "Oskar Dudycz",
+  "bugs": {
+    "url": "https://github.com/event-driven-io/Pongo/issues"
+  },
+  "homepage": "https://event-driven-io.github.io/Pongo/",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "peerDependencies": {
+    "@types/uuid": "^9.0.8",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30"
+  }
+}
