@@ -15,6 +15,7 @@ export const getPool = (
       ? { connectionString }
       : connectionStringOrOptions;
 
+  //TODO: this should include database name resolution for key
   return (
     pools.get(connectionString) ??
     pools.set(connectionString, new pg.Pool(poolOptions)).get(connectionString)!

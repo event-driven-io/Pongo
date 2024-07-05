@@ -11,7 +11,7 @@ import {
 } from '../main';
 import { sql } from './execute';
 import { constructFilterQuery } from './filter';
-import { getPool } from './pool';
+import { endPool, getPool } from './pool';
 import { constructUpdateQuery } from './update';
 
 export const postgresClient = (
@@ -22,7 +22,7 @@ export const postgresClient = (
 
   return {
     connect: () => Promise.resolve(),
-    close: () => Promise.resolve(),
+    close: () => endPool(connectionString),
     collection: <T>(name: string) => postgresCollection<T>(name, pool),
   };
 };
@@ -31,18 +31,17 @@ export const postgresCollection = <T>(
   collectionName: string,
   pool: pg.Pool,
 ): PongoCollection<T> => {
-  const createCollection = async (): Promise<void> => {
-    await sql(
-      pool,
-      'CREATE TABLE IF NOT EXISTS %I (_id UUID PRIMARY KEY, data JSONB)',
-      collectionName,
-    );
-  };
-
+  const createCollection = sql(
+    pool,
+    'CREATE TABLE IF NOT EXISTS %I (_id UUID PRIMARY KEY, data JSONB)',
+    collectionName,
+  );
   return {
-    createCollection,
+    createCollection: async () => {
+      await createCollection;
+    },
     insertOne: async (document: T): Promise<PongoInsertOneResult> => {
-      await createCollection();
+      await createCollection;
 
       const id = uuid();
 
@@ -62,6 +61,8 @@ export const postgresCollection = <T>(
       filter: PongoFilter<T>,
       update: PongoUpdate<T>,
     ): Promise<PongoUpdateResult> => {
+      await createCollection;
+
       const filterQuery = constructFilterQuery(filter);
       const updateQuery = constructUpdateQuery(update);
 
@@ -77,6 +78,8 @@ export const postgresCollection = <T>(
         : { acknowledged: false, modifiedCount: 0 };
     },
     deleteOne: async (filter: PongoFilter<T>): Promise<PongoDeleteResult> => {
+      await createCollection;
+
       const filterQuery = constructFilterQuery(filter);
       const result = await sql(
         pool,
@@ -89,6 +92,8 @@ export const postgresCollection = <T>(
         : { acknowledged: false, deletedCount: 0 };
     },
     findOne: async (filter: PongoFilter<T>): Promise<T | null> => {
+      await createCollection;
+
       const filterQuery = constructFilterQuery(filter);
       const result = await sql(
         pool,
@@ -99,6 +104,8 @@ export const postgresCollection = <T>(
       return (result.rows[0]?.data ?? null) as T | null;
     },
     find: async (filter: PongoFilter<T>): Promise<T[]> => {
+      await createCollection;
+
       const filterQuery = constructFilterQuery(filter);
       const result = await sql(
         pool,

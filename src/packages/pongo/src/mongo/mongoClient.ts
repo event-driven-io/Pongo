@@ -2,7 +2,7 @@
 import { pongoClient, type PongoClient } from '../main';
 import { Db } from './mongoDb';
 
-export default class MongoClient {
+export class MongoClient {
   private pongoClient: PongoClient;
 
   constructor(connectionString: string) {
