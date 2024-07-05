@@ -9,9 +9,7 @@ import {
 import assert from 'assert';
 import { Db as MongoDb, MongoClient as OriginalMongoClient } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
-import MongoClient from '../mongo/mongoClient';
-import type { Db } from '../mongo/mongoDb';
-import { endAllPools } from '../postgres';
+import { MongoClient, endAllPools, type Db } from '../';
 
 type User = { name: string; age: number };
 
