@@ -1,6 +1,20 @@
 import format from 'pg-format';
 
-const operatorMap = {
+export const Operators = {
+  $eq: '$eq',
+  $gt: '$gt',
+  $gte: '$gte',
+  $lt: '$lt',
+  $lte: '$lte',
+  $ne: '$ne',
+  $in: '$in',
+  $nin: '$nin',
+  $elemMatch: '$elemMatch',
+  $all: '$all',
+  $size: '$size',
+};
+
+const OperatorMap = {
   $gt: '>',
   $gte: '>=',
   $lt: '<',
@@ -32,7 +46,7 @@ export const handleOperator = (
     case '$lte':
     case '$ne':
       return format(
-        `data #>> %L ${operatorMap[operator]} %L`,
+        `data #>> %L ${OperatorMap[operator]} %L`,
         `{${path.split('.').join(',')}}`,
         value,
       );
@@ -48,11 +62,18 @@ export const handleOperator = (
         `{${path.split('.').join(',')}}`,
         (value as unknown[]).map((v) => format('%L', v)).join(', '),
       );
-    case '$elemMatch':
+    case '$elemMatch': {
+      const subQuery = Object.entries(value as Record<string, unknown>)
+        .map(([subKey, subValue]) =>
+          format(`@."%s" == %s`, subKey, JSON.stringify(subValue)),
+        )
+        .join(' && ');
       return format(
-        'data @> %L::jsonb',
-        JSON.stringify(buildNestedObject(path, { $elemMatch: value })),
+        `jsonb_path_exists(data, '$.%s[*] ? (%s)')`,
+        path,
+        subQuery,
       );
+    }
     case '$all':
       return format(
         'data @> %L::jsonb',
