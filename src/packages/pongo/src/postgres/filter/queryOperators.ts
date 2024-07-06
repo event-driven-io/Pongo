@@ -1,5 +1,4 @@
 import format from 'pg-format';
-import { buildNestedObject } from '.';
 
 const operatorMap = {
   $gt: '>',
@@ -9,14 +8,16 @@ const operatorMap = {
   $ne: '!=',
 };
 
+export const isOperator = (key: string) => key.startsWith('$');
+
 export const hasOperators = (value: Record<string, unknown>) =>
-  Object.keys(value).some((k) => k.startsWith('$'));
+  Object.keys(value).some(isOperator);
 
 export const handleOperator = (
   path: string,
   operator: string,
   value: unknown,
-) => {
+): string => {
   switch (operator) {
     case '$eq':
       return format(
@@ -67,3 +68,12 @@ export const handleOperator = (
       throw new Error(`Unsupported operator: ${operator}`);
   }
 };
+
+const buildNestedObject = (
+  path: string,
+  value: unknown,
+): Record<string, unknown> =>
+  path
+    .split('.')
+    .reverse()
+    .reduce((acc, key) => ({ [key]: acc }), value as Record<string, unknown>);
