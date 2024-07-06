@@ -77,7 +77,7 @@ void describe('MongoDB Compatibility Tests', () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
       const mongoCollection = mongoDb.collection<User>('testCollection');
 
-      const doc = { name: 'Alice', age: 25 };
+      const doc = { name: 'Anita', age: 25 };
 
       const pongoInsertResult = await pongoCollection.insertOne(doc);
       const mongoInsertResult = await mongoCollection.insertOne(doc);
@@ -109,7 +109,7 @@ void describe('MongoDB Compatibility Tests', () => {
     void it('should update a document in both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
       const mongoCollection = mongoDb.collection<User>('testCollection');
-      const doc = { name: 'Bob', age: 30 };
+      const doc = { name: 'Roger', age: 30 };
 
       const pongoInsertResult = await pongoCollection.insertOne(doc);
       const mongoInsertResult = await mongoCollection.insertOne(doc);
@@ -149,7 +149,7 @@ void describe('MongoDB Compatibility Tests', () => {
     void it('should delete a document from both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
       const mongoCollection = mongoDb.collection<User>('testCollection');
-      const doc = { name: 'Charlie', age: 35 };
+      const doc = { name: 'Cruella', age: 35 };
 
       const pongoInsertResult = await pongoCollection.insertOne(doc);
       const mongoInsertResult = await mongoCollection.insertOne(doc);
@@ -278,17 +278,17 @@ void describe('MongoDB Compatibility Tests', () => {
 
       const docs = [
         {
-          name: 'Alice',
+          name: 'Anita',
           age: 25,
           address: { city: 'Wonderland', street: 'Main St' },
         },
         {
-          name: 'Bob',
+          name: 'Roger',
           age: 30,
           address: { city: 'Wonderland', street: 'Elm St' },
         },
         {
-          name: 'Charlie',
+          name: 'Cruella',
           age: 35,
           address: { city: 'Dreamland', street: 'Oak St' },
         },
@@ -329,17 +329,17 @@ void describe('MongoDB Compatibility Tests', () => {
 
       const docs = [
         {
-          name: 'Alice',
+          name: 'Anita',
           age: 25,
           address: { city: 'Wonderland', street: 'Main St' },
         },
         {
-          name: 'Bob',
+          name: 'Roger',
           age: 30,
           address: { city: 'Wonderland', street: 'Elm St' },
         },
         {
-          name: 'Charlie',
+          name: 'Cruella',
           age: 35,
           address: { city: 'Dreamland', street: 'Oak St' },
         },
@@ -380,9 +380,9 @@ void describe('MongoDB Compatibility Tests', () => {
       const mongoCollection = mongoDb.collection<User>('testCollection');
 
       const docs = [
-        { name: 'Alice', age: 25, tags: ['tag1', 'tag2'] },
-        { name: 'Bob', age: 30, tags: ['tag2', 'tag3'] },
-        { name: 'Charlie', age: 35, tags: ['tag1', 'tag3'] },
+        { name: 'Anita', age: 25, tags: ['tag1', 'tag2'] },
+        { name: 'Roger', age: 30, tags: ['tag2', 'tag3'] },
+        { name: 'Cruella', age: 35, tags: ['tag1', 'tag3'] },
       ];
 
       await pongoCollection.insertOne(docs[0]!);
@@ -407,9 +407,9 @@ void describe('MongoDB Compatibility Tests', () => {
       const mongoCollection = mongoDb.collection<User>('testCollection');
 
       const docs = [
-        { name: 'Alice', age: 25, tags: ['tag1', 'tag2'] },
-        { name: 'Bob', age: 30, tags: ['tag2', 'tag3'] },
-        { name: 'Charlie', age: 35, tags: ['tag1', 'tag3'] },
+        { name: 'Anita', age: 25, tags: ['tag1', 'tag2'] },
+        { name: 'Roger', age: 30, tags: ['tag2', 'tag3'] },
+        { name: 'Cruella', age: 35, tags: ['tag1', 'tag3'] },
       ];
 
       await pongoCollection.insertOne(docs[0]!);
@@ -438,9 +438,9 @@ void describe('MongoDB Compatibility Tests', () => {
       const mongoCollection = mongoDb.collection<User>('testCollection');
 
       const docs = [
-        { name: 'Alice', age: 25, tags: ['tag1', 'tag2'] },
-        { name: 'Bob', age: 30, tags: ['tag2', 'tag3'] },
-        { name: 'Charlie', age: 35, tags: ['tag1', 'tag3'] },
+        { name: 'Anita', age: 25, tags: ['tag1', 'tag2'] },
+        { name: 'Roger', age: 30, tags: ['tag2', 'tag3'] },
+        { name: 'Cruella', age: 35, tags: ['tag1', 'tag3'] },
       ];
 
       await pongoCollection.insertOne(docs[0]!);
@@ -464,13 +464,13 @@ void describe('MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it.skip('should find documents with a nested array element match filter in both PostgreSQL and MongoDB', async () => {
+    void it('should find documents with a nested array element match filter in both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
       const mongoCollection = mongoDb.collection<User>('testCollection');
 
       const docs = [
         {
-          name: 'Alice',
+          name: 'Anita',
           age: 25,
           address: {
             city: 'Wonderland',
@@ -479,7 +479,7 @@ void describe('MongoDB Compatibility Tests', () => {
           },
         },
         {
-          name: 'Bob',
+          name: 'Roger',
           age: 30,
           address: {
             city: 'Wonderland',
@@ -488,7 +488,7 @@ void describe('MongoDB Compatibility Tests', () => {
           },
         },
         {
-          name: 'Charlie',
+          name: 'Cruella',
           age: 35,
           address: {
             city: 'Dreamland',
