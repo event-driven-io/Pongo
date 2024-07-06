@@ -9,30 +9,23 @@ const operatorMap = {
   $ne: '!=',
 };
 
-export const constructFilterQuery = <T>(filter: PongoFilter<T>): string => {
-  const filters = Object.entries(filter).map(([key, value]) => {
-    if (typeof value === 'object' && !Array.isArray(value) && value !== null) {
-      return constructComplexFilterQuery(key, value as Record<string, unknown>);
-    } else {
-      return constructSimpleFilterQuery(key, value);
-    }
-  });
-  return filters.join(' AND ');
-};
+export const constructFilterQuery = <T>(filter: PongoFilter<T>): string =>
+  Object.entries(filter)
+    .map(([key, value]) =>
+      value !== null && typeof value === 'object' && !Array.isArray(value)
+        ? constructComplexFilterQuery(key, value as Record<string, unknown>)
+        : constructSimpleFilterQuery(key, value),
+    )
+    .join(' AND ');
 
-const constructSimpleFilterQuery = (key: string, value: unknown): string => {
-  const path = constructJsonPath(key);
-  return format(
-    'data @> %L::jsonb',
-    JSON.stringify(buildNestedObject(path, value)),
-  );
-};
+const constructSimpleFilterQuery = (key: string, value: unknown): string =>
+  format('data @> %L::jsonb', JSON.stringify(buildNestedObject(key, value)));
 
 const constructComplexFilterQuery = (
   key: string,
   value: Record<string, unknown>,
 ): string => {
-  const path = constructJsonPath(key);
+  const path = key;
 
   if (Object.keys(value).some((k) => k.startsWith('$'))) {
     // Handle MongoDB-like operators
@@ -104,8 +97,4 @@ const buildNestedObject = (
     .split('.')
     .reverse()
     .reduce((acc, key) => ({ [key]: acc }), value as Record<string, unknown>);
-};
-
-const constructJsonPath = (key: string): string => {
-  return key.split('.').join('.');
 };
