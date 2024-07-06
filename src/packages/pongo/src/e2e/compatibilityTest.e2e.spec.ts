@@ -11,7 +11,20 @@ import { Db as MongoDb, MongoClient as OriginalMongoClient } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
 import { MongoClient, endAllPools, type Db } from '../';
 
-type User = { name: string; age: number };
+type History = { street: string };
+type Address = {
+  city: string;
+  street?: string;
+  zip?: string;
+  history?: History[];
+};
+
+type User = {
+  name: string;
+  age: number;
+  address?: Address;
+  tags?: string[];
+};
 
 void describe('MongoDB Compatibility Tests', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -209,6 +222,308 @@ void describe('MongoDB Compatibility Tests', () => {
           name: mongoDoc!.name,
           age: mongoDoc!.age,
         },
+      );
+    });
+
+    void it('should find documents with a nested property filter in both PostgreSQL and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>('testCollection');
+      const mongoCollection = mongoDb.collection<User>('testCollection');
+
+      const docs = [
+        {
+          name: 'David',
+          age: 40,
+          address: { city: 'Dreamland', zip: '12345' },
+        },
+        { name: 'Eve', age: 45, address: { city: 'Wonderland', zip: '67890' } },
+        {
+          name: 'Frank',
+          age: 50,
+          address: { city: 'Nightmare', zip: '54321' },
+        },
+      ];
+
+      await pongoCollection.insertOne(docs[0]!);
+      await pongoCollection.insertOne(docs[1]!);
+      await pongoCollection.insertOne(docs[2]!);
+
+      await mongoCollection.insertOne(docs[0]!);
+      await mongoCollection.insertOne(docs[1]!);
+      await mongoCollection.insertOne(docs[2]!);
+
+      const pongoDocs = await pongoCollection
+        .find({ 'address.city': 'Wonderland' })
+        .toArray();
+      const mongoDocs = await mongoCollection
+        .find({ 'address.city': 'Wonderland' })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({
+          name: d.name,
+          age: d.age,
+          address: d.address,
+        })),
+        mongoDocs.map((d) => ({
+          name: d.name,
+          age: d.age,
+          address: d.address,
+        })),
+      );
+    });
+
+    void it('should find documents with multiple nested property filters in both PostgreSQL and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>('testCollection');
+      const mongoCollection = mongoDb.collection<User>('testCollection');
+
+      const docs = [
+        {
+          name: 'Alice',
+          age: 25,
+          address: { city: 'Wonderland', street: 'Main St' },
+        },
+        {
+          name: 'Bob',
+          age: 30,
+          address: { city: 'Wonderland', street: 'Elm St' },
+        },
+        {
+          name: 'Charlie',
+          age: 35,
+          address: { city: 'Dreamland', street: 'Oak St' },
+        },
+      ];
+
+      await pongoCollection.insertOne(docs[0]!);
+      await pongoCollection.insertOne(docs[1]!);
+      await pongoCollection.insertOne(docs[2]!);
+
+      await mongoCollection.insertOne(docs[0]!);
+      await mongoCollection.insertOne(docs[1]!);
+      await mongoCollection.insertOne(docs[2]!);
+
+      const pongoDocs = await pongoCollection
+        .find({ 'address.city': 'Wonderland', 'address.street': 'Elm St' })
+        .toArray();
+      const mongoDocs = await mongoCollection
+        .find({ 'address.city': 'Wonderland', 'address.street': 'Elm St' })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({
+          name: d.name,
+          age: d.age,
+          address: d.address,
+        })),
+        mongoDocs.map((d) => ({
+          name: d.name,
+          age: d.age,
+          address: d.address,
+        })),
+      );
+    });
+
+    void it('should find documents with multiple nested property object filters in both PostgreSQL and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>('testCollection');
+      const mongoCollection = mongoDb.collection<User>('testCollection');
+
+      const docs = [
+        {
+          name: 'Alice',
+          age: 25,
+          address: { city: 'Wonderland', street: 'Main St' },
+        },
+        {
+          name: 'Bob',
+          age: 30,
+          address: { city: 'Wonderland', street: 'Elm St' },
+        },
+        {
+          name: 'Charlie',
+          age: 35,
+          address: { city: 'Dreamland', street: 'Oak St' },
+        },
+      ];
+
+      await pongoCollection.insertOne(docs[0]!);
+      await pongoCollection.insertOne(docs[1]!);
+      await pongoCollection.insertOne(docs[2]!);
+
+      await mongoCollection.insertOne(docs[0]!);
+      await mongoCollection.insertOne(docs[1]!);
+      await mongoCollection.insertOne(docs[2]!);
+
+      //const pongoDocs: User[] = [];
+      const pongoDocs = await pongoCollection
+        .find({ address: { city: 'Wonderland', street: 'Elm St' } })
+        .toArray();
+      const mongoDocs = await mongoCollection
+        .find({ address: { city: 'Wonderland', street: 'Elm St' } })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({
+          name: d.name,
+          age: d.age,
+          address: d.address,
+        })),
+        mongoDocs.map((d) => ({
+          name: d.name,
+          age: d.age,
+          address: d.address,
+        })),
+      );
+    });
+
+    void it.skip('should find documents with an array filter in both PostgreSQL and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>('testCollection');
+      const mongoCollection = mongoDb.collection<User>('testCollection');
+
+      const docs = [
+        { name: 'Alice', age: 25, tags: ['tag1', 'tag2'] },
+        { name: 'Bob', age: 30, tags: ['tag2', 'tag3'] },
+        { name: 'Charlie', age: 35, tags: ['tag1', 'tag3'] },
+      ];
+
+      await pongoCollection.insertOne(docs[0]!);
+      await pongoCollection.insertOne(docs[1]!);
+      await pongoCollection.insertOne(docs[2]!);
+
+      await mongoCollection.insertOne(docs[0]!);
+      await mongoCollection.insertOne(docs[1]!);
+      await mongoCollection.insertOne(docs[2]!);
+
+      const pongoDocs = await pongoCollection.find({ tags: 'tag1' }).toArray();
+      const mongoDocs = await mongoCollection.find({ tags: 'tag1' }).toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({ name: d.name, age: d.age, tags: d.tags })),
+        mongoDocs.map((d) => ({ name: d.name, age: d.age, tags: d.tags })),
+      );
+    });
+
+    void it('should find documents with multiple array filters in both PostgreSQL and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>('testCollection');
+      const mongoCollection = mongoDb.collection<User>('testCollection');
+
+      const docs = [
+        { name: 'Alice', age: 25, tags: ['tag1', 'tag2'] },
+        { name: 'Bob', age: 30, tags: ['tag2', 'tag3'] },
+        { name: 'Charlie', age: 35, tags: ['tag1', 'tag3'] },
+      ];
+
+      await pongoCollection.insertOne(docs[0]!);
+      await pongoCollection.insertOne(docs[1]!);
+      await pongoCollection.insertOne(docs[2]!);
+
+      await mongoCollection.insertOne(docs[0]!);
+      await mongoCollection.insertOne(docs[1]!);
+      await mongoCollection.insertOne(docs[2]!);
+
+      const pongoDocs = await pongoCollection
+        .find({ tags: { $all: ['tag1', 'tag2'] } })
+        .toArray();
+      const mongoDocs = await mongoCollection
+        .find({ tags: { $all: ['tag1', 'tag2'] } })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({ name: d.name, age: d.age, tags: d.tags })),
+        mongoDocs.map((d) => ({ name: d.name, age: d.age, tags: d.tags })),
+      );
+    });
+
+    void it.skip('should find documents with an array element match filter in both PostgreSQL and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>('testCollection');
+      const mongoCollection = mongoDb.collection<User>('testCollection');
+
+      const docs = [
+        { name: 'Alice', age: 25, tags: ['tag1', 'tag2'] },
+        { name: 'Bob', age: 30, tags: ['tag2', 'tag3'] },
+        { name: 'Charlie', age: 35, tags: ['tag1', 'tag3'] },
+      ];
+
+      await pongoCollection.insertOne(docs[0]!);
+      await pongoCollection.insertOne(docs[1]!);
+      await pongoCollection.insertOne(docs[2]!);
+
+      await mongoCollection.insertOne(docs[0]!);
+      await mongoCollection.insertOne(docs[1]!);
+      await mongoCollection.insertOne(docs[2]!);
+
+      const pongoDocs = await pongoCollection
+        .find({ tags: { $elemMatch: { $eq: 'tag1' } } })
+        .toArray();
+      const mongoDocs = await mongoCollection
+        .find({ tags: { $elemMatch: { $eq: 'tag1' } } })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({ name: d.name, age: d.age, tags: d.tags })),
+        mongoDocs.map((d) => ({ name: d.name, age: d.age, tags: d.tags })),
+      );
+    });
+
+    void it.skip('should find documents with a nested array element match filter in both PostgreSQL and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>('testCollection');
+      const mongoCollection = mongoDb.collection<User>('testCollection');
+
+      const docs = [
+        {
+          name: 'Alice',
+          age: 25,
+          address: {
+            city: 'Wonderland',
+            zip: '12345',
+            history: [{ street: 'Main St' }, { street: 'Elm St' }],
+          },
+        },
+        {
+          name: 'Bob',
+          age: 30,
+          address: {
+            city: 'Wonderland',
+            zip: '67890',
+            history: [{ street: 'Main St' }, { street: 'Oak St' }],
+          },
+        },
+        {
+          name: 'Charlie',
+          age: 35,
+          address: {
+            city: 'Dreamland',
+            zip: '54321',
+            history: [{ street: 'Elm St' }],
+          },
+        },
+      ];
+
+      await pongoCollection.insertOne(docs[0]!);
+      await pongoCollection.insertOne(docs[1]!);
+      await pongoCollection.insertOne(docs[2]!);
+
+      await mongoCollection.insertOne(docs[0]!);
+      await mongoCollection.insertOne(docs[1]!);
+      await mongoCollection.insertOne(docs[2]!);
+
+      const pongoDocs = await pongoCollection
+        .find({ 'address.history': { $elemMatch: { street: 'Elm St' } } })
+        .toArray();
+      const mongoDocs = await mongoCollection
+        .find({ 'address.history': { $elemMatch: { street: 'Elm St' } } })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({
+          name: d.name,
+          age: d.age,
+          address: d.address,
+        })),
+        mongoDocs.map((d) => ({
+          name: d.name,
+          age: d.age,
+          address: d.address,
+        })),
       );
     });
   });
