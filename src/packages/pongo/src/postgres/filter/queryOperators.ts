@@ -15,13 +15,15 @@ export const hasOperators = (value: Record<string, unknown>) =>
 export const handleOperator = (
   path: string,
   operator: string,
-  val: unknown,
+  value: unknown,
 ) => {
   switch (operator) {
     case '$eq':
       return format(
-        'data @> %L::jsonb',
-        JSON.stringify(buildNestedObject(path, val)),
+        `(data @> %L::jsonb OR jsonb_path_exists(data, '$.%s[*] ? (@ == %s)'))`,
+        JSON.stringify(buildNestedObject(path, value)),
+        path,
+        JSON.stringify(value),
       );
     case '$gt':
     case '$gte':
@@ -31,35 +33,35 @@ export const handleOperator = (
       return format(
         `data #>> %L ${operatorMap[operator]} %L`,
         `{${path.split('.').join(',')}}`,
-        val,
+        value,
       );
     case '$in':
       return format(
         'data #>> %L IN (%s)',
         `{${path.split('.').join(',')}}`,
-        (val as unknown[]).map((v) => format('%L', v)).join(', '),
+        (value as unknown[]).map((v) => format('%L', v)).join(', '),
       );
     case '$nin':
       return format(
         'data #>> %L NOT IN (%s)',
         `{${path.split('.').join(',')}}`,
-        (val as unknown[]).map((v) => format('%L', v)).join(', '),
+        (value as unknown[]).map((v) => format('%L', v)).join(', '),
       );
     case '$elemMatch':
       return format(
         'data @> %L::jsonb',
-        JSON.stringify(buildNestedObject(path, { $elemMatch: val })),
+        JSON.stringify(buildNestedObject(path, { $elemMatch: value })),
       );
     case '$all':
       return format(
         'data @> %L::jsonb',
-        JSON.stringify(buildNestedObject(path, val)),
+        JSON.stringify(buildNestedObject(path, value)),
       );
     case '$size':
       return format(
         'jsonb_array_length(data #> %L) = %L',
         `{${path.split('.').join(',')}}`,
-        val,
+        value,
       );
     default:
       throw new Error(`Unsupported operator: ${operator}`);

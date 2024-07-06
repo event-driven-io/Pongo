@@ -375,7 +375,7 @@ void describe('MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it.skip('should find documents with an array filter in both PostgreSQL and MongoDB', async () => {
+    void it('should find documents with an array filter in both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
       const mongoCollection = mongoDb.collection<User>('testCollection');
 
