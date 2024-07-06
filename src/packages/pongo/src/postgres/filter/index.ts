@@ -14,7 +14,12 @@ export const constructFilterQuery = <T>(filter: PongoFilter<T>): string =>
     .join(` ${AND} `);
 
 const constructSimpleFilterQuery = (key: string, value: unknown): string =>
-  format('data @> %L::jsonb', JSON.stringify(buildNestedObject(key, value)));
+  format(
+    `(data @> %L::jsonb OR jsonb_path_exists(data, '$.%s[*] ? (@ == %s)'))`,
+    JSON.stringify(buildNestedObject(key, value)),
+    key,
+    JSON.stringify(value),
+  );
 
 const constructComplexFilterQuery = (
   key: string,
