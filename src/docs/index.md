@@ -4,8 +4,8 @@ layout: home
 
 hero:
   name: 'Pongo'
-  text: 'Event Sourcing development made simple'
-  tagline: Take your event-driven applications back to the future!
+  text: 'Like Mongo<br/>But on Postgres<br/>And<br/>Strong Consistency'
+  tagline: 'Flexibility or Consistency? Why not both!'
   image:
     src: /logo.png
     alt: Pongo logo
@@ -14,17 +14,14 @@ hero:
       text: Getting Started
       link: /getting-started
     - theme: alt
-      text: API Docs
-      link: /api-docs
-    - theme: alt
       text: 🧑‍💻 Join Discord Server
       link: https://discord.gg/fTpqUTMmVa
 
 features:
+  - title: Keep your data consistent
+    details: Don't be afraid of getting inconsistent state
   - title: DevExperience as prime goal
     details: Reduce the boilerplate, and focus on delivery with accessible tooling
-  - title: Gain insights from your data
-    details: Unleash the power of your data with Event Sourcing capabilities
-  - title: All patterns in one place
-    details: Use Decider, Workflow and other event-driven best practices seamlessly
+  - title: Known experience, new capabilities
+    details: Keep your muscle memory, but get new tricks and TypeScript superpowers
 ---
