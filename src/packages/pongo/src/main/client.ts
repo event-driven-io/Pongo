@@ -1,5 +1,5 @@
 import { getDbClient } from './dbClient';
-import type { PongoClient, PongoDb } from './typing';
+import type { PongoClient, PongoDb } from './typing/operations';
 
 export const pongoClient = (connectionString: string): PongoClient => {
   const dbClient = getDbClient(connectionString);
