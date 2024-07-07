@@ -41,7 +41,7 @@ const cruella = { _id: uuid(), name: "Cruella", age: 40 };
 await pongoCollection.insertOne(roger);
 await pongoCollection.insertOne(cruella);
 
-const { insertedId } = await pongoCollection.insertOne(alice);
+const { insertedId } = await pongoCollection.insertOne(anita);
 const anitaId = insertedId;
 
 // Updating
@@ -80,7 +80,7 @@ const cruella = { _id: uuid(), name: "Cruella", age: 40 };
 await pongoCollection.insertOne(roger);
 await pongoCollection.insertOne(cruella);
 
-const { insertedId } = await pongoCollection.insertOne(alice);
+const { insertedId } = await pongoCollection.insertOne(anita);
 const anitaId = insertedId;
 
 // Updating
