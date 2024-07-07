@@ -13,7 +13,7 @@ import { executeSQL } from './execute';
 import { constructFilterQuery } from './filter';
 import { endPool, getPool } from './pool';
 import { sql } from './sql';
-import { constructUpdateQuery } from './update';
+import { buildUpdateQuery } from './update';
 
 export const postgresClient = (
   connectionString: string,
@@ -69,7 +69,7 @@ export const postgresCollection = <T>(
       await createCollection;
 
       const filterQuery = constructFilterQuery(filter);
-      const updateQuery = constructUpdateQuery(update);
+      const updateQuery = buildUpdateQuery(update);
 
       const result = await executeSQL(
         pool,
