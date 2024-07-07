@@ -29,7 +29,7 @@ type User = { name: string; age: number };
 const connectionString =
   "postgresql://dbuser:secretpassword@database.server.com:3211/mydb";
 
-const pongoClient = pongoClient(postgresConnectionString);
+const pongoClient = pongoClient(connectionString);
 const pongoDb = pongoClient.db();
 
 const users = pongoDb.collection<User>("users");
