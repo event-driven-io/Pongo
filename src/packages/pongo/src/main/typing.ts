@@ -37,11 +37,16 @@ export type PongoFilterOperator<T> = {
   $nin?: T[];
 };
 
+export type $set<T> = Partial<T>;
+export type $unset<T> = { [P in keyof T]?: '' };
+export type $inc<T> = { [P in keyof T]?: number };
+export type $push<T> = { [P in keyof T]?: T[P] };
+
 export type PongoUpdate<T> = {
   $set?: Partial<T>;
-  $unset?: { [P in keyof T]?: '' };
-  $inc?: { [P in keyof T]?: number };
-  $push?: { [P in keyof T]?: T[P] };
+  $unset?: $unset<T>;
+  $inc?: $inc<T>;
+  $push?: $push<T>;
 };
 
 export interface PongoInsertOneResult {
