@@ -96,6 +96,37 @@ const anitaFromDb = await pongoCollection.findOne({ _id: anitaId });
 const users = await pongoCollection.find({ age: { $lt: 40 } }).toArray();
 ```
 
+## How does it work?
+
+**Pongo treats PostgreSQL as a Document Database benefiting from JSONB support.** Unlike the plain text storage of the traditional JSON type, JSONB stores JSON data in a binary format. This simple change brings significant advantages in terms of performance and storage efficiency.
+
+Pongo uses the following table structure for storing collections:
+
+```sql
+CREATE TABLE IF NOT EXISTS "YourCollectionName" (
+    _id UUID PRIMARY KEY,
+    data JSONB
+)
+```
+
+**The binary format of JSONB means that data is pre-parsed, allowing faster read and write operations than text-based JSON.** You don't have to re-parse the data every time you query it, which saves processing time and improves overall performance. Additionally, JSONB supports advanced indexing options like GIN and GiST indexes, making searches within JSONB documents much quicker and more efficient.
+
+Moreover, JSONB retains the flexibility of storing semi-structured data while allowing you to use PostgreSQL's robust querying capabilities. You can perform complex queries, joins, and transactions with JSONB data, just as you can with regular relational data.
+
+**Contrary to common belief, JSON document data is structured.** JSON has structure, but it is not enforced for each document. We can easily extend the schema for our documents, even for specific ones, by adding new fields. We should also not fail if the field we expect to exist, but doesn't.
+
+This flexibility, performance, and consistency combination makes PostgreSQL with JSONB a powerful tool. There are benchmarks showing that it can be even faster than MongoDB.
+
+Pongo is a similar concept to [Marten](https://martendb.io/) and AWS DocumentDB (see [here](https://www.enterprisedb.com/blog/documentdb-really-postgresql) or [there](https://news.ycombinator.com/item?id=18870397), they seem to be using Mongo syntactic sugar on top of AuroraDB with Postgres).
+
+Check more in:
+
+- [JSON Types Documentation](https://www.postgresql.org/docs/current/datatype-json.html)
+- [JSON Functions and Operators](https://www.postgresql.org/docs/current/functions-json.html)
+- [PostgreSQL, JSONB and GIN Indexes by](https://pganalyze.com/blog/gin-index#postgresql-jsonb-and-gin-indexes)
+- [MongoDB vs PostgreSQL JSONB Benchmark](https://info.enterprisedb.com/rs/069-ALB-339/images/PostgreSQL_MongoDB_Benchmark-WhitepaperFinal.pdf)
+- [How to JSON in PostgreSQL](https://ftisiot.net/postgresqljson/main/)
+
 ## Is it production ready?
 
 What's there it's safe to use, but it's far from being 100% compliant with MongoDB.
