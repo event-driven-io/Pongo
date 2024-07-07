@@ -18,24 +18,6 @@ export const buildUpdateQuery = <T>(update: PongoUpdate<T>): SQL =>
     }
   }, sql('data'));
 
-export const buildUpdateQueryOld = <T>(update: PongoUpdate<T>): SQL => {
-  let updateQuery = sql('data');
-
-  if ('$set' in update && update.$set)
-    updateQuery = buildSetQuery(update.$set, updateQuery);
-
-  if ('$unset' in update && update.$unset)
-    updateQuery = buildUnsetQuery(update.$unset, updateQuery);
-
-  if ('$inc' in update && update.$inc)
-    updateQuery = buildIncQuery(update.$inc, updateQuery);
-
-  if ('$push' in update && update.$push)
-    updateQuery = buildPushQuery(update.$push, updateQuery);
-
-  return updateQuery;
-};
-
 export const buildSetQuery = <T>(set: $set<T>, currentUpdateQuery: SQL): SQL =>
   sql(
     'jsonb_set(%s, %L, data || %L)',
