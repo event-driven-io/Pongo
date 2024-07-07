@@ -36,11 +36,11 @@ export const constructUpdateQuery = <T>(update: PongoUpdate<T>): string => {
     const pushUpdate = update.$push!;
     for (const [key, value] of Object.entries(pushUpdate)) {
       updateQuery = format(
-        "jsonb_set(%s, '{%s}', (COALESCE(data->'%s', '[]'::jsonb) || to_jsonb(%L)))",
+        "jsonb_set(%s, '{%s}', (COALESCE(data->'%s', '[]'::jsonb) || '[%s]'::jsonb))",
         updateQuery,
         key,
         key,
-        value,
+        JSON.stringify(value),
       );
     }
   }
