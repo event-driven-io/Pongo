@@ -9,9 +9,10 @@ import {
   type PongoUpdate,
   type PongoUpdateResult,
 } from '../main';
-import { sql } from './execute';
+import { executeSQL } from './execute';
 import { constructFilterQuery } from './filter';
 import { endPool, getPool } from './pool';
+import { sql } from './sql';
 import { constructUpdateQuery } from './update';
 
 export const postgresClient = (
@@ -31,10 +32,12 @@ export const postgresCollection = <T>(
   collectionName: string,
   pool: pg.Pool,
 ): PongoCollection<T> => {
-  const createCollection = sql(
+  const createCollection = executeSQL(
     pool,
-    'CREATE TABLE IF NOT EXISTS %I (_id UUID PRIMARY KEY, data JSONB)',
-    collectionName,
+    sql(
+      'CREATE TABLE IF NOT EXISTS %I (_id UUID PRIMARY KEY, data JSONB)',
+      collectionName,
+    ),
   );
   return {
     createCollection: async () => {
@@ -45,12 +48,14 @@ export const postgresCollection = <T>(
 
       const id = uuid();
 
-      const result = await sql(
+      const result = await executeSQL(
         pool,
-        'INSERT INTO %I (_id, data) VALUES (%L, %L)',
-        collectionName,
-        id,
-        JSON.stringify({ ...document, _id: id }),
+        sql(
+          'INSERT INTO %I (_id, data) VALUES (%L, %L)',
+          collectionName,
+          id,
+          JSON.stringify({ ...document, _id: id }),
+        ),
       );
 
       return result.rowCount
@@ -66,12 +71,14 @@ export const postgresCollection = <T>(
       const filterQuery = constructFilterQuery(filter);
       const updateQuery = constructUpdateQuery(update);
 
-      const result = await sql(
+      const result = await executeSQL(
         pool,
-        'UPDATE %I SET data = %s WHERE %s',
-        collectionName,
-        updateQuery,
-        filterQuery,
+        sql(
+          'UPDATE %I SET data = %s WHERE %s',
+          collectionName,
+          updateQuery,
+          filterQuery,
+        ),
       );
       return result.rowCount
         ? { acknowledged: true, modifiedCount: result.rowCount }
@@ -81,11 +88,9 @@ export const postgresCollection = <T>(
       await createCollection;
 
       const filterQuery = constructFilterQuery(filter);
-      const result = await sql(
+      const result = await executeSQL(
         pool,
-        'DELETE FROM %I WHERE %s',
-        collectionName,
-        filterQuery,
+        sql('DELETE FROM %I WHERE %s', collectionName, filterQuery),
       );
       return result.rowCount
         ? { acknowledged: true, deletedCount: result.rowCount }
@@ -95,11 +100,13 @@ export const postgresCollection = <T>(
       await createCollection;
 
       const filterQuery = constructFilterQuery(filter);
-      const result = await sql(
+      const result = await executeSQL(
         pool,
-        'SELECT data FROM %I WHERE %s LIMIT 1',
-        collectionName,
-        filterQuery,
+        sql(
+          'SELECT data FROM %I WHERE %s LIMIT 1',
+          collectionName,
+          filterQuery,
+        ),
       );
       return (result.rows[0]?.data ?? null) as T | null;
     },
@@ -107,11 +114,9 @@ export const postgresCollection = <T>(
       await createCollection;
 
       const filterQuery = constructFilterQuery(filter);
-      const result = await sql(
+      const result = await executeSQL(
         pool,
-        'SELECT data FROM %I WHERE %s',
-        collectionName,
-        filterQuery,
+        sql('SELECT data FROM %I WHERE %s', collectionName, filterQuery),
       );
 
       return result.rows.map((row) => row.data as T);

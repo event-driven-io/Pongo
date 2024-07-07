@@ -167,6 +167,120 @@ void describe('MongoDB Compatibility Tests', () => {
       assert.strictEqual(pongoDoc, null);
       assert.strictEqual(mongoDoc, null);
     });
+
+    void it('should update a document in both PostgreSQL and MongoDB using $unset', async () => {
+      const pongoCollection = pongoDb.collection<User>('testCollection');
+      const mongoCollection = mongoDb.collection<User>('testCollection');
+      const doc = { name: 'Roger', age: 30, address: { city: 'Wonderland' } };
+
+      const pongoInsertResult = await pongoCollection.insertOne(doc);
+      const mongoInsertResult = await mongoCollection.insertOne(doc);
+
+      await pongoCollection.updateOne(
+        { _id: pongoInsertResult.insertedId },
+        { $unset: { address: '' } },
+      );
+      await mongoCollection.updateOne(
+        { _id: mongoInsertResult.insertedId },
+        { $unset: { address: '' } },
+      );
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: mongoInsertResult.insertedId,
+      });
+
+      assert.deepStrictEqual(
+        {
+          name: pongoDoc!.name,
+          age: pongoDoc!.age,
+          address: undefined,
+        },
+        {
+          name: mongoDoc!.name,
+          age: mongoDoc!.age,
+          address: undefined,
+        },
+      );
+    });
+
+    void it('should update a document in both PostgreSQL and MongoDB using $inc', async () => {
+      const pongoCollection = pongoDb.collection<User>('testCollection');
+      const mongoCollection = mongoDb.collection<User>('testCollection');
+      const doc = { name: 'Roger', age: 30 };
+
+      const pongoInsertResult = await pongoCollection.insertOne(doc);
+      const mongoInsertResult = await mongoCollection.insertOne(doc);
+
+      const update = { $inc: { age: 1 } };
+
+      await pongoCollection.updateOne(
+        { _id: pongoInsertResult.insertedId },
+        update,
+      );
+      await mongoCollection.updateOne(
+        { _id: mongoInsertResult.insertedId },
+        update,
+      );
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: mongoInsertResult.insertedId,
+      });
+
+      assert.deepStrictEqual(
+        {
+          name: pongoDoc!.name,
+          age: 31,
+        },
+        {
+          name: mongoDoc!.name,
+          age: 31,
+        },
+      );
+    });
+
+    void it('should update a document in both PostgreSQL and MongoDB using $push', async () => {
+      const pongoCollection = pongoDb.collection<User>('testCollection');
+      const mongoCollection = mongoDb.collection<User>('testCollection');
+      const doc = { name: 'Roger', age: 30, tags: ['tag1'] };
+
+      const pongoInsertResult = await pongoCollection.insertOne(doc);
+      const mongoInsertResult = await mongoCollection.insertOne(doc);
+
+      await pongoCollection.updateOne(
+        { _id: pongoInsertResult.insertedId },
+        { $push: { tags: 'tag2' } },
+      );
+      await mongoCollection.updateOne(
+        { _id: mongoInsertResult.insertedId },
+        { $push: { tags: 'tag2' } },
+      );
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: mongoInsertResult.insertedId,
+      });
+
+      assert.deepStrictEqual(
+        {
+          name: pongoDoc!.name,
+          age: pongoDoc!.age,
+          tags: ['tag1', 'tag2'],
+        },
+        {
+          name: mongoDoc!.name,
+          age: mongoDoc!.age,
+          tags: ['tag1', 'tag2'],
+        },
+      );
+    });
   });
 
   void describe('Find Operations', () => {
