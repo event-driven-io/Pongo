@@ -32,6 +32,10 @@ export const handleOperator = (
   operator: string,
   value: unknown,
 ): string => {
+  if (path === '_id') {
+    return handleIdOperator(operator, value);
+  }
+
   switch (operator) {
     case '$eq':
       return format(
@@ -84,6 +88,31 @@ export const handleOperator = (
         'jsonb_array_length(data #> %L) = %L',
         `{${path.split('.').join(',')}}`,
         value,
+      );
+    default:
+      throw new Error(`Unsupported operator: ${operator}`);
+  }
+};
+
+const handleIdOperator = (operator: string, value: unknown): string => {
+  switch (operator) {
+    case '$eq':
+      return format(`_id = %L`, value);
+    case '$gt':
+    case '$gte':
+    case '$lt':
+    case '$lte':
+    case '$ne':
+      return format(`_id ${OperatorMap[operator]} %L`, value);
+    case '$in':
+      return format(
+        `_id IN (%s)`,
+        (value as unknown[]).map((v) => format('%L', v)).join(', '),
+      );
+    case '$nin':
+      return format(
+        `_id NOT IN (%s)`,
+        (value as unknown[]).map((v) => format('%L', v)).join(', '),
       );
     default:
       throw new Error(`Unsupported operator: ${operator}`);
