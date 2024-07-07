@@ -1,7 +1,24 @@
 import type { $inc, $push, $set, $unset, PongoUpdate } from '../../main';
+import { entries } from '../../main/typing';
 import { sql, type SQL } from '../sql';
 
-export const buildUpdateQuery = <T>(update: PongoUpdate<T>): SQL => {
+export const buildUpdateQuery = <T>(update: PongoUpdate<T>): SQL =>
+  entries(update).reduce((currentUpdateQuery, [op, value]) => {
+    switch (op) {
+      case '$set':
+        return buildSetQuery(value, currentUpdateQuery);
+      case '$unset':
+        return buildUnsetQuery(value, currentUpdateQuery);
+      case '$inc':
+        return buildIncQuery(value, currentUpdateQuery);
+      case '$push':
+        return buildPushQuery(value, currentUpdateQuery);
+      default:
+        return currentUpdateQuery;
+    }
+  }, sql('data'));
+
+export const buildUpdateQueryOld = <T>(update: PongoUpdate<T>): SQL => {
   let updateQuery = sql('data');
 
   if ('$set' in update && update.$set)

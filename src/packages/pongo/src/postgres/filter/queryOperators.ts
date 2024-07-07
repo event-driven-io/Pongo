@@ -1,4 +1,5 @@
 import format from 'pg-format';
+import { entries } from '../../main/typing';
 
 export const Operators = {
   $eq: '$eq',
@@ -67,7 +68,7 @@ export const handleOperator = (
         (value as unknown[]).map((v) => format('%L', v)).join(', '),
       );
     case '$elemMatch': {
-      const subQuery = Object.entries(value as Record<string, unknown>)
+      const subQuery = entries(value as Record<string, unknown>)
         .map(([subKey, subValue]) =>
           format(`@."%s" == %s`, subKey, JSON.stringify(subValue)),
         )

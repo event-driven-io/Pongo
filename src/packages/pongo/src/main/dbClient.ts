@@ -1,5 +1,5 @@
 import { postgresClient } from '../postgres';
-import type { PongoCollection } from './typing';
+import type { PongoCollection } from './typing/operations';
 
 export interface DbClient {
   connect(): Promise<void>;
