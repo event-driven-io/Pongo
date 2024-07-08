@@ -155,7 +155,7 @@ WHERE jsonb_path_exists(
 
 Moreover, JSONB retains the flexibility of storing semi-structured data while allowing you to use PostgreSQL's robust querying capabilities. You can perform complex queries, joins, and transactions with JSONB data, just as you can with regular relational data.
 
-**Contrary to common belief, JSON document data is structured.** JSON has structure, but it is not enforced for each document. We can easily extend the schema for our documents, even for specific ones, by adding new fields. We should also not fail if the field we expect to exist, but doesn't.
+**Contrary to common belief, JSON document data is structured.** JSON has structure, but it is not enforced for each document. We can easily extend the schema for our documents, even for specific ones, by adding new fields. We should also not fail if a field we expect to exist doesn't.
 
 This flexibility, performance, and consistency combination makes PostgreSQL with JSONB a powerful tool. There are benchmarks showing that it can be even faster than MongoDB.
 
@@ -169,10 +169,10 @@ Check more in:
 
 ## Is Pongo an ORM?
 
-It's not. It's focused on effective handling of the document data specifics. Node.js ORMs have capabilites to handle JSONB, e.g. DrizzleORM has a good support for that for basic operations. Yet, they're all but limited to querying, usually for advanced ones you need to fallback to JSONPath or JSONB functions (so raw SQL). As you saw above, this syntax is not super pleasant to deal with. That's why Pongo aims to do it for you.
+It's not. It's focused on effective handling of the document data specifics. Node.js ORMs have capabilities to handle JSONB, e.g. DrizzleORM has good support for that for basic operations. Yet, they're all but limited to querying, usually for advanced ones you need to fallback to JSONPath or JSONB functions (so raw SQL). As you saw above, this syntax is not super pleasant to deal with. That's why Pongo aims to do it for you.
 
 ## Is it production ready?
 
-What's there it's safe to use, but it's far from being 100% compliant with MongoDB. Pongo is a fresh project, so some stuff can be missing.
+What's there is safe to use, but it's far from being 100% compliant with MongoDB. Pongo is a fresh project, so some stuff can be missing.
 
 Pongo is a community project, so once you find something, we encourage you to send us a GH issue or Pull Request extending the support or test coverage!
