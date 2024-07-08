@@ -4,7 +4,7 @@ const env = process.env.NODE_ENV;
 
 // https://vitepress.dev/reference/site-config
 export default defineConfig({
-  base: env === 'production' ? '/pongo/' : '/',
+  base: env === 'production' ? '/Pongo/' : '/',
   lang: 'en-GB',
   title: 'Pongo',
   description: 'Event Sourcing made simple',
@@ -16,7 +16,7 @@ export default defineConfig({
       { text: '🧑‍💻 Join Discord Server', link: 'https://discord.gg/fTpqUTMmVa' },
       {
         text: 'Release Notes',
-        link: 'https://github.com/event-driven-io/pongo/releases',
+        link: 'https://github.com/event-driven-io/Pongo/releases',
       },
     ],
 
@@ -33,7 +33,7 @@ export default defineConfig({
 
     editLink: {
       pattern:
-        'https://github.com/event-driven-io/pongo/edit/master/docs/:path',
+        'https://github.com/event-driven-io/Pongo/edit/master/docs/:path',
       text: 'Suggest changes to this page',
     },
 
@@ -63,7 +63,7 @@ export default defineConfig({
       'meta',
       {
         property: 'og:image',
-        content: 'https://event-driven-io.github.io/pongo/social.png',
+        content: 'https://event-driven-io.github.io/Pongo/social.png',
       },
     ],
     [
@@ -80,7 +80,7 @@ export default defineConfig({
       'meta',
       {
         property: 'twitter:image',
-        content: 'https://event-driven-io.github.io/pongo/social.png',
+        content: 'https://event-driven-io.github.io/Pongo/social.png',
       },
     ],
   ],
