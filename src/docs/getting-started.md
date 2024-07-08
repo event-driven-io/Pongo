@@ -187,7 +187,7 @@ Check more in:
 
 It's focused on effective handling of the document data specifics. Node.js ORMs have capabilities to handle JSONB, e.g. DrizzleORM has good support for that for basic operations.
 
-Yet, they're all but limited to querying, usually for advanced ones you need to fallback to JSONPath or JSONB functions (so raw SQL). As you saw above, this syntax is not super pleasant to deal with. That's why Pongo aims to do it for you.
+**Yet, they all have limited querying capabilities.** Usually for advanced ones you need to fallback to JSONPath or JSONB functions (so raw SQL). As you saw above, this syntax is not super pleasant to deal with. That's why Pongo aims to do it for you.
 
 ## How is it different than [FerretDB](https://docs.ferretdb.io)?
 
