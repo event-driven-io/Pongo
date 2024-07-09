@@ -205,7 +205,7 @@ What's there is safe to use, but it's far from being 100% compliant with MongoDB
 
 ## Contribution
 
-Pongo is a community project, so once you find something missing or not working, we encourage you to [send us a GH issue](https://github.com/event-driven-io/Pongo/issues/new) or [Pull Request](https://github.com/event-driven-io/Pongo/compare) extending the support or test coverage! Check also [Contributing guide](./CONTRIBUTING.md)
+Pongo is a community project, so once you find something missing or not working, we encourage you to [send us a GH issue](https://github.com/event-driven-io/Pongo/issues/new) or [Pull Request](https://github.com/event-driven-io/Pongo/compare) extending the support or test coverage! Check also [Contributing guide](https://github.com/event-driven-io/Pongo/blob/main/CONTRIBUTING.md)
 
 **If you think something is missing or want to get some features faster, I'm happy to take sponsoring to prioritise it. Feel free to [contact me](mailto:oskar@event-driven.io) - we'll find a way to help you!**
 

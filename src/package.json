@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/pongo-core",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Pongo - Mongo with strong consistency on top of Postgres",
   "type": "module",
   "engines": {
@@ -29,7 +29,8 @@
     "test:singlefile": "node --import tsx --test",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "copy:readme": "cpy '../README.md' 'packages/pongo/src'"
   },
   "repository": {
     "type": "git",
@@ -92,6 +93,7 @@
     "testcontainers": "^10.10.1"
   },
   "dependencies": {
+    "cpy-cli": "^5.0.0",
     "pg": "^8.12.0",
     "pg-format": "^1.0.4"
   },
