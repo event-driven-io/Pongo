@@ -15,7 +15,7 @@ hero:
       link: /getting-started
     - theme: alt
       text: 🧑‍💻 Join Discord Server
-      link: https://discord.gg/fTpqUTMmVa
+      link: https://discord.gg/kHkSThjG
 
 features:
   - title: Keep your data consistent
