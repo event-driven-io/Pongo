@@ -59,6 +59,6 @@
     "dist"
   ],
   "dependencies": {
-    "@event-driven-io/pongo": "file:event-driven-io-pongo-0.2.2.tgz"
+    "@event-driven-io/pongo": "0.2.3"
   }
 }

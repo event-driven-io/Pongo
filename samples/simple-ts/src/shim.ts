@@ -8,7 +8,7 @@ const connectionString =
 const pongoClient = new MongoClient(connectionString);
 const pongoDb = pongoClient.db('postgres');
 
-let users = pongoDb.collection<User>('users');
+const users = pongoDb.collection<User>('users');
 const roger = { name: 'Roger', age: 30 };
 const anita = { name: 'Anita', age: 25 };
 //const cruella = { _id: uuid(), name: 'Cruella', age: 40 };

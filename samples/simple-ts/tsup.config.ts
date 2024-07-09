@@ -1,7 +1,5 @@
 import { defineConfig } from 'tsup';
 
-const env = process.env.NODE_ENV;
-
 export default defineConfig({
   splitting: true,
   clean: true, // clean up the dist folder
