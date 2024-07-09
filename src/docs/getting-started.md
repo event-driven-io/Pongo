@@ -12,7 +12,7 @@ Install Pongo as an npm module and save it to your package.json:
 npm install @event-driven-io/pongo
 ```
 
-Read also [introduction article on my blog](https://event-driven.io/en/introducting_pongo/) for more context.
+Read also [introduction article on my blog](https://event-driven.io/en/introducting_pongo/?utm_source=pongo_github) for more context.
 
 ## Example
 
