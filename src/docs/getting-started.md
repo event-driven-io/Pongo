@@ -27,8 +27,8 @@ type User = { name: string; age: number };
 const connectionString =
   'postgresql://dbuser:secretpassword@database.server.com:3211/mydb';
 
-const pongoClient = pongoClient(connectionString);
-const pongoDb = pongoClient.db();
+const pongo = pongoClient(connectionString);
+const pongoDb = pongo.db();
 
 const users = pongoDb.collection<User>('users');
 const roger = { name: 'Roger', age: 30 };
@@ -36,23 +36,23 @@ const anita = { name: 'Anita', age: 25 };
 const cruella = { _id: uuid(), name: 'Cruella', age: 40 };
 
 // Inserting
-await pongoCollection.insertOne(roger);
-await pongoCollection.insertOne(cruella);
+await users.insertOne(roger);
+await users.insertOne(cruella);
 
-const { insertedId } = await pongoCollection.insertOne(anita);
+const { insertedId } = await users.insertOne(anita);
 const anitaId = insertedId;
 
 // Updating
 await users.updateOne({ _id: anitaId }, { $set: { age: 31 } });
 
 // Deleting
-await pongoCollection.deleteOne({ _id: cruella._id });
+await users.deleteOne({ _id: cruella._id });
 
 // Finding by Id
-const anitaFromDb = await pongoCollection.findOne({ _id: anitaId });
+const anitaFromDb = await users.findOne({ _id: anitaId });
 
 // Finding more
-const users = await pongoCollection.find({ age: { $lt: 40 } });
+const users = await users.find({ age: { $lt: 40 } });
 ```
 
 Or use MongoDB compliant shim:
@@ -75,23 +75,23 @@ const anita = { name: 'Anita', age: 25 };
 const cruella = { _id: uuid(), name: 'Cruella', age: 40 };
 
 // Inserting
-await pongoCollection.insertOne(roger);
-await pongoCollection.insertOne(cruella);
+await users.insertOne(roger);
+await users.insertOne(cruella);
 
-const { insertedId } = await pongoCollection.insertOne(anita);
+const { insertedId } = await users.insertOne(anita);
 const anitaId = insertedId;
 
 // Updating
 await users.updateOne({ _id: anitaId }, { $set: { age: 31 } });
 
 // Deleting
-await pongoCollection.deleteOne({ _id: cruella._id });
+await users.deleteOne({ _id: cruella._id });
 
 // Finding by Id
-const anitaFromDb = await pongoCollection.findOne({ _id: anitaId });
+const anitaFromDb = await users.findOne({ _id: anitaId });
 
 // Finding more
-const users = await pongoCollection.find({ age: { $lt: 40 } }).toArray();
+const users = await users.find({ age: { $lt: 40 } }).toArray();
 ```
 
 ## How does it work?
@@ -112,12 +112,9 @@ CREATE TABLE IF NOT EXISTS "YourCollectionName" (
 **E.g. the MongoDB update syntax:**
 
 ```typescript
-const pongoCollection = pongoDb.collection<User>('users');
+const users = pongoDb.collection<User>('users');
 
-await pongoCollection.updateOne(
-  { _id: someId },
-  { $push: { tags: 'character' } },
-);
+await users.updateOne({ _id: someId }, { $push: { tags: 'character' } });
 ```
 
 will be translated to:
@@ -131,7 +128,7 @@ WHERE _id = '137ef052-e41c-428b-b606-1c8070a47eda';
 **Or for query:**
 
 ```typescript
-const result = await pongoCollection
+const result = await users
   .find({ 'address.history': { $elemMatch: { street: 'Elm St' } } })
   .toArray();
 ```
