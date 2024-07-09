@@ -2,7 +2,7 @@ import type { PongoFilter } from '../../main';
 import { entries } from '../../main/typing';
 import { Operators, handleOperator, hasOperators } from './queryOperators';
 
-export * from "./queryOperators";
+export * from './queryOperators';
 
 const AND = 'AND';
 
@@ -32,4 +32,4 @@ const constructComplexFilterQuery = (
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
-  value !== null && typeof value === 'object' && !Array.isArray(value);';
+  value !== null && typeof value === 'object' && !Array.isArray(value);

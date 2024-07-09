@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS "YourCollectionName" (
 
 **E.g. the MongoDB update syntax:**
 
-```typescript
+```ts
 const pongoCollection = pongoDb.collection<User>("users");
 
 await pongoCollection.updateOne(
@@ -132,7 +132,7 @@ WHERE _id = '137ef052-e41c-428b-b606-1c8070a47eda';
 
 **Or for query:**
 
-```typescript
+```ts
 const result = await pongoCollection
   .find({ "address.history": { $elemMatch: { street: "Elm St" } } })
   .toArray();
