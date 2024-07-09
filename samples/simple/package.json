@@ -1,0 +1,64 @@
+{
+  "name": "pongo-sample-simple",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Simple sample using Pongo ",
+  "scripts": {
+    "setup": "cat .nvmrc | nvm install; nvm use",
+    "build": "tsup",
+    "build:ts": "tsc",
+    "build:ts:watch": "tsc  --watch",
+    "start": "tsx ./src/index.ts",
+    "lint": "npm run lint:eslint && npm run lint:prettier",
+    "lint:prettier": "prettier --check \"**/**/!(*.d).{ts,json,md}\"",
+    "lint:eslint": "eslint '**/*.ts'",
+    "fix": "run-s fix:eslint fix:prettier",
+    "fix:prettier": "prettier --write \"**/**/!(*.d).{ts,json,md}\"",
+    "fix:eslint": "eslint '**/*.ts' --fix",
+    "test": "run-s test:unit test:int test:e2e",
+    "test:unit": "glob -d -c \"node --import tsx --test\" **/*.unit.spec.ts",
+    "test:int": "glob -d -c \"node --import tsx --test\" **/*.int.spec.ts",
+    "test:e2e": "glob -d -c \"node --import tsx --test\" **/*.e2e.spec.ts",
+    "test:watch": "run-p test:unit:watch test:int:watch test:e2e:watch",
+    "test:unit:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.unit.spec.ts",
+    "test:int:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.int.spec.ts",
+    "test:e2e:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.e2e.spec.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/event-driven-io/Pongo.git"
+  },
+  "keywords": [
+    "Event Sourcing"
+  ],
+  "author": "Oskar Dudycz",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/event-driven-io/Pongo/issues"
+  },
+  "homepage": "https://github.com/event-driven-io/Pongo#readme",
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "@typescript-eslint/eslint-plugin": "6.21.0",
+    "@typescript-eslint/parser": "6.21.0",
+    "eslint": "8.56.0",
+    "eslint-config-prettier": "9.1.0",
+    "eslint-plugin-prettier": "5.1.3",
+    "glob": "10.3.10",
+    "npm-run-all2": "6.1.2",
+    "prettier": "3.2.5",
+    "tsconfig-paths": "4.2.0",
+    "tsup": "8.0.2",
+    "tsx": "4.7.1",
+    "typescript": "5.3.3"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@event-driven-io/pongo": "file:event-driven-io-pongo-0.2.2.tgz"
+  }
+}

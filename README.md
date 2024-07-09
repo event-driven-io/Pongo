@@ -54,7 +54,7 @@ await users.deleteOne({ _id: cruella._id });
 const anitaFromDb = await users.findOne({ _id: anitaId });
 
 // Finding more
-users = await users.find({ age: { $lt: 40 } });
+const usersFromDb = await users.find({ age: { $lt: 40 } });
 ```
 
 Or use MongoDB compliant shim:
@@ -93,7 +93,7 @@ await users.deleteOne({ _id: cruella._id });
 const anitaFromDb = await users.findOne({ _id: anitaId });
 
 // Finding more
-users = await users.find({ age: { $lt: 40 } }).toArray();
+const usersFromDb = await users.find({ age: { $lt: 40 } }).toArray();
 ```
 
 ## How does it work?
