@@ -18,7 +18,7 @@ export class MongoClient {
     await this.pongoClient.close();
   }
 
-  db(dbName: string): Db {
+  db(dbName?: string): Db {
     return new Db(this.pongoClient.db(dbName));
   }
 }

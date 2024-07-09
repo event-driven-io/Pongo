@@ -30,8 +30,10 @@ export interface PongoCollection<T> {
 
 export type WithId<T> = T & { _id: string };
 
+export type WithoutId<T> = Omit<T, '_id'>;
+
 export type PongoFilter<T> = {
-  [P in keyof T]?: T[P] | PongoFilterOperator<T[P]>;
+  [P in keyof T]?: WithId<T[P]> | PongoFilterOperator<T[P]>;
 };
 
 export type PongoFilterOperator<T> = {
