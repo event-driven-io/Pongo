@@ -133,10 +133,15 @@ export const collectionSQLBuilder = (collectionName: string) => ({
     const updateQuery = buildUpdateQuery(update);
 
     return sql(
-      'UPDATE %I SET data = %s WHERE %s',
+      `WITH cte AS (
+        SELECT _id FROM %I WHERE %s LIMIT 1
+      )
+      UPDATE %I SET data = %s FROM cte WHERE %I._id = cte._id`,
+      collectionName,
+      filterQuery,
       collectionName,
       updateQuery,
-      filterQuery,
+      collectionName,
     );
   },
   updateMany: <T>(filter: PongoFilter<T>, update: PongoUpdate<T>): SQL => {

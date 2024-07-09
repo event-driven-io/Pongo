@@ -74,24 +74,19 @@ void describe('MongoDB Compatibility Tests', () => {
 
   void describe('Insert Operations', () => {
     void it('should insert a document into both PostgreSQL and MongoDB', async () => {
-      const pongoCollection = pongoDb.collection<User>('testCollection');
-      const mongoCollection = mongoDb.collection<User>('testCollection');
-
+      const pongoCollection = pongoDb.collection<User>('insertOne');
+      const mongoCollection = mongoDb.collection<User>('insertOne');
       const doc = { name: 'Anita', age: 25 };
-
       const pongoInsertResult = await pongoCollection.insertOne(doc);
       const mongoInsertResult = await mongoCollection.insertOne(doc);
-
       assert(pongoInsertResult.insertedId);
       assert(mongoInsertResult.insertedId);
-
       const pongoDoc = await pongoCollection.findOne({
         _id: pongoInsertResult.insertedId,
       });
       const mongoDoc = await mongoCollection.findOne({
         _id: mongoInsertResult.insertedId,
       });
-
       assert.deepStrictEqual(
         {
           name: pongoDoc!.name,
@@ -103,12 +98,47 @@ void describe('MongoDB Compatibility Tests', () => {
         },
       );
     });
+    void it('should insert many documents into both PostgreSQL and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>('insertMany');
+      const mongoCollection = mongoDb.collection<User>('insertMany');
+      const docs = [
+        { name: 'David', age: 40 },
+        { name: 'Eve', age: 45 },
+        { name: 'Frank', age: 50 },
+      ];
+      const pongoInsertResult = await pongoCollection.insertMany(docs);
+      const mongoInsertResult = await mongoCollection.insertMany(docs);
+      const pongoIds = Object.values(pongoInsertResult.insertedIds);
+      const mongoIds = Object.values(mongoInsertResult.insertedIds);
+      assert.equal(pongoInsertResult.insertedCount, docs.length);
+      assert.equal(mongoInsertResult.insertedCount, docs.length);
+      const pongoDocs = await pongoCollection
+        .find({
+          _id: { $in: pongoIds },
+        })
+        .toArray();
+      const mongoDocs = await mongoCollection
+        .find({
+          _id: { $in: mongoIds },
+        })
+        .toArray();
+      assert.deepStrictEqual(
+        pongoDocs.map((doc) => ({
+          name: doc.name,
+          age: doc.age,
+        })),
+        mongoDocs.map((doc) => ({
+          name: doc.name,
+          age: doc.age,
+        })),
+      );
+    });
   });
 
   void describe('Update Operations', () => {
     void it('should update a document in both PostgreSQL and MongoDB', async () => {
-      const pongoCollection = pongoDb.collection<User>('testCollection');
-      const mongoCollection = mongoDb.collection<User>('testCollection');
+      const pongoCollection = pongoDb.collection<User>('updateOne');
+      const mongoCollection = mongoDb.collection<User>('updateOne');
       const doc = { name: 'Roger', age: 30 };
 
       const pongoInsertResult = await pongoCollection.insertOne(doc);
@@ -143,29 +173,58 @@ void describe('MongoDB Compatibility Tests', () => {
         },
       );
     });
-  });
 
-  void describe('Delete Operations', () => {
-    void it('should delete a document from both PostgreSQL and MongoDB', async () => {
-      const pongoCollection = pongoDb.collection<User>('testCollection');
-      const mongoCollection = mongoDb.collection<User>('testCollection');
-      const doc = { name: 'Cruella', age: 35 };
+    void it('should update documents in both PostgreSQL and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>('updateMany');
+      const mongoCollection = mongoDb.collection<User>('updateMany');
 
-      const pongoInsertResult = await pongoCollection.insertOne(doc);
-      const mongoInsertResult = await mongoCollection.insertOne(doc);
+      const docs = [
+        { name: 'David', age: 40 },
+        { name: 'Eve', age: 45 },
+        { name: 'Frank', age: 50 },
+      ];
 
-      await pongoCollection.deleteOne({ _id: pongoInsertResult.insertedId });
-      await mongoCollection.deleteOne({ _id: mongoInsertResult.insertedId });
+      const pongoInsertResult = await pongoCollection.insertMany(docs);
+      const mongoInsertResult = await mongoCollection.insertMany(docs);
 
-      const pongoDoc = await pongoCollection.findOne({
-        _id: pongoInsertResult.insertedId,
-      });
-      const mongoDoc = await mongoCollection.findOne({
-        _id: mongoInsertResult.insertedId,
-      });
+      const pongoIds = Object.values(pongoInsertResult.insertedIds);
+      const mongoIds = Object.values(mongoInsertResult.insertedIds);
 
-      assert.strictEqual(pongoDoc, null);
-      assert.strictEqual(mongoDoc, null);
+      const update = { $set: { age: 31 } };
+
+      const pongoUpdateResult = await pongoCollection.updateMany(
+        { _id: { $in: pongoIds } },
+        update,
+      );
+      const mongoUpdateResult = await mongoCollection.updateMany(
+        { _id: { $in: mongoIds } },
+        update,
+      );
+
+      assert.equal(3, pongoUpdateResult.matchedCount);
+      assert.equal(3, mongoUpdateResult.matchedCount);
+
+      const pongoDocs = await pongoCollection
+        .find({
+          _id: { $in: pongoIds },
+        })
+        .toArray();
+      const mongoDocs = await mongoCollection
+        .find({
+          _id: { $in: mongoIds },
+        })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((doc) => ({
+          name: doc.name,
+          age: 31,
+        })),
+        mongoDocs.map((doc) => ({
+          name: doc.name,
+          age: 31,
+        })),
+      );
     });
 
     void it('should update a document in both PostgreSQL and MongoDB using $unset', async () => {
@@ -279,6 +338,82 @@ void describe('MongoDB Compatibility Tests', () => {
           age: mongoDoc!.age,
           tags: ['tag1', 'tag2'],
         },
+      );
+    });
+  });
+
+  void describe('Delete Operations', () => {
+    void it('should delete a document from both PostgreSQL and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>('testCollection');
+      const mongoCollection = mongoDb.collection<User>('testCollection');
+      const doc = { name: 'Cruella', age: 35 };
+
+      const pongoInsertResult = await pongoCollection.insertOne(doc);
+      const mongoInsertResult = await mongoCollection.insertOne(doc);
+
+      await pongoCollection.deleteOne({ _id: pongoInsertResult.insertedId });
+      await mongoCollection.deleteOne({ _id: mongoInsertResult.insertedId });
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: mongoInsertResult.insertedId,
+      });
+
+      assert.strictEqual(pongoDoc, null);
+      assert.strictEqual(mongoDoc, null);
+    });
+
+    void it('should delete documents in both PostgreSQL and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>('updateMany');
+      const mongoCollection = mongoDb.collection<User>('updateMany');
+
+      const docs = [
+        { name: 'David', age: 40 },
+        { name: 'Eve', age: 45 },
+        { name: 'Frank', age: 50 },
+      ];
+
+      const pongoInsertResult = await pongoCollection.insertMany(docs);
+      const mongoInsertResult = await mongoCollection.insertMany(docs);
+
+      const pongoIds = Object.values(pongoInsertResult.insertedIds);
+      const mongoIds = Object.values(mongoInsertResult.insertedIds);
+
+      const pongoDeleteResult = await pongoCollection.deleteMany({
+        _id: { $in: pongoIds },
+      });
+      const mongoUpdateResult = await mongoCollection.deleteMany({
+        _id: { $in: mongoIds },
+      });
+
+      assert.equal(3, pongoDeleteResult.deletedCount);
+      assert.equal(3, mongoUpdateResult.deletedCount);
+
+      const pongoDocs = await pongoCollection
+        .find({
+          _id: { $in: pongoIds },
+        })
+        .toArray();
+      const mongoDocs = await mongoCollection
+        .find({
+          _id: { $in: mongoIds },
+        })
+        .toArray();
+
+      assert.equal(0, pongoDocs.length);
+      assert.equal(0, mongoDocs.length);
+
+      assert.deepStrictEqual(
+        pongoDocs.map((doc) => ({
+          name: doc.name,
+          age: 31,
+        })),
+        mongoDocs.map((doc) => ({
+          name: doc.name,
+          age: 31,
+        })),
       );
     });
   });
