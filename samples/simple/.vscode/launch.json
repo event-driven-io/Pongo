@@ -1,0 +1,58 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug current file",
+      "type": "node",
+      "request": "launch",
+
+      // Debug current file in VSCode
+      "program": "${file}",
+
+      /*
+    Path to tsx binary
+    Assuming locally installed
+    */
+      "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/tsx",
+
+      /*
+    Open terminal when debugging starts (Optional)
+    Useful to see console.logs
+    */
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+
+      // Files to exclude from debugger (e.g. call stack)
+      "skipFiles": [
+        // Node.js internal core modules
+        "<node_internals>/**",
+
+        // Ignore all dependencies (optional)
+        "${workspaceFolder}/node_modules/**"
+      ]
+    },
+    {
+      "name": "Debug All Tests (Node)",
+      "type": "node",
+      "request": "launch",
+      "skipFiles": ["<node_internals>/**"],
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run-script",
+        "test",
+        "--inspect-brk=9229",
+        "--preserve-symlinks"
+      ], // Use --inspect-brk for debugging
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "cwd": "${workspaceFolder}",
+      "sourceMaps": true,
+      "smartStep": true,
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/**",
+        "!**/node_modules/**",
+        "node_modules/@event-driven.io/emmett-expressjs/**/*.*"
+      ]
+    }
+  ]
+}

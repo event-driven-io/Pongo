@@ -28,13 +28,15 @@ export interface PongoCollection<T> {
   find(filter: PongoFilter<T>): Promise<T[]>;
 }
 
-export type WithId<T> = T & { _id: string };
+export type HasId = { _id: string };
 
-export type WithoutId<T> = Omit<T, '_id'>;
+export type WithId<T> = T & HasId;
 
-export type PongoFilter<T> = {
-  [P in keyof T]?: WithId<T[P]> | PongoFilterOperator<T[P]>;
-};
+export type PongoFilter<T> =
+  | {
+      [P in keyof T]?: T[P] | PongoFilterOperator<T[P]>;
+    }
+  | HasId;
 
 export type PongoFilterOperator<T> = {
   $eq?: T;
