@@ -19,17 +19,19 @@ export const buildUpdateQuery = <T>(update: PongoUpdate<T>): SQL =>
   }, sql('data'));
 
 export const buildSetQuery = <T>(set: $set<T>, currentUpdateQuery: SQL): SQL =>
-  sql(
-    'jsonb_set(%s, %L, data || %L)',
-    currentUpdateQuery,
-    '{}',
-    JSON.stringify(set),
-  );
+  sql('%s || %L::jsonb', currentUpdateQuery, JSON.stringify(set));
 
 export const buildUnsetQuery = <T>(
   unset: $unset<T>,
   currentUpdateQuery: SQL,
-): SQL => sql('%s - %L', currentUpdateQuery, Object.keys(unset).join(', '));
+): SQL =>
+  sql(
+    '%s - %L',
+    currentUpdateQuery,
+    Object.keys(unset)
+      .map((k) => `{${k}}`)
+      .join(', '),
+  );
 
 export const buildIncQuery = <T>(
   inc: $inc<T>,
@@ -37,7 +39,7 @@ export const buildIncQuery = <T>(
 ): SQL => {
   for (const [key, value] of Object.entries(inc)) {
     currentUpdateQuery = sql(
-      "jsonb_set(%s, '{%s}', to_jsonb((data->>'%s')::numeric + %L))",
+      "jsonb_set(%s, '{%s}', to_jsonb((data->>'%s')::numeric + %L), true)",
       currentUpdateQuery,
       key,
       key,
@@ -53,11 +55,11 @@ export const buildPushQuery = <T>(
 ): SQL => {
   for (const [key, value] of Object.entries(push)) {
     currentUpdateQuery = sql(
-      "jsonb_set(%s, '{%s}', (COALESCE(data->'%s', '[]'::jsonb) || '[%s]'::jsonb))",
+      "jsonb_set(%s, '{%s}', (coalesce(data->'%s', '[]'::jsonb) || %L::jsonb), true)",
       currentUpdateQuery,
       key,
       key,
-      JSON.stringify(value),
+      JSON.stringify([value]),
     );
   }
   return currentUpdateQuery;
