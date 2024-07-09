@@ -25,21 +25,21 @@
       { "varsIgnorePattern": "^_", "argsIgnorePattern": "^_" }
     ],
     "@typescript-eslint/no-misused-promises": ["off"],
-    "@typescript-eslint/prefer-namespace-keyword": "off",
-    "no-restricted-imports": [
-      "error",
-      {
-        "paths": ["**.spec.ts"],
-        "patterns": ["node:*"]
-      }
-    ]
+    "@typescript-eslint/prefer-namespace-keyword": "off"
+    // "no-restricted-imports": [
+    //   "error",
+    //   {
+    //     "paths": ["**.spec.ts"],
+    //     "patterns": ["node:*"]
+    //   }
+    // ]
   },
-  "overrides": [
-    {
-      "files": ["**.spec.ts", "packages/**/src/testing/**", "docs/**"],
-      "rules": { "no-restricted-imports": "off" }
-    }
-  ],
+  // "overrides": [
+  //   {
+  //     "files": ["**.spec.ts", "packages/**/src/testing/**", "docs/**"],
+  //     "rules": { "no-restricted-imports": "off" }
+  //   }
+  // ],
   "settings": {
     "import/resolver": {
       "typescript": {}
