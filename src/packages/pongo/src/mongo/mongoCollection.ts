@@ -104,11 +104,16 @@ export class Collection<T extends Document> implements MongoCollection<T> {
       insertedId: result.insertedId as unknown as InferIdType<T>,
     };
   }
-  insertMany(
-    _docs: OptionalUnlessRequiredId<T>[],
+  async insertMany(
+    docs: OptionalUnlessRequiredId<T>[],
     _options?: BulkWriteOptions | undefined,
   ): Promise<InsertManyResult<T>> {
-    throw new Error('Method not implemented.');
+    const result = await this.collection.insertMany(docs as T[]);
+    return {
+      acknowledged: result.acknowledged,
+      insertedIds: result.insertedIds as unknown as InferIdType<T>[],
+      insertedCount: result.insertedCount,
+    };
   }
   bulkWrite(
     _operations: AnyBulkWriteOperation<T>[],
@@ -141,12 +146,23 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   ): Promise<Document | UpdateResult<T>> {
     throw new Error('Method not implemented.');
   }
-  updateMany(
-    _filter: Filter<T>,
-    _update: Document[] | UpdateFilter<T>,
+  async updateMany(
+    filter: Filter<T>,
+    update: Document[] | UpdateFilter<T>,
     _options?: UpdateOptions | undefined,
   ): Promise<UpdateResult<T>> {
-    throw new Error('Method not implemented.');
+    const result = await this.collection.updateMany(
+      filter as unknown as PongoFilter<T>,
+      update as unknown as PongoUpdate<T>,
+    );
+
+    return {
+      acknowledged: result.acknowledged,
+      matchedCount: result.modifiedCount,
+      modifiedCount: result.modifiedCount,
+      upsertedCount: result.modifiedCount,
+      upsertedId: null,
+    };
   }
   async deleteOne(
     filter?: Filter<T> | undefined,
@@ -161,11 +177,18 @@ export class Collection<T extends Document> implements MongoCollection<T> {
       deletedCount: result.deletedCount,
     };
   }
-  deleteMany(
-    _filter?: Filter<T> | undefined,
+  async deleteMany(
+    filter?: Filter<T> | undefined,
     _options?: DeleteOptions | undefined,
   ): Promise<DeleteResult> {
-    throw new Error('Method not implemented.');
+    const result = await this.collection.deleteMany(
+      filter as unknown as PongoFilter<T>,
+    );
+
+    return {
+      acknowledged: result.acknowledged,
+      deletedCount: result.deletedCount,
+    };
   }
   rename(
     _newName: string,

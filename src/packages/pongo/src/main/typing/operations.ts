@@ -13,14 +13,22 @@ export interface PongoDb {
 export interface PongoCollection<T> {
   createCollection(): Promise<void>;
   insertOne(document: T): Promise<PongoInsertOneResult>;
+  insertMany(documents: T[]): Promise<PongoInsertManyResult>;
   updateOne(
     filter: PongoFilter<T>,
     update: PongoUpdate<T>,
   ): Promise<PongoUpdateResult>;
+  updateMany(
+    filter: PongoFilter<T>,
+    update: PongoUpdate<T>,
+  ): Promise<PongoUpdateResult>;
   deleteOne(filter: PongoFilter<T>): Promise<PongoDeleteResult>;
+  deleteMany(filter: PongoFilter<T>): Promise<PongoDeleteResult>;
   findOne(filter: PongoFilter<T>): Promise<T | null>;
   find(filter: PongoFilter<T>): Promise<T[]>;
 }
+
+export type WithId<T> = T & { _id: string };
 
 export type PongoFilter<T> = {
   [P in keyof T]?: T[P] | PongoFilterOperator<T[P]>;
@@ -54,12 +62,28 @@ export interface PongoInsertOneResult {
   acknowledged: boolean;
 }
 
+export interface PongoInsertManyResult {
+  acknowledged: boolean;
+  insertedIds: string[];
+  insertedCount: number;
+}
+
 export interface PongoUpdateResult {
   acknowledged: boolean;
   modifiedCount: number;
 }
 
+export interface PongoUpdateManyResult {
+  acknowledged: boolean;
+  modifiedCount: number;
+}
+
 export interface PongoDeleteResult {
+  acknowledged: boolean;
+  deletedCount: number;
+}
+
+export interface PongoDeleteManyResult {
   acknowledged: boolean;
   deletedCount: number;
 }

@@ -47,15 +47,16 @@
     "dist"
   ],
   "peerDependencies": {
-    "@types/uuid": "^9.0.8",
-    "close-with-grace": "^1.3.0",
     "pg": "^8.12.0",
     "pg-format": "^1.0.4",
+    "pg-copy-streams": "^6.0.6",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
+    "@types/uuid": "^9.0.8",
     "@types/node": "20.11.30",
     "@types/pg": "^8.11.6",
+    "@types/pg-copy-streams": "^1.2.5",
     "@types/pg-format": "^1.0.5"
   }
 }
