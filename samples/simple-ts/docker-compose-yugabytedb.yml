@@ -1,11 +1,27 @@
 version: "3.8" # Specify Docker Compose version
 
 services:
-  postgres:
+  yugabytedb:
     image: yugabytedb/yugabyte:latest
     command: yugabyted start --background=false --ysql_port=5432
     ports:
       - "5432:5432"
+      - "15433:15433"
+    healthcheck:
+      interval: 15s
+      timeout: 3s
+      test: postgres/bin/pg_isready -h yugabytedb -p 5432
+
+  dist:
+    image: yugabytedb/yugabyte:latest
+    command: yugabyted start --join yugabytedb --background=false --ysql_port=5432
+    deploy:
+     replicas: 0
+     restart_policy: 
+       condition: on-failure
+    depends_on:
+      yugabytedb:
+        condition: service_healthy
 
   pgadmin:
     container_name: pgadmin_container
@@ -23,5 +39,6 @@ services:
       - ./docker/pgAdmin/pgpass:/pgpass
       - ./docker/pgAdmin/servers.json:/pgadmin4/servers.json
     depends_on:
-      - postgres
+      yugabytedb:
+        condition: service_healthy
     restart: unless-stopped
