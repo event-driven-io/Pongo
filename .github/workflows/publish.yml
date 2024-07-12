@@ -34,8 +34,16 @@ jobs:
       - name: Set public publishing
         run: npm config set access public
 
-      - name: Publish package on NPM 📦
-        run: npm publish --ws
+      - name: Publish Dumbo package on NPM 📦
+        run: npm publish --w @event-driven-io/dumbo
+        continue-on-error: true
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NODE_ENV: production
+
+      - name: Publish Pongo package on NPM 📦
+        run: npm publish --w @event-driven-io/pongo
+        continue-on-error: true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_ENV: production
