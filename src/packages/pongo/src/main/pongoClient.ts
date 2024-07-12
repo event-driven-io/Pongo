@@ -6,7 +6,7 @@ export const pongoClient = (connectionString: string): PongoClient => {
   const defaultDbName = getDatabaseNameOrDefault(connectionString);
   const dbClients: Map<string, DbClient> = new Map();
 
-  const dbClient = getDbClient(connectionString);
+  const dbClient = getDbClient({ connectionString });
   dbClients.set(defaultDbName, dbClient);
 
   const pongoClient: PongoClient = {
@@ -25,7 +25,7 @@ export const pongoClient = (connectionString: string): PongoClient => {
       return (
         dbClients.get(dbName) ??
         dbClients
-          .set(dbName, getDbClient(connectionString, dbName))
+          .set(dbName, getDbClient({ connectionString, database: dbName }))
           .get(dbName)!
       );
     },
