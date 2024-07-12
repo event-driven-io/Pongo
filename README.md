@@ -104,8 +104,14 @@ Pongo uses the following table structure for storing collections:
 
 ```sql
 CREATE TABLE IF NOT EXISTS "YourCollectionName" (
-    _id UUID PRIMARY KEY,
-    data JSONB
+    _id           TEXT           PRIMARY KEY,
+    data          JSONB          NOT NULL,
+    metadata      JSONB          NOT NULL     DEFAULT '{}',
+    _version      BIGINT         NOT NULL     DEFAULT 1,
+    _partition    TEXT           NOT NULL     DEFAULT 'png_global',
+    _archived     BOOLEAN        NOT NULL     DEFAULT FALSE,
+    _created      TIMESTAMPTZ    NOT NULL     DEFAULT now(),
+    _updated      TIMESTAMPTZ    NOT NULL     DEFAULT now()
 )
 ```
 
