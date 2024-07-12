@@ -11,20 +11,26 @@ import {
   type PongoUpdate,
   type PongoUpdateResult,
   type WithId,
+  type WithoutId,
 } from '../main';
 import { constructFilterQuery } from './filter';
 import { buildUpdateQuery } from './update';
 
 export const postgresCollection = <T>(
   collectionName: string,
-  pool: pg.Pool | pg.PoolClient,
+  {
+    dbName,
+    poolOrClient: clientOrPool,
+  }: { dbName: string; poolOrClient: pg.Pool | pg.PoolClient },
 ): PongoCollection<T> => {
-  const execute = (sql: SQL) => executeSQL(pool, sql);
+  const execute = (sql: SQL) => executeSQL(clientOrPool, sql);
   const SqlFor = collectionSQLBuilder(collectionName);
 
   const createCollection = execute(SqlFor.createCollection());
 
   return {
+    dbName,
+    collectionName,
     createCollection: async () => {
       await createCollection;
     },
@@ -62,6 +68,17 @@ export const postgresCollection = <T>(
       await createCollection;
 
       const result = await execute(SqlFor.updateOne(filter, update));
+      return result.rowCount
+        ? { acknowledged: true, modifiedCount: result.rowCount }
+        : { acknowledged: false, modifiedCount: 0 };
+    },
+    replaceOne: async (
+      filter: PongoFilter<T>,
+      document: WithoutId<T>,
+    ): Promise<PongoUpdateResult> => {
+      await createCollection;
+
+      const result = await execute(SqlFor.replaceOne(filter, document));
       return result.rowCount
         ? { acknowledged: true, modifiedCount: result.rowCount }
         : { acknowledged: false, modifiedCount: 0 };
@@ -141,6 +158,16 @@ export const collectionSQLBuilder = (collectionName: string) => ({
       collectionName,
       updateQuery,
       collectionName,
+    );
+  },
+  replaceOne: <T>(filter: PongoFilter<T>, document: WithoutId<T>): SQL => {
+    const filterQuery = constructFilterQuery(filter);
+
+    return sql(
+      `UPDATE %I SET data = %L || jsonb_build_object('_id', data->>'_id') WHERE %s`,
+      collectionName,
+      JSON.stringify(document),
+      filterQuery,
     );
   },
   updateMany: <T>(filter: PongoFilter<T>, update: PongoUpdate<T>): SQL => {

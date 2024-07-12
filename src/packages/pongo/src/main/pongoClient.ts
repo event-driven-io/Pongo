@@ -25,7 +25,7 @@ export const pongoClient = (connectionString: string): PongoClient => {
       return (
         dbClients.get(dbName) ??
         dbClients
-          .set(dbName, getDbClient({ connectionString, database: dbName }))
+          .set(dbName, getDbClient({ connectionString, dbName: dbName }))
           .get(dbName)!
       );
     },

@@ -11,12 +11,18 @@ export interface PongoDb {
 }
 
 export interface PongoCollection<T> {
+  readonly dbName: string;
+  readonly collectionName: string;
   createCollection(): Promise<void>;
   insertOne(document: T): Promise<PongoInsertOneResult>;
   insertMany(documents: T[]): Promise<PongoInsertManyResult>;
   updateOne(
     filter: PongoFilter<T>,
     update: PongoUpdate<T>,
+  ): Promise<PongoUpdateResult>;
+  replaceOne(
+    filter: PongoFilter<T>,
+    document: WithoutId<T>,
   ): Promise<PongoUpdateResult>;
   updateMany(
     filter: PongoFilter<T>,
@@ -31,6 +37,8 @@ export interface PongoCollection<T> {
 export type HasId = { _id: string };
 
 export type WithId<T> = T & HasId;
+
+export type WithoutId<T> = Omit<T, '_id'>;
 
 export type PongoFilter<T> =
   | {
