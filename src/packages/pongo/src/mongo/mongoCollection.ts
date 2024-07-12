@@ -177,9 +177,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     filter?: Filter<T> | undefined,
     _options?: DeleteOptions | undefined,
   ): Promise<DeleteResult> {
-    const result = await this.collection.deleteOne(
-      filter as unknown as PongoFilter<T>,
-    );
+    const result = await this.collection.deleteOne(filter as PongoFilter<T>);
 
     return {
       acknowledged: result.acknowledged,
@@ -190,9 +188,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     filter?: Filter<T> | undefined,
     _options?: DeleteOptions | undefined,
   ): Promise<DeleteResult> {
-    const result = await this.collection.deleteMany(
-      filter as unknown as PongoFilter<T>,
-    );
+    const result = await this.collection.deleteMany(filter as PongoFilter<T>);
 
     return {
       acknowledged: result.acknowledged,
@@ -307,7 +303,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   estimatedDocumentCount(
     _options?: EstimatedDocumentCountOptions | undefined,
   ): Promise<number> {
-    throw new Error('Method not implemented.');
+    return this.collection.countDocuments();
   }
   countDocuments(
     filter?: Filter<T> | undefined,
@@ -471,10 +467,10 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     throw new Error('Method not implemented.');
   }
   count(
-    _filter?: Filter<T> | undefined,
+    filter?: Filter<T> | undefined,
     _options?: CountOptions | undefined,
   ): Promise<number> {
-    throw new Error('Method not implemented.');
+    return this.collection.countDocuments((filter as PongoFilter<T>) ?? {});
   }
   listSearchIndexes(
     options?: ListSearchIndexesOptions | undefined,

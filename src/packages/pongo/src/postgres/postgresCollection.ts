@@ -97,26 +97,26 @@ export const postgresCollection = <T extends PongoDocument>(
         ? { acknowledged: true, modifiedCount: result.rowCount }
         : { acknowledged: false, modifiedCount: 0 };
     },
-    deleteOne: async (filter: PongoFilter<T>): Promise<PongoDeleteResult> => {
+    deleteOne: async (filter?: PongoFilter<T>): Promise<PongoDeleteResult> => {
       await createCollection;
 
-      const result = await execute(SqlFor.deleteOne(filter));
+      const result = await execute(SqlFor.deleteOne(filter ?? {}));
       return result.rowCount
         ? { acknowledged: true, deletedCount: result.rowCount }
         : { acknowledged: false, deletedCount: 0 };
     },
-    deleteMany: async (filter: PongoFilter<T>): Promise<PongoDeleteResult> => {
+    deleteMany: async (filter?: PongoFilter<T>): Promise<PongoDeleteResult> => {
       await createCollection;
 
-      const result = await execute(SqlFor.deleteMany(filter));
+      const result = await execute(SqlFor.deleteMany(filter ?? {}));
       return result.rowCount
         ? { acknowledged: true, deletedCount: result.rowCount }
         : { acknowledged: false, deletedCount: 0 };
     },
-    findOne: async (filter: PongoFilter<T>): Promise<T | null> => {
+    findOne: async (filter?: PongoFilter<T>): Promise<T | null> => {
       await createCollection;
 
-      const result = await execute(SqlFor.findOne(filter));
+      const result = await execute(SqlFor.findOne(filter ?? {}));
       return (result.rows[0]?.data ?? null) as T | null;
     },
     handle: async (
@@ -146,17 +146,17 @@ export const postgresCollection = <T extends PongoDocument>(
 
       return result;
     },
-    find: async (filter: PongoFilter<T>): Promise<T[]> => {
+    find: async (filter?: PongoFilter<T>): Promise<T[]> => {
       await createCollection;
 
-      const result = await execute(SqlFor.find(filter));
+      const result = await execute(SqlFor.find(filter ?? {}));
       return result.rows.map((row) => row.data as T);
     },
-    countDocuments: async (filter: PongoFilter<T> = {}): Promise<number> => {
+    countDocuments: async (filter?: PongoFilter<T>): Promise<number> => {
       await createCollection;
 
       const { count } = await single(
-        execute<{ count: number }>(SqlFor.countDocuments(filter)),
+        execute<{ count: number }>(SqlFor.countDocuments(filter ?? {})),
       );
       return count;
     },

@@ -28,11 +28,11 @@ export interface PongoCollection<T extends PongoDocument> {
     filter: PongoFilter<T>,
     update: PongoUpdate<T>,
   ): Promise<PongoUpdateResult>;
-  deleteOne(filter: PongoFilter<T>): Promise<PongoDeleteResult>;
-  deleteMany(filter: PongoFilter<T>): Promise<PongoDeleteResult>;
-  findOne(filter: PongoFilter<T>): Promise<T | null>;
-  find(filter: PongoFilter<T>): Promise<T[]>;
-  countDocuments(filter: PongoFilter<T>): Promise<number>;
+  deleteOne(filter?: PongoFilter<T>): Promise<PongoDeleteResult>;
+  deleteMany(filter?: PongoFilter<T>): Promise<PongoDeleteResult>;
+  findOne(filter?: PongoFilter<T>): Promise<T | null>;
+  find(filter?: PongoFilter<T>): Promise<T[]>;
+  countDocuments(filter?: PongoFilter<T>): Promise<number>;
   drop(): Promise<boolean>;
   rename(newName: string): Promise<PongoCollection<T>>;
   handle(id: string, handle: DocumentHandler<T>): Promise<T | null>;
