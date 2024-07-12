@@ -14,6 +14,6 @@ export const postgresClient = (
 
   return {
     connect: () => pool.connect(),
-    close: () => endPool(connectionString),
+    close: () => endPool({ connectionString, database }),
   };
 };
