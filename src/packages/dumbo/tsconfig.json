@@ -5,13 +5,7 @@
     "composite": true,
     "outDir": "./dist" /* Redirect output structure to the directory. */,
     "rootDir": "./src",
-    "paths": {
-      "@event-driven-io/emmett": ["../packages/dumbo"]
-    }
+    "paths": {}
   },
-  "references": [
-    {
-      "path": "../dumbo/"
-    }
-  ]
+  "references": []
 }

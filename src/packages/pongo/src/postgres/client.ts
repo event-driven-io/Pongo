@@ -1,5 +1,5 @@
+import { endPool, getPool } from '@event-driven-io/dumbo';
 import { type DbClient } from '../main';
-import { endPool, getPool } from './pool';
 import { postgresCollection } from './postgresCollection';
 
 export const postgresClient = (

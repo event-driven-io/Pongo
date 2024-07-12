@@ -1,3 +1,4 @@
+import { endAllPools } from '@event-driven-io/dumbo';
 import {
   MongoDBContainer,
   type StartedMongoDBContainer,
@@ -9,7 +10,7 @@ import {
 import assert from 'assert';
 import { Db as MongoDb, MongoClient as OriginalMongoClient } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
-import { MongoClient, endAllPools, type Db } from '../';
+import { MongoClient, type Db } from '../';
 
 type History = { street: string };
 type Address = {

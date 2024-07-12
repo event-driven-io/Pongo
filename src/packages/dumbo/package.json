@@ -1,7 +1,7 @@
 {
-  "name": "@event-driven-io/pongo",
-  "version": "0.3.0",
-  "description": "Pongo - Mongo with strong consistency on top of Postgres",
+  "name": "@event-driven-io/dumbo",
+  "version": "0.1.0",
+  "description": "Dumbo - tools for dealing with PostgreSQL",
   "type": "module",
   "scripts": {
     "build": "tsup",
@@ -50,8 +50,6 @@
     "@types/uuid": "^9.0.8",
     "@types/pg": "^8.11.6",
     "@types/pg-format": "^1.0.5",
-    "@types/mongodb": "^4.0.7",
-    "@event-driven-io/dumbo": "^0.1.0",
     "pg": "^8.12.0",
     "pg-format": "^1.0.4",
     "uuid": "^9.0.1"
