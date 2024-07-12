@@ -1,4 +1,5 @@
 import format from 'pg-format';
+export * from './schema';
 
 export type SQL = string & { __brand: 'sql' };
 
