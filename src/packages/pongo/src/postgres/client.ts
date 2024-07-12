@@ -10,7 +10,7 @@ export const postgresClient = (
 
   return {
     connect: () => Promise.resolve(),
-    close: () => endPool(connectionString),
+    close: () => endPool({ connectionString, database }),
     collection: <T>(name: string) => postgresCollection<T>(name, pool),
   };
 };

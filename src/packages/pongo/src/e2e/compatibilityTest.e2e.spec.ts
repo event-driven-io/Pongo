@@ -1,4 +1,3 @@
-import { endAllPools } from '@event-driven-io/dumbo';
 import {
   MongoDBContainer,
   type StartedMongoDBContainer,
@@ -60,7 +59,7 @@ void describe('MongoDB Compatibility Tests', () => {
 
   after(async () => {
     try {
-      await endAllPools();
+      await pongoClient.close();
       await postgres.stop();
     } catch (error) {
       console.log(error);

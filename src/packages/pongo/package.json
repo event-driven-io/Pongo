@@ -47,16 +47,20 @@
     "dist"
   ],
   "peerDependencies": {
-    "@types/uuid": "^9.0.8",
+    "@event-driven-io/dumbo": "^0.1.0",
+    "@types/mongodb": "^4.0.7",
     "@types/pg": "^8.11.6",
     "@types/pg-format": "^1.0.5",
-    "@types/mongodb": "^4.0.7",
-    "@event-driven-io/dumbo": "^0.1.0",
+    "@types/uuid": "^9.0.8",
     "pg": "^8.12.0",
     "pg-format": "^1.0.4",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
     "@types/node": "20.11.30"
+  },
+  "dependencies": {
+    "@types/pg-connection-string": "^2.0.0",
+    "pg-connection-string": "^2.6.4"
   }
 }
