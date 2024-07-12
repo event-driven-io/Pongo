@@ -1,12 +1,16 @@
 import { getDatabaseNameOrDefault } from '@event-driven-io/dumbo';
+import pg from 'pg';
 import { getDbClient, type DbClient } from './dbClient';
 import type { PongoClient, PongoDb } from './typing/operations';
 
-export const pongoClient = (connectionString: string): PongoClient => {
+export const pongoClient = (
+  connectionString: string,
+  options: { client?: pg.PoolClient } = {},
+): PongoClient => {
   const defaultDbName = getDatabaseNameOrDefault(connectionString);
   const dbClients: Map<string, DbClient> = new Map();
 
-  const dbClient = getDbClient({ connectionString });
+  const dbClient = getDbClient({ connectionString, client: options.client });
   dbClients.set(defaultDbName, dbClient);
 
   const pongoClient: PongoClient = {
@@ -25,7 +29,14 @@ export const pongoClient = (connectionString: string): PongoClient => {
       return (
         dbClients.get(dbName) ??
         dbClients
-          .set(dbName, getDbClient({ connectionString, dbName: dbName }))
+          .set(
+            dbName,
+            getDbClient({
+              connectionString,
+              dbName: dbName,
+              client: options.client,
+            }),
+          )
           .get(dbName)!
       );
     },
