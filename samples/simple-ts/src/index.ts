@@ -1,4 +1,4 @@
-import { endAllPools, pongoClient } from '@event-driven-io/pongo';
+import { pongoClient } from '@event-driven-io/pongo';
 import { v4 as uuid } from 'uuid';
 
 type User = { name: string; age: number };
@@ -35,4 +35,4 @@ console.log(JSON.stringify(anitaFromDb));
 const usersFromDB = await users.find({ age: { $lt: 40 } });
 console.log(JSON.stringify(usersFromDB));
 
-await endAllPools();
+await pongo.close();
