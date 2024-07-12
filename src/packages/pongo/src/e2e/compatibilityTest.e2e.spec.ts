@@ -7,8 +7,13 @@ import {
   type StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 import assert from 'assert';
-import { Db as MongoDb, MongoClient as OriginalMongoClient } from 'mongodb';
+import {
+  Db as MongoDb,
+  ObjectId,
+  MongoClient as OriginalMongoClient,
+} from 'mongodb';
 import { after, before, describe, it } from 'node:test';
+import { v4 as uuid } from 'uuid';
 import { MongoClient, type Db } from '../';
 
 type History = { street: string };
@@ -20,6 +25,7 @@ type Address = {
 };
 
 type User = {
+  _id?: ObjectId;
   name: string;
   age: number;
   address?: Address;
@@ -902,6 +908,107 @@ void describe('MongoDB Compatibility Tests', () => {
           address: d.address,
         })),
       );
+    });
+  });
+
+  void describe('Handle Operations', () => {
+    void it('should insert a new document if it does not exist', async () => {
+      const pongoCollection = pongoDb.collection<User>('handleCollection');
+      const nonExistingId = uuid() as unknown as ObjectId;
+
+      const newDoc: User = { name: 'John', age: 25 };
+
+      const handle = (_existing: User | null) => newDoc;
+
+      const resultPongo = await pongoCollection.handle(nonExistingId, handle);
+      assert.deepStrictEqual(resultPongo, { ...newDoc, _id: nonExistingId });
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: nonExistingId,
+      });
+
+      assert.deepStrictEqual(pongoDoc, { ...newDoc, _id: nonExistingId });
+    });
+
+    void it('should replace an existing document', async () => {
+      const pongoCollection = pongoDb.collection<User>('handleCollection');
+
+      const existingDoc: User = { name: 'John', age: 25 };
+      const updatedDoc: User = { name: 'John', age: 30 };
+
+      const pongoInsertResult = await pongoCollection.insertOne(existingDoc);
+
+      const handle = (_existing: User | null) => updatedDoc;
+
+      const resultPongo = await pongoCollection.handle(
+        pongoInsertResult.insertedId,
+        handle,
+      );
+
+      assert.deepStrictEqual(resultPongo, {
+        ...updatedDoc,
+      });
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId,
+      });
+
+      assert.deepStrictEqual(pongoDoc, {
+        ...updatedDoc,
+        _id: pongoInsertResult.insertedId,
+      });
+    });
+
+    void it('should delete an existing document if the handler returns null', async () => {
+      const pongoCollection = pongoDb.collection<User>('handleCollection');
+
+      const existingDoc: User = { name: 'John', age: 25 };
+
+      const pongoInsertResult = await pongoCollection.insertOne(existingDoc);
+
+      const handle = (_existing: User | null) => null;
+
+      const resultPongo = await pongoCollection.handle(
+        pongoInsertResult.insertedId,
+        handle,
+      );
+
+      assert.strictEqual(resultPongo, null);
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId,
+      });
+
+      assert.strictEqual(pongoDoc, null);
+    });
+
+    void it('should do nothing if the handler returns the existing document unchanged', async () => {
+      const pongoCollection = pongoDb.collection<User>('handleCollection');
+
+      const existingDoc: User = { name: 'John', age: 25 };
+
+      const pongoInsertResult = await pongoCollection.insertOne(existingDoc);
+
+      const handle = (existing: User | null) => existing;
+
+      const resultPongo = await pongoCollection.handle(
+        pongoInsertResult.insertedId,
+        handle,
+      );
+
+      assert.deepStrictEqual(resultPongo, {
+        ...existingDoc,
+        _id: pongoInsertResult.insertedId,
+      });
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId,
+      });
+
+      assert.deepStrictEqual(pongoDoc, {
+        ...existingDoc,
+        _id: pongoInsertResult.insertedId,
+      });
     });
   });
 });
