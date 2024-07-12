@@ -68,28 +68,28 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     this.collection = collection;
   }
   get dbName(): string {
-    throw new Error('Method not implemented.');
+    return this.collection.dbName;
   }
   get collectionName(): string {
-    throw new Error('Method not implemented.');
+    return this.collection.collectionName;
   }
   get namespace(): string {
-    throw new Error('Method not implemented.');
+    return `${this.dbName}.${this.collectionName}`;
   }
   get readConcern(): ReadConcern | undefined {
-    throw new Error('Method not implemented.');
+    return undefined;
   }
   get readPreference(): ReadPreference | undefined {
-    throw new Error('Method not implemented.');
+    return undefined;
   }
   get bsonOptions(): BSONSerializeOptions {
-    throw new Error('Method not implemented.');
+    return {};
   }
   get writeConcern(): WriteConcern | undefined {
-    throw new Error('Method not implemented.');
+    return undefined;
   }
   get hint(): Hint | undefined {
-    throw new Error('Method not implemented.');
+    return undefined;
   }
   set hint(v: Hint | undefined) {
     throw new Error('Method not implemented.');
@@ -140,11 +140,14 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     };
   }
   replaceOne(
-    _filter: Filter<T>,
-    _: WithoutId<T>,
+    filter: Filter<T>,
+    document: WithoutId<T>,
     _options?: ReplaceOptions | undefined,
   ): Promise<Document | UpdateResult<T>> {
-    throw new Error('Method not implemented.');
+    return this.collection.replaceOne(
+      filter as unknown as PongoFilter<T>,
+      document,
+    );
   }
   async updateMany(
     filter: Filter<T>,
