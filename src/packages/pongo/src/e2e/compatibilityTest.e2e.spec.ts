@@ -406,6 +406,51 @@ void describe('MongoDB Compatibility Tests', () => {
     });
   });
 
+  void describe('Replace Operations', () => {
+    void it('should replace a document in both PostgreSQL and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>('updateOne');
+      const mongoCollection = mongoDb.collection<User>('updateOne');
+      const doc = { name: 'Roger', age: 30 };
+
+      const pongoInsertResult = await pongoCollection.insertOne(doc);
+      const mongoInsertResult = await mongoCollection.insertOne(doc);
+
+      const replacement = { name: 'Not Roger', age: 100, tags: ['tag2'] };
+
+      await pongoCollection.replaceOne(
+        { _id: pongoInsertResult.insertedId },
+        replacement,
+      );
+      await mongoCollection.replaceOne(
+        { _id: mongoInsertResult.insertedId },
+        replacement,
+      );
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: mongoInsertResult.insertedId,
+      });
+
+      assert.strictEqual(mongoDoc?.name, replacement.name);
+      assert.deepEqual(mongoDoc?.age, replacement.age);
+      assert.deepEqual(mongoDoc?.tags, replacement.tags);
+      assert.deepStrictEqual(
+        {
+          name: pongoDoc!.name,
+          age: pongoDoc!.age,
+          tags: pongoDoc!.tags,
+        },
+        {
+          name: mongoDoc.name,
+          age: mongoDoc.age,
+          tags: mongoDoc.tags,
+        },
+      );
+    });
+  });
+
   void describe('Delete Operations', () => {
     void it('should delete a document from both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
