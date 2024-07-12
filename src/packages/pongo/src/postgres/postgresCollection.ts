@@ -1,4 +1,4 @@
-import { executeSQL, sql, type SQL } from '@event-driven-io/dumbo';
+import { executeSQL, single, sql, type SQL } from '@event-driven-io/dumbo';
 import pg from 'pg';
 import format from 'pg-format';
 import { v4 as uuid } from 'uuid';
@@ -23,12 +23,13 @@ export const postgresCollection = <T>(
     poolOrClient: clientOrPool,
   }: { dbName: string; poolOrClient: pg.Pool | pg.PoolClient },
 ): PongoCollection<T> => {
-  const execute = (sql: SQL) => executeSQL(clientOrPool, sql);
+  const execute = <T extends pg.QueryResultRow = pg.QueryResultRow>(sql: SQL) =>
+    executeSQL<T>(clientOrPool, sql);
   const SqlFor = collectionSQLBuilder(collectionName);
 
   const createCollection = execute(SqlFor.createCollection());
 
-  return {
+  const collection = {
     dbName,
     collectionName,
     createCollection: async () => {
@@ -122,7 +123,28 @@ export const postgresCollection = <T>(
       const result = await execute(SqlFor.find(filter));
       return result.rows.map((row) => row.data as T);
     },
+    countDocuments: async (filter: PongoFilter<T> = {}): Promise<number> => {
+      await createCollection;
+
+      const { count } = await single(
+        execute<{ count: number }>(SqlFor.countDocuments(filter)),
+      );
+      return count;
+    },
+    drop: async (): Promise<boolean> => {
+      await createCollection;
+      const result = await execute(SqlFor.dropCollection());
+      return (result?.rowCount ?? 0) > 0;
+    },
+    rename: async (newName: string): Promise<PongoCollection<T>> => {
+      await createCollection;
+      await execute(SqlFor.renameCollection(newName));
+      collectionName = newName;
+      return collection;
+    },
   };
+
+  return collection;
 };
 
 export const collectionSQLBuilder = (collectionName: string) => ({
@@ -201,4 +223,16 @@ export const collectionSQLBuilder = (collectionName: string) => ({
     const filterQuery = constructFilterQuery(filter);
     return sql('SELECT data FROM %I WHERE %s', collectionName, filterQuery);
   },
+  countDocuments: <T>(filter: PongoFilter<T>): SQL => {
+    const filterQuery = constructFilterQuery(filter);
+    return sql(
+      'SELECT COUNT(1) as count FROM %I WHERE %s',
+      collectionName,
+      filterQuery,
+    );
+  },
+  renameCollection: (newName: string): SQL =>
+    sql('ALTER TABLE %I RENAME TO %I', collectionName, newName),
+  dropCollection: (targetName: string = collectionName): SQL =>
+    sql('DROP TABLE IF EXISTS %I', targetName),
 });

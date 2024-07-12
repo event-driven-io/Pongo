@@ -193,14 +193,16 @@ export class Collection<T extends Document> implements MongoCollection<T> {
       deletedCount: result.deletedCount,
     };
   }
-  rename(
-    _newName: string,
+  async rename(
+    newName: string,
     _options?: RenameOptions | undefined,
   ): Promise<Collection<Document>> {
-    throw new Error('Method not implemented.');
+    await this.collection.rename(newName);
+
+    return this as unknown as Collection<Document>;
   }
   drop(_options?: DropCollectionOptions | undefined): Promise<boolean> {
-    throw new Error('Method not implemented.');
+    return this.collection.drop();
   }
   findOne(): Promise<WithId<T> | null>;
   findOne(filter: Filter<T>): Promise<WithId<T> | null>;

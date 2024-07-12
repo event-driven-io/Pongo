@@ -32,6 +32,8 @@ export interface PongoCollection<T> {
   deleteMany(filter: PongoFilter<T>): Promise<PongoDeleteResult>;
   findOne(filter: PongoFilter<T>): Promise<T | null>;
   find(filter: PongoFilter<T>): Promise<T[]>;
+  drop(): Promise<boolean>;
+  rename(newName: string): Promise<PongoCollection<T>>;
 }
 
 export type HasId = { _id: string };
