@@ -1,12 +1,16 @@
 // src/MongoClientShim.ts
+import pg from 'pg';
 import { pongoClient, type PongoClient } from '../main';
 import { Db } from './mongoDb';
 
 export class MongoClient {
   private pongoClient: PongoClient;
 
-  constructor(connectionString: string) {
-    this.pongoClient = pongoClient(connectionString);
+  constructor(
+    connectionString: string,
+    options: { client?: pg.PoolClient } = {},
+  ) {
+    this.pongoClient = pongoClient(connectionString, options);
   }
 
   async connect() {
