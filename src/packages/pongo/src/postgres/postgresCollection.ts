@@ -17,7 +17,7 @@ import { buildUpdateQuery } from './update';
 
 export const postgresCollection = <T>(
   collectionName: string,
-  pool: pg.Pool,
+  pool: pg.Pool | pg.PoolClient,
 ): PongoCollection<T> => {
   const execute = (sql: SQL) => executeSQL(pool, sql);
   const SqlFor = collectionSQLBuilder(collectionName);

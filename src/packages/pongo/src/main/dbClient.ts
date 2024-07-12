@@ -1,4 +1,4 @@
-import { postgresClient } from '../postgres';
+import { postgresClient, type PongoClientOptions } from '../postgres';
 import type { PongoCollection } from './typing/operations';
 
 export interface DbClient {
@@ -7,10 +7,7 @@ export interface DbClient {
   collection: <T>(name: string) => PongoCollection<T>;
 }
 
-export const getDbClient = (
-  connectionString: string,
-  database?: string,
-): DbClient => {
+export const getDbClient = (options: PongoClientOptions): DbClient => {
   // This is the place where in the future could come resolution of other database types
-  return postgresClient(connectionString, database);
+  return postgresClient(options);
 };
