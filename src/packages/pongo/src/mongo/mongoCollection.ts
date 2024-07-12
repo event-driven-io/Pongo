@@ -378,12 +378,12 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   ): Promise<WithId<T> | null>;
   findOneAndDelete(filter: Filter<T>): Promise<WithId<T> | null>;
   findOneAndDelete(
-    _filter: unknown,
+    filter: unknown,
     _options?: unknown,
-  ):
-    | Promise<import('mongodb').WithId<T> | null>
-    | Promise<import('mongodb').ModifyResult<T>> {
-    throw new Error('Method not implemented.');
+  ): Promise<WithId<T> | null | ModifyResult<T>> {
+    return this.collection.findOneAndDelete(
+      filter as PongoFilter<T>,
+    ) as Promise<WithId<T> | null>;
   }
   findOneAndReplace(
     filter: Filter<T>,
@@ -405,13 +405,14 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     replacement: WithoutId<T>,
   ): Promise<WithId<T> | null>;
   findOneAndReplace(
-    _filter: unknown,
-    _replacement: unknown,
+    filter: unknown,
+    replacement: unknown,
     _options?: unknown,
-  ):
-    | Promise<import('mongodb').WithId<T> | null>
-    | Promise<import('mongodb').ModifyResult<T>> {
-    throw new Error('Method not implemented.');
+  ): Promise<WithId<T> | null | ModifyResult<T>> {
+    return this.collection.findOneAndReplace(
+      filter as PongoFilter<T>,
+      replacement as WithoutId<T>,
+    ) as Promise<WithId<T> | null>;
   }
   findOneAndUpdate(
     filter: Filter<T>,
@@ -433,13 +434,14 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     update: UpdateFilter<T>,
   ): Promise<WithId<T> | null>;
   findOneAndUpdate(
-    _filter: unknown,
-    _update: unknown,
+    filter: unknown,
+    update: unknown,
     _options?: unknown,
-  ):
-    | Promise<import('mongodb').WithId<T> | null>
-    | Promise<import('mongodb').ModifyResult<T>> {
-    throw new Error('Method not implemented.');
+  ): Promise<WithId<T> | null | ModifyResult<T>> {
+    return this.collection.findOneAndUpdate(
+      filter as PongoFilter<T>,
+      update as PongoUpdate<T>,
+    ) as Promise<WithId<T> | null>;
   }
   aggregate<T extends Document = Document>(
     _pipeline?: Document[] | undefined,

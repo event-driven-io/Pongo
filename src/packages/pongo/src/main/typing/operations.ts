@@ -32,6 +32,15 @@ export interface PongoCollection<T extends PongoDocument> {
   deleteMany(filter?: PongoFilter<T>): Promise<PongoDeleteResult>;
   findOne(filter?: PongoFilter<T>): Promise<T | null>;
   find(filter?: PongoFilter<T>): Promise<T[]>;
+  findOneAndDelete(filter: PongoFilter<T>): Promise<T | null>;
+  findOneAndReplace(
+    filter: PongoFilter<T>,
+    replacement: WithoutId<T>,
+  ): Promise<T | null>;
+  findOneAndUpdate(
+    filter: PongoFilter<T>,
+    update: PongoUpdate<T>,
+  ): Promise<T | null>;
   countDocuments(filter?: PongoFilter<T>): Promise<number>;
   drop(): Promise<boolean>;
   rename(newName: string): Promise<PongoCollection<T>>;
