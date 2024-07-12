@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/dumbo",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Dumbo - tools for dealing with PostgreSQL",
   "type": "module",
   "scripts": {
@@ -58,8 +58,5 @@
   },
   "devDependencies": {
     "@types/node": "20.11.30"
-  },
-  "dependencies": {
-    "@event-driven-io/dumbo": "^0.2.0"
   }
 }
