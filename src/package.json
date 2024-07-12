@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/pongo-core",
-  "version": "0.2.4",
+  "version": "0.3.0",
   "description": "Pongo - Mongo with strong consistency on top of Postgres",
   "type": "module",
   "engines": {
@@ -98,6 +98,7 @@
     "pg-format": "^1.0.4"
   },
   "workspaces": [
+    "packages/dumbo",
     "packages/pongo"
   ]
 }

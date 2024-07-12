@@ -1,3 +1,4 @@
+import { executeSQL, sql, type SQL } from '@event-driven-io/dumbo';
 import pg from 'pg';
 import format from 'pg-format';
 import { v4 as uuid } from 'uuid';
@@ -11,9 +12,7 @@ import {
   type PongoUpdateResult,
   type WithId,
 } from '../main';
-import { executeSQL } from './execute';
 import { constructFilterQuery } from './filter';
-import { sql, type SQL } from './sql';
 import { buildUpdateQuery } from './update';
 
 export const postgresCollection = <T>(
