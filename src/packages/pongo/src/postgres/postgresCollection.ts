@@ -119,6 +119,44 @@ export const postgresCollection = <T extends PongoDocument>(
       const result = await execute(SqlFor.findOne(filter ?? {}));
       return (result.rows[0]?.data ?? null) as T | null;
     },
+    findOneAndDelete: async (filter: PongoFilter<T>): Promise<T | null> => {
+      await createCollection;
+
+      const existingDoc = await collection.findOne(filter);
+
+      if (existingDoc === null) return null;
+
+      await collection.deleteOne(filter);
+      return existingDoc;
+    },
+    findOneAndReplace: async (
+      filter: PongoFilter<T>,
+      replacement: WithoutId<T>,
+    ): Promise<T | null> => {
+      await createCollection;
+
+      const existingDoc = await collection.findOne(filter);
+
+      if (existingDoc === null) return null;
+
+      await collection.replaceOne(filter, replacement);
+
+      return existingDoc;
+    },
+    findOneAndUpdate: async (
+      filter: PongoFilter<T>,
+      update: PongoUpdate<T>,
+    ): Promise<T | null> => {
+      await createCollection;
+
+      const existingDoc = await collection.findOne(filter);
+
+      if (existingDoc === null) return null;
+
+      await collection.updateOne(filter, update);
+
+      return existingDoc;
+    },
     handle: async (
       id: string,
       handle: DocumentHandler<T>,
