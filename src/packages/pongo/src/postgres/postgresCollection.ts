@@ -131,9 +131,18 @@ export const postgresCollection = <T extends PongoDocument>(
 
       const result = await handle(existing);
 
-      if (!existing && result) await collection.insertOne(result);
-      else if (existing && result) await collection.replaceOne(byId, result);
-      else if (existing && !result) await collection.deleteOne(byId);
+      if (!existing && result) {
+        const newDoc = { ...result, _id: id };
+        await collection.insertOne({ ...newDoc, _id: id });
+        return newDoc;
+      }
+
+      if (existing && !result) {
+        await collection.deleteOne(byId);
+        return null;
+      }
+
+      if (existing && result) await collection.replaceOne(byId, result);
 
       return result;
     },

@@ -10,7 +10,7 @@ export interface PongoDb {
   collection<T extends PongoDocument>(name: string): PongoCollection<T>;
 }
 
-export interface PongoCollection<T> {
+export interface PongoCollection<T extends PongoDocument> {
   readonly dbName: string;
   readonly collectionName: string;
   createCollection(): Promise<void>;
@@ -34,6 +34,7 @@ export interface PongoCollection<T> {
   find(filter: PongoFilter<T>): Promise<T[]>;
   drop(): Promise<boolean>;
   rename(newName: string): Promise<PongoCollection<T>>;
+  handle(id: string, handle: DocumentHandler<T>): Promise<T | null>;
 }
 
 export type HasId = { _id: string };

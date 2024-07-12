@@ -41,6 +41,7 @@ import type {
   ModifyResult,
   Collection as MongoCollection,
   FindCursor as MongoFindCursor,
+  ObjectId,
   OperationOptions,
   OptionalUnlessRequiredId,
   OrderedBulkOperation,
@@ -58,7 +59,12 @@ import type {
   WriteConcern,
 } from 'mongodb';
 import type { Key } from 'readline';
-import type { PongoCollection, PongoFilter, PongoUpdate } from '../main';
+import type {
+  DocumentHandler,
+  PongoCollection,
+  PongoFilter,
+  PongoUpdate,
+} from '../main';
 import { FindCursor } from './findCursor';
 
 export class Collection<T extends Document> implements MongoCollection<T> {
@@ -500,5 +506,8 @@ export class Collection<T extends Document> implements MongoCollection<T> {
 
   async createCollection(): Promise<void> {
     await this.collection.createCollection();
+  }
+  async handle(id: ObjectId, handle: DocumentHandler<T>): Promise<T | null> {
+    return this.collection.handle(id.toString(), handle);
   }
 }
