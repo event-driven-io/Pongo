@@ -7,7 +7,7 @@ export interface PongoClient {
 }
 
 export interface PongoDb {
-  collection<T>(name: string): PongoCollection<T>;
+  collection<T extends PongoDocument>(name: string): PongoCollection<T>;
 }
 
 export interface PongoCollection<T> {
@@ -101,3 +101,9 @@ export interface PongoDeleteManyResult {
   acknowledged: boolean;
   deletedCount: number;
 }
+
+export type PongoDocument = Record<string, unknown>;
+
+export type DocumentHandler<T extends PongoDocument> =
+  | ((document: T | null) => T | null)
+  | ((document: T | null) => Promise<T | null>);

@@ -1,10 +1,10 @@
 import { postgresClient, type PongoClientOptions } from '../postgres';
-import type { PongoCollection } from './typing/operations';
+import type { PongoCollection, PongoDocument } from './typing/operations';
 
 export interface DbClient {
   connect(): Promise<void>;
   close(): Promise<void>;
-  collection: <T>(name: string) => PongoCollection<T>;
+  collection: <T extends PongoDocument>(name: string) => PongoCollection<T>;
 }
 
 export const getDbClient = (options: PongoClientOptions): DbClient => {

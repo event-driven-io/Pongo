@@ -3,8 +3,10 @@ import pg from 'pg';
 import format from 'pg-format';
 import { v4 as uuid } from 'uuid';
 import {
+  type DocumentHandler,
   type PongoCollection,
   type PongoDeleteResult,
+  type PongoDocument,
   type PongoFilter,
   type PongoInsertManyResult,
   type PongoInsertOneResult,
@@ -16,7 +18,7 @@ import {
 import { constructFilterQuery } from './filter';
 import { buildUpdateQuery } from './update';
 
-export const postgresCollection = <T>(
+export const postgresCollection = <T extends PongoDocument>(
   collectionName: string,
   {
     dbName,
@@ -117,6 +119,24 @@ export const postgresCollection = <T>(
       const result = await execute(SqlFor.findOne(filter));
       return (result.rows[0]?.data ?? null) as T | null;
     },
+    handle: async (
+      id: string,
+      handle: DocumentHandler<T>,
+    ): Promise<T | null> => {
+      await createCollection;
+
+      const byId: PongoFilter<T> = { _id: id };
+
+      const existing = await collection.findOne(byId);
+
+      const result = await handle(existing);
+
+      if (!existing && result) await collection.insertOne(result);
+      else if (existing && result) await collection.replaceOne(byId, result);
+      else if (existing && !result) await collection.deleteOne(byId);
+
+      return result;
+    },
     find: async (filter: PongoFilter<T>): Promise<T[]> => {
       await createCollection;
 
@@ -133,12 +153,12 @@ export const postgresCollection = <T>(
     },
     drop: async (): Promise<boolean> => {
       await createCollection;
-      const result = await execute(SqlFor.dropCollection());
+      const result = await execute(SqlFor.drop());
       return (result?.rowCount ?? 0) > 0;
     },
     rename: async (newName: string): Promise<PongoCollection<T>> => {
       await createCollection;
-      await execute(SqlFor.renameCollection(newName));
+      await execute(SqlFor.rename(newName));
       collectionName = newName;
       return collection;
     },
@@ -231,8 +251,8 @@ export const collectionSQLBuilder = (collectionName: string) => ({
       filterQuery,
     );
   },
-  renameCollection: (newName: string): SQL =>
+  rename: (newName: string): SQL =>
     sql('ALTER TABLE %I RENAME TO %I', collectionName, newName),
-  dropCollection: (targetName: string = collectionName): SQL =>
+  drop: (targetName: string = collectionName): SQL =>
     sql('DROP TABLE IF EXISTS %I', targetName),
 });
