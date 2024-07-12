@@ -179,7 +179,16 @@ export const postgresCollection = <T extends PongoDocument>(
 export const collectionSQLBuilder = (collectionName: string) => ({
   createCollection: (): SQL =>
     sql(
-      'CREATE TABLE IF NOT EXISTS %I (_id UUID PRIMARY KEY, data JSONB)',
+      `CREATE TABLE IF NOT EXISTS %I (
+        _id           TEXT           PRIMARY KEY, 
+        data          JSONB          NOT NULL, 
+        metadata      JSONB          NOT NULL     DEFAULT '{}',
+        _version      BIGINT         NOT NULL     DEFAULT 1,
+        _partition    TEXT           NOT NULL     DEFAULT 'png_global',
+        _archived     BOOLEAN        NOT NULL     DEFAULT FALSE,
+        _created      TIMESTAMPTZ    NOT NULL     DEFAULT now(),
+        _updated      TIMESTAMPTZ    NOT NULL     DEFAULT now()
+    )`,
       collectionName,
     ),
   insertOne: <T>(document: WithId<T>): SQL =>
