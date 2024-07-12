@@ -11,10 +11,13 @@ Read more in [Emmett getting started guide](https://event-driven-io.github.io/em
 Sample require EventStoreDB, you can start it by running
 
 with PostgreSQL:
+
 ```bash
 docker-compose up
 ```
+
 Alternatively, with YugabyteDB (PostgreSQL-compatible distributed SQL) starting 3 nodes:
+
 ```bash
 docker-compose -f docker-compose-yugabytedb.yml up -d --scale dist=0
 docker-compose -f docker-compose-yugabytedb.yml up -d --scale dist=1
