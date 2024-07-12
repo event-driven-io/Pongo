@@ -310,10 +310,10 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     throw new Error('Method not implemented.');
   }
   countDocuments(
-    _filter?: Filter<T> | undefined,
+    filter?: Filter<T> | undefined,
     _options?: CountDocumentsOptions | undefined,
   ): Promise<number> {
-    throw new Error('Method not implemented.');
+    return this.collection.countDocuments(filter as PongoFilter<T>);
   }
   distinct<Key extends '_id' | keyof EnhancedOmit<T, '_id'>>(
     key: Key,
