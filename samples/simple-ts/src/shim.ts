@@ -1,4 +1,4 @@
-import { MongoClient, endAllPools } from '@event-driven-io/pongo';
+import { MongoClient } from '@event-driven-io/pongo';
 
 type User = { name: string; age: number };
 
@@ -34,4 +34,4 @@ console.log(anitaFromDb);
 const usersFromDB = await users.find({ age: { $lt: 40 } }).toArray();
 console.log(JSON.stringify(usersFromDB));
 
-await endAllPools();
+await pongoClient.close();
