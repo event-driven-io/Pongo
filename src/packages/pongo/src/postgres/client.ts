@@ -4,7 +4,7 @@ import {
   getPool,
 } from '@event-driven-io/dumbo';
 import pg from 'pg';
-import { type DbClient } from '../main';
+import { type DbClient, type PongoDocument } from '../main';
 import { postgresCollection } from './postgresCollection';
 
 export type PongoClientOptions = {
@@ -25,7 +25,7 @@ export const postgresClient = (options: PongoClientOptions): DbClient => {
       managesPoolLifetime
         ? endPool({ connectionString, database: dbName })
         : Promise.resolve(),
-    collection: <T>(name: string) =>
+    collection: <T extends PongoDocument>(name: string) =>
       postgresCollection<T>(name, {
         dbName: dbName ?? getDatabaseNameOrDefault(connectionString),
         poolOrClient,
