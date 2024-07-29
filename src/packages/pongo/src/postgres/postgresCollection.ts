@@ -23,7 +23,7 @@ export const postgresCollection = <T extends PongoDocument>(
   {
     dbName,
     poolOrClient: clientOrPool,
-  }: { dbName: string; poolOrClient: pg.Pool | pg.PoolClient },
+  }: { dbName: string; poolOrClient: pg.Pool | pg.PoolClient | pg.Client },
 ): PongoCollection<T> => {
   const execute = <T extends pg.QueryResultRow = pg.QueryResultRow>(sql: SQL) =>
     executeSQL<T>(clientOrPool, sql);

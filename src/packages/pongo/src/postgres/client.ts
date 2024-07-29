@@ -10,7 +10,7 @@ import { postgresCollection } from './postgresCollection';
 export type PongoClientOptions = {
   connectionString: string;
   dbName?: string | undefined;
-  client?: pg.PoolClient | undefined;
+  client?: pg.PoolClient | pg.Client | undefined;
 };
 
 export const postgresClient = (options: PongoClientOptions): DbClient => {
