@@ -8,7 +8,7 @@ export class MongoClient {
 
   constructor(
     connectionString: string,
-    options: { client?: pg.PoolClient } = {},
+    options: { client?: pg.PoolClient | pg.Client } = {},
   ) {
     this.pongoClient = pongoClient(connectionString, options);
   }

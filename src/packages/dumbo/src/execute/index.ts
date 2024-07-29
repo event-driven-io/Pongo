@@ -3,7 +3,7 @@ import type { SQL } from '../sql';
 
 export const execute = async <Result = void>(
   pool: pg.Pool,
-  handle: (client: pg.PoolClient) => Promise<Result>,
+  handle: (client: pg.PoolClient | pg.Client) => Promise<Result>,
 ) => {
   const client = await pool.connect();
   try {
@@ -16,7 +16,7 @@ export const execute = async <Result = void>(
 export const executeInTransaction = async <Result = void>(
   pool: pg.Pool,
   handle: (
-    client: pg.PoolClient,
+    client: pg.PoolClient | pg.Client,
   ) => Promise<{ success: boolean; result: Result }>,
 ): Promise<Result> =>
   execute(pool, async (client) => {
@@ -38,7 +38,7 @@ export const executeInTransaction = async <Result = void>(
 export const executeSQL = async <
   Result extends pg.QueryResultRow = pg.QueryResultRow,
 >(
-  poolOrClient: pg.Pool | pg.PoolClient,
+  poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
   sql: SQL,
 ): Promise<pg.QueryResult<Result>> =>
   'totalCount' in poolOrClient

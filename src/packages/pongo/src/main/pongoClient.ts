@@ -5,7 +5,7 @@ import type { PongoClient, PongoDb } from './typing/operations';
 
 export const pongoClient = (
   connectionString: string,
-  options: { client?: pg.PoolClient } = {},
+  options: { client?: pg.PoolClient | pg.Client } = {},
 ): PongoClient => {
   const defaultDbName = getDatabaseNameOrDefault(connectionString);
   const dbClients: Map<string, DbClient> = new Map();
