@@ -13,7 +13,7 @@ export default defineConfig({
     // https://vitepress.dev/reference/default-theme-config
     nav: [
       { text: 'Getting Started', link: '/getting-started' },
-      { text: '🧑‍💻 Join Discord Server', link: 'https://discord.gg/kHkSThjG' },
+      { text: '🧑‍💻 Join Discord Server', link: 'https://discord.gg/VzvxR5Rb38' },
       {
         text: 'Release Notes',
         link: 'https://github.com/event-driven-io/Pongo/releases',
@@ -39,7 +39,7 @@ export default defineConfig({
 
     socialLinks: [
       { icon: 'github', link: 'https://github.com/event-driven-io/pongo' },
-      { icon: 'discord', link: 'https://discord.gg/kHkSThjG' },
+      { icon: 'discord', link: 'https://discord.gg/VzvxR5Rb38' },
     ],
     footer: {
       copyright: 'Copyright © Oskar Dudycz and contributors.',
