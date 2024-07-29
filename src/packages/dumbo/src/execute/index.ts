@@ -1,25 +1,44 @@
-import type pg from 'pg';
+import pg from 'pg';
 import type { SQL } from '../sql';
 
+export const isPgPool = (
+  poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
+): poolOrClient is pg.Pool => {
+  return poolOrClient instanceof pg.Pool;
+};
+
+export const isPgClient = (
+  poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
+): poolOrClient is pg.Client => poolOrClient instanceof pg.Client;
+
+export const isPgPoolClient = (
+  poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
+): poolOrClient is pg.PoolClient =>
+  'release' in poolOrClient && typeof poolOrClient.release === 'function';
+
 export const execute = async <Result = void>(
-  pool: pg.Pool,
+  poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
   handle: (client: pg.PoolClient | pg.Client) => Promise<Result>,
 ) => {
-  const client = await pool.connect();
+  const client = isPgPool(poolOrClient)
+    ? await poolOrClient.connect()
+    : poolOrClient;
+
   try {
     return await handle(client);
   } finally {
-    client.release();
+    // release only if client wasn't injected externally
+    if (isPgPool(poolOrClient) && isPgPoolClient(client)) client.release();
   }
 };
 
 export const executeInTransaction = async <Result = void>(
-  pool: pg.Pool,
+  poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
   handle: (
     client: pg.PoolClient | pg.Client,
   ) => Promise<{ success: boolean; result: Result }>,
 ): Promise<Result> =>
-  execute(pool, async (client) => {
+  execute(poolOrClient, async (client) => {
     try {
       await client.query('BEGIN');
 
@@ -41,14 +60,12 @@ export const executeSQL = async <
   poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
   sql: SQL,
 ): Promise<pg.QueryResult<Result>> =>
-  'totalCount' in poolOrClient
-    ? execute(poolOrClient, (client) => client.query<Result>(sql))
-    : poolOrClient.query<Result>(sql);
+  execute(poolOrClient, (client) => client.query<Result>(sql));
 
 export const executeSQLInTransaction = async <
   Result extends pg.QueryResultRow = pg.QueryResultRow,
 >(
-  pool: pg.Pool,
+  pool: pg.Pool | pg.PoolClient | pg.Client,
   sql: SQL,
 ) => {
   console.log(sql);
@@ -61,7 +78,7 @@ export const executeSQLInTransaction = async <
 export const executeSQLBatchInTransaction = async <
   Result extends pg.QueryResultRow = pg.QueryResultRow,
 >(
-  pool: pg.Pool,
+  pool: pg.Pool | pg.PoolClient | pg.Client,
   ...sqls: SQL[]
 ) =>
   executeInTransaction(pool, async (client) => {
