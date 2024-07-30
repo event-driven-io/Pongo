@@ -4,22 +4,34 @@ import {
   getPool,
 } from '@event-driven-io/dumbo';
 import pg from 'pg';
-import { type DbClient, type PongoDocument } from '../main';
+import {
+  type DbClient,
+  type PongoDbClientOptions,
+  type PongoDocument,
+} from '../main';
 import { postgresCollection } from './postgresCollection';
 
-export type PongoClientOptions = {
-  connectionString: string;
-  dbName?: string | undefined;
-  client?: pg.PoolClient | pg.Client | undefined;
-};
+export type PostgresDbClientOptions = PongoDbClientOptions<
+  'PostgreSQL',
+  {
+    client?: pg.PoolClient | pg.Client | undefined;
+  }
+>;
 
-export const postgresClient = (options: PongoClientOptions): DbClient => {
+export const isPostgresClientOptions = (
+  options: PongoDbClientOptions,
+): options is PostgresDbClientOptions => options.type === 'PostgreSQL';
+
+export const postgresDbClient = (
+  options: PostgresDbClientOptions,
+): DbClient<PostgresDbClientOptions> => {
   const { connectionString, dbName, client } = options;
   const managesPoolLifetime = !client;
   const poolOrClient =
     client ?? getPool({ connectionString, database: dbName });
 
   return {
+    options,
     connect: () => Promise.resolve(),
     close: () =>
       managesPoolLifetime

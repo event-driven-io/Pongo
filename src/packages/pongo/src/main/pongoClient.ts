@@ -1,17 +1,36 @@
 import { getDatabaseNameOrDefault } from '@event-driven-io/dumbo';
 import pg from 'pg';
-import { getDbClient, type DbClient } from './dbClient';
+import type { PostgresDbClientOptions } from '../postgres';
+import {
+  getDbClient,
+  type AllowedDbClientOptions,
+  type DbClient,
+} from './dbClient';
 import type { PongoClient, PongoDb, PongoSession } from './typing/operations';
 
-export const pongoClient = (
+export type PongoClientOptions = { client?: pg.PoolClient | pg.Client };
+
+export const pongoClient = <
+  DbClientOptions extends AllowedDbClientOptions = AllowedDbClientOptions,
+>(
   connectionString: string,
-  options: { client?: pg.PoolClient | pg.Client } = {},
+  options: PongoClientOptions = {},
 ): PongoClient => {
   const defaultDbName = getDatabaseNameOrDefault(connectionString);
-  const dbClients: Map<string, DbClient> = new Map();
+  const dbClients: Map<string, DbClient<DbClientOptions>> = new Map();
 
-  const dbClient = getDbClient({ connectionString, client: options.client });
+  const dbClient = getDbClient<DbClientOptions>(
+    clientToDbOptions({
+      connectionString,
+      dbName: defaultDbName,
+      clientOptions: options,
+    }),
+  );
   dbClients.set(defaultDbName, dbClient);
+
+  const startSession = (): PongoSession => {
+    throw new Error('Not Implemented!');
+  };
 
   const pongoClient: PongoClient = {
     connect: async () => {
@@ -31,19 +50,18 @@ export const pongoClient = (
         dbClients
           .set(
             dbName,
-            getDbClient({
-              connectionString,
-              dbName: dbName,
-              client: options.client,
-            }),
+            getDbClient<DbClientOptions>(
+              clientToDbOptions({
+                connectionString,
+                dbName: defaultDbName,
+                clientOptions: options,
+              }),
+            ),
           )
           .get(dbName)!
       );
     },
-
-    startSession(): PongoSession {
-      throw new Error('Not Implemented!');
-    },
+    startSession,
     withSession<T = unknown>(
       _callback: (session: PongoSession) => Promise<T>,
     ): Promise<T> {
@@ -52,4 +70,23 @@ export const pongoClient = (
   };
 
   return pongoClient;
+};
+
+export const clientToDbOptions = <
+  DbClientOptions extends AllowedDbClientOptions = AllowedDbClientOptions,
+>(options: {
+  connectionString: string;
+  dbName: string;
+  clientOptions: PongoClientOptions;
+}): DbClientOptions => {
+  const postgreSQLOptions: PostgresDbClientOptions = {
+    type: 'PostgreSQL',
+    connectionString: options.connectionString,
+    dbName: options.dbName,
+    ...(options.clientOptions.client
+      ? { client: options.clientOptions.client }
+      : {}),
+  };
+
+  return postgreSQLOptions as DbClientOptions;
 };
