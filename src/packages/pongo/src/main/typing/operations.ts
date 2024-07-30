@@ -4,6 +4,43 @@ export interface PongoClient {
   close(): Promise<void>;
 
   db(dbName?: string): PongoDb;
+
+  startSession(): PongoSession;
+
+  withSession<T = unknown>(
+    callback: (session: PongoSession) => Promise<T>,
+  ): Promise<T>;
+}
+
+export declare interface TransactionOptions {
+  get snapshotEnabled(): boolean;
+  maxCommitTimeMS?: number;
+}
+
+export interface Transaction {
+  options: TransactionOptions;
+  get isStarting(): boolean;
+  get isActive(): boolean;
+  get isCommitted(): boolean;
+}
+
+export interface PongoSession {
+  hasEnded: boolean;
+  explicit: boolean;
+  defaultTransactionOptions: TransactionOptions;
+  transaction: Transaction;
+  get snapshotEnabled(): boolean;
+
+  endSession(): Promise<void>;
+  incrementTransactionNumber(): void;
+  inTransaction(): boolean;
+  startTransaction(options?: TransactionOptions): void;
+  commitTransaction(): Promise<void>;
+  abortTransaction(): Promise<void>;
+  withTransaction<T = unknown>(
+    fn: (session: PongoSession) => Promise<T>,
+    options?: TransactionOptions,
+  ): Promise<T>;
 }
 
 export interface PongoDb {
