@@ -1,7 +1,7 @@
 import { getDatabaseNameOrDefault } from '@event-driven-io/dumbo';
 import pg from 'pg';
 import { getDbClient, type DbClient } from './dbClient';
-import type { PongoClient, PongoDb } from './typing/operations';
+import type { PongoClient, PongoDb, PongoSession } from './typing/operations';
 
 export const pongoClient = (
   connectionString: string,
@@ -39,6 +39,15 @@ export const pongoClient = (
           )
           .get(dbName)!
       );
+    },
+
+    startSession(): PongoSession {
+      throw new Error('Not Implemented!');
+    },
+    withSession<T = unknown>(
+      _callback: (session: PongoSession) => Promise<T>,
+    ): Promise<T> {
+      return Promise.reject('Not Implemented!');
     },
   };
 
