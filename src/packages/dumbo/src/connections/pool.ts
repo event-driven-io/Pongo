@@ -57,11 +57,11 @@ export const endPool = async ({
 export const onEndPool = async (lookupKey: string, pool: pg.Pool) => {
   try {
     await pool.end();
-    pools.delete(lookupKey);
   } catch (error) {
     console.log(`Error while closing the connection pool: ${lookupKey}`);
     console.log(error);
   }
+  pools.delete(lookupKey);
 };
 
 export const endAllPools = () =>
