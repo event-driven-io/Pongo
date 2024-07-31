@@ -4,8 +4,8 @@ import {
 } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import pg from 'pg';
-import { executeSQL } from '.';
-import { rawSql } from '../sql';
+import { executeSQL } from '..';
+import { rawSql } from '../../sql';
 
 void describe('PostgreSQL connection', () => {
   let postgres: StartedPostgreSqlContainer;

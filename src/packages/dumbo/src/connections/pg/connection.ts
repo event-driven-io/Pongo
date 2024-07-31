@@ -27,9 +27,11 @@ export type NodePostgresTransaction<
   DbClient extends NodePostgresPoolOrClient = NodePostgresPoolOrClient,
 > = Transaction<NodePostgresConnector, DbClient>;
 
-export type NodePostgresConnection = NodePostgresPoolConnection;
+export type NodePostgresConnection =
+  | NodePostgresPoolConnection
+  | NodePostgresClientConnection;
 
-export const NodePostgresTransaction = <
+export const nodePostgresTransaction = <
   DbClient extends NodePostgresPoolOrClient = NodePostgresPoolOrClient,
 >(
   client: Promise<DbClient>,
@@ -73,7 +75,7 @@ export const NodePostgresPoolConnection = (options: {
 
       if (!existingPool) await endPool({ connectionString, database });
     },
-    beginTransaction: () => Promise.resolve(NodePostgresTransaction(connect())),
+    beginTransaction: () => Promise.resolve(nodePostgresTransaction(connect())),
   };
 };
 
@@ -108,7 +110,7 @@ export const nodePostgresClientConnection = (options: {
       if (!existingClient) await connectedClient.end();
     },
     beginTransaction: () =>
-      Promise.resolve(NodePostgresTransaction(getClient())),
+      Promise.resolve(nodePostgresTransaction(getClient())),
   };
 };
 
