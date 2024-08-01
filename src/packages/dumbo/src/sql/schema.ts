@@ -1,6 +1,4 @@
-import pg from 'pg';
 import { sql, type SQL } from '.';
-import { exists } from '../execute';
 export * from './schema';
 
 export const tableExistsSQL = (tableName: string): SQL =>
@@ -13,10 +11,10 @@ export const tableExistsSQL = (tableName: string): SQL =>
     tableName,
   );
 
-export const tableExists = async (
-  pool: pg.Pool,
-  tableName: string,
-): Promise<boolean> => exists(pool, tableExistsSQL(tableName));
+// export const tableExists = async (
+//   pool: pg.Pool,
+//   tableName: string,
+// ): Promise<boolean> => exists(pool, tableExistsSQL(tableName));
 
 export const functionExistsSQL = (functionName: string): SQL =>
   sql(
@@ -30,7 +28,7 @@ export const functionExistsSQL = (functionName: string): SQL =>
     functionName,
   );
 
-export const functionExists = async (
-  pool: pg.Pool,
-  functionName: string,
-): Promise<boolean> => exists(pool, functionExistsSQL(functionName));
+// export const functionExists = async (
+//   pool: pg.Pool,
+//   functionName: string,
+// ): Promise<boolean> => exists(pool, functionExistsSQL(functionName));

@@ -1,6 +1,6 @@
 {
   "extends": "../../tsconfig.shared.json",
-  "include": ["./src/**/*"],
+  "include": ["./src/**/**/*"],
   "compilerOptions": {
     "composite": true,
     "outDir": "./dist" /* Redirect output structure to the directory. */,
