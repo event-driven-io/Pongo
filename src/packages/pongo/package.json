@@ -47,7 +47,7 @@
     "dist"
   ],
   "peerDependencies": {
-    "@event-driven-io/dumbo": "^0.5.0",
+    "@event-driven-io/dumbo": "^0.6.0",
     "@types/mongodb": "^4.0.7",
     "@types/pg": "^8.11.6",
     "@types/pg-format": "^1.0.5",

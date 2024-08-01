@@ -1,10 +1,13 @@
 import pg from 'pg';
 import {
   NodePostgresConnectorType,
-  type NodePostgresConnection,
+  type NodePostgresClient,
+  type NodePostgresConnector,
+  type QueryResult,
+  type QueryResultRow,
+  type SQLExecutor,
 } from '../../connections';
 import type { SQL } from '../../sql';
-import type { QueryResult, QueryResultRow, SQLExecutor } from '../execute';
 
 export const isPgPool = (
   poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
@@ -21,7 +24,7 @@ export const isPgPoolClient = (
 ): poolOrClient is pg.PoolClient =>
   'release' in poolOrClient && typeof poolOrClient.release === 'function';
 
-export const execute = async <Result = void>(
+export const nodePostgresExecute = async <Result = void>(
   poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
   handle: (client: pg.PoolClient | pg.Client) => Promise<Result>,
 ) => {
@@ -37,15 +40,18 @@ export const execute = async <Result = void>(
   }
 };
 
-export type NodePostgresSQLExecutor = SQLExecutor<NodePostgresConnection>;
+export type NodePostgresSQLExecutor = SQLExecutor<
+  NodePostgresConnector,
+  NodePostgresClient
+>;
 
 export const nodePostgresSQLExecutor = (): NodePostgresSQLExecutor => ({
   type: NodePostgresConnectorType,
   query: async <Result extends QueryResultRow = QueryResultRow>(
-    client: Promise<pg.PoolClient> | Promise<pg.Client>,
+    client: NodePostgresClient,
     sql: SQL,
   ): Promise<QueryResult<Result>> => {
-    const result = await (await client).query<Result>(sql);
+    const result = await client.query<Result>(sql);
 
     return { rowCount: result.rowCount, rows: result.rows };
   },
