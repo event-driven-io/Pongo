@@ -1,4 +1,4 @@
-import type { WithSQLExecutor } from './execute';
+import type { WithSQLExecutor } from '../execute';
 import type { TransactionFactory } from './transaction';
 
 export type Connection<

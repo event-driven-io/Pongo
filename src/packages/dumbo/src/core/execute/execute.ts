@@ -1,78 +1,3 @@
-import type { Connection } from '../connections';
-
-export const execute = async <
-  Result = void,
-  ConnectionType extends Connection = Connection,
->(
-  connection: ConnectionType,
-  handle: (client: ReturnType<ConnectionType['connect']>) => Promise<Result>,
-) => {
-  const client = connection.connect();
-
-  try {
-    return await handle(client as ReturnType<ConnectionType['connect']>);
-  } finally {
-    await connection.close();
-  }
-};
-
-// export const executeInTransaction = async <
-//   Result = void,
-//   ConnectionType extends Connection = Connection,
-// >(
-//   connection: ConnectionType,
-//   handle: (
-//     client: ReturnType<ConnectionType['open']>,
-//   ) => Promise<{ success: boolean; result: Result }>,
-// ): Promise<Result> =>
-//   execute(connection, async (client) => {
-//     const transaction = await connection.transaction();
-
-//     try {
-//       const { success, result } = await handle(client);
-
-//       if (success) await transaction.commit();
-//       else await transaction.rollback();
-
-//       return result;
-//     } catch (e) {
-//       await transaction.rollback();
-//       throw e;
-//     }
-//   });
-
-// const getExecutor = <ConnectionType extends Connection = Connection>(
-//   _connectorType: ConnectionType['type'],
-// ): SQLExecutor => ({
-//   type: '',
-//   query: <Result extends QueryResultRow = QueryResultRow>(
-//     _client: ReturnType<ConnectionType['connect']>,
-//     _queryTextOrConfig: SQL,
-//   ): Promise<QueryResult<Result>> => Promise.reject('Not Implemented!'),
-// });
-
-// export const executeSQL = async <
-//   Result extends QueryResultRow = QueryResultRow,
-//   ConnectionType extends Connection = Connection,
-// >(
-//   connection: ConnectionType,
-//   sql: SQL,
-// ): Promise<QueryResult<Result>> => connection.execute.query<Result>(sql);
-
-// export const executeSQLInTransaction = async <
-//   Result extends QueryResultRow = QueryResultRow,
-//   ConnectionType extends Connection = Connection,
-// >(
-//   connection: ConnectionType,
-//   sql: SQL,
-// ) => {
-//   console.log(sql);
-//   return executeInTransaction(connection, async (client) => ({
-//     success: true,
-//     result: await getExecutor(connection.type).query<Result>(client, sql),
-//   }));
-// };
-
 // export const executeSQLBatchInTransaction = async <
 //   Result extends QueryResultRow = QueryResultRow,
 //   ConnectionType extends Connection = Connection,
@@ -84,6 +9,157 @@ export const execute = async <
 //     for (const sql of sqls) {
 //       await getExecutor(connection.type).query<Result>(client, sql);
 //     }
-
 //     return { success: true, result: undefined };
 //   });
+
+import type { Connection } from '../connections';
+import type { QueryResult, QueryResultRow } from '../query';
+import { type SQL } from '../sql';
+
+export type SQLExecutor<
+  ConnectorType extends string = string,
+  DbClient = unknown,
+> = {
+  type: ConnectorType;
+  query<Result extends QueryResultRow = QueryResultRow>(
+    client: DbClient,
+    sql: SQL,
+  ): Promise<QueryResult<Result>>;
+  batchQuery<Result extends QueryResultRow = QueryResultRow>(
+    client: DbClient,
+    sqls: SQL[],
+  ): Promise<QueryResult<Result>[]>;
+  command<Result extends QueryResultRow = QueryResultRow>(
+    client: DbClient,
+    sql: SQL,
+  ): Promise<QueryResult<Result>>;
+  batchCommand<Result extends QueryResultRow = QueryResultRow>(
+    client: DbClient,
+    sqls: SQL[],
+  ): Promise<QueryResult<Result>[]>;
+};
+
+export type WithSQLExecutor = {
+  execute: {
+    query<Result extends QueryResultRow = QueryResultRow>(
+      sql: SQL,
+    ): Promise<QueryResult<Result>>;
+    batchQuery<Result extends QueryResultRow = QueryResultRow>(
+      sqls: SQL[],
+    ): Promise<QueryResult<Result>[]>;
+    command<Result extends QueryResultRow = QueryResultRow>(
+      sql: SQL,
+    ): Promise<QueryResult<Result>>;
+    batchCommand<Result extends QueryResultRow = QueryResultRow>(
+      sqls: SQL[],
+    ): Promise<QueryResult<Result>[]>;
+  };
+};
+
+export const withSqlExecutor = <
+  DbClient = unknown,
+  Executor extends SQLExecutor = SQLExecutor,
+>(
+  sqlExecutor: Executor,
+  // TODO: In the longer term we should have different options for query and command
+  options: {
+    connect: () => Promise<DbClient>;
+    close?: (client: DbClient, error?: unknown) => Promise<void>;
+  },
+): WithSQLExecutor => {
+  return {
+    execute: {
+      query: (sql) =>
+        executeInNewDbClient(
+          (client) => sqlExecutor.query(client, sql),
+          options,
+        ),
+      batchQuery: (sqls) =>
+        executeInNewDbClient(
+          (client) => sqlExecutor.batchQuery(client, sqls),
+          options,
+        ),
+      command: (sql) =>
+        executeInNewDbClient(
+          (client) => sqlExecutor.command(client, sql),
+          options,
+        ),
+      batchCommand: (sqls) =>
+        executeInNewDbClient(
+          (client) => sqlExecutor.batchQuery(client, sqls),
+          options,
+        ),
+    },
+  };
+};
+
+export const withSqlExecutorInNewConnection = <
+  ConnectionType extends Connection,
+>(options: {
+  open: () => Promise<ConnectionType>;
+}): WithSQLExecutor => {
+  return {
+    execute: {
+      query: (sql) =>
+        executeInNewConnection(
+          (connection) => connection.execute.query(sql),
+          options,
+        ),
+      batchQuery: (sqls) =>
+        executeInNewConnection(
+          (connection) => connection.execute.batchQuery(sqls),
+          options,
+        ),
+      command: (sql) =>
+        executeInNewConnection(
+          (connection) => connection.execute.command(sql),
+          options,
+        ),
+      batchCommand: (sqls) =>
+        executeInNewConnection(
+          (connection) => connection.execute.batchCommand(sqls),
+          options,
+        ),
+    },
+  };
+};
+
+export const executeInNewDbClient = async <
+  DbClient = unknown,
+  Result = unknown,
+>(
+  handle: (client: DbClient) => Promise<Result>,
+  options: {
+    connect: () => Promise<DbClient>;
+    close?: (client: DbClient, error?: unknown) => Promise<void>;
+  },
+): Promise<Result> => {
+  const { connect, close } = options;
+  const client = await connect();
+  try {
+    return await handle(client);
+  } catch (error) {
+    if (close) await close(client, error);
+
+    throw error;
+  }
+};
+
+export const executeInNewConnection = async <
+  ConnectionType extends Connection,
+  Result extends QueryResultRow = QueryResultRow,
+>(
+  handle: (connection: ConnectionType) => Promise<Result>,
+  options: {
+    open: () => Promise<ConnectionType>;
+  },
+) => {
+  const { open } = options;
+  const connection = await open();
+
+  try {
+    return await handle(connection);
+  } finally {
+    await connection.close();
+  }
+};

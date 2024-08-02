@@ -53,12 +53,32 @@ export type NodePostgresSQLExecutor = SQLExecutor<
 
 export const nodePostgresSQLExecutor = (): NodePostgresSQLExecutor => ({
   type: NodePostgresConnectorType,
-  query: async <Result extends QueryResultRow = QueryResultRow>(
-    client: NodePostgresClient,
-    sql: SQL,
-  ): Promise<QueryResult<Result>> => {
-    const result = await client.query<Result>(sql);
-
-    return { rowCount: result.rowCount, rows: result.rows };
-  },
+  query: batch,
+  batchQuery: batch,
+  command: batch,
+  batchCommand: batch,
 });
+
+function batch<Result extends QueryResultRow = QueryResultRow>(
+  client: NodePostgresClient,
+  sqlOrSqls: SQL,
+): Promise<QueryResult<Result>>;
+function batch<Result extends QueryResultRow = QueryResultRow>(
+  client: NodePostgresClient,
+  sqlOrSqls: SQL[],
+): Promise<QueryResult<Result>[]>;
+async function batch<Result extends QueryResultRow = QueryResultRow>(
+  client: NodePostgresClient,
+  sqlOrSqls: SQL | SQL[],
+): Promise<QueryResult<Result> | QueryResult<Result>[]> {
+  const sqls = Array.isArray(sqlOrSqls) ? sqlOrSqls : [sqlOrSqls];
+  const results: QueryResult<Result>[] = Array<QueryResult<Result>>(
+    sqls.length,
+  );
+  //TODO: make it smarter at some point
+  for (let i = 0; i < sqls.length; i++) {
+    const result = await client.query<Result>(sqls[i]!);
+    results[i] = { rowCount: result.rowCount, rows: result.rows };
+  }
+  return Array.isArray(sqlOrSqls) ? results : results[0]!;
+}

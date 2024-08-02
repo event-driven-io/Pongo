@@ -1,8 +1,7 @@
 import pg from 'pg';
 import {
-  queryWithNewConnection,
+  withSqlExecutorInNewConnection,
   type ConnectionPool,
-  type SQL,
   type Transaction,
 } from '../../../core';
 import {
@@ -52,9 +51,7 @@ export const nodePostgresNativePool = (options: {
     type: NodePostgresConnectorType,
     open,
     close,
-    execute: {
-      query: async (sql: SQL) => queryWithNewConnection({ open }, sql),
-    },
+    ...withSqlExecutorInNewConnection({ open }),
     transaction: () => getConnection().transaction(),
     inTransaction: async <Result = unknown>(
       handle: (
@@ -104,9 +101,7 @@ export const nodePostgresExplicitClientPool = (options: {
     type: NodePostgresConnectorType,
     open,
     close,
-    execute: {
-      query: (sql: SQL) => queryWithNewConnection({ open }, sql),
-    },
+    ...withSqlExecutorInNewConnection({ open }),
     transaction: () => getConnection().transaction(),
     inTransaction: async <Result = unknown>(
       handle: (

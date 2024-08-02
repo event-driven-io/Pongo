@@ -1,5 +1,5 @@
+import type { WithSQLExecutor } from '../execute';
 import { type Connection } from './connection';
-import type { WithSQLExecutor } from './execute';
 
 export type Transaction<ConnectorType extends string = string> = {
   type: ConnectorType;
