@@ -1,16 +1,16 @@
 import type { ClientSessionOptions } from 'http2';
 import type { ClientSession, WithSessionCallback } from 'mongodb';
-import pg from 'pg';
-import { pongoClient, type PongoClient } from '../main';
+import {
+  pongoClient,
+  type PongoClient,
+  type PongoClientOptions,
+} from '../main';
 import { Db } from './mongoDb';
 
 export class MongoClient {
   private pongoClient: PongoClient;
 
-  constructor(
-    connectionString: string,
-    options: { client?: pg.PoolClient | pg.Client } = {},
-  ) {
+  constructor(connectionString: string, options: PongoClientOptions = {}) {
     this.pongoClient = pongoClient(connectionString, options);
   }
 
