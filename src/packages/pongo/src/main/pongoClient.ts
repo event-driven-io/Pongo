@@ -1,4 +1,3 @@
-import { getDatabaseNameOrDefault } from '@event-driven-io/dumbo';
 import pg from 'pg';
 import type { PostgresDbClientOptions } from '../postgres';
 import {
@@ -16,17 +15,15 @@ export const pongoClient = <
   connectionString: string,
   options: PongoClientOptions = {},
 ): PongoClient => {
-  const defaultDbName = getDatabaseNameOrDefault(connectionString);
   const dbClients: Map<string, DbClient<DbClientOptions>> = new Map();
 
   const dbClient = getDbClient<DbClientOptions>(
     clientToDbOptions({
       connectionString,
-      dbName: defaultDbName,
       clientOptions: options,
     }),
   );
-  dbClients.set(defaultDbName, dbClient);
+  dbClients.set(dbClient.databaseName, dbClient);
 
   const startSession = (): PongoSession => {
     throw new Error('Not Implemented!');
@@ -53,7 +50,7 @@ export const pongoClient = <
             getDbClient<DbClientOptions>(
               clientToDbOptions({
                 connectionString,
-                dbName: defaultDbName,
+                dbName,
                 clientOptions: options,
               }),
             ),
@@ -76,7 +73,7 @@ export const clientToDbOptions = <
   DbClientOptions extends AllowedDbClientOptions = AllowedDbClientOptions,
 >(options: {
   connectionString: string;
-  dbName: string;
+  dbName?: string;
   clientOptions: PongoClientOptions;
 }): DbClientOptions => {
   const postgreSQLOptions: PostgresDbClientOptions = {

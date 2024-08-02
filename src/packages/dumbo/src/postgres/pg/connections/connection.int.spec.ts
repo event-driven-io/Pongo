@@ -5,7 +5,7 @@ import {
 import { after, before, describe, it } from 'node:test';
 import pg from 'pg';
 import { nodePostgresPool } from '.';
-import { rawSql } from '../../sql';
+import { rawSql } from '../../../core';
 import { endPool, getPool } from './pool';
 
 void describe('PostgreSQL connection', () => {

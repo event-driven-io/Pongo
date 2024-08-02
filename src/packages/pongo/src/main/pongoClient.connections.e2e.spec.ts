@@ -1,4 +1,4 @@
-import { isPgPool } from '@event-driven-io/dumbo';
+import { isNodePostgresNativePool } from '@event-driven-io/dumbo';
 import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
@@ -31,7 +31,7 @@ void describe('Pongo collection', () => {
   ) => {
     const pongo = pongoClient(
       connectionString,
-      isPgPool(poolOrClient)
+      isNodePostgresNativePool(poolOrClient)
         ? undefined
         : {
             client: poolOrClient,
