@@ -122,7 +122,7 @@ export type NodePostgresPoolPooledOptions =
   | {
       connectionString: string;
       database?: string;
-      type: 'pooled';
+      pooled: true;
       pool: pg.Pool;
     }
   | {
@@ -133,7 +133,7 @@ export type NodePostgresPoolPooledOptions =
   | {
       connectionString: string;
       database?: string;
-      type: 'pooled';
+      pooled: true;
     }
   | {
       connectionString: string;
@@ -144,7 +144,7 @@ export type NodePostgresPoolNotPooledOptions =
   | {
       connectionString: string;
       database?: string;
-      type: 'client';
+      pooled: false;
       client: pg.Client;
     }
   | {
@@ -155,7 +155,7 @@ export type NodePostgresPoolNotPooledOptions =
   | {
       connectionString: string;
       database?: string;
-      type: 'client';
+      pooled: false;
     };
 
 export type NodePostgresPoolOptions =
@@ -168,17 +168,12 @@ export function nodePostgresPool(
 export function nodePostgresPool(
   options: NodePostgresPoolNotPooledOptions,
 ): NodePostgresExplicitClientPool;
-export function nodePostgresPool(options: {
-  connectionString: string;
-  database?: string;
-  type: 'client';
-}): NodePostgresExplicitClientPool;
 export function nodePostgresPool(
   options: NodePostgresPoolOptions,
 ): NodePostgresNativePool | NodePostgresExplicitClientPool {
   const { connectionString, database } = options;
 
-  if (('type' in options && options.type === 'client') || 'client' in options)
+  if (('pooled' in options && options.pooled === false) || 'client' in options)
     return nodePostgresExplicitClientPool({
       connectionString,
       ...(database ? { database } : {}),

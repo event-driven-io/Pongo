@@ -53,7 +53,7 @@ void describe('PostgreSQL connection', () => {
     void it('connects using client', async () => {
       const pool = nodePostgresPool({
         connectionString,
-        type: 'client',
+        pooled: false,
       });
       const connection = await pool.open();
 

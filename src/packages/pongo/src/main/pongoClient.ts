@@ -7,7 +7,35 @@ import {
 } from './dbClient';
 import type { PongoClient, PongoDb, PongoSession } from './typing/operations';
 
-export type PongoClientOptions = { client?: pg.PoolClient | pg.Client };
+export type PooledPongoClientOptions =
+  | {
+      pool: pg.Pool;
+    }
+  | {
+      pooled: true;
+    }
+  | {
+      pool: pg.Pool;
+      pooled: true;
+    }
+  // eslint-disable-next-line @typescript-eslint/ban-types
+  | {};
+
+export type NotPooledPongoOptions =
+  | {
+      client: pg.Client;
+    }
+  | {
+      pooled: false;
+    }
+  | {
+      client: pg.Client;
+      pooled: false;
+    };
+
+export type PongoClientOptions =
+  | PooledPongoClientOptions
+  | NotPooledPongoOptions;
 
 export const pongoClient = <
   DbClientOptions extends AllowedDbClientOptions = AllowedDbClientOptions,
@@ -80,9 +108,7 @@ export const clientToDbOptions = <
     type: 'PostgreSQL',
     connectionString: options.connectionString,
     dbName: options.dbName,
-    ...(options.clientOptions.client
-      ? { client: options.clientOptions.client }
-      : {}),
+    ...options.clientOptions,
   };
 
   return postgreSQLOptions as DbClientOptions;
