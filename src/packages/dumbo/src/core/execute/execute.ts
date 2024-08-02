@@ -1,6 +1,5 @@
 import type { Connection } from '../connections';
 import type { QueryResult, QueryResultRow } from '../connections/execute';
-import type { SQL } from '../sql';
 
 export const execute = async <
   Result = void,
@@ -136,6 +135,16 @@ export const single = async <Result extends QueryResultRow = QueryResultRow>(
   return result.rows[0]!;
 };
 
+export type ExistsSQLQueryResult = { exists: boolean };
+
+export const exists = async (
+  getResult: Promise<QueryResult<ExistsSQLQueryResult>>,
+): Promise<boolean> => {
+  const result = await single(getResult);
+
+  return result.exists === true;
+};
+
 export const mapRows = async <
   Result extends QueryResultRow = QueryResultRow,
   Mapped = unknown,
@@ -161,17 +170,4 @@ export const mapToCamelCase = <T extends Record<string, unknown>>(
     }
   }
   return newObj as T;
-};
-
-export type ExistsSQLQueryResult = { exists: boolean };
-
-export const exists = async <ConnectionType extends Connection = Connection>(
-  connection: ConnectionType,
-  sql: SQL,
-): Promise<boolean> => {
-  const result = await single(
-    connection.execute.query<ExistsSQLQueryResult>(sql),
-  );
-
-  return result.exists === true;
 };

@@ -17,6 +17,7 @@ export type PongoDbClientOptions<
 export interface DbClient<
   DbClientOptions extends PongoDbClientOptions = PongoDbClientOptions,
 > {
+  databaseName: string;
   options: DbClientOptions;
   connect(): Promise<void>;
   close(): Promise<void>;

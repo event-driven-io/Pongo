@@ -1,6 +1,5 @@
-import { nodePostgresSQLExecutor } from '../../execute';
-import { withSqlExecutor } from '../execute';
-import type { Transaction } from '../transaction';
+import { withSqlExecutor, type Transaction } from '../../../core';
+import { nodePostgresSQLExecutor } from '../execute';
 import {
   NodePostgresConnectorType,
   type NodePostgresConnector,

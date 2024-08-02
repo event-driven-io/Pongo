@@ -1,8 +1,10 @@
 import pg from 'pg';
-import { nodePostgresSQLExecutor } from '../../execute';
-import type { Connection } from '../connection';
-import { withSqlExecutor } from '../execute';
-import { transactionFactory } from '../transaction';
+import {
+  transactionFactory,
+  withSqlExecutor,
+  type Connection,
+} from '../../../core';
+import { nodePostgresSQLExecutor } from '../execute';
 import { nodePostgresTransaction } from './transaction';
 
 export const NodePostgresConnectorType = 'PostgreSQL:pg';

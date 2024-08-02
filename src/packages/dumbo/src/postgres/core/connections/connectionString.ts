@@ -1,6 +1,5 @@
 import pgcs from 'pg-connection-string';
-
-export const defaultPostgreSqlDatabase = 'postgres';
+import { defaultPostgreSqlDatabase } from '../schema';
 
 export const getDatabaseNameOrDefault = (connectionString: string) =>
   pgcs.parse(connectionString).database ?? defaultPostgreSqlDatabase;

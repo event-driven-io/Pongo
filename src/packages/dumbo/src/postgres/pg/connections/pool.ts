@@ -1,12 +1,14 @@
 import pg from 'pg';
-import { type SQL } from '../../sql';
+import {
+  queryWithNewConnection,
+  type ConnectionPool,
+  type SQL,
+  type Transaction,
+} from '../../../core';
 import {
   defaultPostgreSqlDatabase,
   getDatabaseNameOrDefault,
-} from '../connectionString';
-import { queryWithNewConnection } from '../execute';
-import type { ConnectionPool } from '../pool';
-import type { Transaction } from '../transaction';
+} from '../../core';
 import {
   nodePostgresConnection,
   NodePostgresConnectorType,

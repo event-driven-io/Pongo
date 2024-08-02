@@ -1,5 +1,5 @@
 import format from 'pg-format';
-export * from './schema';
+// TODO: add core formatter, when adding other database type
 
 export type SQL = string & { __brand: 'sql' };
 

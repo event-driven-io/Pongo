@@ -1,25 +1,27 @@
 import pg from 'pg';
 import {
+  type QueryResult,
+  type QueryResultRow,
+  type SQL,
+  type SQLExecutor,
+} from '../../../core';
+import {
   NodePostgresConnectorType,
   type NodePostgresClient,
   type NodePostgresConnector,
-  type QueryResult,
-  type QueryResultRow,
-  type SQLExecutor,
-} from '../../connections';
-import type { SQL } from '../../sql';
+} from '../connections';
 
-export const isPgPool = (
+export const isNodePostgresNativePool = (
   poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
 ): poolOrClient is pg.Pool => {
   return poolOrClient instanceof pg.Pool;
 };
 
-export const isPgClient = (
+export const isNodePostgresClient = (
   poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
 ): poolOrClient is pg.Client => poolOrClient instanceof pg.Client;
 
-export const isPgPoolClient = (
+export const isNodePostgresPoolClient = (
   poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
 ): poolOrClient is pg.PoolClient =>
   'release' in poolOrClient && typeof poolOrClient.release === 'function';
@@ -28,7 +30,7 @@ export const nodePostgresExecute = async <Result = void>(
   poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
   handle: (client: pg.PoolClient | pg.Client) => Promise<Result>,
 ) => {
-  const client = isPgPool(poolOrClient)
+  const client = isNodePostgresNativePool(poolOrClient)
     ? await poolOrClient.connect()
     : poolOrClient;
 
@@ -36,7 +38,11 @@ export const nodePostgresExecute = async <Result = void>(
     return await handle(client);
   } finally {
     // release only if client wasn't injected externally
-    if (isPgPool(poolOrClient) && isPgPoolClient(client)) client.release();
+    if (
+      isNodePostgresNativePool(poolOrClient) &&
+      isNodePostgresPoolClient(client)
+    )
+      client.release();
   }
 };
 
