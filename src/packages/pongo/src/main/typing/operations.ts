@@ -1,3 +1,5 @@
+import type { Transaction } from '@event-driven-io/dumbo';
+
 export interface PongoClient {
   connect(): Promise<this>;
 
@@ -18,6 +20,8 @@ export declare interface PongoTransactionOptions {
 }
 
 export interface PongoTransaction {
+  db: PongoDb | null;
+  transaction: Transaction | null;
   options: PongoTransactionOptions;
   get isStarting(): boolean;
   get isActive(): boolean;
