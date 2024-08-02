@@ -1,6 +1,7 @@
 import {
   getDatabaseNameOrDefault,
-  nodePostgresPool,
+  postgresPool,
+  type PostgresPoolOptions,
 } from '@event-driven-io/dumbo';
 import {
   type DbClient,
@@ -9,7 +10,8 @@ import {
 } from '../main';
 import { postgresCollection } from './postgresCollection';
 
-export type PostgresDbClientOptions = PongoDbClientOptions<'PostgreSQL'>;
+export type PostgresDbClientOptions = PongoDbClientOptions<'PostgreSQL'> &
+  PostgresPoolOptions;
 
 export const isPostgresClientOptions = (
   options: PongoDbClientOptions,
@@ -21,7 +23,7 @@ export const postgresDbClient = (
   const { connectionString, dbName } = options;
   const databaseName = dbName ?? getDatabaseNameOrDefault(connectionString);
 
-  const pool = nodePostgresPool(options);
+  const pool = postgresPool(options);
 
   return {
     databaseName,
