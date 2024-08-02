@@ -2,9 +2,9 @@ import {
   single,
   sql,
   type ConnectionPool,
+  type QueryResultRow,
   type SQL,
 } from '@event-driven-io/dumbo';
-import pg from 'pg';
 import format from 'pg-format';
 import { v4 as uuid } from 'uuid';
 import {
@@ -27,7 +27,7 @@ export const postgresCollection = <T extends PongoDocument>(
   collectionName: string,
   { dbName, pool }: { dbName: string; pool: ConnectionPool },
 ): PongoCollection<T> => {
-  const execute = <T extends pg.QueryResultRow = pg.QueryResultRow>(sql: SQL) =>
+  const execute = <T extends QueryResultRow = QueryResultRow>(sql: SQL) =>
     pool.execute.query<T>(sql);
 
   const SqlFor = collectionSQLBuilder(collectionName);

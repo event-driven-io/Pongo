@@ -118,52 +118,67 @@ export const nodePostgresExplicitClientPool = (options: {
   };
 };
 
-export function nodePostgresPool(options: {
-  connectionString: string;
-  database?: string;
-  type: 'pooled';
-  pool: pg.Pool;
-}): NodePostgresNativePool;
-export function nodePostgresPool(options: {
-  connectionString: string;
-  database?: string;
-  pool: pg.Pool;
-}): NodePostgresNativePool;
-export function nodePostgresPool(options: {
-  connectionString: string;
-  database?: string;
-  type: 'pooled';
-}): NodePostgresNativePool;
-export function nodePostgresPool(options: {
-  connectionString: string;
-  database?: string;
-}): NodePostgresNativePool;
+export type NodePostgresPoolPooledOptions =
+  | {
+      connectionString: string;
+      database?: string;
+      type: 'pooled';
+      pool: pg.Pool;
+    }
+  | {
+      connectionString: string;
+      database?: string;
+      pool: pg.Pool;
+    }
+  | {
+      connectionString: string;
+      database?: string;
+      type: 'pooled';
+    }
+  | {
+      connectionString: string;
+      database?: string;
+    };
+
+export type NodePostgresPoolNotPooledOptions =
+  | {
+      connectionString: string;
+      database?: string;
+      type: 'client';
+      client: pg.Client;
+    }
+  | {
+      connectionString: string;
+      database?: string;
+      client: pg.Client;
+    }
+  | {
+      connectionString: string;
+      database?: string;
+      type: 'client';
+    };
+
+export type NodePostgresPoolOptions =
+  | NodePostgresPoolPooledOptions
+  | NodePostgresPoolNotPooledOptions;
+
+export function nodePostgresPool(
+  options: NodePostgresPoolPooledOptions,
+): NodePostgresNativePool;
+export function nodePostgresPool(
+  options: NodePostgresPoolNotPooledOptions,
+): NodePostgresExplicitClientPool;
 export function nodePostgresPool(options: {
   connectionString: string;
   database?: string;
   type: 'client';
-  client: pg.Client;
 }): NodePostgresExplicitClientPool;
-export function nodePostgresPool(options: {
-  connectionString: string;
-  database?: string;
-  client: pg.Client;
-}): NodePostgresExplicitClientPool;
-export function nodePostgresPool(options: {
-  connectionString: string;
-  database?: string;
-  type: 'client';
-}): NodePostgresExplicitClientPool;
-export function nodePostgresPool(options: {
-  connectionString: string;
-  database?: string;
-  type?: 'pooled' | 'client';
-  pool?: pg.Pool;
-  client?: pg.Client;
-}): NodePostgresNativePool | NodePostgresExplicitClientPool {
+export function nodePostgresPool(
+  options: NodePostgresPoolOptions,
+): NodePostgresNativePool | NodePostgresExplicitClientPool {
   const { connectionString, database } = options;
 
-  if (options.type === 'client' || 'client' in options)
+  if (('type' in options && options.type === 'client') || 'client' in options)
     return nodePostgresExplicitClientPool({
       connectionString,
       ...(database ? { database } : {}),
