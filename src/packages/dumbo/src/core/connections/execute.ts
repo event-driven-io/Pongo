@@ -1,15 +1,6 @@
+import type { QueryResult, QueryResultRow } from '../query';
 import { type SQL } from '../sql';
 import type { Connection } from './connection';
-
-export interface QueryResultRow {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [column: string]: any;
-}
-
-export type QueryResult<Result extends QueryResultRow = QueryResultRow> = {
-  rowCount: number | null;
-  rows: Result[];
-};
 
 export type SQLExecutor<
   ConnectorType extends string = string,
