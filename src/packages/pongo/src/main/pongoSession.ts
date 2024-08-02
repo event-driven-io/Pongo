@@ -26,6 +26,8 @@ export const pongoSession = (options?: PongoSessionOptions): PongoSession => {
       throw new Error('Active transaction already exists!');
 
     transaction = {
+      db: null,
+      transaction: null,
       isStarting: false,
       isActive: true,
       isCommitted: false,
@@ -37,6 +39,8 @@ export const pongoSession = (options?: PongoSessionOptions): PongoSession => {
       return Promise.reject('No active transaction!');
 
     transaction = {
+      db: null,
+      transaction: null,
       isStarting: false,
       isActive: false,
       isCommitted: true,
@@ -49,6 +53,8 @@ export const pongoSession = (options?: PongoSessionOptions): PongoSession => {
       return Promise.reject('No active transaction!');
 
     transaction = {
+      db: null,
+      transaction: null,
       isStarting: false,
       isActive: false,
       isCommitted: false,

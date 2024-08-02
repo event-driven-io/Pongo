@@ -54,10 +54,6 @@ export const pongoClient = <
   );
   dbClients.set(dbClient.databaseName, dbClient);
 
-  const startSession = (): PongoSession => {
-    throw new Error('Not Implemented!');
-  };
-
   const pongoClient: PongoClient = {
     connect: async () => {
       await dbClient.connect();
