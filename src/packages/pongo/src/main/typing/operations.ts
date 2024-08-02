@@ -12,13 +12,13 @@ export interface PongoClient {
   ): Promise<T>;
 }
 
-export declare interface TransactionOptions {
+export declare interface PongoTransactionOptions {
   get snapshotEnabled(): boolean;
   maxCommitTimeMS?: number;
 }
 
-export interface Transaction {
-  options: TransactionOptions;
+export interface PongoTransaction {
+  options: PongoTransactionOptions;
   get isStarting(): boolean;
   get isActive(): boolean;
   get isCommitted(): boolean;
@@ -27,19 +27,19 @@ export interface Transaction {
 export interface PongoSession {
   hasEnded: boolean;
   explicit: boolean;
-  defaultTransactionOptions: TransactionOptions;
-  transaction: Transaction;
+  defaultTransactionOptions: PongoTransactionOptions;
+  transaction: PongoTransaction | null;
   get snapshotEnabled(): boolean;
 
   endSession(): Promise<void>;
   incrementTransactionNumber(): void;
   inTransaction(): boolean;
-  startTransaction(options?: TransactionOptions): void;
+  startTransaction(options?: PongoTransactionOptions): void;
   commitTransaction(): Promise<void>;
   abortTransaction(): Promise<void>;
   withTransaction<T = unknown>(
     fn: (session: PongoSession) => Promise<T>,
-    options?: TransactionOptions,
+    options?: PongoTransactionOptions,
   ): Promise<T>;
 }
 

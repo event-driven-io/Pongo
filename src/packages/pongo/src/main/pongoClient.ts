@@ -5,6 +5,7 @@ import {
   type AllowedDbClientOptions,
   type DbClient,
 } from './dbClient';
+import { pongoSession } from './pongoSession';
 import type { PongoClient, PongoDb, PongoSession } from './typing/operations';
 
 export type PooledPongoClientOptions =
@@ -86,11 +87,17 @@ export const pongoClient = <
           .get(dbName)!
       );
     },
-    startSession,
-    withSession<T = unknown>(
-      _callback: (session: PongoSession) => Promise<T>,
-    ): Promise<T> {
-      return Promise.reject('Not Implemented!');
+    startSession: pongoSession,
+    withSession: async <T = unknown>(
+      callback: (session: PongoSession) => Promise<T>,
+    ): Promise<T> => {
+      const session = pongoSession();
+
+      try {
+        return await callback(session);
+      } finally {
+        await session.endSession();
+      }
     },
   };
 
