@@ -8,7 +8,7 @@ import {
   type DbClient,
   type PongoDbClientOptions,
 } from '../core';
-import { postgresSQLBuilder } from './collectionSqlBuilder';
+import { postgresSQLBuilder } from './sqlBuilder';
 
 export type PostgresDbClientOptions = PongoDbClientOptions<'PostgreSQL'> &
   PostgresPoolOptions;
