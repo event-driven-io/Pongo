@@ -1,6 +1,8 @@
 import {
   getDatabaseNameOrDefault,
+  NodePostgresConnectorType,
   postgresPool,
+  type PostgresConnector,
   type PostgresPoolOptions,
 } from '@event-driven-io/dumbo';
 import {
@@ -10,23 +12,24 @@ import {
 } from '../core';
 import { postgresSQLBuilder } from './sqlBuilder';
 
-export type PostgresDbClientOptions = PongoDbClientOptions<'PostgreSQL'> &
+export type PostgresDbClientOptions = PongoDbClientOptions<PostgresConnector> &
   PostgresPoolOptions;
 
 export const isPostgresClientOptions = (
   options: PongoDbClientOptions,
-): options is PostgresDbClientOptions => options.dbType === 'PostgreSQL';
+): options is PostgresDbClientOptions =>
+  options.connectorType === NodePostgresConnectorType;
 
 export const postgresDb = (
   options: PostgresDbClientOptions,
-): PongoDb<'PostgreSQL'> => {
+): PongoDb<PostgresConnector> => {
   const { connectionString, dbName } = options;
   const databaseName = dbName ?? getDatabaseNameOrDefault(connectionString);
 
   const pool = postgresPool(options);
 
   return {
-    databaseType: options.dbType,
+    connectorType: options.connectorType,
     databaseName,
     pool,
     connect: () => Promise.resolve(),
@@ -38,5 +41,7 @@ export const postgresDb = (
         sqlExecutor: pool.execute,
         sqlBuilder: postgresSQLBuilder(collectionName),
       }),
+    transaction: () => pool.transaction(),
+    withTransaction: (handle) => pool.withTransaction(handle),
   };
 };

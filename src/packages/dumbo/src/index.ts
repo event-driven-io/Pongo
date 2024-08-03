@@ -1,8 +1,14 @@
-import { postgresPool, type NodePostgresPoolOptions } from './postgres';
+import {
+  postgresPool,
+  type PostgresConnector,
+  type PostgresPoolOptions,
+} from './postgres';
 
 export * from './core';
 export * from './postgres';
 
-export type PoolOptions = NodePostgresPoolOptions;
-export const connectionPool = (_type: 'PostgreSQL', options: PoolOptions) =>
+export type ConnectorType = PostgresConnector;
+export type PoolOptions = PostgresPoolOptions;
+
+export const connectionPool = (_type: ConnectorType, options: PoolOptions) =>
   postgresPool(options);

@@ -1,3 +1,4 @@
+import { NodePostgresConnectorType } from '@event-driven-io/dumbo';
 import pg from 'pg';
 import type { PostgresDbClientOptions } from '../postgres';
 import { getPongoDb, type AllowedDbClientOptions } from './pongoDb';
@@ -104,7 +105,7 @@ export const clientToDbOptions = <
   clientOptions: PongoClientOptions;
 }): DbClientOptions => {
   const postgreSQLOptions: PostgresDbClientOptions = {
-    dbType: 'PostgreSQL',
+    connectorType: NodePostgresConnectorType,
     connectionString: options.connectionString,
     dbName: options.dbName,
     ...options.clientOptions,
