@@ -1,32 +1,5 @@
 import format from 'pg-format';
-import { entries } from '../../../core';
-
-export const Operators = {
-  $eq: '$eq',
-  $gt: '$gt',
-  $gte: '$gte',
-  $lt: '$lt',
-  $lte: '$lte',
-  $ne: '$ne',
-  $in: '$in',
-  $nin: '$nin',
-  $elemMatch: '$elemMatch',
-  $all: '$all',
-  $size: '$size',
-};
-
-const OperatorMap = {
-  $gt: '>',
-  $gte: '>=',
-  $lt: '<',
-  $lte: '<=',
-  $ne: '!=',
-};
-
-export const isOperator = (key: string) => key.startsWith('$');
-
-export const hasOperators = (value: Record<string, unknown>) =>
-  Object.keys(value).some(isOperator);
+import { entries, OperatorMap } from '../../../core';
 
 export const handleOperator = (
   path: string,

@@ -1,5 +1,10 @@
-import { entries, type PongoFilter } from '../../../core';
-import { Operators, handleOperator, hasOperators } from './queryOperators';
+import {
+  entries,
+  hasOperators,
+  QueryOperators,
+  type PongoFilter,
+} from '../../../core';
+import { handleOperator } from './queryOperators';
 
 export * from './queryOperators';
 
@@ -24,7 +29,7 @@ const constructComplexFilterQuery = (
     .map(
       ([nestedKey, val]) =>
         isEquality
-          ? handleOperator(`${key}.${nestedKey}`, Operators.$eq, val) // regular value
+          ? handleOperator(`${key}.${nestedKey}`, QueryOperators.$eq, val) // regular value
           : handleOperator(key, nestedKey, val), // operator
     )
     .join(` ${AND} `);

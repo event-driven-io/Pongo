@@ -12,7 +12,7 @@ import {
   type PongoUpdateResult,
   type WithId,
   type WithoutId,
-} from '.';
+} from '..';
 
 export type PongoCollectionOptions = {
   collectionName: string;
