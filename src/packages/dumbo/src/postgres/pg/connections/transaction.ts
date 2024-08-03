@@ -1,4 +1,4 @@
-import { sqlExecutor, type Transaction } from '../../../core';
+import { sqlExecutor, type DatabaseTransaction } from '../../../core';
 import { nodePostgresSQLExecutor } from '../execute';
 import {
   NodePostgresConnectorType,
@@ -6,14 +6,15 @@ import {
   type NodePostgresPoolOrClient,
 } from './connection';
 
-export type NodePostgresTransaction = Transaction<NodePostgresConnector>;
+export type NodePostgresTransaction =
+  DatabaseTransaction<NodePostgresConnector>;
 
 export const nodePostgresTransaction = <
   DbClient extends NodePostgresPoolOrClient = NodePostgresPoolOrClient,
 >(
   getClient: Promise<DbClient>,
   options?: { close: (client: DbClient, error?: unknown) => Promise<void> },
-): Transaction<NodePostgresConnector> => ({
+): DatabaseTransaction<NodePostgresConnector> => ({
   type: NodePostgresConnectorType,
   begin: async () => {
     const client = await getClient;

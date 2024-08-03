@@ -1,3 +1,5 @@
+import { type DatabaseTransaction } from '@event-driven-io/dumbo';
+import type { DbClient } from './dbClient';
 import type {
   PongoSession,
   PongoTransaction,
@@ -7,6 +9,47 @@ import type {
 export type PongoSessionOptions = {
   explicit?: boolean;
   defaultTransactionOptions: PongoTransactionOptions;
+};
+
+const pongoTransaction = (
+  options: PongoTransactionOptions,
+): PongoTransaction => {
+  const isStarting = false;
+  const isActive = true;
+  const isCommitted = false;
+  let databaseName: string | null;
+  let transaction: DatabaseTransaction | null = null;
+
+  return {
+    get isStarting() {
+      return isStarting;
+    },
+    get isActive() {
+      return isActive;
+    },
+    get isCommitted() {
+      return isCommitted;
+    },
+    get sqlExecutor() {
+      if (transaction === null)
+        throw new Error('No database transaction was started');
+
+      return transaction.execute;
+    },
+    useDatabase: (db: DbClient) => {
+      if (transaction && databaseName !== db.databaseName)
+        throw new Error(
+          "There's already other database assigned to transaction",
+        );
+
+      if (transaction && databaseName === db.databaseName) return;
+
+      databaseName = db.databaseName;
+
+      transaction = db.pool.transaction();
+    },
+    options,
+  };
 };
 
 export const pongoSession = (options?: PongoSessionOptions): PongoSession => {
@@ -25,22 +68,13 @@ export const pongoSession = (options?: PongoSessionOptions): PongoSession => {
     if (transaction?.isActive === true)
       throw new Error('Active transaction already exists!');
 
-    transaction = {
-      db: null,
-      transaction: null,
-      isStarting: false,
-      isActive: true,
-      isCommitted: false,
-      options: options ?? defaultTransactionOptions,
-    };
+    return pongoTransaction(options ?? defaultTransactionOptions);
   };
   const commitTransaction = () => {
     if (transaction?.isActive !== true)
       return Promise.reject('No active transaction!');
 
     transaction = {
-      db: null,
-      transaction: null,
       isStarting: false,
       isActive: false,
       isCommitted: true,
@@ -53,8 +87,6 @@ export const pongoSession = (options?: PongoSessionOptions): PongoSession => {
       return Promise.reject('No active transaction!');
 
     transaction = {
-      db: null,
-      transaction: null,
       isStarting: false,
       isActive: false,
       isCommitted: false,

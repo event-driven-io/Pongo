@@ -26,6 +26,7 @@ export const postgresDbClient = (
   const pool = postgresPool(options);
 
   return {
+    pool,
     databaseName,
     options,
     connect: () => Promise.resolve(),

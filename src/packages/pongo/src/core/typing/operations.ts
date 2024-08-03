@@ -1,4 +1,5 @@
-import type { Transaction } from '@event-driven-io/dumbo';
+import type { SQLExecutor } from '@event-driven-io/dumbo';
+import type { DbClient } from '../dbClient';
 
 export interface PongoClient {
   connect(): Promise<this>;
@@ -20,8 +21,8 @@ export declare interface PongoTransactionOptions {
 }
 
 export interface PongoTransaction {
-  db: PongoDb | null;
-  transaction: Transaction | null;
+  useDatabase: (database: DbClient) => void;
+  get sqlExecutor(): SQLExecutor;
   options: PongoTransactionOptions;
   get isStarting(): boolean;
   get isActive(): boolean;
@@ -48,6 +49,7 @@ export interface PongoSession {
 }
 
 export interface PongoDb {
+  get databaseName(): string;
   collection<T extends PongoDocument>(name: string): PongoCollection<T>;
 }
 
