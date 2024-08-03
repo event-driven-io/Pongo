@@ -18,13 +18,18 @@ import {
   type PongoUpdateResult,
   type WithId,
   type WithoutId,
-} from '../main';
+} from '../core';
 import { constructFilterQuery } from './filter';
 import { buildUpdateQuery } from './update';
 
-export const postgresCollection = <T extends PongoDocument>(
+export type PongoCollectionOptions = {
+  dbName: string;
+  sqlExecutor: SQLExecutor;
+};
+
+export const pongoCollection = <T extends PongoDocument>(
   collectionName: string,
-  { dbName, sqlExecutor }: { dbName: string; sqlExecutor: SQLExecutor },
+  { dbName, sqlExecutor }: PongoCollectionOptions,
 ): PongoCollection<T> => {
   const SqlFor = collectionSQLBuilder(collectionName);
 
