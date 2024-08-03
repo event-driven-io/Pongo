@@ -18,7 +18,31 @@ export type TransactionFactory<ConnectorType extends string = string> = {
   ) => Promise<Result>;
 };
 
-export const transactionFactory = <
+export const executeInTransaction = async <
+  ConnectorType extends string = string,
+  Result = unknown,
+>(
+  transaction: Transaction<ConnectorType>,
+  handle: (
+    transaction: Transaction<ConnectorType>,
+  ) => Promise<{ success: boolean; result: Result }>,
+): Promise<Result> => {
+  await transaction.begin();
+
+  try {
+    const { success, result } = await handle(transaction);
+
+    if (success) await transaction.commit();
+    else await transaction.rollback();
+
+    return result;
+  } catch (e) {
+    await transaction.rollback();
+    throw e;
+  }
+};
+
+export const transactionFactoryWithDbClient = <
   ConnectorType extends string = string,
   DbClient = unknown,
 >(
@@ -26,78 +50,22 @@ export const transactionFactory = <
   initTransaction: (client: Promise<DbClient>) => Transaction<ConnectorType>,
 ): TransactionFactory<ConnectorType> => ({
   transaction: () => initTransaction(connect()),
-  inTransaction: async <Result = unknown>(
-    handle: (
-      transaction: Transaction<ConnectorType>,
-    ) => Promise<{ success: boolean; result: Result }>,
-  ): Promise<Result> => {
-    const transaction = initTransaction(connect());
-
-    await transaction.begin();
-
-    try {
-      const { success, result } = await handle(transaction);
-
-      if (success) await transaction.commit();
-      else await transaction.rollback();
-
-      return result;
-    } catch (e) {
-      await transaction.rollback();
-      throw e;
-    }
-  },
+  inTransaction: (handle) =>
+    executeInTransaction(initTransaction(connect()), handle),
 });
 
 export const transactionFactoryWithNewConnection = <
   ConnectionType extends Connection = Connection,
 >(
-  connectionFactory: () => ConnectionType,
-  initTransaction: (
-    client: Promise<ReturnType<ConnectionType['connect']>>,
-    options?: {
-      close: (
-        client: ReturnType<ConnectionType['connect']>,
-        error?: unknown,
-      ) => Promise<void>;
-    },
-  ) => Transaction<ConnectionType['type']>,
+  connect: () => ConnectionType,
 ): TransactionFactory<ConnectionType['type']> => ({
-  transaction: () => {
-    const connection = connectionFactory();
-
-    return initTransaction(
-      connection.connect() as Promise<ReturnType<ConnectionType['connect']>>,
-      {
-        close: () => connection.close(),
-      },
-    );
-  },
-  inTransaction: async <Result = unknown>(
-    handle: (
-      transaction: Transaction<ConnectionType['type']>,
-    ) => Promise<{ success: boolean; result: Result }>,
-  ): Promise<Result> => {
-    const connection = connectionFactory();
-    const transaction = initTransaction(
-      connection.connect() as Promise<ReturnType<ConnectionType['connect']>>,
-      {
-        close: () => connection.close(),
-      },
-    );
-
-    await transaction.begin();
-
+  transaction: () => connect().transaction(),
+  inTransaction: async (handle) => {
+    const connection = connect();
     try {
-      const { success, result } = await handle(transaction);
-
-      if (success) await transaction.commit();
-      else await transaction.rollback();
-
-      return result;
-    } catch (e) {
-      await transaction.rollback();
-      throw e;
+      return await connection.inTransaction(handle);
+    } finally {
+      await connection.close();
     }
   },
 });
