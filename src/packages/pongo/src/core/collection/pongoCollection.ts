@@ -33,12 +33,19 @@ export const pongoCollection = <T extends PongoDocument>({
   sqlExecutor,
   sqlBuilder: SqlFor,
 }: PongoCollectionOptions): PongoCollection<T> => {
-  const command = (sql: SQL, _options?: CollectionOperationOptions) =>
-    sqlExecutor.command(sql);
+  const command = (sql: SQL, options?: CollectionOperationOptions) => {
+    const execute = options?.session?.transaction?.sqlExecutor ?? sqlExecutor;
+
+    return execute.command(sql);
+  };
   const query = <T extends QueryResultRow>(
     sql: SQL,
-    _options?: CollectionOperationOptions,
-  ) => sqlExecutor.query<T>(sql);
+    options?: CollectionOperationOptions,
+  ) => {
+    const execute = options?.session?.transaction?.sqlExecutor ?? sqlExecutor;
+
+    return execute.query<T>(sql);
+  };
 
   const createCollectionPromise = command(SqlFor.createCollection());
   const createCollection = (options?: CollectionOperationOptions) =>
