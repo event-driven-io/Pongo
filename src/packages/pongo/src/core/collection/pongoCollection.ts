@@ -1,5 +1,6 @@
 import {
   single,
+  type DatabaseTransaction,
   type QueryResultRow,
   type SQL,
   type SQLExecutor,
@@ -9,6 +10,7 @@ import {
   type CollectionOperationOptions,
   type DocumentHandler,
   type PongoCollection,
+  type PongoDb,
   type PongoDeleteResult,
   type PongoDocument,
   type PongoFilter,
@@ -20,39 +22,63 @@ import {
   type WithoutId,
 } from '..';
 
-export type PongoCollectionOptions = {
+export type PongoCollectionOptions<ConnectorType extends string = string> = {
+  db: PongoDb<ConnectorType>;
   collectionName: string;
-  dbName: string;
   sqlExecutor: SQLExecutor;
   sqlBuilder: PongoCollectionSQLBuilder;
 };
 
-export const pongoCollection = <T extends PongoDocument>({
+const enlistIntoTransactionIfActive = async <
+  ConnectorType extends string = string,
+>(
+  db: PongoDb<ConnectorType>,
+  options: CollectionOperationOptions | undefined,
+): Promise<DatabaseTransaction | null> => {
+  const transaction = options?.session?.transaction;
+
+  if (!transaction || !transaction.isActive) return null;
+
+  return await transaction.enlistDatabase(db);
+};
+
+const transactionExecutorOrDefault = async <
+  ConnectorType extends string = string,
+>(
+  db: PongoDb<ConnectorType>,
+  options: CollectionOperationOptions | undefined,
+  defaultSqlExecutor: SQLExecutor,
+): Promise<SQLExecutor> => {
+  const existingTransaction = await enlistIntoTransactionIfActive(db, options);
+  return existingTransaction?.execute ?? defaultSqlExecutor;
+};
+
+export const pongoCollection = <
+  T extends PongoDocument,
+  ConnectorType extends string = string,
+>({
+  db,
   collectionName,
-  dbName,
   sqlExecutor,
   sqlBuilder: SqlFor,
-}: PongoCollectionOptions): PongoCollection<T> => {
-  const command = (sql: SQL, options?: CollectionOperationOptions) => {
-    const execute = options?.session?.transaction?.sqlExecutor ?? sqlExecutor;
+}: PongoCollectionOptions<ConnectorType>): PongoCollection<T> => {
+  const command = async (sql: SQL, options?: CollectionOperationOptions) =>
+    (await transactionExecutorOrDefault(db, options, sqlExecutor)).command(sql);
 
-    return execute.command(sql);
-  };
-  const query = <T extends QueryResultRow>(
+  const query = async <T extends QueryResultRow>(
     sql: SQL,
     options?: CollectionOperationOptions,
-  ) => {
-    const execute = options?.session?.transaction?.sqlExecutor ?? sqlExecutor;
-
-    return execute.query<T>(sql);
-  };
+  ) =>
+    (await transactionExecutorOrDefault(db, options, sqlExecutor)).query<T>(
+      sql,
+    );
 
   const createCollectionPromise = command(SqlFor.createCollection());
   const createCollection = (options?: CollectionOperationOptions) =>
     options?.session ? createCollectionPromise : createCollectionPromise;
 
   const collection = {
-    dbName,
+    dbName: db.databaseName,
     collectionName,
     createCollection: async (options?: CollectionOperationOptions) => {
       await createCollection(options);
