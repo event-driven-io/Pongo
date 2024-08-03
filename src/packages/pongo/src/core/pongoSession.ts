@@ -1,8 +1,8 @@
 import { type DatabaseTransaction } from '@event-driven-io/dumbo';
 import type { DbClient } from './dbClient';
 import type {
+  PongoDbTransaction,
   PongoSession,
-  PongoTransaction,
   PongoTransactionOptions,
 } from './typing';
 
@@ -13,30 +13,14 @@ export type PongoSessionOptions = {
 
 const pongoTransaction = (
   options: PongoTransactionOptions,
-): PongoTransaction => {
-  const isStarting = false;
-  const isActive = true;
-  const isCommitted = false;
-  let databaseName: string | null;
+): PongoDbTransaction => {
+  let isCommitted = false;
+  let isRolledBack = false;
+  let databaseName: string | null = null;
   let transaction: DatabaseTransaction | null = null;
 
   return {
-    get isStarting() {
-      return isStarting;
-    },
-    get isActive() {
-      return isActive;
-    },
-    get isCommitted() {
-      return isCommitted;
-    },
-    get sqlExecutor() {
-      if (transaction === null)
-        throw new Error('No database transaction was started');
-
-      return transaction.execute;
-    },
-    useDatabase: (db: DbClient) => {
+    startDbTransaction: async (db: DbClient) => {
       if (transaction && databaseName !== db.databaseName)
         throw new Error(
           "There's already other database assigned to transaction",
@@ -45,8 +29,42 @@ const pongoTransaction = (
       if (transaction && databaseName === db.databaseName) return;
 
       databaseName = db.databaseName;
-
       transaction = db.pool.transaction();
+      await transaction.begin();
+    },
+    commit: async () => {
+      if (isCommitted) return;
+      if (!isRolledBack) throw new Error('Transaction is not active!');
+      if (!transaction) throw new Error('No database transaction started!');
+
+      isCommitted = true;
+
+      await transaction.commit();
+
+      transaction = null;
+    },
+    rollback: async (error?: unknown) => {
+      if (isCommitted) throw new Error('Cannot rollback commited transaction!');
+      if (!isRolledBack) return;
+      if (!transaction) throw new Error('No database transaction started!');
+
+      isRolledBack = true;
+
+      await transaction.rollback(error);
+
+      transaction = null;
+    },
+    databaseName,
+    isStarting: false,
+    isCommitted,
+    get isActive() {
+      return !isCommitted && !isRolledBack;
+    },
+    get sqlExecutor() {
+      if (transaction === null)
+        throw new Error('No database transaction was started');
+
+      return transaction.execute;
     },
     options,
   };
@@ -61,38 +79,26 @@ export const pongoSession = (options?: PongoSessionOptions): PongoSession => {
       },
     };
 
-  let transaction: PongoTransaction | null = null;
+  let transaction: PongoDbTransaction | null = null;
   let hasEnded = false;
 
   const startTransaction = (options?: PongoTransactionOptions) => {
     if (transaction?.isActive === true)
       throw new Error('Active transaction already exists!');
 
-    return pongoTransaction(options ?? defaultTransactionOptions);
+    transaction = pongoTransaction(options ?? defaultTransactionOptions);
   };
-  const commitTransaction = () => {
+  const commitTransaction = async () => {
     if (transaction?.isActive !== true)
-      return Promise.reject('No active transaction!');
+      throw new Error('No active transaction!');
 
-    transaction = {
-      isStarting: false,
-      isActive: false,
-      isCommitted: true,
-      options: transaction.options,
-    };
-    return Promise.resolve();
+    await transaction.commit();
   };
-  const abortTransaction = () => {
+  const abortTransaction = async () => {
     if (transaction?.isActive !== true)
-      return Promise.reject('No active transaction!');
+      throw new Error('No active transaction!');
 
-    transaction = {
-      isStarting: false,
-      isActive: false,
-      isCommitted: false,
-      options: transaction.options,
-    };
-    return Promise.resolve();
+    await transaction.rollback();
   };
 
   const session = {
