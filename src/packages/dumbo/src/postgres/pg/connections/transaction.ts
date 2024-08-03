@@ -1,4 +1,4 @@
-import { withSqlExecutor, type Transaction } from '../../../core';
+import { sqlExecutor, type Transaction } from '../../../core';
 import { nodePostgresSQLExecutor } from '../execute';
 import {
   NodePostgresConnectorType,
@@ -32,5 +32,5 @@ export const nodePostgresTransaction = <
 
     if (options?.close) await options?.close(client, error);
   },
-  ...withSqlExecutor(nodePostgresSQLExecutor(), { connect: () => getClient }),
+  execute: sqlExecutor(nodePostgresSQLExecutor(), { connect: () => getClient }),
 });

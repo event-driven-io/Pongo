@@ -1,17 +1,3 @@
-// export const executeSQLBatchInTransaction = async <
-//   Result extends QueryResultRow = QueryResultRow,
-//   ConnectionType extends Connection = Connection,
-// >(
-//   connection: ConnectionType,
-//   ...sqls: SQL[]
-// ) =>
-//   executeInTransaction(connection, async (client) => {
-//     for (const sql of sqls) {
-//       await getExecutor(connection.type).query<Result>(client, sql);
-//     }
-//     return { success: true, result: undefined };
-//   });
-
 import type { Connection } from '../connections';
 import type { QueryResult, QueryResultRow } from '../query';
 import { type SQL } from '../sql';
@@ -58,73 +44,59 @@ export type WithSQLExecutor = {
   execute: SQLExecutor;
 };
 
-export const withSqlExecutor = <
+export const sqlExecutor = <
   DbClient = unknown,
-  Executor extends DbSQLExecutor = DbSQLExecutor,
+  DbExecutor extends DbSQLExecutor = DbSQLExecutor,
 >(
-  sqlExecutor: Executor,
+  sqlExecutor: DbExecutor,
   // TODO: In the longer term we should have different options for query and command
   options: {
     connect: () => Promise<DbClient>;
     close?: (client: DbClient, error?: unknown) => Promise<void>;
   },
-): WithSQLExecutor => {
-  return {
-    execute: {
-      query: (sql) =>
-        executeInNewDbClient(
-          (client) => sqlExecutor.query(client, sql),
-          options,
-        ),
-      batchQuery: (sqls) =>
-        executeInNewDbClient(
-          (client) => sqlExecutor.batchQuery(client, sqls),
-          options,
-        ),
-      command: (sql) =>
-        executeInNewDbClient(
-          (client) => sqlExecutor.command(client, sql),
-          options,
-        ),
-      batchCommand: (sqls) =>
-        executeInNewDbClient(
-          (client) => sqlExecutor.batchQuery(client, sqls),
-          options,
-        ),
-    },
-  };
-};
+): SQLExecutor => ({
+  query: (sql) =>
+    executeInNewDbClient((client) => sqlExecutor.query(client, sql), options),
+  batchQuery: (sqls) =>
+    executeInNewDbClient(
+      (client) => sqlExecutor.batchQuery(client, sqls),
+      options,
+    ),
+  command: (sql) =>
+    executeInNewDbClient((client) => sqlExecutor.command(client, sql), options),
+  batchCommand: (sqls) =>
+    executeInNewDbClient(
+      (client) => sqlExecutor.batchQuery(client, sqls),
+      options,
+    ),
+});
 
-export const withSqlExecutorInNewConnection = <
+export const sqlExecutorInNewConnection = <
   ConnectionType extends Connection,
 >(options: {
   open: () => Promise<ConnectionType>;
-}): WithSQLExecutor => {
-  return {
-    execute: {
-      query: (sql) =>
-        executeInNewConnection(
-          (connection) => connection.execute.query(sql),
-          options,
-        ),
-      batchQuery: (sqls) =>
-        executeInNewConnection(
-          (connection) => connection.execute.batchQuery(sqls),
-          options,
-        ),
-      command: (sql) =>
-        executeInNewConnection(
-          (connection) => connection.execute.command(sql),
-          options,
-        ),
-      batchCommand: (sqls) =>
-        executeInNewConnection(
-          (connection) => connection.execute.batchCommand(sqls),
-          options,
-        ),
-    },
-  };
-};
+}): SQLExecutor => ({
+  query: (sql) =>
+    executeInNewConnection(
+      (connection) => connection.execute.query(sql),
+      options,
+    ),
+  batchQuery: (sqls) =>
+    executeInNewConnection(
+      (connection) => connection.execute.batchQuery(sqls),
+      options,
+    ),
+  command: (sql) =>
+    executeInNewConnection(
+      (connection) => connection.execute.command(sql),
+      options,
+    ),
+  batchCommand: (sqls) =>
+    executeInNewConnection(
+      (connection) => connection.execute.batchCommand(sqls),
+      options,
+    ),
+});
 
 export const executeInNewDbClient = async <
   DbClient = unknown,
