@@ -1,6 +1,7 @@
 import type {
   ConnectionPool,
   DatabaseTransaction,
+  DatabaseTransactionFactory,
   SQLExecutor,
 } from '@event-driven-io/dumbo';
 
@@ -54,8 +55,9 @@ export interface PongoSession {
   ): Promise<T>;
 }
 
-export interface PongoDb<DbType extends string = string> {
-  get databaseType(): DbType;
+export interface PongoDb<ConnectorType extends string = string>
+  extends DatabaseTransactionFactory<ConnectorType> {
+  get connectorType(): ConnectorType;
   get databaseName(): string;
   pool: ConnectionPool;
   connect(): Promise<void>;
