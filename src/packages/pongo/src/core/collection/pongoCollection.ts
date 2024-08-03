@@ -1,6 +1,12 @@
-import { single, type SQL, type SQLExecutor } from '@event-driven-io/dumbo';
+import {
+  single,
+  type QueryResultRow,
+  type SQL,
+  type SQLExecutor,
+} from '@event-driven-io/dumbo';
 import { v4 as uuid } from 'uuid';
 import {
+  type CollectionOperationOptions,
   type DocumentHandler,
   type PongoCollection,
   type PongoDeleteResult,
@@ -24,37 +30,55 @@ export type PongoCollectionOptions = {
 export const pongoCollection = <T extends PongoDocument>({
   collectionName,
   dbName,
-  sqlExecutor: { command, query },
+  sqlExecutor,
   sqlBuilder: SqlFor,
 }: PongoCollectionOptions): PongoCollection<T> => {
-  const createCollection = command(SqlFor.createCollection());
+  const command = (sql: SQL, _options?: CollectionOperationOptions) =>
+    sqlExecutor.command(sql);
+  const query = <T extends QueryResultRow>(
+    sql: SQL,
+    _options?: CollectionOperationOptions,
+  ) => sqlExecutor.query<T>(sql);
+
+  const createCollectionPromise = command(SqlFor.createCollection());
+  const createCollection = (options?: CollectionOperationOptions) =>
+    options?.session ? createCollectionPromise : createCollectionPromise;
 
   const collection = {
     dbName,
     collectionName,
-    createCollection: async () => {
-      await createCollection;
+    createCollection: async (options?: CollectionOperationOptions) => {
+      await createCollection(options);
     },
-    insertOne: async (document: T): Promise<PongoInsertOneResult> => {
-      await createCollection;
+    insertOne: async (
+      document: T,
+      options?: CollectionOperationOptions,
+    ): Promise<PongoInsertOneResult> => {
+      await createCollection(options);
 
       const _id = uuid();
 
-      const result = await command(SqlFor.insertOne({ _id, ...document }));
+      const result = await command(
+        SqlFor.insertOne({ _id, ...document }),
+        options,
+      );
 
       return result.rowCount
         ? { insertedId: _id, acknowledged: true }
         : { insertedId: null, acknowledged: false };
     },
-    insertMany: async (documents: T[]): Promise<PongoInsertManyResult> => {
-      await createCollection;
+    insertMany: async (
+      documents: T[],
+      options?: CollectionOperationOptions,
+    ): Promise<PongoInsertManyResult> => {
+      await createCollection(options);
 
       const rows = documents.map((doc) => ({
         _id: uuid(),
         ...doc,
       }));
 
-      const result = await command(SqlFor.insertMany(rows));
+      const result = await command(SqlFor.insertMany(rows), options);
 
       return {
         acknowledged: result.rowCount === rows.length,
@@ -65,10 +89,11 @@ export const pongoCollection = <T extends PongoDocument>({
     updateOne: async (
       filter: PongoFilter<T>,
       update: PongoUpdate<T>,
+      options?: CollectionOperationOptions,
     ): Promise<PongoUpdateResult> => {
-      await createCollection;
+      await createCollection(options);
 
-      const result = await command(SqlFor.updateOne(filter, update));
+      const result = await command(SqlFor.updateOne(filter, update), options);
       return result.rowCount
         ? { acknowledged: true, modifiedCount: result.rowCount }
         : { acknowledged: false, modifiedCount: 0 };
@@ -76,10 +101,14 @@ export const pongoCollection = <T extends PongoDocument>({
     replaceOne: async (
       filter: PongoFilter<T>,
       document: WithoutId<T>,
+      options?: CollectionOperationOptions,
     ): Promise<PongoUpdateResult> => {
-      await createCollection;
+      await createCollection(options);
 
-      const result = await command(SqlFor.replaceOne(filter, document));
+      const result = await command(
+        SqlFor.replaceOne(filter, document),
+        options,
+      );
       return result.rowCount
         ? { acknowledged: true, modifiedCount: result.rowCount }
         : { acknowledged: false, modifiedCount: 0 };
@@ -87,122 +116,148 @@ export const pongoCollection = <T extends PongoDocument>({
     updateMany: async (
       filter: PongoFilter<T>,
       update: PongoUpdate<T>,
+      options?: CollectionOperationOptions,
     ): Promise<PongoUpdateResult> => {
-      await createCollection;
+      await createCollection(options);
 
-      const result = await command(SqlFor.updateMany(filter, update));
+      const result = await command(SqlFor.updateMany(filter, update), options);
       return result.rowCount
         ? { acknowledged: true, modifiedCount: result.rowCount }
         : { acknowledged: false, modifiedCount: 0 };
     },
-    deleteOne: async (filter?: PongoFilter<T>): Promise<PongoDeleteResult> => {
-      await createCollection;
+    deleteOne: async (
+      filter?: PongoFilter<T>,
+      options?: CollectionOperationOptions,
+    ): Promise<PongoDeleteResult> => {
+      await createCollection(options);
 
-      const result = await command(SqlFor.deleteOne(filter ?? {}));
+      const result = await command(SqlFor.deleteOne(filter ?? {}), options);
       return result.rowCount
         ? { acknowledged: true, deletedCount: result.rowCount }
         : { acknowledged: false, deletedCount: 0 };
     },
-    deleteMany: async (filter?: PongoFilter<T>): Promise<PongoDeleteResult> => {
-      await createCollection;
+    deleteMany: async (
+      filter?: PongoFilter<T>,
+      options?: CollectionOperationOptions,
+    ): Promise<PongoDeleteResult> => {
+      await createCollection(options);
 
-      const result = await command(SqlFor.deleteMany(filter ?? {}));
+      const result = await command(SqlFor.deleteMany(filter ?? {}), options);
       return result.rowCount
         ? { acknowledged: true, deletedCount: result.rowCount }
         : { acknowledged: false, deletedCount: 0 };
     },
-    findOne: async (filter?: PongoFilter<T>): Promise<T | null> => {
-      await createCollection;
+    findOne: async (
+      filter?: PongoFilter<T>,
+      options?: CollectionOperationOptions,
+    ): Promise<T | null> => {
+      await createCollection(options);
 
-      const result = await query(SqlFor.findOne(filter ?? {}));
+      const result = await query(SqlFor.findOne(filter ?? {}), options);
       return (result.rows[0]?.data ?? null) as T | null;
     },
-    findOneAndDelete: async (filter: PongoFilter<T>): Promise<T | null> => {
-      await createCollection;
+    findOneAndDelete: async (
+      filter: PongoFilter<T>,
+      options?: CollectionOperationOptions,
+    ): Promise<T | null> => {
+      await createCollection(options);
 
-      const existingDoc = await collection.findOne(filter);
+      const existingDoc = await collection.findOne(filter, options);
 
       if (existingDoc === null) return null;
 
-      await collection.deleteOne(filter);
+      await collection.deleteOne(filter, options);
       return existingDoc;
     },
     findOneAndReplace: async (
       filter: PongoFilter<T>,
       replacement: WithoutId<T>,
+      options?: CollectionOperationOptions,
     ): Promise<T | null> => {
-      await createCollection;
+      await createCollection(options);
 
-      const existingDoc = await collection.findOne(filter);
+      const existingDoc = await collection.findOne(filter, options);
 
       if (existingDoc === null) return null;
 
-      await collection.replaceOne(filter, replacement);
+      await collection.replaceOne(filter, replacement, options);
 
       return existingDoc;
     },
     findOneAndUpdate: async (
       filter: PongoFilter<T>,
       update: PongoUpdate<T>,
+      options?: CollectionOperationOptions,
     ): Promise<T | null> => {
-      await createCollection;
+      await createCollection(options);
 
-      const existingDoc = await collection.findOne(filter);
+      const existingDoc = await collection.findOne(filter, options);
 
       if (existingDoc === null) return null;
 
-      await collection.updateOne(filter, update);
+      await collection.updateOne(filter, update, options);
 
       return existingDoc;
     },
     handle: async (
       id: string,
       handle: DocumentHandler<T>,
+      options?: CollectionOperationOptions,
     ): Promise<T | null> => {
-      await createCollection;
+      await createCollection(options);
 
       const byId: PongoFilter<T> = { _id: id };
 
-      const existing = await collection.findOne(byId);
+      const existing = await collection.findOne(byId, options);
 
       const result = await handle(existing);
 
       if (!existing && result) {
         const newDoc = { ...result, _id: id };
-        await collection.insertOne({ ...newDoc, _id: id });
+        await collection.insertOne({ ...newDoc, _id: id }, options);
         return newDoc;
       }
 
       if (existing && !result) {
-        await collection.deleteOne(byId);
+        await collection.deleteOne(byId, options);
         return null;
       }
 
-      if (existing && result) await collection.replaceOne(byId, result);
+      if (existing && result)
+        await collection.replaceOne(byId, result, options);
 
       return result;
     },
-    find: async (filter?: PongoFilter<T>): Promise<T[]> => {
-      await createCollection;
+    find: async (
+      filter?: PongoFilter<T>,
+      options?: CollectionOperationOptions,
+    ): Promise<T[]> => {
+      await createCollection(options);
 
       const result = await query(SqlFor.find(filter ?? {}));
       return result.rows.map((row) => row.data as T);
     },
-    countDocuments: async (filter?: PongoFilter<T>): Promise<number> => {
-      await createCollection;
+    countDocuments: async (
+      filter?: PongoFilter<T>,
+      options?: CollectionOperationOptions,
+    ): Promise<number> => {
+      await createCollection(options);
 
       const { count } = await single(
         query<{ count: number }>(SqlFor.countDocuments(filter ?? {})),
       );
       return count;
     },
-    drop: async (): Promise<boolean> => {
-      await createCollection;
+    drop: async (options?: CollectionOperationOptions): Promise<boolean> => {
+      await createCollection(options);
       const result = await command(SqlFor.drop());
       return (result?.rowCount ?? 0) > 0;
     },
-    rename: async (newName: string): Promise<PongoCollection<T>> => {
-      await createCollection;
+    rename: async (
+      newName: string,
+      options?: CollectionOperationOptions,
+    ): Promise<PongoCollection<T>> => {
+      await createCollection(options);
       await command(SqlFor.rename(newName));
       collectionName = newName;
       return collection;
