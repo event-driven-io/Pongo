@@ -57,11 +57,11 @@ export const nodePostgresExplicitClientPool = (options: {
   database?: string;
   client?: pg.Client;
 }): NodePostgresExplicitClientPool => {
-  const { connectionString, database, client: existingClient } = options;
+  const { connectionString, database, client: ambientClient } = options;
 
   const getConnection = () => {
-    const connect = existingClient
-      ? Promise.resolve(existingClient)
+    const connect = ambientClient
+      ? Promise.resolve(ambientClient)
       : Promise.resolve(new pg.Client({ connectionString, database })).then(
           async (client) => {
             await client.connect();
@@ -72,13 +72,13 @@ export const nodePostgresExplicitClientPool = (options: {
     return nodePostgresConnection({
       type: 'Client',
       connect,
-      close: (client) => (existingClient ? Promise.resolve() : client.end()),
+      close: (client) => (ambientClient ? Promise.resolve() : client.end()),
     });
   };
 
   const open = () => Promise.resolve(getConnection());
   const close = async () => {
-    if (!existingClient) await endPool({ connectionString, database });
+    if (!ambientClient) await endPool({ connectionString, database });
   };
 
   return {
