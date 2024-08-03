@@ -1,12 +1,12 @@
 import { sql, type SQL } from '@event-driven-io/dumbo';
 import format from 'pg-format';
+import type { PongoCollectionSQLBuilder } from '../../core';
 import {
   type PongoFilter,
   type PongoUpdate,
   type WithId,
   type WithoutId,
-} from '../core';
-import type { PongoCollectionSQLBuilder } from '../core/pongoCollection';
+} from '../../core';
 import { constructFilterQuery } from './filter';
 import { buildUpdateQuery } from './update';
 

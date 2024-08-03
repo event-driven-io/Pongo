@@ -1,5 +1,4 @@
-import type { PongoFilter } from '../../core';
-import { entries } from '../../core/typing';
+import { entries, type PongoFilter } from '../../../core';
 import { Operators, handleOperator, hasOperators } from './queryOperators';
 
 export * from './queryOperators';

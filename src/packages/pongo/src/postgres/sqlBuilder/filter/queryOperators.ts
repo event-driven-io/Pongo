@@ -1,5 +1,5 @@
 import format from 'pg-format';
-import { entries } from '../../core/typing';
+import { entries } from '../../../core';
 
 export const Operators = {
   $eq: '$eq',

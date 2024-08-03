@@ -1,5 +1,4 @@
-import { exists, type ConnectionPool } from '../../../core';
-import { sql, type SQL } from '../../../core/sql';
+import { exists, sql, type ConnectionPool, type SQL } from '../../../core';
 export * from './schema';
 
 export const defaultPostgreSqlDatabase = 'postgres';

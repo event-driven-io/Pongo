@@ -1,6 +1,12 @@
 import { sql, type SQL } from '@event-driven-io/dumbo';
-import type { $inc, $push, $set, $unset, PongoUpdate } from '../../core';
-import { entries } from '../../core/typing';
+import {
+  entries,
+  type $inc,
+  type $push,
+  type $set,
+  type $unset,
+  type PongoUpdate,
+} from '../../../core';
 
 export const buildUpdateQuery = <T>(update: PongoUpdate<T>): SQL =>
   entries(update).reduce((currentUpdateQuery, [op, value]) => {
