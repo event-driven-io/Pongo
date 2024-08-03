@@ -2,10 +2,10 @@ import type { Connection } from '../connections';
 import type { QueryResult, QueryResultRow } from '../query';
 import { type SQL } from '../sql';
 
-export type DbSQLExecutor<
+export interface DbSQLExecutor<
   ConnectorType extends string = string,
   DbClient = unknown,
-> = {
+> {
   type: ConnectorType;
   query<Result extends QueryResultRow = QueryResultRow>(
     client: DbClient,
@@ -23,9 +23,9 @@ export type DbSQLExecutor<
     client: DbClient,
     sqls: SQL[],
   ): Promise<QueryResult<Result>[]>;
-};
+}
 
-export type SQLExecutor = {
+export interface SQLExecutor {
   query<Result extends QueryResultRow = QueryResultRow>(
     sql: SQL,
   ): Promise<QueryResult<Result>>;
@@ -38,11 +38,11 @@ export type SQLExecutor = {
   batchCommand<Result extends QueryResultRow = QueryResultRow>(
     sqls: SQL[],
   ): Promise<QueryResult<Result>[]>;
-};
+}
 
-export type WithSQLExecutor = {
+export interface WithSQLExecutor {
   execute: SQLExecutor;
-};
+}
 
 export const sqlExecutor = <
   DbClient = unknown,
