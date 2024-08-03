@@ -51,41 +51,81 @@ export interface PongoDb {
   collection<T extends PongoDocument>(name: string): PongoCollection<T>;
 }
 
+export type CollectionOperationOptions = {
+  session?: PongoSession;
+};
+
 export interface PongoCollection<T extends PongoDocument> {
   readonly dbName: string;
   readonly collectionName: string;
-  createCollection(): Promise<void>;
-  insertOne(document: T): Promise<PongoInsertOneResult>;
-  insertMany(documents: T[]): Promise<PongoInsertManyResult>;
+  createCollection(options?: CollectionOperationOptions): Promise<void>;
+  insertOne(
+    document: T,
+    options?: CollectionOperationOptions,
+  ): Promise<PongoInsertOneResult>;
+  insertMany(
+    documents: T[],
+    options?: CollectionOperationOptions,
+  ): Promise<PongoInsertManyResult>;
   updateOne(
     filter: PongoFilter<T>,
     update: PongoUpdate<T>,
+    options?: CollectionOperationOptions,
   ): Promise<PongoUpdateResult>;
   replaceOne(
     filter: PongoFilter<T>,
     document: WithoutId<T>,
+    options?: CollectionOperationOptions,
   ): Promise<PongoUpdateResult>;
   updateMany(
     filter: PongoFilter<T>,
     update: PongoUpdate<T>,
+    options?: CollectionOperationOptions,
   ): Promise<PongoUpdateResult>;
-  deleteOne(filter?: PongoFilter<T>): Promise<PongoDeleteResult>;
-  deleteMany(filter?: PongoFilter<T>): Promise<PongoDeleteResult>;
-  findOne(filter?: PongoFilter<T>): Promise<T | null>;
-  find(filter?: PongoFilter<T>): Promise<T[]>;
-  findOneAndDelete(filter: PongoFilter<T>): Promise<T | null>;
+  deleteOne(
+    filter?: PongoFilter<T>,
+    options?: CollectionOperationOptions,
+  ): Promise<PongoDeleteResult>;
+  deleteMany(
+    filter?: PongoFilter<T>,
+    options?: CollectionOperationOptions,
+  ): Promise<PongoDeleteResult>;
+  findOne(
+    filter?: PongoFilter<T>,
+    options?: CollectionOperationOptions,
+  ): Promise<T | null>;
+  find(
+    filter?: PongoFilter<T>,
+    options?: CollectionOperationOptions,
+  ): Promise<T[]>;
+  findOneAndDelete(
+    filter: PongoFilter<T>,
+    options?: CollectionOperationOptions,
+  ): Promise<T | null>;
   findOneAndReplace(
     filter: PongoFilter<T>,
     replacement: WithoutId<T>,
+    options?: CollectionOperationOptions,
   ): Promise<T | null>;
   findOneAndUpdate(
     filter: PongoFilter<T>,
     update: PongoUpdate<T>,
+    options?: CollectionOperationOptions,
   ): Promise<T | null>;
-  countDocuments(filter?: PongoFilter<T>): Promise<number>;
-  drop(): Promise<boolean>;
-  rename(newName: string): Promise<PongoCollection<T>>;
-  handle(id: string, handle: DocumentHandler<T>): Promise<T | null>;
+  countDocuments(
+    filter?: PongoFilter<T>,
+    options?: CollectionOperationOptions,
+  ): Promise<number>;
+  drop(options?: CollectionOperationOptions): Promise<boolean>;
+  rename(
+    newName: string,
+    options?: CollectionOperationOptions,
+  ): Promise<PongoCollection<T>>;
+  handle(
+    id: string,
+    handle: DocumentHandler<T>,
+    options?: CollectionOperationOptions,
+  ): Promise<T | null>;
 }
 
 export type HasId = { _id: string };
