@@ -1,13 +1,13 @@
 import type { WithSQLExecutor } from '../execute';
 import { type Connection } from './connection';
-import type { TransactionFactory } from './transaction';
+import type { DatabaseTransactionFactory } from './transaction';
 
 export type ConnectionPool<ConnectionType extends Connection = Connection> = {
   type: ConnectionType['type'];
   open: () => Promise<ConnectionType>;
   close: () => Promise<void>;
 } & WithSQLExecutor &
-  TransactionFactory<ConnectionType['type']>;
+  DatabaseTransactionFactory<ConnectionType['type']>;
 
 export type ConnectionPoolProvider<
   ConnectionPoolType extends ConnectionPool = ConnectionPool,

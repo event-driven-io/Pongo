@@ -1,9 +1,10 @@
+import type { ConnectionPool } from '@event-driven-io/dumbo';
 import {
   isPostgresClientOptions,
   postgresDbClient,
   type PostgresDbClientOptions,
 } from '../postgres';
-import type { PongoCollection, PongoDocument } from './typing';
+import type { PongoDb } from './typing';
 
 export type PongoDbClientOptions<
   DbType extends string = string,
@@ -16,12 +17,11 @@ export type PongoDbClientOptions<
 
 export interface DbClient<
   DbClientOptions extends PongoDbClientOptions = PongoDbClientOptions,
-> {
-  databaseName: string;
+> extends PongoDb {
+  pool: ConnectionPool;
   options: DbClientOptions;
   connect(): Promise<void>;
   close(): Promise<void>;
-  collection: <T extends PongoDocument>(name: string) => PongoCollection<T>;
 }
 
 export type AllowedDbClientOptions = PostgresDbClientOptions;

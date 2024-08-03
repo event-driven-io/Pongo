@@ -1,30 +1,31 @@
 import type { WithSQLExecutor } from '../execute';
 import { type Connection } from './connection';
 
-export type Transaction<ConnectorType extends string = string> = {
+export type DatabaseTransaction<ConnectorType extends string = string> = {
   type: ConnectorType;
   begin: () => Promise<void>;
   commit: () => Promise<void>;
   rollback: (error?: unknown) => Promise<void>;
 } & WithSQLExecutor;
 
-export type TransactionFactory<ConnectorType extends string = string> = {
-  transaction: () => Transaction<ConnectorType>;
+export type DatabaseTransactionFactory<ConnectorType extends string = string> =
+  {
+    transaction: () => DatabaseTransaction<ConnectorType>;
 
-  inTransaction: <Result = unknown>(
-    handle: (
-      transaction: Transaction<ConnectorType>,
-    ) => Promise<{ success: boolean; result: Result }>,
-  ) => Promise<Result>;
-};
+    inTransaction: <Result = unknown>(
+      handle: (
+        transaction: DatabaseTransaction<ConnectorType>,
+      ) => Promise<{ success: boolean; result: Result }>,
+    ) => Promise<Result>;
+  };
 
 export const executeInTransaction = async <
   ConnectorType extends string = string,
   Result = unknown,
 >(
-  transaction: Transaction<ConnectorType>,
+  transaction: DatabaseTransaction<ConnectorType>,
   handle: (
-    transaction: Transaction<ConnectorType>,
+    transaction: DatabaseTransaction<ConnectorType>,
   ) => Promise<{ success: boolean; result: Result }>,
 ): Promise<Result> => {
   await transaction.begin();
@@ -47,8 +48,10 @@ export const transactionFactoryWithDbClient = <
   DbClient = unknown,
 >(
   connect: () => Promise<DbClient>,
-  initTransaction: (client: Promise<DbClient>) => Transaction<ConnectorType>,
-): TransactionFactory<ConnectorType> => ({
+  initTransaction: (
+    client: Promise<DbClient>,
+  ) => DatabaseTransaction<ConnectorType>,
+): DatabaseTransactionFactory<ConnectorType> => ({
   transaction: () => initTransaction(connect()),
   inTransaction: (handle) =>
     executeInTransaction(initTransaction(connect()), handle),
@@ -58,7 +61,7 @@ export const transactionFactoryWithNewConnection = <
   ConnectionType extends Connection = Connection,
 >(
   connect: () => ConnectionType,
-): TransactionFactory<ConnectionType['type']> => ({
+): DatabaseTransactionFactory<ConnectionType['type']> => ({
   transaction: () => connect().transaction(),
   inTransaction: async (handle) => {
     const connection = connect();

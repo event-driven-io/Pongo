@@ -9,6 +9,10 @@ import { Collection } from './mongoCollection';
 export class Db {
   constructor(private pongoDb: PongoDb) {}
 
+  get databaseName(): string {
+    return this.pongoDb.databaseName;
+  }
+
   collection<T extends Document>(
     collectionName: string,
   ): MongoCollection<T> & {

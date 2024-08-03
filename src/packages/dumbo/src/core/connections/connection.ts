@@ -1,5 +1,5 @@
 import type { WithSQLExecutor } from '../execute';
-import type { TransactionFactory } from './transaction';
+import type { DatabaseTransactionFactory } from './transaction';
 
 export type Connection<
   ConnectorType extends string = string,
@@ -9,4 +9,4 @@ export type Connection<
   connect: () => Promise<DbClient>;
   close: () => Promise<void>;
 } & WithSQLExecutor &
-  TransactionFactory<ConnectorType>;
+  DatabaseTransactionFactory<ConnectorType>;
