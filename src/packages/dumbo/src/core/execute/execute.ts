@@ -16,7 +16,7 @@ import type { Connection } from '../connections';
 import type { QueryResult, QueryResultRow } from '../query';
 import { type SQL } from '../sql';
 
-export type SQLExecutor<
+export type DbSQLExecutor<
   ConnectorType extends string = string,
   DbClient = unknown,
 > = {
@@ -39,26 +39,28 @@ export type SQLExecutor<
   ): Promise<QueryResult<Result>[]>;
 };
 
+export type SQLExecutor = {
+  query<Result extends QueryResultRow = QueryResultRow>(
+    sql: SQL,
+  ): Promise<QueryResult<Result>>;
+  batchQuery<Result extends QueryResultRow = QueryResultRow>(
+    sqls: SQL[],
+  ): Promise<QueryResult<Result>[]>;
+  command<Result extends QueryResultRow = QueryResultRow>(
+    sql: SQL,
+  ): Promise<QueryResult<Result>>;
+  batchCommand<Result extends QueryResultRow = QueryResultRow>(
+    sqls: SQL[],
+  ): Promise<QueryResult<Result>[]>;
+};
+
 export type WithSQLExecutor = {
-  execute: {
-    query<Result extends QueryResultRow = QueryResultRow>(
-      sql: SQL,
-    ): Promise<QueryResult<Result>>;
-    batchQuery<Result extends QueryResultRow = QueryResultRow>(
-      sqls: SQL[],
-    ): Promise<QueryResult<Result>[]>;
-    command<Result extends QueryResultRow = QueryResultRow>(
-      sql: SQL,
-    ): Promise<QueryResult<Result>>;
-    batchCommand<Result extends QueryResultRow = QueryResultRow>(
-      sqls: SQL[],
-    ): Promise<QueryResult<Result>[]>;
-  };
+  execute: SQLExecutor;
 };
 
 export const withSqlExecutor = <
   DbClient = unknown,
-  Executor extends SQLExecutor = SQLExecutor,
+  Executor extends DbSQLExecutor = DbSQLExecutor,
 >(
   sqlExecutor: Executor,
   // TODO: In the longer term we should have different options for query and command

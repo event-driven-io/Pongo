@@ -1,9 +1,9 @@
 import pg from 'pg';
 import {
+  type DbSQLExecutor,
   type QueryResult,
   type QueryResultRow,
   type SQL,
-  type SQLExecutor,
 } from '../../../core';
 import {
   NodePostgresConnectorType,
@@ -46,7 +46,7 @@ export const nodePostgresExecute = async <Result = void>(
   }
 };
 
-export type NodePostgresSQLExecutor = SQLExecutor<
+export type NodePostgresSQLExecutor = DbSQLExecutor<
   NodePostgresConnector,
   NodePostgresClient
 >;

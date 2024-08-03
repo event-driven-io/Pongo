@@ -3,7 +3,7 @@ import {
   postgresDbClient,
   type PostgresDbClientOptions,
 } from '../postgres';
-import type { PongoCollection, PongoDocument } from './typing/operations';
+import type { PongoCollection, PongoDocument } from './typing';
 
 export type PongoDbClientOptions<
   DbType extends string = string,
