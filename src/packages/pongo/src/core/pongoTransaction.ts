@@ -29,9 +29,9 @@ export const pongoTransaction = (
       return transaction;
     },
     commit: async () => {
-      if (isCommitted) return;
-      if (!isRolledBack) throw new Error('Transaction is not active!');
       if (!transaction) throw new Error('No database transaction started!');
+      if (isCommitted) return;
+      if (isRolledBack) throw new Error('Transaction is not active!');
 
       isCommitted = true;
 
@@ -40,9 +40,9 @@ export const pongoTransaction = (
       transaction = null;
     },
     rollback: async (error?: unknown) => {
-      if (isCommitted) throw new Error('Cannot rollback commited transaction!');
-      if (!isRolledBack) return;
       if (!transaction) throw new Error('No database transaction started!');
+      if (isCommitted) throw new Error('Cannot rollback commited transaction!');
+      if (isRolledBack) return;
 
       isRolledBack = true;
 

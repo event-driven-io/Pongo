@@ -2,6 +2,7 @@ import type { ClientSessionOptions } from 'http2';
 import type { ClientSession, WithSessionCallback } from 'mongodb';
 import {
   pongoClient,
+  pongoSession,
   type PongoClient,
   type PongoClientOptions,
 } from '../core';
@@ -27,7 +28,7 @@ export class MongoClient {
     return new Db(this.pongoClient.db(dbName));
   }
   startSession(_options?: ClientSessionOptions): ClientSession {
-    throw new Error('Not implemented!');
+    return pongoSession() as unknown as ClientSession;
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   withSession<T = any>(_executor: WithSessionCallback<T>): Promise<T>;
@@ -37,10 +38,19 @@ export class MongoClient {
     _executor: WithSessionCallback<T>,
   ): Promise<T>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  withSession<T = any>(
-    _optionsOrExecutor: ClientSessionOptions | WithSessionCallback<T>,
-    _executor?: WithSessionCallback<T>,
+  async withSession<T = any>(
+    optionsOrExecutor: ClientSessionOptions | WithSessionCallback<T>,
+    executor?: WithSessionCallback<T>,
   ): Promise<T> {
-    return Promise.reject('Not Implemented!');
+    const callback =
+      typeof optionsOrExecutor === 'function' ? optionsOrExecutor : executor!;
+
+    const session = pongoSession() as unknown as ClientSession;
+
+    try {
+      return await callback(session);
+    } finally {
+      await session.endSession();
+    }
   }
 }
