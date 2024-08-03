@@ -4,7 +4,7 @@ import {
   pongoClient,
   type PongoClient,
   type PongoClientOptions,
-} from '../main';
+} from '../core';
 import { Db } from './mongoDb';
 
 export class MongoClient {

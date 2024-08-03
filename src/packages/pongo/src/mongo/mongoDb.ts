@@ -3,7 +3,7 @@ import {
   ObjectId,
   type Document,
 } from 'mongodb';
-import type { DocumentHandler, PongoDb } from '../main';
+import type { DocumentHandler, PongoDb } from '../core';
 import { Collection } from './mongoCollection';
 
 export class Db {

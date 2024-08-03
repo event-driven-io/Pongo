@@ -64,7 +64,7 @@ import type {
   PongoCollection,
   PongoFilter,
   PongoUpdate,
-} from '../main';
+} from '../core';
 import { FindCursor } from './findCursor';
 
 export class Collection<T extends Document> implements MongoCollection<T> {
