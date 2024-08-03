@@ -59,18 +59,41 @@ export const transactionFactoryWithDbClient = <
     executeInTransaction(initTransaction(connect()), handle),
 });
 
+const wrapInConnectionClosure = async <
+  ConnectionType extends Connection = Connection,
+  Result = unknown,
+>(
+  connection: ConnectionType,
+  handle: () => Promise<Result>,
+) => {
+  try {
+    return await handle();
+  } finally {
+    await connection.close();
+  }
+};
+
 export const transactionFactoryWithNewConnection = <
   ConnectionType extends Connection = Connection,
 >(
   connect: () => ConnectionType,
 ): DatabaseTransactionFactory<ConnectionType['type']> => ({
-  transaction: () => connect().transaction(),
-  withTransaction: async (handle) => {
+  transaction: () => {
     const connection = connect();
-    try {
-      return await connection.withTransaction(handle);
-    } finally {
-      await connection.close();
-    }
+    const transaction = connection.transaction();
+
+    return {
+      ...transaction,
+      commit: () =>
+        wrapInConnectionClosure(connection, () => transaction.commit()),
+      rollback: () =>
+        wrapInConnectionClosure(connection, () => transaction.rollback()),
+    };
+  },
+  withTransaction: (handle) => {
+    const connection = connect();
+    return wrapInConnectionClosure(connection, () =>
+      connection.withTransaction(handle),
+    );
   },
 });

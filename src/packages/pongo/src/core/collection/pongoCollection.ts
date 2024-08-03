@@ -75,7 +75,9 @@ export const pongoCollection = <
 
   const createCollectionPromise = command(SqlFor.createCollection());
   const createCollection = (options?: CollectionOperationOptions) =>
-    options?.session ? createCollectionPromise : createCollectionPromise;
+    options?.session
+      ? command(SqlFor.createCollection(), options)
+      : createCollectionPromise;
 
   const collection = {
     dbName: db.databaseName,
