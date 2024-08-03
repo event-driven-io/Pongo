@@ -1,7 +1,7 @@
 import pg from 'pg';
 import {
   sqlExecutor,
-  transactionFactory,
+  transactionFactoryWithDbClient,
   type Connection,
 } from '../../../core';
 import { nodePostgresSQLExecutor } from '../execute';
@@ -53,7 +53,7 @@ export const nodePostgresClientConnection = (
     type: NodePostgresConnectorType,
     connect: getClient,
     close: () => (client ? close(client) : Promise.resolve()),
-    ...transactionFactory(getClient, nodePostgresTransaction),
+    ...transactionFactoryWithDbClient(getClient, nodePostgresTransaction),
     execute: sqlExecutor(nodePostgresSQLExecutor(), { connect: getClient }),
   };
 };
@@ -71,7 +71,7 @@ export const nodePostgresPoolClientConnection = (
     type: NodePostgresConnectorType,
     connect: getClient,
     close: () => (client ? close(client) : Promise.resolve()),
-    ...transactionFactory(getClient, nodePostgresTransaction),
+    ...transactionFactoryWithDbClient(getClient, nodePostgresTransaction),
     execute: sqlExecutor(nodePostgresSQLExecutor(), { connect: getClient }),
   };
 };

@@ -1,8 +1,8 @@
 import pg from 'pg';
 import {
   sqlExecutorInNewConnection,
+  transactionFactoryWithNewConnection,
   type ConnectionPool,
-  type Transaction,
 } from '../../../core';
 import {
   defaultPostgreSqlDatabase,
@@ -12,7 +12,6 @@ import {
   nodePostgresConnection,
   NodePostgresConnectorType,
   type NodePostgresClientConnection,
-  type NodePostgresConnector,
   type NodePostgresPoolClientConnection,
 } from './connection';
 
@@ -27,24 +26,21 @@ export const nodePostgresNativePool = (options: {
   database?: string;
   pool?: pg.Pool;
 }): NodePostgresNativePool => {
-  const { connectionString, database, pool: existingPool } = options;
-  const pool = existingPool
-    ? existingPool
+  const { connectionString, database, pool: ambientPool } = options;
+  const pool = ambientPool
+    ? ambientPool
     : getPool({ connectionString, database });
 
-  const getConnection = () => {
-    const connect = pool.connect();
-
-    return nodePostgresConnection({
+  const getConnection = () =>
+    nodePostgresConnection({
       type: 'PoolClient',
-      connect,
+      connect: pool.connect(),
       close: (client) => Promise.resolve(client.release()),
     });
-  };
 
   const open = () => Promise.resolve(getConnection());
   const close = async () => {
-    if (!existingPool) await endPool({ connectionString, database });
+    if (!ambientPool) await endPool({ connectionString, database });
   };
 
   return {
@@ -52,19 +48,7 @@ export const nodePostgresNativePool = (options: {
     open,
     close,
     execute: sqlExecutorInNewConnection({ open }),
-    transaction: () => getConnection().transaction(),
-    inTransaction: async <Result = unknown>(
-      handle: (
-        transaction: Transaction<NodePostgresConnector>,
-      ) => Promise<{ success: boolean; result: Result }>,
-    ): Promise<Result> => {
-      const connection = getConnection();
-      try {
-        return await connection.inTransaction(handle);
-      } finally {
-        await connection.close();
-      }
-    },
+    ...transactionFactoryWithNewConnection(getConnection),
   };
 };
 
@@ -102,19 +86,7 @@ export const nodePostgresExplicitClientPool = (options: {
     open,
     close,
     execute: sqlExecutorInNewConnection({ open }),
-    transaction: () => getConnection().transaction(),
-    inTransaction: async <Result = unknown>(
-      handle: (
-        transaction: Transaction<NodePostgresConnector>,
-      ) => Promise<{ success: boolean; result: Result }>,
-    ): Promise<Result> => {
-      const connection = getConnection();
-      try {
-        return await connection.inTransaction(handle);
-      } finally {
-        await connection.close();
-      }
-    },
+    ...transactionFactoryWithNewConnection(getConnection),
   };
 };
 
