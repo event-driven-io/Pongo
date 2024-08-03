@@ -1,9 +1,8 @@
 import {
   single,
   sql,
-  type ConnectionPool,
-  type QueryResultRow,
   type SQL,
+  type SQLExecutor,
 } from '@event-driven-io/dumbo';
 import format from 'pg-format';
 import { v4 as uuid } from 'uuid';
@@ -25,14 +24,11 @@ import { buildUpdateQuery } from './update';
 
 export const postgresCollection = <T extends PongoDocument>(
   collectionName: string,
-  { dbName, pool }: { dbName: string; pool: ConnectionPool },
+  { dbName, sqlExecutor }: { dbName: string; sqlExecutor: SQLExecutor },
 ): PongoCollection<T> => {
-  const execute = <T extends QueryResultRow = QueryResultRow>(sql: SQL) =>
-    pool.execute.query<T>(sql);
-
   const SqlFor = collectionSQLBuilder(collectionName);
 
-  const createCollection = execute(SqlFor.createCollection());
+  const createCollection = sqlExecutor.command(SqlFor.createCollection());
 
   const collection = {
     dbName,
@@ -45,7 +41,9 @@ export const postgresCollection = <T extends PongoDocument>(
 
       const _id = uuid();
 
-      const result = await execute(SqlFor.insertOne({ _id, ...document }));
+      const result = await sqlExecutor.command(
+        SqlFor.insertOne({ _id, ...document }),
+      );
 
       return result.rowCount
         ? { insertedId: _id, acknowledged: true }
@@ -59,7 +57,7 @@ export const postgresCollection = <T extends PongoDocument>(
         ...doc,
       }));
 
-      const result = await execute(SqlFor.insertMany(rows));
+      const result = await sqlExecutor.command(SqlFor.insertMany(rows));
 
       return {
         acknowledged: result.rowCount === rows.length,
@@ -73,7 +71,9 @@ export const postgresCollection = <T extends PongoDocument>(
     ): Promise<PongoUpdateResult> => {
       await createCollection;
 
-      const result = await execute(SqlFor.updateOne(filter, update));
+      const result = await sqlExecutor.command(
+        SqlFor.updateOne(filter, update),
+      );
       return result.rowCount
         ? { acknowledged: true, modifiedCount: result.rowCount }
         : { acknowledged: false, modifiedCount: 0 };
@@ -84,7 +84,9 @@ export const postgresCollection = <T extends PongoDocument>(
     ): Promise<PongoUpdateResult> => {
       await createCollection;
 
-      const result = await execute(SqlFor.replaceOne(filter, document));
+      const result = await sqlExecutor.command(
+        SqlFor.replaceOne(filter, document),
+      );
       return result.rowCount
         ? { acknowledged: true, modifiedCount: result.rowCount }
         : { acknowledged: false, modifiedCount: 0 };
@@ -95,7 +97,9 @@ export const postgresCollection = <T extends PongoDocument>(
     ): Promise<PongoUpdateResult> => {
       await createCollection;
 
-      const result = await execute(SqlFor.updateMany(filter, update));
+      const result = await sqlExecutor.command(
+        SqlFor.updateMany(filter, update),
+      );
       return result.rowCount
         ? { acknowledged: true, modifiedCount: result.rowCount }
         : { acknowledged: false, modifiedCount: 0 };
@@ -103,7 +107,7 @@ export const postgresCollection = <T extends PongoDocument>(
     deleteOne: async (filter?: PongoFilter<T>): Promise<PongoDeleteResult> => {
       await createCollection;
 
-      const result = await execute(SqlFor.deleteOne(filter ?? {}));
+      const result = await sqlExecutor.command(SqlFor.deleteOne(filter ?? {}));
       return result.rowCount
         ? { acknowledged: true, deletedCount: result.rowCount }
         : { acknowledged: false, deletedCount: 0 };
@@ -111,7 +115,7 @@ export const postgresCollection = <T extends PongoDocument>(
     deleteMany: async (filter?: PongoFilter<T>): Promise<PongoDeleteResult> => {
       await createCollection;
 
-      const result = await execute(SqlFor.deleteMany(filter ?? {}));
+      const result = await sqlExecutor.command(SqlFor.deleteMany(filter ?? {}));
       return result.rowCount
         ? { acknowledged: true, deletedCount: result.rowCount }
         : { acknowledged: false, deletedCount: 0 };
@@ -119,7 +123,7 @@ export const postgresCollection = <T extends PongoDocument>(
     findOne: async (filter?: PongoFilter<T>): Promise<T | null> => {
       await createCollection;
 
-      const result = await execute(SqlFor.findOne(filter ?? {}));
+      const result = await sqlExecutor.query(SqlFor.findOne(filter ?? {}));
       return (result.rows[0]?.data ?? null) as T | null;
     },
     findOneAndDelete: async (filter: PongoFilter<T>): Promise<T | null> => {
@@ -190,25 +194,27 @@ export const postgresCollection = <T extends PongoDocument>(
     find: async (filter?: PongoFilter<T>): Promise<T[]> => {
       await createCollection;
 
-      const result = await execute(SqlFor.find(filter ?? {}));
+      const result = await sqlExecutor.query(SqlFor.find(filter ?? {}));
       return result.rows.map((row) => row.data as T);
     },
     countDocuments: async (filter?: PongoFilter<T>): Promise<number> => {
       await createCollection;
 
       const { count } = await single(
-        execute<{ count: number }>(SqlFor.countDocuments(filter ?? {})),
+        sqlExecutor.query<{ count: number }>(
+          SqlFor.countDocuments(filter ?? {}),
+        ),
       );
       return count;
     },
     drop: async (): Promise<boolean> => {
       await createCollection;
-      const result = await execute(SqlFor.drop());
+      const result = await sqlExecutor.command(SqlFor.drop());
       return (result?.rowCount ?? 0) > 0;
     },
     rename: async (newName: string): Promise<PongoCollection<T>> => {
       await createCollection;
-      await execute(SqlFor.rename(newName));
+      await sqlExecutor.command(SqlFor.rename(newName));
       collectionName = newName;
       return collection;
     },
