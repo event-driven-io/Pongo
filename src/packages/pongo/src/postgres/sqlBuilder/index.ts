@@ -1,7 +1,7 @@
 import { sql, type SQL } from '@event-driven-io/dumbo';
 import format from 'pg-format';
-import type { PongoCollectionSQLBuilder } from '../../core';
 import {
+  type PongoCollectionSQLBuilder,
   type PongoFilter,
   type PongoUpdate,
   type WithId,
