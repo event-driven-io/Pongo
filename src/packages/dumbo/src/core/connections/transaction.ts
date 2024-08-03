@@ -1,23 +1,25 @@
 import type { WithSQLExecutor } from '../execute';
 import { type Connection } from './connection';
 
-export type DatabaseTransaction<ConnectorType extends string = string> = {
+export interface DatabaseTransaction<ConnectorType extends string = string>
+  extends WithSQLExecutor {
   type: ConnectorType;
   begin: () => Promise<void>;
   commit: () => Promise<void>;
   rollback: (error?: unknown) => Promise<void>;
-} & WithSQLExecutor;
+}
 
-export type DatabaseTransactionFactory<ConnectorType extends string = string> =
-  {
-    transaction: () => DatabaseTransaction<ConnectorType>;
+export interface DatabaseTransactionFactory<
+  ConnectorType extends string = string,
+> {
+  transaction: () => DatabaseTransaction<ConnectorType>;
 
-    inTransaction: <Result = unknown>(
-      handle: (
-        transaction: DatabaseTransaction<ConnectorType>,
-      ) => Promise<{ success: boolean; result: Result }>,
-    ) => Promise<Result>;
-  };
+  withTransaction: <Result = unknown>(
+    handle: (
+      transaction: DatabaseTransaction<ConnectorType>,
+    ) => Promise<{ success: boolean; result: Result }>,
+  ) => Promise<Result>;
+}
 
 export const executeInTransaction = async <
   ConnectorType extends string = string,
@@ -53,7 +55,7 @@ export const transactionFactoryWithDbClient = <
   ) => DatabaseTransaction<ConnectorType>,
 ): DatabaseTransactionFactory<ConnectorType> => ({
   transaction: () => initTransaction(connect()),
-  inTransaction: (handle) =>
+  withTransaction: (handle) =>
     executeInTransaction(initTransaction(connect()), handle),
 });
 
@@ -63,10 +65,10 @@ export const transactionFactoryWithNewConnection = <
   connect: () => ConnectionType,
 ): DatabaseTransactionFactory<ConnectionType['type']> => ({
   transaction: () => connect().transaction(),
-  inTransaction: async (handle) => {
+  withTransaction: async (handle) => {
     const connection = connect();
     try {
-      return await connection.inTransaction(handle);
+      return await connection.withTransaction(handle);
     } finally {
       await connection.close();
     }
