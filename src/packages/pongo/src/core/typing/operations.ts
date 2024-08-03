@@ -20,10 +20,13 @@ export declare interface PongoTransactionOptions {
   maxCommitTimeMS?: number;
 }
 
-export interface PongoTransaction {
-  useDatabase: (database: DbClient) => void;
-  get sqlExecutor(): SQLExecutor;
+export interface PongoDbTransaction {
+  get databaseName(): string | null;
   options: PongoTransactionOptions;
+  startDbTransaction: (database: DbClient) => Promise<void>;
+  commit: () => Promise<void>;
+  rollback: (error?: unknown) => Promise<void>;
+  get sqlExecutor(): SQLExecutor;
   get isStarting(): boolean;
   get isActive(): boolean;
   get isCommitted(): boolean;
@@ -33,7 +36,7 @@ export interface PongoSession {
   hasEnded: boolean;
   explicit: boolean;
   defaultTransactionOptions: PongoTransactionOptions;
-  transaction: PongoTransaction | null;
+  transaction: PongoDbTransaction | null;
   get snapshotEnabled(): boolean;
 
   endSession(): Promise<void>;
