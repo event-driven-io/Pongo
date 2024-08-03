@@ -1,10 +1,6 @@
 import pg from 'pg';
 import type { PostgresDbClientOptions } from '../postgres';
-import {
-  getDbClient,
-  type AllowedDbClientOptions,
-  type DbClient,
-} from './dbClient';
+import { getPongoDb, type AllowedDbClientOptions } from './pongoDb';
 import { pongoSession } from './pongoSession';
 import type { PongoClient, PongoDb, PongoSession } from './typing/operations';
 
@@ -44,9 +40,9 @@ export const pongoClient = <
   connectionString: string,
   options: PongoClientOptions = {},
 ): PongoClient => {
-  const dbClients: Map<string, DbClient<DbClientOptions>> = new Map();
+  const dbClients: Map<string, PongoDb> = new Map();
 
-  const dbClient = getDbClient<DbClientOptions>(
+  const dbClient = getPongoDb<DbClientOptions>(
     clientToDbOptions({
       connectionString,
       clientOptions: options,
@@ -72,7 +68,7 @@ export const pongoClient = <
         dbClients
           .set(
             dbName,
-            getDbClient<DbClientOptions>(
+            getPongoDb<DbClientOptions>(
               clientToDbOptions({
                 connectionString,
                 dbName,
@@ -108,7 +104,7 @@ export const clientToDbOptions = <
   clientOptions: PongoClientOptions;
 }): DbClientOptions => {
   const postgreSQLOptions: PostgresDbClientOptions = {
-    type: 'PostgreSQL',
+    dbType: 'PostgreSQL',
     connectionString: options.connectionString,
     dbName: options.dbName,
     ...options.clientOptions,

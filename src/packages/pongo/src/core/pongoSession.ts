@@ -1,6 +1,6 @@
 import { type DatabaseTransaction } from '@event-driven-io/dumbo';
-import type { DbClient } from './dbClient';
 import type {
+  PongoDb,
   PongoDbTransaction,
   PongoSession,
   PongoTransactionOptions,
@@ -20,17 +20,19 @@ const pongoTransaction = (
   let transaction: DatabaseTransaction | null = null;
 
   return {
-    startDbTransaction: async (db: DbClient) => {
+    useDatabase: async (db: PongoDb): Promise<DatabaseTransaction> => {
       if (transaction && databaseName !== db.databaseName)
         throw new Error(
           "There's already other database assigned to transaction",
         );
 
-      if (transaction && databaseName === db.databaseName) return;
+      if (transaction && databaseName === db.databaseName) return transaction;
 
       databaseName = db.databaseName;
       transaction = db.pool.transaction();
       await transaction.begin();
+
+      return transaction;
     },
     commit: async () => {
       if (isCommitted) return;
