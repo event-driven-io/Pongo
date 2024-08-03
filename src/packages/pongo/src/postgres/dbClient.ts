@@ -3,8 +3,12 @@ import {
   postgresPool,
   type PostgresPoolOptions,
 } from '@event-driven-io/dumbo';
-import { type DbClient, type PongoDbClientOptions } from '../core';
-import { pongoCollection } from './postgresCollection';
+import {
+  pongoCollection,
+  type DbClient,
+  type PongoDbClientOptions,
+} from '../core';
+import { postgresSQLBuilder } from './collectionSqlBuilder';
 
 export type PostgresDbClientOptions = PongoDbClientOptions<'PostgreSQL'> &
   PostgresPoolOptions;
@@ -26,10 +30,12 @@ export const postgresDbClient = (
     options,
     connect: () => Promise.resolve(),
     close: () => pool.close(),
-    collection: (name) =>
-      pongoCollection(name, {
+    collection: (collectionName) =>
+      pongoCollection({
+        collectionName,
         dbName: databaseName,
         sqlExecutor: pool.execute,
+        sqlBuilder: postgresSQLBuilder(collectionName),
       }),
   };
 };
