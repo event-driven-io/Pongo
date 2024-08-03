@@ -28,20 +28,21 @@ export const postgresDb = (
 
   const pool = postgresPool(options);
 
-  return {
+  const db: PongoDb<PostgresConnector> = {
     connectorType: options.connectorType,
     databaseName,
-    pool,
     connect: () => Promise.resolve(),
     close: () => pool.close(),
     collection: (collectionName) =>
       pongoCollection({
         collectionName,
-        dbName: databaseName,
+        db,
         sqlExecutor: pool.execute,
         sqlBuilder: postgresSQLBuilder(collectionName),
       }),
     transaction: () => pool.transaction(),
     withTransaction: (handle) => pool.withTransaction(handle),
   };
+
+  return db;
 };

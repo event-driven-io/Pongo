@@ -1,5 +1,4 @@
 import type {
-  ConnectionPool,
   DatabaseTransaction,
   DatabaseTransactionFactory,
   SQLExecutor,
@@ -27,7 +26,7 @@ export declare interface PongoTransactionOptions {
 export interface PongoDbTransaction {
   get databaseName(): string | null;
   options: PongoTransactionOptions;
-  useDatabase: (database: PongoDb) => Promise<DatabaseTransaction>;
+  enlistDatabase: (database: PongoDb) => Promise<DatabaseTransaction>;
   commit: () => Promise<void>;
   rollback: (error?: unknown) => Promise<void>;
   get sqlExecutor(): SQLExecutor;
@@ -59,7 +58,6 @@ export interface PongoDb<ConnectorType extends string = string>
   extends DatabaseTransactionFactory<ConnectorType> {
   get connectorType(): ConnectorType;
   get databaseName(): string;
-  pool: ConnectionPool;
   connect(): Promise<void>;
   close(): Promise<void>;
   collection<T extends PongoDocument>(name: string): PongoCollection<T>;
