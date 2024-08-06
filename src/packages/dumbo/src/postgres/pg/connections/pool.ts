@@ -1,9 +1,5 @@
 import pg from 'pg';
-import {
-  sqlExecutorInNewConnection,
-  transactionFactoryWithNewConnection,
-  type ConnectionPool,
-} from '../../../core';
+import { createConnectionPool, type ConnectionPool } from '../../../core';
 import {
   defaultPostgreSqlDatabase,
   getDatabaseNameOrDefault,
@@ -23,13 +19,10 @@ export type NodePostgresExplicitClientPool =
 
 export const nodePostgresNativePool = (options: {
   connectionString: string;
-  database?: string;
-  pool?: pg.Pool;
+  database?: string | undefined;
 }): NodePostgresNativePool => {
-  const { connectionString, database, pool: ambientPool } = options;
-  const pool = ambientPool
-    ? ambientPool
-    : getPool({ connectionString, database });
+  const { connectionString, database } = options;
+  const pool = getPool({ connectionString, database });
 
   const getConnection = () =>
     nodePostgresConnection({
@@ -39,55 +32,81 @@ export const nodePostgresNativePool = (options: {
     });
 
   const open = () => Promise.resolve(getConnection());
-  const close = async () => {
-    if (!ambientPool) await endPool({ connectionString, database });
-  };
+  const close = () => endPool({ connectionString, database });
 
-  return {
+  return createConnectionPool({
     type: NodePostgresConnectorType,
     open,
     close,
-    execute: sqlExecutorInNewConnection({ open }),
-    ...transactionFactoryWithNewConnection(getConnection),
-  };
+    getConnection,
+  });
 };
 
-export const nodePostgresExplicitClientPool = (options: {
+export const nodePostgresAmbientNativePool = (options: {
+  pool: pg.Pool;
+}): NodePostgresNativePool => {
+  const { pool } = options;
+
+  return createConnectionPool({
+    type: NodePostgresConnectorType,
+    getConnection: () =>
+      nodePostgresConnection({
+        type: 'PoolClient',
+        connect: pool.connect(),
+        close: (client) => Promise.resolve(client.release()),
+      }),
+  });
+};
+
+export const nodePostgresClientPool = (options: {
   connectionString: string;
-  database?: string;
-  client?: pg.Client;
+  database?: string | undefined;
 }): NodePostgresExplicitClientPool => {
-  const { connectionString, database, client: ambientClient } = options;
+  const { connectionString, database } = options;
+
+  return createConnectionPool({
+    type: NodePostgresConnectorType,
+    getConnection: () => {
+      const connect = Promise.resolve(
+        new pg.Client({ connectionString, database }),
+      ).then(async (client) => {
+        await client.connect();
+        return client;
+      });
+
+      return nodePostgresConnection({
+        type: 'Client',
+        connect,
+        close: (client) => client.end(),
+      });
+    },
+  });
+};
+
+export const nodePostgresAmbientClientPool = (options: {
+  client: pg.Client;
+}): NodePostgresExplicitClientPool => {
+  const { client } = options;
 
   const getConnection = () => {
-    const connect = ambientClient
-      ? Promise.resolve(ambientClient)
-      : Promise.resolve(new pg.Client({ connectionString, database })).then(
-          async (client) => {
-            await client.connect();
-            return client;
-          },
-        );
+    const connect = Promise.resolve(client);
 
     return nodePostgresConnection({
       type: 'Client',
       connect,
-      close: (client) => (ambientClient ? Promise.resolve() : client.end()),
+      close: () => Promise.resolve(),
     });
   };
 
   const open = () => Promise.resolve(getConnection());
-  const close = async () => {
-    if (!ambientClient) await endPool({ connectionString, database });
-  };
+  const close = () => Promise.resolve();
 
-  return {
+  return createConnectionPool({
     type: NodePostgresConnectorType,
     open,
     close,
-    execute: sqlExecutorInNewConnection({ open }),
-    ...transactionFactoryWithNewConnection(getConnection),
-  };
+    getConnection,
+  });
 };
 
 export type NodePostgresPoolPooledOptions =
@@ -145,19 +164,18 @@ export function nodePostgresPool(
 ): NodePostgresNativePool | NodePostgresExplicitClientPool {
   const { connectionString, database } = options;
 
-  if (('pooled' in options && options.pooled === false) || 'client' in options)
-    return nodePostgresExplicitClientPool({
-      connectionString,
-      ...(database ? { database } : {}),
-      ...('client' in options && options.client
-        ? { client: options.client }
-        : {}),
-    });
+  if ('client' in options && options.client)
+    return nodePostgresAmbientClientPool({ client: options.client });
+
+  if ('pooled' in options && options.pooled === false)
+    return nodePostgresClientPool({ connectionString, database });
+
+  if ('pool' in options && options.pool)
+    return nodePostgresAmbientNativePool({ pool: options.pool });
 
   return nodePostgresNativePool({
     connectionString,
-    ...(database ? { database } : {}),
-    ...('pool' in options && options.pool ? { pool: options.pool } : {}),
+    database,
   });
 }
 
