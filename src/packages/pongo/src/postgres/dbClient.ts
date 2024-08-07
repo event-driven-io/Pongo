@@ -1,7 +1,7 @@
 import {
+  dumbo,
   getDatabaseNameOrDefault,
   NodePostgresConnectorType,
-  postgresPool,
   type PostgresConnector,
   type PostgresPoolOptions,
 } from '@event-driven-io/dumbo';
@@ -26,7 +26,7 @@ export const postgresDb = (
   const { connectionString, dbName } = options;
   const databaseName = dbName ?? getDatabaseNameOrDefault(connectionString);
 
-  const pool = postgresPool(options);
+  const pool = dumbo<PostgresPoolOptions>(options);
 
   const db: PongoDb<PostgresConnector> = {
     connectorType: options.connectorType,
