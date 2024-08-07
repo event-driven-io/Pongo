@@ -202,8 +202,6 @@ void describe('Node Postgresql', () => {
             });
             try {
               await pool.execute.query(rawSql('SELECT 1'));
-
-              return { success: true, result: undefined };
             } finally {
               await pool.close();
             }
