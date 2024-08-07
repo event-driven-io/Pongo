@@ -74,7 +74,7 @@ export const sqlExecutor = <
 export const sqlExecutorInNewConnection = <
   ConnectionType extends Connection,
 >(options: {
-  open: () => Promise<ConnectionType>;
+  connection: () => Promise<ConnectionType>;
 }): SQLExecutor => ({
   query: (sql) =>
     executeInNewConnection(
@@ -125,11 +125,10 @@ export const executeInNewConnection = async <
 >(
   handle: (connection: ConnectionType) => Promise<Result>,
   options: {
-    open: () => Promise<ConnectionType>;
+    connection: () => Promise<ConnectionType>;
   },
 ) => {
-  const { open } = options;
-  const connection = await open();
+  const connection = await options.connection();
 
   try {
     return await handle(connection);
