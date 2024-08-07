@@ -51,7 +51,7 @@ export const nodePostgresClientConnection = (
 
   return {
     type: NodePostgresConnectorType,
-    connect: getClient,
+    open: getClient,
     close: () => (client ? close(client) : Promise.resolve()),
     ...transactionFactoryWithDbClient(getClient, nodePostgresTransaction),
     execute: sqlExecutor(nodePostgresSQLExecutor(), { connect: getClient }),
@@ -69,7 +69,7 @@ export const nodePostgresPoolClientConnection = (
 
   return {
     type: NodePostgresConnectorType,
-    connect: getClient,
+    open: getClient,
     close: () => (client ? close(client) : Promise.resolve()),
     ...transactionFactoryWithDbClient(getClient, nodePostgresTransaction),
     execute: sqlExecutor(nodePostgresSQLExecutor(), { connect: getClient }),

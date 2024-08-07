@@ -7,6 +7,19 @@ export interface Connection<
 > extends WithSQLExecutor,
     DatabaseTransactionFactory<ConnectorType> {
   type: ConnectorType;
-  connect: () => Promise<DbClient>;
+  open: () => Promise<DbClient>;
   close: () => Promise<void>;
+}
+
+export interface ConnectionFactory<
+  ConnectorType extends string = string,
+  DbClient = unknown,
+> {
+  connection: () => Connection<ConnectorType, DbClient>;
+
+  withConnection: <Result = unknown>(
+    handle: (
+      connection: Connection<ConnectorType, DbClient>,
+    ) => Promise<Result>,
+  ) => Promise<Result>;
 }
