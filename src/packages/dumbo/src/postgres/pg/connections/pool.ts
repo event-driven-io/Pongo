@@ -40,7 +40,7 @@ export const nodePostgresNativePool = (options: {
 
   return createConnectionPool({
     type: NodePostgresConnectorType,
-    open,
+    connection: open,
     close,
     getConnection,
   });
@@ -121,7 +121,7 @@ export const nodePostgresAmbientClientPool = (options: {
 
   return createConnectionPool({
     type: NodePostgresConnectorType,
-    open,
+    connection: open,
     close,
     getConnection,
   });

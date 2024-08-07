@@ -9,7 +9,7 @@ export interface ConnectionPool<ConnectionType extends Connection = Connection>
   extends WithSQLExecutor,
     DatabaseTransactionFactory<ConnectionType['type']> {
   type: ConnectionType['type'];
-  open: () => Promise<ConnectionType>;
+  connection: () => Promise<ConnectionType>;
   close: () => Promise<void>;
 }
 
@@ -29,13 +29,17 @@ export const createConnectionPool = <
 ): ConnectionPoolType => {
   const { type, getConnection } = pool;
 
-  const open =
-    'open' in pool ? pool.open : () => Promise.resolve(getConnection());
+  const connection =
+    'connection' in pool
+      ? pool.connection
+      : () => Promise.resolve(getConnection());
 
   const close = 'close' in pool ? pool.close : () => Promise.resolve();
 
   const execute =
-    'execute' in pool ? pool.execute : sqlExecutorInNewConnection({ open });
+    'execute' in pool
+      ? pool.execute
+      : sqlExecutorInNewConnection({ connection });
 
   const transaction =
     'transaction' in pool && 'withTransaction' in pool
@@ -47,7 +51,7 @@ export const createConnectionPool = <
 
   const result: ConnectionPool<ConnectionType> = {
     type,
-    open,
+    connection,
     close,
     execute,
     ...transaction,
