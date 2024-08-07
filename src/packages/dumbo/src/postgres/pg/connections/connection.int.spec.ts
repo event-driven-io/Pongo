@@ -169,5 +169,49 @@ void describe('Node Postgresql', () => {
         await ambientPool.close();
       }
     });
+
+    void it('connects using ambient connection in withConnection scope', async () => {
+      const ambientPool = nodePostgresPool({ connectionString });
+      try {
+        await ambientPool.withConnection(async (ambientConnection) => {
+          const pool = nodePostgresPool({
+            connectionString,
+            connection: ambientConnection,
+          });
+          try {
+            await pool.execute.query(rawSql('SELECT 1'));
+
+            return { success: true, result: undefined };
+          } finally {
+            await pool.close();
+          }
+        });
+      } finally {
+        await ambientPool.close();
+      }
+    });
+
+    void it('connects using ambient connection in withConnection and withTransaction scope', async () => {
+      const ambientPool = nodePostgresPool({ connectionString });
+      try {
+        await ambientPool.withConnection((ambientConnection) =>
+          ambientConnection.withTransaction<void>(async () => {
+            const pool = nodePostgresPool({
+              connectionString,
+              connection: ambientConnection,
+            });
+            try {
+              await pool.execute.query(rawSql('SELECT 1'));
+
+              return { success: true, result: undefined };
+            } finally {
+              await pool.close();
+            }
+          }),
+        );
+      } finally {
+        await ambientPool.close();
+      }
+    });
   });
 });

@@ -1,5 +1,9 @@
-import { sqlExecutorInNewConnection, type WithSQLExecutor } from '../execute';
-import { type Connection } from './connection';
+import {
+  executeInNewConnection,
+  sqlExecutorInNewConnection,
+  type WithSQLExecutor,
+} from '../execute';
+import { type Connection, type ConnectionFactory } from './connection';
 import {
   transactionFactoryWithNewConnection,
   type DatabaseTransactionFactory,
@@ -7,9 +11,9 @@ import {
 
 export interface ConnectionPool<ConnectionType extends Connection = Connection>
   extends WithSQLExecutor,
+    ConnectionFactory<ConnectionType>,
     DatabaseTransactionFactory<ConnectionType['type']> {
   type: ConnectionType['type'];
-  connection: () => Promise<ConnectionType>;
   close: () => Promise<void>;
 }
 
@@ -34,6 +38,14 @@ export const createConnectionPool = <
       ? pool.connection
       : () => Promise.resolve(getConnection());
 
+  const withConnection =
+    'withConnection' in pool
+      ? pool.withConnection
+      : <Result>(handle: (connection: ConnectionType) => Promise<Result>) =>
+          executeInNewConnection<ConnectionType, Result>(handle, {
+            connection,
+          });
+
   const close = 'close' in pool ? pool.close : () => Promise.resolve();
 
   const execute =
@@ -52,6 +64,7 @@ export const createConnectionPool = <
   const result: ConnectionPool<ConnectionType> = {
     type,
     connection,
+    withConnection,
     close,
     execute,
     ...transaction,

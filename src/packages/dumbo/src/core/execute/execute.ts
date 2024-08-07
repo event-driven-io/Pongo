@@ -121,7 +121,7 @@ export const executeInNewDbClient = async <
 
 export const executeInNewConnection = async <
   ConnectionType extends Connection,
-  Result extends QueryResultRow = QueryResultRow,
+  Result,
 >(
   handle: (connection: ConnectionType) => Promise<Result>,
   options: {
