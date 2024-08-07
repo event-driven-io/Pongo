@@ -14,26 +14,38 @@ export interface DatabaseTransactionFactory<
 > {
   transaction: () => DatabaseTransaction<ConnectorType>;
 
-  withTransaction: <Result = unknown>(
+  withTransaction: <Result = never>(
     handle: (
       transaction: DatabaseTransaction<ConnectorType>,
-    ) => Promise<{ success: boolean; result: Result }>,
+    ) => Promise<TransactionResult<Result> | Result>,
   ) => Promise<Result>;
 }
 
+export type TransactionResult<Result> = { success: boolean; result: Result };
+
+const toTransactionResult = <Result>(
+  transactionResult: TransactionResult<Result> | Result,
+): TransactionResult<Result> =>
+  transactionResult !== undefined &&
+  transactionResult !== null &&
+  typeof transactionResult === 'object' &&
+  'success' in transactionResult
+    ? transactionResult
+    : { success: true, result: transactionResult };
+
 export const executeInTransaction = async <
   ConnectorType extends string = string,
-  Result = unknown,
+  Result = void,
 >(
   transaction: DatabaseTransaction<ConnectorType>,
   handle: (
     transaction: DatabaseTransaction<ConnectorType>,
-  ) => Promise<{ success: boolean; result: Result }>,
+  ) => Promise<TransactionResult<Result> | Result>,
 ): Promise<Result> => {
   await transaction.begin();
 
   try {
-    const { success, result } = await handle(transaction);
+    const { success, result } = toTransactionResult(await handle(transaction));
 
     if (success) await transaction.commit();
     else await transaction.rollback();
