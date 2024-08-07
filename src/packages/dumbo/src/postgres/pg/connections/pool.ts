@@ -17,6 +17,10 @@ export type NodePostgresNativePool =
 export type NodePostgresExplicitClientPool =
   ConnectionPool<NodePostgresClientConnection>;
 
+export type NodePostgresExplicitConnectionPool = ConnectionPool<
+  NodePostgresPoolClientConnection | NodePostgresClientConnection
+>;
+
 export const nodePostgresNativePool = (options: {
   connectionString: string;
   database?: string | undefined;
@@ -55,6 +59,20 @@ export const nodePostgresAmbientNativePool = (options: {
         connect: pool.connect(),
         close: (client) => Promise.resolve(client.release()),
       }),
+  });
+};
+
+export const nodePostgresAmbientConnectionPool = (options: {
+  connection: NodePostgresPoolClientConnection | NodePostgresClientConnection;
+}): NodePostgresExplicitConnectionPool => {
+  const { connection } = options;
+
+  return createConnectionPool({
+    type: NodePostgresConnectorType,
+    getConnection: () => connection,
+    execute: connection.execute,
+    transaction: () => connection.transaction(),
+    withTransaction: (handle) => connection.withTransaction(handle),
   });
 };
 
@@ -147,6 +165,14 @@ export type NodePostgresPoolNotPooledOptions =
       connectionString: string;
       database?: string;
       pooled: false;
+    }
+  | {
+      connectionString: string;
+      database?: string;
+      connection:
+        | NodePostgresPoolClientConnection
+        | NodePostgresClientConnection;
+      pooled?: false;
     };
 
 export type NodePostgresPoolOptions =
@@ -161,7 +187,10 @@ export function nodePostgresPool(
 ): NodePostgresExplicitClientPool;
 export function nodePostgresPool(
   options: NodePostgresPoolOptions,
-): NodePostgresNativePool | NodePostgresExplicitClientPool {
+):
+  | NodePostgresNativePool
+  | NodePostgresExplicitClientPool
+  | NodePostgresExplicitConnectionPool {
   const { connectionString, database } = options;
 
   if ('client' in options && options.client)
@@ -169,6 +198,11 @@ export function nodePostgresPool(
 
   if ('pooled' in options && options.pooled === false)
     return nodePostgresClientPool({ connectionString, database });
+
+  if ('connection' in options && options.connection)
+    return nodePostgresAmbientConnectionPool({
+      connection: options.connection,
+    });
 
   if ('pool' in options && options.pool)
     return nodePostgresAmbientNativePool({ pool: options.pool });
