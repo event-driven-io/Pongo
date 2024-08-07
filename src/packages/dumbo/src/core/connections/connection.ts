@@ -12,14 +12,11 @@ export interface Connection<
 }
 
 export interface ConnectionFactory<
-  ConnectorType extends string = string,
-  DbClient = unknown,
+  ConnectionType extends Connection = Connection,
 > {
-  connection: () => Connection<ConnectorType, DbClient>;
+  connection: () => Promise<ConnectionType>;
 
   withConnection: <Result = unknown>(
-    handle: (
-      connection: Connection<ConnectorType, DbClient>,
-    ) => Promise<Result>,
+    handle: (connection: ConnectionType) => Promise<Result>,
   ) => Promise<Result>;
 }
