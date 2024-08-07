@@ -1,4 +1,4 @@
-import { isNodePostgresNativePool } from '@event-driven-io/dumbo';
+import { dumbo, isNodePostgresNativePool } from '@event-driven-io/dumbo';
 import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
@@ -79,6 +79,22 @@ void describe('Pongo collection', () => {
         await insertDocumentUsingPongo(client);
       } finally {
         await client.end();
+      }
+    });
+
+    void it('connects using existing connection client', async () => {
+      const pool = dumbo({ connectionString });
+
+      try {
+        await pool.withTransaction(async ({ connection }) => {
+          const pongo = pongoClient(connectionString, { connection });
+
+          const users = pongo.db().collection<User>('connections');
+          await users.insertOne({ name: randomUUID() });
+          await users.insertOne({ name: randomUUID() });
+        });
+      } finally {
+        await pool.close();
       }
     });
   });

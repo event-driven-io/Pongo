@@ -1,9 +1,12 @@
 import type { WithSQLExecutor } from '../execute';
 import { type Connection } from './connection';
 
-export interface DatabaseTransaction<ConnectorType extends string = string>
-  extends WithSQLExecutor {
+export interface DatabaseTransaction<
+  ConnectorType extends string = string,
+  DbClient = unknown,
+> extends WithSQLExecutor {
   type: ConnectorType;
+  connection: Connection<ConnectorType, DbClient>;
   begin: () => Promise<void>;
   commit: () => Promise<void>;
   rollback: (error?: unknown) => Promise<void>;

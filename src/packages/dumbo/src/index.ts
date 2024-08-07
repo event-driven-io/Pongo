@@ -14,10 +14,10 @@ export type PoolOptions = {
   connector?: ConnectorType;
 };
 
-export type DumboOptions = PoolOptions;
+export type DumboOptions = PoolOptions & PostgresPoolOptions;
 export type Dumbo = PostgresPool;
 
-export const connectionPool = <PoolOptionsType extends PoolOptions>(
+export const connectionPool = <PoolOptionsType extends DumboOptions>(
   options: PoolOptionsType,
 ) =>
   // TODO: this should have the pattern matching and verification
