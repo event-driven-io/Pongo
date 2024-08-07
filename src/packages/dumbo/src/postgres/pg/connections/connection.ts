@@ -1,9 +1,5 @@
 import pg from 'pg';
-import {
-  sqlExecutor,
-  transactionFactoryWithDbClient,
-  type Connection,
-} from '../../../core';
+import { createConnection, type Connection } from '../../../core';
 import { nodePostgresSQLExecutor } from '../execute';
 import { nodePostgresTransaction } from './transaction';
 
@@ -45,17 +41,13 @@ export const nodePostgresClientConnection = (
 ): NodePostgresClientConnection => {
   const { connect, close } = options;
 
-  let client: pg.Client | null = null;
-
-  const getClient = async () => client ?? (client = await connect);
-
-  return {
+  return createConnection({
     type: NodePostgresConnectorType,
-    open: getClient,
-    close: () => (client ? close(client) : Promise.resolve()),
-    ...transactionFactoryWithDbClient(getClient, nodePostgresTransaction),
-    execute: sqlExecutor(nodePostgresSQLExecutor(), { connect: getClient }),
-  };
+    connect,
+    close,
+    initTransaction: (connection) => nodePostgresTransaction(connection),
+    executor: nodePostgresSQLExecutor,
+  });
 };
 
 export const nodePostgresPoolClientConnection = (
@@ -63,17 +55,13 @@ export const nodePostgresPoolClientConnection = (
 ): NodePostgresPoolClientConnection => {
   const { connect, close } = options;
 
-  let client: pg.PoolClient | null = null;
-
-  const getClient = async () => client ?? (client = await connect);
-
-  return {
+  return createConnection({
     type: NodePostgresConnectorType,
-    open: getClient,
-    close: () => (client ? close(client) : Promise.resolve()),
-    ...transactionFactoryWithDbClient(getClient, nodePostgresTransaction),
-    execute: sqlExecutor(nodePostgresSQLExecutor(), { connect: getClient }),
-  };
+    connect,
+    close,
+    initTransaction: (connection) => nodePostgresTransaction(connection),
+    executor: nodePostgresSQLExecutor,
+  });
 };
 
 export function nodePostgresConnection(

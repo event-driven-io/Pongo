@@ -1,4 +1,7 @@
-import { NodePostgresConnectorType } from '@event-driven-io/dumbo';
+import {
+  NodePostgresConnectorType,
+  type NodePostgresConnection,
+} from '@event-driven-io/dumbo';
 import pg from 'pg';
 import type { PostgresDbClientOptions } from '../postgres';
 import { getPongoDb, type AllowedDbClientOptions } from './pongoDb';
@@ -29,6 +32,10 @@ export type NotPooledPongoOptions =
   | {
       client: pg.Client;
       pooled: false;
+    }
+  | {
+      connection: NodePostgresConnection;
+      pooled?: false;
     };
 
 export type PongoClientOptions =
