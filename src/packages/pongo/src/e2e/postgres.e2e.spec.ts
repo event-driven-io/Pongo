@@ -6,8 +6,13 @@ import assert from 'assert';
 import console from 'console';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
-import { pongoClient, type PongoClient, type PongoDb } from '../';
-import { MongoClient, type Db, type ObjectId } from '../shim';
+import {
+  pongoClient,
+  type ObjectId,
+  type PongoClient,
+  type PongoDb,
+} from '../';
+import { MongoClient, type Db } from '../shim';
 
 type History = { street: string };
 type Address = {
@@ -801,7 +806,7 @@ void describe('MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it.skip('should find documents with an array filter', async () => {
+    void it('should find documents with an array filter', async () => {
       const pongoCollection = pongoDb.collection<User>('findWithArrayFilter');
       const mongoCollection = mongoDb.collection<User>(
         'shimfindWithArrayFilter',
@@ -822,8 +827,7 @@ void describe('MongoDB Compatibility Tests', () => {
       await mongoCollection.insertOne(docs[2]!);
 
       const pongoDocs = await pongoCollection.find({
-        // TODO: fix filter typing
-        // tags: 'tag1'
+        tags: 'tag1',
       });
       const mongoDocs = await mongoCollection.find({ tags: 'tag1' }).toArray();
 
@@ -833,7 +837,7 @@ void describe('MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it.skip('should find documents with multiple array filters', async () => {
+    void it('should find documents with multiple array filters', async () => {
       const pongoCollection = pongoDb.collection<User>(
         'findWithMultipleArrayFilters',
       );
@@ -856,8 +860,7 @@ void describe('MongoDB Compatibility Tests', () => {
       await mongoCollection.insertOne(docs[2]!);
 
       const pongoDocs = await pongoCollection.find({
-        // TODO: fix filter typing
-        //tags: { $all: ['tag1', 'tag2'] },
+        tags: { $all: ['tag1', 'tag2'] },
       });
       const mongoDocs = await mongoCollection
         .find({ tags: { $all: ['tag1', 'tag2'] } })
@@ -888,8 +891,7 @@ void describe('MongoDB Compatibility Tests', () => {
       await mongoCollection.insertOne(docs[2]!);
 
       const pongoDocs = await pongoCollection.find({
-        // TODO: fix filter typing
-        //tags: { $elemMatch: { $eq: 'tag1' } },
+        tags: { $elemMatch: { $eq: 'tag1' } },
       });
       const mongoDocs = await mongoCollection
         .find({ tags: { $elemMatch: { $eq: 'tag1' } } })
@@ -1068,6 +1070,22 @@ void describe('MongoDB Compatibility Tests', () => {
         ...existingDoc,
         _id: pongoInsertResult.insertedId,
       });
+    });
+  });
+
+  void describe('No filter', () => {
+    void it('should filter and count without filter specified', async () => {
+      const pongoCollection = pongoDb.collection<User>('nofilter');
+
+      const newDoc: User = { name: 'John', age: 25 };
+      await pongoCollection.insertOne(newDoc);
+
+      const user = await pongoCollection.findOne();
+
+      assert.ok(user);
+
+      const count = await pongoCollection.countDocuments();
+      assert.ok(count >= 1);
     });
   });
 });

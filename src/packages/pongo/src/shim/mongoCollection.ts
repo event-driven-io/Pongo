@@ -64,6 +64,7 @@ import type {
   DocumentHandler,
   PongoCollection,
   PongoFilter,
+  OptionalUnlessRequiredId as PongoOptionalUnlessRequiredId,
   PongoSession,
   PongoUpdate,
 } from '../core';
@@ -114,7 +115,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     options?: InsertOneOptions | undefined,
   ): Promise<InsertOneResult<T>> {
     const result = await this.collection.insertOne(
-      doc as T,
+      doc as unknown as PongoOptionalUnlessRequiredId<T>,
       toCollectionOperationOptions(options),
     );
     return {
@@ -127,7 +128,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     options?: BulkWriteOptions | undefined,
   ): Promise<InsertManyResult<T>> {
     const result = await this.collection.insertMany(
-      docs as T[],
+      docs as unknown as PongoOptionalUnlessRequiredId<T>[],
       toCollectionOperationOptions(options),
     );
     return {

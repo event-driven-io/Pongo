@@ -72,11 +72,11 @@ export interface PongoCollection<T extends PongoDocument> {
   readonly collectionName: string;
   createCollection(options?: CollectionOperationOptions): Promise<void>;
   insertOne(
-    document: T,
+    document: OptionalUnlessRequiredId<T>,
     options?: CollectionOperationOptions,
   ): Promise<PongoInsertOneResult>;
   insertMany(
-    documents: T[],
+    documents: OptionalUnlessRequiredId<T>[],
     options?: CollectionOperationOptions,
   ): Promise<PongoInsertManyResult>;
   updateOne(
@@ -140,28 +140,139 @@ export interface PongoCollection<T extends PongoDocument> {
   ): Promise<T | null>;
 }
 
+export type ObjectId = string & { __brandId: 'ObjectId' };
+
 export type HasId = { _id: string };
 
-export type WithId<T> = T & HasId;
+export declare type InferIdType<TSchema> = TSchema extends {
+  _id: infer IdType;
+}
+  ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    Record<any, never> extends IdType
+    ? never
+    : IdType
+  : TSchema extends {
+        _id?: infer IdType;
+      }
+    ? unknown extends IdType
+      ? ObjectId
+      : IdType
+    : ObjectId;
+
+/** TypeScript Omit (Exclude to be specific) does not work for objects with an "any" indexed type, and breaks discriminated unions @public */
+export declare type EnhancedOmit<TRecordOrUnion, KeyUnion> =
+  string extends keyof TRecordOrUnion
+    ? TRecordOrUnion
+    : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      TRecordOrUnion extends any
+      ? Pick<TRecordOrUnion, Exclude<keyof TRecordOrUnion, KeyUnion>>
+      : never;
+export declare type OptionalUnlessRequiredId<TSchema> = TSchema extends {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  _id: any;
+}
+  ? TSchema
+  : OptionalId<TSchema>;
+
+export declare type WithId<TSchema> = EnhancedOmit<TSchema, '_id'> & {
+  _id: InferIdType<TSchema>;
+};
 
 export type WithoutId<T> = Omit<T, '_id'>;
 
-export type PongoFilter<T> =
-  | {
-      [P in keyof T]?: T[P] | PongoFilterOperator<T[P]>;
-    }
-  | HasId;
+/** @public */
+export declare type RegExpOrString<T> = T extends string ? RegExp | T : T;
 
-export type PongoFilterOperator<T> = {
-  $eq?: T;
-  $gt?: T;
-  $gte?: T;
-  $lt?: T;
-  $lte?: T;
-  $ne?: T;
-  $in?: T[];
-  $nin?: T[];
+export declare interface Document {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any;
+}
+
+export declare type OptionalId<TSchema> = EnhancedOmit<TSchema, '_id'> & {
+  _id?: InferIdType<TSchema>;
 };
+
+export declare interface ObjectIdLike {
+  __id?: string;
+}
+
+export declare type NonObjectIdLikeDocument = {
+  [key in keyof ObjectIdLike]?: never;
+} & Document;
+
+export declare type AlternativeType<T> =
+  T extends ReadonlyArray<infer U> ? T | RegExpOrString<U> : RegExpOrString<T>;
+
+export declare type Condition<T> =
+  | AlternativeType<T>
+  | PongoFilterOperator<AlternativeType<T>>;
+
+export declare type PongoFilter<TSchema> =
+  | {
+      [P in keyof WithId<TSchema>]?: Condition<WithId<TSchema>[P]>;
+    }
+  | HasId; // TODO: & RootFilterOperators<WithId<TSchema>>;
+
+export declare interface RootFilterOperators<TSchema> extends Document {
+  $and?: PongoFilter<TSchema>[];
+  $nor?: PongoFilter<TSchema>[];
+  $or?: PongoFilter<TSchema>[];
+  $text?: {
+    $search: string;
+    $language?: string;
+    $caseSensitive?: boolean;
+    $diacriticSensitive?: boolean;
+  };
+  $where?: string | ((this: TSchema) => boolean);
+  $comment?: string | Document;
+}
+
+export declare interface PongoFilterOperator<TValue>
+  extends NonObjectIdLikeDocument {
+  $eq?: TValue;
+  $gt?: TValue;
+  $gte?: TValue;
+  $lt?: TValue;
+  $lte?: TValue;
+  $ne?: TValue;
+  $in?: TValue[];
+  $nin?: TValue[];
+  // $eq?: TValue;
+  // $gt?: TValue;
+  // $gte?: TValue;
+  // $in?: ReadonlyArray<TValue>;
+  // $lt?: TValue;
+  // $lte?: TValue;
+  // $ne?: TValue;
+  // $nin?: ReadonlyArray<TValue>;
+  // $not?: TValue extends string ? FilterOperators<TValue> | RegExp : FilterOperators<TValue>;
+  // /**
+  //  * When `true`, `$exists` matches the documents that contain the field,
+  //  * including documents where the field value is null.
+  //  */
+  // $exists?: boolean;
+  // $type?: BSONType | BSONTypeAlias;
+  // $expr?: Record<string, any>;
+  // $jsonSchema?: Record<string, any>;
+  // $mod?: TValue extends number ? [number, number] : never;
+  // $regex?: TValue extends string ? RegExp | BSONRegExp | string : never;
+  // $options?: TValue extends string ? string : never;
+  // $geoIntersects?: {
+  //     $geometry: Document;
+  // };
+  // $geoWithin?: Document;
+  // $near?: Document;
+  // $nearSphere?: Document;
+  // $maxDistance?: number;
+  // $all?: ReadonlyArray<any>;
+  // $elemMatch?: Document;
+  // $size?: TValue extends ReadonlyArray<any> ? number : never;
+  // $bitsAllClear?: BitwiseFilter;
+  // $bitsAllSet?: BitwiseFilter;
+  // $bitsAnyClear?: BitwiseFilter;
+  // $bitsAnySet?: BitwiseFilter;
+  // $rand?: Record<string, never>;
+}
 
 export type $set<T> = Partial<T>;
 export type $unset<T> = { [P in keyof T]?: '' };
