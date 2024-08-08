@@ -1,4 +1,4 @@
-import format from 'pg-format';
+import { sql } from '@event-driven-io/dumbo';
 import { entries, OperatorMap } from '../../../core';
 
 export const handleOperator = (
@@ -12,7 +12,7 @@ export const handleOperator = (
 
   switch (operator) {
     case '$eq':
-      return format(
+      return sql(
         `(data @> %L::jsonb OR jsonb_path_exists(data, '$.%s[*] ? (@ == %s)'))`,
         JSON.stringify(buildNestedObject(path, value)),
         path,
@@ -23,42 +23,38 @@ export const handleOperator = (
     case '$lt':
     case '$lte':
     case '$ne':
-      return format(
+      return sql(
         `data #>> %L ${OperatorMap[operator]} %L`,
         `{${path.split('.').join(',')}}`,
         value,
       );
     case '$in':
-      return format(
+      return sql(
         'data #>> %L IN (%s)',
         `{${path.split('.').join(',')}}`,
-        (value as unknown[]).map((v) => format('%L', v)).join(', '),
+        (value as unknown[]).map((v) => sql('%L', v)).join(', '),
       );
     case '$nin':
-      return format(
+      return sql(
         'data #>> %L NOT IN (%s)',
         `{${path.split('.').join(',')}}`,
-        (value as unknown[]).map((v) => format('%L', v)).join(', '),
+        (value as unknown[]).map((v) => sql('%L', v)).join(', '),
       );
     case '$elemMatch': {
       const subQuery = entries(value as Record<string, unknown>)
         .map(([subKey, subValue]) =>
-          format(`@."%s" == %s`, subKey, JSON.stringify(subValue)),
+          sql(`@."%s" == %s`, subKey, JSON.stringify(subValue)),
         )
         .join(' && ');
-      return format(
-        `jsonb_path_exists(data, '$.%s[*] ? (%s)')`,
-        path,
-        subQuery,
-      );
+      return sql(`jsonb_path_exists(data, '$.%s[*] ? (%s)')`, path, subQuery);
     }
     case '$all':
-      return format(
+      return sql(
         'data @> %L::jsonb',
         JSON.stringify(buildNestedObject(path, value)),
       );
     case '$size':
-      return format(
+      return sql(
         'jsonb_array_length(data #> %L) = %L',
         `{${path.split('.').join(',')}}`,
         value,
@@ -71,22 +67,22 @@ export const handleOperator = (
 const handleIdOperator = (operator: string, value: unknown): string => {
   switch (operator) {
     case '$eq':
-      return format(`_id = %L`, value);
+      return sql(`_id = %L`, value);
     case '$gt':
     case '$gte':
     case '$lt':
     case '$lte':
     case '$ne':
-      return format(`_id ${OperatorMap[operator]} %L`, value);
+      return sql(`_id ${OperatorMap[operator]} %L`, value);
     case '$in':
-      return format(
+      return sql(
         `_id IN (%s)`,
-        (value as unknown[]).map((v) => format('%L', v)).join(', '),
+        (value as unknown[]).map((v) => sql('%L', v)).join(', '),
       );
     case '$nin':
-      return format(
+      return sql(
         `_id NOT IN (%s)`,
-        (value as unknown[]).map((v) => format('%L', v)).join(', '),
+        (value as unknown[]).map((v) => sql('%L', v)).join(', '),
       );
     default:
       throw new Error(`Unsupported operator: ${operator}`);
