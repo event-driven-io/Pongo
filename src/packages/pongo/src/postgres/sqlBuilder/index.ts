@@ -1,5 +1,4 @@
 import { sql, type SQL } from '@event-driven-io/dumbo';
-import format from 'pg-format';
 import {
   type PongoCollectionSQLBuilder,
   type PongoFilter,
@@ -36,7 +35,7 @@ export const postgresSQLBuilder = (
     ),
   insertMany: <T>(documents: WithId<T>[]): SQL => {
     const values = documents
-      .map((doc) => format('(%L, %L)', doc._id, JSON.stringify(doc)))
+      .map((doc) => sql('(%L, %L)', doc._id, JSON.stringify(doc)))
       .join(', ');
     return sql('INSERT INTO %I (_id, data) VALUES %s', collectionName, values);
   },

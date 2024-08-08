@@ -70,7 +70,6 @@
     "@types/node": "20.11.30",
     "@types/pg": "^8.11.6",
     "@types/pg-connection-string": "^2.0.0",
-    "@types/pg-format": "^1.0.5",
     "@types/uuid": "9.0.8",
     "@typescript-eslint/eslint-plugin": "7.9.0",
     "@typescript-eslint/parser": "7.9.0",
@@ -91,13 +90,11 @@
   "peerDependencies": {
     "pg": "^8.12.0",
     "pg-connection-string": "^2.6.4",
-    "pg-format": "^1.0.4",
     "testcontainers": "^10.10.1"
   },
   "dependencies": {
     "cpy-cli": "^5.0.0",
-    "pg": "^8.12.0",
-    "pg-format": "^1.0.4"
+    "pg": "^8.12.0"
   },
   "workspaces": [
     "packages/dumbo",
