@@ -91,10 +91,10 @@ export const pongoCollection = <
     ): Promise<PongoInsertOneResult> => {
       await createCollection(options);
 
-      const _id = uuid();
+      const _id = (document._id as string | undefined | null) ?? uuid();
 
       const result = await command(
-        SqlFor.insertOne({ _id, ...document } as OptionalUnlessRequiredId<T>),
+        SqlFor.insertOne({ ...document, _id } as OptionalUnlessRequiredId<T>),
         options,
       );
 
@@ -108,15 +108,15 @@ export const pongoCollection = <
     ): Promise<PongoInsertManyResult> => {
       await createCollection(options);
 
-      const rows = documents.map(
-        (doc) =>
-          ({
-            _id: uuid(),
-            ...doc,
-          }) as OptionalUnlessRequiredId<T>,
-      );
+      const rows = documents.map((doc) => ({
+        ...doc,
+        _id: (doc._id as string | undefined | null) ?? uuid(),
+      }));
 
-      const result = await command(SqlFor.insertMany(rows), options);
+      const result = await command(
+        SqlFor.insertMany(rows as OptionalUnlessRequiredId<T>[]),
+        options,
+      );
 
       return {
         acknowledged: result.rowCount === rows.length,
