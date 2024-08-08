@@ -169,13 +169,13 @@ export declare type EnhancedOmit<TRecordOrUnion, KeyUnion> =
       : never;
 export declare type OptionalUnlessRequiredId<TSchema> = TSchema extends {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  _id: any;
+  _id: string | ObjectId;
 }
   ? TSchema
   : OptionalId<TSchema>;
 
 export declare type WithId<TSchema> = EnhancedOmit<TSchema, '_id'> & {
-  _id: InferIdType<TSchema>;
+  _id: string | ObjectId;
 };
 
 export type WithoutId<T> = Omit<T, '_id'>;
@@ -189,11 +189,11 @@ export declare interface Document {
 }
 
 export declare type OptionalId<TSchema> = EnhancedOmit<TSchema, '_id'> & {
-  _id?: InferIdType<TSchema>;
+  _id?: string | ObjectId;
 };
 
 export declare interface ObjectIdLike {
-  __id?: string;
+  __id?: string | ObjectId;
 }
 
 export declare type NonObjectIdLikeDocument = {

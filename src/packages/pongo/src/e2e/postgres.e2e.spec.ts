@@ -30,6 +30,13 @@ type User = {
   tags?: string[];
 };
 
+type UserWithoutId = {
+  name: string;
+  age: number;
+  address?: Address;
+  tags?: string[];
+};
+
 void describe('MongoDB Compatibility Tests', () => {
   let postgres: StartedPostgreSqlContainer;
   let postgresConnectionString: string;
@@ -65,6 +72,39 @@ void describe('MongoDB Compatibility Tests', () => {
   });
 
   void describe('Insert Operations', () => {
+    void it('should insert a document with id into both PostgreSQL and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>('insertOne');
+      const mongoCollection = mongoDb.collection<User>('shiminsertOne');
+      const _id = new Date().toISOString();
+      const doc: User = {
+        _id: new Date().toISOString(),
+        name: 'Anita',
+        age: 25,
+      };
+      const pongoInsertResult = await pongoCollection.insertOne(doc);
+      const mongoInsertResult = await mongoCollection.insertOne(doc);
+      assert(pongoInsertResult.insertedId);
+      assert(mongoInsertResult.insertedId);
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: mongoInsertResult.insertedId,
+      });
+      assert.ok(pongoDoc);
+      assert.ok(mongoDoc);
+      assert.deepStrictEqual(
+        {
+          name: pongoDoc.name,
+          age: pongoDoc.age,
+        },
+        {
+          name: mongoDoc.name,
+          age: mongoDoc.age,
+        },
+      );
+    });
+
     void it('should insert a document into both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('insertOne');
       const mongoCollection = mongoDb.collection<User>('shiminsertOne');
