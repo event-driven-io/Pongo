@@ -1,6 +1,7 @@
 export * from './core';
 export * from './pg';
 import {
+  type NodePostgresConnection,
   type NodePostgresConnector,
   type NodePostgresPool,
   type NodePostgresPoolOptions,
@@ -10,4 +11,5 @@ import {
 export type PostgresConnector = NodePostgresConnector;
 export type PostgresPoolOptions = NodePostgresPoolOptions;
 export type PostgresPool = NodePostgresPool;
+export type PostgresConnection = NodePostgresConnection;
 export const postgresPool = nodePostgresPool;
