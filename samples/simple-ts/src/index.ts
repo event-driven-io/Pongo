@@ -1,7 +1,7 @@
 import { pongoClient } from '@event-driven-io/pongo';
 import { v4 as uuid } from 'uuid';
 
-type User = { name: string; age: number };
+type User = { _id?: string; name: string; age: number };
 
 const connectionString =
   'postgresql://postgres:postgres@localhost:5432/postgres';
