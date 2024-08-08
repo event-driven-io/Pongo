@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/pongo",
-  "version": "0.12.3",
+  "version": "0.12.4",
   "description": "Pongo - Mongo with strong consistency on top of Postgres",
   "type": "module",
   "scripts": {
@@ -41,12 +41,12 @@
     },
     "./shim": {
       "import": {
-        "types": "./dist/shim/index.d.ts",
-        "default": "./dist/shim/index.js"
+        "types": "./dist/shim.d.ts",
+        "default": "./dist/shim.js"
       },
       "require": {
-        "types": "./dist/shim/index.d.cts",
-        "default": "./dist/shim/index.cjs"
+        "types": "./dist/shim.d.cts",
+        "default": "./dist/shim.cjs"
       }
     }
   },
@@ -56,7 +56,7 @@
         "./dist/index.d.ts"
       ],
       "shim": [
-        "./dist/shim/index.d.ts"
+        "./dist/shim.d.ts"
       ]
     }
   },
