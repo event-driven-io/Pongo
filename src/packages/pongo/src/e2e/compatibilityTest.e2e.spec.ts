@@ -14,7 +14,7 @@ import {
 } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
-import { MongoClient, type Db } from '../';
+import { MongoClient, type Db } from '../shim';
 
 type History = { street: string };
 type Address = {

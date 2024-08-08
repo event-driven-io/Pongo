@@ -6,14 +6,8 @@ import assert from 'assert';
 import console from 'console';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
-import {
-  MongoClient,
-  pongoClient,
-  type Db,
-  type ObjectId,
-  type PongoClient,
-  type PongoDb,
-} from '..';
+import { pongoClient, type PongoClient, type PongoDb } from '../';
+import { MongoClient, type Db, type ObjectId } from '../shim';
 
 type History = { street: string };
 type Address = {
