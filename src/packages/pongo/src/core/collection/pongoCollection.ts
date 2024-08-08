@@ -9,6 +9,7 @@ import { v4 as uuid } from 'uuid';
 import {
   type CollectionOperationOptions,
   type DocumentHandler,
+  type OptionalUnlessRequiredId,
   type PongoCollection,
   type PongoDb,
   type PongoDeleteResult,
@@ -18,7 +19,6 @@ import {
   type PongoInsertOneResult,
   type PongoUpdate,
   type PongoUpdateResult,
-  type WithId,
   type WithoutId,
 } from '..';
 
@@ -86,7 +86,7 @@ export const pongoCollection = <
       await createCollection(options);
     },
     insertOne: async (
-      document: T,
+      document: OptionalUnlessRequiredId<T>,
       options?: CollectionOperationOptions,
     ): Promise<PongoInsertOneResult> => {
       await createCollection(options);
@@ -94,7 +94,7 @@ export const pongoCollection = <
       const _id = uuid();
 
       const result = await command(
-        SqlFor.insertOne({ _id, ...document }),
+        SqlFor.insertOne({ _id, ...document } as OptionalUnlessRequiredId<T>),
         options,
       );
 
@@ -103,22 +103,25 @@ export const pongoCollection = <
         : { insertedId: null, acknowledged: false };
     },
     insertMany: async (
-      documents: T[],
+      documents: OptionalUnlessRequiredId<T>[],
       options?: CollectionOperationOptions,
     ): Promise<PongoInsertManyResult> => {
       await createCollection(options);
 
-      const rows = documents.map((doc) => ({
-        _id: uuid(),
-        ...doc,
-      }));
+      const rows = documents.map(
+        (doc) =>
+          ({
+            _id: uuid(),
+            ...doc,
+          }) as OptionalUnlessRequiredId<T>,
+      );
 
       const result = await command(SqlFor.insertMany(rows), options);
 
       return {
         acknowledged: result.rowCount === rows.length,
         insertedCount: result.rowCount ?? 0,
-        insertedIds: rows.map((d) => d._id),
+        insertedIds: rows.map((d) => d._id as string),
       };
     },
     updateOne: async (
@@ -249,7 +252,10 @@ export const pongoCollection = <
 
       if (!existing && result) {
         const newDoc = { ...result, _id: id };
-        await collection.insertOne({ ...newDoc, _id: id }, options);
+        await collection.insertOne(
+          { ...newDoc, _id: id } as OptionalUnlessRequiredId<T>,
+          options,
+        );
         return newDoc;
       }
 
@@ -304,8 +310,8 @@ export const pongoCollection = <
 
 export type PongoCollectionSQLBuilder = {
   createCollection: () => SQL;
-  insertOne: <T>(document: WithId<T>) => SQL;
-  insertMany: <T>(documents: WithId<T>[]) => SQL;
+  insertOne: <T>(document: OptionalUnlessRequiredId<T>) => SQL;
+  insertMany: <T>(documents: OptionalUnlessRequiredId<T>[]) => SQL;
   updateOne: <T>(filter: PongoFilter<T>, update: PongoUpdate<T>) => SQL;
   replaceOne: <T>(filter: PongoFilter<T>, document: WithoutId<T>) => SQL;
   updateMany: <T>(filter: PongoFilter<T>, update: PongoUpdate<T>) => SQL;

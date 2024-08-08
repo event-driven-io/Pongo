@@ -1,9 +1,9 @@
-import { sql, type SQL } from '@event-driven-io/dumbo';
+import { rawSql, sql, type SQL } from '@event-driven-io/dumbo';
 import {
+  type OptionalUnlessRequiredId,
   type PongoCollectionSQLBuilder,
   type PongoFilter,
   type PongoUpdate,
-  type WithId,
   type WithoutId,
 } from '../../core';
 import { constructFilterQuery } from './filter';
@@ -26,14 +26,14 @@ export const postgresSQLBuilder = (
     )`,
       collectionName,
     ),
-  insertOne: <T>(document: WithId<T>): SQL =>
+  insertOne: <T>(document: OptionalUnlessRequiredId<T>): SQL =>
     sql(
       'INSERT INTO %I (_id, data) VALUES (%L, %L)',
       collectionName,
       document._id,
       JSON.stringify(document),
     ),
-  insertMany: <T>(documents: WithId<T>[]): SQL => {
+  insertMany: <T>(documents: OptionalUnlessRequiredId<T>[]): SQL => {
     const values = documents
       .map((doc) => sql('(%L, %L)', doc._id, JSON.stringify(doc)))
       .join(', ');
@@ -45,11 +45,11 @@ export const postgresSQLBuilder = (
 
     return sql(
       `WITH cte AS (
-        SELECT _id FROM %I WHERE %s LIMIT 1
+        SELECT _id FROM %I %s LIMIT 1
       )
       UPDATE %I SET data = %s FROM cte WHERE %I._id = cte._id`,
       collectionName,
-      filterQuery,
+      where(filterQuery),
       collectionName,
       updateQuery,
       collectionName,
@@ -59,10 +59,10 @@ export const postgresSQLBuilder = (
     const filterQuery = constructFilterQuery(filter);
 
     return sql(
-      `UPDATE %I SET data = %L || jsonb_build_object('_id', data->>'_id') WHERE %s`,
+      `UPDATE %I SET data = %L || jsonb_build_object('_id', data->>'_id') %s`,
       collectionName,
       JSON.stringify(document),
-      filterQuery,
+      where(filterQuery),
     );
   },
   updateMany: <T>(filter: PongoFilter<T>, update: PongoUpdate<T>): SQL => {
@@ -70,38 +70,38 @@ export const postgresSQLBuilder = (
     const updateQuery = buildUpdateQuery(update);
 
     return sql(
-      'UPDATE %I SET data = %s WHERE %s',
+      'UPDATE %I SET data = %s %s',
       collectionName,
       updateQuery,
-      filterQuery,
+      where(filterQuery),
     );
   },
   deleteOne: <T>(filter: PongoFilter<T>): SQL => {
     const filterQuery = constructFilterQuery(filter);
-    return sql('DELETE FROM %I WHERE %s', collectionName, filterQuery);
+    return sql('DELETE FROM %I %s', collectionName, where(filterQuery));
   },
   deleteMany: <T>(filter: PongoFilter<T>): SQL => {
     const filterQuery = constructFilterQuery(filter);
-    return sql('DELETE FROM %I WHERE %s', collectionName, filterQuery);
+    return sql('DELETE FROM %I %s', collectionName, where(filterQuery));
   },
   findOne: <T>(filter: PongoFilter<T>): SQL => {
     const filterQuery = constructFilterQuery(filter);
     return sql(
-      'SELECT data FROM %I WHERE %s LIMIT 1',
+      'SELECT data FROM %I %s LIMIT 1',
       collectionName,
-      filterQuery,
+      where(filterQuery),
     );
   },
   find: <T>(filter: PongoFilter<T>): SQL => {
     const filterQuery = constructFilterQuery(filter);
-    return sql('SELECT data FROM %I WHERE %s', collectionName, filterQuery);
+    return sql('SELECT data FROM %I %s', collectionName, where(filterQuery));
   },
   countDocuments: <T>(filter: PongoFilter<T>): SQL => {
     const filterQuery = constructFilterQuery(filter);
     return sql(
-      'SELECT COUNT(1) as count FROM %I WHERE %s',
+      'SELECT COUNT(1) as count FROM %I %s',
       collectionName,
-      filterQuery,
+      where(filterQuery),
     );
   },
   rename: (newName: string): SQL =>
@@ -109,3 +109,6 @@ export const postgresSQLBuilder = (
   drop: (targetName: string = collectionName): SQL =>
     sql('DROP TABLE IF EXISTS %I', targetName),
 });
+
+const where = (filter: string): SQL =>
+  filter.length > 0 ? sql('WHERE %s', filter) : rawSql('');
