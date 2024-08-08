@@ -9,6 +9,7 @@
     "build:ts": "tsc",
     "build:ts:watch": "tsc  --watch",
     "start": "tsx ./src/index.ts",
+    "start:shim": "tsx ./src/shim.ts",
     "lint": "npm run lint:eslint && npm run lint:prettier",
     "lint:prettier": "prettier --check \"**/**/!(*.d).{ts,json,md}\"",
     "lint:eslint": "eslint '**/*.ts'",
@@ -59,6 +60,6 @@
     "dist"
   ],
   "dependencies": {
-    "@event-driven-io/pongo": "0.12.2"
+    "@event-driven-io/pongo": "0.12.4"
   }
 }

@@ -1,4 +1,4 @@
-import { MongoClient } from '@event-driven-io/pongo/dist/shim';
+import { MongoClient } from '@event-driven-io/pongo/shim';
 
 type User = { name: string; age: number };
 

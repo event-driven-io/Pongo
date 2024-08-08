@@ -60,7 +60,7 @@ const usersFromDb = await users.find({ age: { $lt: 40 } });
 Or use MongoDB compliant shim:
 
 ```ts
-import { MongoClient } from "@event-driven-io/pongo";
+import { MongoClient } from "@event-driven-io/pongo/shim";
 import { v4 as uuid } from "uuid";
 
 type User = { name: string; age: number };
