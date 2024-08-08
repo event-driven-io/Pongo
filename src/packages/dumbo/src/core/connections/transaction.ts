@@ -14,12 +14,13 @@ export interface DatabaseTransaction<
 
 export interface DatabaseTransactionFactory<
   ConnectorType extends string = string,
+  DbClient = unknown,
 > {
-  transaction: () => DatabaseTransaction<ConnectorType>;
+  transaction: () => DatabaseTransaction<ConnectorType, DbClient>;
 
   withTransaction: <Result = never>(
     handle: (
-      transaction: DatabaseTransaction<ConnectorType>,
+      transaction: DatabaseTransaction<ConnectorType, DbClient>,
     ) => Promise<TransactionResult<Result> | Result>,
   ) => Promise<Result>;
 }
@@ -38,11 +39,12 @@ const toTransactionResult = <Result>(
 
 export const executeInTransaction = async <
   ConnectorType extends string = string,
+  DbClient = unknown,
   Result = void,
 >(
-  transaction: DatabaseTransaction<ConnectorType>,
+  transaction: DatabaseTransaction<ConnectorType, DbClient>,
   handle: (
-    transaction: DatabaseTransaction<ConnectorType>,
+    transaction: DatabaseTransaction<ConnectorType, DbClient>,
   ) => Promise<TransactionResult<Result> | Result>,
 ): Promise<Result> => {
   await transaction.begin();
@@ -67,8 +69,8 @@ export const transactionFactoryWithDbClient = <
   connect: () => Promise<DbClient>,
   initTransaction: (
     client: Promise<DbClient>,
-  ) => DatabaseTransaction<ConnectorType>,
-): DatabaseTransactionFactory<ConnectorType> => ({
+  ) => DatabaseTransaction<ConnectorType, DbClient>,
+): DatabaseTransactionFactory<ConnectorType, DbClient> => ({
   transaction: () => initTransaction(connect()),
   withTransaction: (handle) =>
     executeInTransaction(initTransaction(connect()), handle),
