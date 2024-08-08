@@ -30,13 +30,6 @@ type User = {
   tags?: string[];
 };
 
-type UserWithoutId = {
-  name: string;
-  age: number;
-  address?: Address;
-  tags?: string[];
-};
-
 void describe('MongoDB Compatibility Tests', () => {
   let postgres: StartedPostgreSqlContainer;
   let postgresConnectionString: string;
