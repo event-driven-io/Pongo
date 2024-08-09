@@ -64,6 +64,23 @@ void describe('MongoDB Compatibility Tests', () => {
     }
   });
 
+  void describe('FindOne', () => {
+    void it('should return null when does not exist', async () => {
+      const pongoCollection = pongoDb.collection<User>('findOne');
+      const mongoCollection = mongoDb.collection<User>('shimFindOne');
+      const nonExistingId = uuid() as unknown as ObjectId;
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: nonExistingId,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: nonExistingId,
+      });
+      assert.equal(pongoDoc, null);
+      assert.equal(mongoDoc, null);
+    });
+  });
+
   void describe('Insert Operations', () => {
     void it('should insert a document with id into both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('insertOne');

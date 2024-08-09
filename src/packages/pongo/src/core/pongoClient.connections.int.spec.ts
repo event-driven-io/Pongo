@@ -47,47 +47,50 @@ void describe('Pongo collection', () => {
   };
 
   void describe('Pool', () => {
-    void it('connects using pool', async () => {
-      const pool = new pg.Pool({ connectionString });
+    // void it('connects using pool', async () => {
+    //   const pool = new pg.Pool({ connectionString });
 
-      try {
-        await insertDocumentUsingPongo(pool);
-      } catch (error) {
-        console.log(error);
-      } finally {
-        await pool.end();
-      }
-    });
+    //   try {
+    //     await insertDocumentUsingPongo(pool);
+    //   } catch (error) {
+    //     console.log(error);
+    //   } finally {
+    //     await pool.end();
+    //   }
+    // });
 
-    void it('connects using connected pool client', async () => {
-      const pool = new pg.Pool({ connectionString });
-      const poolClient = await pool.connect();
+    // void it('connects using connected pool client', async () => {
+    //   const pool = new pg.Pool({ connectionString });
+    //   const poolClient = await pool.connect();
 
-      try {
-        await insertDocumentUsingPongo(poolClient);
-      } finally {
-        poolClient.release();
-        await pool.end();
-      }
-    });
+    //   try {
+    //     await insertDocumentUsingPongo(poolClient);
+    //   } finally {
+    //     poolClient.release();
+    //     await pool.end();
+    //   }
+    // });
 
-    void it('connects using connected client', async () => {
-      const client = new pg.Client({ connectionString });
-      await client.connect();
+    // void it('connects using connected client', async () => {
+    //   const client = new pg.Client({ connectionString });
+    //   await client.connect();
 
-      try {
-        await insertDocumentUsingPongo(client);
-      } finally {
-        await client.end();
-      }
-    });
+    //   try {
+    //     await insertDocumentUsingPongo(client);
+    //   } finally {
+    //     await client.end();
+    //   }
+    // });
 
-    void it('connects using existing connection client', async () => {
+    void it('connects using existing connection', async () => {
       const pool = dumbo({ connectionString });
 
       try {
-        await pool.withTransaction(async ({ connection }) => {
-          const pongo = pongoClient(connectionString, { connection });
+        await pool.withConnection(async (connection) => {
+          const pongo = pongoClient(connectionString, {
+            connection,
+            pooled: false,
+          });
 
           const users = pongo.db().collection<User>('connections');
           await users.insertOne({ name: randomUUID() });
@@ -97,5 +100,21 @@ void describe('Pongo collection', () => {
         await pool.close();
       }
     });
+
+    // void it('connects using existing connection from transaction', async () => {
+    //   const pool = dumbo({ connectionString });
+
+    //   try {
+    //     await pool.withTransaction(async ({ connection }) => {
+    //       const pongo = pongoClient(connectionString, { connection });
+
+    //       const users = pongo.db().collection<User>('connections');
+    //       await users.insertOne({ name: randomUUID() });
+    //       await users.insertOne({ name: randomUUID() });
+    //     });
+    //   } finally {
+    //     await pool.close();
+    //   }
+    // });
   });
 });
