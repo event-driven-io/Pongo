@@ -210,13 +210,13 @@ export function nodePostgresPool(
   if ('client' in options && options.client)
     return nodePostgresAmbientClientPool({ client: options.client });
 
-  if ('pooled' in options && options.pooled === false)
-    return nodePostgresClientPool({ connectionString, database });
-
   if ('connection' in options && options.connection)
     return nodePostgresAmbientConnectionPool({
       connection: options.connection,
     });
+
+  if ('pooled' in options && options.pooled === false)
+    return nodePostgresClientPool({ connectionString, database });
 
   if ('pool' in options && options.pool)
     return nodePostgresAmbientNativePool({ pool: options.pool });
