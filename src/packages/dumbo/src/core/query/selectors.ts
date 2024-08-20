@@ -7,7 +7,7 @@ export const firstOrNull = async <
 ): Promise<Result | null> => {
   const result = await getResult;
 
-  return result.rows.length > 0 ? result.rows[0] ?? null : null;
+  return result.rows.length > 0 ? (result.rows[0] ?? null) : null;
 };
 
 export const first = async <Result extends QueryResultRow = QueryResultRow>(
@@ -30,7 +30,7 @@ export const singleOrNull = async <
 
   if (result.rows.length > 1) throw new Error('Query had more than one result');
 
-  return result.rows.length > 0 ? result.rows[0] ?? null : null;
+  return result.rows.length > 0 ? (result.rows[0] ?? null) : null;
 };
 
 export const single = async <Result extends QueryResultRow = QueryResultRow>(

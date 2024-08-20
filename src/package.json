@@ -63,38 +63,36 @@
     "dist"
   ],
   "devDependencies": {
-    "@faker-js/faker": "8.4.1",
-    "@testcontainers/mongodb": "^10.10.1",
-    "@testcontainers/postgresql": "^10.10.1",
+    "@faker-js/faker": "^8.4.1",
+    "@testcontainers/mongodb": "^10.11.0",
+    "@testcontainers/postgresql": "^10.11.0",
     "@types/mongodb": "^4.0.7",
-    "@types/node": "20.11.30",
+    "@types/node": "^22.4.1",
     "@types/pg": "^8.11.6",
-    "@types/pg-connection-string": "^2.0.0",
-    "@types/uuid": "9.0.8",
-    "@typescript-eslint/eslint-plugin": "7.9.0",
-    "@typescript-eslint/parser": "7.9.0",
-    "eslint": "8.57.0",
-    "eslint-config-prettier": "9.1.0",
-    "eslint-plugin-prettier": "5.1.3",
-    "glob": "10.3.10",
-    "npm-run-all2": "6.1.2",
-    "prettier": "3.2.5",
-    "ts-node": "10.9.2",
-    "tsconfig-paths": "4.2.0",
-    "tsup": "8.0.2",
-    "tsx": "4.7.1",
-    "typescript": "5.4.3",
-    "uuid": "9.0.1",
-    "vitepress": "1.0.1"
+    "@types/uuid": "^10.0.0",
+    "@typescript-eslint/eslint-plugin": "8.2.0",
+    "@typescript-eslint/parser": "8.2.0",
+    "eslint": "^9.9.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.2.1",
+    "glob": "^11.0.0",
+    "npm-run-all2": "^6.2.2",
+    "prettier": "^3.3.3",
+    "testcontainers": "^10.11.0",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "tsup": "^8.2.4",
+    "tsx": "^4.17.0",
+    "typescript": "^5.5.4",
+    "uuid": "^10.0.0",
+    "vitepress": "^1.3.3"
   },
   "peerDependencies": {
     "pg": "^8.12.0",
-    "pg-connection-string": "^2.6.4",
-    "testcontainers": "^10.10.1"
+    "pg-connection-string": "^2.6.4"
   },
   "dependencies": {
-    "cpy-cli": "^5.0.0",
-    "pg": "^8.12.0"
+    "cpy-cli": "^5.0.0"
   },
   "workspaces": [
     "packages/dumbo",

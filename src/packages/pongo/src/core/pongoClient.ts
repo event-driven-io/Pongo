@@ -19,8 +19,7 @@ export type PooledPongoClientOptions =
       pool: pg.Pool;
       pooled: true;
     }
-  // eslint-disable-next-line @typescript-eslint/ban-types
-  | {};
+  | object;
 
 export type NotPooledPongoOptions =
   | {
@@ -48,7 +47,7 @@ export const pongoClient = <
   connectionString: string,
   options: PongoClientOptions = {},
 ): PongoClient => {
-  const dbClients: Map<string, PongoDb> = new Map();
+  const dbClients = new Map<string, PongoDb>();
 
   const dbClient = getPongoDb<DbClientOptions>(
     clientToDbOptions({
@@ -88,7 +87,7 @@ export const pongoClient = <
       );
     },
     startSession: pongoSession,
-    withSession: async <T = unknown>(
+    withSession: async <T>(
       callback: (session: PongoSession) => Promise<T>,
     ): Promise<T> => {
       const session = pongoSession();

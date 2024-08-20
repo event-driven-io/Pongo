@@ -168,7 +168,6 @@ export declare type EnhancedOmit<TRecordOrUnion, KeyUnion> =
       ? Pick<TRecordOrUnion, Exclude<keyof TRecordOrUnion, KeyUnion>>
       : never;
 export declare type OptionalUnlessRequiredId<TSchema> = TSchema extends {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   _id: string | ObjectId;
 }
   ? TSchema

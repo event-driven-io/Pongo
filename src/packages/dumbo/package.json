@@ -48,13 +48,12 @@
   ],
   "peerDependencies": {
     "@types/pg": "^8.11.6",
-    "@types/pg-connection-string": "^2.0.0",
-    "@types/uuid": "^9.0.8",
+    "@types/uuid": "^10.0.0",
     "pg": "^8.12.0",
     "pg-connection-string": "^2.6.4",
-    "uuid": "^9.0.1"
+    "uuid": "^10.0.0"
   },
   "devDependencies": {
-    "@types/node": "20.11.30"
+    "@types/node": "22.4.1"
   }
 }
