@@ -27,7 +27,7 @@ export class FindCursor<T> {
 
   async next(): Promise<T | null> {
     const docs = await this.findDocuments();
-    return this.hasNext() ? docs[this.index++] ?? null : null;
+    return this.hasNext() ? (docs[this.index++] ?? null) : null;
   }
 
   private async findDocuments(): Promise<T[]> {
