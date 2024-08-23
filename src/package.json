@@ -95,7 +95,8 @@
     "@types/benchmark": "^2.1.5",
     "0x": "^5.7.0",
     "benchmark": "^2.1.4",
-    "cpy-cli": "^5.0.0"
+    "cpy-cli": "^5.0.0",
+    "dotenv": "^16.4.5"
   },
   "workspaces": [
     "packages/dumbo",
