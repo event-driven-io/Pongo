@@ -14,7 +14,9 @@
     "test:watch": "node --import tsx --test --watch",
     "test:unit:watch": "glob -c \"node --import tsx --test --watch\" **/*.unit.spec.ts",
     "test:int:watch": "glob -c \"node --import tsx --test --watch\" **/*.int.spec.ts",
-    "test:e2e:watch": "glob -c \"node --import tsx --test --watch\" **/*.e2e.spec.ts"
+    "test:e2e:watch": "glob -c \"node --import tsx --test --watch\" **/*.e2e.spec.ts",
+    "benchmark": "node --import tsx src/benchmarks/index.ts",
+    "flamegraph": "0x -D \"0x/{pid}\" -- node --import tsx src/benchmarks/ox.ts"
   },
   "repository": {
     "type": "git",
