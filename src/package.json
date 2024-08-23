@@ -92,6 +92,9 @@
     "pg-connection-string": "^2.6.4"
   },
   "dependencies": {
+    "@types/benchmark": "^2.1.5",
+    "0x": "^5.7.0",
+    "benchmark": "^2.1.4",
     "cpy-cli": "^5.0.0"
   },
   "workspaces": [
