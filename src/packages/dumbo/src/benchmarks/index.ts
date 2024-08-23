@@ -7,9 +7,11 @@ const connectionString =
   process.env.BENCHMARK_POSTGRESQL_CONNECTION_STRING ??
   'postgresql://postgres@localhost:5432/postgres';
 
+const pooled = process.env.BENCHMARK_CONNECTION_POOLED === 'true';
+
 const pool = dumbo({
   connectionString,
-  //pooled: false,
+  pooled,
 });
 
 const setup = () =>
@@ -39,14 +41,14 @@ async function runBenchmark() {
   const suite = new Benchmark.Suite();
 
   suite
-    .add('writing in transaction', {
+    .add('INSERTING records in transaction', {
       defer: true,
       fn: async function (deferred: Benchmark.Deferred) {
         await insertRecord();
         deferred.resolve();
       },
     })
-    .add('reading', {
+    .add('READING records', {
       defer: true,
       fn: async function (deferred: Benchmark.Deferred) {
         await getRecord();
@@ -59,7 +61,7 @@ async function runBenchmark() {
     .on('complete', function (this: Benchmark.Suite) {
       this.forEach((bench: Benchmark.Target) => {
         const stats = bench.stats;
-        console.log(`Benchmark: ${bench.name}`);
+        console.log(`\nBenchmark: ${bench.name}`);
         console.log(`  Operations per second: ${bench.hz!.toFixed(2)} ops/sec`);
         console.log(
           `  Mean execution time: ${(stats!.mean * 1000).toFixed(2)} ms`,
