@@ -1,6 +1,7 @@
 import 'dotenv/config';
 
 import Benchmark from 'benchmark';
+import pg from 'pg';
 import { dumbo, rawSql, single } from '..';
 
 const connectionString =
@@ -14,6 +15,8 @@ const pool = dumbo({
   pooled,
 });
 
+const rawPgPool = new pg.Pool({ connectionString });
+
 const setup = () =>
   pool.execute.command(
     rawSql(`
@@ -22,6 +25,26 @@ const setup = () =>
         brand VARCHAR(255)
       );`),
   );
+
+const openAndCloseRawConnection = async () => {
+  if (pooled) {
+    const client = await rawPgPool.connect();
+    client.release();
+  } else {
+    const client = new pg.Client(connectionString);
+    await client.connect();
+    await client.end();
+  }
+};
+
+const openAndCloseDumboConnection = async () => {
+  const connection = await pool.connection();
+  try {
+    await connection.open();
+  } finally {
+    await connection.close();
+  }
+};
 
 const getRecord = () =>
   single(pool.execute.query(rawSql(`SELECT * FROM cars LIMIT 1;`)));
@@ -41,6 +64,20 @@ async function runBenchmark() {
   const suite = new Benchmark.Suite();
 
   suite
+    .add('Opening and closing raw connection', {
+      defer: true,
+      fn: async function (deferred: Benchmark.Deferred) {
+        await openAndCloseRawConnection();
+        deferred.resolve();
+      },
+    })
+    .add('Opening and closing connection', {
+      defer: true,
+      fn: async function (deferred: Benchmark.Deferred) {
+        await openAndCloseDumboConnection();
+        deferred.resolve();
+      },
+    })
     .add('INSERTING records in transaction', {
       defer: true,
       fn: async function (deferred: Benchmark.Deferred) {
@@ -58,7 +95,7 @@ async function runBenchmark() {
     .on('cycle', function (event: Benchmark.Event) {
       console.log(String(event.target));
     })
-    .on('complete', function (this: Benchmark.Suite) {
+    .on('complete', async function (this: Benchmark.Suite) {
       this.forEach((bench: Benchmark.Target) => {
         const stats = bench.stats;
         console.log(`\nBenchmark: ${bench.name}`);
@@ -75,6 +112,7 @@ async function runBenchmark() {
       });
 
       console.log('Benchmarking complete.');
+      await rawPgPool.end();
       return pool.close(); // Close the database connection
     })
     // Run the benchmarks
