@@ -16,7 +16,7 @@ export const toCamelCase = (snakeStr: string): string =>
   snakeStr.replace(/_([a-z])/g, (g) => g[1]?.toUpperCase() ?? '');
 
 export const mapToCamelCase = <T extends Record<string, unknown>>(
-  obj: T,
+  obj: Record<string, unknown>,
 ): T => {
   const newObj: Record<string, unknown> = {};
   for (const key in obj) {

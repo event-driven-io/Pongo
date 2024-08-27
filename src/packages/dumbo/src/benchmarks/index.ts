@@ -2,11 +2,11 @@ import 'dotenv/config';
 
 import Benchmark from 'benchmark';
 import pg from 'pg';
-import { dumbo, rawSql, single } from '..';
+import { defaultPostgreSQLConenctionString, dumbo, rawSql, single } from '..';
 
 const connectionString =
   process.env.BENCHMARK_POSTGRESQL_CONNECTION_STRING ??
-  'postgresql://postgres@localhost:5432/postgres';
+  defaultPostgreSQLConenctionString;
 
 const pooled = process.env.BENCHMARK_CONNECTION_POOLED === 'true';
 

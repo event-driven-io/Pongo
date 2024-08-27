@@ -59,22 +59,32 @@ export const nodePostgresSQLExecutor = (): NodePostgresSQLExecutor => ({
   batchCommand: batch,
 });
 
+export type BatchQueryOptions = { timeoutMs?: number };
+
 function batch<Result extends QueryResultRow = QueryResultRow>(
   client: NodePostgresClient,
   sqlOrSqls: SQL,
+  options?: BatchQueryOptions,
 ): Promise<QueryResult<Result>>;
 function batch<Result extends QueryResultRow = QueryResultRow>(
   client: NodePostgresClient,
   sqlOrSqls: SQL[],
+  options?: BatchQueryOptions,
 ): Promise<QueryResult<Result>[]>;
 async function batch<Result extends QueryResultRow = QueryResultRow>(
   client: NodePostgresClient,
   sqlOrSqls: SQL | SQL[],
+  options?: BatchQueryOptions,
 ): Promise<QueryResult<Result> | QueryResult<Result>[]> {
   const sqls = Array.isArray(sqlOrSqls) ? sqlOrSqls : [sqlOrSqls];
   const results: QueryResult<Result>[] = Array<QueryResult<Result>>(
     sqls.length,
   );
+
+  if (options?.timeoutMs) {
+    await client.query(`SET statement_timeout = ${options?.timeoutMs}`);
+  }
+
   //TODO: make it smarter at some point
   for (let i = 0; i < sqls.length; i++) {
     const result = await client.query<Result>(sqls[i]!);

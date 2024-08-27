@@ -46,6 +46,16 @@ export const single = async <Result extends QueryResultRow = QueryResultRow>(
   return result.rows[0]!;
 };
 
+export type CountSQLQueryResult = { count: number };
+
+export const count = async (
+  getResult: Promise<QueryResult<CountSQLQueryResult>>,
+): Promise<number> => {
+  const result = await single(getResult);
+
+  return result.count;
+};
+
 export type ExistsSQLQueryResult = { exists: boolean };
 
 export const exists = async (
