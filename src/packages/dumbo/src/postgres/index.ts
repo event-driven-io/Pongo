@@ -1,4 +1,5 @@
 export * from './core';
+export * from './migrations';
 export * from './pg';
 import {
   type NodePostgresConnection,

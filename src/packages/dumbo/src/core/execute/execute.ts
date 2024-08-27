@@ -2,6 +2,9 @@ import type { Connection } from '../connections';
 import type { QueryResult, QueryResultRow } from '../query';
 import { type SQL } from '../sql';
 
+export type SQLQueryOptions = { timeoutMs?: number };
+export type SQLCommandOptions = { timeoutMs?: number };
+
 export interface DbSQLExecutor<
   ConnectorType extends string = string,
   DbClient = unknown,
@@ -10,33 +13,41 @@ export interface DbSQLExecutor<
   query<Result extends QueryResultRow = QueryResultRow>(
     client: DbClient,
     sql: SQL,
+    options?: SQLQueryOptions,
   ): Promise<QueryResult<Result>>;
   batchQuery<Result extends QueryResultRow = QueryResultRow>(
     client: DbClient,
     sqls: SQL[],
+    options?: SQLQueryOptions,
   ): Promise<QueryResult<Result>[]>;
   command<Result extends QueryResultRow = QueryResultRow>(
     client: DbClient,
     sql: SQL,
+    options?: SQLCommandOptions,
   ): Promise<QueryResult<Result>>;
   batchCommand<Result extends QueryResultRow = QueryResultRow>(
     client: DbClient,
     sqls: SQL[],
+    options?: SQLCommandOptions,
   ): Promise<QueryResult<Result>[]>;
 }
 
 export interface SQLExecutor {
   query<Result extends QueryResultRow = QueryResultRow>(
     sql: SQL,
+    options?: SQLQueryOptions,
   ): Promise<QueryResult<Result>>;
   batchQuery<Result extends QueryResultRow = QueryResultRow>(
     sqls: SQL[],
+    options?: SQLQueryOptions,
   ): Promise<QueryResult<Result>[]>;
   command<Result extends QueryResultRow = QueryResultRow>(
     sql: SQL,
+    options?: SQLCommandOptions,
   ): Promise<QueryResult<Result>>;
   batchCommand<Result extends QueryResultRow = QueryResultRow>(
     sqls: SQL[],
+    options?: SQLCommandOptions,
   ): Promise<QueryResult<Result>[]>;
 }
 
@@ -55,18 +66,24 @@ export const sqlExecutor = <
     close?: (client: DbClient, error?: unknown) => Promise<void>;
   },
 ): SQLExecutor => ({
-  query: (sql) =>
-    executeInNewDbClient((client) => sqlExecutor.query(client, sql), options),
-  batchQuery: (sqls) =>
+  query: (sql, queryOptions) =>
     executeInNewDbClient(
-      (client) => sqlExecutor.batchQuery(client, sqls),
+      (client) => sqlExecutor.query(client, sql, queryOptions),
       options,
     ),
-  command: (sql) =>
-    executeInNewDbClient((client) => sqlExecutor.command(client, sql), options),
-  batchCommand: (sqls) =>
+  batchQuery: (sqls, queryOptions) =>
     executeInNewDbClient(
-      (client) => sqlExecutor.batchQuery(client, sqls),
+      (client) => sqlExecutor.batchQuery(client, sqls, queryOptions),
+      options,
+    ),
+  command: (sql, commandOptions) =>
+    executeInNewDbClient(
+      (client) => sqlExecutor.command(client, sql, commandOptions),
+      options,
+    ),
+  batchCommand: (sqls, commandOptions) =>
+    executeInNewDbClient(
+      (client) => sqlExecutor.batchQuery(client, sqls, commandOptions),
       options,
     ),
 });
