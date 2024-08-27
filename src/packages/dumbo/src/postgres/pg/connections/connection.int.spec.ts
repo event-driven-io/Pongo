@@ -2,11 +2,13 @@ import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
+import assert from 'node:assert';
+import console from 'node:console';
 import { after, before, describe, it } from 'node:test';
 import pg from 'pg';
-import { nodePostgresPool } from '.';
-import { rawSql } from '../../../core';
-import { endPool, getPool } from './pool';
+import { endPool, getPool, nodePostgresPool } from '.';
+import { dumbo } from '../../..';
+import { exists, rawSql, single, sql } from '../../../core';
 
 void describe('Node Postgresql', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -211,5 +213,83 @@ void describe('Node Postgresql', () => {
         await ambientPool.close();
       }
     });
+
+    void it('connects using ambient client in withConnection and withTransaction scope', async () => {
+      const existingClient = new pg.Client({ connectionString });
+      await existingClient.connect();
+
+      const ambientPool = nodePostgresPool({
+        connectionString,
+        client: existingClient,
+      });
+
+      try {
+        await ambientPool.withConnection((ambientConnection) =>
+          ambientConnection.withTransaction<void>(async () => {
+            const pool = nodePostgresPool({
+              connectionString,
+              connection: ambientConnection,
+            });
+            try {
+              await pool.execute.query(rawSql('SELECT 1'));
+            } finally {
+              await pool.close();
+            }
+          }),
+        );
+      } finally {
+        await ambientPool.close();
+        await existingClient.end();
+      }
+    });
+  });
+
+  void it('connects using ambient client in withTransaction scope', async () => {
+    const existingClient = new pg.Client({ connectionString });
+    await existingClient.connect();
+
+    const pool = dumbo({ connectionString });
+    const ambientPool = nodePostgresPool({
+      connectionString,
+      client: existingClient,
+      pooled: false,
+    });
+
+    const id = new Date().getTime();
+
+    try {
+      await ambientPool.withTransaction<void>(async ({ execute }) => {
+        await execute.command(
+          rawSql(`CREATE TABLE IF NOT EXISTS testambient (
+                    id BIGINT PRIMARY KEY, 
+                    brand VARCHAR(255)
+                  )`),
+        );
+        await execute.command(
+          sql(`INSERT INTO testambient (id, brand) VALUES (%s, 'bmw')`, id),
+        );
+
+        const result = await single(
+          execute.query(
+            sql('SELECT EXISTS (SELECT 1 from testambient WHERE id = %s)', id),
+          ),
+        );
+        assert.ok(result);
+      });
+
+      const result = await exists(
+        pool.execute.query(
+          sql('SELECT EXISTS (SELECT 1 from testambient WHERE id = %s)', id),
+        ),
+      );
+      assert.ok(result);
+    } catch (error) {
+      console.log(error);
+      throw error;
+    } finally {
+      await ambientPool.close();
+      await pool.close();
+      await existingClient.end();
+    }
   });
 });

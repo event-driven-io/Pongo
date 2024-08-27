@@ -111,19 +111,18 @@ export const nodePostgresAmbientClientPool = (options: {
   client: pg.Client;
 }): NodePostgresAmbientClientPool => {
   const { client } = options;
+  const connect = Promise.resolve(client);
+  const close = () => Promise.resolve();
 
   const getConnection = () => {
-    const connect = Promise.resolve(client);
-
     return nodePostgresConnection({
       type: 'Client',
       connect,
-      close: () => Promise.resolve(),
+      close,
     });
   };
 
   const open = () => Promise.resolve(getConnection());
-  const close = () => Promise.resolve();
 
   return createConnectionPool({
     type: NodePostgresConnectorType,
