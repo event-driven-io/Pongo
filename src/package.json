@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/pongo-core",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "description": "Pongo - Mongo with strong consistency on top of Postgres",
   "type": "module",
   "engines": {
@@ -93,7 +93,7 @@
   },
   "dependencies": {
     "@types/benchmark": "^2.1.5",
-    "0x": "^5.7.0",
+    "0x": "^4.1.4",
     "benchmark": "^2.1.4",
     "cpy-cli": "^5.0.0",
     "dotenv": "^16.4.5"
