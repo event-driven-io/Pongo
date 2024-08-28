@@ -1,5 +1,6 @@
 import {
   NodePostgresConnectorType,
+  type MigrationStyle,
   type NodePostgresConnection,
 } from '@event-driven-io/dumbo';
 import pg from 'pg';
@@ -37,9 +38,10 @@ export type NotPooledPongoOptions =
       pooled?: false;
     };
 
-export type PongoClientOptions =
-  | PooledPongoClientOptions
-  | NotPooledPongoOptions;
+export type PongoClientOptions = {
+  schema?: { autoMigration?: MigrationStyle };
+  connectionOptions?: PooledPongoClientOptions | NotPooledPongoOptions;
+};
 
 export const pongoClient = <
   DbClientOptions extends AllowedDbClientOptions = AllowedDbClientOptions,

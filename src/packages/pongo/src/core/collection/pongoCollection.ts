@@ -1,6 +1,7 @@
 import {
   single,
   type DatabaseTransaction,
+  type MigrationStyle,
   type QueryResultRow,
   type SQL,
   type SQLExecutor,
@@ -27,6 +28,7 @@ export type PongoCollectionOptions<ConnectorType extends string = string> = {
   collectionName: string;
   sqlExecutor: SQLExecutor;
   sqlBuilder: PongoCollectionSQLBuilder;
+  schema?: { autoMigration?: MigrationStyle };
 };
 
 const enlistIntoTransactionIfActive = async <
@@ -61,6 +63,7 @@ export const pongoCollection = <
   collectionName,
   sqlExecutor,
   sqlBuilder: SqlFor,
+  schema,
 }: PongoCollectionOptions<ConnectorType>): PongoCollection<T> => {
   const command = async (sql: SQL, options?: CollectionOperationOptions) =>
     (await transactionExecutorOrDefault(db, options, sqlExecutor)).command(sql);
@@ -73,11 +76,22 @@ export const pongoCollection = <
       sql,
     );
 
-  const createCollectionPromise = command(SqlFor.createCollection());
-  const createCollection = (options?: CollectionOperationOptions) =>
-    options?.session
-      ? command(SqlFor.createCollection(), options)
-      : createCollectionPromise;
+  let shouldMigrate = schema?.autoMigration !== 'None';
+
+  const createCollection = (options?: CollectionOperationOptions) => {
+    shouldMigrate = false;
+
+    if (options?.session) return command(SqlFor.createCollection(), options);
+    else return command(SqlFor.createCollection());
+  };
+
+  const ensureCollectionCreated = (options?: CollectionOperationOptions) => {
+    if (!shouldMigrate) {
+      return Promise.resolve();
+    }
+
+    return createCollection(options);
+  };
 
   const collection = {
     dbName: db.databaseName,
@@ -89,7 +103,7 @@ export const pongoCollection = <
       document: OptionalUnlessRequiredId<T>,
       options?: CollectionOperationOptions,
     ): Promise<PongoInsertOneResult> => {
-      await createCollection(options);
+      await ensureCollectionCreated(options);
 
       const _id = (document._id as string | undefined | null) ?? uuid();
 
@@ -106,7 +120,7 @@ export const pongoCollection = <
       documents: OptionalUnlessRequiredId<T>[],
       options?: CollectionOperationOptions,
     ): Promise<PongoInsertManyResult> => {
-      await createCollection(options);
+      await ensureCollectionCreated(options);
 
       const rows = documents.map((doc) => ({
         ...doc,
@@ -129,7 +143,7 @@ export const pongoCollection = <
       update: PongoUpdate<T>,
       options?: CollectionOperationOptions,
     ): Promise<PongoUpdateResult> => {
-      await createCollection(options);
+      await ensureCollectionCreated(options);
 
       const result = await command(SqlFor.updateOne(filter, update), options);
       return result.rowCount
@@ -141,7 +155,7 @@ export const pongoCollection = <
       document: WithoutId<T>,
       options?: CollectionOperationOptions,
     ): Promise<PongoUpdateResult> => {
-      await createCollection(options);
+      await ensureCollectionCreated(options);
 
       const result = await command(
         SqlFor.replaceOne(filter, document),
@@ -156,7 +170,7 @@ export const pongoCollection = <
       update: PongoUpdate<T>,
       options?: CollectionOperationOptions,
     ): Promise<PongoUpdateResult> => {
-      await createCollection(options);
+      await ensureCollectionCreated(options);
 
       const result = await command(SqlFor.updateMany(filter, update), options);
       return result.rowCount
@@ -167,7 +181,7 @@ export const pongoCollection = <
       filter?: PongoFilter<T>,
       options?: CollectionOperationOptions,
     ): Promise<PongoDeleteResult> => {
-      await createCollection(options);
+      await ensureCollectionCreated(options);
 
       const result = await command(SqlFor.deleteOne(filter ?? {}), options);
       return result.rowCount
@@ -178,7 +192,7 @@ export const pongoCollection = <
       filter?: PongoFilter<T>,
       options?: CollectionOperationOptions,
     ): Promise<PongoDeleteResult> => {
-      await createCollection(options);
+      await ensureCollectionCreated(options);
 
       const result = await command(SqlFor.deleteMany(filter ?? {}), options);
       return result.rowCount
@@ -189,7 +203,7 @@ export const pongoCollection = <
       filter?: PongoFilter<T>,
       options?: CollectionOperationOptions,
     ): Promise<T | null> => {
-      await createCollection(options);
+      await ensureCollectionCreated(options);
 
       const result = await query(SqlFor.findOne(filter ?? {}), options);
       return (result.rows[0]?.data ?? null) as T | null;
@@ -198,7 +212,7 @@ export const pongoCollection = <
       filter: PongoFilter<T>,
       options?: CollectionOperationOptions,
     ): Promise<T | null> => {
-      await createCollection(options);
+      await ensureCollectionCreated(options);
 
       const existingDoc = await collection.findOne(filter, options);
 
@@ -212,7 +226,7 @@ export const pongoCollection = <
       replacement: WithoutId<T>,
       options?: CollectionOperationOptions,
     ): Promise<T | null> => {
-      await createCollection(options);
+      await ensureCollectionCreated(options);
 
       const existingDoc = await collection.findOne(filter, options);
 
@@ -227,7 +241,7 @@ export const pongoCollection = <
       update: PongoUpdate<T>,
       options?: CollectionOperationOptions,
     ): Promise<T | null> => {
-      await createCollection(options);
+      await ensureCollectionCreated(options);
 
       const existingDoc = await collection.findOne(filter, options);
 
@@ -242,7 +256,7 @@ export const pongoCollection = <
       handle: DocumentHandler<T>,
       options?: CollectionOperationOptions,
     ): Promise<T | null> => {
-      await createCollection(options);
+      await ensureCollectionCreated(options);
 
       const byId: PongoFilter<T> = { _id: id };
 
@@ -273,7 +287,7 @@ export const pongoCollection = <
       filter?: PongoFilter<T>,
       options?: CollectionOperationOptions,
     ): Promise<T[]> => {
-      await createCollection(options);
+      await ensureCollectionCreated(options);
 
       const result = await query(SqlFor.find(filter ?? {}));
       return result.rows.map((row) => row.data as T);
@@ -282,7 +296,7 @@ export const pongoCollection = <
       filter?: PongoFilter<T>,
       options?: CollectionOperationOptions,
     ): Promise<number> => {
-      await createCollection(options);
+      await ensureCollectionCreated(options);
 
       const { count } = await single(
         query<{ count: number }>(SqlFor.countDocuments(filter ?? {})),
@@ -290,7 +304,7 @@ export const pongoCollection = <
       return count;
     },
     drop: async (options?: CollectionOperationOptions): Promise<boolean> => {
-      await createCollection(options);
+      await ensureCollectionCreated(options);
       const result = await command(SqlFor.drop());
       return (result?.rowCount ?? 0) > 0;
     },
@@ -298,7 +312,7 @@ export const pongoCollection = <
       newName: string,
       options?: CollectionOperationOptions,
     ): Promise<PongoCollection<T>> => {
-      await createCollection(options);
+      await ensureCollectionCreated(options);
       await command(SqlFor.rename(newName));
       collectionName = newName;
       return collection;
