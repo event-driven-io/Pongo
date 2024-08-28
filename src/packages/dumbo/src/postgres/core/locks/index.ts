@@ -1,1 +1,1 @@
-export * from './advisoryLocks';
+export * from './databaseLock';

@@ -1,4 +1,4 @@
-import type { Dumbo } from '../..';
+import { type DatabaseLock, type DatabaseLockOptions, type Dumbo } from '../..';
 import {
   mapToCamelCase,
   rawSql,
@@ -6,12 +6,6 @@ import {
   sql,
   type SQLExecutor,
 } from '../../core';
-import {
-  acquireAdvisoryLock,
-  type AcquireAdvisoryLockOptions,
-  defaultAcquireAdvisoryLockOptions,
-  releaseAdvisoryLock,
-} from '../core';
 
 export type Migration = {
   name: string;
@@ -28,43 +22,48 @@ export type MigrationRecord = {
 export const MIGRATIONS_LOCK_ID = 999956789;
 
 export type MigratorOptions = {
-  lock?: Omit<AcquireAdvisoryLockOptions, 'lockId'> &
-    Partial<Pick<AcquireAdvisoryLockOptions, 'lockId'>>;
-};
-export const defaultMigratorOptions: Required<MigratorOptions> = {
-  lock: { lockId: MIGRATIONS_LOCK_ID, ...defaultAcquireAdvisoryLockOptions },
+  schema: {
+    migrationTableSQL: string;
+  };
+  lock: {
+    databaseLock: DatabaseLock;
+    options?: Omit<DatabaseLockOptions, 'lockId'> &
+      Partial<Pick<DatabaseLockOptions, 'lockId'>>;
+  };
 };
 
-export const runMigrations = (
+export const runSQLMigrations = (
   pool: Dumbo,
   migrations: Migration[],
-  options: MigratorOptions = defaultMigratorOptions,
+  options: MigratorOptions,
 ): Promise<void> =>
   pool.withTransaction(async (transaction) => {
     for (const migration of migrations) {
-      await runMigration(transaction.execute, migration, options);
+      await runSQLMigration(transaction.execute, migration, options);
     }
   });
 
-export const runMigration = async (
+export const runSQLMigration = async (
   execute: SQLExecutor,
   migration: Migration,
-  options: MigratorOptions = defaultMigratorOptions,
+  options: MigratorOptions,
 ): Promise<void> => {
   const sql = combineMigrations(migration);
   const sqlHash = await getMigrationHash(sql);
 
-  const lockOptions: AcquireAdvisoryLockOptions = {
+  const { databaseLock, ...rest } = options.lock;
+
+  const lockOptions: DatabaseLockOptions = {
     lockId: MIGRATIONS_LOCK_ID,
-    ...(options.lock ?? {}),
+    ...rest,
   };
 
   try {
-    await acquireAdvisoryLock(execute, lockOptions);
+    await databaseLock.acquire(execute, lockOptions);
 
     try {
       // Ensure the migrations table exists
-      await setupMigrationTable(execute);
+      await setupMigrationTable(execute, options.schema.migrationTableSQL);
 
       const newMigration = {
         name: migration.name,
@@ -82,7 +81,7 @@ export const runMigration = async (
 
       await recordMigration(execute, newMigration);
     } finally {
-      await releaseAdvisoryLock(execute, lockOptions);
+      await databaseLock.release(execute, lockOptions);
     }
     // console.log(`Migration "${newMigration.name}" applied successfully.`);
   } catch (error) {
@@ -102,17 +101,10 @@ const getMigrationHash = async (content: string): Promise<string> => {
 const combineMigrations = (migration: Pick<Migration, 'sqls'>) =>
   migration.sqls.join('\n');
 
-const migrationTableSQL = `
-  CREATE TABLE IF NOT EXISTS migrations (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL UNIQUE,
-    application VARCHAR(255) NOT NULL DEFAULT 'default',
-    sql_hash VARCHAR(64) NOT NULL,
-    timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );
-`;
-
-const setupMigrationTable = async (execute: SQLExecutor) => {
+const setupMigrationTable = async (
+  execute: SQLExecutor,
+  migrationTableSQL: string,
+) => {
   await execute.command(rawSql(migrationTableSQL));
 };
 
