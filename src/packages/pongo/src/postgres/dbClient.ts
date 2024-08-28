@@ -12,8 +12,7 @@ import {
 } from '../core';
 import { postgresSQLBuilder } from './sqlBuilder';
 
-export type PostgresDbClientOptions = PongoDbClientOptions<PostgresConnector> &
-  PostgresPoolOptions;
+export type PostgresDbClientOptions = PongoDbClientOptions<PostgresConnector>;
 
 export const isPostgresClientOptions = (
   options: PongoDbClientOptions,
@@ -26,7 +25,10 @@ export const postgresDb = (
   const { connectionString, dbName } = options;
   const databaseName = dbName ?? getDatabaseNameOrDefault(connectionString);
 
-  const pool = dumbo<PostgresPoolOptions>(options);
+  const pool = dumbo<PostgresPoolOptions>({
+    connectionString,
+    ...options.connectionOptions,
+  });
 
   const db: PongoDb<PostgresConnector> = {
     connectorType: options.connectorType,
@@ -39,6 +41,7 @@ export const postgresDb = (
         db,
         sqlExecutor: pool.execute,
         sqlBuilder: postgresSQLBuilder(collectionName),
+        ...(options.schema ? options.schema : {}),
       }),
     transaction: () => pool.transaction(),
     withTransaction: (handle) => pool.withTransaction(handle),

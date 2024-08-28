@@ -3,13 +3,14 @@ import {
   postgresDb,
   type PostgresDbClientOptions,
 } from '../postgres';
+import type { PongoClientOptions } from './pongoClient';
 import type { PongoDb } from './typing';
 
 export type PongoDbClientOptions<ConnectorType extends string = string> = {
   connectorType: ConnectorType;
   connectionString: string;
   dbName: string | undefined;
-};
+} & PongoClientOptions;
 
 export type AllowedDbClientOptions = PostgresDbClientOptions;
 

@@ -34,7 +34,9 @@ void describe('Pongo collection', () => {
       isNodePostgresNativePool(poolOrClient)
         ? undefined
         : {
-            client: poolOrClient,
+            connectionOptions: {
+              client: poolOrClient,
+            },
           },
     );
 
@@ -88,8 +90,10 @@ void describe('Pongo collection', () => {
       try {
         await pool.withConnection(async (connection) => {
           const pongo = pongoClient(connectionString, {
-            connection,
-            pooled: false,
+            connectionOptions: {
+              connection,
+              pooled: false,
+            },
           });
 
           const users = pongo.db().collection<User>('connections');
@@ -106,7 +110,9 @@ void describe('Pongo collection', () => {
 
       try {
         await pool.withTransaction(async ({ connection }) => {
-          const pongo = pongoClient(connectionString, { connection });
+          const pongo = pongoClient(connectionString, {
+            connectionOptions: { connection },
+          });
 
           const users = pongo.db().collection<User>('connections');
           await users.insertOne({ name: randomUUID() });

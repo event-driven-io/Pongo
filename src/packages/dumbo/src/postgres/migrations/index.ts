@@ -7,6 +7,8 @@ import {
   type SQLExecutor,
 } from '../../core';
 
+export type MigrationStyle = 'None' | 'CreateOrUpdate';
+
 export type Migration = {
   name: string;
   sqls: string[];
