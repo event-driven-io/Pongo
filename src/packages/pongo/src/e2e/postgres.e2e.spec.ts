@@ -12,6 +12,7 @@ import {
   type PongoClient,
   type PongoDb,
 } from '../';
+import { pongoSchema } from '../core/typing/schema';
 import { MongoClient, type Db } from '../shim';
 
 type History = { street: string };
@@ -1136,6 +1137,39 @@ void describe('MongoDB Compatibility Tests', () => {
 
       const count = await pongoCollection.countDocuments();
       assert.ok(count >= 1);
+    });
+  });
+
+  void describe('Pongo Schema', () => {
+    const schema = pongoSchema.client({
+      database: pongoSchema.db({
+        users: pongoSchema.collection<User>('users'),
+      }),
+    });
+
+    void it('should access collection by name and perform operation', async () => {
+      const typedClient = pongoClient(postgresConnectionString, {
+        schema: { definition: schema },
+      });
+      try {
+        const users = typedClient.database.users;
+
+        const _id = new Date().toISOString();
+        const doc: User = {
+          _id,
+          name: 'Anita',
+          age: 25,
+        };
+        const pongoInsertResult = await users.insertOne(doc);
+        assert(pongoInsertResult.insertedId);
+
+        const pongoDoc = await users.findOne({
+          _id: pongoInsertResult.insertedId,
+        });
+        assert.ok(pongoDoc);
+      } finally {
+        await typedClient.close();
+      }
     });
   });
 });

@@ -1,6 +1,6 @@
 import {
-  entries,
   hasOperators,
+  objectEntries,
   QueryOperators,
   type PongoFilter,
 } from '../../../core';
@@ -25,7 +25,7 @@ const constructComplexFilterQuery = (
 ): string => {
   const isEquality = !hasOperators(value);
 
-  return entries(value)
+  return objectEntries(value)
     .map(
       ([nestedKey, val]) =>
         isEquality

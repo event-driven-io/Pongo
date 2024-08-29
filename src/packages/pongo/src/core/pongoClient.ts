@@ -8,6 +8,11 @@ import type { PostgresDbClientOptions } from '../postgres';
 import { getPongoDb, type AllowedDbClientOptions } from './pongoDb';
 import { pongoSession } from './pongoSession';
 import type { PongoClient, PongoDb, PongoSession } from './typing/operations';
+import {
+  proxyClientWithSchema,
+  type PongoClientSchema,
+  type PongoClientWithSchema,
+} from './typing/schema';
 
 export type PooledPongoClientOptions =
   | {
@@ -38,17 +43,20 @@ export type NotPooledPongoOptions =
       pooled?: false;
     };
 
-export type PongoClientOptions = {
-  schema?: { autoMigration?: MigrationStyle };
+export type PongoClientOptions<
+  TypedClientSchema extends PongoClientSchema = PongoClientSchema,
+> = {
+  schema?: { autoMigration?: MigrationStyle; definition?: TypedClientSchema };
   connectionOptions?: PooledPongoClientOptions | NotPooledPongoOptions;
 };
 
 export const pongoClient = <
+  TypedClientSchema extends PongoClientSchema = PongoClientSchema,
   DbClientOptions extends AllowedDbClientOptions = AllowedDbClientOptions,
 >(
   connectionString: string,
-  options: PongoClientOptions = {},
-): PongoClient => {
+  options: PongoClientOptions<TypedClientSchema> = {},
+): PongoClient & PongoClientWithSchema<TypedClientSchema> => {
   const dbClients = new Map<string, PongoDb>();
 
   const dbClient = getPongoDb<DbClientOptions>(
@@ -102,7 +110,7 @@ export const pongoClient = <
     },
   };
 
-  return pongoClient;
+  return proxyClientWithSchema(pongoClient, options?.schema?.definition);
 };
 
 export const clientToDbOptions = <
