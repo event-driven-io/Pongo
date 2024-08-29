@@ -1,5 +1,5 @@
 import { sql } from '@event-driven-io/dumbo';
-import { entries, OperatorMap } from '../../../core';
+import { objectEntries, OperatorMap } from '../../../core';
 
 export const handleOperator = (
   path: string,
@@ -41,7 +41,7 @@ export const handleOperator = (
         (value as unknown[]).map((v) => sql('%L', v)).join(', '),
       );
     case '$elemMatch': {
-      const subQuery = entries(value as Record<string, unknown>)
+      const subQuery = objectEntries(value as Record<string, unknown>)
         .map(([subKey, subValue]) =>
           sql(`@."%s" == %s`, subKey, JSON.stringify(subValue)),
         )

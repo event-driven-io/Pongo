@@ -1,6 +1,6 @@
 import { sql, type SQL } from '@event-driven-io/dumbo';
 import {
-  entries,
+  objectEntries,
   type $inc,
   type $push,
   type $set,
@@ -9,7 +9,7 @@ import {
 } from '../../../core';
 
 export const buildUpdateQuery = <T>(update: PongoUpdate<T>): SQL =>
-  entries(update).reduce((currentUpdateQuery, [op, value]) => {
+  objectEntries(update).reduce((currentUpdateQuery, [op, value]) => {
     switch (op) {
       case '$set':
         return buildSetQuery(value, currentUpdateQuery);
