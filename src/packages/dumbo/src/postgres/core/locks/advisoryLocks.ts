@@ -1,12 +1,14 @@
 import {
-  defaultDatabaseLockOptions,
   type AcquireDatabaseLockMode,
   type AcquireDatabaseLockOptions,
   type DatabaseLock,
   type DatabaseLockOptions,
+  defaultDatabaseLockOptions,
   type ReleaseDatabaseLockOptions,
-} from '..';
-import { single, sql, type SQLExecutor } from '../../../core';
+  single,
+  sql,
+  type SQLExecutor,
+} from '../../../core';
 
 export const tryAcquireAdvisoryLock = async (
   execute: SQLExecutor,

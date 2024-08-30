@@ -2,6 +2,8 @@ import type {
   DatabaseTransaction,
   DatabaseTransactionFactory,
   SQLExecutor,
+  WithSchemaComponent,
+  WithSchemaComponentGroup,
 } from '@event-driven-io/dumbo';
 
 export interface PongoClient {
@@ -55,7 +57,8 @@ export interface PongoSession {
 }
 
 export interface PongoDb<ConnectorType extends string = string>
-  extends DatabaseTransactionFactory<ConnectorType> {
+  extends DatabaseTransactionFactory<ConnectorType>,
+    WithSchemaComponentGroup {
   get connectorType(): ConnectorType;
   get databaseName(): string;
   connect(): Promise<void>;
@@ -67,7 +70,8 @@ export type CollectionOperationOptions = {
   session?: PongoSession;
 };
 
-export interface PongoCollection<T extends PongoDocument> {
+export interface PongoCollection<T extends PongoDocument>
+  extends WithSchemaComponent {
   readonly dbName: string;
   readonly collectionName: string;
   createCollection(options?: CollectionOperationOptions): Promise<void>;

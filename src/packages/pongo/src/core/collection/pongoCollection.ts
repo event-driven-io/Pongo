@@ -1,8 +1,11 @@
 import {
+  schemaComponent,
   single,
   type DatabaseTransaction,
+  type Migration,
   type MigrationStyle,
   type QueryResultRow,
+  type SchemaComponent,
   type SQL,
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
@@ -31,30 +34,6 @@ export type PongoCollectionOptions<ConnectorType extends string = string> = {
   schema?: { autoMigration?: MigrationStyle };
 };
 
-const enlistIntoTransactionIfActive = async <
-  ConnectorType extends string = string,
->(
-  db: PongoDb<ConnectorType>,
-  options: CollectionOperationOptions | undefined,
-): Promise<DatabaseTransaction | null> => {
-  const transaction = options?.session?.transaction;
-
-  if (!transaction || !transaction.isActive) return null;
-
-  return await transaction.enlistDatabase(db);
-};
-
-const transactionExecutorOrDefault = async <
-  ConnectorType extends string = string,
->(
-  db: PongoDb<ConnectorType>,
-  options: CollectionOperationOptions | undefined,
-  defaultSqlExecutor: SQLExecutor,
-): Promise<SQLExecutor> => {
-  const existingTransaction = await enlistIntoTransactionIfActive(db, options);
-  return existingTransaction?.execute ?? defaultSqlExecutor;
-};
-
 export const pongoCollection = <
   T extends PongoDocument,
   ConnectorType extends string = string,
@@ -78,11 +57,16 @@ export const pongoCollection = <
 
   let shouldMigrate = schema?.autoMigration !== 'None';
 
+  const schemaComponent = pongoCollectionSchemaComponent(
+    collectionName,
+    SqlFor,
+  );
+
   const createCollection = (options?: CollectionOperationOptions) => {
     shouldMigrate = false;
 
-    if (options?.session) return command(SqlFor.createCollection(), options);
-    else return command(SqlFor.createCollection());
+    if (options?.session) return command(schemaComponent.sql, options);
+    else return command(schemaComponent.sql);
   };
 
   const ensureCollectionCreated = (options?: CollectionOperationOptions) => {
@@ -317,6 +301,7 @@ export const pongoCollection = <
       collectionName = newName;
       return collection;
     },
+    schema: schemaComponent,
   };
 
   return collection;
@@ -337,3 +322,44 @@ export type PongoCollectionSQLBuilder = {
   rename: (newName: string) => SQL;
   drop: () => SQL;
 };
+
+const enlistIntoTransactionIfActive = async <
+  ConnectorType extends string = string,
+>(
+  db: PongoDb<ConnectorType>,
+  options: CollectionOperationOptions | undefined,
+): Promise<DatabaseTransaction | null> => {
+  const transaction = options?.session?.transaction;
+
+  if (!transaction || !transaction.isActive) return null;
+
+  return await transaction.enlistDatabase(db);
+};
+
+const transactionExecutorOrDefault = async <
+  ConnectorType extends string = string,
+>(
+  db: PongoDb<ConnectorType>,
+  options: CollectionOperationOptions | undefined,
+  defaultSqlExecutor: SQLExecutor,
+): Promise<SQLExecutor> => {
+  const existingTransaction = await enlistIntoTransactionIfActive(db, options);
+  return existingTransaction?.execute ?? defaultSqlExecutor;
+};
+
+const pongoCollectionMigation = (
+  collectionName: string,
+  sqlFor: PongoCollectionSQLBuilder,
+): Migration => ({
+  name: collectionName,
+  sqls: [sqlFor.createCollection()],
+});
+
+export const pongoCollectionSchemaComponent = (
+  collectionName: string,
+  sqlFor: PongoCollectionSQLBuilder,
+): SchemaComponent =>
+  schemaComponent(
+    'PongoCollection',
+    pongoCollectionMigation(`PongoCollection:${collectionName}`, sqlFor),
+  );

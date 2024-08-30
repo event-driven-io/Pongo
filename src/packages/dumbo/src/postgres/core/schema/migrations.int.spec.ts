@@ -6,10 +6,15 @@ import assert from 'assert';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { tableExists } from '..';
 import { type Dumbo, dumbo } from '../../..';
-import { count, rawSql, sql } from '../../../core';
+import {
+  count,
+  type Migration,
+  MIGRATIONS_LOCK_ID,
+  rawSql,
+  sql,
+} from '../../../core';
 import { acquireAdvisoryLock, releaseAdvisoryLock } from '../locks';
 import { runPostgreSQLMigrations } from './migrations';
-import { type Migration, MIGRATIONS_LOCK_ID } from '../../../core/schema';
 
 void describe('Migration Integration Tests', () => {
   let pool: Dumbo;
@@ -37,25 +42,25 @@ void describe('Migration Integration Tests', () => {
     const firstMigration: Migration = {
       name: 'initial_setup',
       sqls: [
-        `
+        rawSql(`
                 CREATE TABLE users (
                     id SERIAL PRIMARY KEY,
                     username VARCHAR(255) NOT NULL,
                     email VARCHAR(255) NOT NULL UNIQUE,
                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                );`,
+                );`),
       ],
     };
 
     const secondMigration: Migration = {
       name: 'add_roles_table',
       sqls: [
-        `
+        rawSql(`
                 CREATE TABLE roles (
                     id SERIAL PRIMARY KEY,
                     role_name VARCHAR(255) NOT NULL UNIQUE,
                     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-                );`,
+                );`),
       ],
     };
 
@@ -74,10 +79,10 @@ void describe('Migration Integration Tests', () => {
     const migration: Migration = {
       name: 'timeout_migration',
       sqls: [
-        `CREATE TABLE timeout_table (
+        rawSql(`CREATE TABLE timeout_table (
             id SERIAL PRIMARY KEY,
             data TEXT NOT NULL
-        );`,
+        );`),
       ],
     };
 
@@ -115,11 +120,11 @@ void describe('Migration Integration Tests', () => {
     const migration: Migration = {
       name: 'concurrent_migration',
       sqls: [
-        `
+        rawSql(`
                 CREATE TABLE concurrent_table (
                     id SERIAL PRIMARY KEY,
                     data TEXT NOT NULL
-                );`,
+                );`),
       ],
     };
 
@@ -151,11 +156,11 @@ void describe('Migration Integration Tests', () => {
     const migration: Migration = {
       name: 'hash_check_migration',
       sqls: [
-        `
+        rawSql(`
                 CREATE TABLE hash_table (
                     id SERIAL PRIMARY KEY,
                     data TEXT NOT NULL
-                );`,
+                );`),
       ],
     };
 
@@ -183,11 +188,11 @@ void describe('Migration Integration Tests', () => {
     const migration: Migration = {
       name: 'hash_check_migration',
       sqls: [
-        `
+        rawSql(`
                 CREATE TABLE hash_table (
                     id SERIAL PRIMARY KEY,
                     data TEXT NOT NULL
-                );`,
+                );`),
       ],
     };
 
@@ -196,12 +201,12 @@ void describe('Migration Integration Tests', () => {
     const modifiedMigration: Migration = {
       ...migration,
       sqls: [
-        `
-                CREATE TABLE hash_table (
-                    id SERIAL PRIMARY KEY,
-                    data TEXT NOT NULL,
-                    extra_column INT
-                );`,
+        rawSql(`
+          CREATE TABLE hash_table (
+            id SERIAL PRIMARY KEY,
+            data TEXT NOT NULL,
+            extra_column INT
+        );`),
       ],
     };
 
@@ -222,26 +227,26 @@ void describe('Migration Integration Tests', () => {
     const migration: Migration = {
       name: 'large_migration',
       sqls: [
-        `
-                CREATE TABLE large_table_1 (
-                    id SERIAL PRIMARY KEY,
-                    data TEXT NOT NULL
-                );`,
-        `
-                CREATE TABLE large_table_2 (
-                    id SERIAL PRIMARY KEY,
-                    data TEXT NOT NULL
-                );`,
-        `
-                CREATE TABLE large_table_3 (
-                    id SERIAL PRIMARY KEY,
-                    data TEXT NOT NULL
-                );`,
-        `
-                CREATE TABLE large_table_4 (
-                    id SERIAL PRIMARY KEY,
-                    data TEXT NOT NULL
-                );`,
+        rawSql(`
+          CREATE TABLE large_table_1 (
+            id SERIAL PRIMARY KEY,
+            data TEXT NOT NULL
+          );`),
+        rawSql(`
+          CREATE TABLE large_table_2 (
+            id SERIAL PRIMARY KEY,
+            data TEXT NOT NULL
+          );`),
+        rawSql(`
+          CREATE TABLE large_table_3 (
+            id SERIAL PRIMARY KEY,
+            data TEXT NOT NULL
+          );`),
+        rawSql(`
+          CREATE TABLE large_table_4 (
+            id SERIAL PRIMARY KEY,
+            data TEXT NOT NULL
+          );`),
       ],
     };
 

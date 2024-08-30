@@ -3,15 +3,17 @@ import {
   rawSql,
   singleOrNull,
   sql,
+  type SQL,
   type SQLExecutor,
 } from '..';
-import { type DatabaseLock, type DatabaseLockOptions, type Dumbo } from '../..';
+import { type Dumbo } from '../..';
+import type { DatabaseLock, DatabaseLockOptions } from '../locks';
 
 export type MigrationStyle = 'None' | 'CreateOrUpdate';
 
 export type Migration = {
   name: string;
-  sqls: string[];
+  sqls: SQL[];
 };
 
 export type MigrationRecord = {
@@ -25,7 +27,7 @@ export const MIGRATIONS_LOCK_ID = 999956789;
 
 export type MigratorOptions = {
   schema: {
-    migrationTableSQL: string;
+    migrationTableSQL: SQL;
   };
   lock: {
     databaseLock: DatabaseLock;
@@ -100,8 +102,9 @@ const getMigrationHash = async (content: string): Promise<string> => {
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 };
 
-export const combineMigrations = (...migration: Pick<Migration, 'sqls'>[]) =>
-  migration.flatMap((m) => m.sqls).join('\n');
+export const combineMigrations = (
+  ...migration: Pick<Migration, 'sqls'>[]
+): SQL => rawSql(migration.flatMap((m) => m.sqls).join('\n'));
 
 const setupMigrationTable = async (
   execute: SQLExecutor,

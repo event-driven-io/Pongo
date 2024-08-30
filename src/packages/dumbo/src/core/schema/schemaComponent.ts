@@ -1,4 +1,4 @@
-import type { Dumbo } from '../..';
+import type { Dumbo, SQL } from '../..';
 import {
   combineMigrations,
   runSQLMigrations,
@@ -6,31 +6,33 @@ import {
   type MigratorOptions,
 } from './migrations';
 
-export type SchemaComponent<ComponentType extends string = string> = {
-  type: ComponentType;
+export type SchemaComponent = {
+  type: string;
   migration: Readonly<Migration>;
-  sql(): string;
+  sql: SQL;
   print(): void;
-  migrate(pool: Dumbo, options: MigratorOptions): Promise<void>;
+  migrate(pool: Dumbo, options?: MigratorOptions): Promise<void>;
 };
 
-export type SchemaComponentGroup<ComponentTypeGroup extends string = string> = {
-  type: ComponentTypeGroup;
+export type SchemaComponentGroup = {
+  type: string;
   components: ReadonlyArray<SchemaComponent>;
   migrations: ReadonlyArray<Migration>;
-  sql(): string;
+  sql: SQL;
   print(): void;
-  migrate(pool: Dumbo, options: MigratorOptions): Promise<void>;
+  migrate(pool: Dumbo, options?: MigratorOptions): Promise<void>;
 };
 
 export const schemaComponent = <ComponentType extends string = string>(
   type: ComponentType,
   migration: Migration,
-): SchemaComponent<ComponentType> => {
+): SchemaComponent => {
   return {
     type,
     migration,
-    sql: () => combineMigrations(migration),
+    get sql() {
+      return combineMigrations(migration);
+    },
     print: () => console.log(JSON.stringify(migration)),
     migrate: (pool: Dumbo, options: MigratorOptions) =>
       runSQLMigrations(pool, [migration], options),
@@ -42,16 +44,26 @@ export const schemaComponentGroup = <
 >(
   type: ComponentTypeGroup,
   components: SchemaComponent[],
-): SchemaComponentGroup<ComponentTypeGroup> => {
+): SchemaComponentGroup => {
   const migrations = components.map((c) => c.migration);
 
   return {
     type,
     components,
     migrations,
-    sql: () => combineMigrations(...migrations),
+    get sql() {
+      return combineMigrations(...migrations);
+    },
     print: () => console.log(JSON.stringify(migrations)),
     migrate: (pool: Dumbo, options: MigratorOptions) =>
       runSQLMigrations(pool, migrations, options),
   };
+};
+
+export type WithSchemaComponent = {
+  schema: SchemaComponent;
+};
+
+export type WithSchemaComponentGroup = {
+  schema: SchemaComponentGroup;
 };
