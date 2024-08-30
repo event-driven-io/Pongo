@@ -1,20 +1,26 @@
-import { single, sql, type SQLExecutor } from '../../../core';
 import {
   defaultDatabaseLockOptions,
+  type AcquireDatabaseLockMode,
+  type AcquireDatabaseLockOptions,
   type DatabaseLock,
   type DatabaseLockOptions,
-} from '../../core';
+  type ReleaseDatabaseLockOptions,
+} from '..';
+import { single, sql, type SQLExecutor } from '../../../core';
 
 export const tryAcquireAdvisoryLock = async (
   execute: SQLExecutor,
-  options: DatabaseLockOptions,
+  options: AcquireDatabaseLockOptions,
 ): Promise<boolean> => {
   const timeoutMs = options.timeoutMs ?? defaultDatabaseLockOptions.timeoutMs;
+
+  const advisoryLock =
+    options.mode === 'Permanent' ? 'pg_advisory_lock' : 'pg_advisory_xact_lock';
 
   try {
     await single(
       execute.query<{ locked: boolean }>(
-        sql('SELECT pg_advisory_lock(%s) AS locked', options.lockId),
+        sql('SELECT %s(%s) AS locked', advisoryLock, options.lockId),
         { timeoutMs },
       ),
     );
@@ -29,7 +35,7 @@ export const tryAcquireAdvisoryLock = async (
 
 export const releaseAdvisoryLock = async (
   execute: SQLExecutor,
-  options: DatabaseLockOptions,
+  options: ReleaseDatabaseLockOptions,
 ): Promise<boolean> => {
   const timeoutMs = options.timeoutMs ?? defaultDatabaseLockOptions.timeoutMs;
 
@@ -51,7 +57,7 @@ export const releaseAdvisoryLock = async (
 
 export const acquireAdvisoryLock = async (
   execute: SQLExecutor,
-  options: DatabaseLockOptions,
+  options: AcquireDatabaseLockOptions,
 ) => {
   const lockAcquired = await tryAcquireAdvisoryLock(execute, options);
   if (!lockAcquired) {
@@ -68,13 +74,14 @@ export const AdvisoryLock: DatabaseLock = {
   withAcquire: async <Result>(
     execute: SQLExecutor,
     handle: () => Promise<Result>,
-    options: DatabaseLockOptions,
+    options: AcquireDatabaseLockOptions,
   ) => {
     await acquireAdvisoryLock(execute, options);
     try {
       return await handle();
     } finally {
-      await releaseAdvisoryLock(execute, options);
+      if (options.mode === 'Permanent')
+        await releaseAdvisoryLock(execute, options);
     }
   },
 };
@@ -83,11 +90,25 @@ export const advisoryLock = (
   execute: SQLExecutor,
   options: DatabaseLockOptions,
 ) => ({
-  acquire: () => acquireAdvisoryLock(execute, options),
-  tryAcquire: () => tryAcquireAdvisoryLock(execute, options),
+  acquire: (acquireOptions?: { mode: AcquireDatabaseLockMode }) =>
+    acquireAdvisoryLock(execute, {
+      ...options,
+      ...(acquireOptions ?? {}),
+    }),
+  tryAcquire: (acquireOptions?: { mode: AcquireDatabaseLockMode }) =>
+    tryAcquireAdvisoryLock(execute, {
+      ...options,
+      ...(acquireOptions ?? {}),
+    }),
   release: () => releaseAdvisoryLock(execute, options),
-  withAcquire: async <Result>(handle: () => Promise<Result>) => {
-    await acquireAdvisoryLock(execute, options);
+  withAcquire: async <Result>(
+    handle: () => Promise<Result>,
+    acquireOptions?: { mode: AcquireDatabaseLockMode },
+  ) => {
+    await acquireAdvisoryLock(execute, {
+      ...options,
+      ...(acquireOptions ?? {}),
+    });
     try {
       return await handle();
     } finally {

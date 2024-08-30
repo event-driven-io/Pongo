@@ -26,7 +26,7 @@
     "test:unit:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.unit.spec.ts",
     "test:int:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.int.spec.ts",
     "test:e2e:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.e2e.spec.ts",
-    "test:singlefile": "node --import tsx --test",
+    "test:file": "node --import tsx --test",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",

@@ -21,7 +21,7 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": [
         "run-script",
-        "test:singlefile",
+        "test:file",
         "--",
         "${file}",
         "--inspect-brk=9229"
