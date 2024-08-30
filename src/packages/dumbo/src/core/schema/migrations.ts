@@ -1,11 +1,11 @@
-import { type DatabaseLock, type DatabaseLockOptions, type Dumbo } from '../..';
 import {
   mapToCamelCase,
   rawSql,
   singleOrNull,
   sql,
   type SQLExecutor,
-} from '../../core';
+} from '..';
+import { type DatabaseLock, type DatabaseLockOptions, type Dumbo } from '../..';
 
 export type MigrationStyle = 'None' | 'CreateOrUpdate';
 
@@ -61,30 +61,30 @@ export const runSQLMigration = async (
   };
 
   try {
-    await databaseLock.acquire(execute, lockOptions);
+    await databaseLock.withAcquire(
+      execute,
+      async () => {
+        // Ensure the migrations table exists
+        await setupMigrationTable(execute, options.schema.migrationTableSQL);
 
-    try {
-      // Ensure the migrations table exists
-      await setupMigrationTable(execute, options.schema.migrationTableSQL);
+        const newMigration = {
+          name: migration.name,
+          sqlHash,
+        };
 
-      const newMigration = {
-        name: migration.name,
-        sqlHash,
-      };
+        const wasMigrationApplied = await ensureMigrationWasNotAppliedYet(
+          execute,
+          newMigration,
+        );
 
-      const wasMigrationApplied = await ensureMigrationWasNotAppliedYet(
-        execute,
-        newMigration,
-      );
+        if (wasMigrationApplied) return;
 
-      if (wasMigrationApplied) return;
+        await execute.command(rawSql(sql));
 
-      await execute.command(rawSql(sql));
-
-      await recordMigration(execute, newMigration);
-    } finally {
-      await databaseLock.release(execute, lockOptions);
-    }
+        await recordMigration(execute, newMigration);
+      },
+      lockOptions,
+    );
     // console.log(`Migration "${newMigration.name}" applied successfully.`);
   } catch (error) {
     console.error(`Failed to apply migration "${migration.name}":`, error);

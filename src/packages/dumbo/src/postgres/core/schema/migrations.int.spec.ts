@@ -4,12 +4,12 @@ import {
 } from '@testcontainers/postgresql';
 import assert from 'assert';
 import { after, before, beforeEach, describe, it } from 'node:test';
-import { runPostgreSQLMigrations } from '.';
+import { tableExists } from '..';
 import { type Dumbo, dumbo } from '../../..';
 import { count, rawSql, sql } from '../../../core';
-import { tableExists } from '../../core';
-import { type Migration, MIGRATIONS_LOCK_ID } from '../../migrations';
 import { acquireAdvisoryLock, releaseAdvisoryLock } from '../locks';
+import { runPostgreSQLMigrations } from './migrations';
+import { type Migration, MIGRATIONS_LOCK_ID } from '../../../core/schema';
 
 void describe('Migration Integration Tests', () => {
   let pool: Dumbo;
@@ -86,6 +86,7 @@ void describe('Migration Integration Tests', () => {
     try {
       await acquireAdvisoryLock(connection.execute, {
         lockId: MIGRATIONS_LOCK_ID,
+        mode: 'Permanent',
       });
 
       try {

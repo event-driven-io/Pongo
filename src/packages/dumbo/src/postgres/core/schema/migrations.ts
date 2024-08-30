@@ -1,11 +1,10 @@
-import {
-  AdvisoryLock,
-  MIGRATIONS_LOCK_ID,
-  runSQLMigrations,
-  type DatabaseLockOptions,
-  type Migration,
-} from '../..';
+import { AdvisoryLock, type DatabaseLockOptions } from '../..';
 import type { Dumbo } from '../../..';
+import {
+  type Migration,
+  runSQLMigrations,
+  MIGRATIONS_LOCK_ID,
+} from '../../../core/schema';
 
 export type PostgreSQLMigratorOptions = {
   lock?: {
