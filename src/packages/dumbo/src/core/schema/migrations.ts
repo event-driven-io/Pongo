@@ -100,8 +100,8 @@ const getMigrationHash = async (content: string): Promise<string> => {
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 };
 
-const combineMigrations = (migration: Pick<Migration, 'sqls'>) =>
-  migration.sqls.join('\n');
+export const combineMigrations = (...migration: Pick<Migration, 'sqls'>[]) =>
+  migration.flatMap((m) => m.sqls).join('\n');
 
 const setupMigrationTable = async (
   execute: SQLExecutor,
