@@ -3,13 +3,13 @@ import {
   combineMigrations,
   runSQLMigrations,
   type MigratorOptions,
-  type SqlMigration,
+  type SQLMigration,
 } from './migrations';
 
 export type SchemaComponent = {
   schemaComponentType: string;
   components?: ReadonlyArray<SchemaComponent> | undefined;
-  migrations: ReadonlyArray<SqlMigration>;
+  migrations: ReadonlyArray<SQLMigration>;
   sql(): string;
   print(): void;
   migrate(pool: Dumbo, options: MigratorOptions): Promise<void>;
@@ -18,9 +18,9 @@ export type SchemaComponent = {
 export const schemaComponent = (
   type: string,
   migrationsOrComponents:
-    | { migrations: ReadonlyArray<SqlMigration> }
+    | { migrations: ReadonlyArray<SQLMigration> }
     | {
-        migrations: ReadonlyArray<SqlMigration>;
+        migrations: ReadonlyArray<SQLMigration>;
         components: ReadonlyArray<SchemaComponent>;
       }
     | {

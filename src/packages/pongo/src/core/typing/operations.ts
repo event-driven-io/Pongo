@@ -139,9 +139,9 @@ export interface PongoCollection<T extends PongoDocument> {
     handle: DocumentHandler<T>,
     options?: CollectionOperationOptions,
   ): Promise<T | null>;
-  schema: {
+  readonly schema: Readonly<{
     component: SchemaComponent;
-  };
+  }>;
 }
 
 export type ObjectId = string & { __brandId: 'ObjectId' };
