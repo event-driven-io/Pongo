@@ -1,4 +1,10 @@
-import { rawSql, sql, type SQL } from '@event-driven-io/dumbo';
+import {
+  rawSql,
+  sql,
+  sqlMigration,
+  type SQL,
+  type SQLMigration,
+} from '@event-driven-io/dumbo';
 import {
   type OptionalUnlessRequiredId,
   type PongoCollectionSQLBuilder,
@@ -9,23 +15,30 @@ import {
 import { constructFilterQuery } from './filter';
 import { buildUpdateQuery } from './update';
 
+const createCollection = (collectionName: string): SQL =>
+  sql(
+    `CREATE TABLE IF NOT EXISTS %I (
+      _id           TEXT           PRIMARY KEY, 
+      data          JSONB          NOT NULL, 
+      metadata      JSONB          NOT NULL     DEFAULT '{}',
+      _version      BIGINT         NOT NULL     DEFAULT 1,
+      _partition    TEXT           NOT NULL     DEFAULT 'png_global',
+      _archived     BOOLEAN        NOT NULL     DEFAULT FALSE,
+      _created      TIMESTAMPTZ    NOT NULL     DEFAULT now(),
+      _updated      TIMESTAMPTZ    NOT NULL     DEFAULT now()
+  )`,
+    collectionName,
+  );
+
 export const postgresSQLBuilder = (
   collectionName: string,
 ): PongoCollectionSQLBuilder => ({
-  createCollection: (): SQL =>
-    sql(
-      `CREATE TABLE IF NOT EXISTS %I (
-        _id           TEXT           PRIMARY KEY, 
-        data          JSONB          NOT NULL, 
-        metadata      JSONB          NOT NULL     DEFAULT '{}',
-        _version      BIGINT         NOT NULL     DEFAULT 1,
-        _partition    TEXT           NOT NULL     DEFAULT 'png_global',
-        _archived     BOOLEAN        NOT NULL     DEFAULT FALSE,
-        _created      TIMESTAMPTZ    NOT NULL     DEFAULT now(),
-        _updated      TIMESTAMPTZ    NOT NULL     DEFAULT now()
-    )`,
-      collectionName,
-    ),
+  migrations: (): SQLMigration[] => [
+    sqlMigration(`pongoCollection-${collectionName}-createtable-001`, [
+      createCollection(collectionName),
+    ]),
+  ],
+  createCollection: (): SQL => createCollection(collectionName),
   insertOne: <T>(document: OptionalUnlessRequiredId<T>): SQL =>
     sql(
       'INSERT INTO %I (_id, data) VALUES (%L, %L)',

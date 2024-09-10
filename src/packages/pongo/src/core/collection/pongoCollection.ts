@@ -1,13 +1,13 @@
 import {
   schemaComponent,
   single,
-  sqlMigration,
   type DatabaseTransaction,
   type MigrationStyle,
   type QueryResultRow,
   type SchemaComponent,
   type SQL,
   type SQLExecutor,
+  type SQLMigration,
 } from '@event-driven-io/dumbo';
 import { v4 as uuid } from 'uuid';
 import {
@@ -323,12 +323,7 @@ export const pongoCollection = <
     schema: {
       get component(): SchemaComponent {
         return schemaComponent('pongoCollection', {
-          migrations: [
-            sqlMigration(
-              `pongoCollection-createtable-001`,
-              SqlFor.createCollection(),
-            ),
-          ],
+          migrations: SqlFor.migrations(),
         });
       },
     },
@@ -338,6 +333,7 @@ export const pongoCollection = <
 };
 
 export type PongoCollectionSQLBuilder = {
+  migrations: () => SQLMigration[];
   createCollection: () => SQL;
   insertOne: <T>(document: OptionalUnlessRequiredId<T>) => SQL;
   insertMany: <T>(documents: OptionalUnlessRequiredId<T>[]) => SQL;
