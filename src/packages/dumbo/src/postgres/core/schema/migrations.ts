@@ -1,9 +1,9 @@
 import { AdvisoryLock, type DatabaseLockOptions } from '../..';
 import type { Dumbo } from '../../..';
 import {
-  type Migration,
-  runSQLMigrations,
   MIGRATIONS_LOCK_ID,
+  type SqlMigration,
+  runSQLMigrations,
 } from '../../../core/schema';
 
 export type PostgreSQLMigratorOptions = {
@@ -25,7 +25,7 @@ export const migrationTableSQL = `
 
 export const runPostgreSQLMigrations = (
   pool: Dumbo,
-  migrations: Migration[],
+  migrations: SqlMigration[],
   options?: PostgreSQLMigratorOptions,
 ): Promise<void> =>
   runSQLMigrations(pool, migrations, {

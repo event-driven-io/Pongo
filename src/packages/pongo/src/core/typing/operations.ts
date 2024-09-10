@@ -1,6 +1,7 @@
 import type {
   DatabaseTransaction,
   DatabaseTransactionFactory,
+  SchemaComponent,
   SQLExecutor,
 } from '@event-driven-io/dumbo';
 
@@ -138,6 +139,9 @@ export interface PongoCollection<T extends PongoDocument> {
     handle: DocumentHandler<T>,
     options?: CollectionOperationOptions,
   ): Promise<T | null>;
+  schema: {
+    component: SchemaComponent;
+  };
 }
 
 export type ObjectId = string & { __brandId: 'ObjectId' };
