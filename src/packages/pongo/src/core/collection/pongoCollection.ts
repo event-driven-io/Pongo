@@ -1,8 +1,11 @@
 import {
+  schemaComponent,
   single,
+  sqlMigration,
   type DatabaseTransaction,
   type MigrationStyle,
   type QueryResultRow,
+  type SchemaComponent,
   type SQL,
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
@@ -316,6 +319,18 @@ export const pongoCollection = <
       await command(SqlFor.rename(newName));
       collectionName = newName;
       return collection;
+    },
+    schema: {
+      get component(): SchemaComponent {
+        return schemaComponent('pongoCollection', {
+          migrations: [
+            sqlMigration(
+              `pongoCollection-createtable-001`,
+              SqlFor.createCollection(),
+            ),
+          ],
+        });
+      },
     },
   };
 

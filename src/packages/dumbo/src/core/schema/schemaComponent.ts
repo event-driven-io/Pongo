@@ -2,51 +2,43 @@ import type { Dumbo } from '../..';
 import {
   combineMigrations,
   runSQLMigrations,
-  type Migration,
   type MigratorOptions,
+  type SqlMigration,
 } from './migrations';
 
-export type SchemaComponent<ComponentType extends string = string> = {
-  type: ComponentType;
-  migration: Readonly<Migration>;
+export type SchemaComponent = {
+  schemaComponentType: string;
+  components?: ReadonlyArray<SchemaComponent> | undefined;
+  migrations: ReadonlyArray<SqlMigration>;
   sql(): string;
   print(): void;
   migrate(pool: Dumbo, options: MigratorOptions): Promise<void>;
 };
 
-export type SchemaComponentGroup<ComponentTypeGroup extends string = string> = {
-  type: ComponentTypeGroup;
-  components: ReadonlyArray<SchemaComponent>;
-  migrations: ReadonlyArray<Migration>;
-  sql(): string;
-  print(): void;
-  migrate(pool: Dumbo, options: MigratorOptions): Promise<void>;
-};
+export const schemaComponent = (
+  type: string,
+  migrationsOrComponents:
+    | { migrations: ReadonlyArray<SqlMigration> }
+    | {
+        migrations: ReadonlyArray<SqlMigration>;
+        components: ReadonlyArray<SchemaComponent>;
+      }
+    | {
+        components: ReadonlyArray<SchemaComponent>;
+      },
+): SchemaComponent => {
+  const components =
+    'components' in migrationsOrComponents
+      ? migrationsOrComponents.components
+      : undefined;
 
-export const schemaComponent = <ComponentType extends string = string>(
-  type: ComponentType,
-  migration: Migration,
-): SchemaComponent<ComponentType> => {
-  return {
-    type,
-    migration,
-    sql: () => combineMigrations(migration),
-    print: () => console.log(JSON.stringify(migration)),
-    migrate: (pool: Dumbo, options: MigratorOptions) =>
-      runSQLMigrations(pool, [migration], options),
-  };
-};
-
-export const schemaComponentGroup = <
-  ComponentTypeGroup extends string = string,
->(
-  type: ComponentTypeGroup,
-  components: SchemaComponent[],
-): SchemaComponentGroup<ComponentTypeGroup> => {
-  const migrations = components.map((c) => c.migration);
+  const migrations =
+    'migrations' in migrationsOrComponents
+      ? migrationsOrComponents.migrations
+      : migrationsOrComponents.components.flatMap((c) => c.migrations);
 
   return {
-    type,
+    schemaComponentType: type,
     components,
     migrations,
     sql: () => combineMigrations(...migrations),

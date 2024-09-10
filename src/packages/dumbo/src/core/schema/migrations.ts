@@ -9,10 +9,15 @@ import { type DatabaseLock, type DatabaseLockOptions, type Dumbo } from '../..';
 
 export type MigrationStyle = 'None' | 'CreateOrUpdate';
 
-export type Migration = {
+export type SqlMigration = {
   name: string;
   sqls: string[];
 };
+
+export const sqlMigration = (name: string, sqls: string[]): SqlMigration => ({
+  name,
+  sqls,
+});
 
 export type MigrationRecord = {
   id: number;
@@ -36,7 +41,7 @@ export type MigratorOptions = {
 
 export const runSQLMigrations = (
   pool: Dumbo,
-  migrations: Migration[],
+  migrations: ReadonlyArray<SqlMigration>,
   options: MigratorOptions,
 ): Promise<void> =>
   pool.withTransaction(async (transaction) => {
@@ -47,7 +52,7 @@ export const runSQLMigrations = (
 
 export const runSQLMigration = async (
   execute: SQLExecutor,
-  migration: Migration,
+  migration: SqlMigration,
   options: MigratorOptions,
 ): Promise<void> => {
   const sql = combineMigrations(migration);
@@ -100,7 +105,7 @@ const getMigrationHash = async (content: string): Promise<string> => {
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 };
 
-export const combineMigrations = (...migration: Pick<Migration, 'sqls'>[]) =>
+export const combineMigrations = (...migration: Pick<SqlMigration, 'sqls'>[]) =>
   migration.flatMap((m) => m.sqls).join('\n');
 
 const setupMigrationTable = async (

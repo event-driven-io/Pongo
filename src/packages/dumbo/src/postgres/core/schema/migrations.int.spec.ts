@@ -7,9 +7,9 @@ import { after, before, beforeEach, describe, it } from 'node:test';
 import { tableExists } from '..';
 import { type Dumbo, dumbo } from '../../..';
 import { count, rawSql, sql } from '../../../core';
+import { type SqlMigration, MIGRATIONS_LOCK_ID } from '../../../core/schema';
 import { acquireAdvisoryLock, releaseAdvisoryLock } from '../locks';
 import { runPostgreSQLMigrations } from './migrations';
-import { type Migration, MIGRATIONS_LOCK_ID } from '../../../core/schema';
 
 void describe('Migration Integration Tests', () => {
   let pool: Dumbo;
@@ -34,7 +34,7 @@ void describe('Migration Integration Tests', () => {
   });
 
   void it('should apply multiple migrations sequentially', async () => {
-    const firstMigration: Migration = {
+    const firstMigration: SqlMigration = {
       name: 'initial_setup',
       sqls: [
         `
@@ -47,7 +47,7 @@ void describe('Migration Integration Tests', () => {
       ],
     };
 
-    const secondMigration: Migration = {
+    const secondMigration: SqlMigration = {
       name: 'add_roles_table',
       sqls: [
         `
@@ -71,7 +71,7 @@ void describe('Migration Integration Tests', () => {
   });
 
   void it('should timeout if the advisory lock is not acquired within the specified time', async () => {
-    const migration: Migration = {
+    const migration: SqlMigration = {
       name: 'timeout_migration',
       sqls: [
         `CREATE TABLE timeout_table (
@@ -112,7 +112,7 @@ void describe('Migration Integration Tests', () => {
   });
 
   void it('should ensure that advisory locks prevent failing on concurrent migrations', async () => {
-    const migration: Migration = {
+    const migration: SqlMigration = {
       name: 'concurrent_migration',
       sqls: [
         `
@@ -148,7 +148,7 @@ void describe('Migration Integration Tests', () => {
   });
 
   void it('should correctly apply a migration if the hash matches the previous migration with the same name', async () => {
-    const migration: Migration = {
+    const migration: SqlMigration = {
       name: 'hash_check_migration',
       sqls: [
         `
@@ -180,7 +180,7 @@ void describe('Migration Integration Tests', () => {
   });
 
   void it('should fail if a migration with the same name has a different hash', async () => {
-    const migration: Migration = {
+    const migration: SqlMigration = {
       name: 'hash_check_migration',
       sqls: [
         `
@@ -193,7 +193,7 @@ void describe('Migration Integration Tests', () => {
 
     await runPostgreSQLMigrations(pool, [migration]);
 
-    const modifiedMigration: Migration = {
+    const modifiedMigration: SqlMigration = {
       ...migration,
       sqls: [
         `
@@ -219,7 +219,7 @@ void describe('Migration Integration Tests', () => {
   });
 
   void it('should handle a large migration with multiple SQL statements', async () => {
-    const migration: Migration = {
+    const migration: SqlMigration = {
       name: 'large_migration',
       sqls: [
         `
