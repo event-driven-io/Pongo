@@ -38,6 +38,7 @@ export type MigratorOptions = {
     options?: Omit<DatabaseLockOptions, 'lockId'> &
       Partial<Pick<DatabaseLockOptions, 'lockId'>>;
   };
+  dryRun?: boolean | undefined;
 };
 
 export const runSQLMigrations = (
@@ -71,6 +72,8 @@ export const runSQLMigrations = (
       },
       lockOptions,
     );
+
+    return { success: options.dryRun ? false : true, result: undefined };
   });
 
 const runSQLMigration = async (
@@ -111,7 +114,7 @@ const getMigrationHash = async (content: string): Promise<string> => {
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 };
 
-const combineMigrations = (...migration: Pick<SQLMigration, 'sqls'>[]) =>
+export const combineMigrations = (...migration: Pick<SQLMigration, 'sqls'>[]) =>
   migration.flatMap((m) => m.sqls).join('\n');
 
 const ensureMigrationWasNotAppliedYet = async (
