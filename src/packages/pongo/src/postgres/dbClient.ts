@@ -2,6 +2,7 @@ import {
   dumbo,
   getDatabaseNameOrDefault,
   NodePostgresConnectorType,
+  runPostgreSQLMigrations,
   schemaComponent,
   type PostgresConnector,
   type PostgresPoolOptions,
@@ -11,6 +12,7 @@ import type { Document } from 'mongodb';
 import {
   objectEntries,
   pongoCollection,
+  pongoCollectionSchemaComponent,
   type PongoCollection,
   type PongoDb,
   type PongoDbClientOptions,
@@ -47,7 +49,7 @@ export const postgresDb = (
       pongoCollection({
         collectionName,
         db,
-        sqlExecutor: pool.execute,
+        pool,
         sqlBuilder: postgresSQLBuilder(collectionName),
         ...(options.schema ? options.schema : {}),
       }),
@@ -60,6 +62,14 @@ export const postgresDb = (
           components: [...collections.values()].map((c) => c.schema.component),
         });
       },
+      migrate: () =>
+        runPostgreSQLMigrations(
+          pool,
+          [...collections.values()].flatMap((c) =>
+            // TODO: This needs to change to support more connectors
+            c.schema.component.migrations({ connector: 'PostgreSQL:pg' }),
+          ),
+        ),
     },
   };
 
@@ -74,4 +84,19 @@ export const postgresDb = (
   }
 
   return db;
+};
+
+export const pongoDbSchemaComponent = (
+  collections: string[] | SchemaComponent[],
+) => {
+  const components =
+    collections.length > 0 && typeof collections[0] === 'string'
+      ? collections.map((collectionName) =>
+          pongoCollectionSchemaComponent(collectionName as string),
+        )
+      : (collections as SchemaComponent[]);
+
+  return schemaComponent('pongo:schema_component:db', {
+    components,
+  });
 };

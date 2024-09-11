@@ -30,14 +30,17 @@ const createCollection = (collectionName: string): SQL =>
     collectionName,
   );
 
+export const pongoCollectionPostgreSQLMigrations = (collectionName: string) => [
+  sqlMigration(`pongoCollection:${collectionName}:001:createtable`, [
+    createCollection(collectionName),
+  ]),
+];
+
 export const postgresSQLBuilder = (
   collectionName: string,
 ): PongoCollectionSQLBuilder => ({
-  migrations: (): SQLMigration[] => [
-    sqlMigration(`pongoCollection-001-${collectionName}-createtable`, [
-      createCollection(collectionName),
-    ]),
-  ],
+  migrations: (): SQLMigration[] =>
+    pongoCollectionPostgreSQLMigrations(collectionName),
   createCollection: (): SQL => createCollection(collectionName),
   insertOne: <T>(document: OptionalUnlessRequiredId<T>): SQL =>
     sql(

@@ -3,6 +3,7 @@ import {
   rawSql,
   singleOrNull,
   sql,
+  type SchemaComponent,
   type SQLExecutor,
 } from '..';
 import { type DatabaseLock, type DatabaseLockOptions, type Dumbo } from '../..';
@@ -30,7 +31,7 @@ export const MIGRATIONS_LOCK_ID = 999956789;
 
 export type MigratorOptions = {
   schema: {
-    migrationTableSQL: string;
+    migrationTable: SchemaComponent;
   };
   lock: {
     databaseLock: DatabaseLock;
@@ -44,52 +45,57 @@ export const runSQLMigrations = (
   migrations: ReadonlyArray<SQLMigration>,
   options: MigratorOptions,
 ): Promise<void> =>
-  pool.withTransaction(async (transaction) => {
-    for (const migration of migrations) {
-      await runSQLMigration(transaction.execute, migration, options);
-    }
+  pool.withTransaction(async ({ execute }) => {
+    const { databaseLock, ...rest } = options.lock;
+
+    const lockOptions: DatabaseLockOptions = {
+      lockId: MIGRATIONS_LOCK_ID,
+      ...rest,
+    };
+
+    const coreMigrations = options.schema.migrationTable.migrations({
+      connector: 'PostgreSQL:pg', // TODO: This will need to change to support more connectors
+    });
+
+    await databaseLock.withAcquire(
+      execute,
+      async () => {
+        for (const migration of coreMigrations) {
+          const sql = combineMigrations(migration);
+          await execute.command(rawSql(sql));
+        }
+
+        for (const migration of migrations) {
+          await runSQLMigration(execute, migration);
+        }
+      },
+      lockOptions,
+    );
   });
 
-export const runSQLMigration = async (
+const runSQLMigration = async (
   execute: SQLExecutor,
   migration: SQLMigration,
-  options: MigratorOptions,
 ): Promise<void> => {
   const sql = combineMigrations(migration);
   const sqlHash = await getMigrationHash(sql);
 
-  const { databaseLock, ...rest } = options.lock;
-
-  const lockOptions: DatabaseLockOptions = {
-    lockId: MIGRATIONS_LOCK_ID,
-    ...rest,
-  };
-
   try {
-    await databaseLock.withAcquire(
+    const newMigration = {
+      name: migration.name,
+      sqlHash,
+    };
+
+    const wasMigrationApplied = await ensureMigrationWasNotAppliedYet(
       execute,
-      async () => {
-        // Ensure the migrations table exists
-        await setupMigrationTable(execute, options.schema.migrationTableSQL);
-
-        const newMigration = {
-          name: migration.name,
-          sqlHash,
-        };
-
-        const wasMigrationApplied = await ensureMigrationWasNotAppliedYet(
-          execute,
-          newMigration,
-        );
-
-        if (wasMigrationApplied) return;
-
-        await execute.command(rawSql(sql));
-
-        await recordMigration(execute, newMigration);
-      },
-      lockOptions,
+      newMigration,
     );
+
+    if (wasMigrationApplied) return;
+
+    await execute.command(rawSql(sql));
+
+    await recordMigration(execute, newMigration);
     // console.log(`Migration "${newMigration.name}" applied successfully.`);
   } catch (error) {
     console.error(`Failed to apply migration "${migration.name}":`, error);
@@ -105,15 +111,8 @@ const getMigrationHash = async (content: string): Promise<string> => {
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 };
 
-export const combineMigrations = (...migration: Pick<SQLMigration, 'sqls'>[]) =>
+const combineMigrations = (...migration: Pick<SQLMigration, 'sqls'>[]) =>
   migration.flatMap((m) => m.sqls).join('\n');
-
-const setupMigrationTable = async (
-  execute: SQLExecutor,
-  migrationTableSQL: string,
-) => {
-  await execute.command(rawSql(migrationTableSQL));
-};
 
 const ensureMigrationWasNotAppliedYet = async (
   execute: SQLExecutor,
