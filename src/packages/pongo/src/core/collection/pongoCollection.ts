@@ -1,11 +1,12 @@
 import {
+  runPostgreSQLMigrations,
   schemaComponent,
   single,
   type DatabaseTransaction,
+  type Dumbo,
   type MigrationStyle,
   type QueryResultRow,
   type SchemaComponent,
-  type SchemaComponentMigrationsOptions,
   type SQL,
   type SQLExecutor,
   type SQLMigration,
@@ -26,11 +27,12 @@ import {
   type PongoUpdateResult,
   type WithoutId,
 } from '..';
+import { pongoCollectionPostgreSQLMigrations } from '../../postgres';
 
 export type PongoCollectionOptions<ConnectorType extends string = string> = {
   db: PongoDb<ConnectorType>;
   collectionName: string;
-  sqlExecutor: SQLExecutor;
+  pool: Dumbo;
   sqlBuilder: PongoCollectionSQLBuilder;
   schema?: { autoMigration?: MigrationStyle };
 };
@@ -65,10 +67,11 @@ export const pongoCollection = <
 >({
   db,
   collectionName,
-  sqlExecutor,
+  pool,
   sqlBuilder: SqlFor,
   schema,
 }: PongoCollectionOptions<ConnectorType>): PongoCollection<T> => {
+  const sqlExecutor = pool.execute;
   const command = async (sql: SQL, options?: CollectionOperationOptions) =>
     (await transactionExecutorOrDefault(db, options, sqlExecutor)).command(sql);
 
@@ -323,15 +326,21 @@ export const pongoCollection = <
     },
     schema: {
       get component(): SchemaComponent {
-        return schemaComponent('pongoCollection', {
+        return schemaComponent('pongo:schema_component:collection', {
           migrations: SqlFor.migrations,
         });
       },
+      migrate: () => runPostgreSQLMigrations(pool, SqlFor.migrations()), // TODO: This needs to change to support more connectors
     },
   };
 
   return collection;
 };
+
+export const pongoCollectionSchemaComponent = (collectionName: string) =>
+  schemaComponent('pongo:schema_component:collection', {
+    migrations: () => pongoCollectionPostgreSQLMigrations(collectionName), // TODO: This needs to change to support more connectors
+  });
 
 export type PongoCollectionSQLBuilder = {
   migrations: () => SQLMigration[];

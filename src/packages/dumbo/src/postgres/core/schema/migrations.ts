@@ -1,9 +1,11 @@
 import { AdvisoryLock, type DatabaseLockOptions } from '../..';
-import type { Dumbo } from '../../..';
+import { rawSql, type Dumbo } from '../../..';
 import {
   MIGRATIONS_LOCK_ID,
-  type SQLMigration,
   runSQLMigrations,
+  schemaComponent,
+  sqlMigration,
+  type SQLMigration,
 } from '../../../core/schema';
 
 export type PostgreSQLMigratorOptions = {
@@ -13,7 +15,7 @@ export type PostgreSQLMigratorOptions = {
   };
 };
 
-export const migrationTableSQL = `
+const migrationTableSQL = rawSql(`
   CREATE TABLE IF NOT EXISTS migrations (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL UNIQUE,
@@ -21,7 +23,16 @@ export const migrationTableSQL = `
     sql_hash VARCHAR(64) NOT NULL,
     timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
-`;
+`);
+
+export const migrationTableSchemaComponent = schemaComponent(
+  'dumbo:schema-component:migrations-table',
+  {
+    migrations: () => [
+      sqlMigration('dumbo:migrationTable:001', [migrationTableSQL]),
+    ],
+  },
+);
 
 export const runPostgreSQLMigrations = (
   pool: Dumbo,
@@ -30,7 +41,7 @@ export const runPostgreSQLMigrations = (
 ): Promise<void> =>
   runSQLMigrations(pool, migrations, {
     schema: {
-      migrationTableSQL,
+      migrationTable: migrationTableSchemaComponent,
     },
     lock: {
       databaseLock: AdvisoryLock,
