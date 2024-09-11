@@ -13,6 +13,7 @@ export type PostgreSQLMigratorOptions = {
     options?: Omit<DatabaseLockOptions, 'lockId'> &
       Partial<Pick<DatabaseLockOptions, 'lockId'>>;
   };
+  dryRun?: boolean | undefined;
 };
 
 const migrationTableSQL = rawSql(`
@@ -50,4 +51,5 @@ export const runPostgreSQLMigrations = (
         lockId: MIGRATIONS_LOCK_ID,
       },
     },
+    dryRun: options?.dryRun,
   });

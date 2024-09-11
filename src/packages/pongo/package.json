@@ -14,7 +14,9 @@
     "test:watch": "node --import tsx --test --watch",
     "test:unit:watch": "glob -c \"node --import tsx --test --watch\" **/*.unit.spec.ts",
     "test:int:watch": "glob -c \"node --import tsx --test --watch\" **/*.int.spec.ts",
-    "test:e2e:watch": "glob -c \"node --import tsx --test --watch\" **/*.e2e.spec.ts"
+    "test:e2e:watch": "glob -c \"node --import tsx --test --watch\" **/*.e2e.spec.ts",
+    "cli:sql:print": "tsx src/cli.ts migrate sql --collection users",
+    "cli:migrate:dryRun": "tsx src/cli.ts migrate run --config src/e2e/cli-config.ts -cs postgresql://postgres:postgres@localhost:5432/postgres "
   },
   "repository": {
     "type": "git",
