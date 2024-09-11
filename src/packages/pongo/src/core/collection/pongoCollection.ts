@@ -5,6 +5,7 @@ import {
   type MigrationStyle,
   type QueryResultRow,
   type SchemaComponent,
+  type SchemaComponentMigrationsOptions,
   type SQL,
   type SQLExecutor,
   type SQLMigration,
@@ -323,7 +324,7 @@ export const pongoCollection = <
     schema: {
       get component(): SchemaComponent {
         return schemaComponent('pongoCollection', {
-          migrations: SqlFor.migrations(),
+          migrations: SqlFor.migrations,
         });
       },
     },

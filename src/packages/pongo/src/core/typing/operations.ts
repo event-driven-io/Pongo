@@ -62,6 +62,9 @@ export interface PongoDb<ConnectorType extends string = string>
   connect(): Promise<void>;
   close(): Promise<void>;
   collection<T extends PongoDocument>(name: string): PongoCollection<T>;
+  readonly schema: Readonly<{
+    component: SchemaComponent;
+  }>;
 }
 
 export type CollectionOperationOptions = {

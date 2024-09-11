@@ -1,26 +1,30 @@
-import type { Dumbo } from '../..';
-import {
-  combineMigrations,
-  runSQLMigrations,
-  type MigratorOptions,
-  type SQLMigration,
-} from './migrations';
+import type { ConnectorType } from '../..';
+import { type SQLMigration } from './migrations';
+
+export type SchemaComponentMigrationsOptions = {
+  connector: ConnectorType;
+};
 
 export type SchemaComponent = {
   schemaComponentType: string;
   components?: ReadonlyArray<SchemaComponent> | undefined;
-  migrations: ReadonlyArray<SQLMigration>;
-  sql(): string;
-  print(): void;
-  migrate(pool: Dumbo, options: MigratorOptions): Promise<void>;
+  migrations(
+    options: SchemaComponentMigrationsOptions,
+  ): ReadonlyArray<SQLMigration>;
 };
 
 export const schemaComponent = (
   type: string,
   migrationsOrComponents:
-    | { migrations: ReadonlyArray<SQLMigration> }
     | {
-        migrations: ReadonlyArray<SQLMigration>;
+        migrations(
+          options: SchemaComponentMigrationsOptions,
+        ): ReadonlyArray<SQLMigration>;
+      }
+    | {
+        migrations(
+          options: SchemaComponentMigrationsOptions,
+        ): ReadonlyArray<SQLMigration>;
         components: ReadonlyArray<SchemaComponent>;
       }
     | {
@@ -35,15 +39,16 @@ export const schemaComponent = (
   const migrations =
     'migrations' in migrationsOrComponents
       ? migrationsOrComponents.migrations
-      : migrationsOrComponents.components.flatMap((c) => c.migrations);
+      : undefined;
 
   return {
     schemaComponentType: type,
     components,
-    migrations,
-    sql: () => combineMigrations(...migrations),
-    print: () => console.log(JSON.stringify(migrations)),
-    migrate: (pool: Dumbo, options: MigratorOptions) =>
-      runSQLMigrations(pool, migrations, options),
+    migrations: (options) => [
+      ...(migrations ? migrations(options) : []),
+      ...(components
+        ? components.flatMap((component) => component.migrations(options))
+        : []),
+    ],
   };
 };

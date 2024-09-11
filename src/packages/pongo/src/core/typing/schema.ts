@@ -1,4 +1,5 @@
 import {
+  type Document,
   type PongoClient,
   type PongoCollection,
   type PongoDb,
@@ -102,8 +103,13 @@ export const proxyPongoDbWithSchema = <
 >(
   pongoDb: PongoDb<ConnectorType>,
   dbSchema: PongoDbSchema<T>,
+  collections: Map<string, PongoCollection<Document>>,
 ): PongoDbWithSchema<T, ConnectorType> => {
   const collectionNames = Object.keys(dbSchema.collections);
+
+  for (const collectionName of collectionNames) {
+    collections.set(collectionName, pongoDb.collection(collectionName));
+  }
 
   return new Proxy(
     pongoDb as PongoDb<ConnectorType> & {
@@ -111,9 +117,7 @@ export const proxyPongoDbWithSchema = <
     },
     {
       get(target, prop: string) {
-        if (collectionNames.includes(prop)) return pongoDb.collection(prop);
-
-        return target[prop];
+        return collections.get(prop) ?? target[prop];
       },
     },
   ) as PongoDbWithSchema<T, ConnectorType>;
