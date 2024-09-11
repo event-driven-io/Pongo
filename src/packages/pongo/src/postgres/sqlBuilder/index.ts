@@ -34,7 +34,7 @@ export const postgresSQLBuilder = (
   collectionName: string,
 ): PongoCollectionSQLBuilder => ({
   migrations: (): SQLMigration[] => [
-    sqlMigration(`pongoCollection-${collectionName}-createtable-001`, [
+    sqlMigration(`pongoCollection-001-${collectionName}-createtable`, [
       createCollection(collectionName),
     ]),
   ],
