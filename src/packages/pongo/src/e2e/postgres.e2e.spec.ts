@@ -12,7 +12,7 @@ import {
   type PongoClient,
   type PongoDb,
 } from '../';
-import { pongoSchema } from '../core/typing/schema';
+import { pongoSchema } from '../core';
 import { MongoClient, type Db } from '../shim';
 
 type History = { street: string };

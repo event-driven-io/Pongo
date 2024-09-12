@@ -5,8 +5,7 @@ import {
 } from '@testcontainers/postgresql';
 import assert from 'assert';
 import { after, before, beforeEach, describe, it } from 'node:test';
-import { pongoClient, type PongoClient } from '../../core';
-import { pongoSchema } from '../../core/typing/schema';
+import { pongoClient, type PongoClient, pongoSchema } from '../../core';
 
 void describe('Migration Integration Tests', () => {
   let pool: Dumbo;

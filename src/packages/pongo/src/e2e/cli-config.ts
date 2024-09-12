@@ -1,4 +1,4 @@
-import { pongoSchema } from '../core/typing/schema';
+import { pongoSchema } from '../core';
 
 type User = { name: string };
 
