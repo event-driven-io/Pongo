@@ -42,14 +42,17 @@ export type PongoDbWithSchema<
   ConnectorType extends string = string,
 > = CollectionsMap<T> & PongoDb<ConnectorType>;
 
-export type DBsMap<T extends Record<string, PongoDbSchema>> = {
-  [K in keyof T]: CollectionsMap<T[K]['collections']>;
+export type DBsMap<
+  T extends Record<string, PongoDbSchema>,
+  ConnectorType extends string = string,
+> = {
+  [K in keyof T]: CollectionsMap<T[K]['collections']> & PongoDb<ConnectorType>;
 };
 
-export type PongoClientWithSchema<T extends PongoClientSchema> = DBsMap<
-  T['dbs']
-> &
-  PongoClient;
+export type PongoClientWithSchema<
+  T extends PongoClientSchema,
+  ConnectorType extends string = string,
+> = DBsMap<T['dbs'], ConnectorType> & PongoClient;
 
 const pongoCollectionSchema = <T extends PongoDocument>(
   name: string,
@@ -124,7 +127,6 @@ export const proxyPongoDbWithSchema = <
   ) as PongoDbWithSchema<T, ConnectorType>;
 };
 
-// Factory function to create Client instances
 export const proxyClientWithSchema = <
   TypedClientSchema extends PongoClientSchema,
 >(

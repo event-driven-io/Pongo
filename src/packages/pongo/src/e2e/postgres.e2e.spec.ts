@@ -1147,12 +1147,37 @@ void describe('MongoDB Compatibility Tests', () => {
       }),
     });
 
-    void it('should access collection by name and perform operation', async () => {
+    void it('should access typed collection and perform operation', async () => {
       const typedClient = pongoClient(postgresConnectionString, {
         schema: { definition: schema },
       });
       try {
         const users = typedClient.database.users;
+
+        const _id = new Date().toISOString();
+        const doc: User = {
+          _id,
+          name: 'Anita',
+          age: 25,
+        };
+        const pongoInsertResult = await users.insertOne(doc);
+        assert(pongoInsertResult.insertedId);
+
+        const pongoDoc = await users.findOne({
+          _id: pongoInsertResult.insertedId,
+        });
+        assert.ok(pongoDoc);
+      } finally {
+        await typedClient.close();
+      }
+    });
+
+    void it('should access collection by name and perform operation', async () => {
+      const typedClient = pongoClient(postgresConnectionString, {
+        schema: { definition: schema },
+      });
+      try {
+        const users = typedClient.database.collection<User>('users');
 
         const _id = new Date().toISOString();
         const doc: User = {
