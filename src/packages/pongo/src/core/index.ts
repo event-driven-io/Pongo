@@ -1,5 +1,5 @@
 export * from './collection';
-export * from './migrations';
+export * from './schema';
 export * from './pongoClient';
 export * from './pongoDb';
 export * from './pongoSession';
