@@ -1,10 +1,11 @@
 import { Command } from 'commander';
 import fs from 'node:fs';
-import { objectEntries, type PongoSchemaConfig } from '../core';
 import {
+  objectEntries,
   toDbSchemaMetadata,
   type PongoDbSchemaMetadata,
-} from '../core/typing/schema';
+  type PongoSchemaConfig,
+} from '../core';
 
 const formatTypeName = (input: string): string => {
   if (input.length === 0) {

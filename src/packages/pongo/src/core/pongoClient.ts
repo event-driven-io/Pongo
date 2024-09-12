@@ -7,12 +7,12 @@ import pg from 'pg';
 import type { PostgresDbClientOptions } from '../postgres';
 import { getPongoDb, type AllowedDbClientOptions } from './pongoDb';
 import { pongoSession } from './pongoSession';
-import type { PongoClient, PongoDb, PongoSession } from './typing/operations';
 import {
   proxyClientWithSchema,
   type PongoClientSchema,
   type PongoClientWithSchema,
-} from './typing/schema';
+} from './schema';
+import type { PongoClient, PongoDb, PongoSession } from './typing';
 
 export type PooledPongoClientOptions =
   | {

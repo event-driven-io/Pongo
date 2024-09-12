@@ -13,11 +13,11 @@ import {
   objectEntries,
   pongoCollection,
   pongoCollectionSchemaComponent,
+  proxyPongoDbWithSchema,
   type PongoCollection,
   type PongoDb,
   type PongoDbClientOptions,
 } from '../core';
-import { proxyPongoDbWithSchema } from '../core/typing/schema';
 import { postgresSQLBuilder } from './sqlBuilder';
 
 export type PostgresDbClientOptions = PongoDbClientOptions<PostgresConnector>;
