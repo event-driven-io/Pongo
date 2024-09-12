@@ -10,7 +10,12 @@ export default defineConfig({
   skipNodeModulesBundle: true,
   target: 'esnext',
   outDir: 'dist', //env === 'production' ? 'dist' : 'lib',
-  entry: ['src/index.ts'],
+  entry: [
+    'src/index.ts',
+    'src/pongo.config.ts',
+    'src/typedClient.ts',
+    'src/shim.ts',
+  ],
   sourcemap: true,
   tsconfig: 'tsconfig.json', // workaround for https://github.com/egoist/tsup/issues/571#issuecomment-1760052931
 });

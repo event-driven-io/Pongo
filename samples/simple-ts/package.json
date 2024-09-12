@@ -10,6 +10,7 @@
     "build:ts:watch": "tsc  --watch",
     "start": "tsx ./src/index.ts",
     "start:shim": "tsx ./src/shim.ts",
+    "start:typed": "tsx ./src/typedClient.ts",
     "lint": "npm run lint:eslint && npm run lint:prettier",
     "lint:prettier": "prettier --check \"**/**/!(*.d).{ts,json,md}\"",
     "lint:eslint": "eslint '**/*.ts'",
@@ -23,7 +24,8 @@
     "test:watch": "run-p test:unit:watch test:int:watch test:e2e:watch",
     "test:unit:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.unit.spec.ts",
     "test:int:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.int.spec.ts",
-    "test:e2e:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.e2e.spec.ts"
+    "test:e2e:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.e2e.spec.ts",
+    "migrate": "pongo migrate run --config ./dist/pongo.config.js --connectionString postgresql://postgres:postgres@localhost:5432/postgres"
   },
   "repository": {
     "type": "git",
@@ -60,6 +62,6 @@
     "dist"
   ],
   "dependencies": {
-    "@event-driven-io/pongo": "0.12.4"
+    "@event-driven-io/pongo": "0.14.4"
   }
 }
