@@ -1,3 +1,4 @@
+import { objectEntries } from './entries';
 import {
   type Document,
   type PongoClient,
@@ -146,4 +147,42 @@ export const proxyClientWithSchema = <
       },
     },
   ) as PongoClientWithSchema<TypedClientSchema>;
+};
+
+export type PongoCollectionSchemaMetadata = {
+  name: string;
+};
+
+export type PongoDbSchemaMetadata = {
+  name?: string | undefined;
+  collections: PongoCollectionSchemaMetadata[];
+};
+
+export type PongoClientSchemaMetadata = {
+  databases: PongoDbSchemaMetadata[];
+  database: (name?: string) => PongoDbSchemaMetadata | undefined;
+};
+
+export const toDbSchemaMetadata = <TypedDbSchema extends PongoDbSchema>(
+  schema: TypedDbSchema,
+): PongoDbSchemaMetadata => ({
+  name: schema.name,
+  collections: objectEntries(schema.collections).map((c) => ({
+    name: c[1].name,
+  })),
+});
+
+export const toClientSchemaMetadata = <
+  TypedClientSchema extends PongoClientSchema,
+>(
+  schema: TypedClientSchema,
+): PongoClientSchemaMetadata => {
+  const databases = objectEntries(schema.dbs).map((e) =>
+    toDbSchemaMetadata(e[1]),
+  );
+
+  return {
+    databases,
+    database: (name) => databases.find((db) => db.name === name),
+  };
 };

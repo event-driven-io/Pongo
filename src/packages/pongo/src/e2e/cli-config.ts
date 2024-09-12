@@ -1,3 +1,11 @@
+import { pongoSchema } from '../core/typing/schema';
+
+type User = { name: string };
+
 export default {
-  collections: ['test'],
+  schema: pongoSchema.client({
+    database: pongoSchema.db({
+      users: pongoSchema.collection<User>('users'),
+    }),
+  }),
 };
