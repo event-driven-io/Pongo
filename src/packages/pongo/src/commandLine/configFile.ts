@@ -1,26 +1,58 @@
+import { Command } from 'commander';
+import fs from 'node:fs';
 import { objectEntries, type PongoSchemaConfig } from '../core';
 import {
   toDbSchemaMetadata,
   type PongoDbSchemaMetadata,
 } from '../core/typing/schema';
 
-const sampleConfig = `import { pongoSchema } from '@event-driven-io/pongo';
+const formatTypeName = (input: string): string => {
+  if (input.length === 0) {
+    return input;
+  }
 
-type User = { name: string };
+  let formatted = input.charAt(0).toUpperCase() + input.slice(1);
+
+  if (formatted.endsWith('s')) {
+    formatted = formatted.slice(0, -1);
+  }
+
+  return formatted;
+};
+
+const sampleConfig = (collectionNames: string[] = ['users']) => {
+  const types = collectionNames
+    .map(
+      (name) =>
+        `type ${formatTypeName(name)} = { name: string, description: string, date: Date }`,
+    )
+    .join('\n');
+
+  const collections = collectionNames
+    .map(
+      (name) =>
+        `      ${name}: pongoSchema.collection<${formatTypeName(name)}>('${name}'),`,
+    )
+    .join('\n');
+
+  return `import { pongoSchema } from '@event-driven-io/pongo';
+
+${types}
 
 export default {
   schema: pongoSchema.client({
     database: pongoSchema.db({
-      users: pongoSchema.collection<User>('users'),
+${collections}
     }),
   }),
 };`;
+};
 
-const missingDefaultExport = `Error: Config should contain default export, e.g.\n\n${sampleConfig}`;
-const missingSchema = `Error: Config should contain schema property, e.g.\n\n${sampleConfig}`;
-const missingDbs = `Error: Config should have at least a single database defined, e.g.\n\n${sampleConfig}`;
-const missingDefaultDb = `Error: Config should have a default database defined (without name or or with default database name), e.g.\n\n${sampleConfig}`;
-const missingCollections = `Error: Database should have defined at least one collection, e.g.\n\n${sampleConfig}`;
+const missingDefaultExport = `Error: Config should contain default export, e.g.\n\n${sampleConfig()}`;
+const missingSchema = `Error: Config should contain schema property, e.g.\n\n${sampleConfig()}`;
+const missingDbs = `Error: Config should have at least a single database defined, e.g.\n\n${sampleConfig()}`;
+const missingDefaultDb = `Error: Config should have a default database defined (without name or or with default database name), e.g.\n\n${sampleConfig()}`;
+const missingCollections = `Error: Database should have defined at least one collection, e.g.\n\n${sampleConfig()}`;
 
 export const loadConfigFile = async (
   configPath: string,
@@ -42,6 +74,20 @@ export const loadConfigFile = async (
     return parsed;
   } catch {
     console.error(`Error: Couldn't load file: ${configUrl.href}`);
+    process.exit(1);
+  }
+};
+
+export const generateConfigFile = (
+  configPath: string,
+  collectionNames: string[],
+): void => {
+  try {
+    fs.writeFileSync(configPath, sampleConfig(collectionNames), 'utf8');
+    console.log(`Configuration file stored at: ${configPath}`);
+  } catch (error) {
+    console.error(`Error: Couldn't store config file: ${configPath}!`);
+    console.error(error);
     process.exit(1);
   }
 };
@@ -81,3 +127,63 @@ export const parseDefaultDbSchema = (
 
   return toDbSchemaMetadata(defaultDb);
 };
+
+type SampleConfigOptions =
+  | {
+      collection: string[];
+      print?: boolean;
+    }
+  | {
+      collection: string[];
+      generate?: boolean;
+      file?: string;
+    };
+
+export const configCommand = new Command('config').description(
+  'Manage Pongo configuration',
+);
+
+const sampleConfigCommand = configCommand
+  .command('sample')
+  .description('Generate or print sample configuration')
+  .option(
+    '-col, --collection <name>',
+    'Specify the collection name',
+    (value: string, previous: string[]) => {
+      // Accumulate collection names into an array (explicitly typing `previous` as `string[]`)
+      return previous.concat([value]);
+    },
+    [] as string[],
+  )
+  .option(
+    '-f, --file <path>',
+    'Path to configuration file with collection list',
+  )
+  .option('-g, --generate', 'Generate sample config file')
+  .option('-p, --print', 'Print sample config file')
+  .action((options: SampleConfigOptions) => {
+    const collectionNames =
+      options.collection.length > 0 ? options.collection : ['users'];
+
+    if (!('print' in options) && !('generate' in options)) {
+      console.error(
+        'Error: Please provide either:\n--print param to print sample config or\n--generate to generate sample config file',
+      );
+      process.exit(1);
+    }
+
+    if ('print' in options) {
+      console.log(`${sampleConfig(collectionNames)}`);
+    } else if ('generate' in options) {
+      if (!options.file) {
+        console.error(
+          'Error: You need to provide a config file through a --file',
+        );
+        process.exit(1);
+      }
+
+      generateConfigFile(options.file, collectionNames);
+    }
+  });
+
+sampleConfigCommand.command('generate');

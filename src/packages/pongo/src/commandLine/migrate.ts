@@ -41,10 +41,7 @@ migrateCommand
     },
     [] as string[],
   )
-  .option(
-    '-f, --config <path>',
-    'Path to configuration file with collection list',
-  )
+  .option('-f, --config <path>', 'Path to configuration file with Pongo config')
   .option('-dr, --dryRun', 'Perform dry run without commiting changes', false)
   .action(async (options: MigrateRunOptions) => {
     const { collection, dryRun } = options;
