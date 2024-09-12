@@ -25,7 +25,7 @@ const sampleConfig = (collectionNames: string[] = ['users']) => {
   const types = collectionNames
     .map(
       (name) =>
-        `type ${formatTypeName(name)} = { name: string, description: string, date: Date }`,
+        `type ${formatTypeName(name)} = { name: string; description: string; date: Date }`,
     )
     .join('\n');
 
