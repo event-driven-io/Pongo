@@ -6,10 +6,15 @@ import {
   type SQLMigration,
 } from '@event-driven-io/dumbo';
 import {
+  expectedVersionValue,
+  type DeleteOneOptions,
   type OptionalUnlessRequiredId,
   type PongoCollectionSQLBuilder,
   type PongoFilter,
   type PongoUpdate,
+  type ReplaceOneOptions,
+  type UpdateOneOptions,
+  type UpsertOneOptions,
   type WithoutId,
 } from '../../core';
 import { constructFilterQuery } from './filter';
@@ -42,28 +47,46 @@ export const postgresSQLBuilder = (
   migrations: (): SQLMigration[] =>
     pongoCollectionPostgreSQLMigrations(collectionName),
   createCollection: (): SQL => createCollection(collectionName),
-  insertOne: <T>(document: OptionalUnlessRequiredId<T>): SQL =>
-    sql(
-      'INSERT INTO %I (_id, data) VALUES (%L, %L)',
+  insertOne: <T>(document: OptionalUnlessRequiredId<T>): SQL => {
+    return sql(
+      'INSERT INTO %I (_id, data) VALUES (%L, %L) ON CONFLICT(_id) DO NOTHING;',
       collectionName,
       document._id,
       JSON.stringify(document),
-    ),
+    );
+  },
   insertMany: <T>(documents: OptionalUnlessRequiredId<T>[]): SQL => {
     const values = documents
       .map((doc) => sql('(%L, %L)', doc._id, JSON.stringify(doc)))
       .join(', ');
-    return sql('INSERT INTO %I (_id, data) VALUES %s', collectionName, values);
+    return sql(
+      `INSERT INTO %I (_id, data) VALUES %s 
+      ON CONFLICT(_id) DO NOTHING
+      RETURNING _id;`,
+      collectionName,
+      values,
+    );
   },
-  updateOne: <T>(filter: PongoFilter<T>, update: PongoUpdate<T>): SQL => {
-    const filterQuery = constructFilterQuery(filter);
+  updateOne: <T>(
+    filter: PongoFilter<T>,
+    update: PongoUpdate<T>,
+    options?: UpdateOneOptions,
+  ): SQL => {
+    const expectedVersionUpdate = options?.expectedVersion
+      ? { _version: expectedVersionValue(options.expectedVersion) }
+      : {};
+
+    const filterQuery = constructFilterQuery<T>({
+      ...expectedVersionUpdate,
+      ...filter,
+    });
     const updateQuery = buildUpdateQuery(update);
 
     return sql(
       `WITH cte AS (
         SELECT _id FROM %I %s LIMIT 1
       )
-      UPDATE %I SET data = %s FROM cte WHERE %I._id = cte._id`,
+      UPDATE %I SET data = %s FROM cte WHERE %I._id = cte._id;`,
       collectionName,
       where(filterQuery),
       collectionName,
@@ -71,11 +94,49 @@ export const postgresSQLBuilder = (
       collectionName,
     );
   },
-  replaceOne: <T>(filter: PongoFilter<T>, document: WithoutId<T>): SQL => {
-    const filterQuery = constructFilterQuery(filter);
+  upsertOne: <T>(
+    filter: PongoFilter<T>,
+    update: PongoUpdate<T>,
+    options?: UpsertOneOptions,
+  ): SQL => {
+    const expectedVersionUpdate = options?.expectedVersion
+      ? { _version: expectedVersionValue(options.expectedVersion) }
+      : {};
+
+    const filterQuery = constructFilterQuery<T>({
+      ...expectedVersionUpdate,
+      ...filter,
+    });
+    const updateQuery = buildUpdateQuery(update);
 
     return sql(
-      `UPDATE %I SET data = %L || jsonb_build_object('_id', data->>'_id') %s`,
+      `WITH cte AS (
+        SELECT _id FROM %I %s LIMIT 1
+      )
+      UPDATE %I SET data = %s FROM cte WHERE %I._id = cte._id;`,
+      collectionName,
+      where(filterQuery),
+      collectionName,
+      updateQuery,
+      collectionName,
+    );
+  },
+  replaceOne: <T>(
+    filter: PongoFilter<T>,
+    document: WithoutId<T>,
+    options?: ReplaceOneOptions,
+  ): SQL => {
+    const expectedVersionUpdate = options?.expectedVersion
+      ? { _version: expectedVersionValue(options.expectedVersion) }
+      : {};
+
+    const filterQuery = constructFilterQuery<T>({
+      ...expectedVersionUpdate,
+      ...filter,
+    });
+
+    return sql(
+      `UPDATE %I SET data = %L || jsonb_build_object('_id', data->>'_id') %s;`,
       collectionName,
       JSON.stringify(document),
       where(filterQuery),
@@ -86,15 +147,23 @@ export const postgresSQLBuilder = (
     const updateQuery = buildUpdateQuery(update);
 
     return sql(
-      'UPDATE %I SET data = %s %s',
+      'UPDATE %I SET data = %s %s;',
       collectionName,
       updateQuery,
       where(filterQuery),
     );
   },
-  deleteOne: <T>(filter: PongoFilter<T>): SQL => {
-    const filterQuery = constructFilterQuery(filter);
-    return sql('DELETE FROM %I %s', collectionName, where(filterQuery));
+  deleteOne: <T>(filter: PongoFilter<T>, options?: DeleteOneOptions): SQL => {
+    const expectedVersionUpdate = options?.expectedVersion
+      ? { _version: expectedVersionValue(options.expectedVersion) }
+      : {};
+
+    const filterQuery = constructFilterQuery<T>({
+      ...expectedVersionUpdate,
+      ...filter,
+    });
+
+    return sql('DELETE FROM %I %s;', collectionName, where(filterQuery));
   },
   deleteMany: <T>(filter: PongoFilter<T>): SQL => {
     const filterQuery = constructFilterQuery(filter);
@@ -103,25 +172,25 @@ export const postgresSQLBuilder = (
   findOne: <T>(filter: PongoFilter<T>): SQL => {
     const filterQuery = constructFilterQuery(filter);
     return sql(
-      'SELECT data FROM %I %s LIMIT 1',
+      'SELECT data FROM %I %s LIMIT 1;',
       collectionName,
       where(filterQuery),
     );
   },
   find: <T>(filter: PongoFilter<T>): SQL => {
     const filterQuery = constructFilterQuery(filter);
-    return sql('SELECT data FROM %I %s', collectionName, where(filterQuery));
+    return sql('SELECT data FROM %I %s;', collectionName, where(filterQuery));
   },
   countDocuments: <T>(filter: PongoFilter<T>): SQL => {
     const filterQuery = constructFilterQuery(filter);
     return sql(
-      'SELECT COUNT(1) as count FROM %I %s',
+      'SELECT COUNT(1) as count FROM %I %s;',
       collectionName,
       where(filterQuery),
     );
   },
   rename: (newName: string): SQL =>
-    sql('ALTER TABLE %I RENAME TO %I', collectionName, newName),
+    sql('ALTER TABLE %I RENAME TO %I;', collectionName, newName),
   drop: (targetName: string = collectionName): SQL =>
     sql('DROP TABLE IF EXISTS %I', targetName),
 });

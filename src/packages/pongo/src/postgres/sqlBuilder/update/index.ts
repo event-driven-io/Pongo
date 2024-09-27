@@ -9,7 +9,10 @@ import {
 } from '../../../core';
 
 export const buildUpdateQuery = <T>(update: PongoUpdate<T>): SQL =>
-  objectEntries(update).reduce((currentUpdateQuery, [op, value]) => {
+  objectEntries({
+    ...update,
+    $inc: { _version: 1, ...(update.$inc ?? {}) },
+  }).reduce((currentUpdateQuery, [op, value]) => {
     switch (op) {
       case '$set':
         return buildSetQuery(value, currentUpdateQuery);
@@ -45,7 +48,7 @@ export const buildIncQuery = <T>(
 ): SQL => {
   for (const [key, value] of Object.entries(inc)) {
     currentUpdateQuery = sql(
-      "jsonb_set(%s, '{%s}', to_jsonb((data->>'%s')::numeric + %L), true)",
+      "jsonb_set(%s, '{%s}', to_jsonb(COALESCE((data->>'%s')::numeric, 0) + %L), true)",
       currentUpdateQuery,
       key,
       key,

@@ -72,13 +72,57 @@ export type CollectionOperationOptions = {
   session?: PongoSession;
 };
 
+export type InsertOneOptions = {
+  expectedVersion?: Extract<
+    ExpectedDocumentVersion,
+    'DOCUMENT_DOES_NOT_EXIST' | 'NO_CONCURRENCY_CHECK'
+  >;
+} & CollectionOperationOptions;
+
+export type InsertManyOptions = {
+  expectedVersion?: Extract<
+    ExpectedDocumentVersion,
+    'DOCUMENT_DOES_NOT_EXIST' | 'NO_CONCURRENCY_CHECK'
+  >;
+} & CollectionOperationOptions;
+
+export type UpdateOneOptions = {
+  expectedVersion?: Exclude<ExpectedDocumentVersion, 'DOCUMENT_DOES_NOT_EXIST'>;
+} & CollectionOperationOptions;
+
+export type UpsertOneOptions = {
+  expectedVersion?: ExpectedDocumentVersion;
+} & CollectionOperationOptions;
+
+export type UpdateManyOptions = {
+  expectedVersion?: Extract<
+    ExpectedDocumentVersion,
+    'DOCUMENT_EXISTS' | 'NO_CONCURRENCY_CHECK'
+  >;
+} & CollectionOperationOptions;
+
+export type ReplaceOneOptions = {
+  expectedVersion?: Exclude<ExpectedDocumentVersion, 'DOCUMENT_DOES_NOT_EXIST'>;
+} & CollectionOperationOptions;
+
+export type DeleteOneOptions = {
+  expectedVersion?: Exclude<ExpectedDocumentVersion, 'DOCUMENT_DOES_NOT_EXIST'>;
+} & CollectionOperationOptions;
+
+export type DeleteManyOptions = {
+  expectedVersion?: Extract<
+    ExpectedDocumentVersion,
+    'DOCUMENT_EXISTS' | 'NO_CONCURRENCY_CHECK'
+  >;
+} & CollectionOperationOptions;
+
 export interface PongoCollection<T extends PongoDocument> {
   readonly dbName: string;
   readonly collectionName: string;
   createCollection(options?: CollectionOperationOptions): Promise<void>;
   insertOne(
     document: OptionalUnlessRequiredId<T>,
-    options?: CollectionOperationOptions,
+    options?: InsertOneOptions,
   ): Promise<PongoInsertOneResult>;
   insertMany(
     documents: OptionalUnlessRequiredId<T>[],
@@ -87,25 +131,30 @@ export interface PongoCollection<T extends PongoDocument> {
   updateOne(
     filter: PongoFilter<T>,
     update: PongoUpdate<T>,
-    options?: CollectionOperationOptions,
+    options?: UpdateOneOptions,
+  ): Promise<PongoUpdateResult>;
+  upsertOne(
+    filter: PongoFilter<T>,
+    update: PongoUpdate<T>,
+    options?: UpsertOneOptions,
   ): Promise<PongoUpdateResult>;
   replaceOne(
     filter: PongoFilter<T>,
     document: WithoutId<T>,
-    options?: CollectionOperationOptions,
+    options?: ReplaceOneOptions,
   ): Promise<PongoUpdateResult>;
   updateMany(
     filter: PongoFilter<T>,
     update: PongoUpdate<T>,
-    options?: CollectionOperationOptions,
+    options?: UpdateManyOptions,
   ): Promise<PongoUpdateResult>;
   deleteOne(
     filter?: PongoFilter<T>,
-    options?: CollectionOperationOptions,
+    options?: DeleteOneOptions,
   ): Promise<PongoDeleteResult>;
   deleteMany(
     filter?: PongoFilter<T>,
-    options?: CollectionOperationOptions,
+    options?: DeleteManyOptions,
   ): Promise<PongoDeleteResult>;
   findOne(
     filter?: PongoFilter<T>,
@@ -117,17 +166,17 @@ export interface PongoCollection<T extends PongoDocument> {
   ): Promise<T[]>;
   findOneAndDelete(
     filter: PongoFilter<T>,
-    options?: CollectionOperationOptions,
+    options?: DeleteOneOptions,
   ): Promise<T | null>;
   findOneAndReplace(
     filter: PongoFilter<T>,
     replacement: WithoutId<T>,
-    options?: CollectionOperationOptions,
+    options?: ReplaceOneOptions,
   ): Promise<T | null>;
   findOneAndUpdate(
     filter: PongoFilter<T>,
     update: PongoUpdate<T>,
-    options?: CollectionOperationOptions,
+    options?: UpdateOneOptions,
   ): Promise<T | null>;
   countDocuments(
     filter?: PongoFilter<T>,
@@ -286,6 +335,44 @@ export type $set<T> = Partial<T>;
 export type $unset<T> = { [P in keyof T]?: '' };
 export type $inc<T> = { [P in keyof T]?: number };
 export type $push<T> = { [P in keyof T]?: T[P] };
+
+export type ExpectedDocumentVersionGeneral =
+  | 'DOCUMENT_EXISTS'
+  | 'DOCUMENT_DOES_NOT_EXIST'
+  | 'NO_CONCURRENCY_CHECK';
+
+export type ExpectedDocumentVersionValue = bigint & { __brand: 'sql' };
+
+export type ExpectedDocumentVersion =
+  | (bigint & { __brand: 'sql' })
+  | ExpectedDocumentVersionGeneral;
+
+export const DOCUMENT_EXISTS =
+  'DOCUMENT_EXISTS' as ExpectedDocumentVersionGeneral;
+export const DOCUMENT_DOES_NOT_EXIST =
+  'DOCUMENT_DOES_NOT_EXIST' as ExpectedDocumentVersionGeneral;
+export const NO_CONCURRENCY_CHECK =
+  'NO_CONCURRENCY_CHECK' as ExpectedDocumentVersionGeneral;
+
+export const isGeneralExpectedDocumentVersion = (
+  version: ExpectedDocumentVersion,
+): version is ExpectedDocumentVersionGeneral =>
+  version === 'DOCUMENT_DOES_NOT_EXIST' ||
+  version === 'DOCUMENT_EXISTS' ||
+  version === 'NO_CONCURRENCY_CHECK';
+
+export const expectedVersionValue = (
+  version: ExpectedDocumentVersion,
+): ExpectedDocumentVersionValue | null =>
+  isGeneralExpectedDocumentVersion(version) ? null : version;
+
+export const expectedVersion = (
+  version: number | bigint | string | undefined | null,
+): ExpectedDocumentVersion => {
+  return version
+    ? (BigInt(version) as ExpectedDocumentVersion)
+    : NO_CONCURRENCY_CHECK;
+};
 
 export type PongoUpdate<T> = {
   $set?: Partial<T>;
