@@ -44,6 +44,7 @@ export type PongoCollectionOptions<ConnectorType extends string = string> = {
   pool: Dumbo;
   sqlBuilder: PongoCollectionSQLBuilder;
   schema?: { autoMigration?: MigrationStyle };
+  errors?: { throwOnOperationFailures?: boolean };
 };
 
 const enlistIntoTransactionIfActive = async <
@@ -79,6 +80,7 @@ export const pongoCollection = <
   pool,
   sqlBuilder: SqlFor,
   schema,
+  errors,
 }: PongoCollectionOptions<ConnectorType>): PongoCollection<T> => {
   const sqlExecutor = pool.execute;
   const command = async <Result extends QueryResultRow = QueryResultRow>(
@@ -144,7 +146,7 @@ export const pongoCollection = <
           successful,
           insertedId: successful ? _id : null,
         },
-        { operationName: 'insertOne', collectionName },
+        { operationName: 'insertOne', collectionName, errors },
       );
     },
     insertMany: async (
@@ -170,7 +172,7 @@ export const pongoCollection = <
           insertedCount: result.rowCount ?? 0,
           insertedIds: rows.map((d) => d._id as string),
         },
-        { operationName: 'insertMany', collectionName },
+        { operationName: 'insertMany', collectionName, errors },
       );
     },
     updateOne: async (
@@ -191,7 +193,7 @@ export const pongoCollection = <
           modifiedCount: result.rows[0]!.modified!,
           matchedCount: result.rows[0]!.matched!,
         },
-        { operationName: 'updateOne', collectionName },
+        { operationName: 'updateOne', collectionName, errors },
       );
     },
     upsertOne: async (
@@ -212,7 +214,7 @@ export const pongoCollection = <
           modifiedCount: result.rows[0]!.modified!,
           matchedCount: result.rows[0]!.matched!,
         },
-        { operationName: 'upsertOne', collectionName },
+        { operationName: 'upsertOne', collectionName, errors },
       );
     },
     replaceOne: async (
@@ -232,7 +234,7 @@ export const pongoCollection = <
           modifiedCount: result.rows[0]!.modified!,
           matchedCount: result.rows[0]!.matched!,
         },
-        { operationName: 'replaceOne', collectionName },
+        { operationName: 'replaceOne', collectionName, errors },
       );
     },
     updateMany: async (
@@ -250,7 +252,7 @@ export const pongoCollection = <
           modifiedCount: result.rowCount ?? 0,
           matchedCount: result.rowCount ?? 0,
         },
-        { operationName: 'updateMany', collectionName },
+        { operationName: 'updateMany', collectionName, errors },
       );
     },
     deleteOne: async (
@@ -269,7 +271,7 @@ export const pongoCollection = <
           deletedCount: result.rows[0]!.deleted!,
           matchedCount: result.rows[0]!.matched!,
         },
-        { operationName: 'deleteOne', collectionName },
+        { operationName: 'deleteOne', collectionName, errors },
       );
     },
     deleteMany: async (
@@ -286,7 +288,7 @@ export const pongoCollection = <
           deletedCount: result.rowCount ?? 0,
           matchedCount: result.rowCount ?? 0,
         },
-        { operationName: 'deleteOne', collectionName },
+        { operationName: 'deleteMany', collectionName, errors },
       );
     },
     findOne: async (

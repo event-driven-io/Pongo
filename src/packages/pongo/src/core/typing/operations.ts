@@ -385,34 +385,38 @@ export type OperationResult = {
   acknowledged: boolean;
   successful: boolean;
 
-  assertSuccessful: () => void;
+  assertSuccessful: (errorMessage?: string) => void;
 };
 
 export const operationResult = <T extends OperationResult>(
   result: Omit<T, 'assertSuccess' | 'acknowledged' | 'assertSuccessful'>,
   options: {
-    check?: (
-      result: Omit<T, 'assertSuccess' | 'acknowledged' | 'assertSuccessful'>,
-    ) => boolean;
     operationName: string;
     collectionName: string;
+    errors?: { throwOnOperationFailures?: boolean } | undefined;
   },
-): T =>
-  ({
+): T => {
+  const operationResult: T = {
     ...result,
     acknowledged: true,
     successful: result.successful,
     assertSuccessful: (errorMessage?: string) => {
       const { successful } = result;
-      const { check, operationName, collectionName } = options;
-      const isOk = successful && (!check || check(result));
+      const { operationName, collectionName } = options;
 
-      if (!isOk)
+      if (!successful)
         throw new Error(
-          errorMessage ?? `${operationName} on ${collectionName} failed!`,
+          errorMessage ??
+            `${operationName} on ${collectionName} failed with ${JSON.stringify(result)}!`,
         );
     },
-  }) as T;
+  } as T;
+
+  if (options.errors?.throwOnOperationFailures)
+    operationResult.assertSuccessful();
+
+  return operationResult;
+};
 
 export interface PongoInsertOneResult extends OperationResult {
   insertedId: string | null;

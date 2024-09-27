@@ -47,6 +47,7 @@ export type PongoClientOptions<
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
 > = {
   schema?: { autoMigration?: MigrationStyle; definition?: TypedClientSchema };
+  errors?: { throwOnOperationFailures?: boolean };
   connectionOptions?: PooledPongoClientOptions | NotPooledPongoOptions;
 };
 
