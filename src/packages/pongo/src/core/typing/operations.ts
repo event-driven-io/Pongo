@@ -381,36 +381,63 @@ export type PongoUpdate<T> = {
   $push?: $push<T>;
 };
 
-export interface PongoInsertOneResult {
-  insertedId: string | null;
+export type OperationResult = {
   acknowledged: boolean;
+  successful: boolean;
+
+  assertSuccessful: () => void;
+};
+
+export const operationResult = <T extends OperationResult>(
+  result: Omit<T, 'assertSuccess' | 'acknowledged' | 'assertSuccessful'>,
+  options: {
+    check?: (
+      result: Omit<T, 'assertSuccess' | 'acknowledged' | 'assertSuccessful'>,
+    ) => boolean;
+    operationName: string;
+    collectionName: string;
+  },
+): T =>
+  ({
+    ...result,
+    acknowledged: true,
+    successful: result.successful,
+    assertSuccessful: (errorMessage?: string) => {
+      const { successful } = result;
+      const { check, operationName, collectionName } = options;
+      const isOk = successful && (!check || check(result));
+
+      if (!isOk)
+        throw new Error(
+          errorMessage ?? `${operationName} on ${collectionName} failed!`,
+        );
+    },
+  }) as T;
+
+export interface PongoInsertOneResult extends OperationResult {
+  insertedId: string | null;
 }
 
-export interface PongoInsertManyResult {
-  acknowledged: boolean;
+export interface PongoInsertManyResult extends OperationResult {
   insertedIds: string[];
   insertedCount: number;
 }
 
-export interface PongoUpdateResult {
-  acknowledged: boolean;
+export interface PongoUpdateResult extends OperationResult {
   matchedCount: number;
   modifiedCount: number;
 }
 
-export interface PongoUpdateManyResult {
-  acknowledged: boolean;
+export interface PongoUpdateManyResult extends OperationResult {
   modifiedCount: number;
 }
 
-export interface PongoDeleteResult {
-  acknowledged: boolean;
+export interface PongoDeleteResult extends OperationResult {
   matchedCount: number;
   deletedCount: number;
 }
 
-export interface PongoDeleteManyResult {
-  acknowledged: boolean;
+export interface PongoDeleteManyResult extends OperationResult {
   deletedCount: number;
 }
 
