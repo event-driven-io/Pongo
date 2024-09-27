@@ -930,7 +930,7 @@ void describe('MongoDB Compatibility Tests', () => {
       assert.deepStrictEqual(pongoDoc, {
         ...newDoc,
         _id: nonExistingId,
-        _version: 0,
+        _version: 1,
       });
     });
 
@@ -1003,7 +1003,7 @@ void describe('MongoDB Compatibility Tests', () => {
       assert.deepStrictEqual(resultPongo, {
         ...existingDoc,
         _id: pongoInsertResult.insertedId,
-        _version: 0,
+        _version: 1,
       });
 
       const pongoDoc = await pongoCollection.findOne({
@@ -1013,7 +1013,7 @@ void describe('MongoDB Compatibility Tests', () => {
       assert.deepStrictEqual(pongoDoc, {
         ...existingDoc,
         _id: pongoInsertResult.insertedId,
-        _version: 0,
+        _version: 1,
       });
     });
   });
