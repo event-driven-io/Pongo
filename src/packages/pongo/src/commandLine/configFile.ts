@@ -144,7 +144,7 @@ export const configCommand = new Command('config').description(
   'Manage Pongo configuration',
 );
 
-const sampleConfigCommand = configCommand
+configCommand
   .command('sample')
   .description('Generate or print sample configuration')
   .option(
@@ -186,5 +186,3 @@ const sampleConfigCommand = configCommand
       generateConfigFile(options.file, collectionNames);
     }
   });
-
-sampleConfigCommand.command('generate');

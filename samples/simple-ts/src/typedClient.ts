@@ -6,7 +6,7 @@ const connectionString =
   'postgresql://postgres:postgres@localhost:5432/postgres';
 
 const pongo = pongoClient(connectionString, {
-  schema: { definition: config.schema, autoMigration: 'CreateOrUpdate' },
+  schema: { definition: config.schema, autoMigration: 'None' },
 });
 const pongoDb = pongo.database;
 
