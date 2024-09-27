@@ -13,6 +13,7 @@ import {
 } from '@event-driven-io/dumbo';
 import { v4 as uuid } from 'uuid';
 import {
+  operationResult,
   type CollectionOperationOptions,
   type DeleteManyOptions,
   type DeleteOneOptions,
@@ -136,9 +137,15 @@ export const pongoCollection = <
         options,
       );
 
-      return result.rowCount
-        ? { insertedId: _id, acknowledged: true }
-        : { insertedId: null, acknowledged: false };
+      const successful = (result.rowCount ?? 0) > 0;
+
+      return operationResult<PongoInsertOneResult>(
+        {
+          successful,
+          insertedId: successful ? _id : null,
+        },
+        { operationName: 'insertOne', collectionName },
+      );
     },
     insertMany: async (
       documents: OptionalUnlessRequiredId<T>[],
@@ -157,11 +164,14 @@ export const pongoCollection = <
         options,
       );
 
-      return {
-        acknowledged: result.rowCount === rows.length,
-        insertedCount: result.rowCount ?? 0,
-        insertedIds: rows.map((d) => d._id as string),
-      };
+      return operationResult<PongoInsertManyResult>(
+        {
+          successful: result.rowCount === rows.length,
+          insertedCount: result.rowCount ?? 0,
+          insertedIds: rows.map((d) => d._id as string),
+        },
+        { operationName: 'insertMany', collectionName },
+      );
     },
     updateOne: async (
       filter: PongoFilter<T>,
@@ -174,13 +184,15 @@ export const pongoCollection = <
         SqlFor.updateOne(filter, update, options),
         options,
       );
-      return result.rowCount
-        ? {
-            acknowledged: result.rows[0]!.modified! > 0,
-            modifiedCount: result.rows[0]!.modified!,
-            matchedCount: result.rows[0]!.matched!,
-          }
-        : { acknowledged: false, modifiedCount: 0, matchedCount: 0 };
+
+      return operationResult<PongoUpdateResult>(
+        {
+          successful: result.rows[0]!.modified! === result.rows[0]!.matched!,
+          modifiedCount: result.rows[0]!.modified!,
+          matchedCount: result.rows[0]!.matched!,
+        },
+        { operationName: 'updateOne', collectionName },
+      );
     },
     upsertOne: async (
       filter: PongoFilter<T>,
@@ -193,13 +205,15 @@ export const pongoCollection = <
         SqlFor.upsertOne(filter, update, options),
         options,
       );
-      return result.rowCount
-        ? {
-            acknowledged: true,
-            modifiedCount: result.rowCount,
-            matchedCount: result.rowCount,
-          }
-        : { acknowledged: false, modifiedCount: 0, matchedCount: 0 };
+
+      return operationResult<PongoUpdateResult>(
+        {
+          successful: result.rows[0]!.modified! === 1,
+          modifiedCount: result.rows[0]!.modified!,
+          matchedCount: result.rows[0]!.matched!,
+        },
+        { operationName: 'upsertOne', collectionName },
+      );
     },
     replaceOne: async (
       filter: PongoFilter<T>,
@@ -212,13 +226,14 @@ export const pongoCollection = <
         SqlFor.replaceOne(filter, document, options),
         options,
       );
-      return result.rowCount
-        ? {
-            acknowledged: result.rows[0]!.modified! > 0,
-            modifiedCount: result.rows[0]!.modified!,
-            matchedCount: result.rows[0]!.matched!,
-          }
-        : { acknowledged: false, modifiedCount: 0, matchedCount: 0 };
+      return operationResult<PongoUpdateResult>(
+        {
+          successful: result.rows[0]!.modified! > 0,
+          modifiedCount: result.rows[0]!.modified!,
+          matchedCount: result.rows[0]!.matched!,
+        },
+        { operationName: 'replaceOne', collectionName },
+      );
     },
     updateMany: async (
       filter: PongoFilter<T>,
@@ -228,13 +243,15 @@ export const pongoCollection = <
       await ensureCollectionCreated(options);
 
       const result = await command(SqlFor.updateMany(filter, update), options);
-      return result.rowCount
-        ? {
-            acknowledged: true,
-            modifiedCount: result.rowCount,
-            matchedCount: result.rowCount,
-          }
-        : { acknowledged: false, modifiedCount: 0, matchedCount: 0 };
+
+      return operationResult<PongoUpdateResult>(
+        {
+          successful: true,
+          modifiedCount: result.rowCount ?? 0,
+          matchedCount: result.rowCount ?? 0,
+        },
+        { operationName: 'updateMany', collectionName },
+      );
     },
     deleteOne: async (
       filter?: PongoFilter<T>,
@@ -246,13 +263,14 @@ export const pongoCollection = <
         SqlFor.deleteOne(filter ?? {}, options),
         options,
       );
-      return result.rowCount
-        ? {
-            acknowledged: result.rows[0]!.deleted! > 0,
-            deletedCount: result.rows[0]!.deleted!,
-            matchedCount: result.rowCount,
-          }
-        : { acknowledged: false, deletedCount: 0, matchedCount: 0 };
+      return operationResult<PongoDeleteResult>(
+        {
+          successful: result.rows[0]!.deleted! > 0,
+          deletedCount: result.rows[0]!.deleted!,
+          matchedCount: result.rows[0]!.matched!,
+        },
+        { operationName: 'deleteOne', collectionName },
+      );
     },
     deleteMany: async (
       filter?: PongoFilter<T>,
@@ -262,13 +280,14 @@ export const pongoCollection = <
 
       const result = await command(SqlFor.deleteMany(filter ?? {}), options);
 
-      return result.rowCount
-        ? {
-            acknowledged: true,
-            deletedCount: result.rowCount,
-            matchedCount: result.rowCount,
-          }
-        : { acknowledged: false, deletedCount: 0, matchedCount: 0 };
+      return operationResult<PongoDeleteResult>(
+        {
+          successful: (result.rowCount ?? 0) > 0,
+          deletedCount: result.rowCount ?? 0,
+          matchedCount: result.rowCount ?? 0,
+        },
+        { operationName: 'deleteOne', collectionName },
+      );
     },
     findOne: async (
       filter?: PongoFilter<T>,
