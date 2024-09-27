@@ -52,6 +52,7 @@ export const postgresDb = (
         pool,
         sqlBuilder: postgresSQLBuilder(collectionName),
         ...(options.schema ? options.schema : {}),
+        ...(options.errors ? options.errors : {}),
       }),
     transaction: () => pool.transaction(),
     withTransaction: (handle) => pool.withTransaction(handle),
