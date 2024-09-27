@@ -394,6 +394,7 @@ export interface PongoInsertManyResult {
 
 export interface PongoUpdateResult {
   acknowledged: boolean;
+  matchedCount: number;
   modifiedCount: number;
 }
 
@@ -404,6 +405,7 @@ export interface PongoUpdateManyResult {
 
 export interface PongoDeleteResult {
   acknowledged: boolean;
+  matchedCount: number;
   deletedCount: number;
 }
 
