@@ -72,8 +72,12 @@ export const postgresSQLBuilder = (
     update: PongoUpdate<T>,
     options?: UpdateOneOptions,
   ): SQL => {
-    const expectedVersionUpdate = options?.expectedVersion
-      ? { _version: expectedVersionValue(options.expectedVersion) }
+    const expectedVersion = options?.expectedVersion
+      ? expectedVersionValue(options.expectedVersion)
+      : null;
+
+    const expectedVersionUpdate = expectedVersion
+      ? { _version: expectedVersionValue(expectedVersion) }
       : {};
 
     const filterQuery = constructFilterQuery<T>({
@@ -82,17 +86,47 @@ export const postgresSQLBuilder = (
     });
     const updateQuery = buildUpdateQuery(update);
 
-    return sql(
-      `WITH cte AS (
-        SELECT _id FROM %I %s LIMIT 1
+    return expectedVersion
+      ? sql(
+          `WITH cte AS (
+        SELECT 
+          _id, 
+          1 as matched, 
+          CASE WHEN _version = %L THEN 1 ELSE 0 END AS version_matched,  
+        FROM %I %s LIMIT 1
       )
-      UPDATE %I SET data = %s FROM cte WHERE %I._id = cte._id;`,
-      collectionName,
-      where(filterQuery),
-      collectionName,
-      updateQuery,
-      collectionName,
-    );
+      UPDATE %I 
+      SET data = %s 
+      FROM cte 
+      WHERE %I._id = cte._id AND %I._version = %L
+      RETURNING cte.matched, cte.version_matched;`,
+          expectedVersion,
+          collectionName,
+          where(filterQuery),
+          collectionName,
+          updateQuery,
+          collectionName,
+          expectedVersion,
+        )
+      : sql(
+          `WITH cte AS (
+      SELECT 
+        _id, 
+        1 as matched, 
+        1 as version_matched 
+      FROM %I %s LIMIT 1
+    )
+    UPDATE %I 
+    SET data = %s 
+    FROM cte 
+    WHERE %I._id = cte._id
+    RETURNING cte.matched, cte.version_matched;`,
+          collectionName,
+          where(filterQuery),
+          collectionName,
+          updateQuery,
+          collectionName,
+        );
   },
   upsertOne: <T>(
     filter: PongoFilter<T>,
