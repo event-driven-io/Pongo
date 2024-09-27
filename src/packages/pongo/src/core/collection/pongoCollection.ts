@@ -14,7 +14,11 @@ import {
 import { v4 as uuid } from 'uuid';
 import {
   type CollectionOperationOptions,
+  type DeleteManyOptions,
+  type DeleteOneOptions,
   type DocumentHandler,
+  type InsertManyOptions,
+  type InsertOneOptions,
   type OptionalUnlessRequiredId,
   type PongoCollection,
   type PongoDb,
@@ -25,6 +29,10 @@ import {
   type PongoInsertOneResult,
   type PongoUpdate,
   type PongoUpdateResult,
+  type ReplaceOneOptions,
+  type UpdateManyOptions,
+  type UpdateOneOptions,
+  type UpsertOneOptions,
   type WithoutId,
 } from '..';
 import { pongoCollectionPostgreSQLMigrations } from '../../postgres';
@@ -108,14 +116,18 @@ export const pongoCollection = <
     },
     insertOne: async (
       document: OptionalUnlessRequiredId<T>,
-      options?: CollectionOperationOptions,
+      options?: InsertOneOptions,
     ): Promise<PongoInsertOneResult> => {
       await ensureCollectionCreated(options);
 
       const _id = (document._id as string | undefined | null) ?? uuid();
 
       const result = await command(
-        SqlFor.insertOne({ ...document, _id } as OptionalUnlessRequiredId<T>),
+        SqlFor.insertOne({
+          ...document,
+          _id,
+          _version: 0,
+        } as OptionalUnlessRequiredId<T>),
         options,
       );
 
@@ -125,13 +137,14 @@ export const pongoCollection = <
     },
     insertMany: async (
       documents: OptionalUnlessRequiredId<T>[],
-      options?: CollectionOperationOptions,
+      options?: InsertManyOptions,
     ): Promise<PongoInsertManyResult> => {
       await ensureCollectionCreated(options);
 
       const rows = documents.map((doc) => ({
         ...doc,
         _id: (doc._id as string | undefined | null) ?? uuid(),
+        _version: 0,
       }));
 
       const result = await command(
@@ -148,11 +161,29 @@ export const pongoCollection = <
     updateOne: async (
       filter: PongoFilter<T>,
       update: PongoUpdate<T>,
-      options?: CollectionOperationOptions,
+      options?: UpdateOneOptions,
     ): Promise<PongoUpdateResult> => {
       await ensureCollectionCreated(options);
 
-      const result = await command(SqlFor.updateOne(filter, update), options);
+      const result = await command(
+        SqlFor.updateOne(filter, update, options),
+        options,
+      );
+      return result.rowCount
+        ? { acknowledged: true, modifiedCount: result.rowCount }
+        : { acknowledged: false, modifiedCount: 0 };
+    },
+    upsertOne: async (
+      filter: PongoFilter<T>,
+      update: PongoUpdate<T>,
+      options?: UpsertOneOptions,
+    ): Promise<PongoUpdateResult> => {
+      await ensureCollectionCreated(options);
+
+      const result = await command(
+        SqlFor.upsertOne(filter, update, options),
+        options,
+      );
       return result.rowCount
         ? { acknowledged: true, modifiedCount: result.rowCount }
         : { acknowledged: false, modifiedCount: 0 };
@@ -160,12 +191,12 @@ export const pongoCollection = <
     replaceOne: async (
       filter: PongoFilter<T>,
       document: WithoutId<T>,
-      options?: CollectionOperationOptions,
+      options?: ReplaceOneOptions,
     ): Promise<PongoUpdateResult> => {
       await ensureCollectionCreated(options);
 
       const result = await command(
-        SqlFor.replaceOne(filter, document),
+        SqlFor.replaceOne(filter, document, options),
         options,
       );
       return result.rowCount
@@ -175,7 +206,7 @@ export const pongoCollection = <
     updateMany: async (
       filter: PongoFilter<T>,
       update: PongoUpdate<T>,
-      options?: CollectionOperationOptions,
+      options?: UpdateManyOptions,
     ): Promise<PongoUpdateResult> => {
       await ensureCollectionCreated(options);
 
@@ -186,18 +217,21 @@ export const pongoCollection = <
     },
     deleteOne: async (
       filter?: PongoFilter<T>,
-      options?: CollectionOperationOptions,
+      options?: DeleteOneOptions,
     ): Promise<PongoDeleteResult> => {
       await ensureCollectionCreated(options);
 
-      const result = await command(SqlFor.deleteOne(filter ?? {}), options);
+      const result = await command(
+        SqlFor.deleteOne(filter ?? {}, options),
+        options,
+      );
       return result.rowCount
         ? { acknowledged: true, deletedCount: result.rowCount }
         : { acknowledged: false, deletedCount: 0 };
     },
     deleteMany: async (
       filter?: PongoFilter<T>,
-      options?: CollectionOperationOptions,
+      options?: DeleteManyOptions,
     ): Promise<PongoDeleteResult> => {
       await ensureCollectionCreated(options);
 
@@ -217,7 +251,7 @@ export const pongoCollection = <
     },
     findOneAndDelete: async (
       filter: PongoFilter<T>,
-      options?: CollectionOperationOptions,
+      options?: DeleteOneOptions,
     ): Promise<T | null> => {
       await ensureCollectionCreated(options);
 
@@ -231,7 +265,7 @@ export const pongoCollection = <
     findOneAndReplace: async (
       filter: PongoFilter<T>,
       replacement: WithoutId<T>,
-      options?: CollectionOperationOptions,
+      options?: ReplaceOneOptions,
     ): Promise<T | null> => {
       await ensureCollectionCreated(options);
 
@@ -246,7 +280,7 @@ export const pongoCollection = <
     findOneAndUpdate: async (
       filter: PongoFilter<T>,
       update: PongoUpdate<T>,
-      options?: CollectionOperationOptions,
+      options?: UpdateOneOptions,
     ): Promise<T | null> => {
       await ensureCollectionCreated(options);
 
@@ -347,10 +381,23 @@ export type PongoCollectionSQLBuilder = {
   createCollection: () => SQL;
   insertOne: <T>(document: OptionalUnlessRequiredId<T>) => SQL;
   insertMany: <T>(documents: OptionalUnlessRequiredId<T>[]) => SQL;
-  updateOne: <T>(filter: PongoFilter<T>, update: PongoUpdate<T>) => SQL;
-  replaceOne: <T>(filter: PongoFilter<T>, document: WithoutId<T>) => SQL;
+  updateOne: <T>(
+    filter: PongoFilter<T>,
+    update: PongoUpdate<T>,
+    options?: UpdateOneOptions,
+  ) => SQL;
+  upsertOne: <T>(
+    filter: PongoFilter<T>,
+    update: PongoUpdate<T>,
+    options?: UpsertOneOptions,
+  ) => SQL;
+  replaceOne: <T>(
+    filter: PongoFilter<T>,
+    document: WithoutId<T>,
+    options?: ReplaceOneOptions,
+  ) => SQL;
   updateMany: <T>(filter: PongoFilter<T>, update: PongoUpdate<T>) => SQL;
-  deleteOne: <T>(filter: PongoFilter<T>) => SQL;
+  deleteOne: <T>(filter: PongoFilter<T>, options?: DeleteOneOptions) => SQL;
   deleteMany: <T>(filter: PongoFilter<T>) => SQL;
   findOne: <T>(filter: PongoFilter<T>) => SQL;
   find: <T>(filter: PongoFilter<T>) => SQL;
