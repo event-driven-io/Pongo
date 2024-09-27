@@ -134,7 +134,7 @@ export const pongoCollection = <
         SqlFor.insertOne({
           ...document,
           _id,
-          _version: 0,
+          _version: 1,
         } as OptionalUnlessRequiredId<T>),
         options,
       );
@@ -158,7 +158,7 @@ export const pongoCollection = <
       const rows = documents.map((doc) => ({
         ...doc,
         _id: (doc._id as string | undefined | null) ?? uuid(),
-        _version: 0,
+        _version: 1,
       }));
 
       const result = await command(
