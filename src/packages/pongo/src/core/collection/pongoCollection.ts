@@ -171,7 +171,7 @@ export const pongoCollection = <
         {
           successful: result.rowCount === rows.length,
           insertedCount: result.rowCount ?? 0,
-          insertedIds: rows.map((d) => d._id as string),
+          insertedIds: result.rows.map((d) => d._id as string),
         },
         { operationName: 'insertMany', collectionName, errors },
       );
