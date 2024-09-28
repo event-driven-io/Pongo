@@ -93,7 +93,7 @@ void describe('MongoDB Compatibility Tests', () => {
       assert.ok(pongoDoc);
       assert.deepStrictEqual(pongoDoc, {
         ...user,
-        _version: 1,
+        _version: 1n,
       });
     });
   });
@@ -120,7 +120,7 @@ void describe('MongoDB Compatibility Tests', () => {
     assert.ok(pongoDoc);
     assert.deepStrictEqual(pongoDoc, {
       ...user,
-      _version: 1,
+      _version: 1n,
     });
   });
 
@@ -219,7 +219,7 @@ void describe('MongoDB Compatibility Tests', () => {
       assert.deepStrictEqual(pongoDoc, {
         ...newDoc,
         _id: nonExistingId,
-        _version: 1,
+        _version: 1n,
       });
     });
   });

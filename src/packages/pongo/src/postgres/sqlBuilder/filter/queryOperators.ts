@@ -1,4 +1,4 @@
-import { sql } from '@event-driven-io/dumbo';
+import { JSONSerializer, sql } from '@event-driven-io/dumbo';
 import { objectEntries, OperatorMap } from '../../../core';
 
 export const handleOperator = (
@@ -14,9 +14,9 @@ export const handleOperator = (
     case '$eq':
       return sql(
         `(data @> %L::jsonb OR jsonb_path_exists(data, '$.%s[*] ? (@ == %s)'))`,
-        JSON.stringify(buildNestedObject(path, value)),
+        JSONSerializer.serialize(buildNestedObject(path, value)),
         path,
-        JSON.stringify(value),
+        JSONSerializer.serialize(value),
       );
     case '$gt':
     case '$gte':
@@ -43,7 +43,7 @@ export const handleOperator = (
     case '$elemMatch': {
       const subQuery = objectEntries(value as Record<string, unknown>)
         .map(([subKey, subValue]) =>
-          sql(`@."%s" == %s`, subKey, JSON.stringify(subValue)),
+          sql(`@."%s" == %s`, subKey, JSONSerializer.serialize(subValue)),
         )
         .join(' && ');
       return sql(`jsonb_path_exists(data, '$.%s[*] ? (%s)')`, path, subQuery);
@@ -51,7 +51,7 @@ export const handleOperator = (
     case '$all':
       return sql(
         'data @> %L::jsonb',
-        JSON.stringify(buildNestedObject(path, value)),
+        JSONSerializer.serialize(buildNestedObject(path, value)),
       );
     case '$size':
       return sql(

@@ -1,4 +1,5 @@
 import {
+  JSONSerializer,
   rawSql,
   sql,
   sqlMigration,
@@ -8,7 +9,7 @@ import {
 import {
   expectedVersionValue,
   type DeleteOneOptions,
-  type OptionalUnlessRequiredId,
+  type OptionalUnlessRequiredIdAndVersion,
   type PongoCollectionSQLBuilder,
   type PongoFilter,
   type PongoUpdate,
@@ -47,20 +48,28 @@ export const postgresSQLBuilder = (
   migrations: (): SQLMigration[] =>
     pongoCollectionPostgreSQLMigrations(collectionName),
   createCollection: (): SQL => createCollection(collectionName),
-  insertOne: <T>(document: OptionalUnlessRequiredId<T>): SQL => {
+  insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
     return sql(
-      'INSERT INTO %I (_id, data) VALUES (%L, %L) ON CONFLICT(_id) DO NOTHING;',
+      'INSERT INTO %I (_id, data, _version) VALUES (%L, %L, %L) ON CONFLICT(_id) DO NOTHING;',
       collectionName,
       document._id,
-      JSON.stringify(document),
+      JSONSerializer.serialize(document),
+      document._version ?? 1n,
     );
   },
-  insertMany: <T>(documents: OptionalUnlessRequiredId<T>[]): SQL => {
+  insertMany: <T>(documents: OptionalUnlessRequiredIdAndVersion<T>[]): SQL => {
     const values = documents
-      .map((doc) => sql('(%L, %L)', doc._id, JSON.stringify(doc)))
+      .map((doc) =>
+        sql(
+          '(%L, %L, %L)',
+          doc._id,
+          JSONSerializer.serialize(doc),
+          doc._version ?? 1n,
+        ),
+      )
       .join(', ');
     return sql(
-      `INSERT INTO %I (_id, data) VALUES %s 
+      `INSERT INTO %I (_id, data, _version) VALUES %s 
       ON CONFLICT(_id) DO NOTHING
       RETURNING _id;`,
       collectionName,
@@ -191,7 +200,7 @@ export const postgresSQLBuilder = (
           collectionName,
           where(filterQuery),
           collectionName,
-          JSON.stringify(document),
+          JSONSerializer.serialize(document),
           collectionName,
           expectedVersion,
         )
@@ -211,7 +220,7 @@ export const postgresSQLBuilder = (
           collectionName,
           where(filterQuery),
           collectionName,
-          JSON.stringify(document),
+          JSONSerializer.serialize(document),
           collectionName,
         );
   },

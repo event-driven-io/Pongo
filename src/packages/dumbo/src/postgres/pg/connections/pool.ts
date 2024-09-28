@@ -1,5 +1,9 @@
 import pg from 'pg';
-import { createConnectionPool, type ConnectionPool } from '../../../core';
+import {
+  createConnectionPool,
+  JSONSerializer,
+  type ConnectionPool,
+} from '../../../core';
 import {
   defaultPostgreSqlDatabase,
   getDatabaseNameOrDefault,
@@ -11,6 +15,7 @@ import {
   type NodePostgresConnector,
   type NodePostgresPoolClientConnection,
 } from './connection';
+import { setNodePostgresTypeParser } from '../serialization';
 
 export type NodePostgresNativePool =
   ConnectionPool<NodePostgresPoolClientConnection>;
@@ -189,9 +194,12 @@ export type NodePostgresPoolNotPooledOptions =
       pooled?: false;
     };
 
-export type NodePostgresPoolOptions =
+export type NodePostgresPoolOptions = (
   | NodePostgresPoolPooledOptions
-  | NodePostgresPoolNotPooledOptions;
+  | NodePostgresPoolNotPooledOptions
+) & {
+  serializer?: JSONSerializer;
+};
 
 export function nodePostgresPool(
   options: NodePostgresPoolPooledOptions,
@@ -205,7 +213,9 @@ export function nodePostgresPool(
   | NodePostgresNativePool
   | NodePostgresAmbientClientPool
   | NodePostgresAmbientConnectionPool {
-  const { connectionString, database } = options;
+  const { connectionString, database, serializer } = options;
+
+  setNodePostgresTypeParser(serializer ?? JSONSerializer);
 
   if ('client' in options && options.client)
     return nodePostgresAmbientClientPool({ client: options.client });
