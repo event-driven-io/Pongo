@@ -48,7 +48,9 @@ export const buildIncQuery = <T>(
 ): SQL => {
   for (const [key, value] of Object.entries(inc)) {
     currentUpdateQuery = sql(
-      "jsonb_set(%s, '{%s}', to_jsonb(COALESCE((data->>'%s')::numeric, 0) + %L), true)",
+      typeof value === 'bigint'
+        ? "jsonb_set(%s, '{%s}', to_jsonb((COALESCE((data->>'%s')::BIGINT, 0) + %L)::TEXT), true)"
+        : "jsonb_set(%s, '{%s}', to_jsonb(COALESCE((data->>'%s')::NUMERIC, 0) + %L), true)",
       currentUpdateQuery,
       key,
       key,

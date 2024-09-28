@@ -191,8 +191,8 @@ export const pongoCollection = <
       return operationResult<PongoUpdateResult>(
         {
           successful: result.rows[0]!.modified! === result.rows[0]!.matched!,
-          modifiedCount: result.rows[0]!.modified!,
-          matchedCount: result.rows[0]!.matched!,
+          modifiedCount: Number(result.rows[0]!.modified!),
+          matchedCount: Number(result.rows[0]!.matched!),
         },
         { operationName: 'updateOne', collectionName, errors },
       );
@@ -211,9 +211,9 @@ export const pongoCollection = <
 
       return operationResult<PongoUpdateResult>(
         {
-          successful: result.rows[0]!.modified! === 1,
-          modifiedCount: result.rows[0]!.modified!,
-          matchedCount: result.rows[0]!.matched!,
+          successful: result.rows[0]!.modified! === 1n,
+          modifiedCount: Number(result.rows[0]!.modified!),
+          matchedCount: Number(result.rows[0]!.matched!),
         },
         { operationName: 'upsertOne', collectionName, errors },
       );
@@ -232,8 +232,8 @@ export const pongoCollection = <
       return operationResult<PongoUpdateResult>(
         {
           successful: result.rows[0]!.modified! > 0,
-          modifiedCount: result.rows[0]!.modified!,
-          matchedCount: result.rows[0]!.matched!,
+          modifiedCount: Number(result.rows[0]!.modified!),
+          matchedCount: Number(result.rows[0]!.matched!),
         },
         { operationName: 'replaceOne', collectionName, errors },
       );
@@ -269,8 +269,8 @@ export const pongoCollection = <
       return operationResult<PongoDeleteResult>(
         {
           successful: result.rows[0]!.deleted! > 0,
-          deletedCount: result.rows[0]!.deleted!,
-          matchedCount: result.rows[0]!.matched!,
+          deletedCount: Number(result.rows[0]!.deleted!),
+          matchedCount: Number(result.rows[0]!.matched!),
         },
         { operationName: 'deleteOne', collectionName, errors },
       );
@@ -459,11 +459,11 @@ export type PongoCollectionSQLBuilder = {
 };
 
 type UpdateSqlResult = {
-  matched: number | null;
-  modified: number | null;
+  matched: bigint | null;
+  modified: bigint | null;
 };
 
 type DeleteSqlResult = {
-  matched: number | null;
-  deleted: number | null;
+  matched: bigint | null;
+  deleted: bigint | null;
 };
