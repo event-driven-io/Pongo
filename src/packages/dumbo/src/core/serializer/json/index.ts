@@ -107,6 +107,8 @@ const jsonSerializer = (options?: JSONSerializerOptions): JSONSerializer => {
 
 const JSONSerializer = jsonSerializer({ disableBigIntSerialization: false });
 
+const RawJSONSerializer = jsonSerializer({ disableBigIntSerialization: true });
+
 const JSONObjectCodec = <
   T,
   SerializeOptions = JSONSerializeOptions,
@@ -144,6 +146,7 @@ export {
   JSONRevivers,
   JSONSerializer,
   jsonSerializer,
+  RawJSONSerializer,
   type JSONObjectCodec,
   type JSONObjectCodecOptions,
 };

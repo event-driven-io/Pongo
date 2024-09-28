@@ -604,13 +604,17 @@ void describe('MongoDB Compatibility Tests', () => {
         {
           name: 'David',
           age: 40,
-          address: { city: 'Dreamland', zip: '12345' },
+          address: { city: 'Dreamland', zip: 'z12345' },
         },
-        { name: 'Eve', age: 45, address: { city: 'Wonderland', zip: '67890' } },
+        {
+          name: 'Eve',
+          age: 45,
+          address: { city: 'Wonderland', zip: 'z67890' },
+        },
         {
           name: 'Frank',
           age: 50,
-          address: { city: 'Nightmare', zip: '54321' },
+          address: { city: 'Nightmare', zip: 'z54321' },
         },
       ];
 
@@ -857,7 +861,7 @@ void describe('MongoDB Compatibility Tests', () => {
           age: 25,
           address: {
             city: 'Wonderland',
-            zip: '12345',
+            zip: 'z12345',
             history: [{ street: 'Main St' }, { street: 'Elm St' }],
           },
         },
@@ -866,7 +870,7 @@ void describe('MongoDB Compatibility Tests', () => {
           age: 30,
           address: {
             city: 'Wonderland',
-            zip: '67890',
+            zip: 'z67890',
             history: [{ street: 'Main St' }, { street: 'Oak St' }],
           },
         },
@@ -875,7 +879,7 @@ void describe('MongoDB Compatibility Tests', () => {
           age: 35,
           address: {
             city: 'Dreamland',
-            zip: '54321',
+            zip: 'z54321',
             history: [{ street: 'Elm St' }],
           },
         },
