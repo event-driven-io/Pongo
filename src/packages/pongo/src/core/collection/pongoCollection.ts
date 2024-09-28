@@ -20,7 +20,7 @@ import {
   type DocumentHandler,
   type InsertManyOptions,
   type InsertOneOptions,
-  type OptionalUnlessRequiredId,
+  type OptionalUnlessRequiredIdAndVersion,
   type PongoCollection,
   type PongoDb,
   type PongoDeleteResult,
@@ -123,19 +123,20 @@ export const pongoCollection = <
       await createCollection(options);
     },
     insertOne: async (
-      document: OptionalUnlessRequiredId<T>,
+      document: OptionalUnlessRequiredIdAndVersion<T>,
       options?: InsertOneOptions,
     ): Promise<PongoInsertOneResult> => {
       await ensureCollectionCreated(options);
 
       const _id = (document._id as string | undefined | null) ?? uuid();
+      const _version = document._version ?? 1n;
 
       const result = await command(
         SqlFor.insertOne({
           ...document,
           _id,
-          _version: 1,
-        } as OptionalUnlessRequiredId<T>),
+          _version,
+        } as OptionalUnlessRequiredIdAndVersion<T>),
         options,
       );
 
@@ -150,7 +151,7 @@ export const pongoCollection = <
       );
     },
     insertMany: async (
-      documents: OptionalUnlessRequiredId<T>[],
+      documents: OptionalUnlessRequiredIdAndVersion<T>[],
       options?: InsertManyOptions,
     ): Promise<PongoInsertManyResult> => {
       await ensureCollectionCreated(options);
@@ -158,11 +159,11 @@ export const pongoCollection = <
       const rows = documents.map((doc) => ({
         ...doc,
         _id: (doc._id as string | undefined | null) ?? uuid(),
-        _version: 1,
+        _version: doc._version ?? 1n,
       }));
 
       const result = await command(
-        SqlFor.insertMany(rows as OptionalUnlessRequiredId<T>[]),
+        SqlFor.insertMany(rows as OptionalUnlessRequiredIdAndVersion<T>[]),
         options,
       );
 
@@ -359,7 +360,7 @@ export const pongoCollection = <
       if (!existing && result) {
         const newDoc = { ...result, _id: id };
         await collection.insertOne(
-          { ...newDoc, _id: id } as OptionalUnlessRequiredId<T>,
+          { ...newDoc, _id: id } as OptionalUnlessRequiredIdAndVersion<T>,
           options,
         );
         return newDoc;
@@ -430,8 +431,8 @@ export const pongoCollectionSchemaComponent = (collectionName: string) =>
 export type PongoCollectionSQLBuilder = {
   migrations: () => SQLMigration[];
   createCollection: () => SQL;
-  insertOne: <T>(document: OptionalUnlessRequiredId<T>) => SQL;
-  insertMany: <T>(documents: OptionalUnlessRequiredId<T>[]) => SQL;
+  insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>) => SQL;
+  insertMany: <T>(documents: OptionalUnlessRequiredIdAndVersion<T>[]) => SQL;
   updateOne: <T>(
     filter: PongoFilter<T>,
     update: PongoUpdate<T>,

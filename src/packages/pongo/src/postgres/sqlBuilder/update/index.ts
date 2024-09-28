@@ -1,4 +1,4 @@
-import { sql, type SQL } from '@event-driven-io/dumbo';
+import { JSONSerializer, sql, type SQL } from '@event-driven-io/dumbo';
 import {
   objectEntries,
   type $inc,
@@ -11,7 +11,7 @@ import {
 export const buildUpdateQuery = <T>(update: PongoUpdate<T>): SQL =>
   objectEntries({
     ...update,
-    $inc: { _version: 1, ...(update.$inc ?? {}) },
+    $inc: { _version: 1n, ...(update.$inc ?? {}) },
   }).reduce((currentUpdateQuery, [op, value]) => {
     switch (op) {
       case '$set':
@@ -28,7 +28,7 @@ export const buildUpdateQuery = <T>(update: PongoUpdate<T>): SQL =>
   }, sql('data'));
 
 export const buildSetQuery = <T>(set: $set<T>, currentUpdateQuery: SQL): SQL =>
-  sql('%s || %L::jsonb', currentUpdateQuery, JSON.stringify(set));
+  sql('%s || %L::jsonb', currentUpdateQuery, JSONSerializer.serialize(set));
 
 export const buildUnsetQuery = <T>(
   unset: $unset<T>,
@@ -68,7 +68,7 @@ export const buildPushQuery = <T>(
       currentUpdateQuery,
       key,
       key,
-      JSON.stringify([value]),
+      JSONSerializer.serialize([value]),
     );
   }
   return currentUpdateQuery;

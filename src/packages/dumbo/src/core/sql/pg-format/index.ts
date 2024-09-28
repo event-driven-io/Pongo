@@ -1,4 +1,5 @@
 // Ported from: https://github.com/datalanche/node-pg-format/blob/master/lib/index.js
+import { JSONSerializer } from '../../serializer/index.js';
 import reservedMap from './reserved.js';
 
 type FormatterConfig = {
@@ -112,7 +113,7 @@ const quoteLiteral = (value: unknown): string => {
       .toString();
   } else if (value === Object(value)) {
     explicitCast = 'jsonb';
-    literal = JSON.stringify(value);
+    literal = JSONSerializer.serialize(value);
   } else {
     // eslint-disable-next-line @typescript-eslint/no-base-to-string
     literal = value.toString().slice(0); // create copy
@@ -171,7 +172,7 @@ const quoteString = (value: unknown): string => {
       .filter((v) => v !== '') // Filter out empty strings to avoid extra commas
       .toString();
   } else if (value === Object(value)) {
-    return JSON.stringify(value);
+    return JSONSerializer.serialize(value);
   }
   // eslint-disable-next-line @typescript-eslint/no-base-to-string
   return value.toString().slice(0); // return copy

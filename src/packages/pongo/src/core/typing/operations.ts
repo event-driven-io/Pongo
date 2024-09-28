@@ -1,8 +1,9 @@
-import type {
-  DatabaseTransaction,
-  DatabaseTransactionFactory,
-  SchemaComponent,
-  SQLExecutor,
+import {
+  type DatabaseTransaction,
+  type DatabaseTransactionFactory,
+  JSONSerializer,
+  type SchemaComponent,
+  type SQLExecutor,
 } from '@event-driven-io/dumbo';
 
 export interface PongoClient {
@@ -225,17 +226,31 @@ export declare type EnhancedOmit<TRecordOrUnion, KeyUnion> =
       TRecordOrUnion extends any
       ? Pick<TRecordOrUnion, Exclude<keyof TRecordOrUnion, KeyUnion>>
       : never;
+
 export declare type OptionalUnlessRequiredId<TSchema> = TSchema extends {
   _id: string | ObjectId;
 }
   ? TSchema
   : OptionalId<TSchema>;
 
+export declare type OptionalUnlessRequiredVersion<TSchema> = TSchema extends {
+  _version: bigint;
+}
+  ? TSchema
+  : OptionalVersion<TSchema>;
+
+export declare type OptionalUnlessRequiredIdAndVersion<TSchema> =
+  OptionalUnlessRequiredId<TSchema> & OptionalUnlessRequiredVersion<TSchema>;
+
 export declare type WithId<TSchema> = EnhancedOmit<TSchema, '_id'> & {
   _id: string | ObjectId;
 };
-
 export type WithoutId<T> = Omit<T, '_id'>;
+
+export declare type WithVersion<TSchema> = EnhancedOmit<TSchema, '_version'> & {
+  _version: bigint;
+};
+export type WithoutVersion<T> = Omit<T, '_version'>;
 
 /** @public */
 export declare type RegExpOrString<T> = T extends string ? RegExp | T : T;
@@ -247,6 +262,12 @@ export declare interface Document {
 
 export declare type OptionalId<TSchema> = EnhancedOmit<TSchema, '_id'> & {
   _id?: string | ObjectId;
+};
+export declare type OptionalVersion<TSchema> = EnhancedOmit<
+  TSchema,
+  '_version'
+> & {
+  _version?: bigint;
 };
 
 export declare interface ObjectIdLike {
@@ -333,7 +354,7 @@ export declare interface PongoFilterOperator<TValue>
 
 export type $set<T> = Partial<T>;
 export type $unset<T> = { [P in keyof T]?: '' };
-export type $inc<T> = { [P in keyof T]?: number };
+export type $inc<T> = { [P in keyof T]?: number | bigint };
 export type $push<T> = { [P in keyof T]?: T[P] };
 
 export type ExpectedDocumentVersionGeneral =
@@ -407,7 +428,7 @@ export const operationResult = <T extends OperationResult>(
       if (!successful)
         throw new Error(
           errorMessage ??
-            `${operationName} on ${collectionName} failed with ${JSON.stringify(result)}!`,
+            `${operationName} on ${collectionName} failed with ${JSONSerializer.serialize(result)}!`,
         );
     },
   } as T;
