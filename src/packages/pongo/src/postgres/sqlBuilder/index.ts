@@ -81,61 +81,44 @@ export const postgresSQLBuilder = (
     update: PongoUpdate<T>,
     options?: UpdateOneOptions,
   ): SQL => {
-    const expectedVersion = options?.expectedVersion
-      ? expectedVersionValue(options.expectedVersion)
-      : null;
+    const expectedVersion = expectedVersionValue(options?.expectedVersion);
+    const expectedVersionUpdate =
+      expectedVersion != null ? 'AND %I._version = %L' : '';
+    const expectedVersionParams =
+      expectedVersion != null ? [collectionName, expectedVersion] : [];
 
-    const expectedVersionUpdate = expectedVersion
-      ? { _version: expectedVersionValue(expectedVersion) }
-      : {};
-
-    const filterQuery = constructFilterQuery<T>({
-      ...expectedVersionUpdate,
-      ...filter,
-    });
+    const filterQuery = constructFilterQuery<T>(filter);
     const updateQuery = buildUpdateQuery(update);
 
-    return expectedVersion
-      ? sql(
-          `WITH cte AS (
-        SELECT 
-          _id, 
-          CASE WHEN _version = %L THEN 1 ELSE 0 END AS matched,  
-          1 as modified, 
-        FROM %I %s LIMIT 1
+    return sql(
+      `WITH existing AS (
+        SELECT _id
+        FROM %I %s 
+        LIMIT 1
+      ),
+      updated AS (
+        UPDATE %I 
+        SET data = %s, _version = _version + 1
+        FROM existing 
+        WHERE %I._id = existing._id ${expectedVersionUpdate}
+        RETURNING %I._id
       )
-      UPDATE %I 
-      SET data = %s 
-      FROM cte 
-      WHERE %I._id = cte._id AND %I._version = %L
-      RETURNING cte.matched, cte.modified;`,
-          expectedVersion,
-          collectionName,
-          where(filterQuery),
-          collectionName,
-          updateQuery,
-          collectionName,
-          expectedVersion,
-        )
-      : sql(
-          `WITH cte AS (
       SELECT 
-        _id, 
-        1 as matched, 
-        1 as modified 
-      FROM %I %s LIMIT 1
-    )
-    UPDATE %I 
-    SET data = %s 
-    FROM cte 
-    WHERE %I._id = cte._id
-    RETURNING cte.matched, cte.modified;`,
-          collectionName,
-          where(filterQuery),
-          collectionName,
-          updateQuery,
-          collectionName,
-        );
+        existing._id,
+        COUNT(existing._id) over() AS matched,
+        COUNT(updated._id) over() AS modified
+      FROM existing
+      LEFT JOIN updated 
+      ON existing._id = updated._id;  
+      `,
+      collectionName,
+      where(filterQuery),
+      collectionName,
+      updateQuery,
+      collectionName,
+      ...expectedVersionParams,
+      collectionName,
+    );
   },
   upsertOne: <T>(
     filter: PongoFilter<T>,

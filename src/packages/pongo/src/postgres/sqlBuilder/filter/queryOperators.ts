@@ -6,8 +6,8 @@ export const handleOperator = (
   operator: string,
   value: unknown,
 ): string => {
-  if (path === '_id') {
-    return handleIdOperator(operator, value);
+  if (path === '_id' || path === '_version') {
+    return handleMetadataOperator(path, operator, value);
   }
 
   switch (operator) {
@@ -64,24 +64,28 @@ export const handleOperator = (
   }
 };
 
-const handleIdOperator = (operator: string, value: unknown): string => {
+const handleMetadataOperator = (
+  fieldName: string,
+  operator: string,
+  value: unknown,
+): string => {
   switch (operator) {
     case '$eq':
-      return sql(`_id = %L`, value);
+      return sql(`${fieldName} = %L`, value);
     case '$gt':
     case '$gte':
     case '$lt':
     case '$lte':
     case '$ne':
-      return sql(`_id ${OperatorMap[operator]} %L`, value);
+      return sql(`${fieldName} ${OperatorMap[operator]} %L`, value);
     case '$in':
       return sql(
-        `_id IN (%s)`,
+        `${fieldName} IN (%s)`,
         (value as unknown[]).map((v) => sql('%L', v)).join(', '),
       );
     case '$nin':
       return sql(
-        `_id NOT IN (%s)`,
+        `${fieldName} NOT IN (%s)`,
         (value as unknown[]).map((v) => sql('%L', v)).join(', '),
       );
     default:

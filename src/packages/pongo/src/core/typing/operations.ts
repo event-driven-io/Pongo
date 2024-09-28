@@ -366,6 +366,7 @@ export type ExpectedDocumentVersionValue = bigint & { __brand: 'sql' };
 
 export type ExpectedDocumentVersion =
   | (bigint & { __brand: 'sql' })
+  | bigint
   | ExpectedDocumentVersionGeneral;
 
 export const DOCUMENT_EXISTS =
@@ -383,9 +384,11 @@ export const isGeneralExpectedDocumentVersion = (
   version === 'NO_CONCURRENCY_CHECK';
 
 export const expectedVersionValue = (
-  version: ExpectedDocumentVersion,
+  version: ExpectedDocumentVersion | undefined,
 ): ExpectedDocumentVersionValue | null =>
-  isGeneralExpectedDocumentVersion(version) ? null : version;
+  version === undefined || isGeneralExpectedDocumentVersion(version)
+    ? null
+    : (version as ExpectedDocumentVersionValue);
 
 export const expectedVersion = (
   version: number | bigint | string | undefined | null,

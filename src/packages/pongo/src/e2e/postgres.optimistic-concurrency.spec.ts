@@ -257,37 +257,90 @@ void describe('MongoDB Compatibility Tests', () => {
     });
   });
 
-  // void describe('Update Operations', () => {
-  //   void it('should update a document', async () => {
-  //     const pongoCollection = pongoDb.collection<User>('updateOne');
-  //     const doc = { name: 'Roger', age: 30 };
+  void describe('Update Operations', () => {
+    void describe('updateOne', () => {
+      void it('updates a document WITHOUT correct expected version', async () => {
+        // Given
+        await users.insertOne(user);
 
-  //     const pongoInsertResult = await pongoCollection.insertOne(doc);
+        // When
+        const updateResult = await users.updateOne(
+          { _id: user._id! },
+          { $set: { age: 31 } },
+        );
 
-  //     const update = { $set: { age: 31 } };
+        //Then
+        assert(updateResult.successful);
+        assert(updateResult.modifiedCount === 1);
+        assert(updateResult.matchedCount === 1);
 
-  //     await pongoCollection.updateOne(
-  //       { _id: pongoInsertResult.insertedId! },
-  //       update,
-  //     );
+        const pongoDoc = await users.findOne({
+          _id: user._id!,
+        });
 
-  //     const pongoDoc = await pongoCollection.findOne({
-  //       _id: pongoInsertResult.insertedId!,
-  //     });
+        assert.deepStrictEqual(pongoDoc, {
+          ...user,
+          age: 31,
+          _version: 2n,
+        });
+      });
 
-  //     assert.equal(pongoDoc?.age, 31);
-  //     assert.deepStrictEqual(
-  //       {
-  //         name: pongoDoc!.name,
-  //         age: pongoDoc!.age,
-  //       },
-  //       {
-  //         name: 'Roger',
-  //         age: 31,
-  //       },
-  //     );
-  //   });
-  // });
+      void it('updates a document with correct expected version', async () => {
+        // Given
+        await users.insertOne(user);
+
+        // When
+        const updateResult = await users.updateOne(
+          { _id: user._id! },
+          { $set: { age: 31 } },
+          { expectedVersion: 1n },
+        );
+
+        //Then
+        assert(updateResult.successful);
+        assert(updateResult.modifiedCount === 1);
+        assert(updateResult.matchedCount === 1);
+
+        const pongoDoc = await users.findOne({
+          _id: user._id!,
+        });
+
+        assert.deepStrictEqual(pongoDoc, {
+          ...user,
+          age: 31,
+          _version: 2n,
+        });
+      });
+
+      [0n, 2n, -1n, 3n].map((incorrectVersion) => {
+        void it(`does NOT update a document with incorrect ${incorrectVersion} expected version`, async () => {
+          // Given
+          await users.insertOne(user);
+
+          // When
+          const updateResult = await users.updateOne(
+            { _id: user._id! },
+            { $set: { age: 31 } },
+            { expectedVersion: incorrectVersion },
+          );
+
+          //Then
+          assert(updateResult.successful === false);
+          assert(updateResult.modifiedCount === 0);
+          assert(updateResult.matchedCount === 1);
+
+          const pongoDoc = await users.findOne({
+            _id: user._id!,
+          });
+
+          assert.deepStrictEqual(pongoDoc, {
+            ...user,
+            _version: 1n,
+          });
+        });
+      });
+    });
+  });
 
   // void describe('Replace Operations', () => {
   //   void it('should replace a document', async () => {
