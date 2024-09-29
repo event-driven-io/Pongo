@@ -259,7 +259,7 @@ void describe('MongoDB Compatibility Tests', () => {
 
   void describe('Update Operations', () => {
     void describe('updateOne', () => {
-      void it('updates a document WITHOUT correct expected version', async () => {
+      void it('updates a document WITHOUT passing expected version', async () => {
         // Given
         await users.insertOne(user);
 
@@ -342,29 +342,90 @@ void describe('MongoDB Compatibility Tests', () => {
     });
   });
 
-  // void describe('Replace Operations', () => {
-  //   void it('should replace a document', async () => {
-  //     const pongoCollection = pongoDb.collection<User>('updateOne');
-  //     const doc = { name: 'Roger', age: 30 };
+  void describe('Replace Operations', () => {
+    void describe('replaceOne', () => {
+      void it('replaces a document WITHOUT passing expected version', async () => {
+        // Given
+        await users.insertOne(user);
 
-  //     const pongoInsertResult = await pongoCollection.insertOne(doc);
+        // When
+        const updateResult = await users.replaceOne(
+          { _id: user._id! },
+          { ...user, age: 31 },
+        );
 
-  //     const replacement = { name: 'Not Roger', age: 100, tags: ['tag2'] };
+        //Then
+        assert(updateResult.successful);
+        assert(updateResult.modifiedCount === 1);
+        assert(updateResult.matchedCount === 1);
 
-  //     await pongoCollection.replaceOne(
-  //       { _id: pongoInsertResult.insertedId! },
-  //       replacement,
-  //     );
+        const pongoDoc = await users.findOne({
+          _id: user._id!,
+        });
 
-  //     const pongoDoc = await pongoCollection.findOne({
-  //       _id: pongoInsertResult.insertedId!,
-  //     });
+        assert.deepStrictEqual(pongoDoc, {
+          ...user,
+          age: 31,
+          _version: 2n,
+        });
+      });
 
-  //     assert.strictEqual(pongoDoc?.name, replacement.name);
-  //     assert.deepEqual(pongoDoc?.age, replacement.age);
-  //     assert.deepEqual(pongoDoc?.tags, replacement.tags);
-  //   });
-  // });
+      void it('replaces a document with correct expected version', async () => {
+        // Given
+        await users.insertOne(user);
+
+        // When
+        const updateResult = await users.replaceOne(
+          { _id: user._id! },
+          { ...user, age: 31 },
+          { expectedVersion: 1n },
+        );
+
+        //Then
+        assert(updateResult.successful);
+        assert(updateResult.modifiedCount === 1);
+        assert(updateResult.matchedCount === 1);
+
+        const pongoDoc = await users.findOne({
+          _id: user._id!,
+        });
+
+        assert.deepStrictEqual(pongoDoc, {
+          ...user,
+          age: 31,
+          _version: 2n,
+        });
+      });
+
+      [0n, 2n, -1n, 3n].map((incorrectVersion) => {
+        void it(`does NOT replace a document with incorrect ${incorrectVersion} expected version`, async () => {
+          // Given
+          await users.insertOne(user);
+
+          // When
+          const updateResult = await users.replaceOne(
+            { _id: user._id! },
+            { ...user, age: 31 },
+            { expectedVersion: incorrectVersion },
+          );
+
+          //Then
+          assert(updateResult.successful === false);
+          assert(updateResult.modifiedCount === 0);
+          assert(updateResult.matchedCount === 1);
+
+          const pongoDoc = await users.findOne({
+            _id: user._id!,
+          });
+
+          assert.deepStrictEqual(pongoDoc, {
+            ...user,
+            _version: 1n,
+          });
+        });
+      });
+    });
+  });
 
   // void describe('Delete Operations', () => {
   //   void it('should delete a document from both PostgreSQL and MongoDB', async () => {
