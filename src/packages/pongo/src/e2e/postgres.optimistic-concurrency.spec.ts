@@ -9,6 +9,7 @@ import { v4 as uuid } from 'uuid';
 import {
   pongoClient,
   pongoSchema,
+  type ObjectId,
   type PongoClient,
   type PongoCollection,
   type PongoDb,
@@ -636,27 +637,177 @@ void describe('MongoDB Compatibility Tests', () => {
     });
   });
 
-  // void describe('Handle Operations', () => {
-  //   void it('should insert a new document if it does not exist', async () => {
-  //     const pongoCollection = pongoDb.collection<User>('handleCollection');
-  //     const nonExistingId = uuid() as unknown as ObjectId;
+  void describe('Handle Operations', () => {
+    void it('should NOT insert a new document if it does not exist and expected DOCUMENT_EXISTS', async () => {
+      const nonExistingId = uuid() as unknown as ObjectId;
 
-  //     const newDoc: User = { name: 'John', age: 25 };
+      const newDoc: User = { name: 'John', age: 25 };
 
-  //     const handle = (_existing: User | null) => newDoc;
+      const handle = (_existing: User | null) => newDoc;
 
-  //     const resultPongo = await pongoCollection.handle(nonExistingId, handle);
-  //     assert.deepStrictEqual(resultPongo, { ...newDoc, _id: nonExistingId });
+      const resultPongo = await users.handle(nonExistingId, handle, {
+        expectedVersion: 'DOCUMENT_EXISTS',
+      });
+      assert(resultPongo.successful === false);
+      assert(resultPongo.document === null);
 
-  //     const pongoDoc = await pongoCollection.findOne({
-  //       _id: nonExistingId,
-  //     });
+      const pongoDoc = await users.findOne({
+        _id: nonExistingId,
+      });
 
-  //     assert.deepStrictEqual(pongoDoc, {
-  //       ...newDoc,
-  //       _id: nonExistingId,
-  //       _version: 1n,
-  //     });
-  //   });
-  // });
+      assert(pongoDoc === null);
+    });
+
+    void it('should NOT insert a new document if it does not exist and expected is higher than 1', async () => {
+      const nonExistingId = uuid() as unknown as ObjectId;
+
+      const newDoc: User = { name: 'John', age: 25 };
+
+      const handle = (_existing: User | null) => newDoc;
+
+      const resultPongo = await users.handle(nonExistingId, handle, {
+        expectedVersion: 1n,
+      });
+      assert(resultPongo.successful === false);
+      assert(resultPongo.document === null);
+
+      const pongoDoc = await users.findOne({
+        _id: nonExistingId,
+      });
+
+      assert(pongoDoc === null);
+    });
+
+    void it('should NOT replace an existing document when expected DOCUMENT_DOES_NOT_EXIST', async () => {
+      const existingDoc: User = { _id: uuid(), name: 'John', age: 25 };
+      const updatedDoc: User = { _id: existingDoc._id!, name: 'John', age: 30 };
+
+      const pongoInsertResult = await users.insertOne(existingDoc);
+
+      const handle = (_existing: User | null) => updatedDoc;
+
+      const resultPongo = await users.handle(
+        pongoInsertResult.insertedId!,
+        handle,
+        {
+          expectedVersion: 'DOCUMENT_DOES_NOT_EXIST',
+        },
+      );
+
+      assert(resultPongo.successful === false);
+
+      assert.deepStrictEqual(resultPongo.document, {
+        ...existingDoc,
+        _version: 1n,
+      });
+
+      const pongoDoc = await users.findOne({
+        _id: pongoInsertResult.insertedId!,
+      });
+
+      assert.deepStrictEqual(pongoDoc, {
+        ...existingDoc,
+        _version: 1n,
+      });
+    });
+
+    void it('should NOT replace an existing document when expected version is mismatched ', async () => {
+      const existingDoc: User = { _id: uuid(), name: 'John', age: 25 };
+      const updatedDoc: User = { _id: existingDoc._id!, name: 'John', age: 30 };
+
+      const pongoInsertResult = await users.insertOne(existingDoc);
+
+      const handle = (_existing: User | null) => updatedDoc;
+
+      const resultPongo = await users.handle(
+        pongoInsertResult.insertedId!,
+        handle,
+        {
+          expectedVersion: 333n,
+        },
+      );
+
+      assert(resultPongo.successful === false);
+
+      assert.deepStrictEqual(resultPongo.document, {
+        ...existingDoc,
+        _version: 1n,
+      });
+
+      const pongoDoc = await users.findOne({
+        _id: pongoInsertResult.insertedId!,
+      });
+
+      assert.deepStrictEqual(pongoDoc, {
+        ...existingDoc,
+        _version: 1n,
+      });
+    });
+
+    void it('should NOT delete an existing document when expected DOCUMENT_DOES_NOT_EXIST', async () => {
+      const existingDoc: User = { name: 'John', age: 25 };
+
+      const pongoInsertResult = await users.insertOne(existingDoc);
+
+      const handle = (_existing: User | null) => null;
+
+      const resultPongo = await users.handle(
+        pongoInsertResult.insertedId!,
+        handle,
+        {
+          expectedVersion: 'DOCUMENT_DOES_NOT_EXIST',
+        },
+      );
+      assert(resultPongo.successful === false);
+
+      assert.deepStrictEqual(resultPongo.document, {
+        ...existingDoc,
+        _id: pongoInsertResult.insertedId!,
+        _version: 1n,
+      });
+
+      const pongoDoc = await users.findOne({
+        _id: pongoInsertResult.insertedId!,
+      });
+
+      assert.deepStrictEqual(pongoDoc, {
+        ...existingDoc,
+        _id: pongoInsertResult.insertedId!,
+        _version: 1n,
+      });
+    });
+
+    void it('should NOT delete an existing document when expected version is mismatched', async () => {
+      const existingDoc: User = { name: 'John', age: 25 };
+
+      const pongoInsertResult = await users.insertOne(existingDoc);
+
+      const handle = (_existing: User | null) => null;
+
+      const resultPongo = await users.handle(
+        pongoInsertResult.insertedId!,
+        handle,
+        {
+          expectedVersion: 333n,
+        },
+      );
+      assert(resultPongo.successful === false);
+
+      assert.deepStrictEqual(resultPongo.document, {
+        ...existingDoc,
+        _id: pongoInsertResult.insertedId!,
+        _version: 1n,
+      });
+
+      const pongoDoc = await users.findOne({
+        _id: pongoInsertResult.insertedId!,
+      });
+
+      assert.deepStrictEqual(pongoDoc, {
+        ...existingDoc,
+        _id: pongoInsertResult.insertedId!,
+        _version: 1n,
+      });
+    });
+  });
 });

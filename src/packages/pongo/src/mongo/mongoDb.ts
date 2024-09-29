@@ -3,7 +3,12 @@ import {
   ObjectId,
   type Document,
 } from 'mongodb';
-import type { DocumentHandler, PongoDb } from '../core';
+import type {
+  DocumentHandler,
+  HandleOptions,
+  PongoDb,
+  PongoHandleResult,
+} from '../core';
 import { Collection } from './mongoCollection';
 
 export class Db {
@@ -16,7 +21,11 @@ export class Db {
   collection<T extends Document>(
     collectionName: string,
   ): MongoCollection<T> & {
-    handle(id: ObjectId, handle: DocumentHandler<T>): Promise<T | null>;
+    handle(
+      id: ObjectId,
+      handle: DocumentHandler<T>,
+      options?: HandleOptions,
+    ): Promise<PongoHandleResult<T>>;
   } {
     return new Collection<T>(this.pongoDb.collection<T>(collectionName));
   }

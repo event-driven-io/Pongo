@@ -13,11 +13,13 @@ import {
 } from '@event-driven-io/dumbo';
 import { v4 as uuid } from 'uuid';
 import {
+  expectedVersionValue,
   operationResult,
   type CollectionOperationOptions,
   type DeleteManyOptions,
   type DeleteOneOptions,
   type DocumentHandler,
+  type HandleOptions,
   type InsertManyOptions,
   type InsertOneOptions,
   type OptionalUnlessRequiredIdAndVersion,
@@ -26,6 +28,7 @@ import {
   type PongoDeleteResult,
   type PongoDocument,
   type PongoFilter,
+  type PongoHandleResult,
   type PongoInsertManyResult,
   type PongoInsertOneResult,
   type PongoUpdate,
@@ -35,6 +38,7 @@ import {
   type UpdateOneOptions,
   type UpsertOneOptions,
   type WithoutId,
+  type WithVersion,
 } from '..';
 import { pongoCollectionPostgreSQLMigrations } from '../../postgres';
 
@@ -347,34 +351,74 @@ export const pongoCollection = <
     handle: async (
       id: string,
       handle: DocumentHandler<T>,
-      options?: CollectionOperationOptions,
-    ): Promise<T | null> => {
+      options?: HandleOptions,
+    ): Promise<PongoHandleResult<T>> => {
+      const { expectedVersion: version, ...operationOptions } = options ?? {};
       await ensureCollectionCreated(options);
 
       const byId: PongoFilter<T> = { _id: id };
 
-      const existing = await collection.findOne(byId, options);
+      const existing = (await collection.findOne(
+        byId,
+        options,
+      )) as WithVersion<T>;
 
-      const result = await handle(existing);
+      const expectedVersion = expectedVersionValue(version);
+
+      if (
+        (existing == null && version === 'DOCUMENT_EXISTS') ||
+        (existing == null && expectedVersion != null) ||
+        (existing != null && version === 'DOCUMENT_DOES_NOT_EXIST') ||
+        (existing != null &&
+          expectedVersion !== null &&
+          existing._version !== expectedVersion)
+      ) {
+        return operationResult<PongoHandleResult<T>>(
+          {
+            successful: false,
+            document: existing as T,
+          },
+          { operationName: 'handle', collectionName, errors },
+        );
+      }
+
+      const result = await handle(existing as T);
 
       if (!existing && result) {
         const newDoc = { ...result, _id: id };
-        await collection.insertOne(
+        const insertResult = await collection.insertOne(
           { ...newDoc, _id: id } as OptionalUnlessRequiredIdAndVersion<T>,
-          options,
+          {
+            ...operationOptions,
+            expectedVersion: 'DOCUMENT_DOES_NOT_EXIST',
+          },
         );
-        return newDoc;
+        return { ...insertResult, document: newDoc };
       }
 
       if (existing && !result) {
-        await collection.deleteOne(byId, options);
-        return null;
+        const deleteResult = await collection.deleteOne(byId, {
+          ...operationOptions,
+          expectedVersion: expectedVersion ?? 'DOCUMENT_EXISTS',
+        });
+        return { ...deleteResult, document: null };
       }
 
-      if (existing && result)
-        await collection.replaceOne(byId, result, options);
+      if (existing && result) {
+        const replaceResult = await collection.replaceOne(byId, result, {
+          ...operationOptions,
+          expectedVersion: expectedVersion ?? 'DOCUMENT_EXISTS',
+        });
+        return { ...replaceResult, document: result };
+      }
 
-      return result;
+      return operationResult<PongoHandleResult<T>>(
+        {
+          successful: true,
+          document: existing as T,
+        },
+        { operationName: 'handle', collectionName, errors },
+      );
     },
     find: async (
       filter?: PongoFilter<T>,
