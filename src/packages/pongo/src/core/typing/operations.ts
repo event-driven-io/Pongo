@@ -92,10 +92,6 @@ export type UpdateOneOptions = {
   expectedVersion?: Exclude<ExpectedDocumentVersion, 'DOCUMENT_DOES_NOT_EXIST'>;
 } & CollectionOperationOptions;
 
-export type UpsertOneOptions = {
-  expectedVersion?: ExpectedDocumentVersion;
-} & CollectionOperationOptions;
-
 export type UpdateManyOptions = {
   expectedVersion?: Extract<
     ExpectedDocumentVersion,
@@ -138,11 +134,6 @@ export interface PongoCollection<T extends PongoDocument> {
     filter: PongoFilter<T>,
     update: PongoUpdate<T>,
     options?: UpdateOneOptions,
-  ): Promise<PongoUpdateResult>;
-  upsertOne(
-    filter: PongoFilter<T>,
-    update: PongoUpdate<T>,
-    options?: UpsertOneOptions,
   ): Promise<PongoUpdateResult>;
   replaceOne(
     filter: PongoFilter<T>,
