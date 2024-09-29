@@ -1072,6 +1072,7 @@ void describe('MongoDB Compatibility Tests', () => {
       assert.deepStrictEqual(pongoDoc, {
         ...updatedDoc,
         _id: pongoInsertResult.insertedId,
+        _version: 2n,
       });
     });
 
@@ -1125,7 +1126,7 @@ void describe('MongoDB Compatibility Tests', () => {
       assert.deepStrictEqual(pongoDoc, {
         ...existingDoc,
         _id: pongoInsertResult.insertedId,
-        _version: 1n,
+        _version: 2n,
       });
     });
   });
