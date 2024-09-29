@@ -92,7 +92,7 @@ export const postgresSQLBuilder = (
 
     return sql(
       `WITH existing AS (
-        SELECT _id
+        SELECT _id, _version as current_version
         FROM %I %s 
         LIMIT 1
       ),
@@ -103,10 +103,11 @@ export const postgresSQLBuilder = (
           _version = _version + 1
         FROM existing 
         WHERE %I._id = existing._id ${expectedVersionUpdate}
-        RETURNING %I._id
+        RETURNING %I._id, %I._version
       )
       SELECT 
         existing._id,
+        COALESCE(updated._version, existing.current_version) AS version,
         COUNT(existing._id) over() AS matched,
         COUNT(updated._id) over() AS modified
       FROM existing
@@ -119,6 +120,7 @@ export const postgresSQLBuilder = (
       collectionName,
       collectionName,
       ...expectedVersionParams,
+      collectionName,
       collectionName,
     );
   },
@@ -164,7 +166,7 @@ export const postgresSQLBuilder = (
 
     return sql(
       `WITH existing AS (
-        SELECT _id
+        SELECT _id, _version as current_version
         FROM %I %s 
         LIMIT 1
       ),
@@ -175,10 +177,11 @@ export const postgresSQLBuilder = (
           _version = _version + 1
         FROM existing 
         WHERE %I._id = existing._id ${expectedVersionUpdate}
-        RETURNING %I._id
+        RETURNING %I._id, %I._version
       )
       SELECT 
         existing._id,
+        COALESCE(updated._version, existing.current_version) AS version,
         COUNT(existing._id) over() AS matched,
         COUNT(updated._id) over() AS modified
       FROM existing
@@ -191,6 +194,7 @@ export const postgresSQLBuilder = (
       collectionName,
       collectionName,
       ...expectedVersionParams,
+      collectionName,
       collectionName,
     );
   },

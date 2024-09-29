@@ -1,4 +1,5 @@
 export * from './collection';
+export * from './errors';
 export * from './pongoClient';
 export * from './pongoDb';
 export * from './pongoSession';

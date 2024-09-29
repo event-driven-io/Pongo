@@ -32,6 +32,7 @@ import {
   type PongoInsertManyResult,
   type PongoInsertOneResult,
   type PongoUpdate,
+  type PongoUpdateManyResult,
   type PongoUpdateResult,
   type ReplaceOneOptions,
   type UpdateManyOptions,
@@ -150,6 +151,7 @@ export const pongoCollection = <
         {
           successful,
           insertedId: successful ? _id : null,
+          nextExpectedVersion: _version,
         },
         { operationName: 'insertOne', collectionName, errors },
       );
@@ -194,9 +196,10 @@ export const pongoCollection = <
 
       return operationResult<PongoUpdateResult>(
         {
-          successful: result.rows[0]!.modified! === result.rows[0]!.matched!,
-          modifiedCount: Number(result.rows[0]!.modified!),
-          matchedCount: Number(result.rows[0]!.matched!),
+          successful: result.rows[0]!.modified === result.rows[0]!.matched,
+          modifiedCount: Number(result.rows[0]!.modified),
+          matchedCount: Number(result.rows[0]!.matched),
+          nextExpectedVersion: result.rows[0]!.version,
         },
         { operationName: 'updateOne', collectionName, errors },
       );
@@ -215,9 +218,10 @@ export const pongoCollection = <
 
       return operationResult<PongoUpdateResult>(
         {
-          successful: result.rows[0]!.modified! === 1n,
-          modifiedCount: Number(result.rows[0]!.modified!),
-          matchedCount: Number(result.rows[0]!.matched!),
+          successful: result.rows[0]!.modified === 1n,
+          modifiedCount: Number(result.rows[0]!.modified),
+          matchedCount: Number(result.rows[0]!.matched),
+          nextExpectedVersion: result.rows[0]!.version,
         },
         { operationName: 'upsertOne', collectionName, errors },
       );
@@ -235,9 +239,10 @@ export const pongoCollection = <
       );
       return operationResult<PongoUpdateResult>(
         {
-          successful: result.rows[0]!.modified! > 0,
-          modifiedCount: Number(result.rows[0]!.modified!),
-          matchedCount: Number(result.rows[0]!.matched!),
+          successful: result.rows[0]!.modified > 0,
+          modifiedCount: Number(result.rows[0]!.modified),
+          matchedCount: Number(result.rows[0]!.matched),
+          nextExpectedVersion: result.rows[0]!.version,
         },
         { operationName: 'replaceOne', collectionName, errors },
       );
@@ -246,12 +251,12 @@ export const pongoCollection = <
       filter: PongoFilter<T>,
       update: PongoUpdate<T>,
       options?: UpdateManyOptions,
-    ): Promise<PongoUpdateResult> => {
+    ): Promise<PongoUpdateManyResult> => {
       await ensureCollectionCreated(options);
 
       const result = await command(SqlFor.updateMany(filter, update), options);
 
-      return operationResult<PongoUpdateResult>(
+      return operationResult<PongoUpdateManyResult>(
         {
           successful: true,
           modifiedCount: result.rowCount ?? 0,
@@ -384,6 +389,15 @@ export const pongoCollection = <
 
       const result = await handle(existing as T);
 
+      if (existing === result)
+        return operationResult<PongoHandleResult<T>>(
+          {
+            successful: true,
+            document: existing as T,
+          },
+          { operationName: 'handle', collectionName, errors },
+        );
+
       if (!existing && result) {
         const newDoc = { ...result, _id: id };
         const insertResult = await collection.insertOne(
@@ -393,7 +407,13 @@ export const pongoCollection = <
             expectedVersion: 'DOCUMENT_DOES_NOT_EXIST',
           },
         );
-        return { ...insertResult, document: newDoc };
+        return {
+          ...insertResult,
+          document: {
+            ...newDoc,
+            _version: insertResult.nextExpectedVersion,
+          } as T,
+        };
       }
 
       if (existing && !result) {
@@ -409,7 +429,13 @@ export const pongoCollection = <
           ...operationOptions,
           expectedVersion: expectedVersion ?? 'DOCUMENT_EXISTS',
         });
-        return { ...replaceResult, document: result };
+        return {
+          ...replaceResult,
+          document: {
+            ...result,
+            _version: replaceResult.nextExpectedVersion,
+          } as T,
+        };
       }
 
       return operationResult<PongoHandleResult<T>>(
@@ -503,8 +529,9 @@ export type PongoCollectionSQLBuilder = {
 };
 
 type UpdateSqlResult = {
-  matched: bigint | null;
-  modified: bigint | null;
+  matched: bigint;
+  modified: bigint;
+  version: bigint;
 };
 
 type DeleteSqlResult = {

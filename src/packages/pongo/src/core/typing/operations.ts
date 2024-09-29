@@ -5,6 +5,7 @@ import {
   type SchemaComponent,
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
+import { ConcurrencyError } from '../errors';
 
 export interface PongoClient {
   connect(): Promise<this>;
@@ -152,7 +153,7 @@ export interface PongoCollection<T extends PongoDocument> {
     filter: PongoFilter<T>,
     update: PongoUpdate<T>,
     options?: UpdateManyOptions,
-  ): Promise<PongoUpdateResult>;
+  ): Promise<PongoUpdateManyResult>;
   deleteOne(
     filter?: PongoFilter<T>,
     options?: DeleteOneOptions,
@@ -433,9 +434,9 @@ export const operationResult = <T extends OperationResult>(
       const { operationName, collectionName } = options;
 
       if (!successful)
-        throw new Error(
+        throw new ConcurrencyError(
           errorMessage ??
-            `${operationName} on ${collectionName} failed with ${JSONSerializer.serialize(result)}!`,
+            `${operationName} on ${collectionName} failed. Expected document state does not match current one! Result: ${JSONSerializer.serialize(result)}!`,
         );
     },
   } as T;
@@ -448,6 +449,7 @@ export const operationResult = <T extends OperationResult>(
 
 export interface PongoInsertOneResult extends OperationResult {
   insertedId: string | null;
+  nextExpectedVersion: bigint;
 }
 
 export interface PongoInsertManyResult extends OperationResult {
@@ -458,9 +460,11 @@ export interface PongoInsertManyResult extends OperationResult {
 export interface PongoUpdateResult extends OperationResult {
   matchedCount: number;
   modifiedCount: number;
+  nextExpectedVersion: bigint;
 }
 
 export interface PongoUpdateManyResult extends OperationResult {
+  matchedCount: number;
   modifiedCount: number;
 }
 
