@@ -99,7 +99,7 @@ export const postgresSQLBuilder = (
       updated AS (
         UPDATE %I 
         SET 
-          data = %s  || jsonb_build_object('_id', %I._id) || jsonb_build_object('_version', (_version + 1)::text),
+          data = %s || jsonb_build_object('_id', %I._id) || jsonb_build_object('_version', (_version + 1)::text),
           _version = _version + 1
         FROM existing 
         WHERE %I._id = existing._id ${expectedVersionUpdate}
@@ -199,64 +199,51 @@ export const postgresSQLBuilder = (
     const updateQuery = buildUpdateQuery(update);
 
     return sql(
-      'UPDATE %I SET data = %s %s;',
+      `UPDATE %I 
+      SET 
+        data = %s || jsonb_build_object('_version', (_version + 1)::text),
+        _version = _version + 1
+      %s;`,
       collectionName,
       updateQuery,
       where(filterQuery),
     );
   },
   deleteOne: <T>(filter: PongoFilter<T>, options?: DeleteOneOptions): SQL => {
-    const expectedVersion = options?.expectedVersion
-      ? expectedVersionValue(options.expectedVersion)
-      : null;
+    const expectedVersion = expectedVersionValue(options?.expectedVersion);
+    const expectedVersionUpdate =
+      expectedVersion != null ? 'AND %I._version = %L' : '';
+    const expectedVersionParams =
+      expectedVersion != null ? [collectionName, expectedVersion] : [];
 
-    const expectedVersionUpdate = expectedVersion
-      ? { _version: expectedVersionValue(expectedVersion) }
-      : {};
+    const filterQuery = constructFilterQuery<T>(filter);
 
-    const filterQuery = constructFilterQuery<T>({
-      ...expectedVersionUpdate,
-      ...filter,
-    });
-
-    return expectedVersion
-      ? sql(
-          `WITH cte AS (
-        SELECT 
-          _id, 
-          CASE WHEN _version = %L THEN 1 ELSE 0 END AS matched,  
-          1 as deleted, 
-        FROM %I %s LIMIT 1
+    return sql(
+      `WITH existing AS (
+        SELECT _id
+        FROM %I %s 
+        LIMIT 1
+      ),
+      deleted AS (
+        DELETE FROM %I
+        USING existing
+        WHERE %I._id = existing._id ${expectedVersionUpdate}
+        RETURNING %I._id
       )
-      DELETE FROM %I
-      USING cte
-      WHERE %I._id = cte._id AND %I._version = %L
-      RETURNING cte.matched, cte.deleted;`,
-          expectedVersion,
-          collectionName,
-          where(filterQuery),
-          collectionName,
-          collectionName,
-          collectionName,
-          expectedVersion,
-        )
-      : sql(
-          `WITH cte AS (
       SELECT 
-        _id, 
-        1 as matched, 
-        1 as deleted 
-      FROM %I %s LIMIT 1
-    )
-    DELETE FROM %I
-    USING cte
-    WHERE %I._id = cte._id
-    RETURNING cte.matched, cte.deleted;`,
-          collectionName,
-          where(filterQuery),
-          collectionName,
-          collectionName,
-        );
+        existing._id,
+        COUNT(existing._id) over() AS matched,
+        COUNT(deleted._id) over() AS deleted
+      FROM existing
+      LEFT JOIN deleted 
+      ON existing._id = deleted._id;`,
+      collectionName,
+      where(filterQuery),
+      collectionName,
+      collectionName,
+      ...expectedVersionParams,
+      collectionName,
+    );
   },
   deleteMany: <T>(filter: PongoFilter<T>): SQL => {
     const filterQuery = constructFilterQuery(filter);
