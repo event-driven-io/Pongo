@@ -62,8 +62,10 @@ import type { Key } from 'readline';
 import type {
   CollectionOperationOptions,
   DocumentHandler,
+  HandleOptions,
   PongoCollection,
   PongoFilter,
+  PongoHandleResult,
   OptionalUnlessRequiredId as PongoOptionalUnlessRequiredId,
   PongoSession,
   PongoUpdate,
@@ -551,7 +553,11 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   async createCollection(): Promise<void> {
     await this.collection.createCollection();
   }
-  async handle(id: ObjectId, handle: DocumentHandler<T>): Promise<T | null> {
-    return this.collection.handle(id.toString(), handle);
+  async handle(
+    id: ObjectId,
+    handle: DocumentHandler<T>,
+    options?: HandleOptions,
+  ): Promise<PongoHandleResult<T>> {
+    return this.collection.handle(id.toString(), handle, options);
   }
 }

@@ -1033,7 +1033,11 @@ void describe('MongoDB Compatibility Tests', () => {
       const handle = (_existing: User | null) => newDoc;
 
       const resultPongo = await pongoCollection.handle(nonExistingId, handle);
-      assert.deepStrictEqual(resultPongo, { ...newDoc, _id: nonExistingId });
+      assert(resultPongo.successful);
+      assert.deepStrictEqual(resultPongo.document, {
+        ...newDoc,
+        _id: nonExistingId,
+      });
 
       const pongoDoc = await pongoCollection.findOne({
         _id: nonExistingId,
@@ -1061,7 +1065,8 @@ void describe('MongoDB Compatibility Tests', () => {
         handle,
       );
 
-      assert.deepStrictEqual(resultPongo, {
+      assert(resultPongo.successful);
+      assert.deepStrictEqual(resultPongo.document, {
         ...updatedDoc,
       });
 
@@ -1089,8 +1094,9 @@ void describe('MongoDB Compatibility Tests', () => {
         pongoInsertResult.insertedId!,
         handle,
       );
+      assert(resultPongo.successful);
 
-      assert.strictEqual(resultPongo, null);
+      assert.strictEqual(resultPongo.document, null);
 
       const pongoDoc = await pongoCollection.findOne({
         _id: pongoInsertResult.insertedId!,
@@ -1113,7 +1119,8 @@ void describe('MongoDB Compatibility Tests', () => {
         handle,
       );
 
-      assert.deepStrictEqual(resultPongo, {
+      assert(resultPongo.successful);
+      assert.deepStrictEqual(resultPongo.document, {
         ...existingDoc,
         _id: pongoInsertResult.insertedId,
         _version: 1n,

@@ -102,6 +102,10 @@ export type UpdateManyOptions = {
   >;
 } & CollectionOperationOptions;
 
+export type HandleOptions = {
+  expectedVersion?: ExpectedDocumentVersion;
+} & CollectionOperationOptions;
+
 export type ReplaceOneOptions = {
   expectedVersion?: Exclude<ExpectedDocumentVersion, 'DOCUMENT_DOES_NOT_EXIST'>;
 } & CollectionOperationOptions;
@@ -191,8 +195,8 @@ export interface PongoCollection<T extends PongoDocument> {
   handle(
     id: string,
     handle: DocumentHandler<T>,
-    options?: CollectionOperationOptions,
-  ): Promise<T | null>;
+    options?: HandleOptions,
+  ): Promise<PongoHandleResult<T>>;
   readonly schema: Readonly<{
     component: SchemaComponent;
     migrate(): Promise<void>;
@@ -468,6 +472,12 @@ export interface PongoDeleteResult extends OperationResult {
 export interface PongoDeleteManyResult extends OperationResult {
   deletedCount: number;
 }
+
+export type PongoHandleResult<T> =
+  | (PongoInsertOneResult & { document: T })
+  | (PongoUpdateResult & { document: T })
+  | (PongoDeleteResult & { document: null })
+  | (OperationResult & { document: null });
 
 export type PongoDocument = Record<string, unknown>;
 
