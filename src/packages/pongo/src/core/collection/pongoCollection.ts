@@ -37,7 +37,6 @@ import {
   type ReplaceOneOptions,
   type UpdateManyOptions,
   type UpdateOneOptions,
-  type UpsertOneOptions,
   type WithoutId,
   type WithVersion,
 } from '..';
@@ -202,28 +201,6 @@ export const pongoCollection = <
           nextExpectedVersion: result.rows[0]!.version,
         },
         { operationName: 'updateOne', collectionName, errors },
-      );
-    },
-    upsertOne: async (
-      filter: PongoFilter<T>,
-      update: PongoUpdate<T>,
-      options?: UpsertOneOptions,
-    ): Promise<PongoUpdateResult> => {
-      await ensureCollectionCreated(options);
-
-      const result = await command<UpdateSqlResult>(
-        SqlFor.upsertOne(filter, update, options),
-        options,
-      );
-
-      return operationResult<PongoUpdateResult>(
-        {
-          successful: result.rows[0]!.modified === 1n,
-          modifiedCount: Number(result.rows[0]!.modified),
-          matchedCount: Number(result.rows[0]!.matched),
-          nextExpectedVersion: result.rows[0]!.version,
-        },
-        { operationName: 'upsertOne', collectionName, errors },
       );
     },
     replaceOne: async (
@@ -507,11 +484,6 @@ export type PongoCollectionSQLBuilder = {
     filter: PongoFilter<T>,
     update: PongoUpdate<T>,
     options?: UpdateOneOptions,
-  ) => SQL;
-  upsertOne: <T>(
-    filter: PongoFilter<T>,
-    update: PongoUpdate<T>,
-    options?: UpsertOneOptions,
   ) => SQL;
   replaceOne: <T>(
     filter: PongoFilter<T>,

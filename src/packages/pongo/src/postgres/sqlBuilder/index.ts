@@ -15,7 +15,6 @@ import {
   type PongoUpdate,
   type ReplaceOneOptions,
   type UpdateOneOptions,
-  type UpsertOneOptions,
   type WithoutId,
 } from '../../core';
 import { constructFilterQuery } from './filter';
@@ -121,33 +120,6 @@ export const postgresSQLBuilder = (
       collectionName,
       ...expectedVersionParams,
       collectionName,
-      collectionName,
-    );
-  },
-  upsertOne: <T>(
-    filter: PongoFilter<T>,
-    update: PongoUpdate<T>,
-    options?: UpsertOneOptions,
-  ): SQL => {
-    const expectedVersionUpdate = options?.expectedVersion
-      ? { _version: expectedVersionValue(options.expectedVersion) }
-      : {};
-
-    const filterQuery = constructFilterQuery<T>({
-      ...expectedVersionUpdate,
-      ...filter,
-    });
-    const updateQuery = buildUpdateQuery(update);
-
-    return sql(
-      `WITH cte AS (
-        SELECT _id FROM %I %s LIMIT 1
-      )
-      UPDATE %I SET data = %s FROM cte WHERE %I._id = cte._id;`,
-      collectionName,
-      where(filterQuery),
-      collectionName,
-      updateQuery,
       collectionName,
     );
   },
