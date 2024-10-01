@@ -5,6 +5,7 @@ import {
   type DatabaseTransaction,
   type Dumbo,
   type MigrationStyle,
+  type QueryResult,
   type QueryResultRow,
   type SchemaComponent,
   type SQL,
@@ -456,6 +457,26 @@ export const pongoCollection = <
       await command(SqlFor.rename(newName));
       collectionName = newName;
       return collection;
+    },
+
+    sql: {
+      async query<Result extends QueryResultRow = QueryResultRow>(
+        sql: SQL,
+        options?: CollectionOperationOptions,
+      ): Promise<Result[]> {
+        await ensureCollectionCreated(options);
+
+        const result = await query<Result>(sql);
+        return result.rows;
+      },
+      async command<Result extends QueryResultRow = QueryResultRow>(
+        sql: SQL,
+        options?: CollectionOperationOptions,
+      ): Promise<QueryResult<Result>> {
+        await ensureCollectionCreated(options);
+
+        return command(sql);
+      },
     },
     schema: {
       get component(): SchemaComponent {
