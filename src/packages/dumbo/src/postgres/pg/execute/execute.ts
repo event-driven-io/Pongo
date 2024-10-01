@@ -1,5 +1,6 @@
 import pg from 'pg';
 import {
+  tracer,
   type DbSQLExecutor,
   type QueryResult,
   type QueryResultRow,
@@ -88,6 +89,7 @@ async function batch<Result extends QueryResultRow = QueryResultRow>(
   //TODO: make it smarter at some point
   for (let i = 0; i < sqls.length; i++) {
     const result = await client.query<Result>(sqls[i]!);
+    tracer.info('db:sql:query', { sql: sqls[i]! });
     results[i] = { rowCount: result.rowCount, rows: result.rows };
   }
   return Array.isArray(sqlOrSqls) ? results : results[0]!;
