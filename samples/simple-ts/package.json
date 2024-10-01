@@ -25,7 +25,8 @@
     "test:unit:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.unit.spec.ts",
     "test:int:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.int.spec.ts",
     "test:e2e:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.e2e.spec.ts",
-    "migrate": "pongo migrate run --config ./dist/pongo.config.js --connectionString postgresql://postgres:postgres@localhost:5432/postgres"
+    "migrate": "pongo migrate run --config ./dist/pongo.config.js --connectionString postgresql://postgres:postgres@localhost:5432/postgres",
+    "shell": "pongo shell"
   },
   "repository": {
     "type": "git",
@@ -62,6 +63,6 @@
     "dist"
   ],
   "dependencies": {
-    "@event-driven-io/pongo": "0.14.4"
+    "@event-driven-io/pongo": "0.15.0-alpha.1"
   }
 }
