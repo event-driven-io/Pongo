@@ -1,0 +1,69 @@
+version: '3.9'
+
+# Took from: https://github.com/dbist/cockroach-docker
+# Connect to db console with: docker exec -it roach-0 ./cockroach sql --host=roach-0:26257 --insecure
+
+services:
+  roach-0:
+    container_name: roach-0
+    hostname: roach-0
+    image: cockroachdb/cockroach-unstable:v23.2.0-beta.1
+    command: start  --insecure --join=roach-0,roach-1,roach-2 --listen-addr=roach-0:26257 --advertise-addr=roach-0:26257 --max-sql-memory=.25 --cache=.25
+    environment:
+      - 'ALLOW_EMPTY_PASSWORD=yes'
+      - 'COCKROACH_USER=postgres'
+      - 'COCKROACH_PASSWORD=postgres'
+      - 'COCKROACH_DATABASE=postgres'
+
+  roach-1:
+    container_name: roach-1
+    hostname: roach-1
+    image: cockroachdb/cockroach-unstable:v23.2.0-beta.1
+    command: start  --insecure --join=roach-0,roach-1,roach-2 --listen-addr=roach-1:26257 --advertise-addr=roach-1:26257 --max-sql-memory=.25 --cache=.25
+    environment:
+      - 'ALLOW_EMPTY_PASSWORD=yes'
+      - 'COCKROACH_USER=postgres'
+      - 'COCKROACH_PASSWORD=postgres'
+      - 'COCKROACH_DATABASE=postgres'
+
+  roach-2:
+    container_name: roach-2
+    hostname: roach-2
+    image: cockroachdb/cockroach-unstable:v23.2.0-beta.1
+    command: start  --insecure --join=roach-0,roach-1,roach-2 --listen-addr=roach-2:26257 --advertise-addr=roach-2:26257 --max-sql-memory=.25 --cache=.25
+    environment:
+      - 'ALLOW_EMPTY_PASSWORD=yes'
+      - 'COCKROACH_USER=postgres'
+      - 'COCKROACH_PASSWORD=postgres'
+      - 'COCKROACH_DATABASE=postgres'
+
+  init:
+    container_name: init
+    image: cockroachdb/cockroach-unstable:v23.2.0-beta.1
+    command: init --host=roach-0 --insecure
+    environment:
+      - 'ALLOW_EMPTY_PASSWORD=yes'
+      - 'COCKROACH_USER=postgres'
+      - 'COCKROACH_PASSWORD=postgres'
+      - 'COCKROACH_DATABASE=postgres'
+    depends_on:
+      - roach-0
+
+  lb:
+    container_name: lb
+    hostname: lb
+    build: cockroachdb/haproxy
+    ports:
+      - '5432:26000'
+      - '8080:8080'
+      - '8081:8081'
+    depends_on:
+      - roach-0
+      - roach-1
+      - roach-2
+
+  client:
+    container_name: client
+    hostname: client
+    image: cockroachdb/cockroach-unstable:v23.2.0-beta.1
+    entrypoint: ['/usr/bin/tail', '-f', '/dev/null']

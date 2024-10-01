@@ -5,6 +5,7 @@ type User = { _id?: string; name: string; age: number };
 
 const connectionString =
   'postgresql://postgres:postgres@localhost:5432/postgres';
+// 'postgresql://root@localhost:26000/defaultdb?sslmode=disable'; // cockroachdb
 
 const pongo = pongoClient(connectionString);
 const pongoDb = pongo.db();

@@ -4,6 +4,7 @@ import config from './pongo.config';
 
 const connectionString =
   'postgresql://postgres:postgres@localhost:5432/postgres';
+// 'postgresql://root@localhost:26000/defaultdb?sslmode=disable'; // cockroachdb
 
 const pongo = pongoClient(connectionString, {
   schema: { definition: config.schema, autoMigration: 'None' },
