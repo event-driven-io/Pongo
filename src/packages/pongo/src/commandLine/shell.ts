@@ -1,8 +1,11 @@
+import { JSONSerializer } from '@event-driven-io/dumbo';
 import chalk from 'chalk';
 import Table from 'cli-table3';
 import { Command } from 'commander';
 import repl from 'node:repl';
-import { pongoClient, pongoSchema } from '../core';
+import { pongoClient, pongoSchema, type PongoClient } from '../core';
+
+let pongo: PongoClient;
 
 const calculateColumnWidths = (
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -23,10 +26,16 @@ const calculateColumnWidths = (
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const displayResultsAsTable = (results: any[]) => {
+const printOutput = (obj: any): string => {
+  return Array.isArray(obj)
+    ? displayResultsAsTable(obj)
+    : JSONSerializer.serialize(obj);
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const displayResultsAsTable = (results: any[]): string => {
   if (results.length === 0) {
-    console.log(chalk.yellow('No documents found.'));
-    return;
+    return chalk.yellow('No documents found.');
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
@@ -48,7 +57,7 @@ const displayResultsAsTable = (results: any[]) => {
     );
   });
 
-  console.log(table.toString());
+  return table.toString();
 };
 
 const startRepl = (options: {
@@ -61,6 +70,8 @@ const startRepl = (options: {
   const r = repl.start({
     prompt: chalk.green('pongo> '),
     useGlobal: true,
+    breakEvalOnSigint: true,
+    writer: printOutput,
   });
 
   const schema =
@@ -72,22 +83,33 @@ const startRepl = (options: {
         })
       : undefined;
 
-  const pongo = pongoClient(options.connectionString, {
+  pongo = pongoClient(options.connectionString, {
     ...(schema ? { schema: { definition: schema } } : {}),
   });
 
-  // Expose the db object to the REPL context
-  r.context.db = schema ? pongo.database : pongo.db(options.schema.database);
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  const db = schema
+    ? // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
+      (pongo as any).database
+    : pongo.db(options.schema.database);
 
-  // Handle default output formatting
-  r.context.displayResults = displayResultsAsTable;
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  r.context.db = db;
 
   // Intercept REPL output to display results as a table if they are arrays
-  r.on('exit', () => {
-    console.log(chalk.yellow('Exiting Pongo Shell...'));
+  r.on('exit', async () => {
+    await teardown();
     process.exit();
   });
 };
+
+const teardown = async () => {
+  console.log(chalk.yellow('Exiting Pongo Shell...'));
+  await pongo.close();
+};
+
+process.on('uncaughtException', teardown);
+process.on('SIGINT', teardown);
 
 interface ShellOptions {
   database: string;
