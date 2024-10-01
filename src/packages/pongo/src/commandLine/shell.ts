@@ -1,4 +1,4 @@
-import { JSONSerializer } from '@event-driven-io/dumbo';
+import { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import chalk from 'chalk';
 import Table from 'cli-table3';
 import { Command } from 'commander';
@@ -95,9 +95,16 @@ const startRepl = (options: {
 
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   r.context.db = db;
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+  r.context.SQL = SQL;
 
   // Intercept REPL output to display results as a table if they are arrays
   r.on('exit', async () => {
+    await teardown();
+    process.exit();
+  });
+
+  r.on('SIGINT', async () => {
     await teardown();
     process.exit();
   });
