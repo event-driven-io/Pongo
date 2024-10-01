@@ -2,7 +2,10 @@ import {
   type DatabaseTransaction,
   type DatabaseTransactionFactory,
   JSONSerializer,
+  type QueryResult,
+  type QueryResultRow,
   type SchemaComponent,
+  type SQL,
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
 import { ConcurrencyError } from '../errors';
@@ -193,6 +196,16 @@ export interface PongoCollection<T extends PongoDocument> {
     component: SchemaComponent;
     migrate(): Promise<void>;
   }>;
+  sql: {
+    query<Result extends QueryResultRow = QueryResultRow>(
+      sql: SQL,
+      options?: CollectionOperationOptions,
+    ): Promise<Result[]>;
+    command<Result extends QueryResultRow = QueryResultRow>(
+      sql: SQL,
+      options?: CollectionOperationOptions,
+    ): Promise<QueryResult<Result>>;
+  };
 }
 
 export type ObjectId = string & { __brandId: 'ObjectId' };
