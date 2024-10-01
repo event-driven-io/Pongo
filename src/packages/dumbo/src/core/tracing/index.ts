@@ -12,7 +12,7 @@ export const LogLevel = {
 };
 
 const shouldLog = (logLevel: LogLevel): boolean => {
-  const definedLogLevel = process.env.PONGO_LOG_LEVEL ?? LogLevel.DISABLED;
+  const definedLogLevel = process.env.DUMBO_LOG_LEVEL ?? LogLevel.DISABLED;
 
   if (definedLogLevel === LogLevel.ERROR && logLevel === LogLevel.ERROR)
     return true;

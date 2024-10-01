@@ -1,4 +1,5 @@
 import {
+  isSQL,
   JSONSerializer,
   rawSql,
   sql,
@@ -76,8 +77,8 @@ export const postgresSQLBuilder = (
     );
   },
   updateOne: <T>(
-    filter: PongoFilter<T>,
-    update: PongoUpdate<T>,
+    filter: PongoFilter<T> | SQL,
+    update: PongoUpdate<T> | SQL,
     options?: UpdateOneOptions,
   ): SQL => {
     const expectedVersion = expectedVersionValue(options?.expectedVersion);
@@ -86,8 +87,8 @@ export const postgresSQLBuilder = (
     const expectedVersionParams =
       expectedVersion != null ? [collectionName, expectedVersion] : [];
 
-    const filterQuery = constructFilterQuery<T>(filter);
-    const updateQuery = buildUpdateQuery(update);
+    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
+    const updateQuery = isSQL(update) ? filter : buildUpdateQuery(update);
 
     return sql(
       `WITH existing AS (
@@ -124,7 +125,7 @@ export const postgresSQLBuilder = (
     );
   },
   replaceOne: <T>(
-    filter: PongoFilter<T>,
+    filter: PongoFilter<T> | SQL,
     document: WithoutId<T>,
     options?: ReplaceOneOptions,
   ): SQL => {
@@ -134,7 +135,7 @@ export const postgresSQLBuilder = (
     const expectedVersionParams =
       expectedVersion != null ? [collectionName, expectedVersion] : [];
 
-    const filterQuery = constructFilterQuery<T>(filter);
+    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
 
     return sql(
       `WITH existing AS (
@@ -170,9 +171,12 @@ export const postgresSQLBuilder = (
       collectionName,
     );
   },
-  updateMany: <T>(filter: PongoFilter<T>, update: PongoUpdate<T>): SQL => {
-    const filterQuery = constructFilterQuery(filter);
-    const updateQuery = buildUpdateQuery(update);
+  updateMany: <T>(
+    filter: PongoFilter<T> | SQL,
+    update: PongoUpdate<T> | SQL,
+  ): SQL => {
+    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
+    const updateQuery = isSQL(update) ? filter : buildUpdateQuery(update);
 
     return sql(
       `UPDATE %I 
@@ -185,14 +189,17 @@ export const postgresSQLBuilder = (
       where(filterQuery),
     );
   },
-  deleteOne: <T>(filter: PongoFilter<T>, options?: DeleteOneOptions): SQL => {
+  deleteOne: <T>(
+    filter: PongoFilter<T> | SQL,
+    options?: DeleteOneOptions,
+  ): SQL => {
     const expectedVersion = expectedVersionValue(options?.expectedVersion);
     const expectedVersionUpdate =
       expectedVersion != null ? 'AND %I._version = %L' : '';
     const expectedVersionParams =
       expectedVersion != null ? [collectionName, expectedVersion] : [];
 
-    const filterQuery = constructFilterQuery<T>(filter);
+    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
 
     return sql(
       `WITH existing AS (
@@ -221,24 +228,26 @@ export const postgresSQLBuilder = (
       collectionName,
     );
   },
-  deleteMany: <T>(filter: PongoFilter<T>): SQL => {
-    const filterQuery = constructFilterQuery(filter);
+  deleteMany: <T>(filter: PongoFilter<T> | SQL): SQL => {
+    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
+
     return sql('DELETE FROM %I %s', collectionName, where(filterQuery));
   },
-  findOne: <T>(filter: PongoFilter<T>): SQL => {
-    const filterQuery = constructFilterQuery(filter);
+  findOne: <T>(filter: PongoFilter<T> | SQL): SQL => {
+    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
+
     return sql(
       'SELECT data FROM %I %s LIMIT 1;',
       collectionName,
       where(filterQuery),
     );
   },
-  find: <T>(filter: PongoFilter<T>): SQL => {
-    const filterQuery = constructFilterQuery(filter);
+  find: <T>(filter: PongoFilter<T> | SQL): SQL => {
+    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
     return sql('SELECT data FROM %I %s;', collectionName, where(filterQuery));
   },
-  countDocuments: <T>(filter: PongoFilter<T>): SQL => {
-    const filterQuery = constructFilterQuery(filter);
+  countDocuments: <T>(filter: PongoFilter<T> | SQL): SQL => {
+    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
     return sql(
       'SELECT COUNT(1) as count FROM %I %s;',
       collectionName,
