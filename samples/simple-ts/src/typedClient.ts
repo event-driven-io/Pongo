@@ -31,10 +31,10 @@ await users.deleteOne({ _id: cruella._id });
 
 // Finding by Id
 const anitaFromDb = await users.findOne({ _id: anitaId });
-console.log(JSON.stringify(anitaFromDb));
+console.log(anitaFromDb);
 
 // Finding more
 const usersFromDB = await users.find({ age: { $lt: 40 } });
-console.log(JSON.stringify(usersFromDB));
+console.log(usersFromDB);
 
 await pongo.close();

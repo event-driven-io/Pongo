@@ -38,6 +38,7 @@ import {
   type ReplaceOneOptions,
   type UpdateManyOptions,
   type UpdateOneOptions,
+  type WithIdAndVersion,
   type WithoutId,
   type WithVersion,
 } from '..';
@@ -282,16 +283,16 @@ export const pongoCollection = <
     findOne: async (
       filter?: PongoFilter<T>,
       options?: CollectionOperationOptions,
-    ): Promise<T | null> => {
+    ): Promise<WithIdAndVersion<T> | null> => {
       await ensureCollectionCreated(options);
 
       const result = await query(SqlFor.findOne(filter ?? {}), options);
-      return (result.rows[0]?.data ?? null) as T | null;
+      return (result.rows[0]?.data ?? null) as WithIdAndVersion<T> | null;
     },
     findOneAndDelete: async (
       filter: PongoFilter<T>,
       options?: DeleteOneOptions,
-    ): Promise<T | null> => {
+    ): Promise<WithIdAndVersion<T> | null> => {
       await ensureCollectionCreated(options);
 
       const existingDoc = await collection.findOne(filter, options);
@@ -305,7 +306,7 @@ export const pongoCollection = <
       filter: PongoFilter<T>,
       replacement: WithoutId<T>,
       options?: ReplaceOneOptions,
-    ): Promise<T | null> => {
+    ): Promise<WithIdAndVersion<T> | null> => {
       await ensureCollectionCreated(options);
 
       const existingDoc = await collection.findOne(filter, options);
@@ -320,7 +321,7 @@ export const pongoCollection = <
       filter: PongoFilter<T>,
       update: PongoUpdate<T>,
       options?: UpdateOneOptions,
-    ): Promise<T | null> => {
+    ): Promise<WithIdAndVersion<T> | null> => {
       await ensureCollectionCreated(options);
 
       const existingDoc = await collection.findOne(filter, options);
@@ -427,11 +428,11 @@ export const pongoCollection = <
     find: async (
       filter?: PongoFilter<T>,
       options?: CollectionOperationOptions,
-    ): Promise<T[]> => {
+    ): Promise<WithIdAndVersion<T>[]> => {
       await ensureCollectionCreated(options);
 
       const result = await query(SqlFor.find(filter ?? {}));
-      return result.rows.map((row) => row.data as T);
+      return result.rows.map((row) => row.data as WithIdAndVersion<T>);
     },
     countDocuments: async (
       filter?: PongoFilter<T>,

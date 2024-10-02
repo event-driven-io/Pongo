@@ -33,6 +33,6 @@ console.log(anitaFromDb);
 
 // Finding more
 const usersFromDB = await users.find({ age: { $lt: 40 } }).toArray();
-console.log(JSON.stringify(usersFromDB));
+console.log(usersFromDB);
 
 await pongoClient.close();
