@@ -88,7 +88,7 @@ export const postgresSQLBuilder = (
       expectedVersion != null ? [collectionName, expectedVersion] : [];
 
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
-    const updateQuery = isSQL(update) ? filter : buildUpdateQuery(update);
+    const updateQuery = isSQL(update) ? update : buildUpdateQuery(update);
 
     return sql(
       `WITH existing AS (
@@ -176,7 +176,7 @@ export const postgresSQLBuilder = (
     update: PongoUpdate<T> | SQL,
   ): SQL => {
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
-    const updateQuery = isSQL(update) ? filter : buildUpdateQuery(update);
+    const updateQuery = isSQL(update) ? update : buildUpdateQuery(update);
 
     return sql(
       `UPDATE %I 
