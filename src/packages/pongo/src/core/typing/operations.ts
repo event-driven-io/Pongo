@@ -159,25 +159,25 @@ export interface PongoCollection<T extends PongoDocument> {
   findOne(
     filter?: PongoFilter<T> | SQL,
     options?: CollectionOperationOptions,
-  ): Promise<T | null>;
+  ): Promise<WithIdAndVersion<T> | null>;
   find(
     filter?: PongoFilter<T> | SQL,
     options?: CollectionOperationOptions,
-  ): Promise<T[]>;
+  ): Promise<WithIdAndVersion<T>[]>;
   findOneAndDelete(
     filter: PongoFilter<T> | SQL,
     options?: DeleteOneOptions,
-  ): Promise<T | null>;
+  ): Promise<WithIdAndVersion<T> | null>;
   findOneAndReplace(
     filter: PongoFilter<T> | SQL,
     replacement: WithoutId<T>,
     options?: ReplaceOneOptions,
-  ): Promise<T | null>;
+  ): Promise<WithIdAndVersion<T> | null>;
   findOneAndUpdate(
     filter: PongoFilter<T> | SQL,
     update: PongoUpdate<T> | SQL,
     options?: UpdateOneOptions,
-  ): Promise<T | null>;
+  ): Promise<WithIdAndVersion<T> | null>;
   countDocuments(
     filter?: PongoFilter<T> | SQL,
     options?: CollectionOperationOptions,
@@ -260,6 +260,9 @@ export declare type WithVersion<TSchema> = EnhancedOmit<TSchema, '_version'> & {
   _version: bigint;
 };
 export type WithoutVersion<T> = Omit<T, '_version'>;
+
+export type WithIdAndVersion<T> = WithId<WithVersion<T>>;
+export type WithoutIdAndVersion<T> = WithoutId<WithoutVersion<T>>;
 
 /** @public */
 export declare type RegExpOrString<T> = T extends string ? RegExp | T : T;

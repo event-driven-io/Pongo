@@ -252,10 +252,10 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     filter?: unknown,
     options?: FindOptions<Document> | undefined,
   ): Promise<import('mongodb').WithId<T> | T | null> {
-    return this.collection.findOne(
+    return (await this.collection.findOne(
       filter as PongoFilter<T>,
       toCollectionOperationOptions(options),
-    );
+    )) as T;
   }
   find(): MongoFindCursor<WithId<T>>;
   find(
