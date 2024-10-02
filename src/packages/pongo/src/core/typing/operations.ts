@@ -134,52 +134,52 @@ export interface PongoCollection<T extends PongoDocument> {
     options?: CollectionOperationOptions,
   ): Promise<PongoInsertManyResult>;
   updateOne(
-    filter: PongoFilter<T>,
-    update: PongoUpdate<T>,
+    filter: PongoFilter<T> | SQL,
+    update: PongoUpdate<T> | SQL,
     options?: UpdateOneOptions,
   ): Promise<PongoUpdateResult>;
   replaceOne(
-    filter: PongoFilter<T>,
+    filter: PongoFilter<T> | SQL,
     document: WithoutId<T>,
     options?: ReplaceOneOptions,
   ): Promise<PongoUpdateResult>;
   updateMany(
-    filter: PongoFilter<T>,
-    update: PongoUpdate<T>,
+    filter: PongoFilter<T> | SQL,
+    update: PongoUpdate<T> | SQL,
     options?: UpdateManyOptions,
   ): Promise<PongoUpdateManyResult>;
   deleteOne(
-    filter?: PongoFilter<T>,
+    filter?: PongoFilter<T> | SQL,
     options?: DeleteOneOptions,
   ): Promise<PongoDeleteResult>;
   deleteMany(
-    filter?: PongoFilter<T>,
+    filter?: PongoFilter<T> | SQL,
     options?: DeleteManyOptions,
   ): Promise<PongoDeleteResult>;
   findOne(
-    filter?: PongoFilter<T>,
+    filter?: PongoFilter<T> | SQL,
     options?: CollectionOperationOptions,
   ): Promise<T | null>;
   find(
-    filter?: PongoFilter<T>,
+    filter?: PongoFilter<T> | SQL,
     options?: CollectionOperationOptions,
   ): Promise<T[]>;
   findOneAndDelete(
-    filter: PongoFilter<T>,
+    filter: PongoFilter<T> | SQL,
     options?: DeleteOneOptions,
   ): Promise<T | null>;
   findOneAndReplace(
-    filter: PongoFilter<T>,
+    filter: PongoFilter<T> | SQL,
     replacement: WithoutId<T>,
     options?: ReplaceOneOptions,
   ): Promise<T | null>;
   findOneAndUpdate(
-    filter: PongoFilter<T>,
-    update: PongoUpdate<T>,
+    filter: PongoFilter<T> | SQL,
+    update: PongoUpdate<T> | SQL,
     options?: UpdateOneOptions,
   ): Promise<T | null>;
   countDocuments(
-    filter?: PongoFilter<T>,
+    filter?: PongoFilter<T> | SQL,
     options?: CollectionOperationOptions,
   ): Promise<number>;
   drop(options?: CollectionOperationOptions): Promise<boolean>;
