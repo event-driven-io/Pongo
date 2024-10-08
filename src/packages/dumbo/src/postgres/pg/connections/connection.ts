@@ -77,3 +77,47 @@ export function nodePostgresConnection(
     ? nodePostgresClientConnection(options)
     : nodePostgresPoolClientConnection(options);
 }
+
+export type ConnectionCheckResult =
+  | { successful: true }
+  | {
+      successful: false;
+      code: string | undefined;
+      errorType: 'ConnectionRefused' | 'Authentication' | 'Unknown';
+      error: unknown;
+    };
+
+export const checkConnection = async (
+  connectionString: string,
+): Promise<ConnectionCheckResult> => {
+  const client = new pg.Client({
+    connectionString: connectionString,
+  });
+
+  try {
+    await client.connect();
+    return { successful: true };
+  } catch (error) {
+    const code =
+      error instanceof Error &&
+      'code' in error &&
+      typeof error.code === 'string'
+        ? error.code
+        : undefined;
+
+    return {
+      successful: false,
+      errorType:
+        code === 'ECONNREFUSED'
+          ? 'ConnectionRefused'
+          : code === '28P01'
+            ? 'Authentication'
+            : 'Unknown',
+      code,
+      error,
+    };
+  } finally {
+    // Ensure the client is closed properly if connected
+    await client.end();
+  }
+};

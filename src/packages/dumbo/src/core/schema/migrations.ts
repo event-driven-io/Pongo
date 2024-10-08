@@ -3,6 +3,7 @@ import {
   rawSql,
   singleOrNull,
   sql,
+  tracer,
   type SchemaComponent,
   type SQLExecutor,
 } from '..';
@@ -101,7 +102,10 @@ const runSQLMigration = async (
     await recordMigration(execute, newMigration);
     // console.log(`Migration "${newMigration.name}" applied successfully.`);
   } catch (error) {
-    console.error(`Failed to apply migration "${migration.name}":`, error);
+    tracer.error('migration-error', {
+      migationName: migration.name,
+      error: error,
+    });
     throw error;
   }
 };
