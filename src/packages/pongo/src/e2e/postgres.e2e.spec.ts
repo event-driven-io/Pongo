@@ -43,9 +43,7 @@ void describe('MongoDB Compatibility Tests', () => {
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
     postgresConnectionString = postgres.getConnectionUri();
-    client = pongoClient(postgresConnectionString, {
-      schema: { autoMigration: 'None' },
-    });
+    client = pongoClient(postgresConnectionString);
     shim = new MongoClient(postgresConnectionString);
     await client.connect();
     await shim.connect();
