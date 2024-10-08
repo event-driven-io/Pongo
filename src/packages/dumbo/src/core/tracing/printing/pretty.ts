@@ -81,15 +81,16 @@ const formatJson = (
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-  const entries = Object.entries(obj).map(([key, value]) =>
-    shouldPrint(value)
-      ? `${COLOR_KEY(`"${key}"`)}: ${formatJson(
+  const entries = Object.entries(obj)
+    .filter(([_, value]) => shouldPrint(value))
+    .map(
+      ([key, value]) =>
+        `${COLOR_KEY(`"${key}"`)}: ${formatJson(
           value,
           indentLevel + 1,
           handleMultiline,
-        )}`
-      : '',
-  );
+        )}`,
+    );
   return `${COLOR_BRACKETS('{')}\n${indent}  ${entries.join(
     `,\n${indent}  `,
   )}\n${indent}${COLOR_BRACKETS('}')}`;
