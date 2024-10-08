@@ -1,13 +1,9 @@
 import { JSONSerializer } from '../serializer';
-import { prettyPrintJson } from './printing';
+import { prettyJson } from './printing';
 
 export const tracer = () => {};
 
 export type LogLevel = 'DISABLED' | 'INFO' | 'LOG' | 'WARN' | 'ERROR';
-
-export type LogType = 'CONSOLE';
-
-export type LogStyle = 'RAW' | 'PRETTY';
 
 export const LogLevel = {
   DISABLED: 'DISABLED' as LogLevel,
@@ -15,6 +11,15 @@ export const LogLevel = {
   LOG: 'LOG' as LogLevel,
   WARN: 'WARN' as LogLevel,
   ERROR: 'ERROR' as LogLevel,
+};
+
+export type LogType = 'CONSOLE';
+
+export type LogStyle = 'RAW' | 'PRETTY';
+
+export const LogStyle = {
+  RAW: 'RAW' as LogStyle,
+  PRETTY: 'PRETTY' as LogStyle,
 };
 
 const shouldLog = (logLevel: LogLevel): boolean => {
@@ -37,7 +42,9 @@ const shouldLog = (logLevel: LogLevel): boolean => {
 
   if (
     definedLogLevel === LogLevel.INFO &&
-    [LogLevel.ERROR, LogLevel.WARN, LogLevel.INFO].includes(logLevel)
+    [LogLevel.ERROR, LogLevel.WARN, LogLevel.LOG, LogLevel.INFO].includes(
+      logLevel,
+    )
   )
     return true;
 
@@ -59,7 +66,7 @@ const getTraceEventFormatter =
       case 'RAW':
         return JSONSerializer.serialize(event);
       case 'PRETTY':
-        return prettyPrintJson(event, true);
+        return prettyJson(event, { handleMultiline: true });
     }
   };
 

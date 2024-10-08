@@ -1,9 +1,22 @@
-import { JSONSerializer, SQL } from '@event-driven-io/dumbo';
+import {
+  checkConnection,
+  LogLevel,
+  LogStyle,
+  prettyJson,
+  SQL,
+  type MigrationStyle,
+} from '@event-driven-io/dumbo';
 import chalk from 'chalk';
 import Table from 'cli-table3';
 import { Command } from 'commander';
 import repl from 'node:repl';
-import { pongoClient, pongoSchema, type PongoClient } from '../core';
+import {
+  pongoClient,
+  pongoSchema,
+  type PongoClient,
+  type PongoCollectionSchema,
+  type PongoDb,
+} from '../core';
 
 let pongo: PongoClient;
 
@@ -27,9 +40,7 @@ const calculateColumnWidths = (
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const printOutput = (obj: any): string => {
-  return Array.isArray(obj)
-    ? displayResultsAsTable(obj)
-    : JSONSerializer.serialize(obj);
+  return Array.isArray(obj) ? displayResultsAsTable(obj) : prettyJson(obj);
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -60,51 +71,138 @@ const displayResultsAsTable = (results: any[]): string => {
   return table.toString();
 };
 
-const startRepl = (options: {
+const setLogLevel = (logLevel: string) => {
+  process.env.DUMBO_LOG_LEVEL = logLevel;
+};
+
+const setLogStyle = (logLevel: string) => {
+  process.env.DUMBO_LOG_STYLE = logLevel;
+};
+
+const prettifyLogs = (logLevel?: string) => {
+  if (logLevel !== undefined) setLogLevel(logLevel);
+  setLogStyle(LogStyle.PRETTY);
+};
+
+const startRepl = async (options: {
+  logging: {
+    logLevel: LogLevel;
+    logStyle: LogStyle;
+  };
   schema: {
     database: string;
     collections: string[];
+    autoMigration: MigrationStyle;
   };
-  connectionString: string;
+  connectionString: string | undefined;
 }) => {
-  const r = repl.start({
+  console.log(JSON.stringify(options));
+  // TODO: This will change when we have proper tracing and logging config
+  // For now, that's enough
+  setLogLevel(process.env.DUMBO_LOG_LEVEL ?? options.logging.logLevel);
+  setLogStyle(process.env.DUMBO_LOG_STYLE ?? options.logging.logStyle);
+
+  console.log(chalk.green('Starting Pongo Shell (version: 0.16.0-alpha.7)'));
+
+  const connectionString =
+    options.connectionString ??
+    process.env.DB_CONNECTION_STRING ??
+    'postgresql://postgres:postgres@localhost:5432/postgres';
+
+  if (!(options.connectionString ?? process.env.DB_CONNECTION_STRING)) {
+    console.log(
+      chalk.yellow(
+        `No connection string provided, using: 'postgresql://postgres:postgres@localhost:5432/postgres'`,
+      ),
+    );
+  }
+
+  const connectionCheck = await checkConnection(connectionString);
+
+  if (!connectionCheck.successful) {
+    if (connectionCheck.errorType === 'ConnectionRefused') {
+      console.error(
+        chalk.red(
+          `Connection was refused. Check if the PostgreSQL server is running and accessible.`,
+        ),
+      );
+    } else if (connectionCheck.errorType === 'Authentication') {
+      console.error(
+        chalk.red(
+          `Authentication failed. Check the username and password in the connection string.`,
+        ),
+      );
+    } else {
+      console.error(chalk.red('Error connecting to PostgreSQL server'));
+    }
+    console.log(chalk.red('Exiting Pongo Shell...'));
+    process.exit();
+  }
+
+  console.log(chalk.green(`Successfully connected`));
+  console.log(chalk.green('Use db.<collection>.<method>() to query.'));
+
+  const shell = repl.start({
     prompt: chalk.green('pongo> '),
     useGlobal: true,
     breakEvalOnSigint: true,
     writer: printOutput,
   });
 
-  const schema =
-    options.schema.collections.length > 0
-      ? pongoSchema.client({
-          database: pongoSchema.db({
-            users: pongoSchema.collection(options.schema.database),
-          }),
-        })
-      : undefined;
+  let db: PongoDb;
 
-  pongo = pongoClient(options.connectionString, {
-    ...(schema ? { schema: { definition: schema } } : {}),
-  });
+  if (options.schema.collections.length > 0) {
+    const collectionsSchema: Record<string, PongoCollectionSchema> = {};
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  const db = schema
-    ? // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-explicit-any
-      (pongo as any).database
-    : pongo.db(options.schema.database);
+    for (const collectionName of options.schema.collections) {
+      collectionsSchema[collectionName] =
+        pongoSchema.collection(collectionName);
+    }
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  r.context.db = db;
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-  r.context.SQL = SQL;
+    const schema = pongoSchema.client({
+      database: pongoSchema.db(options.schema.database, collectionsSchema),
+    });
+
+    const typedClient = pongoClient(connectionString, {
+      schema: {
+        definition: schema,
+        autoMigration: options.schema.autoMigration,
+      },
+    });
+
+    db = typedClient.database;
+
+    for (const collectionName of options.schema.collections) {
+      shell.context[collectionName] = typedClient.database[collectionName];
+    }
+
+    pongo = typedClient;
+  } else {
+    pongo = pongoClient(connectionString, {
+      schema: { autoMigration: options.schema.autoMigration },
+    });
+
+    db = pongo.db(options.schema.database);
+  }
+
+  shell.context.pongo = pongo;
+  shell.context.db = db;
+
+  // helpers
+  shell.context.SQL = SQL;
+  shell.context.setLogLevel = setLogLevel;
+  shell.context.setLogStyle = setLogStyle;
+  shell.context.prettifyLogs = prettifyLogs;
+  shell.context.LogStyle = LogStyle;
+  shell.context.LogLevel = LogLevel;
 
   // Intercept REPL output to display results as a table if they are arrays
-  r.on('exit', async () => {
+  shell.on('exit', async () => {
     await teardown();
     process.exit();
   });
 
-  r.on('SIGINT', async () => {
+  shell.on('SIGINT', async () => {
     await teardown();
     process.exit();
   });
@@ -121,7 +219,11 @@ process.on('SIGINT', teardown);
 interface ShellOptions {
   database: string;
   collection: string[];
-  connectionString: string;
+  connectionString?: string;
+  disableAutoMigrations: boolean;
+  logStyle?: string;
+  logLevel?: string;
+  prettyLog?: boolean;
 }
 
 const shellCommand = new Command('shell')
@@ -129,7 +231,6 @@ const shellCommand = new Command('shell')
   .option(
     '-cs, --connectionString <string>',
     'Connection string for the database',
-    'postgresql://postgres:postgres@localhost:5432/postgres',
   )
   .option('-db, --database <string>', 'Database name to connect', 'postgres')
   .option(
@@ -141,18 +242,40 @@ const shellCommand = new Command('shell')
     },
     [] as string[],
   )
-  .action((options: ShellOptions) => {
+  .option(
+    '-no-migrations, --disable-auto-migrations',
+    'Disable automatic migrations',
+  )
+  .option(
+    '-ll, --log-level <logLevel>',
+    'Log level: DISABLED, INFO, LOG, WARN, ERROR',
+    'DISABLED',
+  )
+  .option('-ls, --log-style', 'Log style: RAW, PRETTY', 'RAW')
+  .option('-p, --pretty-log', 'Turn on logging with prettified output')
+  .action(async (options: ShellOptions) => {
+    console.log(JSON.stringify(options));
     const { collection, database } = options;
-    const connectionString =
-      options.connectionString ?? process.env.DB_CONNECTION_STRING;
+    const connectionString = options.connectionString;
 
-    console.log(
-      chalk.green(
-        'Starting Pongo Shell. Use db.<collection>.<method>() to query.',
-      ),
-    );
-    startRepl({
-      schema: { collections: collection, database },
+    await startRepl({
+      logging: {
+        logStyle: options.prettyLog
+          ? LogStyle.PRETTY
+          : ((options.logStyle as LogStyle | undefined) ?? LogStyle.RAW),
+        logLevel: options.logLevel
+          ? (options.logLevel as LogLevel)
+          : options.prettyLog
+            ? LogLevel.INFO
+            : LogLevel.DISABLED,
+      },
+      schema: {
+        collections: collection,
+        database,
+        autoMigration: options.disableAutoMigrations
+          ? 'None'
+          : 'CreateOrUpdate',
+      },
       connectionString,
     });
   });

@@ -2,12 +2,14 @@ import pg from 'pg';
 import {
   createConnectionPool,
   JSONSerializer,
+  tracer,
   type ConnectionPool,
 } from '../../../core';
 import {
   defaultPostgreSqlDatabase,
   getDatabaseNameOrDefault,
 } from '../../core';
+import { setNodePostgresTypeParser } from '../serialization';
 import {
   nodePostgresConnection,
   NodePostgresConnectorType,
@@ -15,7 +17,6 @@ import {
   type NodePostgresConnector,
   type NodePostgresPoolClientConnection,
 } from './connection';
-import { setNodePostgresTypeParser } from '../serialization';
 
 export type NodePostgresNativePool =
   ConnectionPool<NodePostgresPoolClientConnection>;
@@ -291,8 +292,7 @@ export const onEndPool = async (lookupKey: string, pool: pg.Pool) => {
   try {
     await pool.end();
   } catch (error) {
-    console.log(`Error while closing the connection pool: ${lookupKey}`);
-    console.log(error);
+    tracer.error('connection-closing-error', { lookupKey, error });
   }
   pools.delete(lookupKey);
 };

@@ -1,9 +1,8 @@
 import assert from 'assert';
 import chalk from 'chalk';
 import { describe, it } from 'node:test';
-import { prettyPrintJson } from './pretty';
+import { prettyJson } from './pretty';
 
-// Define a basic test suite
 void describe('prettyPrintJson', () => {
   // Turn off chalk colorization during tests for easy comparison
   chalk.level = 0;
@@ -19,7 +18,7 @@ void describe('prettyPrintJson', () => {
   "age": 30
 }`;
 
-    const output = prettyPrintJson(input, false); // Multiline handling off
+    const output = prettyJson(input, { handleMultiline: false });
     assert.strictEqual(output, expectedOutput);
   });
 
@@ -37,7 +36,7 @@ void describe('prettyPrintJson', () => {
   "
 }`;
 
-    const output = prettyPrintJson(input, true); // Multiline handling on
+    const output = prettyJson(input, { handleMultiline: true });
     assert.strictEqual(output, expectedOutput);
   });
 
@@ -64,7 +63,7 @@ void describe('prettyPrintJson', () => {
   }
 }`;
 
-    const output = prettyPrintJson(input, false); // Multiline handling off
+    const output = prettyJson(input, { handleMultiline: false });
     assert.strictEqual(output, expectedOutput);
   });
 
@@ -85,7 +84,7 @@ void describe('prettyPrintJson', () => {
   "active": true
 }`;
 
-    const output = prettyPrintJson(input, false); // Multiline handling off
+    const output = prettyJson(input, { handleMultiline: false });
     assert.strictEqual(output, expectedOutput);
   });
 
@@ -102,7 +101,7 @@ void describe('prettyPrintJson', () => {
   "tags": null
 }`;
 
-    const output = prettyPrintJson(input, false); // Multiline handling off
+    const output = prettyJson(input, { handleMultiline: false });
     assert.strictEqual(output, expectedOutput);
   });
 
@@ -121,8 +120,7 @@ void describe('prettyPrintJson', () => {
   "
 }`;
 
-    const output = prettyPrintJson(input, true); // Multiline handling on
-    console.log(output);
+    const output = prettyJson(input, { handleMultiline: true });
     assert.strictEqual(output, expectedOutput);
   });
 });
