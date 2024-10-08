@@ -35,6 +35,8 @@ const defaultFormat = (value: unknown) => {
     return format('%L', value);
   } else if (Array.isArray(value)) {
     return format('(%L)', value);
+  } else if (typeof value === 'object') {
+    return format('%s', JSON.stringify(value));
   } else {
     return format('%L', value);
   }
