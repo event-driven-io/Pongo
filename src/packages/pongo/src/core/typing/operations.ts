@@ -67,10 +67,21 @@ export interface PongoDb<ConnectorType extends string = string>
   connect(): Promise<void>;
   close(): Promise<void>;
   collection<T extends PongoDocument>(name: string): PongoCollection<T>;
+  collections(): ReadonlyArray<PongoCollection<PongoDocument>>;
   readonly schema: Readonly<{
     component: SchemaComponent;
     migrate(): Promise<void>;
   }>;
+  sql: {
+    query<Result extends QueryResultRow = QueryResultRow>(
+      sql: SQL,
+      options?: CollectionOperationOptions,
+    ): Promise<Result[]>;
+    command<Result extends QueryResultRow = QueryResultRow>(
+      sql: SQL,
+      options?: CollectionOperationOptions,
+    ): Promise<QueryResult<Result>>;
+  };
 }
 
 export type CollectionOperationOptions = {

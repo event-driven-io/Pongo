@@ -66,7 +66,7 @@ const enlistIntoTransactionIfActive = async <
   return await transaction.enlistDatabase(db);
 };
 
-const transactionExecutorOrDefault = async <
+export const transactionExecutorOrDefault = async <
   ConnectorType extends string = string,
 >(
   db: PongoDb<ConnectorType>,
@@ -467,7 +467,7 @@ export const pongoCollection = <
       ): Promise<Result[]> {
         await ensureCollectionCreated(options);
 
-        const result = await query<Result>(sql);
+        const result = await query<Result>(sql, options);
         return result.rows;
       },
       async command<Result extends QueryResultRow = QueryResultRow>(
@@ -476,7 +476,7 @@ export const pongoCollection = <
       ): Promise<QueryResult<Result>> {
         await ensureCollectionCreated(options);
 
-        return command(sql);
+        return command(sql, options);
       },
     },
     schema: {
