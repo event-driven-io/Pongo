@@ -1,8 +1,14 @@
 import { JSONSerializer } from '../serializer';
+import { prettyPrintJson } from './printing';
 
 export const tracer = () => {};
 
 export type LogLevel = 'DISABLED' | 'INFO' | 'LOG' | 'WARN' | 'ERROR';
+
+export type LogType = 'CONSOLE';
+
+export type LogStyle = 'RAW' | 'PRETTY';
+
 export const LogLevel = {
   DISABLED: 'DISABLED' as LogLevel,
   INFO: 'INFO' as LogLevel,
@@ -39,52 +45,79 @@ const shouldLog = (logLevel: LogLevel): boolean => {
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-tracer.log = (eventName: string, attributes?: Record<string, any>) => {
+type TraceEventRecorder = (message?: any, ...optionalParams: any[]) => void;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type TraceEventFormatter = (event: any) => string;
+
+const nulloTraceEventRecorder: TraceEventRecorder = () => {};
+
+const getTraceEventFormatter =
+  (logStyle: LogStyle): TraceEventFormatter =>
+  (event) => {
+    switch (logStyle) {
+      case 'RAW':
+        return JSONSerializer.serialize(event);
+      case 'PRETTY':
+        return prettyPrintJson(event, true);
+    }
+  };
+
+const getTraceEventRecorder = (
+  logLevel: LogLevel,
+  logStyle: LogStyle,
+): TraceEventRecorder => {
+  const format = getTraceEventFormatter(logStyle);
+  switch (logLevel) {
+    case 'DISABLED':
+      return nulloTraceEventRecorder;
+    case 'INFO':
+      return (event) => console.info(format(event));
+    case 'LOG':
+      return (event) => console.log(format(event));
+    case 'WARN':
+      return (event) => console.warn(format(event));
+    case 'ERROR':
+      return (event) => console.error(format(event));
+  }
+};
+
+const recordTraceEvent = (
+  logLevel: LogLevel,
+  eventName: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  attributes?: Record<string, any>,
+) => {
   if (!shouldLog(LogLevel.LOG)) return;
 
-  console.log(
-    JSONSerializer.serialize({
-      name: eventName,
-      timestamp: new Date().getTime(),
-      ...attributes,
-    }),
+  const event = {
+    name: eventName,
+    timestamp: new Date().getTime(),
+    ...attributes,
+  };
+
+  const record = getTraceEventRecorder(
+    logLevel,
+    (process.env.DUMBO_LOG_STYLE as LogStyle | undefined) ?? 'RAW',
   );
+
+  record(event);
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-tracer.warn = (eventName: string, attributes?: Record<string, any>) => {
-  if (!shouldLog(LogLevel.WARN)) return;
-
-  console.warn(
-    JSONSerializer.serialize({
-      name: eventName,
-      timestamp: new Date().getTime(),
-      ...attributes,
-    }),
-  );
-};
+tracer.info = (eventName: string, attributes?: Record<string, any>) =>
+  recordTraceEvent(LogLevel.INFO, eventName, attributes);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-tracer.error = (eventName: string, attributes?: Record<string, any>) => {
-  if (!shouldLog(LogLevel.ERROR)) return;
+tracer.warn = (eventName: string, attributes?: Record<string, any>) =>
+  recordTraceEvent(LogLevel.WARN, eventName, attributes);
 
-  console.error(
-    JSONSerializer.serialize({
-      name: eventName,
-      timestamp: new Date().getTime(),
-      ...attributes,
-    }),
-  );
-};
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-tracer.info = (eventName: string, attributes?: Record<string, any>) => {
-  if (!shouldLog(LogLevel.INFO)) return;
+tracer.log = (eventName: string, attributes?: Record<string, any>) =>
+  recordTraceEvent(LogLevel.LOG, eventName, attributes);
 
-  console.info(
-    JSONSerializer.serialize({
-      name: eventName,
-      timestamp: new Date().getTime(),
-      ...attributes,
-    }),
-  );
-};
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+tracer.error = (eventName: string, attributes?: Record<string, any>) =>
+  recordTraceEvent(LogLevel.ERROR, eventName, attributes);
+
+export * from './printing';
