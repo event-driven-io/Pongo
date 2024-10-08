@@ -4,8 +4,11 @@ import {
   NodePostgresConnectorType,
   runPostgreSQLMigrations,
   schemaComponent,
+  SQL,
   type PostgresConnector,
   type PostgresPoolOptions,
+  type QueryResult,
+  type QueryResultRow,
   type SchemaComponent,
 } from '@event-driven-io/dumbo';
 import type { Document } from 'mongodb';
@@ -14,6 +17,8 @@ import {
   pongoCollection,
   pongoCollectionSchemaComponent,
   proxyPongoDbWithSchema,
+  transactionExecutorOrDefault,
+  type CollectionOperationOptions,
   type PongoCollection,
   type PongoDb,
   type PongoDbClientOptions,
@@ -40,11 +45,29 @@ export const postgresDb = (
 
   const collections = new Map<string, PongoCollection<Document>>();
 
+  const command = async <Result extends QueryResultRow = QueryResultRow>(
+    sql: SQL,
+    options?: CollectionOperationOptions,
+  ) =>
+    (
+      await transactionExecutorOrDefault(db, options, pool.execute)
+    ).command<Result>(sql);
+
+  const query = async <T extends QueryResultRow>(
+    sql: SQL,
+    options?: CollectionOperationOptions,
+  ) =>
+    (await transactionExecutorOrDefault(db, options, pool.execute)).query<T>(
+      sql,
+    );
+
   const db: PongoDb<PostgresConnector> = {
     connectorType: options.connectorType,
     databaseName,
     connect: () => Promise.resolve(),
     close: () => pool.close(),
+
+    collections: () => [...collections.values()],
     collection: (collectionName) =>
       pongoCollection({
         collectionName,
@@ -71,6 +94,22 @@ export const postgresDb = (
             c.schema.component.migrations({ connector: 'PostgreSQL:pg' }),
           ),
         ),
+    },
+
+    sql: {
+      async query<Result extends QueryResultRow = QueryResultRow>(
+        sql: SQL,
+        options?: CollectionOperationOptions,
+      ): Promise<Result[]> {
+        const result = await query<Result>(sql, options);
+        return result.rows;
+      },
+      async command<Result extends QueryResultRow = QueryResultRow>(
+        sql: SQL,
+        options?: CollectionOperationOptions,
+      ): Promise<QueryResult<Result>> {
+        return command(sql, options);
+      },
     },
   };
 
