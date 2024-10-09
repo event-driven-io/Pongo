@@ -217,6 +217,43 @@ void describe('MongoDB Compatibility Tests', () => {
       );
     });
 
+    void it('should NOT update a non-existing document', async () => {
+      const pongoCollection = pongoDb.collection<User>('updateOne');
+      const mongoCollection = mongoDb.collection<User>('shimupdateOne');
+      const nonExistingId = 'non-existing';
+
+      const update = { $set: { age: 31 } };
+
+      const updateResult = await pongoCollection.updateOne(
+        { _id: nonExistingId },
+        update,
+      );
+      const shimUpdateResult = await mongoCollection.updateOne(
+        { _id: nonExistingId },
+        update,
+      );
+
+      assert(updateResult);
+      assert(updateResult.successful === false);
+      assert(updateResult.matchedCount === 0);
+      assert(updateResult.modifiedCount === 0);
+      assert(updateResult.nextExpectedVersion === 0n);
+
+      assert(shimUpdateResult);
+      assert(updateResult.matchedCount === 0);
+      assert(updateResult.modifiedCount === 0);
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: nonExistingId,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: nonExistingId,
+      });
+
+      assert(pongoDoc === null);
+      assert(mongoDoc === null);
+    });
+
     void it('should update a multiple properties in document', async () => {
       const pongoCollection = pongoDb.collection<User>('updateOneMultiple');
       const mongoCollection = mongoDb.collection<User>('shimupdateOneMultiple');
@@ -225,7 +262,7 @@ void describe('MongoDB Compatibility Tests', () => {
       const pongoInsertResult = await pongoCollection.insertOne(doc);
       const mongoInsertResult = await mongoCollection.insertOne(doc);
 
-      const update = { $set: { age: 31, tags: [] } };
+      const update = { $set: { age: 31, tags: ['t', 'a', 'g'] } };
 
       await pongoCollection.updateOne(
         { _id: pongoInsertResult.insertedId! },
@@ -244,7 +281,7 @@ void describe('MongoDB Compatibility Tests', () => {
       });
 
       assert.equal(mongoDoc?.age, 31);
-      assert.deepEqual(mongoDoc?.tags, []);
+      assert.deepEqual(mongoDoc?.tags, ['t', 'a', 'g']);
       assert.deepStrictEqual(
         {
           name: pongoDoc!.name,
