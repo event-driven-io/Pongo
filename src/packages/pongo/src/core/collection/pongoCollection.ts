@@ -197,10 +197,12 @@ export const pongoCollection = <
 
       return operationResult<PongoUpdateResult>(
         {
-          successful: result.rows[0]!.modified === result.rows[0]!.matched,
-          modifiedCount: Number(result.rows[0]!.modified),
-          matchedCount: Number(result.rows[0]!.matched),
-          nextExpectedVersion: result.rows[0]!.version,
+          successful:
+            result.rows.length > 0 &&
+            result.rows[0]!.modified === result.rows[0]!.matched,
+          modifiedCount: Number(result.rows[0]?.modified ?? 0),
+          matchedCount: Number(result.rows[0]?.matched ?? 0),
+          nextExpectedVersion: result.rows[0]?.version ?? 0n,
         },
         { operationName: 'updateOne', collectionName, errors },
       );
@@ -218,10 +220,10 @@ export const pongoCollection = <
       );
       return operationResult<PongoUpdateResult>(
         {
-          successful: result.rows[0]!.modified > 0,
-          modifiedCount: Number(result.rows[0]!.modified),
-          matchedCount: Number(result.rows[0]!.matched),
-          nextExpectedVersion: result.rows[0]!.version,
+          successful: result.rows.length > 0 && result.rows[0]!.modified > 0,
+          modifiedCount: Number(result.rows[0]?.modified ?? 0),
+          matchedCount: Number(result.rows[0]?.matched ?? 0),
+          nextExpectedVersion: result.rows[0]?.version ?? 0n,
         },
         { operationName: 'replaceOne', collectionName, errors },
       );
@@ -256,9 +258,9 @@ export const pongoCollection = <
       );
       return operationResult<PongoDeleteResult>(
         {
-          successful: result.rows[0]!.deleted! > 0,
-          deletedCount: Number(result.rows[0]!.deleted!),
-          matchedCount: Number(result.rows[0]!.matched!),
+          successful: result.rows.length > 0 && result.rows[0]!.deleted! > 0,
+          deletedCount: Number(result.rows[0]?.deleted ?? 0),
+          matchedCount: Number(result.rows[0]?.matched ?? 0),
         },
         { operationName: 'deleteOne', collectionName, errors },
       );
