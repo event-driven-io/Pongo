@@ -19,8 +19,7 @@ Read also [introduction article on my blog](https://event-driven.io/en/introduct
 You can use Pongo syntax with explicit typing about supported syntax:
 
 ```ts
-import { pongoClient } from '@event-driven-io/pongo';
-import { v7 as uuid } from 'uuid';
+import { pongoClient, ObjectId } from '@event-driven-io/pongo';
 
 type User = { name: string; age: number };
 
@@ -33,7 +32,7 @@ const pongoDb = pongo.db();
 const users = pongoDb.collection<User>('users');
 const roger = { name: 'Roger', age: 30 };
 const anita = { name: 'Anita', age: 25 };
-const cruella = { _id: uuid(), name: 'Cruella', age: 40 };
+const cruella = { _id: ObjectId(), name: 'Cruella', age: 40 };
 
 // Inserting
 await users.insertOne(roger);
@@ -58,8 +57,7 @@ const usersFromDb = await users.find({ age: { $lt: 40 } });
 Or use MongoDB compliant shim:
 
 ```ts
-import { MongoClient } from '@event-driven-io/pongo/shim';
-import { v7 as uuid } from 'uuid';
+import { MongoClient, ObjectId } from '@event-driven-io/pongo/shim';
 
 type User = { name: string; age: number };
 
@@ -72,7 +70,7 @@ const pongoDb = pongoClient.db();
 const users = pongoDb.collection<User>('users');
 const roger = { name: 'Roger', age: 30 };
 const anita = { name: 'Anita', age: 25 };
-const cruella = { _id: uuid(), name: 'Cruella', age: 40 };
+const cruella = { _id: ObjectId(), name: 'Cruella', age: 40 };
 
 // Inserting
 await users.insertOne(roger);

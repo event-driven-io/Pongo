@@ -13,7 +13,7 @@ const pongoDb = pongoClient.db('postgres');
 const users = pongoDb.collection<User>('users');
 const roger = { name: 'Roger', age: 30 };
 const anita = { name: 'Anita', age: 25 };
-//const cruella = { _id: uuid(), name: 'Cruella', age: 40 };
+//const cruella = { _id: ObjectId(), name: 'Cruella', age: 40 };
 
 // Inserting
 await users.insertOne(roger);
