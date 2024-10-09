@@ -49,8 +49,13 @@ const displayResultsAsTable = (results: any[]): string => {
     return chalk.yellow('No documents found.');
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-  const columnNames = Object.keys(results[0]);
+  const columnNames = results
+
+    .flatMap((result) =>
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      typeof result === 'object' ? Object.keys(result) : typeof result,
+    )
+    .filter((value, index, array) => array.indexOf(value) === index);
 
   const columnWidths = calculateColumnWidths(results, columnNames);
 
@@ -63,7 +68,18 @@ const displayResultsAsTable = (results: any[]): string => {
     table.push(
       columnNames.map((col) =>
         // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-        result[col] !== undefined ? String(result[col]) : '',
+        result[col] !== undefined
+          ? // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+            Array.isArray(result[col])
+            ? // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+              displayResultsAsTable(result[col])
+            : // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+              prettyJson(result[col])
+          : typeof result === 'object'
+            ? ''
+            : result != undefined && result != undefined
+              ? prettyJson(result)
+              : '',
       ),
     );
   });
@@ -102,7 +118,7 @@ const startRepl = async (options: {
   setLogLevel(process.env.DUMBO_LOG_LEVEL ?? options.logging.logLevel);
   setLogStyle(process.env.DUMBO_LOG_STYLE ?? options.logging.logStyle);
 
-  console.log(chalk.green('Starting Pongo Shell (version: 0.16.0-alpha.9)'));
+  console.log(chalk.green('Starting Pongo Shell (version: 0.16.0-alpha.11)'));
 
   const connectionString =
     options.connectionString ??
