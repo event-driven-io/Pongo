@@ -165,7 +165,7 @@ MongoDB is a decent database, yet it has issues around [ACID-complaince](https:/
 
 Watch also more in:
 
-[![](https://i.ytimg.com/vi/P4r19rv4vOg/hqdefault.jpg?sqp=-oaymwEcCNACELwBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLA5xOyPKh2X4f4ghHcapr5n69GvvA)](https://www.youtube.com/watch?v=P4r19rv4vOg)
+[![](https://img.youtube.com/vi/p-6fpV_GDEs/0.jpg)](https://www.youtube.com/live/p-6fpV_GDEs)
 
 ## Storage
 
