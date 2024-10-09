@@ -108,6 +108,7 @@ const prettifyLogs = (logLevel?: string) => {
 
 const startRepl = async (options: {
   logging: {
+    printOptions: boolean;
     logLevel: LogLevel;
     logStyle: LogStyle;
   };
@@ -118,13 +119,17 @@ const startRepl = async (options: {
   };
   connectionString: string | undefined;
 }) => {
-  console.log(JSON.stringify(options));
   // TODO: This will change when we have proper tracing and logging config
   // For now, that's enough
   setLogLevel(process.env.DUMBO_LOG_LEVEL ?? options.logging.logLevel);
   setLogStyle(process.env.DUMBO_LOG_STYLE ?? options.logging.logStyle);
 
-  console.log(chalk.green('Starting Pongo Shell (version: 0.16.0)'));
+  console.log(chalk.green('Starting Pongo Shell (version: 0.16.1)'));
+
+  if (options.logging.printOptions) {
+    console.log(chalk.green('With Options:'));
+    console.log(prettyJson(options));
+  }
 
   const connectionString =
     options.connectionString ??
@@ -247,6 +252,7 @@ interface ShellOptions {
   logStyle?: string;
   logLevel?: string;
   prettyLog?: boolean;
+  printOptions?: boolean;
 }
 
 const shellCommand = new Command('shell')
@@ -269,6 +275,7 @@ const shellCommand = new Command('shell')
     '-no-migrations, --disable-auto-migrations',
     'Disable automatic migrations',
   )
+  .option('-o, --print-options', 'Print shell options')
   .option(
     '-ll, --log-level <logLevel>',
     'Log level: DISABLED, INFO, LOG, WARN, ERROR',
@@ -277,12 +284,12 @@ const shellCommand = new Command('shell')
   .option('-ls, --log-style', 'Log style: RAW, PRETTY', 'RAW')
   .option('-p, --pretty-log', 'Turn on logging with prettified output')
   .action(async (options: ShellOptions) => {
-    console.log(JSON.stringify(options));
     const { collection, database } = options;
     const connectionString = options.connectionString;
 
     await startRepl({
       logging: {
+        printOptions: options.printOptions === true,
         logStyle: options.prettyLog
           ? LogStyle.PRETTY
           : ((options.logStyle as LogStyle | undefined) ?? LogStyle.RAW),
