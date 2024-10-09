@@ -18,6 +18,7 @@ interface MigrateRunOptions {
 interface MigrateSqlOptions {
   print?: boolean;
   write?: string;
+  config?: string;
   collection: string[];
 }
 
@@ -29,7 +30,7 @@ migrateCommand
   .command('run')
   .description('Run database migrations')
   .option(
-    '-cs, --connectionString <string>',
+    '-cs, --connection-string <string>',
     'Connection string for the database',
   )
   .option(
@@ -51,7 +52,8 @@ migrateCommand
 
     if (!connectionString) {
       console.error(
-        'Error: Connection string is required. Provide it either as a "--connectionString" parameter or through the DB_CONNECTION_STRING environment variable.',
+        'Error: Connection string is required. Provide it either as a "--connection-string" parameter or through the DB_CONNECTION_STRING environment variable.' +
+          '\nFor instance: --connection-string postgresql://postgres:postgres@localhost:5432/postgres',
       );
       process.exit(1);
     }
@@ -94,24 +96,34 @@ migrateCommand
     },
     [] as string[],
   )
+  .option('-f, --config <path>', 'Path to configuration file with Pongo config')
   .option('--print', 'Print the SQL to the console (default)', true)
   //.option('--write <filename>', 'Write the SQL to a specified file')
-  .action((options: MigrateSqlOptions) => {
+  .action(async (options: MigrateSqlOptions) => {
     const { collection } = options;
 
-    if (!collection) {
+    let collectionNames: string[];
+
+    if (options.config) {
+      const config = await loadConfigFile(options.config);
+
+      collectionNames = config.collections.map((c) => c.name);
+    } else if (collection) {
+      collectionNames = collection;
+    } else {
       console.error(
-        'Error: You need to provide at least one collection name is required. Provide it either as a "col" parameter.',
+        'Error: You need to provide at least one collection name. Provide it either through "--config" file or as a "--collection" parameter.',
       );
       process.exit(1);
     }
+
     const coreMigrations = migrationTableSchemaComponent.migrations({
       connector: 'PostgreSQL:pg',
     });
     const migrations = [
       ...coreMigrations,
-      ...collection.flatMap((collectionsName) =>
-        pongoCollectionSchemaComponent(collectionsName).migrations({
+      ...collectionNames.flatMap((collectionName) =>
+        pongoCollectionSchemaComponent(collectionName).migrations({
           connector: 'PostgreSQL:pg', // TODO: Provide connector here
         }),
       ),
