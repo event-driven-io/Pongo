@@ -102,7 +102,7 @@ const startRepl = async (options: {
   setLogLevel(process.env.DUMBO_LOG_LEVEL ?? options.logging.logLevel);
   setLogStyle(process.env.DUMBO_LOG_STYLE ?? options.logging.logStyle);
 
-  console.log(chalk.green('Starting Pongo Shell (version: 0.16.0-alpha.8)'));
+  console.log(chalk.green('Starting Pongo Shell (version: 0.16.0-alpha.9)'));
 
   const connectionString =
     options.connectionString ??
