@@ -5,7 +5,7 @@ import {
 import assert from 'assert';
 import console from 'console';
 import { after, before, beforeEach, describe, it } from 'node:test';
-import { v4 as uuid } from 'uuid';
+import { v7 as uuid } from 'uuid';
 import {
   pongoClient,
   pongoSchema,

@@ -12,7 +12,7 @@ import {
   type SQLExecutor,
   type SQLMigration,
 } from '@event-driven-io/dumbo';
-import { v4 as uuid } from 'uuid';
+import { v7 as uuid } from 'uuid';
 import {
   expectedVersionValue,
   operationResult,

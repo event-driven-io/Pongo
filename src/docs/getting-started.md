@@ -20,7 +20,7 @@ You can use Pongo syntax with explicit typing about supported syntax:
 
 ```ts
 import { pongoClient } from '@event-driven-io/pongo';
-import { v4 as uuid } from 'uuid';
+import { v7 as uuid } from 'uuid';
 
 type User = { name: string; age: number };
 
@@ -59,7 +59,7 @@ Or use MongoDB compliant shim:
 
 ```ts
 import { MongoClient } from '@event-driven-io/pongo/shim';
-import { v4 as uuid } from 'uuid';
+import { v7 as uuid } from 'uuid';
 
 type User = { name: string; age: number };
 

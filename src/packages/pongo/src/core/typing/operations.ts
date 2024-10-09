@@ -8,6 +8,7 @@ import {
   type SQL,
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
+import { v7 as uuid } from 'uuid';
 import { ConcurrencyError } from '../errors';
 
 export interface PongoClient {
@@ -220,6 +221,7 @@ export interface PongoCollection<T extends PongoDocument> {
 }
 
 export type ObjectId = string & { __brandId: 'ObjectId' };
+export const ObjectId = (value?: string) => value ?? uuid();
 
 export type HasId = { _id: string };
 

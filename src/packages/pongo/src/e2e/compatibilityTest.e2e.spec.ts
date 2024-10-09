@@ -13,7 +13,7 @@ import {
   MongoClient as OriginalMongoClient,
 } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
-import { v4 as uuid } from 'uuid';
+import { v7 as uuid } from 'uuid';
 import { MongoClient, type Db } from '../shim';
 
 type History = { street: string };
