@@ -38,10 +38,16 @@ const calculateColumnWidths = (
   return columnWidths;
 };
 
+let shouldDisplayResultsAsTable = false;
+
+const printResultsAsTable = (print?: boolean) =>
+  (shouldDisplayResultsAsTable = print === undefined || print === true);
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const printOutput = (obj: any): string => {
-  return Array.isArray(obj) ? displayResultsAsTable(obj) : prettyJson(obj);
-};
+const printOutput = (obj: any): string =>
+  Array.isArray(obj) && shouldDisplayResultsAsTable
+    ? displayResultsAsTable(obj)
+    : prettyJson(obj);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const displayResultsAsTable = (results: any[]): string => {
@@ -209,6 +215,7 @@ const startRepl = async (options: {
   shell.context.setLogLevel = setLogLevel;
   shell.context.setLogStyle = setLogStyle;
   shell.context.prettifyLogs = prettifyLogs;
+  shell.context.printResultsAsTable = printResultsAsTable;
   shell.context.LogStyle = LogStyle;
   shell.context.LogLevel = LogLevel;
 
