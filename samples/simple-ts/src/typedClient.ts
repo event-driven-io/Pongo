@@ -1,5 +1,5 @@
-import { pongoClient } from '@event-driven-io/pongo';
-import { v7 as uuid } from 'uuid';
+import { prettyJson } from '@event-driven-io/dumbo';
+import { ObjectId, pongoClient } from '@event-driven-io/pongo';
 import config from './pongo.config';
 
 const connectionString =
@@ -14,7 +14,7 @@ const pongoDb = pongo.database;
 const users = pongoDb.users;
 const roger = { name: 'Roger', age: 30 };
 const anita = { name: 'Anita', age: 25 };
-const cruella = { _id: uuid(), name: 'Cruella', age: 40 };
+const cruella = { _id: ObjectId(), name: 'Cruella', age: 40 };
 
 // Inserting
 await users.insertOne(roger);
@@ -31,10 +31,10 @@ await users.deleteOne({ _id: cruella._id });
 
 // Finding by Id
 const anitaFromDb = await users.findOne({ _id: anitaId });
-console.log(anitaFromDb);
+console.log(prettyJson(anitaFromDb));
 
 // Finding more
 const usersFromDB = await users.find({ age: { $lt: 40 } });
-console.log(usersFromDB);
+console.log(prettyJson(usersFromDB));
 
 await pongo.close();

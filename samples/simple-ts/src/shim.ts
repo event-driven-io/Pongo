@@ -1,3 +1,4 @@
+import { prettyJson } from '@event-driven-io/dumbo';
 import { MongoClient } from '@event-driven-io/pongo/shim';
 
 type User = { name: string; age: number };
@@ -29,10 +30,10 @@ await users.updateOne({ _id: anitaId }, { $set: { age: 31 } });
 
 // Finding by Id
 const anitaFromDb = await users.findOne({ _id: anitaId });
-console.log(anitaFromDb);
+console.log(prettyJson(anitaFromDb));
 
 // Finding more
 const usersFromDB = await users.find({ age: { $lt: 40 } }).toArray();
-console.log(usersFromDB);
+console.log(prettyJson(usersFromDB));
 
 await pongoClient.close();
