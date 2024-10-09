@@ -163,7 +163,11 @@ MongoDB is a decent database, yet it has issues around [ACID-complaince](https:/
 - operate **easier than crafting native PostgreSQL JSON queries**. They're powerful but not the most accessible,
 - get **performance boost** with [JSONB indexing capabilities](https://pganalyze.com/blog/gin-index#postgresql-jsonb-and-gin-indexes),
 - **benefit from PostgreSQL advanced capabilities** like [partitioning](https://www.postgresql.fastware.com/postgresql-insider-prt-ove), [logical replication](https://event-driven.io/en/push_based_outbox_pattern_with_postgres_logical_replication/) and [other PostgreSQL superpowers](https://event-driven.io/en/postgres_superpowers/)
-- **seamless integration with Cloud RDSes** and solutions like [CockroachDB](https://www.cockroachlabs.com/docs/stable/why-cockroachdb), [Supabase](https://supabase.com/), [Vercel Postgres](https://vercel.com/docs/storage/vercel-postgres).
+- **seamless integration with Cloud RDSes** and solutions like [Supabase](https://supabase.com/), [Vercel Postgres](https://vercel.com/docs/storage/vercel-postgres), [YugabyteDB](https://www.yugabyte.com/yugabytedb/), [CockroachDB](https://www.cockroachlabs.com/docs/stable/why-cockroachdb), .
+
+Watch also more in:
+
+[![](https://i.ytimg.com/vi/P4r19rv4vOg/hqdefault.jpg?sqp=-oaymwEcCNACELwBSFXyq4qpAw4IARUAAIhCGAFwAcABBg==&rs=AOn4CLA5xOyPKh2X4f4ghHcapr5n69GvvA)](https://www.youtube.com/watch?v=P4r19rv4vOg)
 
 ## Storage
 
