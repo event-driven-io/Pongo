@@ -5,11 +5,10 @@ import {
 import assert from 'assert';
 import console from 'console';
 import { after, before, beforeEach, describe, it } from 'node:test';
-import { v7 as uuid } from 'uuid';
 import {
+  ObjectId,
   pongoClient,
   pongoSchema,
-  type ObjectId,
   type PongoClient,
   type PongoCollection,
   type PongoDb,
@@ -67,7 +66,7 @@ void describe('MongoDB Compatibility Tests', () => {
 
   beforeEach(() => {
     user = {
-      _id: uuid(),
+      _id: ObjectId(),
       name: 'Anita',
       age: 25,
     };
@@ -156,7 +155,7 @@ void describe('MongoDB Compatibility Tests', () => {
     void describe('insertMany', () => {
       void it('inserts a document with id', async () => {
         // Given
-        const otherUser = { ...user, _id: uuid() };
+        const otherUser = { ...user, _id: ObjectId() };
 
         // When
         const pongoInsertResult = await users.insertMany([user, otherUser]);
@@ -185,7 +184,7 @@ void describe('MongoDB Compatibility Tests', () => {
         const nonDefaultVersion = 495n;
         const otherUser = {
           ...user,
-          _id: uuid(),
+          _id: ObjectId(),
           _version: nonDefaultVersion,
         };
         // When
@@ -225,7 +224,7 @@ void describe('MongoDB Compatibility Tests', () => {
           name: 'Cruella',
           age: 40,
         };
-        const otherUser = { ...user, _id: uuid() };
+        const otherUser = { ...user, _id: ObjectId() };
         // When
         const pongoInsertResult = await users.insertMany([
           userWithTheSameId,
@@ -369,8 +368,8 @@ void describe('MongoDB Compatibility Tests', () => {
 
     void describe('updateMany', () => {
       void it('updates documents and expected version', async () => {
-        const otherUser = { ...user, _id: uuid() };
-        await users.insertMany([user, otherUser, { ...user, _id: uuid() }]);
+        const otherUser = { ...user, _id: ObjectId() };
+        await users.insertMany([user, otherUser, { ...user, _id: ObjectId() }]);
 
         // When
         const updateResult = await users.updateMany(
@@ -403,7 +402,7 @@ void describe('MongoDB Compatibility Tests', () => {
     });
 
     void it('overrides documents version with autoincremented document version', async () => {
-      const otherUser = { ...user, _id: uuid() };
+      const otherUser = { ...user, _id: ObjectId() };
       await users.insertMany([{ ...user }, otherUser]);
 
       // When
@@ -594,8 +593,8 @@ void describe('MongoDB Compatibility Tests', () => {
 
     void describe('deleteMany', () => {
       void it('deletes documents and expected version', async () => {
-        const otherUser = { ...user, _id: uuid() };
-        await users.insertMany([user, otherUser, { ...user, _id: uuid() }]);
+        const otherUser = { ...user, _id: ObjectId() };
+        await users.insertMany([user, otherUser, { ...user, _id: ObjectId() }]);
 
         // When
         const deleteResult = await users.deleteMany({
@@ -616,7 +615,7 @@ void describe('MongoDB Compatibility Tests', () => {
     });
 
     void it('overrides documents version with autoincremented document version', async () => {
-      const otherUser = { ...user, _id: uuid() };
+      const otherUser = { ...user, _id: ObjectId() };
       await users.insertMany([{ ...user }, otherUser]);
 
       // When
@@ -639,7 +638,7 @@ void describe('MongoDB Compatibility Tests', () => {
 
   void describe('Handle Operations', () => {
     void it('should NOT insert a new document if it does not exist and expected DOCUMENT_EXISTS', async () => {
-      const nonExistingId = uuid() as unknown as ObjectId;
+      const nonExistingId = ObjectId() as unknown as ObjectId;
 
       const newDoc: User = { name: 'John', age: 25 };
 
@@ -659,7 +658,7 @@ void describe('MongoDB Compatibility Tests', () => {
     });
 
     void it('should NOT insert a new document if it does not exist and expected is numeric value', async () => {
-      const nonExistingId = uuid() as unknown as ObjectId;
+      const nonExistingId = ObjectId() as unknown as ObjectId;
 
       const newDoc: User = { name: 'John', age: 25 };
 
@@ -679,7 +678,7 @@ void describe('MongoDB Compatibility Tests', () => {
     });
 
     void it('should replace an existing document when expected version matches', async () => {
-      const existingDoc: User = { _id: uuid(), name: 'John', age: 25 };
+      const existingDoc: User = { _id: ObjectId(), name: 'John', age: 25 };
       const updatedDoc: User = { _id: existingDoc._id!, name: 'John', age: 30 };
 
       const pongoInsertResult = await users.insertOne(existingDoc);
@@ -712,7 +711,7 @@ void describe('MongoDB Compatibility Tests', () => {
     });
 
     void it('should NOT replace an existing document when expected DOCUMENT_DOES_NOT_EXIST', async () => {
-      const existingDoc: User = { _id: uuid(), name: 'John', age: 25 };
+      const existingDoc: User = { _id: ObjectId(), name: 'John', age: 25 };
       const updatedDoc: User = { _id: existingDoc._id!, name: 'John', age: 30 };
 
       const pongoInsertResult = await users.insertOne(existingDoc);
@@ -745,7 +744,7 @@ void describe('MongoDB Compatibility Tests', () => {
     });
 
     void it('should NOT replace an existing document when expected version is mismatched ', async () => {
-      const existingDoc: User = { _id: uuid(), name: 'John', age: 25 };
+      const existingDoc: User = { _id: ObjectId(), name: 'John', age: 25 };
       const updatedDoc: User = { _id: existingDoc._id!, name: 'John', age: 30 };
 
       const pongoInsertResult = await users.insertOne(existingDoc);
