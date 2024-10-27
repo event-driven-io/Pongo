@@ -6,3 +6,4 @@ export * from './pongoSession';
 export * from './pongoTransaction';
 export * from './schema';
 export * from './typing';
+export * from './utils';

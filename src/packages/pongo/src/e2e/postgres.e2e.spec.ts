@@ -1177,6 +1177,43 @@ void describe('MongoDB Compatibility Tests', () => {
     });
   });
 
+  void it('should make the change if the handler returns the existing document changed', async () => {
+    const pongoCollection = pongoDb.collection<User>('handleCollection');
+
+    const existingDoc: User = { name: 'John', age: 25 };
+
+    const pongoInsertResult = await pongoCollection.insertOne(existingDoc);
+
+    const handle = (existing: User | null) => {
+      if (existing) existing.name = 'New';
+      return existing;
+    };
+
+    const resultPongo = await pongoCollection.handle(
+      pongoInsertResult.insertedId!,
+      handle,
+    );
+
+    assert(resultPongo.successful);
+    assert.deepStrictEqual(resultPongo.document, {
+      ...existingDoc,
+      _id: pongoInsertResult.insertedId,
+      name: 'New',
+      _version: 2n,
+    });
+
+    const pongoDoc = await pongoCollection.findOne({
+      _id: pongoInsertResult.insertedId!,
+    });
+
+    assert.deepStrictEqual(pongoDoc, {
+      ...existingDoc,
+      _id: pongoInsertResult.insertedId,
+      name: 'New',
+      _version: 2n,
+    });
+  });
+
   void describe('No filter', () => {
     void it('should filter and count without filter specified', async () => {
       const pongoCollection = pongoDb.collection<User>('nofilter');

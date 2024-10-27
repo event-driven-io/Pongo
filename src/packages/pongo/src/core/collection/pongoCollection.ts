@@ -14,6 +14,7 @@ import {
 } from '@event-driven-io/dumbo';
 import { v7 as uuid } from 'uuid';
 import {
+  deepEquals,
   expectedVersionValue,
   operationResult,
   type CollectionOperationOptions,
@@ -368,9 +369,9 @@ export const pongoCollection = <
         );
       }
 
-      const result = await handle(existing as T);
+      const result = await handle({ ...existing } as T);
 
-      if (existing === result)
+      if (deepEquals(existing as T, result))
         return operationResult<PongoHandleResult<T>>(
           {
             successful: true,
