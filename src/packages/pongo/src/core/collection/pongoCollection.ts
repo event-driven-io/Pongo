@@ -348,7 +348,7 @@ export const pongoCollection = <
       const existing = (await collection.findOne(
         byId,
         options,
-      )) as WithVersion<T>;
+      )) as WithVersion<T> | null;
 
       const expectedVersion = expectedVersionValue(version);
 
@@ -369,13 +369,15 @@ export const pongoCollection = <
         );
       }
 
-      const result = await handle({ ...existing } as T);
+      const result = await handle(
+        existing !== null ? ({ ...existing } as T) : null,
+      );
 
-      if (deepEquals(existing as T, result))
+      if (deepEquals(existing as T | null, result))
         return operationResult<PongoHandleResult<T>>(
           {
             successful: true,
-            document: existing as T,
+            document: existing as T | null,
           },
           { operationName: 'handle', collectionName, errors },
         );

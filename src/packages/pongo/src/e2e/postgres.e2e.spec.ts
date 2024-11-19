@@ -1061,6 +1061,25 @@ void describe('MongoDB Compatibility Tests', () => {
   });
 
   void describe('Handle Operations', () => {
+    void it(`should pass null to handle if document doesn't exist`, async () => {
+      const pongoCollection = pongoDb.collection<User>('handleCollection');
+      const nonExistingId = uuid() as unknown as ObjectId;
+
+      const newDoc: User = { name: 'John', age: 25 };
+
+      let wasHandled = false;
+
+      const handle = (existing: User | null) => {
+        wasHandled = true;
+        assert.equal(existing, null);
+        return newDoc;
+      };
+
+      await pongoCollection.handle(nonExistingId, handle);
+
+      assert.ok(wasHandled);
+    });
+
     void it('should insert a new document if it does not exist', async () => {
       const pongoCollection = pongoDb.collection<User>('handleCollection');
       const nonExistingId = uuid() as unknown as ObjectId;
