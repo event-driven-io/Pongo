@@ -1,6 +1,6 @@
 import assert from 'assert';
-import chalk from 'chalk';
 import { describe, it } from 'node:test';
+import chalk from './color';
 import { prettyJson } from './pretty';
 
 void describe('prettyPrintJson', () => {

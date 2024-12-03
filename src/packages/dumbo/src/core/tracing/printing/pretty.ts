@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import chalk from './color';
 
 const TWO_SPACES = '  ';
 

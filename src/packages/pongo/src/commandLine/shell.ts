@@ -1,12 +1,12 @@
 import {
   checkConnection,
+  color,
   LogLevel,
   LogStyle,
   prettyJson,
   SQL,
   type MigrationStyle,
 } from '@event-driven-io/dumbo';
-import chalk from 'chalk';
 import Table from 'cli-table3';
 import { Command } from 'commander';
 import repl from 'node:repl';
@@ -52,7 +52,7 @@ const printOutput = (obj: any): string =>
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const displayResultsAsTable = (results: any[]): string => {
   if (results.length === 0) {
-    return chalk.yellow('No documents found.');
+    return color.yellow('No documents found.');
   }
 
   const columnNames = results
@@ -66,7 +66,7 @@ const displayResultsAsTable = (results: any[]): string => {
   const columnWidths = calculateColumnWidths(results, columnNames);
 
   const table = new Table({
-    head: columnNames.map((col) => chalk.cyan(col)),
+    head: columnNames.map((col) => color.cyan(col)),
     colWidths: columnWidths,
   });
 
@@ -124,10 +124,10 @@ const startRepl = async (options: {
   setLogLevel(process.env.DUMBO_LOG_LEVEL ?? options.logging.logLevel);
   setLogStyle(process.env.DUMBO_LOG_STYLE ?? options.logging.logStyle);
 
-  console.log(chalk.green('Starting Pongo Shell (version: 0.16.3)'));
+  console.log(color.green('Starting Pongo Shell (version: 0.16.4-alpha.1)'));
 
   if (options.logging.printOptions) {
-    console.log(chalk.green('With Options:'));
+    console.log(color.green('With Options:'));
     console.log(prettyJson(options));
   }
 
@@ -138,7 +138,7 @@ const startRepl = async (options: {
 
   if (!(options.connectionString ?? process.env.DB_CONNECTION_STRING)) {
     console.log(
-      chalk.yellow(
+      color.yellow(
         `No connection string provided, using: 'postgresql://postgres:postgres@localhost:5432/postgres'`,
       ),
     );
@@ -149,28 +149,28 @@ const startRepl = async (options: {
   if (!connectionCheck.successful) {
     if (connectionCheck.errorType === 'ConnectionRefused') {
       console.error(
-        chalk.red(
+        color.red(
           `Connection was refused. Check if the PostgreSQL server is running and accessible.`,
         ),
       );
     } else if (connectionCheck.errorType === 'Authentication') {
       console.error(
-        chalk.red(
+        color.red(
           `Authentication failed. Check the username and password in the connection string.`,
         ),
       );
     } else {
-      console.error(chalk.red('Error connecting to PostgreSQL server'));
+      console.error(color.red('Error connecting to PostgreSQL server'));
     }
-    console.log(chalk.red('Exiting Pongo Shell...'));
+    console.log(color.red('Exiting Pongo Shell...'));
     process.exit();
   }
 
-  console.log(chalk.green(`Successfully connected`));
-  console.log(chalk.green('Use db.<collection>.<method>() to query.'));
+  console.log(color.green(`Successfully connected`));
+  console.log(color.green('Use db.<collection>.<method>() to query.'));
 
   const shell = repl.start({
-    prompt: chalk.green('pongo> '),
+    prompt: color.green('pongo> '),
     useGlobal: true,
     breakEvalOnSigint: true,
     writer: printOutput,
@@ -237,7 +237,7 @@ const startRepl = async (options: {
 };
 
 const teardown = async () => {
-  console.log(chalk.yellow('Exiting Pongo Shell...'));
+  console.log(color.yellow('Exiting Pongo Shell...'));
   await pongo.close();
 };
 
