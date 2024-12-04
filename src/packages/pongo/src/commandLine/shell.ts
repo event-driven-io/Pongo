@@ -124,7 +124,7 @@ const startRepl = async (options: {
   setLogLevel(process.env.DUMBO_LOG_LEVEL ?? options.logging.logLevel);
   setLogStyle(process.env.DUMBO_LOG_STYLE ?? options.logging.logStyle);
 
-  console.log(color.green('Starting Pongo Shell (version: 0.16.4-alpha.1)'));
+  console.log(color.green('Starting Pongo Shell (version: 0.16.4-alpha.2)'));
 
   if (options.logging.printOptions) {
     console.log(color.green('With Options:'));

@@ -7,7 +7,7 @@ export default defineConfig({
   clean: true, // clean up the dist folder
   dts: true, // generate dts files
   format: ['cjs', 'esm'], // generate cjs and esm files
-  minify: true, //env === 'production',
+  minify: false, //env === 'production',
   bundle: true, //env === 'production',
   skipNodeModulesBundle: true,
   watch: env === 'development',
