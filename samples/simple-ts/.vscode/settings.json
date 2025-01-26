@@ -9,10 +9,35 @@
     "source.addMissingImports": "always"
   },
 
+  "[typescript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnPaste": false,
+    "editor.formatOnSave": true,
+
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit",
+      "source.fixAll.eslint": "explicit",
+      "source.addMissingImports": "always"
+    }
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnPaste": false,
+    "editor.formatOnSave": true,
+
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "explicit",
+      "source.fixAll.eslint": "explicit",
+      "source.addMissingImports": "always"
+    }
+  },
+
   "editor.tabSize": 2,
 
   "files.exclude": {
-    "**/*.tsbuildinfo": true
+    "**/*.tsbuildinfo": true,
+    "**/node_modules": true,
+    "**/dist": true
   },
   "files.eol": "\n",
 
@@ -20,5 +45,13 @@
   "eslint.workingDirectories": [{ "mode": "auto" }],
   "debug.javascript.terminalOptions": {
     "nodeVersionHint": 20
-  }
+  },
+  "nodejs-testing.include": ["./**/**"],
+  "nodejs-testing.extensions": [
+    {
+      "extensions": ["ts", "mts"],
+      "filePatterns": ["**/*.spec.ts", "**/*.spec.mts"],
+      "parameters": ["--import", "tsx"]
+    }
+  ]
 }

@@ -17,6 +17,7 @@
       "name": "Debug Current Test File",
       "type": "node",
       "request": "launch",
+      "env": { "DUMBO_LOG_LEVEL": "DEBUG" },
       "skipFiles": ["<node_internals>/**"],
       "runtimeExecutable": "npm",
       "runtimeArgs": [
