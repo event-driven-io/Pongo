@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "build": "tsup",
-    "build:ts": "tsc",
-    "build:ts:watch": "tsc  --watch",
+    "build:ts": "tsc -b",
+    "build:ts:watch": "tsc -b --watch",
     "test": "run-s test:unit test:int test:e2e",
     "test:unit": "glob -c \"node --import tsx --test\" **/*.unit.spec.ts",
     "test:int": "glob -c \"node --import tsx --test\" **/*.int.spec.ts",

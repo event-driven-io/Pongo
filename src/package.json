@@ -9,9 +9,11 @@
   "private": true,
   "scripts": {
     "setup": "cat .nvmrc | nvm install; nvm use",
-    "build": "npm run build:ts && npm run build --ws",
+    "build": "run-s build:ts build:dumbo build:pongo",
     "build:ts": "tsc -b",
     "build:ts:watch": "tsc -b --watch",
+    "build:dumbo": "npm run build -w packages/dumbo",
+    "build:pongo": "npm run build -w packages/pongo",
     "lint": "npm run lint:eslint && npm run lint:prettier",
     "lint:prettier": "prettier --check \"**/**/!(*.d).{ts,json,md}\"",
     "lint:eslint": "eslint '**/*.ts'",

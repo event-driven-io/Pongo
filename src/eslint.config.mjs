@@ -30,6 +30,7 @@ export default [
       '**/dist',
       '**/*.d.ts',
       'src/types/',
+      'eslint.config.mjs',
       'e2e/*',
     ],
   },

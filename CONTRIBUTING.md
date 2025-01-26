@@ -46,6 +46,16 @@ You are now ready to contribute to Pongo.
 
 ### 3. Setup dev environment
 
+We recommend using VSCode and installing the following extensions:
+
+- [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint),
+- [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode),
+- [node:test runner](https://marketplace.visualstudio.com/items?itemName=connor4312.nodejs-testing)
+
+This will ensure that all workspace settings around code style will be automatically applied.
+
+**You can install all of them automatically by running "Install All Recommended Extensions" VSCode task** (_**CTRL+SHIFT+P** => Run Task => Install All Recommended Extensions_).
+
 You can streamling setup by running setup script:
 
 - For Linux and MacOS

@@ -4,10 +4,21 @@
     {
       "type": "npm",
       "script": "build:ts:watch",
-      "group": "build",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
       "problemMatcher": [],
       "label": "npm: build:ts:watch",
-      "detail": "tsc  --watch"
+      "detail": "tsc -b --watch"
+    },
+    {
+      "label": "Install All Recommended Extensions",
+      "type": "shell",
+      "windows": {
+        "command": "powershell ((node -e \"console.log(JSON.parse(require('fs').readFileSync('./.vscode/extensions.json')).recommendations.join('\\\\n'))\") -split '\\r?\\n') | ForEach-Object { code --install-extension $_ }"
+      },
+      "command": "node -e \"console.log(JSON.parse(require('fs').readFileSync('./.vscode/extensions.json')).recommendations.join('\\n'))\" | xargs -L 1 code --install-extension"
     }
   ]
 }
