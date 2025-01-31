@@ -208,6 +208,16 @@ Pongo's goal is not to replace Mongo but to reuse its muscle memory and bring th
 
 What's there is safe to use, but it's far from being 100% compliant with MongoDB. Pongo is a fresh project, so some stuff can be missing.
 
+## Support
+
+💖 If you'd like this project and want us to deliver more and faster, feel invited to **join** the group of our 👉 [Github Sponsors](https://github.com/sponsors/event-driven-io).
+
+By doing so, you're helping to make our work on it sustainable and continuing our efforts so we can support your products.
+
+**🥉 [Bronze Sponsors](https://github.com/sponsors/event-driven-io)**
+
+- [productminds](https://github.com/pminds)
+
 ## Contribution
 
 Pongo is a community project, so once you find something missing or not working, we encourage you to [send us a GH issue](https://github.com/event-driven-io/Pongo/issues/new) or [Pull Request](https://github.com/event-driven-io/Pongo/compare) extending the support or test coverage! Check also [Contributing guide](https://github.com/event-driven-io/Pongo/blob/main/CONTRIBUTING.md)

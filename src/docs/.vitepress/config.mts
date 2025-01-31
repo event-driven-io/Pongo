@@ -18,6 +18,10 @@ export default defineConfig({
         text: 'Release Notes',
         link: 'https://github.com/event-driven-io/Pongo/releases',
       },
+      {
+        text: 'Support',
+        link: 'https://github.com/sponsors/event-driven-io',
+      },
     ],
 
     sidebar: [
