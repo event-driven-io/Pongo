@@ -17,7 +17,7 @@ import {
   type ReplaceOneOptions,
   type UpdateOneOptions,
   type WithoutId,
-} from '../../core';
+} from '../../../core';
 import { constructFilterQuery } from './filter';
 import { buildUpdateQuery } from './update';
 

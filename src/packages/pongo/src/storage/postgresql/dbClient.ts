@@ -22,7 +22,7 @@ import {
   type PongoCollection,
   type PongoDb,
   type PongoDbClientOptions,
-} from '../core';
+} from '../../core';
 import { postgresSQLBuilder } from './sqlBuilder';
 
 export type PostgresDbClientOptions = PongoDbClientOptions<PostgresConnector>;

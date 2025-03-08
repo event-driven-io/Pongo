@@ -43,7 +43,7 @@ import {
   type WithoutId,
   type WithVersion,
 } from '..';
-import { pongoCollectionPostgreSQLMigrations } from '../../postgresql';
+import { pongoCollectionPostgreSQLMigrations } from '../../storage/postgresql';
 
 export type PongoCollectionOptions<ConnectorType extends string = string> = {
   db: PongoDb<ConnectorType>;

@@ -1,2 +1,2 @@
-export * from './storage/postgres/core';
-export * from './storage/postgres/pg';
+export * from './storage/postgresql/core';
+export * from './storage/postgresql/pg';

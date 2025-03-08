@@ -3,7 +3,7 @@ import {
   objectEntries,
   QueryOperators,
   type PongoFilter,
-} from '../../../core';
+} from '../../../../core';
 import { handleOperator } from './queryOperators';
 
 export * from './queryOperators';
