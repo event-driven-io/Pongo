@@ -40,6 +40,39 @@
         "types": "./dist/index.d.cts",
         "default": "./dist/index.cjs"
       }
+    },
+    "./pg": {
+      "import": {
+        "types": "./dist/pg.d.ts",
+        "default": "./dist/pg.js"
+      },
+      "require": {
+        "types": "./dist/pg.d.cts",
+        "default": "./dist/pg.cjs"
+      }
+    },
+    "./sqlite3": {
+      "import": {
+        "types": "./dist/sqlite3.d.ts",
+        "default": "./dist/sqlite3.js"
+      },
+      "require": {
+        "types": "./dist/sqlite3.d.cts",
+        "default": "./dist/sqlite3.cjs"
+      }
+    }
+  },
+  "typesVersions": {
+    "*": {
+      ".": [
+        "./dist/index.d.ts"
+      ],
+      "pg": [
+        "./dist/pg.d.ts"
+      ],
+      "sqlite3": [
+        "./dist/sqlite3.d.ts"
+      ]
     }
   },
   "main": "./dist/index.cjs",
@@ -51,9 +84,11 @@
   "peerDependencies": {
     "@types/pg": "^8.11.11",
     "@types/uuid": "^10.0.0",
+    "@types/sqlite3": "^5.1.0",
     "pg": "^8.13.3",
     "pg-connection-string": "^2.7.0",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "sqlite3": "^5.1.7"
   },
   "devDependencies": {
     "@types/node": "^22.13.10"
