@@ -93,7 +93,7 @@ async function runBenchmark() {
       },
     })
     .on('cycle', function (event: Benchmark.Event) {
-      console.log(String(event.target));
+      console.log(String(event.target as unknown));
     })
     .on('complete', async function (this: Benchmark.Suite) {
       this.forEach((bench: Benchmark.Target) => {
