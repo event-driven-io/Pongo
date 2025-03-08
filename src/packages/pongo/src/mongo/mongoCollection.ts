@@ -114,7 +114,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   }
   async insertOne(
     doc: OptionalUnlessRequiredId<T>,
-    options?: InsertOneOptions | undefined,
+    options?: InsertOneOptions,
   ): Promise<InsertOneResult<T>> {
     const result = await this.collection.insertOne(
       doc as unknown as PongoOptionalUnlessRequiredId<T>,
@@ -127,7 +127,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   }
   async insertMany(
     docs: OptionalUnlessRequiredId<T>[],
-    options?: BulkWriteOptions | undefined,
+    options?: BulkWriteOptions,
   ): Promise<InsertManyResult<T>> {
     const result = await this.collection.insertMany(
       docs as unknown as PongoOptionalUnlessRequiredId<T>[],
@@ -141,14 +141,14 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   }
   bulkWrite(
     _operations: AnyBulkWriteOperation<T>[],
-    _options?: BulkWriteOptions | undefined,
+    _options?: BulkWriteOptions,
   ): Promise<BulkWriteResult> {
     throw new Error('Method not implemented.');
   }
   async updateOne(
     filter: Filter<T>,
     update: Document[] | UpdateFilter<T>,
-    options?: UpdateOptions | undefined,
+    options?: UpdateOptions,
   ): Promise<UpdateResult<T>> {
     const result = await this.collection.updateOne(
       filter as unknown as PongoFilter<T>,
@@ -167,7 +167,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   replaceOne(
     filter: Filter<T>,
     document: WithoutId<T>,
-    options?: ReplaceOptions | undefined,
+    options?: ReplaceOptions,
   ): Promise<Document | UpdateResult<T>> {
     return this.collection.replaceOne(
       filter as unknown as PongoFilter<T>,
@@ -178,7 +178,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   async updateMany(
     filter: Filter<T>,
     update: Document[] | UpdateFilter<T>,
-    options?: UpdateOptions | undefined,
+    options?: UpdateOptions,
   ): Promise<UpdateResult<T>> {
     const result = await this.collection.updateMany(
       filter as unknown as PongoFilter<T>,
@@ -195,8 +195,8 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     };
   }
   async deleteOne(
-    filter?: Filter<T> | undefined,
-    options?: DeleteOptions | undefined,
+    filter?: Filter<T>,
+    options?: DeleteOptions,
   ): Promise<DeleteResult> {
     const result = await this.collection.deleteOne(
       filter as PongoFilter<T>,
@@ -209,8 +209,8 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     };
   }
   async deleteMany(
-    filter?: Filter<T> | undefined,
-    options?: DeleteOptions | undefined,
+    filter?: Filter<T>,
+    options?: DeleteOptions,
   ): Promise<DeleteResult> {
     const result = await this.collection.deleteMany(
       filter as PongoFilter<T>,
@@ -224,7 +224,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   }
   async rename(
     newName: string,
-    options?: RenameOptions | undefined,
+    options?: RenameOptions,
   ): Promise<Collection<Document>> {
     await this.collection.rename(
       newName,
@@ -233,7 +233,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
 
     return this as unknown as Collection<Document>;
   }
-  drop(options?: DropCollectionOptions | undefined): Promise<boolean> {
+  drop(options?: DropCollectionOptions): Promise<boolean> {
     return this.collection.drop(toCollectionOperationOptions(options));
   }
   findOne(): Promise<WithId<T> | null>;
@@ -246,11 +246,11 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   findOne<TS = T>(filter: Filter<TS>): Promise<TS | null>;
   findOne<TS = T>(
     filter: Filter<TS>,
-    options?: FindOptions<Document> | undefined,
+    options?: FindOptions<Document>,
   ): Promise<TS | null>;
   async findOne(
     filter?: unknown,
-    options?: FindOptions<Document> | undefined,
+    options?: FindOptions<Document>,
   ): Promise<import('mongodb').WithId<T> | T | null> {
     return (await this.collection.findOne(
       filter as PongoFilter<T>,
@@ -260,15 +260,15 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   find(): MongoFindCursor<WithId<T>>;
   find(
     filter: Filter<T>,
-    options?: FindOptions<Document> | undefined,
+    options?: FindOptions<Document>,
   ): MongoFindCursor<WithId<T>>;
   find<T extends Document>(
     filter: Filter<T>,
-    options?: FindOptions<Document> | undefined,
+    options?: FindOptions<Document>,
   ): MongoFindCursor<T>;
   find(
     filter?: unknown,
-    options?: FindOptions<Document> | undefined,
+    options?: FindOptions<Document>,
   ): MongoFindCursor<WithId<T>> | MongoFindCursor<T> {
     return new FindCursor(
       this.collection.find(
@@ -277,41 +277,39 @@ export class Collection<T extends Document> implements MongoCollection<T> {
       ),
     ) as unknown as MongoFindCursor<T>;
   }
-  options(_options?: OperationOptions | undefined): Promise<Document> {
+  options(_options?: OperationOptions): Promise<Document> {
     throw new Error('Method not implemented.');
   }
-  isCapped(_options?: OperationOptions | undefined): Promise<boolean> {
+  isCapped(_options?: OperationOptions): Promise<boolean> {
     throw new Error('Method not implemented.');
   }
   createIndex(
     _indexSpec: IndexSpecification,
-    _options?: CreateIndexesOptions | undefined,
+    _options?: CreateIndexesOptions,
   ): Promise<string> {
     throw new Error('Method not implemented.');
   }
   createIndexes(
     _indexSpecs: IndexDescription[],
-    _options?: CreateIndexesOptions | undefined,
+    _options?: CreateIndexesOptions,
   ): Promise<string[]> {
     throw new Error('Method not implemented.');
   }
   dropIndex(
     _indexName: string,
-    _options?: CommandOperationOptions | undefined,
+    _options?: CommandOperationOptions,
   ): Promise<Document> {
     throw new Error('Method not implemented.');
   }
-  dropIndexes(
-    _options?: CommandOperationOptions | undefined,
-  ): Promise<boolean> {
+  dropIndexes(_options?: CommandOperationOptions): Promise<boolean> {
     throw new Error('Method not implemented.');
   }
-  listIndexes(_options?: AbstractCursorOptions | undefined): ListIndexesCursor {
+  listIndexes(_options?: AbstractCursorOptions): ListIndexesCursor {
     throw new Error('Method not implemented.');
   }
   indexExists(
     _indexes: string | string[],
-    _options?: AbstractCursorOptions | undefined,
+    _options?: AbstractCursorOptions,
   ): Promise<boolean> {
     throw new Error('Method not implemented.');
   }
@@ -337,7 +335,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     throw new Error('Method not implemented.');
   }
   estimatedDocumentCount(
-    options?: EstimatedDocumentCountOptions | undefined,
+    options?: EstimatedDocumentCountOptions,
   ): Promise<number> {
     return this.collection.countDocuments(
       {},
@@ -345,8 +343,8 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     );
   }
   countDocuments(
-    filter?: Filter<T> | undefined,
-    options?: CountDocumentsOptions | undefined,
+    filter?: Filter<T>,
+    options?: CountDocumentsOptions,
   ): Promise<number> {
     return this.collection.countDocuments(
       filter as PongoFilter<T>,
@@ -392,9 +390,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   indexes(
     options: IndexInformationOptions,
   ): Promise<IndexDescriptionCompact | IndexDescriptionInfo[]>;
-  indexes(
-    options?: AbstractCursorOptions | undefined,
-  ): Promise<IndexDescriptionInfo[]>;
+  indexes(options?: AbstractCursorOptions): Promise<IndexDescriptionInfo[]>;
   indexes(
     _options?: unknown,
   ):
@@ -450,7 +446,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   findOneAndReplace(
     filter: unknown,
     replacement: unknown,
-    options?: FindOneAndReplaceOptions | undefined,
+    options?: FindOneAndReplaceOptions,
   ): Promise<WithId<T> | null | ModifyResult<T>> {
     return this.collection.findOneAndReplace(
       filter as PongoFilter<T>,
@@ -480,7 +476,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   findOneAndUpdate(
     filter: unknown,
     update: unknown,
-    options?: FindOneAndUpdateOptions | undefined,
+    options?: FindOneAndUpdateOptions,
   ): Promise<WithId<T> | null | ModifyResult<T>> {
     return this.collection.findOneAndUpdate(
       filter as PongoFilter<T>,
@@ -489,8 +485,8 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     ) as Promise<WithId<T> | null>;
   }
   aggregate<T extends Document = Document>(
-    _pipeline?: Document[] | undefined,
-    _options?: AggregateOptions | undefined,
+    _pipeline?: Document[],
+    _options?: AggregateOptions,
   ): AggregationCursor<T> {
     throw new Error('Method not implemented.');
   }
@@ -498,36 +494,31 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     TLocal extends Document = T,
     TChange extends Document = ChangeStreamDocument<TLocal>,
   >(
-    _pipeline?: Document[] | undefined,
-    _options?: ChangeStreamOptions | undefined,
+    _pipeline?: Document[],
+    _options?: ChangeStreamOptions,
   ): ChangeStream<TLocal, TChange> {
     throw new Error('Method not implemented.');
   }
   initializeUnorderedBulkOp(
-    _options?: BulkWriteOptions | undefined,
+    _options?: BulkWriteOptions,
   ): UnorderedBulkOperation {
     throw new Error('Method not implemented.');
   }
-  initializeOrderedBulkOp(
-    _options?: BulkWriteOptions | undefined,
-  ): OrderedBulkOperation {
+  initializeOrderedBulkOp(_options?: BulkWriteOptions): OrderedBulkOperation {
     throw new Error('Method not implemented.');
   }
-  count(
-    filter?: Filter<T> | undefined,
-    options?: CountOptions | undefined,
-  ): Promise<number> {
+  count(filter?: Filter<T>, options?: CountOptions): Promise<number> {
     return this.collection.countDocuments(
       (filter as PongoFilter<T>) ?? {},
       toCollectionOperationOptions(options),
     );
   }
   listSearchIndexes(
-    options?: ListSearchIndexesOptions | undefined,
+    options?: ListSearchIndexesOptions,
   ): ListSearchIndexesCursor;
   listSearchIndexes(
     name: string,
-    options?: ListSearchIndexesOptions | undefined,
+    options?: ListSearchIndexesOptions,
   ): ListSearchIndexesCursor;
   listSearchIndexes(
     _name?: unknown,
