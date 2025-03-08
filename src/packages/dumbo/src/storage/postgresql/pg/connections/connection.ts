@@ -6,18 +6,26 @@ import { nodePostgresTransaction } from './transaction';
 export const NodePostgresConnectorType = 'PostgreSQL:pg';
 export type NodePostgresConnector = 'PostgreSQL:pg';
 
-export type NodePostgresClient = pg.PoolClient | pg.Client;
+export type NodePostgresPoolClient = pg.PoolClient;
+export type NodePostgresClient = pg.Client;
 
-export type NodePostgresPoolOrClient = pg.Pool | pg.PoolClient | pg.Client;
+export type NodePostgresClientOrPoolClient =
+  | NodePostgresPoolClient
+  | NodePostgresClient;
+
+export type NodePostgresPoolOrClient =
+  | pg.Pool
+  | NodePostgresPoolClient
+  | NodePostgresClient;
 
 export type NodePostgresClientConnection = Connection<
   NodePostgresConnector,
-  pg.Client
+  NodePostgresClient
 >;
 
 export type NodePostgresPoolClientConnection = Connection<
   NodePostgresConnector,
-  pg.PoolClient
+  NodePostgresPoolClient
 >;
 
 export type NodePostgresConnection =
@@ -26,14 +34,14 @@ export type NodePostgresConnection =
 
 export type NodePostgresPoolClientOptions = {
   type: 'PoolClient';
-  connect: Promise<pg.PoolClient>;
-  close: (client: pg.PoolClient) => Promise<void>;
+  connect: Promise<NodePostgresPoolClient>;
+  close: (client: NodePostgresPoolClient) => Promise<void>;
 };
 
 export type NodePostgresClientOptions = {
   type: 'Client';
-  connect: Promise<pg.Client>;
-  close: (client: pg.Client) => Promise<void>;
+  connect: Promise<NodePostgresClient>;
+  close: (client: NodePostgresClient) => Promise<void>;
 };
 
 export const nodePostgresClientConnection = (
@@ -91,7 +99,7 @@ export const checkConnection = async (
   connectionString: string,
 ): Promise<ConnectionCheckResult> => {
   const client = new pg.Client({
-    connectionString: connectionString,
+    connectionString,
   });
 
   try {

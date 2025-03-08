@@ -8,7 +8,7 @@ import {
 } from '../../../../core';
 import {
   NodePostgresConnectorType,
-  type NodePostgresClient,
+  type NodePostgresClientOrPoolClient,
   type NodePostgresConnector,
 } from '../connections';
 
@@ -49,7 +49,7 @@ export const nodePostgresExecute = async <Result = void>(
 
 export type NodePostgresSQLExecutor = DbSQLExecutor<
   NodePostgresConnector,
-  NodePostgresClient
+  NodePostgresClientOrPoolClient
 >;
 
 export const nodePostgresSQLExecutor = (): NodePostgresSQLExecutor => ({
@@ -63,17 +63,17 @@ export const nodePostgresSQLExecutor = (): NodePostgresSQLExecutor => ({
 export type BatchQueryOptions = { timeoutMs?: number };
 
 function batch<Result extends QueryResultRow = QueryResultRow>(
-  client: NodePostgresClient,
+  client: NodePostgresClientOrPoolClient,
   sqlOrSqls: SQL,
   options?: BatchQueryOptions,
 ): Promise<QueryResult<Result>>;
 function batch<Result extends QueryResultRow = QueryResultRow>(
-  client: NodePostgresClient,
+  client: NodePostgresClientOrPoolClient,
   sqlOrSqls: SQL[],
   options?: BatchQueryOptions,
 ): Promise<QueryResult<Result>[]>;
 async function batch<Result extends QueryResultRow = QueryResultRow>(
-  client: NodePostgresClient,
+  client: NodePostgresClientOrPoolClient,
   sqlOrSqls: SQL | SQL[],
   options?: BatchQueryOptions,
 ): Promise<QueryResult<Result> | QueryResult<Result>[]> {

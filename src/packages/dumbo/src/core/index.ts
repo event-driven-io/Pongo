@@ -1,4 +1,5 @@
 export * from './connections';
+export * from './connectors';
 export * from './execute';
 export * from './query';
 export * from './schema';
