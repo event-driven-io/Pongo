@@ -4,7 +4,7 @@ import {
   JSONSerializer,
   tracer,
   type ConnectionPool,
-} from '../../../core';
+} from '../../../../core';
 import {
   defaultPostgreSqlDatabase,
   getDatabaseNameOrDefault,

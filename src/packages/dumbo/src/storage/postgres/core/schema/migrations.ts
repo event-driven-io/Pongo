@@ -1,12 +1,12 @@
 import { AdvisoryLock, type DatabaseLockOptions } from '../..';
-import { rawSql, type Dumbo } from '../../..';
+import { rawSql, type Dumbo } from '../../../..';
 import {
   MIGRATIONS_LOCK_ID,
   runSQLMigrations,
   schemaComponent,
   sqlMigration,
   type SQLMigration,
-} from '../../../core/schema';
+} from '../../../../core/schema';
 
 export type PostgreSQLMigratorOptions = {
   lock?: {

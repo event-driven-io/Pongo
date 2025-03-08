@@ -2,7 +2,7 @@ import {
   isPostgresClientOptions,
   postgresDb,
   type PostgresDbClientOptions,
-} from '../postgres';
+} from '../postgresql';
 import type { PongoClientOptions } from './pongoClient';
 import type { PongoDb } from './typing';
 

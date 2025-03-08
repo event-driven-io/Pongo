@@ -3,10 +3,10 @@ import {
   type PostgresConnector,
   type PostgresPool,
   type PostgresPoolOptions,
-} from './postgres';
+} from './storage/postgres';
 
 export * from './core';
-export * from './postgres';
+export * from './storage/postgres';
 
 export type ConnectorType = PostgresConnector;
 

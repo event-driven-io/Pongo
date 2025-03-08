@@ -1,5 +1,5 @@
 import pg from 'pg';
-import { JSONSerializer } from '../../../core/serializer';
+import { JSONSerializer } from '../../../../core/serializer';
 
 export const setNodePostgresTypeParser = (jsonSerializer: JSONSerializer) => {
   // BigInt
