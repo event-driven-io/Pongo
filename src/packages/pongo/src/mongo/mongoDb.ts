@@ -12,7 +12,10 @@ import type {
 import { Collection } from './mongoCollection';
 
 export class Db {
-  constructor(private pongoDb: PongoDb) {}
+  private pongoDb: PongoDb;
+  constructor(pongoDb: PongoDb) {
+    this.pongoDb = pongoDb;
+  }
 
   get databaseName(): string {
     return this.pongoDb.databaseName;
