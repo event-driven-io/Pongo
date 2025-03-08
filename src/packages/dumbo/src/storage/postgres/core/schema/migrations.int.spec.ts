@@ -5,9 +5,9 @@ import {
 import assert from 'assert';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { tableExists } from '..';
-import { type Dumbo, dumbo } from '../../..';
-import { count, rawSql, sql } from '../../../core';
-import { type SQLMigration, MIGRATIONS_LOCK_ID } from '../../../core/schema';
+import { type Dumbo, dumbo } from '../../../..';
+import { count, rawSql, sql } from '../../../../core';
+import { type SQLMigration, MIGRATIONS_LOCK_ID } from '../../../../core/schema';
 import { acquireAdvisoryLock, releaseAdvisoryLock } from '../locks';
 import { runPostgreSQLMigrations } from './migrations';
 

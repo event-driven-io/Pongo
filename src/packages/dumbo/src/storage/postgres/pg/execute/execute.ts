@@ -5,7 +5,7 @@ import {
   type QueryResult,
   type QueryResultRow,
   type SQL,
-} from '../../../core';
+} from '../../../../core';
 import {
   NodePostgresConnectorType,
   type NodePostgresClient,

@@ -2,7 +2,7 @@ import {
   sqlExecutor,
   type Connection,
   type DatabaseTransaction,
-} from '../../../core';
+} from '../../../../core';
 import { nodePostgresSQLExecutor } from '../execute';
 import {
   NodePostgresConnectorType,

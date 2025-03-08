@@ -1,5 +1,5 @@
 import pg from 'pg';
-import { createConnection, type Connection } from '../../../core';
+import { createConnection, type Connection } from '../../../../core';
 import { nodePostgresSQLExecutor } from '../execute';
 import { nodePostgresTransaction } from './transaction';
 
