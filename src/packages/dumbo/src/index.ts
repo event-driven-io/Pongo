@@ -8,6 +8,7 @@ import {
 export * from './core';
 export * from './storage/postgresql';
 
+// TODO: Merge with ConnectorTypeName
 export type ConnectorType = PostgresConnector;
 
 export type PoolOptions = {
