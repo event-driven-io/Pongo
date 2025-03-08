@@ -6,7 +6,7 @@ import {
   type $set,
   type $unset,
   type PongoUpdate,
-} from '../../../core';
+} from '../../../../core';
 
 export const buildUpdateQuery = <T>(update: PongoUpdate<T>): SQL =>
   objectEntries(update).reduce((currentUpdateQuery, [op, value]) => {

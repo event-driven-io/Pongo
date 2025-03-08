@@ -4,7 +4,7 @@ import {
   type NodePostgresConnection,
 } from '@event-driven-io/dumbo';
 import pg from 'pg';
-import type { PostgresDbClientOptions } from '../postgresql';
+import type { PostgresDbClientOptions } from '../storage/postgresql';
 import { getPongoDb, type AllowedDbClientOptions } from './pongoDb';
 import { pongoSession } from './pongoSession';
 import {
