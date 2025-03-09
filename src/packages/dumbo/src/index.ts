@@ -1,6 +1,5 @@
 import {
   postgresPool,
-  type PostgresConnector,
   type PostgresPool,
   type PostgresPoolOptions,
 } from './storage/postgresql';
@@ -9,10 +8,10 @@ export * from './core';
 export * from './storage/postgresql';
 
 // TODO: Merge with ConnectorTypeName
-export type ConnectorType = PostgresConnector;
+export type SupportedConnector = `PostgreSQL:pg` | `SQLite:sqlite3`;
 
 export type PoolOptions = {
-  connector?: ConnectorType;
+  connector?: SupportedConnector;
 };
 
 export type DumboOptions = PoolOptions & PostgresPoolOptions;

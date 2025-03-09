@@ -1,4 +1,4 @@
-import type { ConnectorTypeName } from '../../..';
+import type { ConnectorType } from '../../..';
 
 export * from './connections';
 export * from './execute';
@@ -9,4 +9,4 @@ export type SQLiteConnector = 'SQLite';
 export const SQLiteConnector = 'SQLite';
 
 export type SQLiteConnectorType<DriverName extends string = string> =
-  ConnectorTypeName<SQLiteConnector, DriverName>;
+  ConnectorType<SQLiteConnector, DriverName>;

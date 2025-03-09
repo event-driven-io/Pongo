@@ -1,8 +1,7 @@
 export type DatabaseType = string;
 export type DatabaseDriverName = string;
 
-//TODO: Rename to ConnectorType
-export type ConnectorTypeName<
+export type ConnectorType<
   DatabaseTypeName extends DatabaseType = DatabaseType,
   DriverName extends DatabaseDriverName = DatabaseDriverName,
 > = `${DatabaseTypeName}:${DriverName}`;
@@ -20,7 +19,7 @@ export type ConnectorTypeParts<T extends DatabaseType = DatabaseType> = {
 export function toConnectorType<T extends DatabaseType>(
   databaseType: T,
   driverName: string,
-): ConnectorTypeName<T> {
+): ConnectorType<T> {
   return `${databaseType}:${driverName}`;
 }
 
@@ -29,7 +28,7 @@ export function toConnectorType<T extends DatabaseType>(
  * `databaseType` and `driverName`.
  */
 export function fromConnectorType<T extends DatabaseType>(
-  connectorType: ConnectorTypeName<T>,
+  connectorType: ConnectorType<T>,
 ): ConnectorTypeParts<T> {
   const parts = connectorType.split(':') as [T, string];
   return {
@@ -42,7 +41,7 @@ export function fromConnectorType<T extends DatabaseType>(
  * Accepts a fully formatted `connectorType` and returns the `driverName`.
  */
 export function getDriverName<T extends DatabaseType>(
-  connectorType: ConnectorTypeName<T>,
+  connectorType: ConnectorType<T>,
 ): DatabaseDriverName {
   const { driverName } = fromConnectorType(connectorType);
   return driverName;
