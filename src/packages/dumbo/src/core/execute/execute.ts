@@ -9,7 +9,7 @@ export interface DbSQLExecutor<
   ConnectorType extends string = string,
   DbClient = unknown,
 > {
-  type: ConnectorType;
+  connector: ConnectorType;
   query<Result extends QueryResultRow = QueryResultRow>(
     client: DbClient,
     sql: SQL,

@@ -51,7 +51,7 @@ export const nodePostgresClientConnection = (
   const { connect, close } = options;
 
   return createConnection({
-    type: NodePostgresConnectorType,
+    connector: NodePostgresConnectorType,
     connect,
     close,
     initTransaction: (connection) => nodePostgresTransaction(connection),
@@ -65,7 +65,7 @@ export const nodePostgresPoolClientConnection = (
   const { connect, close } = options;
 
   return createConnection({
-    type: NodePostgresConnectorType,
+    connector: NodePostgresConnectorType,
     connect,
     close,
     initTransaction: (connection) => nodePostgresTransaction(connection),

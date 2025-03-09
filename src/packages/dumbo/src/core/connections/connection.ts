@@ -14,7 +14,7 @@ export interface Connection<
   DbClient = unknown,
 > extends WithSQLExecutor,
     DatabaseTransactionFactory<ConnectorType> {
-  type: ConnectorType;
+  connector: ConnectorType;
   open: () => Promise<DbClient>;
   close: () => Promise<void>;
 }
@@ -38,7 +38,7 @@ export type CreateConnectionOptions<
   >,
   Executor extends DbSQLExecutor = DbSQLExecutor,
 > = {
-  type: ConnectorType;
+  connector: ConnectorType;
   connect: Promise<DbClient>;
   close: (client: DbClient) => Promise<void>;
   initTransaction: (
@@ -65,14 +65,14 @@ export const createConnection = <
     Executor
   >,
 ): ConnectionType => {
-  const { type, connect, close, initTransaction, executor } = options;
+  const { connector, connect, close, initTransaction, executor } = options;
 
   let client: DbClient | null = null;
 
   const getClient = async () => client ?? (client = await connect);
 
   const connection: Connection<ConnectorType, DbClient> = {
-    type: type,
+    connector,
     open: getClient,
     close: () => (client ? close(client) : Promise.resolve()),
     ...transactionFactoryWithDbClient(

@@ -30,7 +30,7 @@ export type PostgresDbClientOptions = PongoDbClientOptions<PostgresConnector>;
 export const isPostgresClientOptions = (
   options: PongoDbClientOptions,
 ): options is PostgresDbClientOptions =>
-  options.connectorType === NodePostgresConnectorType;
+  options.connector === NodePostgresConnectorType;
 
 export const postgresDb = (
   options: PostgresDbClientOptions,
@@ -62,7 +62,7 @@ export const postgresDb = (
     );
 
   const db: PongoDb<PostgresConnector> = {
-    connectorType: options.connectorType,
+    connector: options.connector,
     databaseName,
     connect: () => Promise.resolve(),
     close: () => pool.close(),

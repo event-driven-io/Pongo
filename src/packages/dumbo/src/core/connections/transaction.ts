@@ -5,7 +5,7 @@ export interface DatabaseTransaction<
   ConnectorType extends string = string,
   DbClient = unknown,
 > extends WithSQLExecutor {
-  type: ConnectorType;
+  connector: ConnectorType;
   connection: Connection<ConnectorType, DbClient>;
   begin: () => Promise<void>;
   commit: () => Promise<void>;
@@ -94,7 +94,7 @@ export const transactionFactoryWithNewConnection = <
   ConnectionType extends Connection = Connection,
 >(
   connect: () => ConnectionType,
-): DatabaseTransactionFactory<ConnectionType['type']> => ({
+): DatabaseTransactionFactory<ConnectionType['connector']> => ({
   transaction: () => {
     const connection = connect();
     const transaction = connection.transaction();

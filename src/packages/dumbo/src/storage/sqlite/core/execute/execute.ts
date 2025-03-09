@@ -26,9 +26,9 @@ export type SQLiteSQLExecutor<
 export const sqliteSQLExecutor = <
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
 >(
-  connectorType: ConnectorType,
+  connector: ConnectorType,
 ): SQLiteSQLExecutor<ConnectorType> => ({
-  type: connectorType,
+  connector,
   query: batch,
   batchQuery: batch,
   command: batch,
