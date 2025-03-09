@@ -1,4 +1,5 @@
 import {
+  InMemorySQLiteDatabase,
   sqliteConnection,
   type SQLiteClient,
   type SQLiteClientConnection,
@@ -141,6 +142,7 @@ export type SQLitePoolPooledOptions<
   connector: ConnectorType;
   fileName: string;
   pooled?: true;
+  singleton?: boolean;
 };
 
 export type SQLitePoolNotPooledOptions<
@@ -151,11 +153,13 @@ export type SQLitePoolNotPooledOptions<
       fileName: string;
       pooled?: false;
       client: SQLiteClient;
+      singleton?: true;
     }
   | {
       connector: ConnectorType;
       fileName: string;
       pooled?: boolean;
+      singleton?: boolean;
     }
   | {
       connector: ConnectorType;
@@ -164,6 +168,7 @@ export type SQLitePoolNotPooledOptions<
         | SQLitePoolClientConnection<ConnectorType>
         | SQLiteClientConnection<ConnectorType>;
       pooled?: false;
+      singleton?: true;
     };
 
 export type SQLitePoolOptions<
@@ -197,5 +202,8 @@ export function sqlitePool<
       connection: options.connection,
     });
 
-  return sqliteAlwaysNewClientPool({ connector: connector, fileName });
+  if (options.singleton === true || options.fileName == InMemorySQLiteDatabase)
+    return sqliteSingletonClientPool({ connector, fileName });
+
+  return sqliteAlwaysNewClientPool({ connector, fileName });
 }
