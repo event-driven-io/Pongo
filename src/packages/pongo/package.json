@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/pongo",
-  "version": "0.17.0-alpha.2",
+  "version": "0.17.0-alpha.3",
   "description": "Pongo - Mongo with strong consistency on top of Postgres",
   "type": "module",
   "scripts": {
@@ -113,7 +113,7 @@
     "pongo": "./dist/cli.js"
   },
   "peerDependencies": {
-    "@event-driven-io/dumbo": "0.13.0-alpha.2",
+    "@event-driven-io/dumbo": "0.13.0-alpha.3",
     "@types/mongodb": "^4.0.7",
     "@types/pg": "^8.11.11",
     "@types/sqlite3": "^5.1.0",
