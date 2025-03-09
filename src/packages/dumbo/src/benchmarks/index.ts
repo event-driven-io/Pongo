@@ -2,7 +2,8 @@ import 'dotenv/config';
 
 import Benchmark from 'benchmark';
 import pg from 'pg';
-import { defaultPostgreSQLConenctionString, dumbo, rawSql, single } from '..';
+import { rawSql, single } from '..';
+import { defaultPostgreSQLConenctionString, dumbo } from '../pg';
 
 const connectionString =
   process.env.BENCHMARK_POSTGRESQL_CONNECTION_STRING ??

@@ -1,9 +1,9 @@
+import { combineMigrations } from '@event-driven-io/dumbo';
 import {
-  combineMigrations,
   dumbo,
   migrationTableSchemaComponent,
   runPostgreSQLMigrations,
-} from '@event-driven-io/dumbo';
+} from '@event-driven-io/dumbo/pg';
 import { Command } from 'commander';
 import { pongoCollectionSchemaComponent } from '../core';
 import { loadConfigFile } from './configFile';

@@ -1,4 +1,5 @@
 import {
+  type ConnectorType,
   type DatabaseTransaction,
   type DatabaseTransactionFactory,
   JSONSerializer,
@@ -61,9 +62,9 @@ export interface PongoSession {
   ): Promise<T>;
 }
 
-export interface PongoDb<ConnectorType extends string = string>
-  extends DatabaseTransactionFactory<ConnectorType> {
-  get connector(): ConnectorType;
+export interface PongoDb<Connector extends ConnectorType = ConnectorType>
+  extends DatabaseTransactionFactory<Connector> {
+  get connector(): Connector;
   get databaseName(): string;
   connect(): Promise<void>;
   close(): Promise<void>;

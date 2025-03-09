@@ -1,4 +1,4 @@
-import { dumbo, isNodePostgresNativePool } from '@event-driven-io/dumbo';
+import { dumbo, isNodePostgresNativePool } from '@event-driven-io/dumbo/pg';
 import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,

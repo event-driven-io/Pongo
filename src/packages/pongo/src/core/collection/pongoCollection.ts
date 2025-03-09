@@ -1,7 +1,7 @@
 import {
-  runPostgreSQLMigrations,
   schemaComponent,
   single,
+  type ConnectorType,
   type DatabaseTransaction,
   type Dumbo,
   type MigrationStyle,
@@ -12,6 +12,7 @@ import {
   type SQLExecutor,
   type SQLMigration,
 } from '@event-driven-io/dumbo';
+import { runPostgreSQLMigrations } from '@event-driven-io/dumbo/pg';
 import { v7 as uuid } from 'uuid';
 import {
   deepEquals,
@@ -45,8 +46,10 @@ import {
 } from '..';
 import { pongoCollectionPostgreSQLMigrations } from '../../storage/postgresql';
 
-export type PongoCollectionOptions<ConnectorType extends string = string> = {
-  db: PongoDb<ConnectorType>;
+export type PongoCollectionOptions<
+  Connector extends ConnectorType = ConnectorType,
+> = {
+  db: PongoDb<Connector>;
   collectionName: string;
   pool: Dumbo;
   sqlBuilder: PongoCollectionSQLBuilder;
@@ -55,9 +58,9 @@ export type PongoCollectionOptions<ConnectorType extends string = string> = {
 };
 
 const enlistIntoTransactionIfActive = async <
-  ConnectorType extends string = string,
+  Connector extends ConnectorType = ConnectorType,
 >(
-  db: PongoDb<ConnectorType>,
+  db: PongoDb<Connector>,
   options: CollectionOperationOptions | undefined,
 ): Promise<DatabaseTransaction | null> => {
   const transaction = options?.session?.transaction;
@@ -68,9 +71,9 @@ const enlistIntoTransactionIfActive = async <
 };
 
 export const transactionExecutorOrDefault = async <
-  ConnectorType extends string = string,
+  Connector extends ConnectorType = ConnectorType,
 >(
-  db: PongoDb<ConnectorType>,
+  db: PongoDb<Connector>,
   options: CollectionOperationOptions | undefined,
   defaultSqlExecutor: SQLExecutor,
 ): Promise<SQLExecutor> => {
@@ -80,7 +83,7 @@ export const transactionExecutorOrDefault = async <
 
 export const pongoCollection = <
   T extends PongoDocument,
-  ConnectorType extends string = string,
+  Connector extends ConnectorType = ConnectorType,
 >({
   db,
   collectionName,
@@ -88,7 +91,7 @@ export const pongoCollection = <
   sqlBuilder: SqlFor,
   schema,
   errors,
-}: PongoCollectionOptions<ConnectorType>): PongoCollection<T> => {
+}: PongoCollectionOptions<Connector>): PongoCollection<T> => {
   const sqlExecutor = pool.execute;
   const command = async <Result extends QueryResultRow = QueryResultRow>(
     sql: SQL,

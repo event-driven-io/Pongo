@@ -1,16 +1,18 @@
 import {
-  dumbo,
-  getDatabaseNameOrDefault,
-  NodePostgresConnectorType,
-  runPostgreSQLMigrations,
   schemaComponent,
   SQL,
-  type PostgresConnector,
-  type PostgresPoolOptions,
   type QueryResult,
   type QueryResultRow,
   type SchemaComponent,
 } from '@event-driven-io/dumbo';
+import {
+  dumbo,
+  getDatabaseNameOrDefault,
+  NodePostgresConnectorType,
+  runPostgreSQLMigrations,
+  type PostgresConnector,
+  type PostgresPoolOptions,
+} from '@event-driven-io/dumbo/pg';
 import type { Document } from 'mongodb';
 import {
   objectEntries,

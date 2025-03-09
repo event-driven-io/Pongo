@@ -11,6 +11,7 @@
     "setup": "cat .nvmrc | nvm install; nvm use",
     "build": "run-s build:ts build:dumbo build:pongo",
     "build:ts": "tsc -b",
+    "build:ts:clean": "tsc --build --clean",
     "build:ts:watch": "tsc -b --watch",
     "build:dumbo": "npm run build -w packages/dumbo",
     "build:pongo": "npm run build -w packages/pongo",

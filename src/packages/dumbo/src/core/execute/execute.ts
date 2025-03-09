@@ -1,4 +1,5 @@
 import type { Connection } from '../connections';
+import type { ConnectorType } from '../connectors';
 import type { QueryResult, QueryResultRow } from '../query';
 import { type SQL } from '../sql';
 
@@ -6,10 +7,10 @@ export type SQLQueryOptions = { timeoutMs?: number };
 export type SQLCommandOptions = { timeoutMs?: number };
 
 export interface DbSQLExecutor<
-  ConnectorType extends string = string,
+  Connector extends ConnectorType = ConnectorType,
   DbClient = unknown,
 > {
-  connector: ConnectorType;
+  connector: Connector;
   query<Result extends QueryResultRow = QueryResultRow>(
     client: DbClient,
     sql: SQL,

@@ -1,4 +1,5 @@
-import { type Dumbo, dumbo, rawSql, tableExists } from '@event-driven-io/dumbo';
+import { type Dumbo, rawSql } from '@event-driven-io/dumbo';
+import { dumbo, tableExists } from '@event-driven-io/dumbo/pg';
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
