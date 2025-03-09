@@ -1,7 +1,7 @@
 import type { ConnectorType } from '../../../core';
 
-export * from '../../../core/locks';
 export * from './connections';
+export * from './locks';
 export * from './schema';
 
 export type PostgreSQLConnector = 'PostgreSQL';

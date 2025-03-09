@@ -1,26 +1,27 @@
+import type { ConnectorType } from '../connectors';
 import type { WithSQLExecutor } from '../execute';
 import { type Connection } from './connection';
 
 export interface DatabaseTransaction<
-  ConnectorType extends string = string,
+  Connector extends ConnectorType = ConnectorType,
   DbClient = unknown,
 > extends WithSQLExecutor {
-  connector: ConnectorType;
-  connection: Connection<ConnectorType, DbClient>;
+  connector: Connector;
+  connection: Connection<Connector, DbClient>;
   begin: () => Promise<void>;
   commit: () => Promise<void>;
   rollback: (error?: unknown) => Promise<void>;
 }
 
 export interface DatabaseTransactionFactory<
-  ConnectorType extends string = string,
+  Connector extends ConnectorType = ConnectorType,
   DbClient = unknown,
 > {
-  transaction: () => DatabaseTransaction<ConnectorType, DbClient>;
+  transaction: () => DatabaseTransaction<Connector, DbClient>;
 
   withTransaction: <Result = never>(
     handle: (
-      transaction: DatabaseTransaction<ConnectorType, DbClient>,
+      transaction: DatabaseTransaction<Connector, DbClient>,
     ) => Promise<TransactionResult<Result> | Result>,
   ) => Promise<Result>;
 }
@@ -38,13 +39,13 @@ const toTransactionResult = <Result>(
     : { success: true, result: transactionResult };
 
 export const executeInTransaction = async <
-  ConnectorType extends string = string,
+  Connector extends ConnectorType = ConnectorType,
   DbClient = unknown,
   Result = void,
 >(
-  transaction: DatabaseTransaction<ConnectorType, DbClient>,
+  transaction: DatabaseTransaction<Connector, DbClient>,
   handle: (
-    transaction: DatabaseTransaction<ConnectorType, DbClient>,
+    transaction: DatabaseTransaction<Connector, DbClient>,
   ) => Promise<TransactionResult<Result> | Result>,
 ): Promise<Result> => {
   await transaction.begin();
@@ -63,14 +64,14 @@ export const executeInTransaction = async <
 };
 
 export const transactionFactoryWithDbClient = <
-  ConnectorType extends string = string,
+  Connector extends ConnectorType = ConnectorType,
   DbClient = unknown,
 >(
   connect: () => Promise<DbClient>,
   initTransaction: (
     client: Promise<DbClient>,
-  ) => DatabaseTransaction<ConnectorType, DbClient>,
-): DatabaseTransactionFactory<ConnectorType, DbClient> => ({
+  ) => DatabaseTransaction<Connector, DbClient>,
+): DatabaseTransactionFactory<Connector, DbClient> => ({
   transaction: () => initTransaction(connect()),
   withTransaction: (handle) =>
     executeInTransaction(initTransaction(connect()), handle),

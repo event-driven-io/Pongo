@@ -1,5 +1,4 @@
 import {
-  checkConnection,
   color,
   LogLevel,
   LogStyle,
@@ -7,6 +6,7 @@ import {
   SQL,
   type MigrationStyle,
 } from '@event-driven-io/dumbo';
+import { checkConnection } from '@event-driven-io/dumbo/pg';
 import Table from 'cli-table3';
 import { Command } from 'commander';
 import repl from 'node:repl';

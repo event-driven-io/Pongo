@@ -1,3 +1,4 @@
+import type { ConnectorType } from '../connectors';
 import {
   sqlExecutor,
   type DbSQLExecutor,
@@ -10,11 +11,11 @@ import {
 } from './transaction';
 
 export interface Connection<
-  ConnectorType extends string = string,
+  Connector extends ConnectorType = ConnectorType,
   DbClient = unknown,
 > extends WithSQLExecutor,
-    DatabaseTransactionFactory<ConnectorType> {
-  connector: ConnectorType;
+    DatabaseTransactionFactory<Connector> {
+  connector: Connector;
   open: () => Promise<DbClient>;
   close: () => Promise<void>;
 }
@@ -30,36 +31,34 @@ export interface ConnectionFactory<
 }
 
 export type CreateConnectionOptions<
-  ConnectorType extends string = string,
+  Connector extends ConnectorType = ConnectorType,
   DbClient = unknown,
-  ConnectionType extends Connection<ConnectorType, DbClient> = Connection<
-    ConnectorType,
+  ConnectionType extends Connection<Connector, DbClient> = Connection<
+    Connector,
     DbClient
   >,
   Executor extends DbSQLExecutor = DbSQLExecutor,
 > = {
-  connector: ConnectorType;
+  connector: Connector;
   connect: Promise<DbClient>;
   close: (client: DbClient) => Promise<void>;
   initTransaction: (
     connection: () => ConnectionType,
-  ) => (
-    client: Promise<DbClient>,
-  ) => DatabaseTransaction<ConnectorType, DbClient>;
+  ) => (client: Promise<DbClient>) => DatabaseTransaction<Connector, DbClient>;
   executor: () => Executor;
 };
 
 export const createConnection = <
-  ConnectorType extends string = string,
+  Connector extends ConnectorType = ConnectorType,
   DbClient = unknown,
-  ConnectionType extends Connection<ConnectorType, DbClient> = Connection<
-    ConnectorType,
+  ConnectionType extends Connection<Connector, DbClient> = Connection<
+    Connector,
     DbClient
   >,
   Executor extends DbSQLExecutor = DbSQLExecutor,
 >(
   options: CreateConnectionOptions<
-    ConnectorType,
+    Connector,
     DbClient,
     ConnectionType,
     Executor
@@ -71,7 +70,7 @@ export const createConnection = <
 
   const getClient = async () => client ?? (client = await connect);
 
-  const connection: Connection<ConnectorType, DbClient> = {
+  const connection: Connection<Connector, DbClient> = {
     connector,
     open: getClient,
     close: () => (client ? close(client) : Promise.resolve()),

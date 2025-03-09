@@ -1,8 +1,8 @@
+import { type MigrationStyle } from '@event-driven-io/dumbo';
 import {
   NodePostgresConnectorType,
-  type MigrationStyle,
   type NodePostgresConnection,
-} from '@event-driven-io/dumbo';
+} from '@event-driven-io/dumbo/pg';
 import pg from 'pg';
 import type { PostgresDbClientOptions } from '../storage/postgresql';
 import { getPongoDb, type AllowedDbClientOptions } from './pongoDb';
