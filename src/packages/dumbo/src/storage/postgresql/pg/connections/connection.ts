@@ -1,10 +1,11 @@
 import pg from 'pg';
 import { createConnection, type Connection } from '../../../../core';
+import type { PostgreSQLConnectorType } from '../../core';
 import { nodePostgresSQLExecutor } from '../execute';
 import { nodePostgresTransaction } from './transaction';
 
-export const NodePostgresConnectorType = 'PostgreSQL:pg';
-export type NodePostgresConnector = 'PostgreSQL:pg';
+export type NodePostgresConnector = PostgreSQLConnectorType<'pg'>;
+export const NodePostgresConnectorType: NodePostgresConnector = 'PostgreSQL:pg';
 
 export type NodePostgresPoolClient = pg.PoolClient;
 export type NodePostgresClient = pg.Client;

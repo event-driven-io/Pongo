@@ -6,6 +6,7 @@ export * from './pool';
 export * from './transactions';
 
 export type SQLiteConnector = 'SQLite';
+export const SQLiteConnector = 'SQLite';
 
 export type SQLiteConnectorType<DriverName extends string = string> =
   ConnectorTypeName<SQLiteConnector, DriverName>;
