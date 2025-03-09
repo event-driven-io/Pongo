@@ -16,7 +16,7 @@ export const sqliteTransaction =
     ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
     DbClient extends SQLiteClientOrPoolClient = SQLiteClientOrPoolClient,
   >(
-    connectorType: ConnectorType,
+    connector: ConnectorType,
     connection: () => Connection<ConnectorType, DbClient>,
   ) =>
   (
@@ -24,7 +24,7 @@ export const sqliteTransaction =
     options?: { close: (client: DbClient, error?: unknown) => Promise<void> },
   ): DatabaseTransaction<ConnectorType> => ({
     connection: connection(),
-    type: connectorType,
+    connector,
     begin: async () => {
       const client = await getClient;
       await client.query('BEGIN TRANSACTION');
@@ -42,7 +42,7 @@ export const sqliteTransaction =
 
       if (options?.close) await options?.close(client, error);
     },
-    execute: sqlExecutor(sqliteSQLExecutor(connectorType), {
+    execute: sqlExecutor(sqliteSQLExecutor(connector), {
       connect: () => getClient,
     }),
   });

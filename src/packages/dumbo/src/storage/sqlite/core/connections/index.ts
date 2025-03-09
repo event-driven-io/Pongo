@@ -74,7 +74,7 @@ export const sqliteClientConnection = <
   const { connect, close } = options;
 
   return createConnection({
-    type: options.connector,
+    connector: options.connector,
     connect,
     close,
     initTransaction: (connection) =>
@@ -91,7 +91,7 @@ export const sqlitePoolClientConnection = <
   const { connect, close } = options;
 
   return createConnection({
-    type: options.connector,
+    connector: options.connector,
     connect,
     close,
     initTransaction: (connection) =>

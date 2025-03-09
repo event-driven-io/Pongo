@@ -7,7 +7,7 @@ import type { PongoClientOptions } from './pongoClient';
 import type { PongoDb } from './typing';
 
 export type PongoDbClientOptions<ConnectorType extends string = string> = {
-  connectorType: ConnectorType;
+  connector: ConnectorType;
   connectionString: string;
   dbName: string | undefined;
 } & PongoClientOptions;
@@ -19,10 +19,10 @@ export const getPongoDb = <
 >(
   options: DbClientOptions,
 ): PongoDb => {
-  const { connectorType: type } = options;
+  const { connector } = options;
   // This is the place where in the future could come resolution of other database types
   if (!isPostgresClientOptions(options))
-    throw new Error(`Unsupported db type: ${type}`);
+    throw new Error(`Unsupported db type: ${connector}`);
 
   return postgresDb(options);
 };

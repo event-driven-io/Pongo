@@ -51,7 +51,7 @@ export const nodePostgresNativePool = (options: {
   const close = () => endPool({ connectionString, database });
 
   return createConnectionPool({
-    type: NodePostgresConnectorType,
+    connector: NodePostgresConnectorType,
     connection: open,
     close,
     getConnection,
@@ -64,7 +64,7 @@ export const nodePostgresAmbientNativePool = (options: {
   const { pool } = options;
 
   return createConnectionPool({
-    type: NodePostgresConnectorType,
+    connector: NodePostgresConnectorType,
     getConnection: () =>
       nodePostgresConnection({
         type: 'PoolClient',
@@ -80,7 +80,7 @@ export const nodePostgresAmbientConnectionPool = (options: {
   const { connection } = options;
 
   return createConnectionPool({
-    type: NodePostgresConnectorType,
+    connector: NodePostgresConnectorType,
     getConnection: () => connection,
     execute: connection.execute,
     transaction: () => connection.transaction(),
@@ -95,7 +95,7 @@ export const nodePostgresClientPool = (options: {
   const { connectionString, database } = options;
 
   return createConnectionPool({
-    type: NodePostgresConnectorType,
+    connector: NodePostgresConnectorType,
     getConnection: () => {
       const connect = Promise.resolve(
         new pg.Client({ connectionString, database }),
@@ -132,7 +132,7 @@ export const nodePostgresAmbientClientPool = (options: {
   const close = () => Promise.resolve();
 
   return createConnectionPool({
-    type: NodePostgresConnectorType,
+    connector: NodePostgresConnectorType,
     connection: open,
     close,
     getConnection,

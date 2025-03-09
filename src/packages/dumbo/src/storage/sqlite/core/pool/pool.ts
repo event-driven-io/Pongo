@@ -34,7 +34,7 @@ export const sqliteAmbientConnectionPool = <
   const { connection, connector: connectorType } = options;
 
   return createConnectionPool({
-    type: connectorType,
+    connector: connectorType,
     getConnection: () => connection,
     execute: connection.execute,
     transaction: () => connection.transaction(),
@@ -73,7 +73,7 @@ export const sqliteSingletonClientPool = <
   };
 
   return createConnectionPool({
-    type: connector,
+    connector: connector,
     connection: open,
     close,
     getConnection,
@@ -90,7 +90,7 @@ export const sqliteAlwaysNewClientPool = <
   const { connector, fileName } = options;
 
   return createConnectionPool({
-    type: connector,
+    connector: connector,
     getConnection: () => {
       const connect = sqliteClientProvider(connector).then((sqliteClient) =>
         sqliteClient({ fileName }),
@@ -129,7 +129,7 @@ export const sqliteAmbientClientPool = <
   const close = () => Promise.resolve();
 
   return createConnectionPool({
-    type: connector,
+    connector: connector,
     connection: open,
     close,
     getConnection,

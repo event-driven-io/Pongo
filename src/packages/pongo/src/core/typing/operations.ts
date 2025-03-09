@@ -63,7 +63,7 @@ export interface PongoSession {
 
 export interface PongoDb<ConnectorType extends string = string>
   extends DatabaseTransactionFactory<ConnectorType> {
-  get connectorType(): ConnectorType;
+  get connector(): ConnectorType;
   get databaseName(): string;
   connect(): Promise<void>;
   close(): Promise<void>;

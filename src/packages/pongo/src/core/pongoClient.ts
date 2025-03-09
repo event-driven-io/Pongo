@@ -122,7 +122,7 @@ export const clientToDbOptions = <
   clientOptions: PongoClientOptions;
 }): DbClientOptions => {
   const postgreSQLOptions: PostgresDbClientOptions = {
-    connectorType: NodePostgresConnectorType,
+    connector: NodePostgresConnectorType,
     connectionString: options.connectionString,
     dbName: options.dbName,
     ...options.clientOptions,

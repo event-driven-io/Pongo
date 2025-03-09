@@ -53,7 +53,7 @@ export type NodePostgresSQLExecutor = DbSQLExecutor<
 >;
 
 export const nodePostgresSQLExecutor = (): NodePostgresSQLExecutor => ({
-  type: NodePostgresConnectorType,
+  connector: NodePostgresConnectorType,
   query: batch,
   batchQuery: batch,
   command: batch,
