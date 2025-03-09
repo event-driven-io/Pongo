@@ -62,9 +62,11 @@ export type SQLitePoolClientConnection<
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
 > = Connection<ConnectorType, SQLitePoolClient>;
 
-export type SQLiteConnection =
-  | SQLiteClientConnection
-  | SQLitePoolClientConnection;
+export type SQLiteConnection<
+  ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
+> =
+  | SQLiteClientConnection<ConnectorType>
+  | SQLitePoolClientConnection<ConnectorType>;
 
 export const sqliteClientConnection = <
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,

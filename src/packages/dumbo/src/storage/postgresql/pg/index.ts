@@ -15,11 +15,7 @@ export type PostgresPoolOptions = DumboOptions<NodePostgresConnector> &
   NodePostgresPoolOptions;
 export const postgresPool = nodePostgresPool;
 
-export const connectionPool = <PoolOptionsType extends DumboOptions>(
-  options: PoolOptionsType,
-) =>
-  // TODO: this should have the pattern matching and verification
-  postgresPool(options as unknown as PostgresPoolOptions);
+export const connectionPool = postgresPool;
 
 export const dumbo = <
   DumboOptionsType extends PostgresPoolOptions = PostgresPoolOptions,

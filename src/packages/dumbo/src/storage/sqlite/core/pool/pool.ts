@@ -1,25 +1,34 @@
 import {
   InMemorySQLiteDatabase,
+  sqliteClientProvider,
   sqliteConnection,
   type SQLiteClient,
   type SQLiteClientConnection,
   type SQLiteConnectorType,
   type SQLitePoolClientConnection,
 } from '..';
-import { sqliteClientProvider } from '../..';
 import {
   createConnectionPool,
   JSONSerializer,
   type ConnectionPool,
 } from '../../../../core';
 
-export type SQLiteAmbientClientPool = ConnectionPool<SQLiteClientConnection>;
+export type SQLiteAmbientClientPool<
+  ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
+> = ConnectionPool<SQLiteClientConnection<ConnectorType>>;
 
-export type SQLiteAmbientConnectionPool = ConnectionPool<
-  SQLitePoolClientConnection | SQLiteClientConnection
+export type SQLiteAmbientConnectionPool<
+  ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
+> = ConnectionPool<
+  | SQLitePoolClientConnection<ConnectorType>
+  | SQLiteClientConnection<ConnectorType>
 >;
 
-export type SQLitePool = SQLiteAmbientClientPool | SQLiteAmbientConnectionPool;
+export type SQLitePool<
+  ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
+> =
+  | SQLiteAmbientClientPool<ConnectorType>
+  | SQLiteAmbientConnectionPool<ConnectorType>;
 
 // TODO: Add connection pool handling
 
@@ -30,7 +39,7 @@ export const sqliteAmbientConnectionPool = <
   connection:
     | SQLitePoolClientConnection<ConnectorType>
     | SQLiteClientConnection<ConnectorType>;
-}): SQLiteAmbientConnectionPool => {
+}): SQLiteAmbientConnectionPool<ConnectorType> => {
   const { connection, connector: connectorType } = options;
 
   return createConnectionPool({
@@ -48,7 +57,7 @@ export const sqliteSingletonClientPool = <
   connector: ConnectorType;
   fileName: string;
   database?: string | undefined;
-}): SQLiteAmbientClientPool => {
+}): SQLiteAmbientClientPool<ConnectorType> => {
   const { connector, fileName } = options;
   let connection: SQLiteClientConnection | undefined = undefined;
 
@@ -86,7 +95,7 @@ export const sqliteAlwaysNewClientPool = <
   connector: ConnectorType;
   fileName: string;
   database?: string | undefined;
-}): SQLiteAmbientClientPool => {
+}): SQLiteAmbientClientPool<ConnectorType> => {
   const { connector, fileName } = options;
 
   return createConnectionPool({
@@ -111,7 +120,7 @@ export const sqliteAmbientClientPool = <
 >(options: {
   connector: ConnectorType;
   client: SQLiteClient;
-}): SQLiteAmbientClientPool => {
+}): SQLiteAmbientClientPool<ConnectorType> => {
   const { client, connector } = options;
 
   const getConnection = () => {
@@ -182,12 +191,16 @@ export type SQLitePoolOptions<
 
 export function sqlitePool<
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
->(options: SQLitePoolNotPooledOptions<ConnectorType>): SQLiteAmbientClientPool;
+>(
+  options: SQLitePoolNotPooledOptions<ConnectorType>,
+): SQLiteAmbientClientPool<ConnectorType>;
 export function sqlitePool<
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
 >(
   options: SQLitePoolOptions<ConnectorType>,
-): SQLiteAmbientClientPool | SQLiteAmbientConnectionPool {
+):
+  | SQLiteAmbientClientPool<ConnectorType>
+  | SQLiteAmbientConnectionPool<ConnectorType> {
   const { fileName, connector } = options;
 
   // TODO: Handle dates and bigints
