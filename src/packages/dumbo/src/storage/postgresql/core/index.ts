@@ -1,4 +1,4 @@
-import type { ConnectorTypeName } from '../../../core';
+import type { ConnectorType } from '../../../core';
 
 export * from '../../../core/locks';
 export * from './connections';
@@ -8,4 +8,4 @@ export type PostgreSQLConnector = 'PostgreSQL';
 export const PostgreSQLConnector = 'PostgreSQL';
 
 export type PostgreSQLConnectorType<DriverName extends string = string> =
-  ConnectorTypeName<PostgreSQLConnector, DriverName>;
+  ConnectorType<PostgreSQLConnector, DriverName>;
