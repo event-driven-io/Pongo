@@ -1,7 +1,7 @@
 // Ported from: https://github.com/datalanche/node-pg-format/blob/master/test/index.js
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
-import format from './index';
+import format from './pgFormat';
 
 const testDate = new Date(Date.UTC(2012, 11, 14, 13, 6, 43, 152));
 const testArray = ['abc', 1, true, null, testDate];
