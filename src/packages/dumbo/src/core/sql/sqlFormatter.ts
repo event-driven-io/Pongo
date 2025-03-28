@@ -37,7 +37,7 @@ function formatValue(value: unknown, formatter: SQLFormatter): string {
 
     return formatter.formatBigInt
       ? formatter.formatBigInt(value)
-      : formatter.formatLiteral(value.toString());
+      : formatter.formatLiteral(value);
   } else if (value instanceof Date) {
     // Let the formatter handle dates consistently
     return formatter.formatDate
