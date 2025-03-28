@@ -1,5 +1,6 @@
 import assert from 'assert';
 import { describe, it } from 'node:test';
+import { pgFormatter } from '.';
 import {
   SQL,
   identifier,
@@ -8,8 +9,7 @@ import {
   plainString,
   processDeferredSQL,
   rawSql,
-} from '.';
-import { pgFormatter } from './pg-format';
+} from '..';
 
 export function processSQLForTesting(sql: SQL): string {
   const formatter = pgFormatter;
