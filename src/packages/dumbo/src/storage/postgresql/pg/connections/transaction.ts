@@ -20,7 +20,7 @@ export const nodePostgresTransaction =
   (
     getClient: Promise<DbClient>,
     options?: { close: (client: DbClient, error?: unknown) => Promise<void> },
-  ): DatabaseTransaction<NodePostgresConnector> => ({
+  ): DatabaseTransaction<NodePostgresConnector, DbClient> => ({
     connection: connection(),
     connector: NodePostgresConnectorType,
     begin: async () => {

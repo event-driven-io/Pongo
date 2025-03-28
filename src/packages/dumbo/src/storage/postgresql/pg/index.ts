@@ -1,4 +1,4 @@
-import type { Dumbo, DumboOptions } from '../../../core';
+import type { Dumbo } from '../../../core';
 import {
   type NodePostgresConnection,
   type NodePostgresConnector,
@@ -11,8 +11,7 @@ export type PostgresConnector = NodePostgresConnector;
 export type PostgresPool = NodePostgresPool;
 export type PostgresConnection = NodePostgresConnection;
 
-export type PostgresPoolOptions = DumboOptions<NodePostgresConnector> &
-  NodePostgresPoolOptions;
+export type PostgresPoolOptions = NodePostgresPoolOptions;
 export const postgresPool = nodePostgresPool;
 
 export const connectionPool = postgresPool;

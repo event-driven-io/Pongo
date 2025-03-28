@@ -22,7 +22,7 @@ export const sqliteTransaction =
   (
     getClient: Promise<DbClient>,
     options?: { close: (client: DbClient, error?: unknown) => Promise<void> },
-  ): DatabaseTransaction<ConnectorType> => ({
+  ): DatabaseTransaction<ConnectorType, DbClient> => ({
     connection: connection(),
     connector,
     begin: async () => {

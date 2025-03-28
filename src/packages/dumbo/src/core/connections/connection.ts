@@ -14,7 +14,7 @@ export interface Connection<
   Connector extends ConnectorType = ConnectorType,
   DbClient = unknown,
 > extends WithSQLExecutor,
-    DatabaseTransactionFactory<Connector> {
+    DatabaseTransactionFactory<Connector, DbClient> {
   connector: Connector;
   open: () => Promise<DbClient>;
   close: () => Promise<void>;
