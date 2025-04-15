@@ -22,7 +22,8 @@ export * from './sql';
 export * from './tracing';
 
 export type DumboOptions<Connector extends ConnectorType = ConnectorType> = {
-  connector?: Connector;
+  connector: Connector;
+  connectionString: string;
 };
 
 export type Dumbo<
@@ -64,7 +65,6 @@ export type DumboConnectionOptions<
   connectionString: T;
 };
 
-// Create a lazy SQLExecutor that defers importing until needed
 export const createLazyExecutor = (
   importExecutor: () => Promise<SQLExecutor>,
 ): SQLExecutor => {
@@ -118,7 +118,6 @@ export const createLazyExecutor = (
   };
 };
 
-// Create a deferred connection that imports the actual implementation when needed
 export const createDeferredConnection = <C extends ConnectorType>(
   connector: C,
   importConnection: () => Promise<Connection<C>>,
@@ -175,7 +174,6 @@ export const createDeferredConnection = <C extends ConnectorType>(
   };
 };
 
-// Create a deferred connection pool that imports the actual implementation when needed
 export const createDeferredConnectionPool = <C extends ConnectorType>(
   connector: C,
   importPool: () => Promise<ConnectionPool<Connection<C>>>,
@@ -250,7 +248,6 @@ export type DbDriverInfo = {
   driverName: string;
 };
 
-// Parse connection string to get database type and driver name
 export const parseConnectionString = (
   connectionString: DatabaseConnectionString,
 ): DbDriverInfo => {
@@ -278,31 +275,37 @@ export const parseConnectionString = (
   );
 };
 
-// Your main function that uses these import functions
 export function dumbo<T extends DatabaseConnectionString>(
   options: DumboConnectionOptions<T>,
 ): ConnectionPool<InferConnection<T>> {
   const { connectionString } = options;
 
-  // Parse the connection string
   const { dbType, driverName } = parseConnectionString(connectionString);
 
-  // Create connector string
-  const connector = `${dbType}:${driverName}`;
+  const connector: InferConnection<T>['connector'] = `${dbType}:${driverName}`;
 
   const importDriver = importDrivers[connector];
   if (!importDriver) {
     throw new Error(`Unsupported connector: ${connector}`);
   }
 
-  // Function that will be called when the pool is needed
   const importAndCreatePool = async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const module = await importDriver();
-    const poolFactory = module.poolFactory || module.default;
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const poolFactory: (options: {
+      connectionString: string;
+    }) => ConnectionPool<InferConnection<T>> =
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      'dumbo' in module ? module.dumbo : undefined;
+
+    if (poolFactory === undefined)
+      throw new Error(`No pool factory found for connector: ${connector}`);
+
     return poolFactory({ connectionString });
   };
 
-  // Create the deferred connection pool
   return createDeferredConnectionPool(
     connector,
     importAndCreatePool,
