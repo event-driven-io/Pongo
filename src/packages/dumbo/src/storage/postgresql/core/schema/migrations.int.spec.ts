@@ -4,15 +4,9 @@ import {
 } from '@testcontainers/postgresql';
 import assert from 'assert';
 import { after, before, beforeEach, describe, it } from 'node:test';
-import { tableExists } from '..';
+import { PostgreSQLConnectionString, tableExists } from '..';
 import { type Dumbo } from '../../../..';
-import {
-  count,
-  postgreSQLConnectionString,
-  rawSql,
-  sql,
-  type PostgreSQLConnectionString,
-} from '../../../../core';
+import { count, rawSql, sql } from '../../../../core';
 import { MIGRATIONS_LOCK_ID, type SQLMigration } from '../../../../core/schema';
 import { dumbo } from '../../../../pg';
 import { acquireAdvisoryLock, releaseAdvisoryLock } from '../locks';
@@ -25,7 +19,7 @@ void describe('Migration Integration Tests', () => {
 
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
-    connectionString = postgreSQLConnectionString(postgres.getConnectionUri());
+    connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
     pool = dumbo({ connectionString });
   });
 

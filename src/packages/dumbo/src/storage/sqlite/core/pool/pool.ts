@@ -2,6 +2,7 @@ import {
   InMemorySQLiteDatabase,
   sqliteClientProvider,
   sqliteConnection,
+  SQLiteConnectionString,
   type SQLiteClient,
   type SQLiteClientConnection,
   type SQLiteConnectorType,
@@ -53,19 +54,26 @@ export const sqliteAmbientConnectionPool = <
 
 export const sqliteSingletonClientPool = <
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
->(options: {
-  connector: ConnectorType;
-  fileName: string;
-  database?: string | undefined;
-}): SQLiteAmbientClientPool<ConnectorType> => {
-  const { connector, fileName } = options;
+>(
+  options: {
+    connector: ConnectorType;
+    database?: string | undefined;
+  } & SQLiteFileNameOrConnectionString,
+): SQLiteAmbientClientPool<ConnectorType> => {
+  const { connector } = options;
   let connection: SQLiteClientConnection | undefined = undefined;
 
   const getConnection = () => {
     if (connection) return connection;
 
-    const connect = sqliteClientProvider(connector).then((sqliteClient) =>
-      sqliteClient({ fileName }),
+    const connect = sqliteClientProvider(connector).then(
+      async (sqliteClient) => {
+        const client = sqliteClient(options);
+
+        await client.connect();
+
+        return client;
+      },
     );
 
     return (connection = sqliteConnection({
@@ -91,18 +99,25 @@ export const sqliteSingletonClientPool = <
 
 export const sqliteAlwaysNewClientPool = <
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
->(options: {
-  connector: ConnectorType;
-  fileName: string;
-  database?: string | undefined;
-}): SQLiteAmbientClientPool<ConnectorType> => {
-  const { connector, fileName } = options;
+>(
+  options: {
+    connector: ConnectorType;
+    database?: string | undefined;
+  } & SQLiteFileNameOrConnectionString,
+): SQLiteAmbientClientPool<ConnectorType> => {
+  const { connector } = options;
 
   return createConnectionPool({
     connector: connector,
     getConnection: () => {
-      const connect = sqliteClientProvider(connector).then((sqliteClient) =>
-        sqliteClient({ fileName }),
+      const connect = sqliteClientProvider(connector).then(
+        async (sqliteClient) => {
+          const client = sqliteClient(options);
+
+          await client.connect();
+
+          return client;
+        },
       );
 
       return sqliteConnection({
@@ -145,11 +160,22 @@ export const sqliteAmbientClientPool = <
   });
 };
 
+export type SQLiteFileNameOrConnectionString =
+  | {
+      // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+      fileName: string | SQLiteConnectionString;
+      connectionString?: never;
+    }
+  | {
+      // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+      connectionString: string | SQLiteConnectionString;
+      fileName?: never;
+    };
+
 export type SQLitePoolPooledOptions<
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
 > = {
   connector: ConnectorType;
-  fileName: string;
   pooled?: true;
   singleton?: boolean;
 };
@@ -159,20 +185,17 @@ export type SQLitePoolNotPooledOptions<
 > =
   | {
       connector: ConnectorType;
-      fileName: string;
       pooled?: false;
       client: SQLiteClient;
       singleton?: true;
     }
   | {
       connector: ConnectorType;
-      fileName: string;
       pooled?: boolean;
       singleton?: boolean;
     }
   | {
       connector: ConnectorType;
-      fileName: string;
       connection:
         | SQLitePoolClientConnection<ConnectorType>
         | SQLiteClientConnection<ConnectorType>;
@@ -187,12 +210,13 @@ export type SQLitePoolOptions<
   | SQLitePoolNotPooledOptions<ConnectorType>
 ) & {
   serializer?: JSONSerializer;
-};
+} & SQLiteFileNameOrConnectionString;
 
 export function sqlitePool<
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
 >(
-  options: SQLitePoolNotPooledOptions<ConnectorType>,
+  options: SQLitePoolNotPooledOptions<ConnectorType> &
+    SQLiteFileNameOrConnectionString,
 ): SQLiteAmbientClientPool<ConnectorType>;
 export function sqlitePool<
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
@@ -201,7 +225,7 @@ export function sqlitePool<
 ):
   | SQLiteAmbientClientPool<ConnectorType>
   | SQLiteAmbientConnectionPool<ConnectorType> {
-  const { fileName, connector } = options;
+  const { connector } = options;
 
   // TODO: Handle dates and bigints
   // setSQLiteTypeParser(serializer ?? JSONSerializer);
@@ -215,8 +239,12 @@ export function sqlitePool<
       connection: options.connection,
     });
 
-  if (options.singleton === true || options.fileName == InMemorySQLiteDatabase)
-    return sqliteSingletonClientPool({ connector, fileName });
+  if (
+    options.singleton === true ||
+    options.fileName === InMemorySQLiteDatabase ||
+    options.connectionString === InMemorySQLiteDatabase
+  )
+    return sqliteSingletonClientPool(options);
 
-  return sqliteAlwaysNewClientPool({ connector, fileName });
+  return sqliteAlwaysNewClientPool(options);
 }

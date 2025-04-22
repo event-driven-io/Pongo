@@ -154,3 +154,56 @@ export const executeInNewConnection = async <
     await connection.close();
   }
 };
+
+export const createDeferredExecutor = (
+  importExecutor: () => Promise<SQLExecutor>,
+): SQLExecutor => {
+  let executor: SQLExecutor | null = null;
+
+  const getExecutor = async (): Promise<SQLExecutor> => {
+    if (!executor) {
+      try {
+        executor = await importExecutor();
+      } catch (error) {
+        throw new Error(
+          `Failed to import SQL executor: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+    return executor;
+  };
+
+  return {
+    query: async <Result extends QueryResultRow = QueryResultRow>(
+      sql: SQL,
+      options?: SQLQueryOptions,
+    ): Promise<QueryResult<Result>> => {
+      const exec = await getExecutor();
+      return exec.query<Result>(sql, options);
+    },
+
+    batchQuery: async <Result extends QueryResultRow = QueryResultRow>(
+      sqls: SQL[],
+      options?: SQLQueryOptions,
+    ): Promise<QueryResult<Result>[]> => {
+      const exec = await getExecutor();
+      return exec.batchQuery<Result>(sqls, options);
+    },
+
+    command: async <Result extends QueryResultRow = QueryResultRow>(
+      sql: SQL,
+      options?: SQLCommandOptions,
+    ): Promise<QueryResult<Result>> => {
+      const exec = await getExecutor();
+      return exec.command<Result>(sql, options);
+    },
+
+    batchCommand: async <Result extends QueryResultRow = QueryResultRow>(
+      sqls: SQL[],
+      options?: SQLCommandOptions,
+    ): Promise<QueryResult<Result>[]> => {
+      const exec = await getExecutor();
+      return exec.batchCommand<Result>(sqls, options);
+    },
+  };
+};

@@ -20,11 +20,48 @@ export type ConnectionCheckResult =
     };
 
 export const sqlite3Client = (options: SQLiteClientOptions): SQLiteClient => {
-  const db = new sqlite3.Database(options.fileName ?? InMemorySQLiteDatabase);
+  let db: sqlite3.Database;
+
+  let isClosed = false;
+
+  const connect: () => Promise<void> = () =>
+    db
+      ? Promise.resolve() // If db is already initialized, resolve immediately
+      : new Promise((resolve, reject) => {
+          try {
+            db = new sqlite3.Database(
+              options.fileName ??
+                options.connectionString ??
+                InMemorySQLiteDatabase,
+              sqlite3.OPEN_URI | sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
+              (err) => {
+                if (err) {
+                  reject(err);
+                  return;
+                }
+              },
+            );
+            db.run('PRAGMA journal_mode = WAL;', (err) => {
+              if (err) {
+                reject(err);
+                return;
+              }
+
+              resolve();
+            });
+          } catch (error) {
+            reject(error as Error);
+          }
+        });
 
   return {
+    connect,
     close: (): Promise<void> => {
-      db.close();
+      if (isClosed) {
+        return Promise.resolve();
+      }
+      isClosed = true;
+      if (db) db.close();
       return Promise.resolve();
     },
     command: (sql: string, params?: Parameters[]) =>
@@ -40,14 +77,18 @@ export const sqlite3Client = (options: SQLiteClientOptions): SQLiteClient => {
       }),
     query: <T>(sql: string, params?: Parameters[]): Promise<T[]> =>
       new Promise((resolve, reject) => {
-        db.all(sql, params ?? [], (err: Error | null, result: T[]) => {
-          if (err) {
-            reject(err);
-            return;
-          }
+        try {
+          db.all(sql, params ?? [], (err: Error | null, result: T[]) => {
+            if (err) {
+              reject(err);
+              return;
+            }
 
-          resolve(result);
-        });
+            resolve(result);
+          });
+        } catch (error) {
+          reject(error as Error);
+        }
       }),
     querySingle: <T>(sql: string, params?: Parameters[]): Promise<T | null> =>
       new Promise((resolve, reject) => {
