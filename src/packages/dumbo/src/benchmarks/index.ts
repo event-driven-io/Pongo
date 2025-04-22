@@ -2,10 +2,14 @@ import 'dotenv/config';
 
 import Benchmark from 'benchmark';
 import pg from 'pg';
-import { postgreSQLConnectionString, rawSql, single } from '..';
-import { defaultPostgreSQLConenctionString, dumbo } from '../pg';
+import { rawSql, single } from '..';
+import {
+  defaultPostgreSQLConenctionString,
+  dumbo,
+  PostgreSQLConnectionString,
+} from '../pg';
 
-const connectionString = postgreSQLConnectionString(
+const connectionString = PostgreSQLConnectionString(
   process.env.BENCHMARK_POSTGRESQL_CONNECTION_STRING ??
     defaultPostgreSQLConenctionString,
 );

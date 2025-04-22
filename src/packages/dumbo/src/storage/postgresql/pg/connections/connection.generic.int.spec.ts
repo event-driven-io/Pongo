@@ -5,21 +5,17 @@ import {
 import { after, before, describe, it } from 'node:test';
 import pg from 'pg';
 import { nodePostgresPool } from '.';
-import {
-  dumbo,
-  postgreSQLConnectionString,
-  rawSql,
-  type PostgreSQLConnectionString,
-} from '../../../../core';
+import { dumbo } from '..';
+import { rawSql } from '../../../../core';
 import { endPool, getPool } from './pool';
 
 void describe('Node Postgresql', () => {
   let postgres: StartedPostgreSqlContainer;
-  let connectionString: PostgreSQLConnectionString;
+  let connectionString: string;
 
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
-    connectionString = postgreSQLConnectionString(postgres.getConnectionUri());
+    connectionString = postgres.getConnectionUri();
   });
 
   after(async () => {
