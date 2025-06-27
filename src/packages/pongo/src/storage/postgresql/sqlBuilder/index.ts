@@ -10,6 +10,7 @@ import {
 import {
   expectedVersionValue,
   type DeleteOneOptions,
+  type FindOptions,
   type OptionalUnlessRequiredIdAndVersion,
   type PongoCollectionSQLBuilder,
   type PongoFilter,
@@ -242,9 +243,23 @@ export const postgresSQLBuilder = (
       where(filterQuery),
     );
   },
-  find: <T>(filter: PongoFilter<T> | SQL): SQL => {
+  find: <T>(filter: PongoFilter<T> | SQL, options?: FindOptions): SQL => {
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
-    return sql('SELECT data FROM %I %s;', collectionName, where(filterQuery));
+    const query: SQL[] = [];
+
+    query.push(
+      sql('SELECT data FROM %I %s', collectionName, where(filterQuery)),
+    );
+
+    if (options?.limit) {
+      query.push(sql('LIMIT %s', options.limit));
+    }
+
+    if (options?.skip) {
+      query.push(sql('OFFSET %s', options.skip));
+    }
+
+    return sql(query.join(' ') + ';');
   },
   countDocuments: <T>(filter: PongoFilter<T> | SQL): SQL => {
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);

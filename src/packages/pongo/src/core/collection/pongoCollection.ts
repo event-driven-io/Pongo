@@ -22,6 +22,7 @@ import {
   type DeleteManyOptions,
   type DeleteOneOptions,
   type DocumentHandler,
+  type FindOptions,
   type HandleOptions,
   type InsertManyOptions,
   type InsertOneOptions,
@@ -435,11 +436,11 @@ export const pongoCollection = <
     },
     find: async (
       filter?: PongoFilter<T>,
-      options?: CollectionOperationOptions,
+      options?: FindOptions,
     ): Promise<WithIdAndVersion<T>[]> => {
       await ensureCollectionCreated(options);
 
-      const result = await query(SqlFor.find(filter ?? {}));
+      const result = await query(SqlFor.find(filter ?? {}, options));
       return result.rows.map((row) => row.data as WithIdAndVersion<T>);
     },
     countDocuments: async (
@@ -530,7 +531,7 @@ export type PongoCollectionSQLBuilder = {
   ) => SQL;
   deleteMany: <T>(filter: PongoFilter<T> | SQL) => SQL;
   findOne: <T>(filter: PongoFilter<T> | SQL) => SQL;
-  find: <T>(filter: PongoFilter<T> | SQL) => SQL;
+  find: <T>(filter: PongoFilter<T> | SQL, options?: FindOptions) => SQL;
   countDocuments: <T>(filter: PongoFilter<T> | SQL) => SQL;
   rename: (newName: string) => SQL;
   drop: () => SQL;
