@@ -248,8 +248,13 @@ export const postgresSQLBuilder = (
     const query: SQL[] = [];
 
     query.push(
-      sql('SELECT data FROM %I %s', collectionName, where(filterQuery)),
+      sql('SELECT data FROM %I', collectionName),
     );
+
+    const whereStmt = where(filterQuery)
+    if (whereStmt.length > 0) {
+        query.push(sql('%s', whereStmt));
+    }
 
     if (options?.limit) {
       query.push(sql('LIMIT %s', options.limit));
