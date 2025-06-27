@@ -134,6 +134,11 @@ export type DeleteManyOptions = {
   >;
 } & CollectionOperationOptions;
 
+export type FindOptions = {
+  limit?: number,
+  skip?: number,
+} & CollectionOperationOptions;
+
 export interface PongoCollection<T extends PongoDocument> {
   readonly dbName: string;
   readonly collectionName: string;
@@ -175,7 +180,7 @@ export interface PongoCollection<T extends PongoDocument> {
   ): Promise<WithIdAndVersion<T> | null>;
   find(
     filter?: PongoFilter<T> | SQL,
-    options?: CollectionOperationOptions,
+    options?: FindOptions,
   ): Promise<WithIdAndVersion<T>[]>;
   findOneAndDelete(
     filter: PongoFilter<T> | SQL,
