@@ -1,7 +1,7 @@
 {
   "name": "@event-driven-io/dumbo",
-  "version": "0.13.0-alpha.3",
-  "description": "Dumbo - tools for dealing with PostgreSQL",
+  "version": "0.13.0-alpha.4",
+  "description": "Dumbo - tools for dealing with Relational Databases",
   "type": "module",
   "scripts": {
     "build": "tsup",
