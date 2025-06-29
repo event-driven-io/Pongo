@@ -61,7 +61,17 @@ export const sqlite3Client = (options: SQLiteClientOptions): SQLiteClient => {
         return Promise.resolve();
       }
       isClosed = true;
-      if (db) db.close();
+      if (db)
+        return new Promise((resolve, reject) => {
+          db.close((err: Error | null) => {
+            if (err) {
+              reject(err);
+              return;
+            }
+
+            resolve();
+          });
+        });
       return Promise.resolve();
     },
     command: (sql: string, params?: Parameters[]) =>
