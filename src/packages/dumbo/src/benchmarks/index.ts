@@ -4,14 +4,14 @@ import Benchmark from 'benchmark';
 import pg from 'pg';
 import { rawSql, single } from '..';
 import {
-  defaultPostgreSQLConenctionString,
+  defaultPostgreSQLConnectionString,
   dumbo,
   PostgreSQLConnectionString,
 } from '../pg';
 
 const connectionString = PostgreSQLConnectionString(
   process.env.BENCHMARK_POSTGRESQL_CONNECTION_STRING ??
-    defaultPostgreSQLConenctionString,
+    defaultPostgreSQLConnectionString,
 );
 
 const pooled = process.env.BENCHMARK_CONNECTION_POOLED === 'true';
