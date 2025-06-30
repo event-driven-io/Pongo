@@ -913,6 +913,112 @@ void describe('MongoDB Compatibility Tests', () => {
         })),
       );
     });
+
+    void it('should limit number of results in both PostgreSQL and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>('limitCollection');
+      const mongoCollection = mongoDb.collection<User>('limitCollection');
+      const docs = [
+        { name: 'David', age: 40 },
+        { name: 'Eve', age: 45 },
+        { name: 'Frank', age: 50 },
+      ];
+
+      await pongoCollection.insertOne(docs[0]!);
+      await pongoCollection.insertOne(docs[1]!);
+      await pongoCollection.insertOne(docs[2]!);
+
+      await mongoCollection.insertOne(docs[0]!);
+      await mongoCollection.insertOne(docs[1]!);
+      await mongoCollection.insertOne(docs[2]!);
+
+      const pongoDocs = await pongoCollection.find({}, { limit: 2 }).toArray();
+      const mongoDocs = await mongoCollection.find({}, { limit: 2 }).toArray();
+
+      assert.strictEqual(pongoDocs.length, 2);
+      assert.strictEqual(mongoDocs.length, 2);
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({ name: d.name, age: d.age })),
+        docs.slice(0, 2).map((d) => ({ name: d.name, age: d.age })),
+      );
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({ name: d.name, age: d.age })),
+        mongoDocs.map((d) => ({ name: d.name, age: d.age })),
+      );
+    });
+
+    void it('should skip number of results in both PostgreSQL and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>('skipCollection');
+      const mongoCollection = mongoDb.collection<User>('skipCollection');
+      const docs = [
+        { name: 'David', age: 40 },
+        { name: 'Eve', age: 45 },
+        { name: 'Frank', age: 50 },
+      ];
+
+      await pongoCollection.insertOne(docs[0]!);
+      await pongoCollection.insertOne(docs[1]!);
+      await pongoCollection.insertOne(docs[2]!);
+
+      await mongoCollection.insertOne(docs[0]!);
+      await mongoCollection.insertOne(docs[1]!);
+      await mongoCollection.insertOne(docs[2]!);
+
+      const pongoDocs = await pongoCollection.find({}, { skip: 1 }).toArray();
+      const mongoDocs = await mongoCollection.find({}, { skip: 1 }).toArray();
+
+      assert.strictEqual(pongoDocs.length, 2);
+      assert.strictEqual(mongoDocs.length, 2);
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({ name: d.name, age: d.age })),
+        docs.slice(1, 3).map((d) => ({ name: d.name, age: d.age })),
+      );
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({ name: d.name, age: d.age })),
+        mongoDocs.map((d) => ({ name: d.name, age: d.age })),
+      );
+    });
+
+    void it('should use limit and skip parameters to paginate results in both PostgreSQL and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>('limitSkipCollection');
+      const mongoCollection = mongoDb.collection<User>('limitSkipCollection');
+      const docs = [
+        { name: 'David', age: 40 },
+        { name: 'Eve', age: 45 },
+        { name: 'Frank', age: 50 },
+      ];
+
+      await pongoCollection.insertOne(docs[0]!);
+      await pongoCollection.insertOne(docs[1]!);
+      await pongoCollection.insertOne(docs[2]!);
+
+      await mongoCollection.insertOne(docs[0]!);
+      await mongoCollection.insertOne(docs[1]!);
+      await mongoCollection.insertOne(docs[2]!);
+
+      const pongoDocs = await pongoCollection
+        .find({}, { limit: 1, skip: 1 })
+        .toArray();
+      const mongoDocs = await mongoCollection
+        .find({}, { limit: 1, skip: 1 })
+        .toArray();
+
+      assert.strictEqual(pongoDocs.length, 1);
+      assert.strictEqual(mongoDocs.length, 1);
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({ name: d.name, age: d.age })),
+        docs.slice(1, 2).map((d) => ({ name: d.name, age: d.age })),
+      );
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({ name: d.name, age: d.age })),
+        mongoDocs.map((d) => ({ name: d.name, age: d.age })),
+      );
+    });
   });
 
   void describe('Handle Operations', () => {
