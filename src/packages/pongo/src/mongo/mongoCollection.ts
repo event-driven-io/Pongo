@@ -65,6 +65,7 @@ import type {
   HandleOptions,
   PongoCollection,
   PongoFilter,
+  FindOptions as PongoFindOptions,
   PongoHandleResult,
   OptionalUnlessRequiredId as PongoOptionalUnlessRequiredId,
   PongoSession,
@@ -78,6 +79,28 @@ const toCollectionOperationOptions = (
   options?.session
     ? { session: options.session as unknown as PongoSession }
     : undefined;
+
+const toFindOptions = (
+  options: FindOptions | undefined,
+): PongoFindOptions | undefined => {
+  if (!options?.session && !options?.limit && !options?.skip) {
+    return undefined;
+  }
+
+  const pongoFindOptions: PongoFindOptions = {};
+
+  if (options?.session) {
+    pongoFindOptions.session = options.session as unknown as PongoSession;
+  }
+  if (options?.limit !== undefined) {
+    pongoFindOptions.limit = options.limit;
+  }
+  if (options?.skip !== undefined) {
+    pongoFindOptions.skip = options.skip;
+  }
+
+  return pongoFindOptions;
+};
 
 export class Collection<T extends Document> implements MongoCollection<T> {
   private collection: PongoCollection<T>;
@@ -271,10 +294,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     options?: FindOptions<Document>,
   ): MongoFindCursor<WithId<T>> | MongoFindCursor<T> {
     return new FindCursor(
-      this.collection.find(
-        filter as PongoFilter<T>,
-        toCollectionOperationOptions(options),
-      ),
+      this.collection.find(filter as PongoFilter<T>, toFindOptions(options)),
     ) as unknown as MongoFindCursor<T>;
   }
   options(_options?: OperationOptions): Promise<Document> {
