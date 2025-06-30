@@ -1,10 +1,16 @@
-import { sqliteSQLExecutor, type SQLiteConnectorType } from '..';
+import {
+  SQLiteConnectionString,
+  sqliteSQLExecutor,
+  type SQLiteConnectorType,
+  type SQLiteFileNameOrConnectionString,
+} from '..';
 import { createConnection, type Connection } from '../../../../core';
 import { sqliteTransaction } from '../transactions';
 
 export type Parameters = object | string | bigint | number | boolean | null;
 
 export type SQLiteClient = {
+  connect: () => Promise<void>;
   close: () => Promise<void>;
   command: (sql: string, values?: Parameters[]) => Promise<void>;
   query: <T>(sql: string, values?: Parameters[]) => Promise<T[]>;
@@ -127,9 +133,8 @@ export function sqliteConnection<
 }
 
 export type InMemorySQLiteDatabase = ':memory:';
-export const InMemorySQLiteDatabase = ':memory:';
+export const InMemorySQLiteDatabase = SQLiteConnectionString(':memory:');
 
-export type SQLiteClientOptions = {
-  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
-  fileName: InMemorySQLiteDatabase | string | undefined;
-};
+export type SQLiteClientOptions = SQLiteFileNameOrConnectionString;
+
+export * from './connectionString';

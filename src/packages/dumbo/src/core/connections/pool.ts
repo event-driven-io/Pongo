@@ -1,4 +1,7 @@
+import { createDeferredConnection } from '../connections';
+import type { ConnectorType } from '../connectors';
 import {
+  createDeferredExecutor,
   executeInNewConnection,
   sqlExecutorInNewConnection,
   type WithSQLExecutor,
@@ -71,4 +74,40 @@ export const createConnectionPool = <
   };
 
   return result as ConnectionPoolType;
+};
+
+export const createDeferredConnectionPool = <Connector extends ConnectorType>(
+  connector: Connector,
+  importPool: () => Promise<ConnectionPool<Connection<Connector>>>,
+): ConnectionPool<Connection<Connector>> => {
+  let poolPromise: Promise<ConnectionPool<Connection<Connector>>> | null = null;
+
+  const getPool = async (): Promise<ConnectionPool<Connection<Connector>>> => {
+    if (poolPromise) return poolPromise;
+    try {
+      return (poolPromise = importPool());
+    } catch (error) {
+      throw new Error(
+        `Failed to import connection pool: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  };
+
+  return createConnectionPool({
+    connector,
+    execute: createDeferredExecutor(async () => {
+      const connection = await getPool();
+      return connection.execute;
+    }),
+    close: async () => {
+      if (!poolPromise) return;
+      const pool = await poolPromise;
+      await pool.close();
+      poolPromise = null;
+    },
+    getConnection: () =>
+      createDeferredConnection(connector, async () =>
+        (await getPool()).connection(),
+      ),
+  });
 };
