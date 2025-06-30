@@ -247,13 +247,11 @@ export const postgresSQLBuilder = (
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
     const query: SQL[] = [];
 
-    query.push(
-      sql('SELECT data FROM %I', collectionName),
-    );
+    query.push(sql('SELECT data FROM %I', collectionName));
 
-    const whereStmt = where(filterQuery)
+    const whereStmt = where(filterQuery);
     if (whereStmt.length > 0) {
-        query.push(sql('%s', whereStmt));
+      query.push(sql('%s', whereStmt));
     }
 
     if (options?.limit) {
