@@ -11,7 +11,7 @@ Pongo - Mongo but on Postgres and with strong consistency benefits.
 Install Pongo as an npm module and save it to your package.json:
 
 ```bash
-npm install @event-driven-io/pongo
+npm install @event-driven-io/pongo pg @types/pg
 ```
 
 Read also [introduction article on my blog](https://event-driven.io/en/introducting_pongo/?utm_source=pongo_github) for more context.
