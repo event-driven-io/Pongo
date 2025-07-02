@@ -63,6 +63,6 @@
     "dist"
   ],
   "dependencies": {
-    "@event-driven-io/pongo": "0.17.0-alpha.3"
+    "@event-driven-io/pongo": "0.17.0-alpha.5"
   }
 }
