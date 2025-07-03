@@ -5,7 +5,10 @@ import {
   type DatabaseTransaction,
 } from '../../../../core';
 import { sqliteSQLExecutor } from '../../core/execute';
-import type { SQLiteClientOrPoolClient } from '../connections';
+import type {
+  SQLiteClientOrPoolClient,
+  TransactionNestingCounter,
+} from '../connections';
 
 export type SQLiteTransaction<
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
@@ -18,6 +21,7 @@ export const sqliteTransaction =
   >(
     connector: ConnectorType,
     connection: () => Connection<ConnectorType, DbClient>,
+    transactionCounter: TransactionNestingCounter,
   ) =>
   (
     getClient: Promise<DbClient>,
@@ -25,19 +29,49 @@ export const sqliteTransaction =
   ): DatabaseTransaction<ConnectorType, DbClient> => ({
     connection: connection(),
     connector,
-    begin: async () => {
-      const client = await getClient;
-      await client.query('BEGIN TRANSACTION');
-    },
-    commit: async () => {
+    begin: async function () {
       const client = await getClient;
 
+      if (transactionCounter.level >= 1) {
+        try {
+          transactionCounter.increment();
+          await client.query(
+            `SAVEPOINT transaction${transactionCounter.level}`,
+          );
+        } catch (error) {
+          console.log('Rolling back begin commit');
+          await this.rollback(error);
+          throw error;
+        }
+        return;
+      }
+
+      transactionCounter.increment();
+      await client.query('BEGIN TRANSACTION');
+    },
+    commit: async function () {
+      const client = await getClient;
+
+      if (transactionCounter.level > 1) {
+        try {
+          await client.query(`RELEASE transaction${transactionCounter.level}`);
+          transactionCounter.decrement();
+        } catch (error) {
+          console.log(error);
+          await this.rollback(error);
+        }
+
+        return;
+      }
+
       await client.query('COMMIT');
+      transactionCounter.reset();
 
       if (options?.close) await options?.close(client);
     },
-    rollback: async (error?: unknown) => {
+    rollback: async function (error?: unknown) {
       const client = await getClient;
+      transactionCounter.reset();
       await client.query('ROLLBACK');
 
       if (options?.close) await options?.close(client, error);
