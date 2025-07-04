@@ -46,6 +46,7 @@ export type SQLitePoolConnectionOptions<
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
 > = {
   connector: ConnectorType;
+  transactionCounter: TransactionNestingCounter;
   type: 'PoolClient';
   connect: Promise<SQLitePoolClient>;
   close: (client: SQLitePoolClient) => Promise<void>;
@@ -55,6 +56,7 @@ export type SQLiteClientConnectionOptions<
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
 > = {
   connector: ConnectorType;
+  transactionCounter: TransactionNestingCounter;
   type: 'Client';
   connect: Promise<SQLiteClient>;
   close: (client: SQLiteClient) => Promise<void>;
@@ -85,10 +87,47 @@ export const sqliteClientConnection = <
     connector: options.connector,
     connect,
     close,
-    initTransaction: (connection) =>
-      sqliteTransaction(options.connector, connection),
+    initTransaction: (connection) => {
+      return sqliteTransaction(
+        options.connector,
+        connection,
+        options.transactionCounter,
+      );
+    },
     executor: () => sqliteSQLExecutor(options.connector),
   });
+};
+
+export type TransactionNestingCounter = {
+  increment: () => void;
+  decrement: () => void;
+  reset: () => void;
+  level: number;
+};
+
+export const transactionNestingCounter = (): TransactionNestingCounter => {
+  let transactionLevel = 0;
+
+  return {
+    reset: () => {
+      transactionLevel = 0;
+    },
+    increment: () => {
+      console.log('incrementing');
+      transactionLevel++;
+      console.log('Transaction level incremented to', transactionLevel);
+    },
+    decrement: () => {
+      transactionLevel--;
+
+      if (transactionLevel < 0) {
+        throw new Error('Transaction level is out of bounds');
+      }
+    },
+    get level() {
+      return transactionLevel;
+    },
+  };
 };
 
 export const sqlitePoolClientConnection = <
@@ -96,14 +135,14 @@ export const sqlitePoolClientConnection = <
 >(
   options: SQLitePoolConnectionOptions<ConnectorType>,
 ): SQLitePoolClientConnection<ConnectorType> => {
-  const { connect, close } = options;
+  const { connect, close, transactionCounter } = options;
 
   return createConnection({
     connector: options.connector,
     connect,
     close,
     initTransaction: (connection) =>
-      sqliteTransaction(options.connector, connection),
+      sqliteTransaction(options.connector, connection, transactionCounter),
     executor: () => sqliteSQLExecutor(options.connector),
   });
 };
