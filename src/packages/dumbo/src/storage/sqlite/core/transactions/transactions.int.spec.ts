@@ -33,7 +33,11 @@ void describe('SQLite Transactions', () => {
   for (const { testName, fileName } of testCases) {
     void describe(`transactions with ${testName} database`, () => {
       void it('commits a nested transaction with pool', async () => {
-        const pool = sqlitePool({ connector: 'SQLite:sqlite3', fileName });
+        const pool = sqlitePool({
+          connector: 'SQLite:sqlite3',
+          fileName,
+          allowNestedTransactions: true,
+        });
         const connection = await pool.connection();
 
         try {
@@ -76,11 +80,120 @@ void describe('SQLite Transactions', () => {
           await pool.close();
         }
       });
+
+      void it('should try catch and roll back everything when the inner transaction errors for a pooled connection', async () => {
+        const pool = sqlitePool({
+          connector: 'SQLite:sqlite3',
+          fileName,
+          allowNestedTransactions: true,
+        });
+        const connection = await pool.connection();
+        const connection2 = await pool.connection();
+
+        try {
+          await connection.execute.query(
+            rawSql('CREATE TABLE test_table (id INTEGER, value TEXT)'),
+          );
+
+          try {
+            const result = await connection.withTransaction<{
+              id: null | string;
+            }>(async () => {
+              await connection.execute.query(
+                rawSql(
+                  'INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id',
+                ),
+              );
+
+              const result = await connection2.withTransaction<{
+                id: null | string;
+              }>(async () => {
+                throw new Error('Intentionally throwing');
+                return { success: true, result: result.rows[0]?.id ?? null };
+              });
+
+              return { success: true, result: result };
+            });
+          } catch (error) {
+            assert.strictEqual(
+              (error as Error).message,
+              'Intentionally throwing',
+            );
+          }
+          const rows = await connection.execute.query(
+            rawSql('SELECT COUNT(*) as count  FROM test_table'),
+          );
+
+          assert.strictEqual(rows.rows[0].count, 0);
+        } finally {
+          await connection.close();
+          await pool.close();
+        }
+      });
+      void it('should try catch and roll back everything when the outer transactions errors for a pooled connection', async () => {
+        const pool = sqlitePool({
+          connector: 'SQLite:sqlite3',
+          fileName,
+          allowNestedTransactions: true,
+        });
+        const connection = await pool.connection();
+        const connection2 = await pool.connection();
+
+        try {
+          await connection.execute.query(
+            rawSql('CREATE TABLE test_table (id INTEGER, value TEXT)'),
+          );
+
+          try {
+            await connection.withTransaction<{
+              id: null | string;
+            }>(async () => {
+              await connection.execute.query(
+                rawSql(
+                  'INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id',
+                ),
+              );
+
+              const result = await connection2.withTransaction<{
+                id: null | string;
+              }>(async () => {
+                const result = await connection.execute.query(
+                  rawSql(
+                    'INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id',
+                  ),
+                );
+                return { success: true, result: result.rows[0]?.id ?? null };
+              });
+
+              throw new Error('Intentionally throwing');
+            });
+          } catch (error) {
+            // make sure the rror is the correct one. catch but let it continue so it doesnt trigger
+            // the outer errors
+            assert.strictEqual(
+              (error as Error).message,
+              'Intentionally throwing',
+            );
+          }
+          const rows = await connection.execute.query(
+            rawSql('SELECT COUNT(*) as count  FROM test_table'),
+          );
+
+          console.log('rows', rows);
+
+          assert.strictEqual(rows.rows[0].count, 0);
+        } finally {
+          await connection.close();
+          await pool.close();
+        }
+      });
+
       void it('commits a nested transaction with singleton pool', async () => {
         const pool = sqlitePool({
           connector: 'SQLite:sqlite3',
           fileName,
           singleton: true,
+          allowNestedTransactions: true,
         });
         const connection = await pool.connection();
         const connection2 = await pool.connection();
@@ -131,6 +244,7 @@ void describe('SQLite Transactions', () => {
           connector: 'SQLite:sqlite3',
           fileName,
           singleton: true,
+          allowNestedTransactions: true,
         });
         const connection = await pool.connection();
         const connection2 = await pool.connection();
@@ -180,6 +294,7 @@ void describe('SQLite Transactions', () => {
           connector: 'SQLite:sqlite3',
           fileName,
           singleton: true,
+          allowNestedTransactions: true,
         });
         const connection = await pool.connection();
         const connection2 = await pool.connection();

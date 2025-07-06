@@ -47,6 +47,7 @@ export type SQLitePoolConnectionOptions<
 > = {
   connector: ConnectorType;
   transactionCounter: TransactionNestingCounter;
+  allowNestedTransactions: boolean;
   type: 'PoolClient';
   connect: Promise<SQLitePoolClient>;
   close: (client: SQLitePoolClient) => Promise<void>;
@@ -57,6 +58,7 @@ export type SQLiteClientConnectionOptions<
 > = {
   connector: ConnectorType;
   transactionCounter: TransactionNestingCounter;
+  allowNestedTransactions: boolean;
   type: 'Client';
   connect: Promise<SQLiteClient>;
   close: (client: SQLiteClient) => Promise<void>;
@@ -81,7 +83,8 @@ export const sqliteClientConnection = <
 >(
   options: SQLiteClientConnectionOptions<ConnectorType>,
 ): SQLiteClientConnection<ConnectorType> => {
-  const { connect, close } = options;
+  const { connect, close, allowNestedTransactions, transactionCounter } =
+    options;
 
   return createConnection({
     connector: options.connector,
@@ -91,7 +94,8 @@ export const sqliteClientConnection = <
       return sqliteTransaction(
         options.connector,
         connection,
-        options.transactionCounter,
+        transactionCounter,
+        allowNestedTransactions,
       );
     },
     executor: () => sqliteSQLExecutor(options.connector),
@@ -135,14 +139,20 @@ export const sqlitePoolClientConnection = <
 >(
   options: SQLitePoolConnectionOptions<ConnectorType>,
 ): SQLitePoolClientConnection<ConnectorType> => {
-  const { connect, close, transactionCounter } = options;
+  const { connect, close, transactionCounter, allowNestedTransactions } =
+    options;
 
   return createConnection({
     connector: options.connector,
     connect,
     close,
     initTransaction: (connection) =>
-      sqliteTransaction(options.connector, connection, transactionCounter),
+      sqliteTransaction(
+        options.connector,
+        connection,
+        transactionCounter,
+        allowNestedTransactions ?? false,
+      ),
     executor: () => sqliteSQLExecutor(options.connector),
   });
 };
@@ -152,11 +162,13 @@ export function sqliteConnection<
 >(
   options: SQLitePoolConnectionOptions<ConnectorType>,
 ): SQLitePoolClientConnection;
+
 export function sqliteConnection<
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
 >(
   options: SQLiteClientConnectionOptions<ConnectorType>,
 ): SQLiteClientConnection;
+
 export function sqliteConnection<
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
 >(
