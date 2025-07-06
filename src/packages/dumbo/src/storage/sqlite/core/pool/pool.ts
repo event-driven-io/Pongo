@@ -41,7 +41,6 @@ export const sqliteAmbientConnectionPool = <
   connection:
     | SQLitePoolClientConnection<ConnectorType>
     | SQLiteClientConnection<ConnectorType>;
-  allowNestedTransactions: boolean;
 }): SQLiteAmbientConnectionPool<ConnectorType> => {
   const { connection, connector: connectorType } = options;
 
@@ -258,7 +257,6 @@ export function sqlitePool<
     return sqliteAmbientConnectionPool({
       connector,
       connection: options.connection,
-      allowNestedTransactions: options.allowNestedTransactions ?? false,
     });
 
   if (
@@ -266,9 +264,7 @@ export function sqlitePool<
     options.fileName === InMemorySQLiteDatabase ||
     options.connectionString === InMemorySQLiteDatabase
   )
-    return sqliteSingletonClientPool({
-      ...options,
-    });
+    return sqliteSingletonClientPool(options);
 
   return sqliteAlwaysNewClientPool(options);
 }
