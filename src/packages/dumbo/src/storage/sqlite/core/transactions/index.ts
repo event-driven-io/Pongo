@@ -22,6 +22,7 @@ export const sqliteTransaction =
     connector: ConnectorType,
     connection: () => Connection<ConnectorType, DbClient>,
     transactionCounter: TransactionNestingCounter,
+    allowNestedTransactions: boolean,
   ) =>
   (
     getClient: Promise<DbClient>,
@@ -32,35 +33,45 @@ export const sqliteTransaction =
     begin: async function () {
       const client = await getClient;
 
-      if (transactionCounter.level >= 1) {
+      if (allowNestedTransactions) {
+        if (transactionCounter.level >= 1) {
+          transactionCounter.increment();
+          await client.query(
+            `SAVEPOINT transaction${transactionCounter.level}`,
+          );
+          return;
+        }
+
         transactionCounter.increment();
-        await client.query(`SAVEPOINT transaction${transactionCounter.level}`);
-        return;
       }
 
-      transactionCounter.increment();
       await client.query('BEGIN TRANSACTION');
     },
     commit: async function () {
       const client = await getClient;
 
-      if (transactionCounter.level > 1) {
-        await client.query(`RELEASE transaction${transactionCounter.level}`);
-        transactionCounter.decrement();
+      if (allowNestedTransactions) {
+        if (transactionCounter.level > 1) {
+          await client.query(`RELEASE transaction${transactionCounter.level}`);
+          transactionCounter.decrement();
 
-        return;
+          return;
+        }
+
+        transactionCounter.reset();
       }
-
       await client.query('COMMIT');
-      transactionCounter.reset();
 
       if (options?.close) await options?.close(client);
     },
     rollback: async function (error?: unknown) {
       const client = await getClient;
-      if (transactionCounter.level > 1) {
-        transactionCounter.decrement();
-        return;
+
+      if (allowNestedTransactions) {
+        if (transactionCounter.level > 1) {
+          transactionCounter.decrement();
+          return;
+        }
       }
 
       await client.query('ROLLBACK');

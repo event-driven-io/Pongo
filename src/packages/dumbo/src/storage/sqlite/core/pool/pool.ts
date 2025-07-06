@@ -41,6 +41,7 @@ export const sqliteAmbientConnectionPool = <
   connection:
     | SQLitePoolClientConnection<ConnectorType>
     | SQLiteClientConnection<ConnectorType>;
+  allowNestedTransactions: boolean;
 }): SQLiteAmbientConnectionPool<ConnectorType> => {
   const { connection, connector: connectorType } = options;
 
@@ -59,6 +60,7 @@ export const sqliteSingletonClientPool = <
   options: {
     connector: ConnectorType;
     database?: string | undefined;
+    allowNestedTransactions?: boolean;
   } & SQLiteFileNameOrConnectionString,
 ): SQLiteAmbientClientPool<ConnectorType> => {
   const { connector } = options;
@@ -83,6 +85,7 @@ export const sqliteSingletonClientPool = <
       type: 'Client',
       connect,
       transactionCounter,
+      allowNestedTransactions: options.allowNestedTransactions ?? false,
       close: () => Promise.resolve(),
     }));
   };
@@ -140,9 +143,11 @@ export const sqliteAmbientClientPool = <
 >(options: {
   connector: ConnectorType;
   client: SQLiteClient;
+  allowNestedTransactions: boolean;
 }): SQLiteAmbientClientPool<ConnectorType> => {
-  const { client, connector } = options;
+  const { client, connector, allowNestedTransactions } = options;
 
+  const transactionCounter = transactionNestingCounter();
   const getConnection = () => {
     const connect = Promise.resolve(client);
 
@@ -150,6 +155,8 @@ export const sqliteAmbientClientPool = <
       connector,
       type: 'Client',
       connect,
+      transactionCounter,
+      allowNestedTransactions,
       close: () => Promise.resolve(),
     });
   };
@@ -183,6 +190,7 @@ export type SQLitePoolPooledOptions<
   connector: ConnectorType;
   pooled?: true;
   singleton?: boolean;
+  allowNestedTransactions?: boolean;
 };
 
 export type SQLitePoolNotPooledOptions<
@@ -193,11 +201,13 @@ export type SQLitePoolNotPooledOptions<
       pooled?: false;
       client: SQLiteClient;
       singleton?: true;
+      allowNestedTransactions?: boolean;
     }
   | {
       connector: ConnectorType;
       pooled?: boolean;
       singleton?: boolean;
+      allowNestedTransactions?: boolean;
     }
   | {
       connector: ConnectorType;
@@ -206,6 +216,7 @@ export type SQLitePoolNotPooledOptions<
         | SQLiteClientConnection<ConnectorType>;
       pooled?: false;
       singleton?: true;
+      allowNestedTransactions?: boolean;
     };
 
 export type SQLitePoolOptions<
@@ -223,6 +234,7 @@ export function sqlitePool<
   options: SQLitePoolNotPooledOptions<ConnectorType> &
     SQLiteFileNameOrConnectionString,
 ): SQLiteAmbientClientPool<ConnectorType>;
+
 export function sqlitePool<
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
 >(
@@ -236,12 +248,17 @@ export function sqlitePool<
   // setSQLiteTypeParser(serializer ?? JSONSerializer);
 
   if ('client' in options && options.client)
-    return sqliteAmbientClientPool({ connector, client: options.client });
+    return sqliteAmbientClientPool({
+      connector,
+      client: options.client,
+      allowNestedTransactions: options.allowNestedTransactions ?? false,
+    });
 
   if ('connection' in options && options.connection)
     return sqliteAmbientConnectionPool({
       connector,
       connection: options.connection,
+      allowNestedTransactions: options.allowNestedTransactions ?? false,
     });
 
   if (
@@ -249,7 +266,9 @@ export function sqlitePool<
     options.fileName === InMemorySQLiteDatabase ||
     options.connectionString === InMemorySQLiteDatabase
   )
-    return sqliteSingletonClientPool(options);
+    return sqliteSingletonClientPool({
+      ...options,
+    });
 
   return sqliteAlwaysNewClientPool(options);
 }
