@@ -117,9 +117,7 @@ export const transactionNestingCounter = (): TransactionNestingCounter => {
       transactionLevel = 0;
     },
     increment: () => {
-      console.log('incrementing');
       transactionLevel++;
-      console.log('Transaction level incremented to', transactionLevel);
     },
     decrement: () => {
       transactionLevel--;
