@@ -3,6 +3,7 @@ import {
   sqliteClientProvider,
   sqliteConnection,
   SQLiteConnectionString,
+  transactionNestingCounter,
   type SQLiteClient,
   type SQLiteClientConnection,
   type SQLiteConnectorType,
@@ -58,12 +59,14 @@ export const sqliteSingletonClientPool = <
   options: {
     connector: ConnectorType;
     database?: string | undefined;
+    allowNestedTransactions?: boolean;
   } & SQLiteFileNameOrConnectionString,
 ): SQLiteAmbientClientPool<ConnectorType> => {
   const { connector } = options;
   let connection: SQLiteClientConnection | undefined = undefined;
 
   const getConnection = () => {
+    const transactionCounter = transactionNestingCounter();
     if (connection) return connection;
 
     const connect = sqliteClientProvider(connector).then(
@@ -80,6 +83,8 @@ export const sqliteSingletonClientPool = <
       connector,
       type: 'Client',
       connect,
+      transactionCounter,
+      allowNestedTransactions: options.allowNestedTransactions ?? false,
       close: () => Promise.resolve(),
     }));
   };
@@ -110,6 +115,7 @@ export const sqliteAlwaysNewClientPool = <
   return createConnectionPool({
     connector: connector,
     getConnection: () => {
+      const transactionCounter = transactionNestingCounter();
       const connect = sqliteClientProvider(connector).then(
         async (sqliteClient) => {
           const client = sqliteClient(options);
@@ -124,6 +130,8 @@ export const sqliteAlwaysNewClientPool = <
         connector,
         type: 'Client',
         connect,
+        transactionCounter,
+        allowNestedTransactions: false,
         close: (client) => client.close(),
       });
     },
@@ -135,9 +143,11 @@ export const sqliteAmbientClientPool = <
 >(options: {
   connector: ConnectorType;
   client: SQLiteClient;
+  allowNestedTransactions: boolean;
 }): SQLiteAmbientClientPool<ConnectorType> => {
-  const { client, connector } = options;
+  const { client, connector, allowNestedTransactions } = options;
 
+  const transactionCounter = transactionNestingCounter();
   const getConnection = () => {
     const connect = Promise.resolve(client);
 
@@ -145,6 +155,8 @@ export const sqliteAmbientClientPool = <
       connector,
       type: 'Client',
       connect,
+      transactionCounter,
+      allowNestedTransactions,
       close: () => Promise.resolve(),
     });
   };
@@ -178,6 +190,7 @@ export type SQLitePoolPooledOptions<
   connector: ConnectorType;
   pooled?: true;
   singleton?: boolean;
+  allowNestedTransactions?: boolean;
 };
 
 export type SQLitePoolNotPooledOptions<
@@ -188,11 +201,13 @@ export type SQLitePoolNotPooledOptions<
       pooled?: false;
       client: SQLiteClient;
       singleton?: true;
+      allowNestedTransactions?: boolean;
     }
   | {
       connector: ConnectorType;
       pooled?: boolean;
       singleton?: boolean;
+      allowNestedTransactions?: boolean;
     }
   | {
       connector: ConnectorType;
@@ -201,6 +216,7 @@ export type SQLitePoolNotPooledOptions<
         | SQLiteClientConnection<ConnectorType>;
       pooled?: false;
       singleton?: true;
+      allowNestedTransactions?: boolean;
     };
 
 export type SQLitePoolOptions<
@@ -218,6 +234,7 @@ export function sqlitePool<
   options: SQLitePoolNotPooledOptions<ConnectorType> &
     SQLiteFileNameOrConnectionString,
 ): SQLiteAmbientClientPool<ConnectorType>;
+
 export function sqlitePool<
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
 >(
@@ -231,7 +248,11 @@ export function sqlitePool<
   // setSQLiteTypeParser(serializer ?? JSONSerializer);
 
   if ('client' in options && options.client)
-    return sqliteAmbientClientPool({ connector, client: options.client });
+    return sqliteAmbientClientPool({
+      connector,
+      client: options.client,
+      allowNestedTransactions: options.allowNestedTransactions ?? false,
+    });
 
   if ('connection' in options && options.connection)
     return sqliteAmbientConnectionPool({

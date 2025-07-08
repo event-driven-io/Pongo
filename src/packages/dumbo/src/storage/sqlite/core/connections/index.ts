@@ -46,6 +46,8 @@ export type SQLitePoolConnectionOptions<
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
 > = {
   connector: ConnectorType;
+  transactionCounter: TransactionNestingCounter;
+  allowNestedTransactions: boolean;
   type: 'PoolClient';
   connect: Promise<SQLitePoolClient>;
   close: (client: SQLitePoolClient) => Promise<void>;
@@ -55,6 +57,8 @@ export type SQLiteClientConnectionOptions<
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
 > = {
   connector: ConnectorType;
+  transactionCounter: TransactionNestingCounter;
+  allowNestedTransactions: boolean;
   type: 'Client';
   connect: Promise<SQLiteClient>;
   close: (client: SQLiteClient) => Promise<void>;
@@ -79,16 +83,53 @@ export const sqliteClientConnection = <
 >(
   options: SQLiteClientConnectionOptions<ConnectorType>,
 ): SQLiteClientConnection<ConnectorType> => {
-  const { connect, close } = options;
+  const { connect, close, allowNestedTransactions, transactionCounter } =
+    options;
 
   return createConnection({
     connector: options.connector,
     connect,
     close,
-    initTransaction: (connection) =>
-      sqliteTransaction(options.connector, connection),
+    initTransaction: (connection) => {
+      return sqliteTransaction(
+        options.connector,
+        connection,
+        transactionCounter,
+        allowNestedTransactions,
+      );
+    },
     executor: () => sqliteSQLExecutor(options.connector),
   });
+};
+
+export type TransactionNestingCounter = {
+  increment: () => void;
+  decrement: () => void;
+  reset: () => void;
+  level: number;
+};
+
+export const transactionNestingCounter = (): TransactionNestingCounter => {
+  let transactionLevel = 0;
+
+  return {
+    reset: () => {
+      transactionLevel = 0;
+    },
+    increment: () => {
+      transactionLevel++;
+    },
+    decrement: () => {
+      transactionLevel--;
+
+      if (transactionLevel < 0) {
+        throw new Error('Transaction level is out of bounds');
+      }
+    },
+    get level() {
+      return transactionLevel;
+    },
+  };
 };
 
 export const sqlitePoolClientConnection = <
@@ -96,14 +137,20 @@ export const sqlitePoolClientConnection = <
 >(
   options: SQLitePoolConnectionOptions<ConnectorType>,
 ): SQLitePoolClientConnection<ConnectorType> => {
-  const { connect, close } = options;
+  const { connect, close, transactionCounter, allowNestedTransactions } =
+    options;
 
   return createConnection({
     connector: options.connector,
     connect,
     close,
     initTransaction: (connection) =>
-      sqliteTransaction(options.connector, connection),
+      sqliteTransaction(
+        options.connector,
+        connection,
+        transactionCounter,
+        allowNestedTransactions ?? false,
+      ),
     executor: () => sqliteSQLExecutor(options.connector),
   });
 };
@@ -113,11 +160,13 @@ export function sqliteConnection<
 >(
   options: SQLitePoolConnectionOptions<ConnectorType>,
 ): SQLitePoolClientConnection;
+
 export function sqliteConnection<
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
 >(
   options: SQLiteClientConnectionOptions<ConnectorType>,
 ): SQLiteClientConnection;
+
 export function sqliteConnection<
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
 >(
