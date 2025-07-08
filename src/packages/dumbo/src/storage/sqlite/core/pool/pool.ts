@@ -131,6 +131,7 @@ export const sqliteAlwaysNewClientPool = <
         type: 'Client',
         connect,
         transactionCounter,
+        allowNestedTransactions: false,
         close: (client) => client.close(),
       });
     },

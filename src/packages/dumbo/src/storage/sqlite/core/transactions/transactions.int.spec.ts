@@ -45,27 +45,25 @@ void describe('SQLite Transactions', () => {
             rawSql('CREATE TABLE test_table (id INTEGER, value TEXT)'),
           );
 
-          const result = await connection.withTransaction<{
-            id: null | string;
-          }>(async () => {
+          const result = await connection.withTransaction<number>(async () => {
             await connection.execute.query(
               rawSql(
                 'INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id',
               ),
             );
 
-            const result = await connection.withTransaction<{
-              id: null | string;
-            }>(async () => {
-              const result = await connection.execute.query(
-                rawSql(
-                  'INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id',
-                ),
-              );
-              return { success: true, result: result.rows[0]?.id ?? null };
-            });
+            const result = await connection.withTransaction<number>(
+              async () => {
+                const result = await connection.execute.query(
+                  rawSql(
+                    'INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id',
+                  ),
+                );
+                return (result.rows[0]?.id as number) ?? null;
+              },
+            );
 
-            return { success: true, result: result };
+            return result;
           });
 
           assert.strictEqual(result, 1);
@@ -74,7 +72,7 @@ void describe('SQLite Transactions', () => {
             rawSql('SELECT COUNT(*) as count  FROM test_table'),
           );
 
-          assert.strictEqual(rows.rows[0].count, 2);
+          assert.strictEqual(rows.rows[0]?.count, 2);
         } finally {
           await connection.close();
           await pool.close();
@@ -96,23 +94,16 @@ void describe('SQLite Transactions', () => {
           );
 
           try {
-            const result = await connection.withTransaction<{
-              id: null | string;
-            }>(async () => {
+            await connection.withTransaction<void>(async () => {
               await connection.execute.query(
                 rawSql(
                   'INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id',
                 ),
               );
 
-              const result = await connection2.withTransaction<{
-                id: null | string;
-              }>(async () => {
+              await connection2.withTransaction<number>(() => {
                 throw new Error('Intentionally throwing');
-                return { success: true, result: result.rows[0]?.id ?? null };
               });
-
-              return { success: true, result: result };
             });
           } catch (error) {
             assert.strictEqual(
@@ -124,7 +115,7 @@ void describe('SQLite Transactions', () => {
             rawSql('SELECT COUNT(*) as count  FROM test_table'),
           );
 
-          assert.strictEqual(rows.rows[0].count, 0);
+          assert.strictEqual(rows.rows[0]?.count, 0);
         } finally {
           await connection.close();
           await pool.close();
@@ -154,15 +145,13 @@ void describe('SQLite Transactions', () => {
                 ),
               );
 
-              const result = await connection2.withTransaction<{
-                id: null | string;
-              }>(async () => {
+              await connection2.withTransaction<number>(async () => {
                 const result = await connection.execute.query(
                   rawSql(
                     'INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id',
                   ),
                 );
-                return { success: true, result: result.rows[0]?.id ?? null };
+                return (result.rows[0]?.id as number) ?? null;
               });
 
               throw new Error('Intentionally throwing');
@@ -179,9 +168,7 @@ void describe('SQLite Transactions', () => {
             rawSql('SELECT COUNT(*) as count  FROM test_table'),
           );
 
-          console.log('rows', rows);
-
-          assert.strictEqual(rows.rows[0].count, 0);
+          assert.strictEqual(rows.rows[0]?.count, 0);
         } finally {
           await connection.close();
           await pool.close();
@@ -203,36 +190,36 @@ void describe('SQLite Transactions', () => {
             rawSql('CREATE TABLE test_table (id INTEGER, value TEXT)'),
           );
 
-          const result = await connection.withTransaction<{
-            id: null | string;
-          }>(async () => {
-            await connection.execute.query(
-              rawSql(
-                'INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id',
-              ),
-            );
-
-            const result = await connection2.withTransaction<{
-              id: null | string;
-            }>(async () => {
-              const result = await connection2.execute.query(
+          const result = await connection.withTransaction<number | null>(
+            async () => {
+              await connection.execute.query(
                 rawSql(
-                  'INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id',
+                  'INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id',
                 ),
               );
-              return { success: true, result: result.rows[0]?.id ?? null };
-            });
 
-            return { success: true, result: result };
-          });
+              const result = await connection2.withTransaction<number | null>(
+                async () => {
+                  const result = await connection2.execute.query(
+                    rawSql(
+                      'INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id',
+                    ),
+                  );
+                  return (result.rows[0]?.id as number) ?? null;
+                },
+              );
+
+              return result;
+            },
+          );
 
           assert.strictEqual(result, 1);
 
-          const rows = await connection.execute.query(
+          const rows = await connection.execute.query<{ count: number }>(
             rawSql('SELECT COUNT(*) as count  FROM test_table'),
           );
 
-          assert.strictEqual(rows.rows[0].count, 2);
+          assert.strictEqual(rows.rows[0]?.count, 2);
         } finally {
           await connection.close();
           await pool.close();
@@ -255,7 +242,7 @@ void describe('SQLite Transactions', () => {
           );
 
           try {
-            const result = await connection.withTransaction<{
+            await connection.withTransaction<{
               id: null | string;
             }>(async () => {
               await connection.execute.query(
@@ -266,9 +253,8 @@ void describe('SQLite Transactions', () => {
 
               const result = await connection2.withTransaction<{
                 id: null | string;
-              }>(async () => {
+              }>(() => {
                 throw new Error('Intentionally throwing');
-                return { success: true, result: result.rows[0]?.id ?? null };
               });
 
               return { success: true, result: result };
@@ -279,11 +265,12 @@ void describe('SQLite Transactions', () => {
               'Intentionally throwing',
             );
           }
+
           const rows = await connection.execute.query(
             rawSql('SELECT COUNT(*) as count  FROM test_table'),
           );
 
-          assert.strictEqual(rows.rows[0].count, 0);
+          assert.strictEqual(rows.rows[0]?.count, 0);
         } finally {
           await connection.close();
           await pool.close();
@@ -314,15 +301,13 @@ void describe('SQLite Transactions', () => {
                 ),
               );
 
-              const result = await connection2.withTransaction<{
-                id: null | string;
-              }>(async () => {
+              await connection2.withTransaction<number>(async () => {
                 const result = await connection.execute.query(
                   rawSql(
                     'INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id',
                   ),
                 );
-                return { success: true, result: result.rows[0]?.id ?? null };
+                return (result.rows[0]?.id as number) ?? null;
               });
 
               throw new Error('Intentionally throwing');
@@ -339,9 +324,7 @@ void describe('SQLite Transactions', () => {
             rawSql('SELECT COUNT(*) as count  FROM test_table'),
           );
 
-          console.log('rows', rows);
-
-          assert.strictEqual(rows.rows[0].count, 0);
+          assert.strictEqual(rows.rows[0]?.count, 0);
         } finally {
           await connection.close();
           await pool.close();
