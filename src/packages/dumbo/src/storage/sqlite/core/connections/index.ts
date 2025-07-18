@@ -18,6 +18,7 @@ export type SQLiteClient = {
 };
 
 export type SQLitePoolClient = {
+  close(): Promise<void>;
   release: () => void;
   command: (sql: string, values?: Parameters[]) => Promise<void>;
   query: <T>(sql: string, values?: Parameters[]) => Promise<T[]>;
@@ -46,7 +47,6 @@ export type SQLitePoolConnectionOptions<
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
 > = {
   connector: ConnectorType;
-  transactionCounter: TransactionNestingCounter;
   allowNestedTransactions: boolean;
   type: 'PoolClient';
   connect: Promise<SQLitePoolClient>;
@@ -57,7 +57,6 @@ export type SQLiteClientConnectionOptions<
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
 > = {
   connector: ConnectorType;
-  transactionCounter: TransactionNestingCounter;
   allowNestedTransactions: boolean;
   type: 'Client';
   connect: Promise<SQLiteClient>;
@@ -83,8 +82,9 @@ export const sqliteClientConnection = <
 >(
   options: SQLiteClientConnectionOptions<ConnectorType>,
 ): SQLiteClientConnection<ConnectorType> => {
-  const { connect, close, allowNestedTransactions, transactionCounter } =
-    options;
+  const { connect, close, allowNestedTransactions } = options;
+
+  const transactionCounter = transactionNestingCounter();
 
   return createConnection({
     connector: options.connector,
@@ -137,9 +137,9 @@ export const sqlitePoolClientConnection = <
 >(
   options: SQLitePoolConnectionOptions<ConnectorType>,
 ): SQLitePoolClientConnection<ConnectorType> => {
-  const { connect, close, transactionCounter, allowNestedTransactions } =
-    options;
+  const { connect, close, allowNestedTransactions } = options;
 
+  const transactionCounter = transactionNestingCounter();
   return createConnection({
     connector: options.connector,
     connect,
