@@ -16,7 +16,7 @@ void describe('SQLite Transactions', () => {
 
   const testCases = [
     { testName: 'in-memory', fileName: inMemoryfileName },
-    // { testName: 'file', fileName: fileName },
+    { testName: 'file', fileName: fileName },
   ];
 
   afterEach(() => {
