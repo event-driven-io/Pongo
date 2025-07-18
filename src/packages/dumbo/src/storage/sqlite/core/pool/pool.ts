@@ -105,9 +105,10 @@ export const sqliteAlwaysNewClientPool = <
   options: {
     connector: ConnectorType;
     database?: string | undefined;
+    allowNestedTransactions?: boolean;
   } & SQLiteFileNameOrConnectionString,
 ): SQLiteAmbientClientPool<ConnectorType> => {
-  const { connector } = options;
+  const { connector, allowNestedTransactions } = options;
 
   return createConnectionPool({
     connector: connector,
@@ -126,7 +127,7 @@ export const sqliteAlwaysNewClientPool = <
         connector,
         type: 'Client',
         connect,
-        allowNestedTransactions: false,
+        allowNestedTransactions: allowNestedTransactions ?? false,
         close: (client) => client.close(),
       });
     },
