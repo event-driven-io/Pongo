@@ -78,6 +78,49 @@ void describe('SQLite Transactions', () => {
           await pool.close();
         }
       });
+      void it('should fail with an error if transaction nested is false', async () => {
+        const pool = sqlitePool({
+          connector: 'SQLite:sqlite3',
+          fileName,
+          allowNestedTransactions: false,
+        });
+        const connection = await pool.connection();
+
+        try {
+          await connection.execute.query(
+            rawSql('CREATE TABLE test_table (id INTEGER, value TEXT)'),
+          );
+
+          await connection.withTransaction<number>(async () => {
+            await connection.execute.query(
+              rawSql(
+                'INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id',
+              ),
+            );
+
+            const result = await connection.withTransaction<number>(
+              async () => {
+                const result = await connection.execute.query(
+                  rawSql(
+                    'INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id',
+                  ),
+                );
+                return (result.rows[0]?.id as number) ?? null;
+              },
+            );
+
+            return result;
+          });
+        } catch (error) {
+          assert.strictEqual(
+            (error as Error).message,
+            'SQLITE_ERROR: cannot start a transaction within a transaction',
+          );
+        } finally {
+          await connection.close();
+          await pool.close();
+        }
+      });
 
       void it('should try catch and roll back everything when the inner transaction errors for a pooled connection', async () => {
         const pool = sqlitePool({
