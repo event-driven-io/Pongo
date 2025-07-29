@@ -70,12 +70,27 @@ export const transactionFactoryWithDbClient = <
   connect: () => Promise<DbClient>,
   initTransaction: (
     client: Promise<DbClient>,
+    options?: { close: (client: DbClient, error?: unknown) => Promise<void> },
   ) => DatabaseTransaction<Connector, DbClient>,
-): DatabaseTransactionFactory<Connector, DbClient> => ({
-  transaction: () => initTransaction(connect()),
-  withTransaction: (handle) =>
-    executeInTransaction(initTransaction(connect()), handle),
-});
+): DatabaseTransactionFactory<Connector, DbClient> => {
+  let currentTransaction: DatabaseTransaction<Connector, DbClient> | undefined =
+    undefined;
+
+  const getOrInitCurrentTransaction = () =>
+    currentTransaction ??
+    (currentTransaction = initTransaction(connect(), {
+      close: () => {
+        currentTransaction = undefined;
+        return Promise.resolve();
+      },
+    }));
+
+  return {
+    transaction: getOrInitCurrentTransaction,
+    withTransaction: (handle) =>
+      executeInTransaction(getOrInitCurrentTransaction(), handle),
+  };
+};
 
 const wrapInConnectionClosure = async <
   ConnectionType extends Connection = Connection,

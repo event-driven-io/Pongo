@@ -45,7 +45,10 @@ export type CreateConnectionOptions<
   close: (client: DbClient) => Promise<void>;
   initTransaction: (
     connection: () => ConnectionType,
-  ) => (client: Promise<DbClient>) => DatabaseTransaction<Connector, DbClient>;
+  ) => (
+    client: Promise<DbClient>,
+    options?: { close: (client: DbClient, error?: unknown) => Promise<void> },
+  ) => DatabaseTransaction<Connector, DbClient>;
   executor: () => Executor;
 };
 
