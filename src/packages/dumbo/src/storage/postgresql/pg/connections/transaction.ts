@@ -30,15 +30,19 @@ export const nodePostgresTransaction =
     commit: async () => {
       const client = await getClient;
 
-      await client.query('COMMIT');
-
-      if (options?.close) await options?.close(client);
+      try {
+        await client.query('COMMIT');
+      } finally {
+        if (options?.close) await options?.close(client);
+      }
     },
     rollback: async (error?: unknown) => {
       const client = await getClient;
-      await client.query('ROLLBACK');
-
-      if (options?.close) await options?.close(client, error);
+      try {
+        await client.query('ROLLBACK');
+      } finally {
+        if (options?.close) await options?.close(client, error);
+      }
     },
     execute: sqlExecutor(nodePostgresSQLExecutor(), {
       connect: () => getClient,

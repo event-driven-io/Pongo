@@ -18,7 +18,6 @@ export type SQLiteClient = {
 };
 
 export type SQLitePoolClient = {
-  close(): Promise<void>;
   release: () => void;
   command: (sql: string, values?: Parameters[]) => Promise<void>;
   query: <T>(sql: string, values?: Parameters[]) => Promise<T[]>;
@@ -47,20 +46,20 @@ export type SQLitePoolConnectionOptions<
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
 > = {
   connector: ConnectorType;
-  allowNestedTransactions: boolean;
   type: 'PoolClient';
   connect: Promise<SQLitePoolClient>;
   close: (client: SQLitePoolClient) => Promise<void>;
+  allowNestedTransactions: boolean;
 };
 
 export type SQLiteClientConnectionOptions<
   ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
 > = {
   connector: ConnectorType;
-  allowNestedTransactions: boolean;
   type: 'Client';
   connect: Promise<SQLiteClient>;
   close: (client: SQLiteClient) => Promise<void>;
+  allowNestedTransactions: boolean;
 };
 
 export type SQLiteClientConnection<
@@ -84,20 +83,12 @@ export const sqliteClientConnection = <
 ): SQLiteClientConnection<ConnectorType> => {
   const { connect, close, allowNestedTransactions } = options;
 
-  const transactionCounter = transactionNestingCounter();
-
   return createConnection({
     connector: options.connector,
     connect,
     close,
-    initTransaction: (connection) => {
-      return sqliteTransaction(
-        options.connector,
-        connection,
-        transactionCounter,
-        allowNestedTransactions,
-      );
-    },
+    initTransaction: (connection) =>
+      sqliteTransaction(options.connector, connection, allowNestedTransactions),
     executor: () => sqliteSQLExecutor(options.connector),
   });
 };
@@ -139,7 +130,6 @@ export const sqlitePoolClientConnection = <
 ): SQLitePoolClientConnection<ConnectorType> => {
   const { connect, close, allowNestedTransactions } = options;
 
-  const transactionCounter = transactionNestingCounter();
   return createConnection({
     connector: options.connector,
     connect,
@@ -148,7 +138,6 @@ export const sqlitePoolClientConnection = <
       sqliteTransaction(
         options.connector,
         connection,
-        transactionCounter,
         allowNestedTransactions ?? false,
       ),
     executor: () => sqliteSQLExecutor(options.connector),
