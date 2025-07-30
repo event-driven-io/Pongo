@@ -33,16 +33,14 @@ void describe('Pongo collection', () => {
   const insertDocumentUsingPongo = async (
     poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
   ) => {
-    const pongo = pongoClient(
+    const pongo = pongoClient({
       connectionString,
-      isNodePostgresNativePool(poolOrClient)
+      connectionOptions: isNodePostgresNativePool(poolOrClient)
         ? undefined
         : {
-            connectionOptions: {
-              client: poolOrClient,
-            },
+            client: poolOrClient,
           },
-    );
+    });
 
     try {
       const pongoCollection = pongo.db().collection<User>('connections');
@@ -93,7 +91,8 @@ void describe('Pongo collection', () => {
 
       try {
         await pool.withConnection(async (connection) => {
-          const pongo = pongoClient(connectionString, {
+          const pongo = pongoClient({
+            connectionString,
             connectionOptions: {
               connection,
               pooled: false,
@@ -114,7 +113,8 @@ void describe('Pongo collection', () => {
 
       try {
         await pool.withTransaction(async ({ connection }) => {
-          const pongo = pongoClient(connectionString, {
+          const pongo = pongoClient({
+            connectionString,
             connectionOptions: { connection },
           });
 

@@ -50,7 +50,8 @@ void describe('MongoDB Compatibility Tests', () => {
 
     const dbName = postgres.getDatabase();
 
-    client = pongoClient(postgresConnectionString, {
+    client = pongoClient({
+      connectionString: postgresConnectionString,
       schema: {
         autoMigration: 'CreateOrUpdate',
         definition: pongoSchema.client({

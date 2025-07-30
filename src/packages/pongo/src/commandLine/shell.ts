@@ -194,7 +194,8 @@ const startRepl = async (options: {
       database: pongoSchema.db(options.schema.database, collectionsSchema),
     });
 
-    const typedClient = pongoClient(connectionString, {
+    const typedClient = pongoClient({
+      connectionString,
       schema: {
         definition: schema,
         autoMigration: options.schema.autoMigration,
@@ -209,7 +210,8 @@ const startRepl = async (options: {
 
     pongo = typedClient;
   } else {
-    pongo = pongoClient(connectionString, {
+    pongo = pongoClient({
+      connectionString,
       schema: { autoMigration: options.schema.autoMigration },
     });
 
