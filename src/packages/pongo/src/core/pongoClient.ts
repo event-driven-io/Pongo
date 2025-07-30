@@ -2,11 +2,7 @@ import {
   type DatabaseConnectionString,
   type MigrationStyle,
 } from '@event-driven-io/dumbo';
-import {
-  NodePostgresConnectorType,
-  type NodePostgresConnection,
-} from '@event-driven-io/dumbo/pg';
-import pg from 'pg';
+import { NodePostgresConnectorType } from '@event-driven-io/dumbo/pg';
 import type { PostgresDbClientOptions } from '../storage/postgresql';
 import { getPongoDb } from './pongoDb';
 import { pongoSession } from './pongoSession';
@@ -16,42 +12,14 @@ import {
   type PongoClientWithSchema,
 } from './schema';
 import type { PongoClient, PongoDb, PongoSession } from './typing';
-
-export type PooledPongoClientOptions =
-  | {
-      pool: pg.Pool;
-    }
-  | {
-      pooled: true;
-    }
-  | {
-      pool: pg.Pool;
-      pooled: true;
-    }
-  | object;
-
-export type NotPooledPongoOptions =
-  | {
-      client: pg.Client;
-    }
-  | {
-      pooled: false;
-    }
-  | {
-      client: pg.Client;
-      pooled: false;
-    }
-  | {
-      connection: NodePostgresConnection;
-      pooled?: false;
-    };
+import type { NodePostgresPongoClientOptions } from '../pg';
 
 export type PongoClientOptions<
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
 > = {
   schema?: { autoMigration?: MigrationStyle; definition?: TypedClientSchema };
   errors?: { throwOnOperationFailures?: boolean };
-  connectionOptions?: PooledPongoClientOptions | NotPooledPongoOptions;
+  connectionOptions?: NodePostgresPongoClientOptions;
 };
 
 export const pongoClient = <
