@@ -14,7 +14,6 @@ import {
 
 export * from './connections';
 
-// Helper type to infer the connector type based on connection string
 export type InferConnector<T extends DatabaseConnectionString> =
   T extends PostgreSQLConnectionString
     ? ConnectorType<'PostgreSQL', 'pg'>
@@ -22,7 +21,6 @@ export type InferConnector<T extends DatabaseConnectionString> =
       ? ConnectorType<'SQLite', 'sqlite3'>
       : never;
 
-// Helper type to infer the connection type based on connection string
 export type InferConnection<T extends DatabaseConnectionString> =
   T extends PostgreSQLConnectionString
     ? Connection<ConnectorType<'PostgreSQL', 'pg'>>

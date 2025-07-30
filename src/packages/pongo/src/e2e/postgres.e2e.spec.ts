@@ -1,3 +1,4 @@
+import { PostgreSQLConnectionString } from '@event-driven-io/dumbo/pg';
 import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
@@ -33,7 +34,7 @@ type User = {
 
 void describe('MongoDB Compatibility Tests', () => {
   let postgres: StartedPostgreSqlContainer;
-  let postgresConnectionString: string;
+  let postgresConnectionString: PostgreSQLConnectionString;
   let client: PongoClient;
   let shim: MongoClient;
 
@@ -42,7 +43,9 @@ void describe('MongoDB Compatibility Tests', () => {
 
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
-    postgresConnectionString = postgres.getConnectionUri();
+    postgresConnectionString = PostgreSQLConnectionString(
+      postgres.getConnectionUri(),
+    );
     client = pongoClient(postgresConnectionString);
     shim = new MongoClient(postgresConnectionString);
     await client.connect();
