@@ -1,4 +1,4 @@
-import type { ConnectorType } from '@event-driven-io/dumbo/src';
+import type { ConnectorType } from '@event-driven-io/dumbo';
 import {
   isPostgresClientOptions,
   postgresDb,

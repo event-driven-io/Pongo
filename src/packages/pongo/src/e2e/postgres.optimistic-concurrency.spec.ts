@@ -1,4 +1,4 @@
-import { PostgreSQLConnectionString } from '@event-driven-io/dumbo/src/pg';
+import { PostgreSQLConnectionString } from '@event-driven-io/dumbo/pg';
 import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,

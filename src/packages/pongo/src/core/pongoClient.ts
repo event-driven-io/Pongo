@@ -2,7 +2,8 @@ import {
   type DatabaseConnectionString,
   type MigrationStyle,
 } from '@event-driven-io/dumbo';
-import { NodePostgresConnectorType } from '@event-driven-io/dumbo/pg';
+import type { NodePostgresPongoClientOptions } from '../pg';
+import { clientToDbOptions } from '../storage/all';
 import type { PostgresDbClientOptions } from '../storage/postgresql';
 import { getPongoDb } from './pongoDb';
 import { pongoSession } from './pongoSession';
@@ -12,14 +13,15 @@ import {
   type PongoClientWithSchema,
 } from './schema';
 import type { PongoClient, PongoDb, PongoSession } from './typing';
-import type { NodePostgresPongoClientOptions } from '../pg';
 
 export type PongoClientOptions<
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
+  ConnectionOptions extends
+    NodePostgresPongoClientOptions = NodePostgresPongoClientOptions,
 > = {
   schema?: { autoMigration?: MigrationStyle; definition?: TypedClientSchema };
   errors?: { throwOnOperationFailures?: boolean };
-  connectionOptions?: NodePostgresPongoClientOptions;
+  connectionOptions?: ConnectionOptions;
 };
 
 export const pongoClient = <
@@ -84,22 +86,4 @@ export const pongoClient = <
   };
 
   return proxyClientWithSchema(pongoClient, options?.schema?.definition);
-};
-
-export const clientToDbOptions = <
-  ConnectionString extends DatabaseConnectionString,
-  DbClientOptions extends PostgresDbClientOptions = PostgresDbClientOptions,
->(options: {
-  connectionString: ConnectionString;
-  dbName?: string;
-  clientOptions: PongoClientOptions;
-}): DbClientOptions => {
-  const postgreSQLOptions: PostgresDbClientOptions = {
-    connector: NodePostgresConnectorType,
-    connectionString: options.connectionString,
-    dbName: options.dbName,
-    ...options.clientOptions,
-  };
-
-  return postgreSQLOptions as DbClientOptions;
 };
