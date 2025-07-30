@@ -6,7 +6,10 @@ import {
   SQL,
   type MigrationStyle,
 } from '@event-driven-io/dumbo';
-import { checkConnection } from '@event-driven-io/dumbo/pg';
+import {
+  checkConnection,
+  PostgreSQLConnectionString,
+} from '@event-driven-io/dumbo/pg';
 import Table from 'cli-table3';
 import { Command } from 'commander';
 import repl from 'node:repl';
@@ -131,10 +134,11 @@ const startRepl = async (options: {
     console.log(prettyJson(options));
   }
 
-  const connectionString =
+  const connectionString = PostgreSQLConnectionString(
     options.connectionString ??
-    process.env.DB_CONNECTION_STRING ??
-    'postgresql://postgres:postgres@localhost:5432/postgres';
+      process.env.DB_CONNECTION_STRING ??
+      'postgresql://postgres:postgres@localhost:5432/postgres',
+  );
 
   if (!(options.connectionString ?? process.env.DB_CONNECTION_STRING)) {
     console.log(

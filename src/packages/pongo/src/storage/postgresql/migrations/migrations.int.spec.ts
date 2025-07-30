@@ -1,5 +1,9 @@
 import { type Dumbo, rawSql } from '@event-driven-io/dumbo';
-import { dumbo, tableExists } from '@event-driven-io/dumbo/pg';
+import {
+  dumbo,
+  PostgreSQLConnectionString,
+  tableExists,
+} from '@event-driven-io/dumbo/pg';
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
@@ -11,7 +15,7 @@ import { pongoClient, type PongoClient, pongoSchema } from '../../../core';
 void describe('Migration Integration Tests', () => {
   let pool: Dumbo;
   let postgres: StartedPostgreSqlContainer;
-  let connectionString: string;
+  let connectionString: PostgreSQLConnectionString;
   let client: PongoClient;
 
   const schema = pongoSchema.client({
@@ -23,7 +27,7 @@ void describe('Migration Integration Tests', () => {
 
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
-    connectionString = postgres.getConnectionUri();
+    connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
     pool = dumbo({ connectionString });
     client = pongoClient(connectionString, {
       schema: { autoMigration: 'CreateOrUpdate', definition: schema },

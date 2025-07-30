@@ -15,10 +15,8 @@ export type PongoDbClientOptions<
   dbName: string | undefined;
 } & PongoClientOptions;
 
-export type AllowedDbClientOptions = PostgresDbClientOptions;
-
 export const getPongoDb = <
-  DbClientOptions extends AllowedDbClientOptions = AllowedDbClientOptions,
+  DbClientOptions extends PostgresDbClientOptions = PostgresDbClientOptions,
 >(
   options: DbClientOptions,
 ): PongoDb => {

@@ -1,11 +1,14 @@
-import { type MigrationStyle } from '@event-driven-io/dumbo';
+import {
+  type DatabaseConnectionString,
+  type MigrationStyle,
+} from '@event-driven-io/dumbo';
 import {
   NodePostgresConnectorType,
   type NodePostgresConnection,
 } from '@event-driven-io/dumbo/pg';
 import pg from 'pg';
 import type { PostgresDbClientOptions } from '../storage/postgresql';
-import { getPongoDb, type AllowedDbClientOptions } from './pongoDb';
+import { getPongoDb } from './pongoDb';
 import { pongoSession } from './pongoSession';
 import {
   proxyClientWithSchema,
@@ -52,10 +55,11 @@ export type PongoClientOptions<
 };
 
 export const pongoClient = <
+  ConnectionString extends DatabaseConnectionString,
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
-  DbClientOptions extends AllowedDbClientOptions = AllowedDbClientOptions,
+  DbClientOptions extends PostgresDbClientOptions = PostgresDbClientOptions,
 >(
-  connectionString: string,
+  connectionString: ConnectionString,
   options: PongoClientOptions<TypedClientSchema> = {},
 ): PongoClient & PongoClientWithSchema<TypedClientSchema> => {
   const dbClients = new Map<string, PongoDb>();
@@ -115,9 +119,10 @@ export const pongoClient = <
 };
 
 export const clientToDbOptions = <
-  DbClientOptions extends AllowedDbClientOptions = AllowedDbClientOptions,
+  ConnectionString extends DatabaseConnectionString,
+  DbClientOptions extends PostgresDbClientOptions = PostgresDbClientOptions,
 >(options: {
-  connectionString: string;
+  connectionString: ConnectionString;
   dbName?: string;
   clientOptions: PongoClientOptions;
 }): DbClientOptions => {

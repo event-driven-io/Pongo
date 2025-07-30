@@ -1,4 +1,8 @@
-import { dumbo, isNodePostgresNativePool } from '@event-driven-io/dumbo/pg';
+import {
+  dumbo,
+  isNodePostgresNativePool,
+  PostgreSQLConnectionString,
+} from '@event-driven-io/dumbo/pg';
 import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
@@ -15,11 +19,11 @@ type User = {
 
 void describe('Pongo collection', () => {
   let postgres: StartedPostgreSqlContainer;
-  let connectionString: string;
+  let connectionString: PostgreSQLConnectionString;
 
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
-    connectionString = postgres.getConnectionUri();
+    connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
   });
 
   after(async () => {

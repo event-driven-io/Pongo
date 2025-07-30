@@ -1,3 +1,4 @@
+import type { PostgreSQLConnectionString } from '@event-driven-io/dumbo/pg';
 import type { ClientSessionOptions } from 'http2';
 import type { ClientSession, WithSessionCallback } from 'mongodb';
 import {
@@ -11,7 +12,10 @@ import { Db } from './mongoDb';
 export class MongoClient {
   private pongoClient: PongoClient;
 
-  constructor(connectionString: string, options: PongoClientOptions = {}) {
+  constructor(
+    connectionString: PostgreSQLConnectionString,
+    options: PongoClientOptions = {},
+  ) {
     this.pongoClient = pongoClient(connectionString, options);
   }
 
