@@ -15,28 +15,32 @@ import {
 import type { PongoClient, PongoDb, PongoSession } from './typing';
 
 export type PongoClientOptions<
+  ConnectionString extends DatabaseConnectionString,
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
   ConnectionOptions extends
     NodePostgresPongoClientOptions = NodePostgresPongoClientOptions,
 > = {
-  schema?: { autoMigration?: MigrationStyle; definition?: TypedClientSchema };
-  errors?: { throwOnOperationFailures?: boolean };
-  connectionOptions?: ConnectionOptions;
+  connectionString: ConnectionString;
+  schema?:
+    | { autoMigration?: MigrationStyle; definition?: TypedClientSchema }
+    | undefined;
+  errors?: { throwOnOperationFailures?: boolean } | undefined;
+  connectionOptions?: ConnectionOptions | undefined;
 };
 
 export const pongoClient = <
   ConnectionString extends DatabaseConnectionString,
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
-  DbClientOptions extends PostgresDbClientOptions = PostgresDbClientOptions,
+  DbClientOptions extends
+    PostgresDbClientOptions<ConnectionString> = PostgresDbClientOptions<ConnectionString>,
 >(
-  connectionString: ConnectionString,
-  options: PongoClientOptions<TypedClientSchema> = {},
+  options: PongoClientOptions<ConnectionString, TypedClientSchema>,
 ): PongoClient & PongoClientWithSchema<TypedClientSchema> => {
   const dbClients = new Map<string, PongoDb>();
 
-  const dbClient = getPongoDb<DbClientOptions>(
+  const dbClient = getPongoDb<ConnectionString, DbClientOptions>(
     clientToDbOptions({
-      connectionString,
+      connectionString: options.connectionString,
       clientOptions: options,
     }),
   );
@@ -60,9 +64,9 @@ export const pongoClient = <
         dbClients
           .set(
             dbName,
-            getPongoDb<DbClientOptions>(
+            getPongoDb<ConnectionString, DbClientOptions>(
               clientToDbOptions({
-                connectionString,
+                connectionString: options.connectionString,
                 dbName,
                 clientOptions: options,
               }),

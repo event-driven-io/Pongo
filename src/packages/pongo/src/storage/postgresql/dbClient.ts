@@ -1,6 +1,7 @@
 import {
   schemaComponent,
   SQL,
+  type DatabaseConnectionString,
   type QueryResult,
   type QueryResultRow,
   type SchemaComponent,
@@ -27,15 +28,19 @@ import {
 } from '../../core';
 import { postgresSQLBuilder } from './sqlBuilder';
 
-export type PostgresDbClientOptions = PongoDbClientOptions<PostgresConnector>;
+export type PostgresDbClientOptions<
+  ConnectionString extends DatabaseConnectionString,
+> = PongoDbClientOptions<ConnectionString, PostgresConnector>;
 
-export const isPostgresClientOptions = (
-  options: PongoDbClientOptions,
-): options is PostgresDbClientOptions =>
+export const isPostgresClientOptions = <
+  ConnectionString extends DatabaseConnectionString,
+>(
+  options: PongoDbClientOptions<ConnectionString>,
+): options is PostgresDbClientOptions<ConnectionString> =>
   options.connector === NodePostgresConnectorType;
 
-export const postgresDb = (
-  options: PostgresDbClientOptions,
+export const postgresDb = <ConnectionString extends DatabaseConnectionString>(
+  options: PostgresDbClientOptions<ConnectionString>,
 ): PongoDb<PostgresConnector> => {
   const { connectionString, dbName } = options;
   const databaseName = dbName ?? getDatabaseNameOrDefault(connectionString);

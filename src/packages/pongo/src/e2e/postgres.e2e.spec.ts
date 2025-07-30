@@ -46,7 +46,7 @@ void describe('MongoDB Compatibility Tests', () => {
     postgresConnectionString = PostgreSQLConnectionString(
       postgres.getConnectionUri(),
     );
-    client = pongoClient(postgresConnectionString);
+    client = pongoClient({ connectionString: postgresConnectionString });
     shim = new MongoClient(postgresConnectionString);
     await client.connect();
     await shim.connect();
@@ -1260,7 +1260,8 @@ void describe('MongoDB Compatibility Tests', () => {
     });
 
     void it('should access typed collection and perform operation', async () => {
-      const typedClient = pongoClient(postgresConnectionString, {
+      const typedClient = pongoClient({
+        connectionString: postgresConnectionString,
         schema: { definition: schema },
       });
       try {
@@ -1285,7 +1286,8 @@ void describe('MongoDB Compatibility Tests', () => {
     });
 
     void it('should access collection by name and perform operation', async () => {
-      const typedClient = pongoClient(postgresConnectionString, {
+      const typedClient = pongoClient({
+        connectionString: postgresConnectionString,
         schema: { definition: schema },
       });
       try {

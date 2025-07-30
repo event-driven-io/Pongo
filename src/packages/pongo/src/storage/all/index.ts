@@ -5,15 +5,15 @@ import type { PostgresDbClientOptions } from '../postgresql';
 
 export const clientToDbOptions = <
   ConnectionString extends DatabaseConnectionString,
-  DbClientOptions extends PostgresDbClientOptions = PostgresDbClientOptions,
+  DbClientOptions extends
+    PostgresDbClientOptions<ConnectionString> = PostgresDbClientOptions<ConnectionString>,
 >(options: {
   connectionString: ConnectionString;
   dbName?: string;
-  clientOptions: PongoClientOptions;
+  clientOptions: PongoClientOptions<ConnectionString>;
 }): DbClientOptions => {
-  const postgreSQLOptions: PostgresDbClientOptions = {
+  const postgreSQLOptions: PostgresDbClientOptions<ConnectionString> = {
     connector: NodePostgresConnectorType,
-    connectionString: options.connectionString,
     dbName: options.dbName,
     ...options.clientOptions,
   };

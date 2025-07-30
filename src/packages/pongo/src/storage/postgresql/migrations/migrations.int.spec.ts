@@ -29,7 +29,8 @@ void describe('Migration Integration Tests', () => {
     postgres = await new PostgreSqlContainer().start();
     connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
     pool = dumbo({ connectionString });
-    client = pongoClient(connectionString, {
+    client = pongoClient({
+      connectionString,
       schema: { autoMigration: 'CreateOrUpdate', definition: schema },
     });
   });

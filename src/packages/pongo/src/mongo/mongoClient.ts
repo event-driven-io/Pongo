@@ -14,9 +14,12 @@ export class MongoClient {
 
   constructor(
     connectionString: PostgreSQLConnectionString,
-    options: PongoClientOptions = {},
+    options: Omit<
+      PongoClientOptions<PostgreSQLConnectionString>,
+      'connectionString'
+    > = {},
   ) {
-    this.pongoClient = pongoClient(connectionString, options);
+    this.pongoClient = pongoClient({ ...options, connectionString });
   }
 
   async connect() {
