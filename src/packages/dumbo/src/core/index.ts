@@ -24,5 +24,5 @@ export type DumboConnectionOptions<
   > = DatabaseConnectionString<InferConnectorDatabaseType<ConnectorType>>,
 > = {
   connectionString: string | ConnectionString;
-  connectorType: Connector;
+  connector: Connector;
 };
