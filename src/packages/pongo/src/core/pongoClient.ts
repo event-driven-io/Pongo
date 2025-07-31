@@ -1,11 +1,12 @@
 import {
+  type ConnectorType,
+  type DatabaseConnectionString,
+  type InferConnectorDatabaseType,
   type MigrationStyle,
-  type SupportedDatabaseConnectionString,
 } from '@event-driven-io/dumbo';
 import type { NodePostgresPongoClientOptions } from '../pg';
 import { clientToDbOptions } from '../storage/all';
-import type { PostgresDbClientOptions } from '../storage/postgresql';
-import { getPongoDb } from './pongoDb';
+import { getPongoDb, type PongoDbClientOptions } from './pongoDb';
 import { pongoSession } from './pongoSession';
 import {
   proxyClientWithSchema,
@@ -15,12 +16,15 @@ import {
 import type { PongoClient, PongoDb, PongoSession } from './typing';
 
 export type PongoClientOptions<
-  ConnectionString extends SupportedDatabaseConnectionString,
+  ConnectionString extends DatabaseConnectionString<
+    InferConnectorDatabaseType<Connector>
+  >,
+  Connector extends ConnectorType = ConnectorType,
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
   ConnectionOptions extends
     NodePostgresPongoClientOptions = NodePostgresPongoClientOptions,
 > = {
-  connectionString: ConnectionString;
+  connectionString: ConnectionString | string;
   schema?:
     | { autoMigration?: MigrationStyle; definition?: TypedClientSchema }
     | undefined;
@@ -29,18 +33,23 @@ export type PongoClientOptions<
 };
 
 export const pongoClient = <
-  ConnectionString extends SupportedDatabaseConnectionString,
+  ConnectionString extends DatabaseConnectionString<
+    InferConnectorDatabaseType<Connector>
+  >,
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
-  DbClientOptions extends
-    PostgresDbClientOptions<ConnectionString> = PostgresDbClientOptions<ConnectionString>,
+  Connector extends ConnectorType = ConnectorType,
+  DbClientOptions extends PongoDbClientOptions<
+    ConnectionString,
+    Connector
+  > = PongoDbClientOptions<ConnectionString, Connector>,
 >(
-  options: PongoClientOptions<ConnectionString, TypedClientSchema>,
+  options: PongoClientOptions<ConnectionString, Connector, TypedClientSchema>,
 ): PongoClient & PongoClientWithSchema<TypedClientSchema> => {
   const dbClients = new Map<string, PongoDb>();
 
-  const dbClient = getPongoDb<ConnectionString, DbClientOptions>(
+  const dbClient = getPongoDb<ConnectionString, Connector, DbClientOptions>(
     clientToDbOptions({
-      connectionString: options.connectionString,
+      connectionString: options.connectionString as ConnectionString,
       clientOptions: options,
     }),
   );
@@ -64,9 +73,9 @@ export const pongoClient = <
         dbClients
           .set(
             dbName,
-            getPongoDb<ConnectionString, DbClientOptions>(
+            getPongoDb<ConnectionString, Connector, DbClientOptions>(
               clientToDbOptions({
-                connectionString: options.connectionString,
+                connectionString: options.connectionString as ConnectionString,
                 dbName,
                 clientOptions: options,
               }),

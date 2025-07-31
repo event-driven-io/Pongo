@@ -3,6 +3,7 @@ import {
   type ConnectionPool,
   type ConnectorType,
   createDeferredConnectionPool,
+  type Dumbo,
   type DumboConnectionOptions,
 } from '../../core';
 import type { PostgreSQLConnectionString } from '../postgresql/core';
@@ -37,7 +38,8 @@ const importDrivers: Record<string, () => Promise<any>> = {
 export function dumbo<
   DatabaseOptions extends DumboConnectionOptions<Connector>,
   Connector extends ConnectorType = ConnectorType,
->(options: DatabaseOptions): ConnectionPool<Connection<Connector>> {
+  ConnectionType extends Connection<Connector> = Connection<Connector>,
+>(options: DatabaseOptions): Dumbo<Connector, ConnectionType> {
   const { connectionString } = options;
 
   const { databaseType, driverName } = parseConnectionString(connectionString);
@@ -63,7 +65,7 @@ export function dumbo<
     if (poolFactory === undefined)
       throw new Error(`No pool factory found for connector: ${connector}`);
 
-    return poolFactory({ connector, ...options });
+    return poolFactory({ ...options, connector });
   };
 
   return createDeferredConnectionPool(connector, importAndCreatePool);
