@@ -1,6 +1,6 @@
 import {
-  type DatabaseConnectionString,
   type MigrationStyle,
+  type SupportedDatabaseConnectionString,
 } from '@event-driven-io/dumbo';
 import type { NodePostgresPongoClientOptions } from '../pg';
 import { clientToDbOptions } from '../storage/all';
@@ -15,7 +15,7 @@ import {
 import type { PongoClient, PongoDb, PongoSession } from './typing';
 
 export type PongoClientOptions<
-  ConnectionString extends DatabaseConnectionString,
+  ConnectionString extends SupportedDatabaseConnectionString,
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
   ConnectionOptions extends
     NodePostgresPongoClientOptions = NodePostgresPongoClientOptions,
@@ -29,7 +29,7 @@ export type PongoClientOptions<
 };
 
 export const pongoClient = <
-  ConnectionString extends DatabaseConnectionString,
+  ConnectionString extends SupportedDatabaseConnectionString,
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
   DbClientOptions extends
     PostgresDbClientOptions<ConnectionString> = PostgresDbClientOptions<ConnectionString>,

@@ -1,10 +1,10 @@
-import type { DatabaseConnectionString } from '@event-driven-io/dumbo';
+import type { SupportedDatabaseConnectionString } from '@event-driven-io/dumbo';
 import { NodePostgresConnectorType } from '@event-driven-io/dumbo/pg';
 import type { PongoClientOptions } from '../../core';
 import type { PostgresDbClientOptions } from '../postgresql';
 
 export const clientToDbOptions = <
-  ConnectionString extends DatabaseConnectionString,
+  ConnectionString extends SupportedDatabaseConnectionString,
   DbClientOptions extends
     PostgresDbClientOptions<ConnectionString> = PostgresDbClientOptions<ConnectionString>,
 >(options: {

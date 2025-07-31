@@ -8,20 +8,20 @@ import {
 import type { PostgreSQLConnectionString } from '../postgresql/core';
 import type { SQLiteConnectionString } from '../sqlite/core';
 import {
-  type DatabaseConnectionString,
   parseConnectionString,
+  type SupportedDatabaseConnectionString,
 } from './connections';
 
 export * from './connections';
 
-export type InferConnector<T extends DatabaseConnectionString> =
+export type InferConnector<T extends SupportedDatabaseConnectionString> =
   T extends PostgreSQLConnectionString
     ? ConnectorType<'PostgreSQL', 'pg'>
     : T extends SQLiteConnectionString
       ? ConnectorType<'SQLite', 'sqlite3'>
       : never;
 
-export type InferConnection<T extends DatabaseConnectionString> =
+export type InferConnection<T extends SupportedDatabaseConnectionString> =
   T extends PostgreSQLConnectionString
     ? Connection<ConnectorType<'PostgreSQL', 'pg'>>
     : T extends SQLiteConnectionString
@@ -35,7 +35,7 @@ const importDrivers: Record<string, () => Promise<any>> = {
 };
 
 export function dumbo<
-  ConnectionString extends DatabaseConnectionString,
+  ConnectionString extends SupportedDatabaseConnectionString,
   DatabaseOptions extends DumboConnectionOptions<ConnectionString>,
 >(options: DatabaseOptions): ConnectionPool<InferConnection<ConnectionString>> {
   const { connectionString } = options;
