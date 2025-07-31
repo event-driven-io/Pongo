@@ -1,10 +1,10 @@
 import {
   schemaComponent,
   SQL,
-  type DatabaseConnectionString,
   type QueryResult,
   type QueryResultRow,
   type SchemaComponent,
+  type SupportedDatabaseConnectionString,
 } from '@event-driven-io/dumbo';
 import {
   dumbo,
@@ -29,17 +29,19 @@ import {
 import { postgresSQLBuilder } from './sqlBuilder';
 
 export type PostgresDbClientOptions<
-  ConnectionString extends DatabaseConnectionString,
+  ConnectionString extends SupportedDatabaseConnectionString,
 > = PongoDbClientOptions<ConnectionString, PostgresConnector>;
 
 export const isPostgresClientOptions = <
-  ConnectionString extends DatabaseConnectionString,
+  ConnectionString extends SupportedDatabaseConnectionString,
 >(
   options: PongoDbClientOptions<ConnectionString>,
 ): options is PostgresDbClientOptions<ConnectionString> =>
   options.connector === NodePostgresConnectorType;
 
-export const postgresDb = <ConnectionString extends DatabaseConnectionString>(
+export const postgresDb = <
+  ConnectionString extends SupportedDatabaseConnectionString,
+>(
   options: PostgresDbClientOptions<ConnectionString>,
 ): PongoDb<PostgresConnector> => {
   const { connectionString, dbName } = options;

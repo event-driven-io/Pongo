@@ -1,6 +1,6 @@
 import type {
   ConnectorType,
-  DatabaseConnectionString,
+  SupportedDatabaseConnectionString,
 } from '@event-driven-io/dumbo';
 import {
   isPostgresClientOptions,
@@ -11,7 +11,7 @@ import type { PongoClientOptions } from './pongoClient';
 import type { PongoDb } from './typing';
 
 export type PongoDbClientOptions<
-  ConnectionString extends DatabaseConnectionString,
+  ConnectionString extends SupportedDatabaseConnectionString,
   Connector extends ConnectorType = ConnectorType,
 > = {
   connector: Connector;
@@ -19,7 +19,7 @@ export type PongoDbClientOptions<
 } & PongoClientOptions<ConnectionString>;
 
 export const getPongoDb = <
-  ConnectionString extends DatabaseConnectionString,
+  ConnectionString extends SupportedDatabaseConnectionString,
   DbClientOptions extends
     PostgresDbClientOptions<ConnectionString> = PostgresDbClientOptions<ConnectionString>,
 >(
