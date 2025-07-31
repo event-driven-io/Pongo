@@ -39,6 +39,7 @@ void describe('Node SQLite pool', () => {
   void describe(`in-memory database`, () => {
     void it('returns the singleton connection', async () => {
       const pool = dumbo({
+        connectorType: `SQLite:sqlite3`,
         connectionString: inMemoryfileName,
       });
       const connection = await pool.connection();
@@ -62,6 +63,7 @@ void describe('Node SQLite pool', () => {
   void describe(`file-based database`, () => {
     void it('returns the new connection each time', async () => {
       const pool = dumbo({
+        connectorType: `SQLite:sqlite3`,
         connectionString,
       });
       const connection = await pool.connection();
@@ -83,6 +85,7 @@ void describe('Node SQLite pool', () => {
 
     void it('for singleton setting returns the singleton connection', async () => {
       const pool = dumbo({
+        connectorType: `SQLite:sqlite3`,
         connectionString,
         singleton: true,
       });
@@ -108,6 +111,7 @@ void describe('Node SQLite pool', () => {
     void describe(`dumbo with ${testName} database`, () => {
       void it('connects using default pool', async () => {
         const pool = dumbo({
+          connectorType: `SQLite:sqlite3`,
           connectionString,
         });
         const connection = await pool.connection();
@@ -125,6 +129,7 @@ void describe('Node SQLite pool', () => {
 
       void it('connects using client', async () => {
         const pool = dumbo({
+          connectorType: `SQLite:sqlite3`,
           connectionString,
           pooled: false,
         });
@@ -143,6 +148,7 @@ void describe('Node SQLite pool', () => {
         await existingClient.connect();
 
         const pool = dumbo({
+          connectorType: `SQLite:sqlite3`,
           connectionString,
           client: existingClient,
         });
@@ -159,6 +165,7 @@ void describe('Node SQLite pool', () => {
 
       void it('connects using connected ambient connected connection', async () => {
         const ambientPool = dumbo({
+          connectorType: `SQLite:sqlite3`,
           connectionString,
           fileName,
         });
@@ -166,6 +173,7 @@ void describe('Node SQLite pool', () => {
         await ambientConnection.open();
 
         const pool = dumbo({
+          connectorType: `SQLite:sqlite3`,
           connectionString,
           connection: ambientConnection,
         });
@@ -181,11 +189,13 @@ void describe('Node SQLite pool', () => {
 
       void it('connects using connected ambient not-connected connection', async () => {
         const ambientPool = dumbo({
+          connectorType: `SQLite:sqlite3`,
           connectionString,
         });
         const ambientConnection = await ambientPool.connection();
 
         const pool = dumbo({
+          connectorType: `SQLite:sqlite3`,
           connectionString,
           connection: ambientConnection,
         });
@@ -201,6 +211,7 @@ void describe('Node SQLite pool', () => {
 
       void it('connects using ambient connected connection with transaction', async () => {
         const ambientPool = dumbo({
+          connectorType: `SQLite:sqlite3`,
           connectionString,
         });
         const ambientConnection = await ambientPool.connection();
@@ -209,6 +220,7 @@ void describe('Node SQLite pool', () => {
         try {
           await ambientConnection.withTransaction<void>(async () => {
             const pool = dumbo({
+              connectorType: `SQLite:sqlite3`,
               connectionString,
               connection: ambientConnection,
             });
@@ -228,6 +240,7 @@ void describe('Node SQLite pool', () => {
 
       void it('connects using ambient not-connected connection with transaction', async () => {
         const ambientPool = dumbo({
+          connectorType: `SQLite:sqlite3`,
           connectionString,
         });
         const ambientConnection = await ambientPool.connection();
@@ -235,6 +248,7 @@ void describe('Node SQLite pool', () => {
         try {
           await ambientConnection.withTransaction<void>(async () => {
             const pool = dumbo({
+              connectorType: `SQLite:sqlite3`,
               connectionString,
               connection: ambientConnection,
             });
@@ -254,11 +268,13 @@ void describe('Node SQLite pool', () => {
 
       void it('connects using ambient connection in withConnection scope', async () => {
         const ambientPool = dumbo({
+          connectorType: `SQLite:sqlite3`,
           connectionString,
         });
         try {
           await ambientPool.withConnection(async (ambientConnection) => {
             const pool = dumbo({
+              connectorType: `SQLite:sqlite3`,
               connectionString,
               connection: ambientConnection,
             });
@@ -277,12 +293,14 @@ void describe('Node SQLite pool', () => {
 
       void it('connects using ambient connection in withConnection and withTransaction scope', async () => {
         const ambientPool = dumbo({
+          connectorType: `SQLite:sqlite3`,
           connectionString,
         });
         try {
           await ambientPool.withConnection((ambientConnection) =>
             ambientConnection.withTransaction<void>(async () => {
               const pool = dumbo({
+                connectorType: `SQLite:sqlite3`,
                 connectionString,
                 connection: ambientConnection,
               });

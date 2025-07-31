@@ -1,6 +1,6 @@
-import type { SupportedDatabaseConnectionString } from '../storage/all';
+import type { DatabaseConnectionString } from '../storage/all';
 import { type Connection, type ConnectionPool } from './connections';
-import type { ConnectorType } from './connectors';
+import type { ConnectorType, InferConnectorDatabaseType } from './connectors';
 
 export * from './connections';
 export * from './connectors';
@@ -18,8 +18,11 @@ export type Dumbo<
 > = ConnectionPool<ConnectionType>;
 
 export type DumboConnectionOptions<
-  T extends
-    SupportedDatabaseConnectionString = SupportedDatabaseConnectionString,
+  Connector extends ConnectorType = ConnectorType,
+  ConnectionString extends DatabaseConnectionString<
+    InferConnectorDatabaseType<ConnectorType>
+  > = DatabaseConnectionString<InferConnectorDatabaseType<ConnectorType>>,
 > = {
-  connectionString: string | T;
+  connectionString: string | ConnectionString;
+  connectorType: Connector;
 };
