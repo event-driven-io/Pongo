@@ -35,15 +35,14 @@ const importDrivers: Record<string, () => Promise<any>> = {
 };
 
 export function dumbo<
-  ConnectionString extends SupportedDatabaseConnectionString,
-  DatabaseOptions extends DumboConnectionOptions<ConnectionString>,
->(options: DatabaseOptions): ConnectionPool<InferConnection<ConnectionString>> {
+  DatabaseOptions extends DumboConnectionOptions<Connector>,
+  Connector extends ConnectorType = ConnectorType,
+>(options: DatabaseOptions): ConnectionPool<Connection<Connector>> {
   const { connectionString } = options;
 
   const { databaseType, driverName } = parseConnectionString(connectionString);
 
-  const connector: InferConnection<ConnectionString>['connector'] =
-    `${databaseType}:${driverName}` as InferConnection<ConnectionString>['connector'];
+  const connector: Connector = `${databaseType}:${driverName}` as Connector;
 
   const importDriver = importDrivers[connector];
   if (!importDriver) {
@@ -57,7 +56,7 @@ export function dumbo<
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const poolFactory: (options: {
       connectionString: string;
-    }) => ConnectionPool<InferConnection<ConnectionString>> =
+    }) => ConnectionPool<Connection<Connector>> =
       // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
       'dumbo' in module ? module.dumbo : undefined;
 
@@ -67,8 +66,5 @@ export function dumbo<
     return poolFactory({ connector, ...options });
   };
 
-  return createDeferredConnectionPool(
-    connector,
-    importAndCreatePool,
-  ) as ConnectionPool<InferConnection<ConnectionString>>;
+  return createDeferredConnectionPool(connector, importAndCreatePool);
 }
