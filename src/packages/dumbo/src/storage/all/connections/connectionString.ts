@@ -1,6 +1,4 @@
 import type { ConnectorTypeParts, DatabaseType } from '../../../core';
-import type { PostgreSQLConnectionString } from '../../postgresql/core';
-import type { SQLiteConnectionString } from '../../sqlite/core';
 
 export type DatabaseConnectionString<
   DatabaseTypeName extends DatabaseType = DatabaseType,
@@ -9,12 +7,8 @@ export type DatabaseConnectionString<
   _databaseType: DatabaseTypeName;
 };
 
-export type SupportedDatabaseConnectionString =
-  | PostgreSQLConnectionString
-  | SQLiteConnectionString;
-
 export const parseConnectionString = (
-  connectionString: SupportedDatabaseConnectionString | string,
+  connectionString: DatabaseConnectionString | string,
 ): ConnectorTypeParts => {
   if (
     connectionString.startsWith('postgresql://') ||
