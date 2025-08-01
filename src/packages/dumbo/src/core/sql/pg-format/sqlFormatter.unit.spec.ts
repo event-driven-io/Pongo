@@ -3,17 +3,17 @@ import { describe, it } from 'node:test';
 import { pgFormatter } from '.';
 import {
   SQL,
+  formatSQL,
   identifier,
   isSQL,
   literal,
   plainString,
-  processDeferredSQL,
   rawSql,
 } from '..';
 
 export function processSQLForTesting(sql: SQL): string {
   const formatter = pgFormatter;
-  return processDeferredSQL(sql, formatter) as string;
+  return formatSQL(sql, formatter);
 }
 
 void describe('SQL Tagged Template Literal', () => {

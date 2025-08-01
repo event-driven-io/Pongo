@@ -1,4 +1,4 @@
-import type { ConnectorType } from '../connectors';
+import { type ConnectorType } from '../connectors';
 import {
   createDeferredExecutor,
   sqlExecutor,
@@ -96,7 +96,7 @@ export const createDeferredConnection = <Connector extends ConnectorType>(
 ): Connection<Connector> => {
   const getConnection = importConnection();
 
-  const execute = createDeferredExecutor(async () => {
+  const execute = createDeferredExecutor(connector, async () => {
     const conn = await getConnection;
     return conn.execute;
   });
@@ -124,6 +124,7 @@ export const createDeferredConnection = <Connector extends ConnectorType>(
         connector,
         connection,
         execute: createDeferredExecutor(
+          connector,
           async () => (await transaction).execute,
         ),
         begin: async () => (await transaction).begin(),
