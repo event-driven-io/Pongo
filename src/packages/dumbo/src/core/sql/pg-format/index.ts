@@ -1,5 +1,6 @@
 import { JSONSerializer } from '../../serializer';
-import { type SQLFormatter, registerFormatter } from '../sql';
+import { registerFormatter, type SQLFormatter } from '../sql';
+import { formatSQL } from '../sqlFormatter';
 import format from './pgFormat';
 
 const pgFormatter: SQLFormatter = {
@@ -49,6 +50,7 @@ const pgFormatter: SQLFormatter = {
   formatObject: (value: object): string => {
     return `'${JSONSerializer.serialize(value).replace(/'/g, "''")}'`;
   },
+  format: (sql) => formatSQL(sql, pgFormatter),
 };
 
 registerFormatter('PostgreSQL', pgFormatter);

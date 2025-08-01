@@ -1,5 +1,5 @@
 import { createDeferredConnection } from '../connections';
-import type { ConnectorType } from '../connectors';
+import { type ConnectorType } from '../connectors';
 import {
   createDeferredExecutor,
   executeInNewConnection,
@@ -54,7 +54,10 @@ export const createConnectionPool = <
   const execute =
     'execute' in pool
       ? pool.execute
-      : sqlExecutorInNewConnection({ connection });
+      : sqlExecutorInNewConnection({
+          connector,
+          connection,
+        });
 
   const transaction =
     'transaction' in pool && 'withTransaction' in pool
@@ -98,7 +101,7 @@ export const createDeferredConnectionPool = <
 
   return createConnectionPool({
     connector,
-    execute: createDeferredExecutor(async () => {
+    execute: createDeferredExecutor(connector, async () => {
       const connection = await getPool();
       return connection.execute;
     }),

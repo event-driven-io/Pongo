@@ -1,7 +1,7 @@
 import type { Connection } from '../connections';
-import type { ConnectorType } from '../connectors';
+import { fromConnectorType, type ConnectorType } from '../connectors';
 import type { QueryResult, QueryResultRow } from '../query';
-import { type SQL } from '../sql';
+import { getFormatter, type SQL, type SQLFormatter } from '../sql';
 
 export type SQLQueryOptions = { timeoutMs?: number };
 export type SQLCommandOptions = { timeoutMs?: number };
@@ -50,6 +50,7 @@ export interface SQLExecutor {
     sqls: SQL[],
     options?: SQLCommandOptions,
   ): Promise<QueryResult<Result>[]>;
+  formatter: SQLFormatter;
 }
 
 export interface WithSQLExecutor {
@@ -67,6 +68,9 @@ export const sqlExecutor = <
     close?: (client: DbClient, error?: unknown) => Promise<void>;
   },
 ): SQLExecutor => ({
+  formatter: getFormatter(
+    fromConnectorType(sqlExecutor.connector).databaseType,
+  ),
   query: (sql, queryOptions) =>
     executeInNewDbClient(
       (client) => sqlExecutor.query(client, sql, queryOptions),
@@ -84,7 +88,7 @@ export const sqlExecutor = <
     ),
   batchCommand: (sqls, commandOptions) =>
     executeInNewDbClient(
-      (client) => sqlExecutor.batchQuery(client, sqls, commandOptions),
+      (client) => sqlExecutor.batchCommand(client, sqls, commandOptions),
       options,
     ),
 });
@@ -92,6 +96,7 @@ export const sqlExecutor = <
 export const sqlExecutorInNewConnection = <
   ConnectionType extends Connection,
 >(options: {
+  connector: ConnectionType['connector'];
   connection: () => Promise<ConnectionType>;
 }): SQLExecutor => ({
   query: (sql) =>
@@ -114,6 +119,8 @@ export const sqlExecutorInNewConnection = <
       (connection) => connection.execute.batchCommand(sqls),
       options,
     ),
+
+  formatter: getFormatter(fromConnectorType(options.connector).databaseType),
 });
 
 export const executeInNewDbClient = async <
@@ -155,7 +162,8 @@ export const executeInNewConnection = async <
   }
 };
 
-export const createDeferredExecutor = (
+export const createDeferredExecutor = <Connector extends ConnectorType>(
+  connector: Connector,
   importExecutor: () => Promise<SQLExecutor>,
 ): SQLExecutor => {
   let executor: SQLExecutor | null = null;
@@ -205,5 +213,6 @@ export const createDeferredExecutor = (
       const exec = await getExecutor();
       return exec.batchCommand<Result>(sqls, options);
     },
+    formatter: getFormatter(fromConnectorType(connector).databaseType),
   };
 };
