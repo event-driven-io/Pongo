@@ -1,8 +1,8 @@
 import {
   MIGRATIONS_LOCK_ID,
-  rawSql,
   runSQLMigrations,
   schemaComponent,
+  SQL,
   sqlMigration,
   type DatabaseLockOptions,
   type Dumbo,
@@ -18,7 +18,7 @@ export type PostgreSQLMigratorOptions = {
   dryRun?: boolean | undefined;
 };
 
-const migrationTableSQL = rawSql(`
+const migrationTableSQL = SQL`
   CREATE TABLE IF NOT EXISTS migrations (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL UNIQUE,
@@ -26,7 +26,7 @@ const migrationTableSQL = rawSql(`
     sql_hash VARCHAR(64) NOT NULL,
     timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
-`);
+`;
 
 export const migrationTableSchemaComponent = schemaComponent(
   'dumbo:schema-component:migrations-table',
