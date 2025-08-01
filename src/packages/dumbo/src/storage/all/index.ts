@@ -6,28 +6,9 @@ import {
   type Dumbo,
   type DumboConnectionOptions,
 } from '../../core';
-import type { PostgreSQLConnectionString } from '../postgresql/core';
-import type { SQLiteConnectionString } from '../sqlite/core';
-import {
-  parseConnectionString,
-  type SupportedDatabaseConnectionString,
-} from './connections';
+import { parseConnectionString } from './connections';
 
 export * from './connections';
-
-export type InferConnector<T extends SupportedDatabaseConnectionString> =
-  T extends PostgreSQLConnectionString
-    ? ConnectorType<'PostgreSQL', 'pg'>
-    : T extends SQLiteConnectionString
-      ? ConnectorType<'SQLite', 'sqlite3'>
-      : never;
-
-export type InferConnection<T extends SupportedDatabaseConnectionString> =
-  T extends PostgreSQLConnectionString
-    ? Connection<ConnectorType<'PostgreSQL', 'pg'>>
-    : T extends SQLiteConnectionString
-      ? Connection<ConnectorType<'SQLite', 'sqlite3'>>
-      : never;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const importDrivers: Record<string, () => Promise<any>> = {
