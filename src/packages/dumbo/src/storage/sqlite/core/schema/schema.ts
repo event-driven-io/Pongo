@@ -5,9 +5,13 @@ export const defaultPostgreSqlDatabase = 'postgres';
 
 export const tableExistsSQL = (tableName: string): SQL =>
   sql(
-    `SELECT 1
+    `
+  SELECT EXISTS (
+    SELECT 1
     FROM sqlite_master
-    WHERE type = 'table' AND name = %L;`,
+    WHERE type = 'table' AND name = %L
+  ) AS "exists"
+   `,
     tableName,
   );
 

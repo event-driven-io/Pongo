@@ -1,5 +1,4 @@
 import format from './pg-format/pgFormat';
-import { sqliteFormatter } from './sqlite-format';
 
 export type SQL = string & { __brand: 'sql' };
 
@@ -34,7 +33,6 @@ export const getFormatter = (dialect: string): SQLFormatter => {
   }
   return formatters[formatterKey];
 };
-registerFormatter('SQLite', sqliteFormatter);
 
 const ID = Symbol('SQL_IDENTIFIER');
 const RAW = Symbol('SQL_RAW');
