@@ -6,6 +6,9 @@ export type ConnectorType<
   DriverName extends DatabaseDriverName = DatabaseDriverName,
 > = `${DatabaseTypeName}:${DriverName}`;
 
+export type InferConnectorDatabaseType<T extends string> =
+  T extends `${infer DatabaseType}:${string}` ? DatabaseType : never;
+
 export type ConnectorTypeParts<T extends DatabaseType = DatabaseType> = {
   databaseType: T;
   driverName: string;

@@ -1,5 +1,6 @@
 import { JSONSerializer } from '../../serializer';
-import { type SQLFormatter, registerFormatter } from '../sql';
+import { registerFormatter, type SQLFormatter } from '../sql';
+import { formatSQL } from '../sqlFormatter';
 import format from './sqliteFormat';
 
 const sqliteFormatter: SQLFormatter = {
@@ -13,6 +14,7 @@ const sqliteFormatter: SQLFormatter = {
   formatDate: (value) => format.literal(value.toISOString()),
   formatObject: (value) =>
     `'${JSONSerializer.serialize(value).replace(/'/g, "''")}'`,
+  format: (sql) => formatSQL(sql, sqliteFormatter),
 };
 
 registerFormatter('SQLite', sqliteFormatter);

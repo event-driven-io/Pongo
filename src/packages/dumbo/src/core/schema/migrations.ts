@@ -1,11 +1,12 @@
 import {
   mapToCamelCase,
-  rawSql,
   singleOrNull,
+  SQL,
   sql,
   tracer,
   type SchemaComponent,
   type SQLExecutor,
+  type SQLFormatter,
 } from '..';
 import { type DatabaseLock, type DatabaseLockOptions, type Dumbo } from '../..';
 
@@ -13,10 +14,10 @@ export type MigrationStyle = 'None' | 'CreateOrUpdate';
 
 export type SQLMigration = {
   name: string;
-  sqls: string[];
+  sqls: SQL[];
 };
 
-export const sqlMigration = (name: string, sqls: string[]): SQLMigration => ({
+export const sqlMigration = (name: string, sqls: SQL[]): SQLMigration => ({
   name,
   sqls,
 });
@@ -63,8 +64,7 @@ export const runSQLMigrations = (
       execute,
       async () => {
         for (const migration of coreMigrations) {
-          const sql = combineMigrations(migration);
-          await execute.command(rawSql(sql));
+          await execute.batchCommand(migration.sqls);
         }
 
         for (const migration of migrations) {
@@ -81,8 +81,8 @@ const runSQLMigration = async (
   execute: SQLExecutor,
   migration: SQLMigration,
 ): Promise<void> => {
-  const sql = combineMigrations(migration);
-  const sqlHash = await getMigrationHash(sql);
+  const sqls = combineMigrations(migration);
+  const sqlHash = await getMigrationHash(migration, execute.formatter);
 
   try {
     const newMigration = {
@@ -97,7 +97,7 @@ const runSQLMigration = async (
 
     if (wasMigrationApplied) return;
 
-    await execute.command(rawSql(sql));
+    await execute.batchCommand(sqls);
 
     await recordMigration(execute, newMigration);
     // console.log(`Migration "${newMigration.name}" applied successfully.`);
@@ -110,7 +110,12 @@ const runSQLMigration = async (
   }
 };
 
-const getMigrationHash = async (content: string): Promise<string> => {
+const getMigrationHash = async (
+  sqlMigration: SQLMigration,
+  sqlFormatter: SQLFormatter,
+): Promise<string> => {
+  const content = sqlFormatter.format(sqlMigration.sqls);
+
   const encoder = new TextEncoder();
   const data = encoder.encode(content);
   const hashBuffer = await crypto.subtle.digest('SHA-256', data);
@@ -118,8 +123,9 @@ const getMigrationHash = async (content: string): Promise<string> => {
   return hashArray.map((b) => b.toString(16).padStart(2, '0')).join('');
 };
 
-export const combineMigrations = (...migration: Pick<SQLMigration, 'sqls'>[]) =>
-  migration.flatMap((m) => m.sqls).join('\n');
+export const combineMigrations = (
+  ...migration: Pick<SQLMigration, 'sqls'>[]
+): SQL[] => migration.flatMap((m) => m.sqls);
 
 const ensureMigrationWasNotAppliedYet = async (
   execute: SQLExecutor,

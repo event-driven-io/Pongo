@@ -1,4 +1,5 @@
 import pgcs from 'pg-connection-string';
+import type { DatabaseConnectionString } from '../../../all';
 import { defaultPostgreSqlDatabase } from '../schema';
 
 export const defaultPostgreSQLConnectionString: PostgreSQLConnectionString =
@@ -7,9 +8,10 @@ export const defaultPostgreSQLConnectionString: PostgreSQLConnectionString =
 export const getDatabaseNameOrDefault = (connectionString: string) =>
   pgcs.parse(connectionString).database ?? defaultPostgreSqlDatabase;
 
-export type PostgreSQLConnectionString =
-  | `postgresql://${string}`
-  | `postgres://${string}`;
+export type PostgreSQLConnectionString = DatabaseConnectionString<
+  'PostgreSQL',
+  `postgresql://${string}` | `postgres://${string}`
+>;
 
 export const PostgreSQLConnectionString = (
   connectionString: string,

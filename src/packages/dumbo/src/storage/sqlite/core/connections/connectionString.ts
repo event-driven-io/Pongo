@@ -1,8 +1,9 @@
-export type SQLiteConnectionString =
-  | `file:${string}`
-  | `:memory:`
-  | `/${string}`
-  | `./${string}`;
+import type { DatabaseConnectionString } from '../../../all';
+
+export type SQLiteConnectionString = DatabaseConnectionString<
+  'SQLite',
+  `file:${string}` | `:memory:` | `/${string}` | `./${string}`
+>;
 
 export const SQLiteConnectionString = (
   connectionString: string,

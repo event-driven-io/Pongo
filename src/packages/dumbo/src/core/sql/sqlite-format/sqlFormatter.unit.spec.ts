@@ -3,17 +3,17 @@ import { describe, it } from 'node:test';
 import { sqliteFormatter } from '.';
 import {
   SQL,
+  formatSQL,
   identifier,
   isSQL,
   literal,
   plainString,
-  processDeferredSQL,
   rawSql,
 } from '..';
 
 export function processSQLForTesting(sql: SQL): string {
   const formatter = sqliteFormatter;
-  return processDeferredSQL(sql, formatter) as string;
+  return formatSQL(sql, formatter);
 }
 
 void describe('SQLite SQL Tagged Template Literal', () => {

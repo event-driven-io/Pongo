@@ -52,7 +52,7 @@ export type PongoCollectionOptions<
 > = {
   db: PongoDb<Connector>;
   collectionName: string;
-  pool: Dumbo;
+  pool: Dumbo<ConnectorType>;
   sqlBuilder: PongoCollectionSQLBuilder;
   schema?: { autoMigration?: MigrationStyle };
   errors?: { throwOnOperationFailures?: boolean };

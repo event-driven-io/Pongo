@@ -56,12 +56,12 @@ export const count = async (
   return result.count;
 };
 
-export type ExistsSQLQueryResult = { exists: boolean };
+export type ExistsSQLQueryResult = { exists: boolean | 1 | 0 };
 
 export const exists = async (
   getResult: Promise<QueryResult<ExistsSQLQueryResult>>,
 ): Promise<boolean> => {
   const result = await single(getResult);
 
-  return result.exists === true;
+  return result.exists === true || result.exists === 1;
 };

@@ -8,6 +8,11 @@ import {
   type SQLFormatter,
 } from './sql';
 
+export const formatSQL = (sql: SQL | SQL[], formatter: SQLFormatter): string =>
+  Array.isArray(sql)
+    ? sql.map((s) => processDeferredSQL(s, formatter)).join('\n')
+    : processDeferredSQL(sql, formatter);
+
 function formatValue(value: unknown, formatter: SQLFormatter): string {
   // Handle SQL wrapper types first
   if (isIdentifier(value)) {
@@ -55,7 +60,7 @@ function formatValue(value: unknown, formatter: SQLFormatter): string {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function processDeferredSQL(sql: SQL, formatter: any): SQL {
+function processDeferredSQL(sql: SQL, formatter: any): SQL {
   // If it's not a DeferredSQL, return as is
   if (!isDeferredSQL(sql)) {
     return sql;

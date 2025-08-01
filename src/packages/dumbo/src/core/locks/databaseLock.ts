@@ -34,3 +34,14 @@ export type DatabaseLock = {
     options: AcquireDatabaseLockOptions,
   ) => Promise<Result>;
 };
+
+export const NoDatabaseLock: DatabaseLock = {
+  acquire: () => Promise.resolve(),
+  tryAcquire: () => Promise.resolve(true),
+  release: () => Promise.resolve(true),
+  withAcquire: <Result>(
+    _execute: SQLExecutor,
+    handle: () => Promise<Result>,
+    _options: AcquireDatabaseLockOptions,
+  ): Promise<Result> => handle(),
+};

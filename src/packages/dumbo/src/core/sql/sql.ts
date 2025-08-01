@@ -13,9 +13,26 @@ export interface SQLFormatter {
   formatDate?: (value: Date) => string;
   formatObject?: (value: object) => string;
   formatBigInt?: (value: bigint) => string;
+  format: (sql: SQL | SQL[]) => string;
 }
 
 const formatters: Record<string, SQLFormatter> = {};
+
+// Register a formatter for a specific dialect
+export const registerFormatter = (
+  dialect: string,
+  formatter: SQLFormatter,
+): void => {
+  formatters[dialect] = formatter;
+};
+
+export const getFormatter = (dialect: string): SQLFormatter => {
+  const formatterKey = dialect;
+  if (!formatters[formatterKey]) {
+    throw new Error(`No SQL formatter registered for dialect: ${dialect}`);
+  }
+  return formatters[formatterKey];
+};
 
 const ID = Symbol('SQL_IDENTIFIER');
 const RAW = Symbol('SQL_RAW');
@@ -97,22 +114,6 @@ export function arrayToList(
   sql += ')';
   return sql;
 }
-
-// Register a formatter for a specific dialect
-export const registerFormatter = (
-  dialect: string,
-  formatter: SQLFormatter,
-): void => {
-  formatters[dialect] = formatter;
-};
-
-export const getFormatter = (dialect: string): SQLFormatter => {
-  const formatterKey = dialect.toLowerCase();
-  if (!formatters[formatterKey]) {
-    throw new Error(`No SQL formatter registered for dialect: ${dialect}`);
-  }
-  return formatters[formatterKey];
-};
 
 export const sql = (sqlQuery: string, ...params: unknown[]): SQL => {
   return format(sqlQuery, ...params) as SQL;

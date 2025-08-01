@@ -1,4 +1,8 @@
-import { dumbo, isNodePostgresNativePool } from '@event-driven-io/dumbo/pg';
+import {
+  dumbo,
+  isNodePostgresNativePool,
+  PostgreSQLConnectionString,
+} from '@event-driven-io/dumbo/pg';
 import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
@@ -15,11 +19,11 @@ type User = {
 
 void describe('Pongo collection', () => {
   let postgres: StartedPostgreSqlContainer;
-  let connectionString: string;
+  let connectionString: PostgreSQLConnectionString;
 
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
-    connectionString = postgres.getConnectionUri();
+    connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
   });
 
   after(async () => {
@@ -29,16 +33,14 @@ void describe('Pongo collection', () => {
   const insertDocumentUsingPongo = async (
     poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
   ) => {
-    const pongo = pongoClient(
+    const pongo = pongoClient({
       connectionString,
-      isNodePostgresNativePool(poolOrClient)
+      connectionOptions: isNodePostgresNativePool(poolOrClient)
         ? undefined
         : {
-            connectionOptions: {
-              client: poolOrClient,
-            },
+            client: poolOrClient,
           },
-    );
+    });
 
     try {
       const pongoCollection = pongo.db().collection<User>('connections');
@@ -89,7 +91,8 @@ void describe('Pongo collection', () => {
 
       try {
         await pool.withConnection(async (connection) => {
-          const pongo = pongoClient(connectionString, {
+          const pongo = pongoClient({
+            connectionString,
             connectionOptions: {
               connection,
               pooled: false,
@@ -110,7 +113,8 @@ void describe('Pongo collection', () => {
 
       try {
         await pool.withTransaction(async ({ connection }) => {
-          const pongo = pongoClient(connectionString, {
+          const pongo = pongoClient({
+            connectionString,
             connectionOptions: { connection },
           });
 

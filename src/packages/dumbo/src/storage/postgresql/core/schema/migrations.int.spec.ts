@@ -6,7 +6,7 @@ import assert from 'assert';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { PostgreSQLConnectionString, tableExists } from '..';
 import { type Dumbo } from '../../../..';
-import { count, rawSql, sql } from '../../../../core';
+import { count, rawSql, SQL, sql } from '../../../../core';
 import { MIGRATIONS_LOCK_ID, type SQLMigration } from '../../../../core/schema';
 import { dumbo } from '../../../../pg';
 import { acquireAdvisoryLock, releaseAdvisoryLock } from '../locks';
@@ -38,7 +38,7 @@ void describe('Migration Integration Tests', () => {
     const firstMigration: SQLMigration = {
       name: 'initial_setup',
       sqls: [
-        `
+        SQL`
                 CREATE TABLE users (
                     id SERIAL PRIMARY KEY,
                     username VARCHAR(255) NOT NULL,
@@ -51,7 +51,7 @@ void describe('Migration Integration Tests', () => {
     const secondMigration: SQLMigration = {
       name: 'add_roles_table',
       sqls: [
-        `
+        SQL`
                 CREATE TABLE roles (
                     id SERIAL PRIMARY KEY,
                     role_name VARCHAR(255) NOT NULL UNIQUE,
@@ -75,7 +75,7 @@ void describe('Migration Integration Tests', () => {
     const migration: SQLMigration = {
       name: 'timeout_migration',
       sqls: [
-        `CREATE TABLE timeout_table (
+        SQL`CREATE TABLE timeout_table (
             id SERIAL PRIMARY KEY,
             data TEXT NOT NULL
         );`,
@@ -116,7 +116,7 @@ void describe('Migration Integration Tests', () => {
     const migration: SQLMigration = {
       name: 'concurrent_migration',
       sqls: [
-        `
+        SQL`
                 CREATE TABLE concurrent_table (
                     id SERIAL PRIMARY KEY,
                     data TEXT NOT NULL
@@ -152,7 +152,7 @@ void describe('Migration Integration Tests', () => {
     const migration: SQLMigration = {
       name: 'hash_check_migration',
       sqls: [
-        `
+        SQL`
                 CREATE TABLE hash_table (
                     id SERIAL PRIMARY KEY,
                     data TEXT NOT NULL
@@ -184,7 +184,7 @@ void describe('Migration Integration Tests', () => {
     const migration: SQLMigration = {
       name: 'hash_check_migration',
       sqls: [
-        `
+        SQL`
                 CREATE TABLE hash_table (
                     id SERIAL PRIMARY KEY,
                     data TEXT NOT NULL
@@ -197,7 +197,7 @@ void describe('Migration Integration Tests', () => {
     const modifiedMigration: SQLMigration = {
       ...migration,
       sqls: [
-        `
+        SQL`
                 CREATE TABLE hash_table (
                     id SERIAL PRIMARY KEY,
                     data TEXT NOT NULL,
@@ -223,22 +223,22 @@ void describe('Migration Integration Tests', () => {
     const migration: SQLMigration = {
       name: 'large_migration',
       sqls: [
-        `
+        SQL`
                 CREATE TABLE large_table_1 (
                     id SERIAL PRIMARY KEY,
                     data TEXT NOT NULL
                 );`,
-        `
+        SQL`
                 CREATE TABLE large_table_2 (
                     id SERIAL PRIMARY KEY,
                     data TEXT NOT NULL
                 );`,
-        `
+        SQL`
                 CREATE TABLE large_table_3 (
                     id SERIAL PRIMARY KEY,
                     data TEXT NOT NULL
                 );`,
-        `
+        SQL`
                 CREATE TABLE large_table_4 (
                     id SERIAL PRIMARY KEY,
                     data TEXT NOT NULL

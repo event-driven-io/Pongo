@@ -168,12 +168,10 @@ export const sqliteAmbientClientPool = <
 
 export type SQLiteFileNameOrConnectionString =
   | {
-      // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
       fileName: string | SQLiteConnectionString;
       connectionString?: never;
     }
   | {
-      // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
       connectionString: string | SQLiteConnectionString;
       fileName?: never;
     };

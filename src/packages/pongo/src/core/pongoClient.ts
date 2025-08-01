@@ -1,11 +1,11 @@
-import { type MigrationStyle } from '@event-driven-io/dumbo';
 import {
-  NodePostgresConnectorType,
-  type NodePostgresConnection,
-} from '@event-driven-io/dumbo/pg';
-import pg from 'pg';
-import type { PostgresDbClientOptions } from '../storage/postgresql';
-import { getPongoDb, type AllowedDbClientOptions } from './pongoDb';
+  type ConnectorType,
+  type DatabaseConnectionString,
+  type InferConnectorDatabaseType,
+  type MigrationStyle,
+} from '@event-driven-io/dumbo';
+import { clientToDbOptions } from '../storage/all';
+import { getPongoDb, type PongoDbClientOptions } from './pongoDb';
 import { pongoSession } from './pongoSession';
 import {
   proxyClientWithSchema,
@@ -14,55 +14,40 @@ import {
 } from './schema';
 import type { PongoClient, PongoDb, PongoSession } from './typing';
 
-export type PooledPongoClientOptions =
-  | {
-      pool: pg.Pool;
-    }
-  | {
-      pooled: true;
-    }
-  | {
-      pool: pg.Pool;
-      pooled: true;
-    }
-  | object;
-
-export type NotPooledPongoOptions =
-  | {
-      client: pg.Client;
-    }
-  | {
-      pooled: false;
-    }
-  | {
-      client: pg.Client;
-      pooled: false;
-    }
-  | {
-      connection: NodePostgresConnection;
-      pooled?: false;
-    };
-
 export type PongoClientOptions<
+  ConnectionString extends DatabaseConnectionString<
+    InferConnectorDatabaseType<Connector>
+  >,
+  Connector extends ConnectorType = ConnectorType,
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
+  ConnectionOptions = unknown,
 > = {
-  schema?: { autoMigration?: MigrationStyle; definition?: TypedClientSchema };
-  errors?: { throwOnOperationFailures?: boolean };
-  connectionOptions?: PooledPongoClientOptions | NotPooledPongoOptions;
+  connectionString: ConnectionString | string;
+  schema?:
+    | { autoMigration?: MigrationStyle; definition?: TypedClientSchema }
+    | undefined;
+  errors?: { throwOnOperationFailures?: boolean } | undefined;
+  connectionOptions?: ConnectionOptions | undefined;
 };
 
 export const pongoClient = <
+  ConnectionString extends DatabaseConnectionString<
+    InferConnectorDatabaseType<Connector>
+  >,
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
-  DbClientOptions extends AllowedDbClientOptions = AllowedDbClientOptions,
+  Connector extends ConnectorType = ConnectorType,
+  DbClientOptions extends PongoDbClientOptions<
+    ConnectionString,
+    Connector
+  > = PongoDbClientOptions<ConnectionString, Connector>,
 >(
-  connectionString: string,
-  options: PongoClientOptions<TypedClientSchema> = {},
+  options: PongoClientOptions<ConnectionString, Connector, TypedClientSchema>,
 ): PongoClient & PongoClientWithSchema<TypedClientSchema> => {
   const dbClients = new Map<string, PongoDb>();
 
-  const dbClient = getPongoDb<DbClientOptions>(
+  const dbClient = getPongoDb<ConnectionString, Connector, DbClientOptions>(
     clientToDbOptions({
-      connectionString,
+      connectionString: options.connectionString as ConnectionString,
       clientOptions: options,
     }),
   );
@@ -86,9 +71,9 @@ export const pongoClient = <
         dbClients
           .set(
             dbName,
-            getPongoDb<DbClientOptions>(
+            getPongoDb<ConnectionString, Connector, DbClientOptions>(
               clientToDbOptions({
-                connectionString,
+                connectionString: options.connectionString as ConnectionString,
                 dbName,
                 clientOptions: options,
               }),
@@ -112,21 +97,4 @@ export const pongoClient = <
   };
 
   return proxyClientWithSchema(pongoClient, options?.schema?.definition);
-};
-
-export const clientToDbOptions = <
-  DbClientOptions extends AllowedDbClientOptions = AllowedDbClientOptions,
->(options: {
-  connectionString: string;
-  dbName?: string;
-  clientOptions: PongoClientOptions;
-}): DbClientOptions => {
-  const postgreSQLOptions: PostgresDbClientOptions = {
-    connector: NodePostgresConnectorType,
-    connectionString: options.connectionString,
-    dbName: options.dbName,
-    ...options.clientOptions,
-  };
-
-  return postgreSQLOptions as DbClientOptions;
 };

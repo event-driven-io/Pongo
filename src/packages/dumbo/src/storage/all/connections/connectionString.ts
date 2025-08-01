@@ -1,13 +1,13 @@
-import type { ConnectorTypeParts } from '../../../core';
-import type { PostgreSQLConnectionString } from '../../postgresql/core';
-import type { SQLiteConnectionString } from '../../sqlite/core';
+import type { ConnectorTypeParts, DatabaseType } from '../../../core';
 
-export type DatabaseConnectionString =
-  | PostgreSQLConnectionString
-  | SQLiteConnectionString;
+export type DatabaseConnectionString<
+  DatabaseTypeName extends DatabaseType = DatabaseType,
+  Format extends string = string,
+> = Format & {
+  _databaseType: DatabaseTypeName;
+};
 
 export const parseConnectionString = (
-  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
   connectionString: DatabaseConnectionString | string,
 ): ConnectorTypeParts => {
   if (
