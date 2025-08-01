@@ -4,6 +4,7 @@ import type { SQLiteClientFactory } from './connections';
 export * from './connections';
 export * from './execute';
 export * from './pool';
+export * from './schema';
 export * from './transactions';
 
 export type SQLiteConnector = 'SQLite';
