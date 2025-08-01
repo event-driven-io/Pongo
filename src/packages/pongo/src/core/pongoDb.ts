@@ -61,7 +61,7 @@ export const getPongoDb = <
   >({
     connector,
     connectionString,
-    ...options.connectionOptions,
+    ...(options.connectionOptions ?? {}),
   });
 
   const collections = new Map<string, PongoCollection<Document>>();

@@ -1,6 +1,9 @@
-import { combineMigrations } from '@event-driven-io/dumbo';
 import {
+  combineMigrations,
   dumbo,
+  parseConnectionString,
+} from '@event-driven-io/dumbo';
+import {
   migrationTableSchemaComponent,
   runPostgreSQLMigrations,
 } from '@event-driven-io/dumbo/pg';
@@ -11,6 +14,7 @@ import { loadConfigFile } from './configFile';
 interface MigrateRunOptions {
   collection: string[];
   connectionString: string;
+  databaseDriver: string;
   config?: string;
   dryRun?: boolean;
 }
@@ -29,6 +33,11 @@ export const migrateCommand = new Command('migrate').description(
 migrateCommand
   .command('run')
   .description('Run database migrations')
+  .option(
+    '-drv, --database-driver <string>',
+    'Database driver that should be used for connection (e.g., "pg" for PostgreSQL, "sqlite3" for SQLite)',
+    'pg',
+  )
   .option(
     '-cs, --connection-string <string>',
     'Connection string for the database',
@@ -71,11 +80,14 @@ migrateCommand
       process.exit(1);
     }
 
-    const pool = dumbo({ connectionString });
+    const { databaseType } = parseConnectionString(connectionString);
+    const connector = `${databaseType}:${options.databaseDriver}` as const;
+
+    const pool = dumbo({ connectionString, connector });
 
     const migrations = collectionNames.flatMap((collectionsName) =>
       pongoCollectionSchemaComponent(collectionsName).migrations({
-        connector: 'PostgreSQL:pg', // TODO: Provide connector here
+        connector,
       }),
     );
 

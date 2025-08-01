@@ -4,7 +4,6 @@ import {
   type InferConnectorDatabaseType,
   type MigrationStyle,
 } from '@event-driven-io/dumbo';
-import type { NodePostgresPongoClientOptions } from '../pg';
 import { clientToDbOptions } from '../storage/all';
 import { getPongoDb, type PongoDbClientOptions } from './pongoDb';
 import { pongoSession } from './pongoSession';
@@ -21,8 +20,7 @@ export type PongoClientOptions<
   >,
   Connector extends ConnectorType = ConnectorType,
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
-  ConnectionOptions extends
-    NodePostgresPongoClientOptions = NodePostgresPongoClientOptions,
+  ConnectionOptions = unknown,
 > = {
   connectionString: ConnectionString | string;
   schema?:
