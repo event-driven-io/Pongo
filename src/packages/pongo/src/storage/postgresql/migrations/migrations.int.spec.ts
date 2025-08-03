@@ -36,6 +36,7 @@ void describe('Migration Integration Tests', () => {
   });
 
   after(async () => {
+    await client.close();
     await pool.close();
     await postgres.stop();
   });

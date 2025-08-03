@@ -213,6 +213,8 @@ export const createDeferredExecutor = <Connector extends ConnectorType>(
       const exec = await getExecutor();
       return exec.batchCommand<Result>(sqls, options);
     },
-    formatter: getFormatter(fromConnectorType(connector).databaseType),
+    get formatter() {
+      return getFormatter(fromConnectorType(connector).databaseType);
+    },
   };
 };
