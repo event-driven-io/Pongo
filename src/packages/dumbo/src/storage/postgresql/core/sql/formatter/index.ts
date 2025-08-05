@@ -1,6 +1,9 @@
-import { JSONSerializer } from '../../serializer';
-import { registerFormatter, type SQLFormatter } from '../sql';
-import { formatSQL } from '../sqlFormatter';
+import {
+  type SQLFormatter,
+  JSONSerializer,
+  formatSQL,
+  registerFormatter,
+} from '../../../../../core';
 import format from './pgFormat';
 
 const pgFormatter: SQLFormatter = {

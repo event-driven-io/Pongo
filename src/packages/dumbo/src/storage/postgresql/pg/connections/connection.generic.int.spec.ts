@@ -6,7 +6,7 @@ import { after, before, describe, it } from 'node:test';
 import pg from 'pg';
 import { nodePostgresPool } from '.';
 import { dumbo } from '..';
-import { rawSql } from '../../../../core';
+import { SQL } from '../../../../core';
 import { endPool, getPool } from './pool';
 
 void describe('Node Postgresql', () => {
@@ -28,7 +28,7 @@ void describe('Node Postgresql', () => {
       const connection = await pool.connection();
 
       try {
-        await connection.execute.query(rawSql('SELECT 1'));
+        await connection.execute.query(SQL`SELECT 1`);
       } catch (error) {
         console.log(error);
       } finally {
@@ -43,7 +43,7 @@ void describe('Node Postgresql', () => {
       const connection = await pool.connection();
 
       try {
-        await connection.execute.query(rawSql('SELECT 1'));
+        await connection.execute.query(SQL`SELECT 1`);
       } finally {
         await connection.close();
         await pool.close();
@@ -59,7 +59,7 @@ void describe('Node Postgresql', () => {
       const connection = await pool.connection();
 
       try {
-        await connection.execute.query(rawSql('SELECT 1'));
+        await connection.execute.query(SQL`SELECT 1`);
       } finally {
         await connection.close();
         await pool.close();
@@ -77,7 +77,7 @@ void describe('Node Postgresql', () => {
       const connection = await pool.connection();
 
       try {
-        await connection.execute.query(rawSql('SELECT 1'));
+        await connection.execute.query(SQL`SELECT 1`);
       } finally {
         await connection.close();
         await pool.close();
@@ -96,7 +96,7 @@ void describe('Node Postgresql', () => {
       });
 
       try {
-        await pool.execute.query(rawSql('SELECT 1'));
+        await pool.execute.query(SQL`SELECT 1`);
       } finally {
         await pool.close();
         await ambientConnection.close();
@@ -114,7 +114,7 @@ void describe('Node Postgresql', () => {
       });
 
       try {
-        await pool.execute.query(rawSql('SELECT 1'));
+        await pool.execute.query(SQL`SELECT 1`);
       } finally {
         await pool.close();
         await ambientConnection.close();
@@ -134,7 +134,7 @@ void describe('Node Postgresql', () => {
             connection: ambientConnection,
           });
           try {
-            await pool.execute.query(rawSql('SELECT 1'));
+            await pool.execute.query(SQL`SELECT 1`);
 
             return { success: true, result: undefined };
           } finally {
@@ -158,7 +158,7 @@ void describe('Node Postgresql', () => {
             connection: ambientConnection,
           });
           try {
-            await pool.execute.query(rawSql('SELECT 1'));
+            await pool.execute.query(SQL`SELECT 1`);
 
             return { success: true, result: undefined };
           } finally {
@@ -180,7 +180,7 @@ void describe('Node Postgresql', () => {
             connection: ambientConnection,
           });
           try {
-            await pool.execute.query(rawSql('SELECT 1'));
+            await pool.execute.query(SQL`SELECT 1`);
 
             return { success: true, result: undefined };
           } finally {
@@ -202,7 +202,7 @@ void describe('Node Postgresql', () => {
               connection: ambientConnection,
             });
             try {
-              await pool.execute.query(rawSql('SELECT 1'));
+              await pool.execute.query(SQL`SELECT 1`);
             } finally {
               await pool.close();
             }

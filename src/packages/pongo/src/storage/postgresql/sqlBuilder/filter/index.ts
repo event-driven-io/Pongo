@@ -1,3 +1,4 @@
+import { SQL } from '@event-driven-io/dumbo';
 import {
   hasOperators,
   objectEntries,
@@ -10,29 +11,31 @@ export * from './queryOperators';
 
 const AND = 'AND';
 
-export const constructFilterQuery = <T>(filter: PongoFilter<T>): string =>
-  Object.entries(filter)
-    .map(([key, value]) =>
+export const constructFilterQuery = <T>(filter: PongoFilter<T>): SQL =>
+  SQL.merge(
+    Object.entries(filter).map(([key, value]) =>
       isRecord(value)
         ? constructComplexFilterQuery(key, value)
         : handleOperator(key, '$eq', value),
-    )
-    .join(` ${AND} `);
+    ),
+    ` ${AND} `,
+  );
 
 const constructComplexFilterQuery = (
   key: string,
   value: Record<string, unknown>,
-): string => {
+): SQL => {
   const isEquality = !hasOperators(value);
 
-  return objectEntries(value)
-    .map(
+  return SQL.merge(
+    objectEntries(value).map(
       ([nestedKey, val]) =>
         isEquality
           ? handleOperator(`${key}.${nestedKey}`, QueryOperators.$eq, val) // regular value
           : handleOperator(key, nestedKey, val), // operator
-    )
-    .join(` ${AND} `);
+    ),
+    ` ${AND} `,
+  );
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

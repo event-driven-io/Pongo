@@ -6,7 +6,7 @@ import {
   type QueryResultRow,
   type SQL,
 } from '../../../../core';
-import { pgFormatter } from '../../../../core/sql/pg-format';
+import { pgFormatter } from '../../core';
 import {
   NodePostgresConnectorType,
   type NodePostgresClientOrPoolClient,
@@ -90,6 +90,7 @@ async function batch<Result extends QueryResultRow = QueryResultRow>(
   //TODO: make it smarter at some point
   for (let i = 0; i < sqls.length; i++) {
     tracer.info('db:sql:query', { sql: sqls[i]! });
+    //console.log(pgFormatter.format(sqls[i]!));
     const result = await client.query<Result>(pgFormatter.format(sqls[i]!));
     results[i] = { rowCount: result.rowCount, rows: result.rows };
   }

@@ -1,10 +1,9 @@
 import {
+  identifier,
   isSQL,
   JSONSerializer,
-  rawSql,
-  sql,
+  SQL,
   sqlMigration,
-  type SQL,
   type SQLMigration,
 } from '@event-driven-io/dumbo';
 import {
@@ -23,8 +22,8 @@ import { constructFilterQuery } from './filter';
 import { buildUpdateQuery } from './update';
 
 const createCollection = (collectionName: string): SQL =>
-  sql(
-    `CREATE TABLE IF NOT EXISTS %I (
+  SQL`
+    CREATE TABLE IF NOT EXISTS ${identifier(collectionName)} (
       _id           TEXT           PRIMARY KEY, 
       data          JSONB          NOT NULL, 
       metadata      JSONB          NOT NULL     DEFAULT '{}',
@@ -33,9 +32,7 @@ const createCollection = (collectionName: string): SQL =>
       _archived     BOOLEAN        NOT NULL     DEFAULT FALSE,
       _created      TIMESTAMPTZ    NOT NULL     DEFAULT now(),
       _updated      TIMESTAMPTZ    NOT NULL     DEFAULT now()
-  )`,
-    collectionName,
-  );
+  )`;
 
 export const pongoCollectionPostgreSQLMigrations = (collectionName: string) => [
   sqlMigration(`pongoCollection:${collectionName}:001:createtable`, [
@@ -50,32 +47,27 @@ export const postgresSQLBuilder = (
     pongoCollectionPostgreSQLMigrations(collectionName),
   createCollection: (): SQL => createCollection(collectionName),
   insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
-    return sql(
-      'INSERT INTO %I (_id, data, _version) VALUES (%L, %L, %L) ON CONFLICT(_id) DO NOTHING;',
-      collectionName,
-      document._id,
-      JSONSerializer.serialize(document),
-      document._version ?? 1n,
-    );
+    const serialized = JSONSerializer.serialize(document);
+    const id = document._id;
+    const version = document._version ?? 1n;
+
+    return SQL`
+      INSERT INTO ${identifier(collectionName)} (_id, data, _version) 
+      VALUES (${id}, ${serialized}, ${version}) ON CONFLICT(_id) DO NOTHING;`;
   },
   insertMany: <T>(documents: OptionalUnlessRequiredIdAndVersion<T>[]): SQL => {
-    const values = documents
-      .map((doc) =>
-        sql(
-          '(%L, %L, %L)',
-          doc._id,
-          JSONSerializer.serialize(doc),
-          doc._version ?? 1n,
-        ),
-      )
-      .join(', ');
-    return sql(
-      `INSERT INTO %I (_id, data, _version) VALUES %s 
-      ON CONFLICT(_id) DO NOTHING
-      RETURNING _id;`,
-      collectionName,
-      values,
+    const values = SQL.merge(
+      documents.map(
+        (doc) =>
+          SQL`(${doc._id}, ${JSONSerializer.serialize(doc)}, ${doc._version ?? 1n})`,
+      ),
+      ',',
     );
+
+    return SQL`
+      INSERT INTO ${identifier(collectionName)} (_id, data, _version) VALUES ${values}
+      ON CONFLICT(_id) DO NOTHING
+      RETURNING _id;`;
   },
   updateOne: <T>(
     filter: PongoFilter<T> | SQL,
@@ -84,27 +76,27 @@ export const postgresSQLBuilder = (
   ): SQL => {
     const expectedVersion = expectedVersionValue(options?.expectedVersion);
     const expectedVersionUpdate =
-      expectedVersion != null ? 'AND %I._version = %L' : '';
-    const expectedVersionParams =
-      expectedVersion != null ? [collectionName, expectedVersion] : [];
+      expectedVersion != null
+        ? SQL`AND ${identifier(collectionName)}._version = ${expectedVersion}`
+        : SQL``;
 
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
     const updateQuery = isSQL(update) ? update : buildUpdateQuery(update);
 
-    return sql(
-      `WITH existing AS (
+    return SQL`
+      WITH existing AS (
         SELECT _id, _version as current_version
-        FROM %I %s 
+        FROM ${identifier(collectionName)} ${where(filterQuery)}
         LIMIT 1
       ),
       updated AS (
-        UPDATE %I 
+        UPDATE ${identifier(collectionName)} 
         SET 
-          data = %s || jsonb_build_object('_id', %I._id) || jsonb_build_object('_version', (_version + 1)::text),
+          data = ${updateQuery} || jsonb_build_object('_id', ${identifier(collectionName)}._id) || jsonb_build_object('_version', (_version + 1)::text),
           _version = _version + 1
         FROM existing 
-        WHERE %I._id = existing._id ${expectedVersionUpdate}
-        RETURNING %I._id, %I._version
+        WHERE ${identifier(collectionName)}._id = existing._id ${expectedVersionUpdate}
+        RETURNING ${identifier(collectionName)}._id, ${identifier(collectionName)}._version
       )
       SELECT 
         existing._id,
@@ -113,17 +105,7 @@ export const postgresSQLBuilder = (
         COUNT(updated._id) over() AS modified
       FROM existing
       LEFT JOIN updated 
-      ON existing._id = updated._id;`,
-      collectionName,
-      where(filterQuery),
-      collectionName,
-      updateQuery,
-      collectionName,
-      collectionName,
-      ...expectedVersionParams,
-      collectionName,
-      collectionName,
-    );
+      ON existing._id = updated._id;`;
   },
   replaceOne: <T>(
     filter: PongoFilter<T> | SQL,
@@ -132,26 +114,26 @@ export const postgresSQLBuilder = (
   ): SQL => {
     const expectedVersion = expectedVersionValue(options?.expectedVersion);
     const expectedVersionUpdate =
-      expectedVersion != null ? 'AND %I._version = %L' : '';
-    const expectedVersionParams =
-      expectedVersion != null ? [collectionName, expectedVersion] : [];
+      expectedVersion != null
+        ? SQL`AND ${identifier(collectionName)}._version = ${expectedVersion}`
+        : SQL``;
 
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
 
-    return sql(
-      `WITH existing AS (
+    return SQL`
+      WITH existing AS (
         SELECT _id, _version as current_version
-        FROM %I %s 
+        FROM ${identifier(collectionName)} ${where(filterQuery)}
         LIMIT 1
       ),
       updated AS (
-        UPDATE %I        
+        UPDATE ${identifier(collectionName)}        
         SET 
-          data = %L || jsonb_build_object('_id', %I._id) || jsonb_build_object('_version', (_version + 1)::text),
+          data = ${JSONSerializer.serialize(document)} || jsonb_build_object('_id', ${identifier(collectionName)}._id) || jsonb_build_object('_version', (_version + 1)::text),
           _version = _version + 1
         FROM existing 
-        WHERE %I._id = existing._id ${expectedVersionUpdate}
-        RETURNING %I._id, %I._version
+        WHERE ${identifier(collectionName)}._id = existing._id ${expectedVersionUpdate}
+        RETURNING ${identifier(collectionName)}._id, ${identifier(collectionName)}._version
       )
       SELECT 
         existing._id,
@@ -160,17 +142,7 @@ export const postgresSQLBuilder = (
         COUNT(updated._id) over() AS modified
       FROM existing
       LEFT JOIN updated 
-      ON existing._id = updated._id;`,
-      collectionName,
-      where(filterQuery),
-      collectionName,
-      JSONSerializer.serialize(document),
-      collectionName,
-      collectionName,
-      ...expectedVersionParams,
-      collectionName,
-      collectionName,
-    );
+      ON existing._id = updated._id;`;
   },
   updateMany: <T>(
     filter: PongoFilter<T> | SQL,
@@ -179,16 +151,12 @@ export const postgresSQLBuilder = (
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
     const updateQuery = isSQL(update) ? update : buildUpdateQuery(update);
 
-    return sql(
-      `UPDATE %I 
+    return SQL`
+      UPDATE ${identifier(collectionName)} 
       SET 
-        data = %s || jsonb_build_object('_version', (_version + 1)::text),
+        data = ${updateQuery} || jsonb_build_object('_version', (_version + 1)::text),
         _version = _version + 1
-      %s;`,
-      collectionName,
-      updateQuery,
-      where(filterQuery),
-    );
+      ${where(filterQuery)};`;
   },
   deleteOne: <T>(
     filter: PongoFilter<T> | SQL,
@@ -196,23 +164,23 @@ export const postgresSQLBuilder = (
   ): SQL => {
     const expectedVersion = expectedVersionValue(options?.expectedVersion);
     const expectedVersionUpdate =
-      expectedVersion != null ? 'AND %I._version = %L' : '';
-    const expectedVersionParams =
-      expectedVersion != null ? [collectionName, expectedVersion] : [];
+      expectedVersion != null
+        ? SQL`AND ${identifier(collectionName)}._version = ${expectedVersion}`
+        : SQL``;
 
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
 
-    return sql(
-      `WITH existing AS (
+    return SQL`
+      WITH existing AS (
         SELECT _id
-        FROM %I %s 
+        FROM ${identifier(collectionName)} ${where(filterQuery)}
         LIMIT 1
       ),
       deleted AS (
-        DELETE FROM %I
+        DELETE FROM ${identifier(collectionName)}
         USING existing
-        WHERE %I._id = existing._id ${expectedVersionUpdate}
-        RETURNING %I._id
+        WHERE ${identifier(collectionName)}._id = existing._id ${expectedVersionUpdate}
+        RETURNING ${identifier(collectionName)}._id
       )
       SELECT 
         existing._id,
@@ -220,63 +188,47 @@ export const postgresSQLBuilder = (
         COUNT(deleted._id) over() AS deleted
       FROM existing
       LEFT JOIN deleted 
-      ON existing._id = deleted._id;`,
-      collectionName,
-      where(filterQuery),
-      collectionName,
-      collectionName,
-      ...expectedVersionParams,
-      collectionName,
-    );
+      ON existing._id = deleted._id;`;
   },
   deleteMany: <T>(filter: PongoFilter<T> | SQL): SQL => {
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
 
-    return sql('DELETE FROM %I %s', collectionName, where(filterQuery));
+    return SQL`DELETE FROM ${identifier(collectionName)} ${where(filterQuery)}`;
   },
   findOne: <T>(filter: PongoFilter<T> | SQL): SQL => {
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
 
-    return sql(
-      'SELECT data FROM %I %s LIMIT 1;',
-      collectionName,
-      where(filterQuery),
-    );
+    return SQL`SELECT data FROM ${identifier(collectionName)} ${where(filterQuery)} LIMIT 1;`;
   },
   find: <T>(filter: PongoFilter<T> | SQL, options?: FindOptions): SQL => {
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
     const query: SQL[] = [];
 
-    query.push(sql('SELECT data FROM %I', collectionName));
+    query.push(SQL`SELECT data FROM ${identifier(collectionName)}`);
 
-    const whereStmt = where(filterQuery);
-    if (whereStmt.length > 0) {
-      query.push(sql('%s', whereStmt));
+    if (!SQL.isEmpty(filterQuery)) {
+      query.push(where(filterQuery));
     }
 
     if (options?.limit) {
-      query.push(sql('LIMIT %s', options.limit));
+      query.push(SQL`LIMIT ${options.limit}`);
     }
 
     if (options?.skip) {
-      query.push(sql('OFFSET %s', options.skip));
+      query.push(SQL`OFFSET ${options.skip}`);
     }
 
-    return sql(query.join(' ') + ';');
+    return SQL.merge([...query, SQL`;`]);
   },
   countDocuments: <T>(filter: PongoFilter<T> | SQL): SQL => {
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
-    return sql(
-      'SELECT COUNT(1) as count FROM %I %s;',
-      collectionName,
-      where(filterQuery),
-    );
+    return SQL`SELECT COUNT(1) as count FROM ${identifier(collectionName)} ${where(filterQuery)};`;
   },
   rename: (newName: string): SQL =>
-    sql('ALTER TABLE %I RENAME TO %I;', collectionName, newName),
+    SQL`ALTER TABLE ${identifier(collectionName)} RENAME TO ${identifier(newName)};`,
   drop: (targetName: string = collectionName): SQL =>
-    sql('DROP TABLE IF EXISTS %I', targetName),
+    SQL`DROP TABLE IF EXISTS ${identifier(targetName)}`,
 });
 
-const where = (filter: string): SQL =>
-  filter.length > 0 ? sql('WHERE %s', filter) : rawSql('');
+const where = (filterQuery: SQL): SQL =>
+  SQL.isEmpty(filterQuery) ? SQL.empty : SQL.merge([SQL`WHERE `, filterQuery]);

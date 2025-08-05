@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { InMemorySQLiteDatabase, SQLiteConnectionString } from '..';
-import { count, dumbo, sql, SQL, type Dumbo } from '../../../..';
+import { count, dumbo, SQL, type Dumbo } from '../../../..';
 import { type SQLMigration } from '../../../../core/schema';
 import { tableExists } from '../../../../sqlite3';
 import { runSQLiteMigrations } from './migrations';
@@ -179,10 +179,7 @@ void describe('Migration Integration Tests', () => {
 
         const migrationCount = await count(
           pool.execute.query<{ count: number }>(
-            sql(
-              'SELECT COUNT(*) as count FROM migrations WHERE name = %L',
-              'hash_check_migration',
-            ),
+            SQL`SELECT COUNT(*) as count FROM migrations WHERE name = ${migration.name}`,
           ),
         );
         assert.strictEqual(

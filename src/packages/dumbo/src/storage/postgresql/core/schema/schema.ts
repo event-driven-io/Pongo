@@ -1,17 +1,14 @@
-import { exists, sql, type ConnectionPool, type SQL } from '../../../../core';
+import { exists, SQL, type ConnectionPool } from '../../../../core';
 export * from './schema';
 
 export const defaultPostgreSqlDatabase = 'postgres';
 
 export const tableExistsSQL = (tableName: string): SQL =>
-  sql(
-    `
+  SQL`
   SELECT EXISTS (
     SELECT FROM pg_tables
-    WHERE tablename = %L
-  ) AS exists;`,
-    tableName,
-  );
+    WHERE tablename = ${tableName}
+  ) AS exists;`;
 
 export const tableExists = async (
   pool: ConnectionPool,
@@ -19,16 +16,12 @@ export const tableExists = async (
 ): Promise<boolean> => exists(pool.execute.query(tableExistsSQL(tableName)));
 
 export const functionExistsSQL = (functionName: string): SQL =>
-  sql(
-    `
+  SQL`
       SELECT EXISTS (
-        SELECT FROM pg_proc 
-        WHERE 
-        proname = %L
-      ) AS exists;
-    `,
-    functionName,
-  );
+        SELECT FROM pg_proc
+        WHERE
+        proname = ${functionName}
+      ) AS exists;`;
 
 export const functionExists = async (
   pool: ConnectionPool,

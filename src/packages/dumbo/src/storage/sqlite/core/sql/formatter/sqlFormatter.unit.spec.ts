@@ -5,11 +5,11 @@ import {
   SQL,
   formatSQL,
   identifier,
+  isRawSQL,
   isSQL,
   literal,
   plainString,
-  rawSql,
-} from '..';
+} from '../../../../../core/sql';
 
 export function processSQLForTesting(sql: SQL): string {
   const formatter = sqliteFormatter;
@@ -91,9 +91,13 @@ void describe('SQLite SQL Tagged Template Literal', () => {
   });
 
   void it('should work with raw SQL', () => {
-    const rawQuery: string = rawSql('SELECT * FROM users');
-    assert.strictEqual(rawQuery, 'SELECT * FROM users');
+    const rawQuery = SQL`SELECT * FROM users`;
     assert.strictEqual(isSQL(rawQuery), true);
+    assert.strictEqual(isRawSQL(rawQuery), true);
+    assert.strictEqual(
+      SQL.format(rawQuery, sqliteFormatter),
+      'SELECT * FROM users',
+    );
   });
 
   void it('should NOT recognize valid SQL using isSQL', () => {
@@ -101,7 +105,7 @@ void describe('SQLite SQL Tagged Template Literal', () => {
     const invalidSql = 'SELECT * FROM users;';
 
     assert.strictEqual(isSQL(validSql), true);
-    assert.strictEqual(isSQL(invalidSql), true);
+    assert.strictEqual(isSQL(invalidSql), false);
   });
 
   void it('should escape special characters in literals', () => {

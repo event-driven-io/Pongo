@@ -1,19 +1,16 @@
-import { exists, sql, type ConnectionPool, type SQL } from '../../../../core';
+import { exists, SQL, type ConnectionPool } from '../../../../core';
 export * from './schema';
 
 export const defaultPostgreSqlDatabase = 'postgres';
 
 export const tableExistsSQL = (tableName: string): SQL =>
-  sql(
-    `
+  SQL`
   SELECT EXISTS (
     SELECT 1
     FROM sqlite_master
-    WHERE type = 'table' AND name = %L
+    WHERE type = 'table' AND name = ${tableName}
   ) AS "exists"
-   `,
-    tableName,
-  );
+   `;
 
 export const tableExists = async (
   pool: ConnectionPool,
