@@ -4,7 +4,7 @@ import { afterEach, describe, it } from 'node:test';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { InMemorySQLiteDatabase, sqlitePool } from '..';
-import { rawSql } from '../../../../core';
+import { SQL } from '../../../../core';
 
 void describe('SQLite Transactions', () => {
   const inMemoryfileName: string = InMemorySQLiteDatabase;
@@ -42,22 +42,18 @@ void describe('SQLite Transactions', () => {
 
         try {
           await connection.execute.query(
-            rawSql('CREATE TABLE test_table (id INTEGER, value TEXT)'),
+            SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
           );
 
           const result = await connection.withTransaction<number>(async () => {
             await connection.execute.query(
-              rawSql(
-                'INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id',
-              ),
+              SQL`INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id`,
             );
 
             const result = await connection.withTransaction<number>(
               async () => {
                 const result = await connection.execute.query(
-                  rawSql(
-                    'INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id',
-                  ),
+                  SQL`INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id`,
                 );
                 return (result.rows[0]?.id as number) ?? null;
               },
@@ -69,7 +65,7 @@ void describe('SQLite Transactions', () => {
           assert.strictEqual(result, 1);
 
           const rows = await connection.execute.query(
-            rawSql('SELECT COUNT(*) as count  FROM test_table'),
+            SQL`SELECT COUNT(*) as count FROM test_table`,
           );
 
           assert.strictEqual(rows.rows[0]?.count, 2);
@@ -88,22 +84,18 @@ void describe('SQLite Transactions', () => {
 
         try {
           await connection.execute.query(
-            rawSql('CREATE TABLE test_table (id INTEGER, value TEXT)'),
+            SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
           );
 
           await connection.withTransaction<number>(async () => {
             await connection.execute.query(
-              rawSql(
-                'INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id',
-              ),
+              SQL`INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id`,
             );
 
             const result = await connection.withTransaction<number>(
               async () => {
                 const result = await connection.execute.query(
-                  rawSql(
-                    'INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id',
-                  ),
+                  SQL`INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id`,
                 );
                 return (result.rows[0]?.id as number) ?? null;
               },
@@ -133,15 +125,13 @@ void describe('SQLite Transactions', () => {
 
         try {
           await connection.execute.query(
-            rawSql('CREATE TABLE test_table (id INTEGER, value TEXT)'),
+            SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
           );
 
           try {
             await connection.withTransaction<void>(async () => {
               await connection.execute.query(
-                rawSql(
-                  'INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id',
-                ),
+                SQL`INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id`,
               );
 
               await connection2.withTransaction<number>(() => {
@@ -155,7 +145,7 @@ void describe('SQLite Transactions', () => {
             );
           }
           const rows = await connection.execute.query(
-            rawSql('SELECT COUNT(*) as count  FROM test_table'),
+            SQL`SELECT COUNT(*) as count FROM test_table`,
           );
 
           assert.strictEqual(rows.rows[0]?.count, 0);
@@ -164,6 +154,7 @@ void describe('SQLite Transactions', () => {
           await pool.close();
         }
       });
+
       void it('should try catch and roll back everything when the outer transactions errors for a pooled connection', async () => {
         const pool = sqlitePool({
           connector: 'SQLite:sqlite3',
@@ -175,7 +166,7 @@ void describe('SQLite Transactions', () => {
 
         try {
           await connection.execute.query(
-            rawSql('CREATE TABLE test_table (id INTEGER, value TEXT)'),
+            SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
           );
 
           try {
@@ -183,16 +174,12 @@ void describe('SQLite Transactions', () => {
               id: null | string;
             }>(async () => {
               await connection.execute.query(
-                rawSql(
-                  'INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id',
-                ),
+                SQL`INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id`,
               );
 
               await connection2.withTransaction<number>(async () => {
-                const result = await connection.execute.query(
-                  rawSql(
-                    'INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id',
-                  ),
+                const result = await connection2.execute.query(
+                  SQL`INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id`,
                 );
                 return (result.rows[0]?.id as number) ?? null;
               });
@@ -200,7 +187,7 @@ void describe('SQLite Transactions', () => {
               throw new Error('Intentionally throwing');
             });
           } catch (error) {
-            // make sure the rror is the correct one. catch but let it continue so it doesnt trigger
+            // make sure the error is the correct one. catch but let it continue so it doesn't trigger
             // the outer errors
             assert.strictEqual(
               (error as Error).message,
@@ -208,7 +195,7 @@ void describe('SQLite Transactions', () => {
             );
           }
           const rows = await connection.execute.query(
-            rawSql('SELECT COUNT(*) as count  FROM test_table'),
+            SQL`SELECT COUNT(*) as count FROM test_table`,
           );
 
           assert.strictEqual(rows.rows[0]?.count, 0);
@@ -230,23 +217,19 @@ void describe('SQLite Transactions', () => {
 
         try {
           await connection.execute.query(
-            rawSql('CREATE TABLE test_table (id INTEGER, value TEXT)'),
+            SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
           );
 
           const result = await connection.withTransaction<number | null>(
             async () => {
               await connection.execute.query(
-                rawSql(
-                  'INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id',
-                ),
+                SQL`INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id`,
               );
 
               const result = await connection2.withTransaction<number | null>(
                 async () => {
                   const result = await connection2.execute.query(
-                    rawSql(
-                      'INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id',
-                    ),
+                    SQL`INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id`,
                   );
                   return (result.rows[0]?.id as number) ?? null;
                 },
@@ -259,7 +242,7 @@ void describe('SQLite Transactions', () => {
           assert.strictEqual(result, 1);
 
           const rows = await connection.execute.query<{ count: number }>(
-            rawSql('SELECT COUNT(*) as count  FROM test_table'),
+            SQL`SELECT COUNT(*) as count FROM test_table`,
           );
 
           assert.strictEqual(rows.rows[0]?.count, 2);
@@ -281,7 +264,7 @@ void describe('SQLite Transactions', () => {
 
         try {
           await connection.execute.query(
-            rawSql('CREATE TABLE test_table (id INTEGER, value TEXT)'),
+            SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
           );
 
           try {
@@ -289,9 +272,7 @@ void describe('SQLite Transactions', () => {
               id: null | string;
             }>(async () => {
               await connection.execute.query(
-                rawSql(
-                  'INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id',
-                ),
+                SQL`INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id`,
               );
 
               const result = await connection2.withTransaction<{
@@ -310,7 +291,7 @@ void describe('SQLite Transactions', () => {
           }
 
           const rows = await connection.execute.query(
-            rawSql('SELECT COUNT(*) as count  FROM test_table'),
+            SQL`SELECT COUNT(*) as count FROM test_table`,
           );
 
           assert.strictEqual(rows.rows[0]?.count, 0);
@@ -331,7 +312,7 @@ void describe('SQLite Transactions', () => {
 
         try {
           await connection.execute.query(
-            rawSql('CREATE TABLE test_table (id INTEGER, value TEXT)'),
+            SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
           );
 
           try {
@@ -339,16 +320,12 @@ void describe('SQLite Transactions', () => {
               id: null | string;
             }>(async () => {
               await connection.execute.query(
-                rawSql(
-                  'INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id',
-                ),
+                SQL`INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id`,
               );
 
               await connection2.withTransaction<number>(async () => {
-                const result = await connection.execute.query(
-                  rawSql(
-                    'INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id',
-                  ),
+                const result = await connection2.execute.query(
+                  SQL`INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id`,
                 );
                 return (result.rows[0]?.id as number) ?? null;
               });
@@ -356,7 +333,7 @@ void describe('SQLite Transactions', () => {
               throw new Error('Intentionally throwing');
             });
           } catch (error) {
-            // make sure the rror is the correct one. catch but let it continue so it doesnt trigger
+            // make sure the error is the correct one. catch but let it continue so it doesn't trigger
             // the outer errors
             assert.strictEqual(
               (error as Error).message,
@@ -364,7 +341,7 @@ void describe('SQLite Transactions', () => {
             );
           }
           const rows = await connection.execute.query(
-            rawSql('SELECT COUNT(*) as count  FROM test_table'),
+            SQL`SELECT COUNT(*) as count FROM test_table`,
           );
 
           assert.strictEqual(rows.rows[0]?.count, 0);

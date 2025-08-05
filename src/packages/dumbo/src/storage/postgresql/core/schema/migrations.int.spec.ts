@@ -6,7 +6,7 @@ import assert from 'assert';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { PostgreSQLConnectionString, tableExists } from '..';
 import { type Dumbo } from '../../../..';
-import { count, rawSql, SQL, sql } from '../../../../core';
+import { count, SQL } from '../../../../core';
 import { MIGRATIONS_LOCK_ID, type SQLMigration } from '../../../../core/schema';
 import { dumbo } from '../../../../pg';
 import { acquireAdvisoryLock, releaseAdvisoryLock } from '../locks';
@@ -30,7 +30,7 @@ void describe('Migration Integration Tests', () => {
 
   beforeEach(async () => {
     await pool.execute.query(
-      rawSql('DROP SCHEMA public CASCADE; CREATE SCHEMA public;'),
+      SQL`DROP SCHEMA public CASCADE; CREATE SCHEMA public;`,
     );
   });
 
@@ -167,10 +167,7 @@ void describe('Migration Integration Tests', () => {
 
     const migrationCount = await count(
       pool.execute.query<{ count: number }>(
-        sql(
-          'SELECT COUNT(*)::int as count FROM migrations WHERE name = %L',
-          'hash_check_migration',
-        ),
+        SQL`SELECT COUNT(*)::int as count FROM migrations WHERE name = 'hash_check_migration'`,
       ),
     );
     assert.strictEqual(

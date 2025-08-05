@@ -1,4 +1,4 @@
-import { JSONSerializer, sql, type SQL } from '@event-driven-io/dumbo';
+import { JSONSerializer, plainString, SQL } from '@event-driven-io/dumbo';
 import {
   objectEntries,
   type $inc,
@@ -9,50 +9,44 @@ import {
 } from '../../../../core';
 
 export const buildUpdateQuery = <T>(update: PongoUpdate<T>): SQL =>
-  objectEntries(update).reduce((currentUpdateQuery, [op, value]) => {
-    switch (op) {
-      case '$set':
-        return buildSetQuery(value, currentUpdateQuery);
-      case '$unset':
-        return buildUnsetQuery(value, currentUpdateQuery);
-      case '$inc':
-        return buildIncQuery(value, currentUpdateQuery);
-      case '$push':
-        return buildPushQuery(value, currentUpdateQuery);
-      default:
-        return currentUpdateQuery;
-    }
-  }, sql('data'));
+  objectEntries(update).reduce(
+    (currentUpdateQuery, [op, value]) => {
+      switch (op) {
+        case '$set':
+          return buildSetQuery(value, currentUpdateQuery);
+        case '$unset':
+          return buildUnsetQuery(value, currentUpdateQuery);
+        case '$inc':
+          return buildIncQuery(value, currentUpdateQuery);
+        case '$push':
+          return buildPushQuery(value, currentUpdateQuery);
+        default:
+          return currentUpdateQuery;
+      }
+    },
+    SQL`data`,
+  );
 
 export const buildSetQuery = <T>(set: $set<T>, currentUpdateQuery: SQL): SQL =>
-  sql('%s || %L::jsonb', currentUpdateQuery, JSONSerializer.serialize(set));
+  SQL`${currentUpdateQuery} || ${JSONSerializer.serialize(set)}::jsonb`;
 
 export const buildUnsetQuery = <T>(
   unset: $unset<T>,
   currentUpdateQuery: SQL,
 ): SQL =>
-  sql(
-    '%s - %L',
-    currentUpdateQuery,
-    Object.keys(unset)
-      .map((k) => `{${k}}`)
-      .join(', '),
-  );
+  SQL`${currentUpdateQuery} - ${Object.keys(unset)
+    .map((k) => `{${k}}`)
+    .join(', ')}`;
 
 export const buildIncQuery = <T>(
   inc: $inc<T>,
   currentUpdateQuery: SQL,
 ): SQL => {
   for (const [key, value] of Object.entries(inc)) {
-    currentUpdateQuery = sql(
+    currentUpdateQuery =
       typeof value === 'bigint'
-        ? "jsonb_set(%s, '{%s}', to_jsonb((COALESCE((data->>'%s')::BIGINT, 0) + %L)::TEXT), true)"
-        : "jsonb_set(%s, '{%s}', to_jsonb(COALESCE((data->>'%s')::NUMERIC, 0) + %L), true)",
-      currentUpdateQuery,
-      key,
-      key,
-      value,
-    );
+        ? SQL`jsonb_set(${currentUpdateQuery}, '{${plainString(key)}}', to_jsonb((COALESCE((data->>'${plainString(key)}')::BIGINT, 0) + ${value})::TEXT), true)`
+        : SQL`jsonb_set(${currentUpdateQuery}, '{${plainString(key)}}', to_jsonb(COALESCE((data->>'${plainString(key)}')::NUMERIC, 0) + ${value}), true)`;
   }
   return currentUpdateQuery;
 };
@@ -62,13 +56,8 @@ export const buildPushQuery = <T>(
   currentUpdateQuery: SQL,
 ): SQL => {
   for (const [key, value] of Object.entries(push)) {
-    currentUpdateQuery = sql(
-      "jsonb_set(%s, '{%s}', (coalesce(data->'%s', '[]'::jsonb) || %L::jsonb), true)",
-      currentUpdateQuery,
-      key,
-      key,
-      JSONSerializer.serialize([value]),
-    );
+    const serializedValue = JSONSerializer.serialize([value]);
+    currentUpdateQuery = SQL`jsonb_set(${currentUpdateQuery}, '{${plainString(key)}}', (coalesce(data->'${plainString(key)}', '[]'::jsonb) || ${serializedValue}::jsonb), true)`;
   }
   return currentUpdateQuery;
 };

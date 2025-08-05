@@ -1,4 +1,4 @@
-import { type Dumbo, rawSql } from '@event-driven-io/dumbo';
+import { SQL, type Dumbo } from '@event-driven-io/dumbo';
 import {
   dumbo,
   PostgreSQLConnectionString,
@@ -10,7 +10,7 @@ import {
 } from '@testcontainers/postgresql';
 import assert from 'assert';
 import { after, before, beforeEach, describe, it } from 'node:test';
-import { pongoClient, type PongoClient, pongoSchema } from '../../../core';
+import { pongoClient, pongoSchema, type PongoClient } from '../../../core';
 
 void describe('Migration Integration Tests', () => {
   let pool: Dumbo;
@@ -43,7 +43,7 @@ void describe('Migration Integration Tests', () => {
 
   beforeEach(async () => {
     await pool.execute.query(
-      rawSql('DROP SCHEMA public CASCADE; CREATE SCHEMA public;'),
+      SQL`DROP SCHEMA public CASCADE; CREATE SCHEMA public;`,
     );
   });
 
@@ -64,7 +64,7 @@ void describe('Migration Integration Tests', () => {
     await client.db().schema.migrate();
 
     const migrationNames = await pool.execute.query<{ name: number }>(
-      rawSql('SELECT name FROM migrations'),
+      SQL`SELECT name FROM migrations`,
     );
     assert.strictEqual(
       migrationNames.rowCount,

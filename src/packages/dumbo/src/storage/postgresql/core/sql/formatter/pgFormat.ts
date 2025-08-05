@@ -1,5 +1,5 @@
 // Ported from: https://github.com/datalanche/node-pg-format/blob/master/lib/index.js
-import { JSONSerializer } from '../../serializer/index';
+import { JSONSerializer } from '../../../../../core';
 import reservedMap from './reserved';
 
 type FormatterConfig = {

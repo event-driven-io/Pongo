@@ -3,15 +3,46 @@ import {
   isIdentifier,
   isLiteral,
   isRaw,
+  isRawSQL,
+  isSQL,
   SQL,
   type DeferredSQL,
-  type SQLFormatter,
 } from './sql';
+
+export interface SQLFormatter {
+  formatIdentifier: (value: unknown) => string;
+  formatLiteral: (value: unknown) => string;
+  formatString: (value: unknown) => string;
+  formatArray?: (
+    array: unknown[],
+    itemFormatter: (item: unknown) => string,
+  ) => string;
+  formatDate?: (value: Date) => string;
+  formatObject?: (value: object) => string;
+  formatBigInt?: (value: bigint) => string;
+  format: (sql: SQL | SQL[]) => string;
+}
+const formatters: Record<string, SQLFormatter> = {};
+
+export const registerFormatter = (
+  dialect: string,
+  formatter: SQLFormatter,
+): void => {
+  formatters[dialect] = formatter;
+};
+
+export const getFormatter = (dialect: string): SQLFormatter => {
+  const formatterKey = dialect;
+  if (!formatters[formatterKey]) {
+    throw new Error(`No SQL formatter registered for dialect: ${dialect}`);
+  }
+  return formatters[formatterKey];
+};
 
 export const formatSQL = (sql: SQL | SQL[], formatter: SQLFormatter): string =>
   Array.isArray(sql)
-    ? sql.map((s) => processDeferredSQL(s, formatter)).join('\n')
-    : processDeferredSQL(sql, formatter);
+    ? sql.map((s) => processSQL(s, formatter)).join('\n')
+    : processSQL(sql, formatter);
 
 function formatValue(value: unknown, formatter: SQLFormatter): string {
   // Handle SQL wrapper types first
@@ -21,11 +52,10 @@ function formatValue(value: unknown, formatter: SQLFormatter): string {
     return value.value;
   } else if (isLiteral(value)) {
     return formatter.formatLiteral(value.value);
-  } else if (isDeferredSQL(value)) {
-    return processDeferredSQL(
-      value as unknown as SQL,
-      formatter,
-    ) as unknown as string;
+  } else if (isSQL(value)) {
+    return isRawSQL(value)
+      ? value.sql
+      : processSQL(value as unknown as SQL, formatter);
   }
 
   // Handle specific types directly
@@ -59,12 +89,10 @@ function formatValue(value: unknown, formatter: SQLFormatter): string {
   return formatter.formatLiteral(value);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function processDeferredSQL(sql: SQL, formatter: any): SQL {
-  // If it's not a DeferredSQL, return as is
-  if (!isDeferredSQL(sql)) {
-    return sql;
-  }
+function processSQL(sql: SQL, formatter: SQLFormatter): string {
+  if (isRawSQL(sql)) return sql.sql;
+
+  if (!isDeferredSQL(sql)) return sql;
 
   const { strings, values } = sql as DeferredSQL;
 
@@ -74,10 +102,9 @@ function processDeferredSQL(sql: SQL, formatter: any): SQL {
     result += string;
 
     if (i < values.length) {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       result += formatValue(values[i], formatter);
     }
   });
 
-  return result as SQL;
+  return result;
 }

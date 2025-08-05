@@ -3,7 +3,7 @@ import fs from 'fs';
 import { afterEach, describe, it } from 'node:test';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { rawSql } from '../../../../core';
+import { SQL } from '../../../../core';
 import { dumbo } from '../../../all';
 import { InMemorySQLiteDatabase, SQLiteConnectionString } from '../../core';
 import { sqlite3Client } from './connection';
@@ -117,7 +117,7 @@ void describe('Node SQLite pool', () => {
         const connection = await pool.connection();
 
         try {
-          await connection.execute.query(rawSql('SELECT 1'));
+          await connection.execute.query(SQL`SELECT 1`);
         } catch (error) {
           console.log(error);
           assert.fail(error as Error);
@@ -136,7 +136,7 @@ void describe('Node SQLite pool', () => {
         const connection = await pool.connection();
 
         try {
-          await connection.execute.query(rawSql('SELECT 1'));
+          await connection.execute.query(SQL`SELECT 1`);
         } finally {
           await connection.close();
           await pool.close();
@@ -155,7 +155,7 @@ void describe('Node SQLite pool', () => {
         const connection = await pool.connection();
 
         try {
-          await connection.execute.query(rawSql('SELECT 1'));
+          await connection.execute.query(SQL`SELECT 1`);
         } finally {
           await connection.close();
           await pool.close();
@@ -179,7 +179,7 @@ void describe('Node SQLite pool', () => {
         });
 
         try {
-          await pool.execute.query(rawSql('SELECT 1'));
+          await pool.execute.query(SQL`SELECT 1`);
         } finally {
           await pool.close();
           await ambientConnection.close();
@@ -201,7 +201,7 @@ void describe('Node SQLite pool', () => {
         });
 
         try {
-          await pool.execute.query(rawSql('SELECT 1'));
+          await pool.execute.query(SQL`SELECT 1`);
         } finally {
           await pool.close();
           await ambientConnection.close();
@@ -225,7 +225,7 @@ void describe('Node SQLite pool', () => {
               connection: ambientConnection,
             });
             try {
-              await pool.execute.query(rawSql('SELECT 1'));
+              await pool.execute.query(SQL`SELECT 1`);
 
               return { success: true, result: undefined };
             } finally {
@@ -253,7 +253,7 @@ void describe('Node SQLite pool', () => {
               connection: ambientConnection,
             });
             try {
-              await pool.execute.query(rawSql('SELECT 1'));
+              await pool.execute.query(SQL`SELECT 1`);
 
               return { success: true, result: undefined };
             } finally {
@@ -279,7 +279,7 @@ void describe('Node SQLite pool', () => {
               connection: ambientConnection,
             });
             try {
-              await pool.execute.query(rawSql('SELECT 1'));
+              await pool.execute.query(SQL`SELECT 1`);
 
               return { success: true, result: undefined };
             } finally {
@@ -305,7 +305,7 @@ void describe('Node SQLite pool', () => {
                 connection: ambientConnection,
               });
               try {
-                await pool.execute.query(rawSql('SELECT 1'));
+                await pool.execute.query(SQL`SELECT 1`);
               } finally {
                 await pool.close();
               }

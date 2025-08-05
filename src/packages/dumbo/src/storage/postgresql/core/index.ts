@@ -3,6 +3,7 @@ import type { ConnectorType } from '../../../core';
 export * from './connections';
 export * from './locks';
 export * from './schema';
+export * from './sql';
 
 export type PostgreSQLConnector = 'PostgreSQL';
 export const PostgreSQLConnector = 'PostgreSQL';

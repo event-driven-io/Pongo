@@ -1,4 +1,4 @@
-import { JSONSerializer } from '../../serializer';
+import { JSONSerializer } from '../../../../../core/serializer';
 
 const arrayToList = (
   useSpace: boolean,

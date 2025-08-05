@@ -6,8 +6,8 @@ import {
   type QueryResult,
   type QueryResultRow,
 } from '../../../../core';
-import { sqliteFormatter } from '../../../../core/sql/sqlite-format';
 import type { SQLiteClient } from '../connections';
+import { sqliteFormatter } from '../sql/formatter';
 
 export const sqliteExecute = async <Result = void>(
   database: SQLiteClient,

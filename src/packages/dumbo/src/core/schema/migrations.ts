@@ -2,7 +2,6 @@ import {
   mapToCamelCase,
   singleOrNull,
   SQL,
-  sql,
   tracer,
   type SchemaComponent,
   type SQLExecutor,
@@ -133,7 +132,7 @@ const ensureMigrationWasNotAppliedYet = async (
 ): Promise<boolean> => {
   const result = await singleOrNull(
     execute.query<{ sql_hash: string }>(
-      sql(`SELECT sql_hash FROM migrations WHERE name = %L`, migration.name),
+      SQL`SELECT sql_hash FROM migrations WHERE name = ${migration.name}`,
     ),
   );
 
@@ -156,13 +155,8 @@ const recordMigration = async (
   migration: { name: string; sqlHash: string },
 ): Promise<void> => {
   await execute.command(
-    sql(
-      `
+    SQL`
       INSERT INTO migrations (name, sql_hash)
-      VALUES (%L, %L)
-      `,
-      migration.name,
-      migration.sqlHash,
-    ),
+      VALUES (${migration.name}, ${migration.sqlHash})`,
   );
 };

@@ -1,6 +1,6 @@
-import { JSONSerializer } from '../../serializer';
-import { registerFormatter, type SQLFormatter } from '../sql';
-import { formatSQL } from '../sqlFormatter';
+import { JSONSerializer } from '../../../../../core/serializer';
+import { registerFormatter, type SQLFormatter } from '../../../../../core/sql';
+import { formatSQL } from '../../../../../core/sql/sqlFormatter';
 import format from './sqliteFormat';
 
 const sqliteFormatter: SQLFormatter = {

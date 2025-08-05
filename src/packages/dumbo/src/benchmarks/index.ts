@@ -2,7 +2,7 @@ import 'dotenv/config';
 
 import Benchmark from 'benchmark';
 import pg from 'pg';
-import { rawSql, single } from '..';
+import { single, SQL } from '..';
 import {
   defaultPostgreSQLConnectionString,
   dumbo,
@@ -25,11 +25,11 @@ const rawPgPool = new pg.Pool({ connectionString });
 
 const setup = () =>
   pool.execute.command(
-    rawSql(`
+    SQL`
       CREATE TABLE IF NOT EXISTS cars (
         id SERIAL PRIMARY KEY, 
         brand VARCHAR(255)
-      );`),
+      );`,
   );
 
 const openAndCloseRawConnection = async () => {
@@ -53,14 +53,12 @@ const openAndCloseDumboConnection = async () => {
 };
 
 const getRecord = () =>
-  single(pool.execute.query(rawSql(`SELECT * FROM cars LIMIT 1;`)));
+  single(pool.execute.query(SQL`SELECT * FROM cars LIMIT 1;`));
 
 // Function to update a record by ID
 const insertRecord = () =>
   pool.withTransaction((transaction) =>
-    transaction.execute.command(
-      rawSql(`INSERT INTO cars (brand) VALUES ('bmw')`),
-    ),
+    transaction.execute.command(SQL`INSERT INTO cars (brand) VALUES ('bmw')`),
   );
 
 // Setup Benchmark.js

@@ -8,8 +8,7 @@ import {
   isSQL,
   literal,
   plainString,
-  rawSql,
-} from '..';
+} from '../../../../../core';
 
 export function processSQLForTesting(sql: SQL): string {
   const formatter = pgFormatter;
@@ -91,9 +90,11 @@ void describe('SQL Tagged Template Literal', () => {
   });
 
   void it('should work with raw SQL', () => {
-    const rawQuery: string = rawSql('SELECT * FROM users');
-    assert.strictEqual(rawQuery, 'SELECT * FROM users');
-    assert.strictEqual(isSQL(rawQuery), true);
+    const rawQuery = SQL`SELECT * FROM users`;
+    assert.strictEqual(
+      SQL.format(rawQuery, pgFormatter),
+      'SELECT * FROM users',
+    );
   });
 
   void it('should NOT recognize valid SQL using isSQL', () => {
@@ -101,7 +102,7 @@ void describe('SQL Tagged Template Literal', () => {
     const invalidSql = 'SELECT * FROM users;';
 
     assert.strictEqual(isSQL(validSql), true);
-    assert.strictEqual(isSQL(invalidSql), true);
+    assert.strictEqual(isSQL(invalidSql), false);
   });
 
   void it('should escape special characters in literals', () => {
