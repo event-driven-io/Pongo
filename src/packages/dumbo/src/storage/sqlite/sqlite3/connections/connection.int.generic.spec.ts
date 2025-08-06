@@ -31,6 +31,8 @@ void describe('Node SQLite pool', () => {
     }
     try {
       fs.unlinkSync(fileName);
+      fs.unlinkSync(`${fileName}-shm`);
+      fs.unlinkSync(`${fileName}-wal`);
     } catch (error) {
       console.log('Error deleting file:', error);
     }

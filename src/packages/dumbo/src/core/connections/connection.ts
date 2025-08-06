@@ -71,8 +71,18 @@ export const createConnection = <
   const { connector, connect, close, initTransaction, executor } = options;
 
   let client: DbClient | null = null;
+  let connectPromise: Promise<DbClient> | null = null;
 
-  const getClient = async () => client ?? (client = await connect());
+  const getClient = async () => {
+    if (client) return client;
+    if (!connectPromise) {
+      connectPromise = connect().then((c) => {
+        client = c;
+        return c;
+      });
+    }
+    return connectPromise;
+  };
 
   const connection: Connection<Connector, DbClient> = {
     connector,
