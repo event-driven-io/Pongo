@@ -47,7 +47,7 @@ export type SQLitePoolConnectionOptions<
 > = {
   connector: ConnectorType;
   type: 'PoolClient';
-  connect: Promise<SQLitePoolClient>;
+  connect: () => Promise<SQLitePoolClient>;
   close: (client: SQLitePoolClient) => Promise<void>;
   allowNestedTransactions: boolean;
 };
@@ -57,7 +57,7 @@ export type SQLiteClientConnectionOptions<
 > = {
   connector: ConnectorType;
   type: 'Client';
-  connect: Promise<SQLiteClient>;
+  connect: () => Promise<SQLiteClient>;
   close: (client: SQLiteClient) => Promise<void>;
   allowNestedTransactions: boolean;
 };
