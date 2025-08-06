@@ -35,13 +35,13 @@ export type NodePostgresConnection =
 
 export type NodePostgresPoolClientOptions = {
   type: 'PoolClient';
-  connect: Promise<NodePostgresPoolClient>;
+  connect: () => Promise<NodePostgresPoolClient>;
   close: (client: NodePostgresPoolClient) => Promise<void>;
 };
 
 export type NodePostgresClientOptions = {
   type: 'Client';
-  connect: Promise<NodePostgresClient>;
+  connect: () => Promise<NodePostgresClient>;
   close: (client: NodePostgresClient) => Promise<void>;
 };
 

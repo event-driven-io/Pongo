@@ -67,15 +67,14 @@ export const sqliteSingletonClientPool = <
   const getConnection = () => {
     if (connection) return connection;
 
-    const connect = sqliteClientProvider(connector).then(
-      async (sqliteClient) => {
+    const connect = () =>
+      sqliteClientProvider(connector).then(async (sqliteClient) => {
         const client = sqliteClient(options);
 
         await client.connect();
 
         return client;
-      },
-    );
+      });
 
     return (connection = sqliteConnection({
       connector,
@@ -113,15 +112,14 @@ export const sqliteAlwaysNewClientPool = <
   return createConnectionPool({
     connector: connector,
     getConnection: () => {
-      const connect = sqliteClientProvider(connector).then(
-        async (sqliteClient) => {
+      const connect = () =>
+        sqliteClientProvider(connector).then(async (sqliteClient) => {
           const client = sqliteClient(options);
 
           await client.connect();
 
           return client;
-        },
-      );
+        });
 
       return sqliteConnection({
         connector,
@@ -144,7 +142,7 @@ export const sqliteAmbientClientPool = <
   const { client, connector, allowNestedTransactions } = options;
 
   const getConnection = () => {
-    const connect = Promise.resolve(client);
+    const connect = () => Promise.resolve(client);
 
     return sqliteConnection({
       connector,

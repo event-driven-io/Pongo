@@ -41,7 +41,7 @@ export type CreateConnectionOptions<
   Executor extends DbSQLExecutor = DbSQLExecutor,
 > = {
   connector: Connector;
-  connect: Promise<DbClient>;
+  connect: () => Promise<DbClient>;
   close: (client: DbClient) => Promise<void>;
   initTransaction: (
     connection: () => ConnectionType,
@@ -72,7 +72,7 @@ export const createConnection = <
 
   let client: DbClient | null = null;
 
-  const getClient = async () => client ?? (client = await connect);
+  const getClient = async () => client ?? (client = await connect());
 
   const connection: Connection<Connector, DbClient> = {
     connector,
