@@ -80,12 +80,14 @@ interface ParametrizedSQL {
   - Convert interpolated values to `__P1__`, `__P2__` placeholders
   - Merge parameter arrays when flattening nested SQL
 
-### Phase 2: Update SQL Function
+### Phase 2: Update SQL Function and Remove Legacy Types
 - **File**: `src/packages/dumbo/src/core/sql/sql.ts`
 - **Tasks**:
-  - Modify `SQL()` function to return `ParametrizedSQL` instead of current types
-  - Update `mergeSQL()` and `concatSQL()` to work with new format
-  - Ensure backward compatibility for existing helper functions
+  - Replace `SQL()` function to return `ParametrizedSQL` and remove DeferredSQL/RawSQL completely
+  - Update `mergeSQL()` and `concatSQL()` to work with ParametrizedSQL format
+  - Remove legacy type guards (`isDeferredSQL`, `isRawSQL`) completely
+  - Add new type guard (`isParametrizedSQL`)
+  - Ensure existing helper functions (`identifier`, `literal`, `raw`) still work
 
 ### Phase 3: Update Execution Layer
 - **Files**: 
@@ -110,11 +112,12 @@ interface ParametrizedSQL {
 - `src/packages/dumbo/src/core/sql/sqlParametrizer.ts`
 
 ### Files to Modify:
-- `src/packages/dumbo/src/core/sql/sql.ts`
-- `src/packages/dumbo/src/core/sql/index.ts` (exports)
+- `src/packages/dumbo/src/core/sql/sql.ts` (remove DeferredSQL/RawSQL, add ParametrizedSQL)
+- `src/packages/dumbo/src/core/sql/index.ts` (update exports to remove legacy types)
 - `src/packages/dumbo/src/storage/postgresql/pg/execute/execute.ts`
 - `src/packages/dumbo/src/storage/sqlite/core/execute/execute.ts`
-- All test files that call `execute()`
+- All test files that call `execute()` or use legacy SQL types
+- Any files importing DeferredSQL/RawSQL types
 
 ## Database Parameter Style Research
 
@@ -219,30 +222,34 @@ const main = SQL`SELECT * FROM users WHERE role_id IN (${subQuery})`;
 ### 1. Core Parametrizer Implementation
 **File**: `src/packages/dumbo/src/core/sql/sqlParametrizer.ts`
 **Tasks**:
-- Create `ParametrizedSQL` interface: `{ __brand: 'deferred-sql', sql: string, params: unknown[] }`
+- Create `ParametrizedSQL` interface: `{ __brand: 'parametrized-sql', sql: string, params: unknown[] }`
+- Remove DeferredSQL and RawSQL type definitions completely
 - Implement template flattening logic for nested SQL objects  
-- Process `DeferredSQL.strings` and `DeferredSQL.values` arrays
+- Process SQL template strings and values arrays directly
 - Handle value types: `literal()` → parameter, `identifier()`/`raw()` → inline in query
 - Convert interpolated values to `__P1__`, `__P2__` placeholders sequentially
 - Merge parameter arrays when flattening nested SQL structures
 - Handle edge cases: empty SQL, mixed value types, deeply nested SQL
 
-### 2. Update SQL Function  
+### 2. Update SQL Function and Remove Legacy Types
 **File**: `src/packages/dumbo/src/core/sql/sql.ts`
 **Tasks**:
-- Modify `SQL()` function to return `ParametrizedSQL` instead of `DeferredSQL`/`RawSQL`
-- Update `mergeSQL()` to work with new ParametrizedSQL format
-- Update `concatSQL()` to work with new ParametrizedSQL format  
+- Replace `SQL()` function to return `ParametrizedSQL` and remove DeferredSQL/RawSQL completely
+- Update `mergeSQL()` to work with ParametrizedSQL format
+- Update `concatSQL()` to work with ParametrizedSQL format  
 - Ensure existing helper functions (`identifier`, `literal`, `raw`) still work
-- Update type guards (`isDeferredSQL`, `isRawSQL`) or create new ones for ParametrizedSQL
+- Remove legacy type guards (`isDeferredSQL`, `isRawSQL`) completely
+- Add new type guard (`isParametrizedSQL`)
 - Maintain `SQL.empty`, `SQL.isEmpty()` functionality
 
-### 3. Update Core SQL Exports
+### 3. Update Core SQL Exports and Remove Legacy Types
 **File**: `src/packages/dumbo/src/core/sql/index.ts`  
 **Tasks**:
 - Export new `ParametrizedSQL` type and related interfaces
 - Export parametrizer functions if needed publicly
-- Ensure all existing exports remain available for backward compatibility
+- Remove exports for DeferredSQL and RawSQL types
+- Update any re-exports to use ParametrizedSQL
+- Remove legacy type guard exports
 
 ### 4. Refactor PostgreSQL Execution
 **File**: `src/packages/dumbo/src/storage/postgresql/pg/execute/execute.ts`
