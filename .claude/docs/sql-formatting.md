@@ -116,19 +116,138 @@ This would enable:
 3. **Security**: Native parameter binding prevents SQL injection more effectively than escaping
 4. **Memory**: Reduced string processing and query parsing overhead
 
-## Value Type Handling in Current System
+## Current SQL Template System Implementation
+
+### Core Types and Interfaces
+
+**SQL Type System** (`src/packages/dumbo/src/core/sql/sql.ts`):
+```typescript
+export type SQL = string & { __brand: 'sql' };
+
+export interface DeferredSQL {
+  __brand: 'deferred-sql';
+  strings: TemplateStringsArray;
+  values: unknown[];
+}
+
+export interface RawSQL {
+  __brand: 'sql';
+  sql: string;
+}
+```
+
+**SQL Value Types**:
+- `SQLIdentifier`: `{ [ID]: true, value: string }` - Column/table names, get quoted
+- `SQLLiteral`: `{ [LITERAL]: true, value: unknown }` - User values, become escaped literals  
+- `SQLRaw`: `{ [RAW]: true, value: string }` - Raw SQL fragments, inserted directly
+
+**Helper Functions**:
+- `identifier(value: string)` → `SQLIdentifier` - Creates quoted identifiers
+- `literal(value: unknown)` → `SQLLiteral` - Creates escaped literals
+- `raw(value: string)` → `SQLRaw` - Creates unescaped raw SQL
+- `plainString(value: string)` → `SQLRaw` - Alias for `raw()` (deprecated)
+
+**Type Guards**:
+- `isIdentifier(value)`, `isLiteral(value)`, `isRaw(value)` - Symbol-based detection
+- `isDeferredSQL(value)`, `isRawSQL(value)`, `isSQL(value)` - Brand-based detection
+
+### SQL Template Function Implementation
+
+**Main SQL Function**:
+```typescript
+export function SQL(strings: TemplateStringsArray, ...values: unknown[]): SQL {
+  return strings.length === 1 && values.length === 0
+    ? rawSql(strings[0] as string)  // Simple string → RawSQL
+    : deferredSQL(strings, values); // Template → DeferredSQL
+}
+```
+
+**Template Processing**:
+- Single string with no interpolation → `RawSQL` 
+- Template with values → `DeferredSQL` with strings/values arrays
+- Brand casting: `DeferredSQL as unknown as SQL`
+
+**SQL Utility Functions**:
+- `SQL.empty` - Empty SQL object
+- `SQL.concat(...sqls)` - Concatenate SQL parts without separator
+- `SQL.merge(sqls, separator)` - Merge SQL parts with separator (default: space)
+- `SQL.isEmpty(sql)` - Check if SQL is empty
+- `SQL.format(sql, formatter)` - Format SQL to string
+
+### Current Formatter System Implementation
+
+**SQLFormatter Interface** (`src/packages/dumbo/src/core/sql/sqlFormatter.ts`):
+```typescript
+export interface SQLFormatter {
+  formatIdentifier: (value: unknown) => string;
+  formatLiteral: (value: unknown) => string;
+  formatString: (value: unknown) => string;
+  formatArray?: (array: unknown[], itemFormatter: (item: unknown) => string) => string;
+  formatDate?: (value: Date) => string;
+  formatObject?: (value: object) => string;
+  formatBigInt?: (value: bigint) => string;
+  format: (sql: SQL | SQL[]) => string;  // Current: returns string
+}
+```
+
+**Formatter Registration System**:
+```typescript
+const formatters: Record<string, SQLFormatter> = {};
+
+export const registerFormatter = (dialect: string, formatter: SQLFormatter): void => {
+  formatters[dialect] = formatter;
+};
+
+export const getFormatter = (dialect: string): SQLFormatter => {
+  const formatterKey = dialect;
+  if (!formatters[formatterKey]) {
+    throw new Error(`No SQL formatter registered for dialect: ${dialect}`);
+  }
+  return formatters[formatterKey];
+};
+```
+
+### Template Processing Algorithm
+
+**Current `processSQL()` Function**:
+```typescript
+function processSQL(sql: SQL, formatter: SQLFormatter): string {
+  if (isRawSQL(sql)) return sql.sql;
+  if (!isDeferredSQL(sql)) return sql;
+
+  const { strings, values } = sql as DeferredSQL;
+  
+  // Template string interpolation
+  let result = '';
+  strings.forEach((string, i) => {
+    result += string;
+    if (i < values.length) {
+      result += formatValue(values[i], formatter);
+    }
+  });
+  
+  return result;
+}
+```
+
+**Value Processing Logic** (`formatValue()` function):
+1. **SQL Wrapper Types**: `isIdentifier()` → `formatIdentifier()`, `isRaw()` → inline, `isLiteral()` → `formatLiteral()`
+2. **Nested SQL**: `isSQL()` → recursive `processSQL()` call
+3. **Primitive Types**: null/undefined → 'NULL', numbers → toString()
+4. **Complex Types**: Arrays → `formatArray()`, BigInt → `formatBigInt()`, Dates → `formatDate()`, Objects → `formatObject()`
+5. **Fallback**: Everything else → `formatLiteral()`
 
 ### SQL Template Value Processing
 
-**Current Value Types:**
-- `SQLIdentifier`: Column/table names - stay in query string, get quoted
-- `SQLLiteral`: User values - become escaped string literals  
-- `SQLRaw`: Raw SQL fragments - inserted directly without escaping
+**Template Literal Traversal**:
+- `strings` array contains literal parts: `["SELECT * FROM users WHERE id = ", " AND name = ", ""]`
+- `values` array contains interpolated values: `[123, "John"]`
+- Processing alternates: string[0] + value[0] + string[1] + value[1] + string[2]
 
-**Type Processing Flow:**
-1. Template literal values processed by `formatValue()` in `sqlFormatter.ts:47`
-2. Type detection via `isIdentifier()`, `isLiteral()`, `isRaw()`, `isSQL()` guards
-3. Database-specific formatting applied via formatter implementations
+**Nested SQL Handling**:
+- Nested `SQL` objects are recursively processed by `formatValue()`
+- Each nested SQL becomes a formatted string inserted into parent template
+- Example: `SQL\`WHERE ${subQuery}\`` → `processSQL(subQuery)` inserted at placeholder
 
 ### Formatter Implementations Comparison
 
@@ -149,3 +268,28 @@ This would enable:
 - **Arrays**: JSON serialization (no native array type)
 - **Dates**: ISO string format
 - **BigInt**: Range checking for SQLite INTEGER type limits
+
+### Current Execution Implementation
+
+**PostgreSQL Execution** (`src/packages/dumbo/src/storage/postgresql/pg/execute/execute.ts`):
+```typescript
+// Line 94 - Current string-based execution
+const result = await client.query<Result>(pgFormatter.format(sqls[i]!));
+```
+
+**SQLite Execution** (`src/packages/dumbo/src/storage/sqlite/core/execute/execute.ts`):
+```typescript  
+// Line 73 - Current string-based execution
+const result = await client.query<Result>(sqliteFormatter.format(sqls[i]!));
+```
+
+**Current Flow**:
+1. `SQL` object → `formatter.format(sql)` → string SQL
+2. String SQL → `client.query(sqlString)` → database execution
+3. No parameter separation - values embedded as literals in query string
+
+**Tracing Current Implementation**:
+```typescript
+tracer.info('db:sql:query', { sql: sqls[i]! });
+// Logs the SQL object, not the formatted string
+```

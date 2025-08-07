@@ -93,9 +93,10 @@ interface ParametrizedSQL {
   - `src/packages/dumbo/src/storage/sqlite/core/execute/execute.ts`
 - **Tasks**:
   - Change `execute()` signature from `(sqlString: string)` to `(sql: SQL)`
-  - Add placeholder conversion logic: `__P1__` → `$1` (PostgreSQL) or `?` (MySQL/SQLite)
-  - Use existing formatters for type conversion (BigInt, Date, Boolean, JSON)
-  - Update parameter binding: `client.query(convertedQuery, params)`
+  - Update formatter calls: `pgFormatter.format(sql)` → `{ query, params }`
+  - Use returned parameterized query: `client.query(query, params)` 
+  - Implement debug logging: `formatRaw(sql)` for human-readable traces
+  - Handle both single SQL and SQL array cases in batch operations
 
 ### Phase 4: Testing & Validation
 - **Tasks**:
@@ -144,7 +145,44 @@ execute(sql: SQL) → result
 
 **Rationale**: SQLExecutor already contains the formatter, so no need for additional DatabaseFormatter parameter. This is cleaner than `execute(query: string, params: unknown[])` two-parameter approach.
 
-**Type Formatting**: Existing formatters handle database-specific type conversion (BigInt, Date, Boolean, JSON, Arrays) and will be reused for parameter values.
+## Refined SQLFormatter Interface Design
+
+**Key Decision**: Simplify formatter interface with two complementary methods:
+
+```typescript
+interface SQLFormatter {
+  // Existing type formatting methods
+  formatLiteral: (value: unknown) => string;
+  formatIdentifier: (value: unknown) => string;
+  formatString: (value: unknown) => string;
+  // ... other existing methods
+  
+  // Core methods for new parametrized approach
+  format: (sql: SQL) => { query: string; params: unknown[] };  // Primary: parameterized for execution
+  formatRaw: (sql: SQL) => string;                             // Debug: string with inlined values
+}
+```
+
+**Method Responsibilities**:
+- **`format(sql)`**: Returns `{ query: "SELECT * FROM users WHERE id = $1", params: [123] }` for database execution
+- **`formatRaw(sql)`**: Returns `"SELECT * FROM users WHERE id = '123'"` for debugging/tracing
+
+**Usage in Execution**:
+```typescript
+const { query, params } = pgFormatter.format(sql);
+tracer.info('db:sql:query', { 
+  sql: query, 
+  params,
+  debugSQL: pgFormatter.formatRaw(sql)  // Optional: for human-readable logs
+});
+const result = await client.query(query, params);
+```
+
+**Benefits**:
+- **Single Input**: Both methods operate on the same `SQL` object
+- **Clear Purpose**: `format()` for execution, `formatRaw()` for debugging
+- **Backward Compatibility**: `formatRaw()` provides current string behavior
+- **Type Safety**: Existing type conversion logic reused for parameter values
 
 ## Template Flattening Logic
 
@@ -211,9 +249,9 @@ const main = SQL`SELECT * FROM users WHERE role_id IN (${subQuery})`;
 **Current**: Line 94 - `pgFormatter.format(sqls[i]!)`  
 **Tasks**:
 - Change `batch()` function signature: accept `SQL | SQL[]` instead of processing formatted strings
-- Add placeholder conversion: `__P1__` → `$1`, `__P2__` → `$2`, etc.
-- Use existing `pgFormatter` for type conversion of parameter values (BigInt, Date, Boolean, JSON, Arrays)
-- Update `client.query()` calls: `client.query(convertedQuery, convertedParams)`
+- Update formatter usage: `const { query, params } = pgFormatter.format(sqls[i]!)` 
+- Update `client.query()` calls: `client.query(query, params)`
+- Add debug logging: `formatRaw(sqls[i]!)` for tracing
 - Handle both single SQL and SQL array cases
 - Maintain transaction and error handling logic
 
@@ -222,9 +260,9 @@ const main = SQL`SELECT * FROM users WHERE role_id IN (${subQuery})`;
 **Current**: Line 73 - `sqliteFormatter.format(sqls[i]!)`
 **Tasks**:
 - Change `batch()` function signature: accept `SQL | SQL[]` instead of processing formatted strings
-- Add placeholder conversion: `__P1__` → `?`, `__P2__` → `?`, etc.
-- Use existing `sqliteFormatter` for type conversion of parameter values (BigInt→1/0, Date→ISO, JSON→string)
-- Update `client.query()` calls: `client.query(convertedQuery, convertedParams)`
+- Update formatter usage: `const { query, params } = sqliteFormatter.format(sqls[i]!)` 
+- Update `client.query()` calls: `client.query(query, params)`
+- Add debug logging: `formatRaw(sqls[i]!)` for tracing
 - Handle both single SQL and SQL array cases
 - Maintain transaction and error handling logic
 
