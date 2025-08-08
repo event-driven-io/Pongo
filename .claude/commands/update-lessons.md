@@ -5,13 +5,16 @@ allowed-tools: ["Read", "Write", "Edit"]
 ---
 
 ## System Context
+
 Read the spec file to understand the project context and current implementation status. The lessons learned file captures implementation discoveries for future reference.
 
 ## File Structure
+
 - Spec file: $ARGUMENTS (contains project context and current status)
 - Lessons file: $ARGUMENTS-lessons-learned.md (implementation discoveries)
 
 ## Task
+
 First read @$ARGUMENTS to understand the project and current progress, then update lessons learned.
 
 **Specific prompt to execute:**
@@ -25,6 +28,8 @@ First read @$ARGUMENTS to understand the project and current progress, then upda
 5. **Future Improvements**: What would make similar future work smoother and reduce back-and-forth
 
 **Instructions:**
+
+- You MUST focused on the stuff that can be generalized to smooth further work or improve understanding of the project
 - Read the spec file first to understand project context
 - Add to existing lessons content, don't replace it
 - Organize by phase/topic with clear headings
