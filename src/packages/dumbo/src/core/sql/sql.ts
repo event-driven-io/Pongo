@@ -1,4 +1,5 @@
 import { formatSQL } from './sqlFormatter';
+import { ParametrizedSQL } from './parametrizedSQL';
 
 export type SQL = string & { __brand: 'sql' };
 
@@ -14,9 +15,8 @@ export interface RawSQL {
 }
 
 export function SQL(strings: TemplateStringsArray, ...values: unknown[]): SQL {
-  return strings.length === 1 && values.length === 0
-    ? rawSql(strings[0] as string)
-    : deferredSQL(strings, values);
+  const parametrized = ParametrizedSQL(strings, values);
+  return parametrized as unknown as SQL;
 }
 
 const ID = Symbol.for('SQL_IDENTIFIER');
@@ -27,33 +27,16 @@ type SQLIdentifier = { [ID]: true; value: string };
 type SQLRaw = { [RAW]: true; value: string };
 type SQLLiteral = { [LITERAL]: true; value: unknown };
 
-const deferredSQL = (strings: TemplateStringsArray, values: unknown[]): SQL => {
-  const deferredSql: DeferredSQL = {
-    __brand: 'deferred-sql',
-    strings,
-    values,
-  };
-
-  return deferredSql as unknown as SQL;
-};
-
-const rawSql = (sqlQuery: string): SQL => {
-  const rawSQL: RawSQL = {
-    __brand: 'sql',
-    sql: sqlQuery,
-  };
-
-  return rawSQL as unknown as SQL;
-};
+const emptySQL = (): SQL => SQL([''] as unknown as TemplateStringsArray);
 
 export const mergeSQL = (sqls: SQL[], separator: string = ' '): SQL => {
   if (!Array.isArray(sqls)) return sqls;
-  if (sqls.length === 0) return rawSql('');
+  if (sqls.length === 0) return emptySQL();
   if (sqls.length === 1) return sqls[0]!;
 
   // Filter out empty SQL parts
   const nonEmptySqls = sqls.filter((sql) => !isEmpty(sql));
-  if (nonEmptySqls.length === 0) return rawSql('');
+  if (nonEmptySqls.length === 0) return emptySQL();
   if (nonEmptySqls.length === 1) return nonEmptySqls[0]!;
 
   const strings: string[] = [''];
@@ -62,7 +45,7 @@ export const mergeSQL = (sqls: SQL[], separator: string = ' '): SQL => {
   nonEmptySqls.forEach((sql, index) => {
     if (index > 0) {
       strings.push('');
-      values.push(rawSql(separator));
+      values.push(SQL([separator] as unknown as TemplateStringsArray));
     }
     strings.push('');
     values.push(sql);
@@ -107,7 +90,7 @@ const isEmpty = (sql: SQL): boolean => {
   return false;
 };
 
-SQL.empty = rawSql('');
+SQL.empty = emptySQL();
 SQL.concat = concatSQL;
 SQL.merge = mergeSQL;
 SQL.isEmpty = isEmpty;
