@@ -3,16 +3,7 @@ import { ParametrizedSQL, isParametrizedSQL } from './parametrizedSQL';
 
 export type SQL = string & { __brand: 'sql' };
 
-export interface DeferredSQL {
-  __brand: 'deferred-sql';
-  strings: TemplateStringsArray;
-  values: unknown[];
-}
-
-export interface RawSQL {
-  __brand: 'sql';
-  sql: string;
-}
+// Legacy interfaces removed - now using ParametrizedSQL
 
 export function SQL(strings: TemplateStringsArray, ...values: unknown[]): SQL {
   const parametrized = ParametrizedSQL(strings, values);
@@ -79,19 +70,6 @@ const isEmpty = (sql: SQL): boolean => {
     return parametrized.sql.trim() === '' && parametrized.params.length === 0;
   }
 
-  if (isDeferredSQL(sql)) {
-    const deferred = sql as DeferredSQL;
-    const hasContent =
-      deferred.strings.some((s) => s.trim() !== '') ||
-      deferred.values.length > 0;
-    return !hasContent;
-  }
-
-  if (isRawSQL(sql)) {
-    const raw = sql as RawSQL;
-    return raw.sql.trim() === '';
-  }
-
   return false;
 };
 
@@ -129,23 +107,7 @@ export const isLiteral = (value: unknown): value is SQLLiteral => {
   return value !== null && typeof value === 'object' && LITERAL in value;
 };
 
-export const isDeferredSQL = (value: unknown): value is DeferredSQL => {
-  return (
-    value !== null &&
-    typeof value === 'object' &&
-    '__brand' in value &&
-    value.__brand === 'deferred-sql'
-  );
-};
-
-export const isRawSQL = (value: unknown): value is RawSQL => {
-  return (
-    value !== null &&
-    typeof value === 'object' &&
-    '__brand' in value &&
-    value.__brand === 'sql'
-  );
-};
+// Legacy type guards removed - now using isParametrizedSQL
 
 export const isReserved = (
   value: string,
@@ -172,5 +134,5 @@ export const isSQL = (value: unknown): value is SQL => {
     return false;
   }
 
-  return isDeferredSQL(value) || isRawSQL(value) || isParametrizedSQL(value);
+  return isParametrizedSQL(value);
 };

@@ -1,13 +1,4 @@
-import {
-  isDeferredSQL,
-  isIdentifier,
-  isLiteral,
-  isRaw,
-  isRawSQL,
-  isSQL,
-  SQL,
-  type DeferredSQL,
-} from './sql';
+import { isIdentifier, isLiteral, isRaw, isSQL, SQL } from './sql';
 import { type ParametrizedSQL, isParametrizedSQL } from './parametrizedSQL';
 
 export interface SQLFormatter {
@@ -54,9 +45,7 @@ function formatValue(value: unknown, formatter: SQLFormatter): string {
   } else if (isLiteral(value)) {
     return formatter.formatLiteral(value.value);
   } else if (isSQL(value)) {
-    return isRawSQL(value)
-      ? value.sql
-      : processSQL(value as unknown as SQL, formatter);
+    return processSQL(value as unknown as SQL, formatter);
   }
 
   // Handle specific types directly
@@ -91,8 +80,6 @@ function formatValue(value: unknown, formatter: SQLFormatter): string {
 }
 
 function processSQL(sql: SQL, formatter: SQLFormatter): string {
-  if (isRawSQL(sql)) return sql.sql;
-
   if (isParametrizedSQL(sql)) {
     const parametrized = sql as unknown as ParametrizedSQL;
     let result = parametrized.sql;
@@ -107,19 +94,6 @@ function processSQL(sql: SQL, formatter: SQLFormatter): string {
     return result;
   }
 
-  if (!isDeferredSQL(sql)) return sql;
-
-  const { strings, values } = sql as DeferredSQL;
-
-  // Process the template
-  let result = '';
-  strings.forEach((string, i) => {
-    result += string;
-
-    if (i < values.length) {
-      result += formatValue(values[i], formatter);
-    }
-  });
-
-  return result;
+  // Fallback for string-based SQL
+  return sql;
 }

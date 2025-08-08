@@ -1,11 +1,4 @@
-import {
-  type SQL,
-  type DeferredSQL,
-  type RawSQL,
-  isDeferredSQL,
-  isRawSQL,
-  isSQL,
-} from './sql';
+import { type SQL, isSQL } from './sql';
 
 export interface ParametrizedSQL {
   __brand: 'parametrized-sql';
@@ -53,18 +46,13 @@ export const ParametrizedSQL = (
   };
 };
 
-// Conversion function from SQL to ParametrizedSQL (for testing and migration)
+// Conversion function from SQL to ParametrizedSQL (for compatibility)
 export const parametrizeSQL = (sql: SQL): ParametrizedSQL => {
-  if (isRawSQL(sql)) {
-    const raw = sql as RawSQL;
-    return ParametrizedSQL([raw.sql] as unknown as TemplateStringsArray, []);
+  if (isParametrizedSQL(sql)) {
+    return sql as unknown as ParametrizedSQL;
   }
 
-  if (isDeferredSQL(sql)) {
-    const deferred = sql as DeferredSQL;
-    return ParametrizedSQL(deferred.strings, deferred.values);
-  }
-
+  // Handle string-based SQL (fallback)
   return ParametrizedSQL(
     [sql as string] as unknown as TemplateStringsArray,
     [],

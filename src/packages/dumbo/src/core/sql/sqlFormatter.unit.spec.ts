@@ -1,6 +1,6 @@
 import assert from 'assert';
 import { before, describe, it } from 'node:test';
-import { identifier, isDeferredSQL, isSQL, literal, SQL } from './sql';
+import { identifier, isSQL, literal, SQL } from './sql';
 import { isParametrizedSQL, type ParametrizedSQL } from './parametrizedSQL';
 import { registerFormatter, type SQLFormatter } from './sqlFormatter';
 
@@ -36,14 +36,12 @@ void describe('SQL template', () => {
     void it('should create SQL from template literals', () => {
       const query = SQL`SELECT * FROM users`;
       assert.strictEqual(isSQL(query), true);
-      assert.strictEqual(isDeferredSQL(query), false);
       assert.strictEqual(isParametrizedSQL(query), true);
     });
 
     void it('should create SQL from raw string', () => {
       const query = SQL`SELECT * FROM users`;
       assert.strictEqual(isSQL(query), true);
-      assert.strictEqual(isDeferredSQL(query), false);
       assert.strictEqual(isParametrizedSQL(query), true);
       assert.strictEqual(
         (query as unknown as ParametrizedSQL).sql,
