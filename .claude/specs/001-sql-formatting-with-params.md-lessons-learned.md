@@ -251,7 +251,7 @@ npm run test   # Validated logic correctness
 // Clean delegation pattern that emerged
 export function formatParametrizedQuery(
   sql: SQL | SQL[],
-  placeholderGenerator: (index: number) => string,
+  placeholderGenerator: (index: number) => string
 ): ParametrizedQuery {
   // Shared logic here - array merging, placeholder replacement
 }
@@ -265,16 +265,16 @@ const pgFormatter = {
 const sqliteFormatter = {
   mapSQLValue: (value) => {
     // Only SQLite-specific conversions
-    if (typeof value === 'boolean') return value ? 1 : 0;
+    if (typeof value === "boolean") return value ? 1 : 0;
     if (value instanceof Date) return value.toISOString();
-    if (typeof value === 'bigint') return value.toString();
-    
+    if (typeof value === "bigint") return value.toString();
+
     return mapSQLValue(value, sqliteFormatter);
   },
   format: (sql) => {
-    const result = formatParametrizedQuery(sql, () => '?');
+    const result = formatParametrizedQuery(sql, () => "?");
     // Apply SQLite parameter conversions...
-  }
+  },
 };
 ```
 
@@ -325,7 +325,7 @@ const sqliteFormatter = {
 
 #### Implementation Validation
 
-- **External Architecture Review**: Present approach before implementation to catch over-engineering early  
+- **External Architecture Review**: Present approach before implementation to catch over-engineering early
 - **Test-First Behavior**: Run tests immediately after changes to validate behavior preservation
 - **Base Function Reuse**: Always prefer enhancing/using existing base functions over creating parallel implementations
 
@@ -339,7 +339,7 @@ pgFormatter.mapSQLValue = (value) => {
   if (isIdentifier(value)) return pgFormatter.formatIdentifier(value.value);
   if (isRaw(value)) return value.value;
   // ... duplicate all the logic
-}
+};
 
 // AFTER: Clean delegation with base function reuse
 pgFormatter.mapSQLValue = (value) => mapSQLValue(value, pgFormatter);
@@ -347,17 +347,17 @@ pgFormatter.mapSQLValue = (value) => mapSQLValue(value, pgFormatter);
 // BEFORE: Duplicated format logic in each database
 format: (sql) => {
   // ... 50+ lines of array merging, placeholder replacement
-}
+};
 
-// AFTER: Shared base with database-specific placeholder generation  
-format: (sql) => formatParametrizedQuery(sql, (index) => `$${index + 1}`)
+// AFTER: Shared base with database-specific placeholder generation
+format: (sql) => formatParametrizedQuery(sql, (index) => `$${index + 1}`);
 ```
 
 #### Quality Metrics Achieved
 
 - **Code Quality**: ✅ All ESLint/Prettier pass (`npm run fix`)
 - **TypeScript**: ✅ Zero compilation errors (`npm run build:ts`)
-- **Unit Tests**: ✅ 156/156 tests pass (`npm run test:unit`)
+- **Tests**: ✅ 156/156 tests pass (`npm run test`)
 - **Architecture**: ✅ DRY principles with shared base functions
 - **Maintainability**: ✅ Database-specific code only for true differences
 
@@ -366,8 +366,9 @@ format: (sql) => formatParametrizedQuery(sql, (index) => `$${index + 1}`)
 **Core Insight**: Complex logic should live in base functions, database-specific implementations should only handle genuine differences
 
 **Pattern That Works**:
+
 1. Identify shared logic → create base function
-2. Identify genuine database differences → implement specifically  
+2. Identify genuine database differences → implement specifically
 3. Use delegation pattern → database formatters call base function
 4. Test behavior thoroughly → ensure tests define correct contracts
 

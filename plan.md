@@ -20,6 +20,8 @@ This plan implements SQL query parametrization to enable database query plan reu
 - **Complete Test Coverage**: All tests (unit, integration, e2e) must pass before step completion
 - **Updating TODO**: After each phase you must update todo.md file
 - **Committ messages**: They must be focused on WHY before WHAT you did and DON'T include information that you wrote this code or Anthropic
+- DO NOT EVER js with ts in my typsecript. Don't import .js files in my TS files. JS is a concern for the dist dir only
+- You must not add Debug files, just add new tests when needed
 
 ### Key Implementation Guidelines
 
@@ -136,15 +138,18 @@ Run tests to confirm nested SQL flattening works correctly.
 **CRITICAL**: This step must be completed AFTER Step 4 (parametrizer foundation) but BEFORE Step 6 (type system cleanup).
 
 ```
+
 ✅ COMPLETED: SQL function now internally uses ParametrizedSQL(strings, values) and casts to SQL type.
 
 Implementation approach that worked:
+
 - SQL function signature remains: SQL(strings: TemplateStringsArray, ...values: unknown[]): SQL
 - Internally calls ParametrizedSQL(strings, values) then casts to SQL type
 - Casting is necessary because SQL branded type doesn't have .sql/.params properties
 - This approach preserves API compatibility while changing internal structure
 
 ⚠️ CRITICAL SEQUENCING: Update utility functions (mergeSQL, concatSQL, isEmpty) to handle ParametrizedSQL structure BEFORE moving to Step 6. Legacy type removal must come after SQL function is fully functional with ParametrizedSQL.
+
 ```
 
 ### Step 6: Update Core SQL Exports and Remove Legacy Types
@@ -156,21 +161,25 @@ Implementation approach that worked:
 **⚠️ CRITICAL LESSON LEARNED**: Complete legacy type removal is essential - partial removal causes cascading import failures. Remove ALL legacy types and type guards in a single coordinated step.
 
 ```
+
 Update the core SQL module exports and remove legacy types systematically:
 
 In `src/packages/dumbo/src/core/sql/index.ts`:
+
 1. Export ParametrizedSQL type and related interfaces: `export * from './parametrizedSQL';`
 2. Remove exports for DeferredSQL and RawSQL types completely
 3. Update any re-exports to use ParametrizedSQL
 
 In `src/packages/dumbo/src/core/sql/sql.ts`:
+
 1. Remove DeferredSQL and RawSQL type definitions COMPLETELY
-2. Remove ALL legacy type guards: isDeferredSQL(), isRawSQL() 
+2. Remove ALL legacy type guards: isDeferredSQL(), isRawSQL()
 3. Add isParametrizedSQL() type guard (import from parametrizedSQL.ts)
 4. Update mergeSQL(), concatSQL(), isEmpty() to handle ONLY ParametrizedSQL objects
 5. Add clear documentation: "// Legacy interfaces removed - now using ParametrizedSQL"
 
 **CRITICAL VALIDATION SEQUENCE** (run after each file change):
+
 ```bash
 npm run build:ts  # Catches import/type errors immediately - FOLLOW ERRORS SYSTEMATICALLY
 npm run fix       # Ensures code quality standards
@@ -180,6 +189,7 @@ npm run test      # Validates logic correctness
 **IMPORTANT**: Import failures across multiple test files are expected and helpful - follow each TypeScript error systematically rather than trying to predict all dependencies. Import errors guide you to exactly what needs updating.
 
 **COMMON PATTERNS**: Update test assertions that check for legacy types (e.g., `isDeferredSQL(query) === false` becomes invalid and needs removal).
+
 ```
 
 ## Phase 3: Formatter Interface Evolution
@@ -191,17 +201,20 @@ npm run test      # Validates logic correctness
 **LEARNING**: Based on test failures, formatters are being called with ParametrizedSQL objects but expect to process DeferredSQL/RawSQL. We need to update them to handle the new structure.
 
 ```
+
 Update existing formatter to work with ParametrizedSQL:
 
 In `src/packages/dumbo/src/core/sql/sqlFormatter.ts`:
 
 1. Update formatSQL() function to handle ParametrizedSQL:
+
    - Detect when SQL object is actually ParametrizedSQL
-   - Process placeholder replacement (__P1__ → actual values)
+   - Process placeholder replacement (**P1** → actual values)
    - Apply existing formatValue logic to parameters
    - Return formatted string as before
 
 2. Keep existing interface: `format(sql: SQL | SQL[]): string`
+
    - Maintain backward compatibility
    - No new interface methods needed initially
    - Focus on making existing tests pass
@@ -212,6 +225,7 @@ In `src/packages/dumbo/src/core/sql/sqlFormatter.ts`:
    - raw() values: insert as raw SQL
 
 This approach fixes the immediate test failures while preserving existing API.
+
 - Formatter registration works with extended interface
 - Both old and new format methods can coexist temporarily
 
@@ -228,6 +242,7 @@ Run tests to confirm interface extension works without breaking existing functio
 **CRITICAL SEQUENCING**: This step must be completed BEFORE Step 9-10 (execution layer changes) because execution layer depends on this interface.
 
 ```
+
 Add parametrized query generation interfaces to both PostgreSQL and SQLite formatters:
 
 **IMPORTANT**: Add the new interface alongside existing methods - don't replace existing string-based interface yet as execution layer still needs it during transition.
@@ -239,11 +254,16 @@ Add parametrized query generation interfaces to both PostgreSQL and SQLite forma
 1. **Add base mapSQLValue function and rename existing function in core**
 
    File: `src/packages/dumbo/src/core/sql/sqlFormatter.ts`
+
    - Rename `formatValue()` → `formatSQLValue()` (for string formatting)
    - Update all calls to `formatValue()` → `formatSQLValue()` within the file
    - Add base `mapSQLValue()` function:
+
    ```typescript
-   export function mapSQLValue(value: unknown, formatter: SQLFormatter): unknown {
+   export function mapSQLValue(
+     value: unknown,
+     formatter: SQLFormatter
+   ): unknown {
      // Handle SQL wrapper types - delegates to formatter-specific methods
      if (isIdentifier(value)) {
        return formatter.formatIdentifier(value.value);
@@ -257,11 +277,17 @@ Add parametrized query generation interfaces to both PostgreSQL and SQLite forma
 
      // Handle complex types that need formatting - delegates to formatter
      if (value instanceof Date) {
-       return formatter.formatDate ? formatter.formatDate(value) : formatter.formatLiteral(value);
-     } else if (typeof value === 'bigint') {
-       return formatter.formatBigInt ? formatter.formatBigInt(value) : formatter.formatLiteral(value);
-     } else if (typeof value === 'object' && value !== null) {
-       return formatter.formatObject ? formatter.formatObject(value) : formatter.formatLiteral(value);
+       return formatter.formatDate
+         ? formatter.formatDate(value)
+         : formatter.formatLiteral(value);
+     } else if (typeof value === "bigint") {
+       return formatter.formatBigInt
+         ? formatter.formatBigInt(value)
+         : formatter.formatLiteral(value);
+     } else if (typeof value === "object" && value !== null) {
+       return formatter.formatObject
+         ? formatter.formatObject(value)
+         : formatter.formatLiteral(value);
      }
 
      // For primitive types, return as-is for parameter binding
@@ -270,13 +296,13 @@ Add parametrized query generation interfaces to both PostgreSQL and SQLite forma
 
    export function formatParametrizedQuery(
      sql: SQL | SQL[],
-     placeholderGenerator: (index: number) => string,
+     placeholderGenerator: (index: number) => string
    ): ParametrizedQuery {
      // Handle array by merging with newline separator
-     const merged = Array.isArray(sql) ? mergeSQL(sql, '\n') : sql;
+     const merged = Array.isArray(sql) ? mergeSQL(sql, "\n") : sql;
 
      if (!isParametrizedSQL(merged)) {
-       throw new Error('Expected ParametrizedSQL, got string-based SQL');
+       throw new Error("Expected ParametrizedSQL, got string-based SQL");
      }
 
      const parametrized = merged as unknown as ParametrizedSQL;
@@ -286,7 +312,7 @@ Add parametrized query generation interfaces to both PostgreSQL and SQLite forma
      parametrized.params.forEach((_, index) => {
        const placeholder = `__P${index + 1}__`;
        const dbPlaceholder = placeholderGenerator(index);
-       query = query.replace(new RegExp(placeholder, 'g'), dbPlaceholder);
+       query = query.replace(new RegExp(placeholder, "g"), dbPlaceholder);
      });
 
      return { query, params: parametrized.params };
@@ -298,12 +324,16 @@ Add parametrized query generation interfaces to both PostgreSQL and SQLite forma
 2. **Update SQLFormatter interface to require mapSQLValue**
 
    File: `src/packages/dumbo/src/core/sql/sqlFormatter.ts`
+
    ```typescript
    export interface SQLFormatter {
      formatIdentifier: (value: unknown) => string;
      formatLiteral: (value: unknown) => string;
      formatString: (value: unknown) => string;
-     formatArray?: (array: unknown[], itemFormatter: (item: unknown) => string) => string;
+     formatArray?: (
+       array: unknown[],
+       itemFormatter: (item: unknown) => string
+     ) => string;
      formatDate?: (value: Date) => string;
      formatObject?: (value: object) => string;
      formatBigInt?: (value: bigint) => string;
@@ -316,6 +346,7 @@ Add parametrized query generation interfaces to both PostgreSQL and SQLite forma
 3. **Implement mapSQLValue in PostgreSQL formatter**
 
    File: `src/packages/dumbo/src/storage/postgresql/core/sql/formatter/index.ts`
+
    ```typescript
    import { mapSQLValue, formatParametrizedQuery } from '../../../../../core/sql/sqlFormatter';
 
@@ -324,7 +355,7 @@ Add parametrized query generation interfaces to both PostgreSQL and SQLite forma
      // PostgreSQL doesn't need specific type conversions, delegate to base function
      return mapSQLValue(value, pgFormatter);
    },
-   
+
    format: (sql) => {
      // Use shared base logic with PostgreSQL-specific placeholder generator
      return formatParametrizedQuery(sql, (index) => `$${index + 1}`);
@@ -336,6 +367,7 @@ Add parametrized query generation interfaces to both PostgreSQL and SQLite forma
 4. **Implement mapSQLValue in SQLite formatter**
 
    File: `src/packages/dumbo/src/storage/sqlite/core/sql/formatter/index.ts`
+
    ```typescript
    import { mapSQLValue, formatParametrizedQuery } from '../../../../../core/sql/sqlFormatter';
 
@@ -349,11 +381,11 @@ Add parametrized query generation interfaces to both PostgreSQL and SQLite forma
      // Delegate to base function for SQL wrappers and complex types
      return mapSQLValue(value, sqliteFormatter);
    },
-   
+
    format: (sql) => {
      // Use shared base logic with SQLite-specific placeholder generator
      const result = formatParametrizedQuery(sql, () => '?');
-     
+
      // Apply SQLite-specific parameter conversions to final params
      const formattedParams = result.params.map((param) => {
        if (param === null || param === undefined) return param;
@@ -365,7 +397,7 @@ Add parametrized query generation interfaces to both PostgreSQL and SQLite forma
        if (typeof param === 'object') return JSONSerializer.serialize(param);
        return param;
      });
-     
+
      return { query: result.query, params: formattedParams };
    },
    ```
@@ -375,33 +407,37 @@ Add parametrized query generation interfaces to both PostgreSQL and SQLite forma
 5. **Update formatter format methods to use mapSQLValue**
 
    Files: Both PostgreSQL and SQLite formatter index.ts
+
    ```typescript
    format: (sql) => {
      // ... existing placeholder replacement logic ...
 
      // Map parameter values for native binding using formatter's mapSQLValue
-     const mappedParams = parametrized.params.map(param =>
-       pgFormatter.mapSQLValue(param) // Each formatter's own implementation
+     const mappedParams = parametrized.params.map(
+       (param) => pgFormatter.mapSQLValue(param) // Each formatter's own implementation
      );
 
      return { query, params: mappedParams };
-   }
+   };
    ```
 
 6. **Update existing references to formatValue**
 
    File: `src/packages/dumbo/src/core/sql/sqlFormatter.ts`
+
    - Update `processSQL` function to call `formatSQLValue` instead of `formatValue`
 
 7. **Write comprehensive tests for both formatters**
 
    Files:
+
    - `src/packages/dumbo/src/storage/postgresql/core/sql/formatter/parametrizedFormatter.unit.spec.ts`
    - `src/packages/dumbo/src/storage/sqlite/core/sql/formatter/parametrizedFormatter.unit.spec.ts`
 
    **CRITICAL TESTING INSIGHT**: Tests define behavioral contracts - implementation should match test expectations, not vice versa. Never change existing tests unless explicitly confirmed.
 
    Test coverage:
+
    - **Identifier Quoting Rules**: Cover both valid unquoted (`table_name`) and cases requiring quotes (`TableName`, reserved words)
    - SQL wrapper types: `identifier()`, `raw()`, `literal()`, nested `SQL``
    - Basic types: string, number, null/undefined
@@ -411,19 +447,21 @@ Add parametrized query generation interfaces to both PostgreSQL and SQLite forma
    - Error handling for non-ParametrizedSQL input
 
    **IDENTIFIER TESTING PATTERN**:
+
    ```typescript
-   void it('should handle SQL wrapper types', () => {
+   void it("should handle SQL wrapper types", () => {
      // Valid unquoted identifier (lowercase, valid chars)
-     const validIdent = sqliteFormatter.mapSQLValue(identifier('table_name'));
-     assert.strictEqual(validIdent, 'table_name');
+     const validIdent = sqliteFormatter.mapSQLValue(identifier("table_name"));
+     assert.strictEqual(validIdent, "table_name");
 
      // Invalid identifier requiring quotes (mixed case)
-     const quotedIdent = sqliteFormatter.mapSQLValue(identifier('TableName'));
+     const quotedIdent = sqliteFormatter.mapSQLValue(identifier("TableName"));
      assert.strictEqual(quotedIdent, '"TableName"');
    });
    ```
 
 **Expected Outcomes:**
+
 - Clean base function handles SQL wrapper types using formatter-specific methods
 - Each formatter checks DB-specific types first, then falls back to base function
 - PostgreSQL: `{ query: "SELECT * FROM users WHERE id = $1", params: [123] }`
@@ -545,8 +583,7 @@ New implementation:
 1. Change to use new formatter interface:
 
    ```typescript
-   const { query, params } = pgFormatter.format(sqls[i]!);
-   const result = await client.query<Result>(query, params);
+   const result = await client.query<Result>(pgFormatter.format(sqls[i]!));
    ```
 
 2. Update batch() function signature:
@@ -590,16 +627,16 @@ Apply same refactoring pattern to SQLite execution:
 
 In `src/packages/dumbo/src/storage/sqlite/core/execute/execute.ts` (around line 73):
 
-1. Update to use parametrized query execution:
+1. Update the
+1. Update to use parametrized query execution.
 
    ```typescript
-   const { query, params } = sqliteFormatter.format(sqls[i]!);
-   const result = await client.query<Result>(query, params);
+   const result = await client.query<Result>(sqliteFormatter.format(sqls[i]!));
    ```
 
-2. Handle SQLite-specific parameter binding format (positional ? placeholders)
-3. Maintain SQLite transaction and error handling behavior
-4. Add same debug logging pattern as PostgreSQL
+1. Handle SQLite-specific parameter binding format (positional ? placeholders)
+1. Maintain SQLite transaction and error handling behavior
+1. Add same debug logging pattern as PostgreSQL
 
 Write integration tests:
 

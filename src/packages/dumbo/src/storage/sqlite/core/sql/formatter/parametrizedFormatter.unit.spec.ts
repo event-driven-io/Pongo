@@ -16,6 +16,57 @@ void describe('SQLite Parametrized Formatter', () => {
       });
     });
 
+    void it('should handle identifiers by inlining them', () => {
+      const sql = SQL`CREATE TABLE ${identifier('users')} (id INTEGER, name TEXT)`;
+      const result = sqliteFormatter.format(sql);
+
+      assert.deepStrictEqual(result, {
+        query: 'CREATE TABLE users (id INTEGER, name TEXT)',
+        params: [],
+      });
+    });
+
+    void it('should handle quoted identifiers correctly', () => {
+      const sql = SQL`CREATE TABLE ${identifier('User Table')} (id INTEGER)`;
+      const result = sqliteFormatter.format(sql);
+
+      assert.deepStrictEqual(result, {
+        query: 'CREATE TABLE "User Table" (id INTEGER)',
+        params: [],
+      });
+    });
+
+    void it('should mix identifiers and parameters correctly', () => {
+      const sql = SQL`SELECT ${identifier('name')} FROM ${identifier('users')} WHERE id = ${123}`;
+      const result = sqliteFormatter.format(sql);
+
+      assert.deepStrictEqual(result, {
+        query: 'SELECT name FROM users WHERE id = ?',
+        params: [123],
+      });
+    });
+
+    void it('should handle arrays by expanding to individual parameters', () => {
+      const ids = ['id1', 'id2', 'id3'];
+      const sql = SQL`SELECT * FROM users WHERE _id IN ${ids}`;
+      const result = sqliteFormatter.format(sql);
+
+      assert.deepStrictEqual(result, {
+        query: `SELECT * FROM users WHERE _id IN (?, ?, ?)`,
+        params: ['id1', 'id2', 'id3'],
+      });
+    });
+
+    void it('should throw error for empty arrays in IN clauses', () => {
+      const ids: string[] = [];
+      const sql = SQL`SELECT * FROM users WHERE _id IN ${ids}`;
+
+      assert.throws(
+        () => sqliteFormatter.format(sql),
+        /Empty arrays in IN clauses are not supported/,
+      );
+    });
+
     void it('should handle multiple parameters', () => {
       const sql = SQL`SELECT * FROM users WHERE id = ${123} AND name = ${'John'}`;
       const result = sqliteFormatter.format(sql);

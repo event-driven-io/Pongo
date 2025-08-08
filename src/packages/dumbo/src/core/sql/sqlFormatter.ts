@@ -1,5 +1,13 @@
-import { isIdentifier, isLiteral, isRaw, isSQL, SQL, mergeSQL } from './sql';
 import { type ParametrizedSQL, isParametrizedSQL } from './parametrizedSQL';
+import {
+  SQL,
+  isIdentifier,
+  isLiteral,
+  isRaw,
+  isSQL,
+  isSQLIn,
+  mergeSQL,
+} from './sql';
 
 export interface ParametrizedQuery {
   query: string;
@@ -17,6 +25,12 @@ export interface SQLFormatter {
   formatDate?: (value: Date) => string;
   formatObject?: (value: object) => string;
   formatBigInt?: (value: bigint) => string;
+  formatSQLIn?: (
+    column: string,
+    values: unknown[],
+    placeholderGenerator: (index: number) => string,
+    startIndex: number,
+  ) => { sql: string; params: unknown[] };
   mapSQLValue: (value: unknown) => unknown;
   format: (sql: SQL | SQL[]) => ParametrizedQuery;
   formatRaw: (sql: SQL | SQL[]) => string;
@@ -51,6 +65,8 @@ function formatSQLValue(value: unknown, formatter: SQLFormatter): string {
     return value.value;
   } else if (isLiteral(value)) {
     return formatter.formatLiteral(value.value);
+  } else if (isSQLIn(value)) {
+    return formatSQLIn(value, formatter);
   } else if (isSQL(value)) {
     return processSQL(value as unknown as SQL, formatter);
   }
@@ -86,9 +102,63 @@ function formatSQLValue(value: unknown, formatter: SQLFormatter): string {
   return formatter.formatLiteral(value);
 }
 
+function formatSQLIn(
+  sqlIn: { column: string; values: unknown[] },
+  formatter: SQLFormatter,
+): string {
+  const { column, values } = sqlIn;
+
+  // Handle empty arrays - return TRUE to not filter anything
+  if (values.length === 0) {
+    return 'TRUE';
+  }
+
+  // For PostgreSQL, use ANY for performance when available
+  // For now, use standard IN clause universally
+  const formattedColumn = formatter.formatIdentifier(column);
+  const formattedValues = values
+    .map((v) => formatSQLValue(v, formatter))
+    .join(', ');
+  return `${formattedColumn} IN (${formattedValues})`;
+}
+
+function formatSQLInParametrized(
+  sqlIn: { column: string; values: unknown[] },
+  formatter: SQLFormatter,
+  placeholderGenerator: (index: number) => string,
+  startIndex: number,
+): { sql: string; params: unknown[] } {
+  const { column, values } = sqlIn;
+
+  // Handle empty arrays - return TRUE to not filter anything
+  if (values.length === 0) {
+    return { sql: 'FALSE', params: [] };
+  }
+
+  // Use database-specific formatting if available
+  if (formatter.formatSQLIn) {
+    return formatter.formatSQLIn(
+      column,
+      values,
+      placeholderGenerator,
+      startIndex,
+    );
+  }
+
+  // Fallback: standard IN clause with parameterized values
+  const formattedColumn = formatter.formatIdentifier(column);
+  const placeholders = values.map((_, index) =>
+    placeholderGenerator(startIndex + index),
+  );
+  const sql = `${formattedColumn} IN (${placeholders.join(', ')})`;
+
+  return { sql, params: values };
+}
+
 export function formatParametrizedQuery(
   sql: SQL | SQL[],
   placeholderGenerator: (index: number) => string,
+  formatter: SQLFormatter,
 ): ParametrizedQuery {
   // Handle array by merging with newline separator
   const merged = Array.isArray(sql) ? mergeSQL(sql, '\n') : sql;
@@ -99,15 +169,57 @@ export function formatParametrizedQuery(
 
   const parametrized = merged as unknown as ParametrizedSQL;
   let query = parametrized.sql;
+  const finalParams: unknown[] = [];
+  let paramIndex = 0;
 
-  // Replace __P1__, __P2__ with database-specific placeholders
-  parametrized.params.forEach((_, index) => {
+  // Process each parameter
+  parametrized.params.forEach((param, index) => {
     const placeholder = `__P${index + 1}__`;
-    const dbPlaceholder = placeholderGenerator(index);
-    query = query.replace(new RegExp(placeholder, 'g'), dbPlaceholder);
+
+    if (isIdentifier(param)) {
+      // Identifiers must be inlined in the SQL, not bound as parameters
+      const inlinedIdentifier = formatter.formatIdentifier(param.value);
+      query = query.replace(new RegExp(placeholder, 'g'), inlinedIdentifier);
+    } else if (isSQLIn(param)) {
+      // SQL.in helper - handle empty arrays gracefully
+      const sqlInResult = formatSQLInParametrized(
+        param,
+        formatter,
+        placeholderGenerator,
+        paramIndex,
+      );
+      query = query.replace(new RegExp(placeholder, 'g'), sqlInResult.sql);
+      finalParams.push(...sqlInResult.params);
+      paramIndex += sqlInResult.params.length;
+    } else if (Array.isArray(param)) {
+      // Arrays - expand to individual parameters for universal compatibility
+      if (param.length === 0) {
+        // Empty arrays should use SQL.in helper for proper handling
+        throw new Error(
+          'Empty arrays in IN clauses are not supported. Use SQL.in(column, array) helper instead.',
+        );
+      } else {
+        // Non-empty array - expand to individual parameters
+        const expandedPlaceholders = param.map(() =>
+          placeholderGenerator(paramIndex++),
+        );
+        const expandedPlaceholderString = `(${expandedPlaceholders.join(', ')})`;
+        query = query.replace(
+          new RegExp(placeholder, 'g'),
+          expandedPlaceholderString,
+        );
+        finalParams.push(...(param as unknown[]));
+      }
+    } else {
+      // Regular parameters get database-specific placeholders and are added to params
+      const dbPlaceholder = placeholderGenerator(paramIndex);
+      query = query.replace(new RegExp(placeholder, 'g'), dbPlaceholder);
+      finalParams.push(param);
+      paramIndex++;
+    }
   });
 
-  return { query, params: parametrized.params };
+  return { query, params: finalParams };
 }
 
 export function mapSQLValue(value: unknown, formatter: SQLFormatter): unknown {

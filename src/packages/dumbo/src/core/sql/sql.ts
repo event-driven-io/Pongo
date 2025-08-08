@@ -61,13 +61,12 @@ export const concatSQL = (...sqls: SQL[]): SQL => {
 };
 
 const isEmpty = (sql: SQL): boolean => {
-  if (typeof sql === 'string') return sql.trim() === '';
-
   if (isParametrizedSQL(sql)) {
     const parametrized = sql as unknown as ParametrizedSQL;
     return parametrized.sql.trim() === '' && parametrized.params.length === 0;
   }
 
+  // Fallback should not happen with new implementation
   return false;
 };
 
@@ -76,6 +75,7 @@ SQL.concat = concatSQL;
 SQL.merge = mergeSQL;
 SQL.isEmpty = isEmpty;
 SQL.format = formatSQL;
+SQL.in = sqlIn;
 
 export function identifier(value: string): SQLIdentifier {
   return { [ID]: true, value };
@@ -133,4 +133,15 @@ export const isSQL = (value: unknown): value is SQL => {
   }
 
   return isParametrizedSQL(value);
+};
+
+const SQLIN = Symbol.for('SQL_IN');
+type SQLIn = { [SQLIN]: true; column: string; values: unknown[] };
+
+export function sqlIn(column: string, values: unknown[]): SQLIn {
+  return { [SQLIN]: true, column, values };
+}
+
+export const isSQLIn = (value: unknown): value is SQLIn => {
+  return value !== null && typeof value === 'object' && SQLIN in value;
 };

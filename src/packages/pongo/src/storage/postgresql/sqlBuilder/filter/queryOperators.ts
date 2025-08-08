@@ -26,7 +26,7 @@ export const handleOperator = (
     case '$ne': {
       const jsonPath = plainString(path.split('.').join(','));
 
-      return SQL`data @@ '$.${jsonPath} ${plainString(OperatorMap[operator])} ${value}'`;
+      return SQL`data ->> '${jsonPath}' ${plainString(OperatorMap[operator])} ${value}`;
     }
     case '$in': {
       const jsonPath = `{${path.split('.').join(',')}}`;

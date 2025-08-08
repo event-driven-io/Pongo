@@ -29,17 +29,17 @@ const sqliteFormatter: SQLFormatter = {
   },
   format: (sql) => {
     // Use base function with SQLite-specific placeholder generator
-    const result = formatParametrizedQuery(sql, () => '?');
+    const result = formatParametrizedQuery(sql, () => '?', sqliteFormatter);
 
-    // Apply SQLite-specific parameter conversions
+    // Apply SQLite-specific parameter conversions to final params
     const formattedParams = result.params.map((param) => {
       if (param === null || param === undefined) return param;
       if (typeof param === 'string' || typeof param === 'number') return param;
-      if (typeof param === 'boolean') return param ? 1 : 0; // SQLite booleans as 1/0
-      if (param instanceof Date) return param.toISOString(); // SQLite dates as ISO strings
-      if (typeof param === 'bigint') return param.toString(); // SQLite BigInt as string
-      if (Array.isArray(param)) return JSONSerializer.serialize(param); // SQLite arrays as JSON
-      if (typeof param === 'object') return JSONSerializer.serialize(param); // SQLite objects as JSON
+      if (typeof param === 'boolean') return param ? 1 : 0;
+      if (param instanceof Date) return param.toISOString();
+      if (typeof param === 'bigint') return param.toString();
+      if (Array.isArray(param)) return JSONSerializer.serialize(param);
+      if (typeof param === 'object') return JSONSerializer.serialize(param);
       return param;
     });
 
