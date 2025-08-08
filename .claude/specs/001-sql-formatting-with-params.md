@@ -53,13 +53,13 @@ The current SQL formatting system in Dumbo generates unique query strings by int
 
 ```typescript
 interface ParametrizedSQL {
-  __brand: 'deferred-sql';
+  __brand: 'parametrized-sql';
   sql: string;        // "SELECT * FROM users WHERE id = __P1__ AND name = __P2__"
   params: unknown[];  // [123, "John"]
 }
 
-// SQLExecutor internally converts:
-// __P1__ → $1 (PostgreSQL) or ? (MySQL/SQLite)
+// Formatter internally converts:
+// __P1__ → $1 (PostgreSQL) or ? (SQLite)
 // Applies existing type formatting for BigInt, Date, Boolean, JSON, etc.
 ```
 
@@ -71,33 +71,47 @@ interface ParametrizedSQL {
 
 ## Implementation Plan
 
-### Phase 1: Core Parametrizer
-- **File**: `src/packages/dumbo/src/core/sql/sqlParametrizer.ts`
-- **Tasks**:
-  - Create `ParametrizedSQL` interface with `__brand: 'deferred-sql'`, `sql: string`, `params: unknown[]`
-  - Implement template flattening logic for nested SQL objects
-  - Handle `literal()`, `identifier()`, `raw()` value types
-  - Convert interpolated values to `__P1__`, `__P2__` placeholders
-  - Merge parameter arrays when flattening nested SQL
+### Phase 1: Core Parametrizer ✅ COMPLETED
+- **File**: `src/packages/dumbo/src/core/sql/parametrizedSQL.ts`
+- **Tasks**: ✅ ALL COMPLETED
+  - ✅ Create `ParametrizedSQL` interface with `__brand: 'parametrized-sql'`, `sql: string`, `params: unknown[]`
+  - ✅ Implement template flattening logic for nested SQL objects
+  - ✅ Handle `literal()`, `identifier()`, `raw()` value types (all become parameters)
+  - ✅ Convert interpolated values to `__P1__`, `__P2__` placeholders
+  - ✅ Merge parameter arrays when flattening nested SQL
+  - ✅ Comprehensive test suite with 278 lines covering all scenarios
+
+**Key Learning**: Parametrizer is simple - everything becomes parameters except nested SQL which gets flattened. Special value handling happens in formatters.
 
 ### Phase 2: Update SQL Function and Remove Legacy Types
 - **File**: `src/packages/dumbo/src/core/sql/sql.ts`
 - **Tasks**:
-  - Replace `SQL()` function to return `ParametrizedSQL` and remove DeferredSQL/RawSQL completely
-  - Update `mergeSQL()` and `concatSQL()` to work with ParametrizedSQL format
-  - Remove legacy type guards (`isDeferredSQL`, `isRawSQL`) completely
-  - Add new type guard (`isParametrizedSQL`)
-  - Ensure existing helper functions (`identifier`, `literal`, `raw`) still work
+  - ✅ Replace `SQL()` function to return `ParametrizedSQL` (internally) and remove DeferredSQL/RawSQL completely
+  - 🔄 Update `mergeSQL()` and `concatSQL()` to work with ParametrizedSQL format
+  - 🔄 Remove legacy type guards (`isDeferredSQL`, `isRawSQL`) completely
+  - 🔄 Add new type guard (`isParametrizedSQL`)
+  - ✅ Ensure existing helper functions (`identifier`, `literal`, `raw`) still work
 
-### Phase 3: Update Execution Layer
+**Current Issue**: 65 test failures because SQL function now returns ParametrizedSQL but formatters expect DeferredSQL/RawSQL. Need to update core SQL utilities and formatters to handle new structure.
+
+### Phase 3: Update Formatter Layer (CRITICAL PRIORITY)
+- **File**: `src/packages/dumbo/src/core/sql/sqlFormatter.ts`
+- **Tasks**:
+  - 🔄 Update `formatSQL()` to handle ParametrizedSQL objects
+  - 🔄 Process `__P1__`, `__P2__` placeholders by replacing with formatted parameter values
+  - 🔄 Apply existing `formatValue()` logic to parameters (identifier, literal, raw)
+  - 🔄 Maintain existing `format(sql: SQL | SQL[]): string` interface
+  - 🔄 Remove dependencies on DeferredSQL/RawSQL type guards
+
+**This step is CRITICAL** - 65 tests are failing because formatters can't handle ParametrizedSQL structure.
+
+### Phase 4: Update Execution Layer (FUTURE)
 - **Files**: 
   - `src/packages/dumbo/src/storage/postgresql/pg/execute/execute.ts`
   - `src/packages/dumbo/src/storage/sqlite/core/execute/execute.ts`
-- **Tasks**:
-  - Change `execute()` signature from `(sqlString: string)` to `(sql: SQL)`
-  - Update formatter calls: `pgFormatter.format(sql)` → `{ query, params }`
-  - Use returned parameterized query: `client.query(query, params)` 
-  - Implement debug logging: `formatRaw(sql)` for human-readable traces
+- **Tasks** (DEFERRED until formatter works):
+  - Add native parameter binding: `client.query(query, params)`
+  - Add `{ query, params }` interface to formatters
   - Handle both single SQL and SQL array cases in batch operations
 
 ### Phase 4: Testing & Validation

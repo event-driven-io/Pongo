@@ -47,7 +47,23 @@ npm run build:pongo        # MongoDB API layer only
 - `*.int.spec.ts` - Integration tests requiring database connections
 - `*.e2e.spec.ts` - End-to-end workflow tests
 
-#### Test Commands
+### Code Review Patterns
+
+### Follow Existing Codebase Patterns
+- **File naming**: `parametrizedSQL.ts` (noun-based, matches existing patterns)
+- **Function structure**: `const FunctionName = () =>` (matches existing code style)
+- **Variable naming**: Use descriptive names (`mainQuery`, `subQuery` not generic `result`)
+- **Pattern matching**: Follow established patterns in codebase
+
+**Example of following codebase patterns:**
+```typescript
+// ✅ Matches existing pattern (function + factory)
+export const ParametrizedSQL = (strings: TemplateStringsArray, values: unknown[]) => {
+  // Implementation follows established patterns
+};
+```
+
+### Test Commands
 ```bash
 # All tests
 npm run test                    # Unit + Integration + E2E

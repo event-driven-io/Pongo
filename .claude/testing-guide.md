@@ -219,6 +219,38 @@ databases.forEach(({ name, setupPool }) => {
 
 ## Testing Best Practices
 
+### Quality Gate Reality
+
+**Complete Quality Checks Required**
+```bash
+# ALL must pass before marking step complete:
+npm run fix       # Auto-fix all linting and formatting issues
+npm run build:ts  # Clean TypeScript compilation  
+npm run test      # ALL tests pass (not just unit tests)
+```
+
+**Don't mark steps complete with failing quality checks** - this leads to compound problems.
+
+**Test Impact Assessment**
+```bash
+# Don't assume scope - run everything
+npm run test     # May reveal 65+ failing tests from "small" change
+```
+Internal API changes can break many external tests. Test early, fail early, fix systematically.
+
+### Comprehensive Test Definition
+
+Write tests that define complete behavior:
+```typescript
+// ✅ Cover all scenarios in test suite
+void describe('nested SQL template flattening', () => {
+  void it('should flatten simple nested SQL', () => { /* ... */ });
+  void it('should handle deeply nested SQL', () => { /* ... */ });
+  void it('should handle multiple nested SQL with parameters', () => { /* ... */ });
+});
+```
+**Comprehensive test suites (200+ lines) help catch design issues early and define exact behavior expectations.**
+
 ### Test Structure (AAA Pattern)
 
 ```typescript

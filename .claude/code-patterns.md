@@ -21,6 +21,54 @@
 - **Import Style**: Relative imports for internal modules, package imports for external
 - **Path Mapping**: Workspace-relative imports via `tsconfig.json`
 
+### Branded Type Patterns
+- **Public API**: Simple branded types hide internal complexity
+- **Internal Structure**: Rich interfaces for implementation flexibility
+- **Helper Functions**: Clean access to internal structure when needed
+- **Intentional Divergence**: Type system and runtime can diverge for API design
+
+```typescript
+// ✅ Branded type with hidden internal structure
+type SQL = string & { __brand: 'sql' };
+
+// Internal rich structure
+interface ParametrizedSQL {
+  __brand: 'parametrized-sql';
+  sql: string;
+  params: unknown[];
+}
+
+// Helper for internal access
+const asParametrizedSQL = (sql: SQL): ParametrizedSQL => 
+  sql as unknown as ParametrizedSQL;
+```
+
+## Design Simplicity Principles
+
+### Single Responsibility Functions
+```typescript
+// ✅ Parametrizer has ONE job - convert values to parameters
+const parametrize = (strings: TemplateStringsArray, values: unknown[]) => {
+  // Everything becomes parameter except nested SQL which gets flattened
+  // Special value handling happens in formatters, not here
+};
+```
+
+### Avoid Over-Engineering
+- Don't handle special cases unless actually needed
+- Move complexity to appropriate layer (formatters vs parametrizers)
+- Keep each layer simple and focused on its single responsibility
+
+**Example of keeping it simple:**
+```typescript
+// ✅ Simple and focused
+if (isNestedSQL(value)) {
+  flatten(value);  // Only exception: flatten nested SQL
+} else {
+  addParameter(value);  // Everything else becomes __P1__, __P2__ parameters
+}
+```
+
 ## Connection Management Patterns
 
 ### Lazy Singleton Pattern
