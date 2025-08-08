@@ -8,6 +8,7 @@ import {
   SQL,
   type DeferredSQL,
 } from './sql';
+import { type ParametrizedSQL, isParametrizedSQL } from './parametrizedSQL';
 
 export interface SQLFormatter {
   formatIdentifier: (value: unknown) => string;
@@ -91,6 +92,20 @@ function formatValue(value: unknown, formatter: SQLFormatter): string {
 
 function processSQL(sql: SQL, formatter: SQLFormatter): string {
   if (isRawSQL(sql)) return sql.sql;
+
+  if (isParametrizedSQL(sql)) {
+    const parametrized = sql as unknown as ParametrizedSQL;
+    let result = parametrized.sql;
+
+    // Replace __P1__, __P2__, etc. with formatted parameter values
+    parametrized.params.forEach((param, index) => {
+      const placeholder = `__P${index + 1}__`;
+      const formattedValue = formatValue(param, formatter);
+      result = result.replace(new RegExp(placeholder, 'g'), formattedValue);
+    });
+
+    return result;
+  }
 
   if (!isDeferredSQL(sql)) return sql;
 

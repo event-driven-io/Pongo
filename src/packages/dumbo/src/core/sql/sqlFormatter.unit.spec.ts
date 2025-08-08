@@ -1,15 +1,7 @@
 import assert from 'assert';
 import { before, describe, it } from 'node:test';
-import {
-  identifier,
-  isDeferredSQL,
-  isRawSQL,
-  isSQL,
-  literal,
-  SQL,
-  type DeferredSQL,
-  type RawSQL,
-} from './sql';
+import { identifier, isDeferredSQL, isSQL, literal, SQL } from './sql';
+import { isParametrizedSQL, type ParametrizedSQL } from './parametrizedSQL';
 import { registerFormatter, type SQLFormatter } from './sqlFormatter';
 
 const mockFormatter: SQLFormatter = {
@@ -45,16 +37,16 @@ void describe('SQL template', () => {
       const query = SQL`SELECT * FROM users`;
       assert.strictEqual(isSQL(query), true);
       assert.strictEqual(isDeferredSQL(query), false);
-      assert.strictEqual(isRawSQL(query), true);
+      assert.strictEqual(isParametrizedSQL(query), true);
     });
 
     void it('should create SQL from raw string', () => {
       const query = SQL`SELECT * FROM users`;
       assert.strictEqual(isSQL(query), true);
       assert.strictEqual(isDeferredSQL(query), false);
-      assert.strictEqual(isRawSQL(query), true);
+      assert.strictEqual(isParametrizedSQL(query), true);
       assert.strictEqual(
-        (query as unknown as RawSQL).sql,
+        (query as unknown as ParametrizedSQL).sql,
         'SELECT * FROM users',
       );
     });
@@ -65,11 +57,12 @@ void describe('SQL template', () => {
       const query = SQL`SELECT * FROM users WHERE name = ${literal(name)} AND age = ${age}`;
 
       assert.strictEqual(isSQL(query), true);
-      assert.strictEqual(isDeferredSQL(query), true);
+      assert.strictEqual(isParametrizedSQL(query), true);
 
-      const deferred = query as unknown as DeferredSQL;
-      assert.strictEqual(deferred.values.length, 2);
-      assert.strictEqual(deferred.strings.length, 3);
+      const parametrized = query as unknown as ParametrizedSQL;
+      assert.strictEqual(parametrized.params.length, 2);
+      assert.strictEqual(parametrized.sql.includes('__P1__'), true);
+      assert.strictEqual(parametrized.sql.includes('__P2__'), true);
     });
   });
 
@@ -112,7 +105,7 @@ void describe('SQL template', () => {
       const result = SQL.merge([base, SQL` `, from, SQL` `, where]);
 
       assert.strictEqual(isSQL(result), true);
-      assert.strictEqual(isDeferredSQL(result), true);
+      assert.strictEqual(isParametrizedSQL(result), true);
       assert.strictEqual(SQL.isEmpty(result), false);
     });
 

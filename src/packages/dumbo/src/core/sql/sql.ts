@@ -1,5 +1,5 @@
 import { formatSQL } from './sqlFormatter';
-import { ParametrizedSQL } from './parametrizedSQL';
+import { ParametrizedSQL, isParametrizedSQL } from './parametrizedSQL';
 
 export type SQL = string & { __brand: 'sql' };
 
@@ -73,6 +73,11 @@ export const concatSQL = (...sqls: SQL[]): SQL => {
 
 const isEmpty = (sql: SQL): boolean => {
   if (typeof sql === 'string') return sql.trim() === '';
+
+  if (isParametrizedSQL(sql)) {
+    const parametrized = sql as unknown as ParametrizedSQL;
+    return parametrized.sql.trim() === '' && parametrized.params.length === 0;
+  }
 
   if (isDeferredSQL(sql)) {
     const deferred = sql as DeferredSQL;
@@ -167,5 +172,5 @@ export const isSQL = (value: unknown): value is SQL => {
     return false;
   }
 
-  return isDeferredSQL(value) || isRawSQL(value);
+  return isDeferredSQL(value) || isRawSQL(value) || isParametrizedSQL(value);
 };

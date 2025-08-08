@@ -5,11 +5,11 @@ import {
   SQL,
   formatSQL,
   identifier,
-  isRawSQL,
   isSQL,
   literal,
   plainString,
 } from '../../../../../core/sql';
+import { isParametrizedSQL } from '../../../../../core/sql/parametrizedSQL';
 
 export function processSQLForTesting(sql: SQL): string {
   const formatter = sqliteFormatter;
@@ -93,7 +93,7 @@ void describe('SQLite SQL Tagged Template Literal', () => {
   void it('should work with raw SQL', () => {
     const rawQuery = SQL`SELECT * FROM users`;
     assert.strictEqual(isSQL(rawQuery), true);
-    assert.strictEqual(isRawSQL(rawQuery), true);
+    assert.strictEqual(isParametrizedSQL(rawQuery), true);
     assert.strictEqual(
       SQL.format(rawQuery, sqliteFormatter),
       'SELECT * FROM users',
