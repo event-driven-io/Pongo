@@ -29,9 +29,11 @@ Read project context and lessons learned, then adjust the plan for smoother futu
 
 - YOU MUST PRESERVE all existing prompts, phases, steps, and implementation structure
 - YOU MUST NOT add progress tracking, status indicators, or completion markers, or explicit learning from implementations
+- YOU MUST NOT provide explicit insights, but reflect them in the plan
 - YOU MUST NOT merge lessons learned content directly into the plan
 - YOU MUST KEEP the plan as actionable prompts for future implementation
-- YOU MUST not lower quality rules, e.g. by telling to run only unit tests instead of the full suite
+- YOU MUST not lower quality rules, e.g. by telling to run only unit tests instead of the full suite,
+- You don't need to provide the exact implementation, but enough to guide precise implementation
 
 **Default Allowed Changes (proceed without asking):**
 
@@ -50,6 +52,7 @@ Read project context and lessons learned, then adjust the plan for smoother futu
 **Instructions:**
 
 - Read spec and lessons files first to understand context and discoveries
+- You don't need to provide the exact implementation, but enough to guide precise implementation
 - Make targeted improvements to existing prompts to improve clarity and actionability
 - Preserve all code examples, file paths, and technical specifications
 - If you identify opportunities for new prompts, redundant steps, or reordering - STOP and ask for approval

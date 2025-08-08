@@ -3,6 +3,8 @@ import {
   JSONSerializer,
   formatSQL,
   registerFormatter,
+  mapSQLValue,
+  formatParametrizedQuery,
 } from '../../../../../core';
 import format from './pgFormat';
 
@@ -53,7 +55,15 @@ const pgFormatter: SQLFormatter = {
   formatObject: (value: object): string => {
     return `'${JSONSerializer.serialize(value).replace(/'/g, "''")}'`;
   },
-  format: (sql) => formatSQL(sql, pgFormatter),
+  mapSQLValue: (value: unknown): unknown => {
+    // PostgreSQL doesn't need special type conversions, use base function
+    return mapSQLValue(value, pgFormatter);
+  },
+  format: (sql) => {
+    // Use base function with PostgreSQL-specific placeholder generator
+    return formatParametrizedQuery(sql, (index) => `$${index + 1}`);
+  },
+  formatRaw: (sql) => formatSQL(sql, pgFormatter),
 };
 
 registerFormatter('PostgreSQL', pgFormatter);

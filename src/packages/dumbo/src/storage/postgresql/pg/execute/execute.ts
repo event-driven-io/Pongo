@@ -91,7 +91,8 @@ async function batch<Result extends QueryResultRow = QueryResultRow>(
   for (let i = 0; i < sqls.length; i++) {
     tracer.info('db:sql:query', { sql: sqls[i]! });
     //console.log(pgFormatter.format(sqls[i]!));
-    const result = await client.query<Result>(pgFormatter.format(sqls[i]!));
+    const { query, params } = pgFormatter.format(sqls[i]!);
+    const result = await client.query<Result>(query, params);
     results[i] = { rowCount: result.rowCount, rows: result.rows };
   }
   return Array.isArray(sqlOrSqls) ? results : results[0]!;

@@ -44,11 +44,11 @@ Read project context and current plan from ./plan.md, then align todo tracking w
 **CRITICAL CONSTRAINTS:**
 
 - YOU MUST go as close as possible with plan.
-- YOU MUST NOT remove completed phases, just mark them as coompleted
 - YOU MUST PRESERVE all existing prompts, phases, steps, and implementation structure
 - YOU MUST NOT merge lessons learned content directly into the todo
 - YOU MUST KEEP the plan as actionable prompts for future implementation
 - YOU MUST not lower quality rules, e.g. by telling to run only unit tests instead of the full suite
+- YOU MUST NOT remove completed phases, just mark them as coompleted
 
 **Default Allowed Changes (proceed without asking):**
 
@@ -69,4 +69,5 @@ Read project context and current plan from ./plan.md, then align todo tracking w
 - Make targeted improvements to existing prompts to improve clarity and actionability
 - Preserve all code examples, progress, file paths, and technical specifications
 - If you identify opportunities for new prompts, redundant steps, or reordering - STOP and ask for approval
-- Focus on making the todo fully aligned with the plan"
+- Focus on making the todo fully aligned with the plan
+- YOU MUST NOT remove completed phases, just mark them as coompleted"

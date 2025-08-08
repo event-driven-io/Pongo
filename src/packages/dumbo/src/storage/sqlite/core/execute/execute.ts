@@ -6,7 +6,7 @@ import {
   type QueryResult,
   type QueryResultRow,
 } from '../../../../core';
-import type { SQLiteClient } from '../connections';
+import type { SQLiteClient, Parameters } from '../connections';
 import { sqliteFormatter } from '../sql/formatter';
 
 export const sqliteExecute = async <Result = void>(
@@ -70,7 +70,8 @@ async function batch<Result extends QueryResultRow = QueryResultRow>(
   for (let i = 0; i < sqls.length; i++) {
     tracer.info('db:sql:query', { sql: sqls[i]! });
 
-    const result = await client.query<Result>(sqliteFormatter.format(sqls[i]!));
+    const { query, params } = sqliteFormatter.format(sqls[i]!);
+    const result = await client.query<Result>(query, params as Parameters[]);
 
     results[i] = { rowCount: result.length, rows: result };
   }

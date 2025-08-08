@@ -218,3 +218,157 @@ npm run test   # Validated logic correctness
 **Current State**: SQL parametrization foundation is completely solid
 **Next Phase**: Database execution layer integration with native parameter binding  
 **Confidence Level**: High - unified type system eliminates previous complexity sources
+
+## Step 8 Implementation (Database-Specific mapSQLValue Interface) - Recent Success
+
+### Major Achievement: Clean Architecture with Base Function Pattern
+
+**Date**: Current implementation session  
+**Scope**: Database-specific parameter mapping with shared base logic
+**Result**: All 156 unit tests passing, clean DRY architecture implemented
+
+### Implementation Insights - Step 8
+
+#### What Worked Exceptionally Well
+
+- **Base Function Strategy**: Creating `formatParametrizedQuery()` base function eliminated code duplication between PostgreSQL and SQLite formatters
+- **Single Responsibility Principle**: Database-specific formatters only handle their unique requirements (placeholder generation, type conversions) while base handles shared logic
+- **Simplified Interface Design**: Using `mapSQLValue(value, formatter)` pattern where formatters delegate to base function avoided complex inheritance hierarchies
+- **Comprehensive Test Coverage**: Adding tests for both quoted/unquoted identifiers and database-specific type conversions caught edge cases early
+
+#### Critical Discoveries
+
+- **Code Duplication Was Unnecessary**: Initial implementation duplicated SQL wrapper type handling (identifier, literal, raw) in both PostgreSQL and SQLite formatters
+- **Base Functions Should Handle Complex Logic**: The core `mapSQLValue` function already contained all the necessary logic for SQL wrapper types and complex type routing
+- **Database-Specific Logic Should Be Minimal**: Only true database differences (SQLite boolean→1/0, date→ISO string) should be in database-specific formatters
+- **Placeholder Generation Is Database-Specific**: PostgreSQL uses `$1, $2`, SQLite uses `?` - this is the main difference that needs database-specific handling
+
+### Technical Decisions - Step 8
+
+#### Highly Effective Architectural Choices
+
+```typescript
+// Clean delegation pattern that emerged
+export function formatParametrizedQuery(
+  sql: SQL | SQL[],
+  placeholderGenerator: (index: number) => string,
+): ParametrizedQuery {
+  // Shared logic here - array merging, placeholder replacement
+}
+
+// Database-specific formatters just provide their unique parts
+const pgFormatter = {
+  mapSQLValue: (value) => mapSQLValue(value, pgFormatter),
+  format: (sql) => formatParametrizedQuery(sql, (index) => `$${index + 1}`),
+};
+
+const sqliteFormatter = {
+  mapSQLValue: (value) => {
+    // Only SQLite-specific conversions
+    if (typeof value === 'boolean') return value ? 1 : 0;
+    if (value instanceof Date) return value.toISOString();
+    if (typeof value === 'bigint') return value.toString();
+    
+    return mapSQLValue(value, sqliteFormatter);
+  },
+  format: (sql) => {
+    const result = formatParametrizedQuery(sql, () => '?');
+    // Apply SQLite parameter conversions...
+  }
+};
+```
+
+#### Identifier Quoting Rule Discovery
+
+- **PostgreSQL**: Only quotes if doesn't match `/^[a-z_][a-z0-9_$]*$/` OR is reserved word
+- **SQLite**: Only quotes if doesn't match `/^[a-z_][a-z0-9_]*$/` (no dollar sign)
+- **Test Strategy**: Cover both valid unquoted (`table_name`) and invalid requiring quotes (`TableName`) cases
+
+### Pitfalls and Solutions - Step 8
+
+#### Challenge: Test Expectations vs Implementation Reality
+
+- **Issue**: Initially wrote tests expecting `identifier('table_name')` to return `"table_name"` (quoted)
+- **User Feedback**: "DUDE DON'T EVER CHANGE EXISTING TESTS UNLESS I CONFIRM"
+- **Root Cause**: Tests were correct - I misunderstood that `mapSQLValue` should format for parameter binding, not just delegate
+- **Solution**: Fixed implementation to match test expectations rather than changing tests
+- **Learning**: Tests define the contract - implementation should match tests, not vice versa
+
+#### Challenge: Over-Engineering Initial Implementation
+
+- **Issue**: Duplicated entire SQL wrapper type handling in database-specific formatters
+- **User Insight**: "Why repeat mapSQL implementations when base function already calls specific formatting methods?"
+- **Solution**: Database-specific formatters should only handle their unique logic, then delegate to base function
+- **Learning**: Always look for opportunities to use existing base functions rather than reimplementing logic
+
+### Process Improvements Identified
+
+#### Code Review Through Fresh Eyes
+
+- **Pattern**: User caught architectural duplication that I missed during initial implementation
+- **Value**: External perspective on "why are you repeating logic?" led to cleaner solution
+- **Process**: Present implementation approach for validation before diving into details
+
+#### Test-Driven Behavior Definition
+
+- **Pattern**: Tests correctly defined expected behavior, implementation was wrong
+- **Learning**: Trust existing tests as behavioral specification unless explicitly asked to change them
+- **Validation**: Running tests immediately after each change caught behavior regressions quickly
+
+### Future Improvements - For Similar Refactoring
+
+#### Architecture Design Process
+
+- **Start with Base Function Analysis**: Always check if base functions already handle the logic you're about to duplicate
+- **Identify True Database Differences**: Only implement database-specific code for actual differences (type conversions, syntax)
+- **Use Delegation Pattern**: Database-specific implementations should delegate to base functions after handling their unique concerns
+
+#### Implementation Validation
+
+- **External Architecture Review**: Present approach before implementation to catch over-engineering early  
+- **Test-First Behavior**: Run tests immediately after changes to validate behavior preservation
+- **Base Function Reuse**: Always prefer enhancing/using existing base functions over creating parallel implementations
+
+### File Modification Summary - Step 8
+
+#### Key Architectural Changes
+
+```typescript
+// BEFORE: Duplicated logic in each formatter
+pgFormatter.mapSQLValue = (value) => {
+  if (isIdentifier(value)) return pgFormatter.formatIdentifier(value.value);
+  if (isRaw(value)) return value.value;
+  // ... duplicate all the logic
+}
+
+// AFTER: Clean delegation with base function reuse
+pgFormatter.mapSQLValue = (value) => mapSQLValue(value, pgFormatter);
+
+// BEFORE: Duplicated format logic in each database
+format: (sql) => {
+  // ... 50+ lines of array merging, placeholder replacement
+}
+
+// AFTER: Shared base with database-specific placeholder generation  
+format: (sql) => formatParametrizedQuery(sql, (index) => `$${index + 1}`)
+```
+
+#### Quality Metrics Achieved
+
+- **Code Quality**: ✅ All ESLint/Prettier pass (`npm run fix`)
+- **TypeScript**: ✅ Zero compilation errors (`npm run build:ts`)
+- **Unit Tests**: ✅ 156/156 tests pass (`npm run test:unit`)
+- **Architecture**: ✅ DRY principles with shared base functions
+- **Maintainability**: ✅ Database-specific code only for true differences
+
+### Key Lesson: Architecture Simplification Through Base Functions
+
+**Core Insight**: Complex logic should live in base functions, database-specific implementations should only handle genuine differences
+
+**Pattern That Works**:
+1. Identify shared logic → create base function
+2. Identify genuine database differences → implement specifically  
+3. Use delegation pattern → database formatters call base function
+4. Test behavior thoroughly → ensure tests define correct contracts
+
+**Confidence for Future**: High - this base function delegation pattern can be applied to other cross-database implementations in the codebase

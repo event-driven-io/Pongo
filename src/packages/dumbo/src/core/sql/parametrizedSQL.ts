@@ -1,4 +1,4 @@
-import { type SQL, isSQL } from './sql';
+import { type SQL, isSQL, isRaw } from './sql';
 
 export interface ParametrizedSQL {
   __brand: 'parametrized-sql';
@@ -31,6 +31,9 @@ export const ParametrizedSQL = (
         resultSql += adjustedSql.sql;
         params.push(...nested.params);
         paramIndex += nested.params.length;
+      } else if (isRaw(value)) {
+        // Raw values should be inlined immediately, not parametrized
+        resultSql += value.value;
       } else {
         resultSql += `__P${paramIndex}__`;
         params.push(value);

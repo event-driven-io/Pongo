@@ -24,7 +24,9 @@ const mockFormatter: SQLFormatter = {
   formatArray: (array: unknown[], itemFormatter) => {
     return '(' + array.map(itemFormatter).join(', ') + ')';
   },
-  format: (sql) => SQL.format(sql, mockFormatter),
+  mapSQLValue: (value: unknown) => value, // Simple pass-through for mock
+  format: (_sql) => ({ query: 'mocked query', params: [] }),
+  formatRaw: (_sql) => 'mocked raw query',
 };
 
 void describe('SQL template', () => {

@@ -198,25 +198,28 @@ void describe('SQL Parametrizer', () => {
     });
 
     void describe('raw() values', () => {
-      void it('should pass through raw SQL as parameters', () => {
+      void it('should inline raw SQL immediately', () => {
         const result = asParametrizedSQL(
           SQL`SELECT * FROM users ${raw('ORDER BY created_at DESC')}`,
         );
 
-        assert.equal(result.sql, 'SELECT * FROM users __P1__');
-        assert.deepEqual(result.params, [raw('ORDER BY created_at DESC')]);
+        assert.equal(
+          result.sql,
+          'SELECT * FROM users ORDER BY created_at DESC',
+        );
+        assert.deepEqual(result.params, []);
       });
 
-      void it('should pass through all mixed values as parameters', () => {
+      void it('should inline raw values and parametrize other values', () => {
         const result = asParametrizedSQL(
           SQL`SELECT * FROM users WHERE ${raw("status = 'active'")} AND id = ${123}`,
         );
 
         assert.equal(
           result.sql,
-          'SELECT * FROM users WHERE __P1__ AND id = __P2__',
+          "SELECT * FROM users WHERE status = 'active' AND id = __P1__",
         );
-        assert.deepEqual(result.params, [raw("status = 'active'"), 123]);
+        assert.deepEqual(result.params, [123]);
       });
     });
 
@@ -237,7 +240,7 @@ void describe('SQL Parametrizer', () => {
           FROM __P3__
           WHERE status = __P4__
             AND id > __P5__
-            __P6__
+            AND created_at > NOW() - INTERVAL '7 days'
         `,
         );
         assert.deepEqual(result.params, [
@@ -246,7 +249,6 @@ void describe('SQL Parametrizer', () => {
           identifier('users'),
           literal('active'),
           100,
-          raw("AND created_at > NOW() - INTERVAL '7 days'"),
         ]);
       });
 
@@ -259,18 +261,16 @@ void describe('SQL Parametrizer', () => {
         assert.equal(
           result.sql,
           `
-          INSERT INTO __P1__ (__P2__, message, user_id, __P3__)
-          VALUES (__P4__, __P5__, __P6__, __P7__)
+          INSERT INTO __P1__ (__P2__, message, user_id, created_at)
+          VALUES (__P3__, __P4__, __P5__, NOW())
         `,
         );
         assert.deepEqual(result.params, [
           identifier('logs'),
           identifier('level'),
-          raw('created_at'),
           literal('ERROR'),
           'Database connection failed',
           42,
-          raw('NOW()'),
         ]);
       });
     });

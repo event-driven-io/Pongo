@@ -4,7 +4,7 @@
 
 The detailed TDD implementation plan has been created in `plan.md`. Ready to begin implementation.
 
-## Current Implementation State: Phase 2 Complete, Phase 3 Started
+## Current Implementation State: Phase 3 Complete, Ready for Phase 4
 
 ### Phase 1: Foundation - Core Parametrizer ✅ COMPLETE
 - [x] Step 1: Create ParametrizedSQL Interface and Basic Tests
@@ -16,9 +16,9 @@ The detailed TDD implementation plan has been created in `plan.md`. Ready to beg
 - [x] Step 5: Update SQL Template Function to Return ParametrizedSQL (SQL function updated)
 - [x] Step 6: Update Core SQL Exports and Remove Legacy Types ✅ FIXED - All tests now passing
 
-### Phase 3: Formatter Interface Evolution 🔄 IN PROGRESS
+### Phase 3: Formatter Interface Evolution ✅ COMPLETE
 - [x] Step 7: Update Formatter Implementation for ParametrizedSQL ✅ COMPLETE - Handles __P1__ placeholders correctly
-- [ ] Step 8: Add Database-Specific Parametrized Query Interface
+- [x] Step 8: Add Database-Specific Parametrized Query Interface ✅ COMPLETE - Base function delegation pattern successful
 
 ### Phase 4: Execution Layer Integration
 - [ ] Step 9: Refactor PostgreSQL Execution to Use Parametrized Queries
@@ -33,48 +33,61 @@ The detailed TDD implementation plan has been created in `plan.md`. Ready to beg
 
 **CURRENT PRIORITY**: Implement native parameter binding in database execution layers
 
-**MAJOR ACHIEVEMENT**: ✅ Fixed all 65 failing tests! SQL parametrization foundation is now complete with:
-- Unified ParametrizedSQL architecture
-- Legacy types completely removed  
-- All unit tests passing (128/128)
-- TypeScript compilation successful
-- Code quality checks passing
+**MAJOR ACHIEVEMENT**: ✅ Phase 3 Complete! Database-specific parameter mapping implemented with:
+- Clean base function delegation pattern
+- PostgreSQL and SQLite formatters with mapSQLValue interface
+- All 156 unit tests passing
+- DRY architecture with minimal database-specific code
+- Base function handles complex SQL wrapper types
 
-**Next Implementation Phase**: Complete Phase 3, then Phase 4 - Execution Layer Integration
+**Next Implementation Phase**: Phase 4 - Execution Layer Integration
 
-1. **Step 8**: Add Database-Specific Parametrized Query Interface ⚠️ CRITICAL FOR PHASE 4
-   ```
-   Add parametrized query generation interfaces to both PostgreSQL and SQLite formatters:
-   
-   **IMPORTANT**: Add new interface alongside existing methods - don't replace existing string-based interface yet.
-   
-   PostgreSQL Formatter (`src/packages/dumbo/src/storage/postgresql/core/sql/formatter/index.ts`):
-   1. **Update existing `format(sql: SQL)` method to return `{ query: string; params: unknown[] }`**
-      - Process ParametrizedSQL to convert __P1__, __P2__ to PostgreSQL $1, $2 format
-      - Apply existing type formatting to parameter values (BigInt, Date, JSON, etc.)
-      - Return {query: "SELECT * FROM users WHERE id = $1", params: [123]}
-   
-   2. **Add `formatRaw(sql: SQL): string` method**
-      - Use existing string-based formatting for debugging
-      - Inline all parameters as escaped literals
-   
-   SQLite Formatter (`src/packages/dumbo/src/storage/sqlite/core/sql/formatter/index.ts`):
-   1. **Update existing `format(sql: SQL)` method to return `{ query: string; params: unknown[] }`**
-      - Convert __P1__, __P2__ to SQLite ? format (positional placeholders)
-      - Apply SQLite-specific type formatting (boolean as 1/0, etc.)
-      - Handle parameter array in correct positional order
-   
-   2. **Add `formatRaw(sql: SQL): string` method**
-      - Same functionality as PostgreSQL version but with SQLite-specific formatting
-   
-   Write comprehensive tests for both formatters following Pongo testing patterns.
-   ```
+**Step 8 Implementation Details** (✅ COMPLETED):
+```
+**CRITICAL**: Raw values are already inlined during parametrization phase - formatters don't receive raw() values as parameters.
 
-2. **Step 9**: Refactor PostgreSQL Execution to Use Parametrized Queries
+**Implementation Steps (COMPLETED):**
+
+1. **Add base mapSQLValue function and rename existing function in core**
+   File: `src/packages/dumbo/src/core/sql/sqlFormatter.ts`
+   - ✅ Rename `formatValue()` → `formatSQLValue()` (for string formatting)
+   - ✅ Update all calls to `formatValue()` → `formatSQLValue()` within the file  
+   - ✅ Add base `mapSQLValue()` function for parameter binding
+
+2. **Update SQLFormatter interface to require mapSQLValue**
+   File: `src/packages/dumbo/src/core/sql/sqlFormatter.ts`
+   - ✅ Add `mapSQLValue: (value: unknown) => unknown;` to interface
+
+3. **Implement mapSQLValue in PostgreSQL formatter**
+   File: `src/packages/dumbo/src/storage/postgresql/core/sql/formatter/index.ts`
+   - ✅ PostgreSQL doesn't need specific type conversions, use base function
+
+4. **Implement mapSQLValue in SQLite formatter**
+   File: `src/packages/dumbo/src/storage/sqlite/core/sql/formatter/index.ts`
+   - ✅ Check SQLite-specific types first (boolean → 1/0, Date → ISO string, BigInt → string)
+   - ✅ Fall back to base for SQL wrappers and other types
+
+5. **Update formatter format methods to use mapSQLValue**
+   - ✅ Map parameter values using formatter's mapSQLValue method
+   - ✅ Return { query, params: mappedParams }
+
+6. **Update existing references to formatValue**
+   - ✅ Update processSQL function to call formatSQLValue instead of formatValue
+
+7. **Write comprehensive tests for both formatters**
+   - ✅ Test SQL wrapper types, basic types, DB-specific conversions
+   - ✅ Error handling for non-ParametrizedSQL input
+
+**Expected Outcomes (ACHIEVED):**
+- PostgreSQL: { query: "SELECT * FROM users WHERE id = $1", params: [123] }
+- SQLite: { query: "SELECT * FROM users WHERE id = ?", params: [123] }
+```
+
+1. **Step 9**: Refactor PostgreSQL Execution to Use Parametrized Queries
    - Update PostgreSQL execution to use native parameter binding
    - Replace string interpolation with `client.query(query, params)`
 
-3. **Step 10**: Refactor SQLite Execution to Use Parametrized Queries  
+2. **Step 10**: Refactor SQLite Execution to Use Parametrized Queries  
    - Apply same pattern to SQLite execution
    - Handle SQLite-specific parameter binding format
 
