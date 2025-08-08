@@ -4,17 +4,20 @@
 
 The detailed TDD implementation plan has been created in `plan.md`. Ready to begin implementation.
 
-## Current Implementation State: Phase 1 Complete
+## Current Implementation State: Phase 1 Complete, Phase 2 Partially Complete
 
-### Phase 1: Foundation - Core Parametrizer
+### Phase 1: Foundation - Core Parametrizer ✅ COMPLETE
 - [x] Step 1: Create ParametrizedSQL Interface and Basic Tests
 - [x] Step 2: Implement Basic Template Parametrization  
-- [x] Step 3: Implement Special Value Type Handling
+- [x] Step 3: Special Value Types Pass Through (simplified: all become parameters)
 - [x] Step 4: Implement Nested SQL Template Flattening
 
-### Phase 2: SQL Function Integration
-- [ ] Step 5: Update SQL Template Function to Return ParametrizedSQL
-- [ ] Step 6: Update Core SQL Exports and Remove Legacy Types
+### Phase 2: SQL Function Integration ⚠️ PARTIALLY COMPLETE
+- [x] Step 5: Update SQL Template Function to Return ParametrizedSQL (SQL function updated)
+- [🔄] Step 6: Update Core SQL Exports and Remove Legacy Types (CRITICAL - 65 tests failing)
+
+### Phase 3: Formatter Layer Integration ⚠️ CRITICAL PRIORITY
+- [🔄] Step 7: Update Formatter Implementation for ParametrizedSQL (BLOCKING - tests expect strings)
 
 ### Phase 3: Formatter Interface Evolution
 - [ ] Step 7: Extend SQLFormatter Interface for Parametrized Queries
@@ -29,13 +32,21 @@ The detailed TDD implementation plan has been created in `plan.md`. Ready to beg
 - [ ] Step 12: Add Parametrization-Specific Tests
 - [ ] Step 13: Query Plan Reuse Validation and Performance Benchmarking
 
-## Next Actions
+## Next Actions - CRITICAL FIXES NEEDED
 
-1. Begin with Step 1: Create ParametrizedSQL Interface and Basic Tests
-2. Follow TDD approach: Write failing tests, implement minimal code, refactor
-3. Each step builds on the previous step's foundation
-4. Test both PostgreSQL and SQLite at each appropriate step
-5. Remove DeferredSQL and RawSQL types completely - no backward compatibility needed
+**IMMEDIATE PRIORITY**: Fix the 65 failing tests by updating formatters to handle ParametrizedSQL
+
+1. **Step 6 (CRITICAL)**: Update Core SQL Exports and Remove Legacy Types
+   - Remove DeferredSQL/RawSQL type guards and definitions
+   - Update mergeSQL(), concatSQL(), isEmpty() to handle ParametrizedSQL
+   - Export ParametrizedSQL types from index.ts
+
+2. **Step 7 (CRITICAL)**: Update Formatter Implementation
+   - Update formatSQL() to handle ParametrizedSQL objects
+   - Process __P1__, __P2__ placeholders with parameter values
+   - Apply existing formatValue() logic to parameters
+
+**Root Cause**: SQL function now returns ParametrizedSQL but formatters expect DeferredSQL/RawSQL structure
 
 ## Implementation Notes
 
@@ -46,6 +57,10 @@ The detailed TDD implementation plan has been created in `plan.md`. Ready to beg
 - Watch mode: `npm run build:ts:watch`, `npm run test:unit:watch`
 
 **🗑️ Legacy Type Removal**: DeferredSQL and RawSQL will be completely removed and replaced with ParametrizedSQL. No backward compatibility maintained.
+
+**🎯 Parametrizer Simplicity**: ✅ CONFIRMED - The parametrizer has ONE job - convert values to parameters. Everything becomes a parameter except nested SQL which gets flattened. Special value handling (identifier, literal, raw) happens in formatters, not parametrizer.
+
+**⚠️ Breaking Change Impact**: Changing SQL function return type from DeferredSQL/RawSQL to ParametrizedSQL breaks 65 tests. Formatters must be updated to handle new structure before proceeding.
 
 **Pongo Testing Conventions**:
 - Use Node.js test runner: `describe`, `it` from `node:test`
@@ -66,10 +81,10 @@ The detailed TDD implementation plan has been created in `plan.md`. Ready to beg
 - `npm run build:ts` passes with no errors  
 - `npm run test` passes with no errors (unit, integration, e2e)
 
-## Files to Create
+## Files Created
 
-- `src/packages/dumbo/src/core/sql/sqlParametrizer.ts` - Core parametrizer implementation
-- `src/packages/dumbo/src/core/sql/sqlParametrizer.unit.spec.ts` - Tests for parametrizer
+- ✅ `src/packages/dumbo/src/core/sql/parametrizedSQL.ts` - Core parametrizer implementation
+- ✅ `src/packages/dumbo/src/core/sql/parametrizedSQL.unit.spec.ts` - Tests for parametrizer
 
 ## Files to Modify
 
