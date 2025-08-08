@@ -133,48 +133,50 @@ Run tests to confirm nested SQL flattening works correctly.
 
 **Goal**: Change the SQL`` template function to use the new parametrizer internally.
 
+**CRITICAL**: This step must be completed AFTER Step 4 (parametrizer foundation) but BEFORE Step 6 (type system cleanup).
+
 ```
 ✅ COMPLETED: SQL function now internally uses ParametrizedSQL(strings, values) and casts to SQL type.
 
-Key learnings from implementation:
+Implementation approach that worked:
 - SQL function signature remains: SQL(strings: TemplateStringsArray, ...values: unknown[]): SQL
 - Internally calls ParametrizedSQL(strings, values) then casts to SQL type
 - Casting is necessary because SQL branded type doesn't have .sql/.params properties
 - This approach preserves API compatibility while changing internal structure
 
-Still needed:
-- Update utility functions (mergeSQL, concatSQL, isEmpty) to handle ParametrizedSQL
-- Remove legacy type guards and add isParametrizedSQL type guard
-- Update core exports to include ParametrizedSQL
+⚠️ CRITICAL SEQUENCING: Update utility functions (mergeSQL, concatSQL, isEmpty) to handle ParametrizedSQL structure BEFORE moving to Step 6. Legacy type removal must come after SQL function is fully functional with ParametrizedSQL.
 ```
 
 ### Step 6: Update Core SQL Exports and Remove Legacy Types
 
 **Goal**: Clean up type system by removing legacy types and exporting ParametrizedSQL.
 
-**CRITICAL**: This step must be completed BEFORE moving to formatters because tests expect formatters to handle SQL objects correctly.
+**CRITICAL SEQUENCING**: This step must be completed BEFORE moving to formatters because tests expect unified type system.
+
+**⚠️ CRITICAL LESSON LEARNED**: Complete legacy type removal is essential - partial removal causes cascading import failures. Remove ALL legacy types and type guards in a single coordinated step.
 
 ```
-Update the core SQL module exports and remove legacy types:
+Update the core SQL module exports and remove legacy types systematically:
 
 In `src/packages/dumbo/src/core/sql/index.ts`:
-
-1. Export ParametrizedSQL type and related interfaces
-2. Export parametrizer functions (ParametrizedSQL, isParametrizedSQL)
-3. Remove exports for DeferredSQL and RawSQL types
-4. Update any re-exports to use ParametrizedSQL
+1. Export ParametrizedSQL type and related interfaces: `export * from './parametrizedSQL';`
+2. Remove exports for DeferredSQL and RawSQL types completely
+3. Update any re-exports to use ParametrizedSQL
 
 In `src/packages/dumbo/src/core/sql/sql.ts`:
+1. Remove DeferredSQL and RawSQL type definitions COMPLETELY
+2. Remove ALL legacy type guards: isDeferredSQL(), isRawSQL() 
+3. Add isParametrizedSQL() type guard (import from parametrizedSQL.ts)
+4. Update mergeSQL(), concatSQL(), isEmpty() to handle ONLY ParametrizedSQL objects
+5. Add clear documentation: "// Legacy interfaces removed - now using ParametrizedSQL"
 
-1. Add isParametrizedSQL() type guard (import from parametrizedSQL.ts)
-2. Remove legacy type guards: isDeferredSQL(), isRawSQL()
-3. Remove DeferredSQL and RawSQL type definitions completely
-4. Update mergeSQL() and concatSQL() to handle ParametrizedSQL objects
-5. Update isEmpty() to work with ParametrizedSQL structure
-6. Remove parametrizeSQL() function from parametrizedSQL.ts (no longer needed)
+**VALIDATION SEQUENCE** (run after each file change):
+1. `npm run build:ts` - Catches import/type errors immediately
+2. Follow TypeScript import errors systematically - they guide required changes
+3. `npm run fix` - Ensures code quality
+4. `npm run test` - Validates logic correctness
 
-This step addresses the type system mismatch that causes test failures.
-
+**EXPECT**: Import failures across multiple test files - follow each error systematically rather than trying to predict all dependencies. Update test assertions that check for legacy types.
 ```
 
 ## Phase 3: Formatter Interface Evolution
@@ -216,35 +218,37 @@ Run tests to confirm interface extension works without breaking existing functio
 
 ```
 
-### Step 8: Add Parametrized Query Interface (Future Phase)
+### Step 8: Add Database-Specific Parametrized Query Interface
 
-**Goal**: Later add native parameter binding support for database drivers.
+**Goal**: Add native parameter binding support for database drivers by implementing `format(): {query, params}` interface.
 
-**DEFERRED**: This step adds `format(): {query, params}` interface for native parameter binding. Focus first on making existing string-based formatting work with ParametrizedSQL structure.
-
-**Goal**: Implement parametrized query generation in PostgreSQL and SQLite formatters.
+**CRITICAL SEQUENCING**: This step must be completed BEFORE Step 9-10 (execution layer changes) because execution layer depends on this interface.
 
 ```
+Add parametrized query generation interfaces to both PostgreSQL and SQLite formatters:
 
-Update both database formatters to implement the new parametrized interface:
+**IMPORTANT**: Add the new interface alongside existing methods - don't replace existing string-based interface yet as execution layer still needs it during transition.
 
-PostgreSQL Formatter (`src/packages/dumbo/src/storage/postgresql/core/sql/formatter/`):
+PostgreSQL Formatter (`src/packages/dumbo/src/storage/postgresql/core/sql/formatter/index.ts`):
 
-1. Implement `format(sql: SQL): { query: string; params: unknown[] }`
-
-   - Process ParametrizedSQL to convert **P1**, **P2** to PostgreSQL $1, $2 format
+1. **Update existing `format(sql: SQL)` method to return `{ query: string; params: unknown[] }`**
+   - Process ParametrizedSQL to convert __P1__, __P2__ to PostgreSQL $1, $2 format
    - Apply existing type formatting to parameter values (BigInt, Date, JSON, etc.)
-   - Return {query: "SELECT \* FROM users WHERE id = $1", params: [123]}
+   - Return {query: "SELECT * FROM users WHERE id = $1", params: [123]}
 
-2. Implement `formatRaw(sql: SQL): string`
+2. **Add `formatRaw(sql: SQL): string` method**
    - Use existing string-based formatting for debugging
    - Inline all parameters as escaped literals
 
-SQLite Formatter (`src/packages/dumbo/src/storage/sqlite/core/sql/formatter/`):
+SQLite Formatter (`src/packages/dumbo/src/storage/sqlite/core/sql/formatter/index.ts`):
 
-1. Implement same interface but convert **P1**, **P2** to SQLite ? format
-2. Apply SQLite-specific type formatting (boolean as 1/0, etc.)
-3. Handle parameter array in correct positional order
+1. **Update existing `format(sql: SQL)` method to return `{ query: string; params: unknown[] }`**
+   - Convert __P1__, __P2__ to SQLite ? format (positional placeholders)
+   - Apply SQLite-specific type formatting (boolean as 1/0, etc.)
+   - Handle parameter array in correct positional order
+
+2. **Add `formatRaw(sql: SQL): string` method**
+   - Same functionality as PostgreSQL version but with SQLite-specific formatting
 
 Write comprehensive tests for both formatters following Pongo testing patterns:
 

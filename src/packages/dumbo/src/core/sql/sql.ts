@@ -1,9 +1,7 @@
-import { formatSQL } from './sqlFormatter';
 import { ParametrizedSQL, isParametrizedSQL } from './parametrizedSQL';
+import { formatSQL } from './sqlFormatter';
 
 export type SQL = string & { __brand: 'sql' };
-
-// Legacy interfaces removed - now using ParametrizedSQL
 
 export function SQL(strings: TemplateStringsArray, ...values: unknown[]): SQL {
   const parametrized = ParametrizedSQL(strings, values);
