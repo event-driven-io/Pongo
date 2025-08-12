@@ -1,6 +1,6 @@
 import { JSONSerializer } from '../serializer';
-import { type ParametrizedSQL, isParametrizedSQL } from './parametrizedSQL';
-import { SQL, isSQL } from './sql';
+import { isParametrizedSQL, type ParametrizedSQL } from './parametrizedSQL';
+import { SQL, isSQL, type SQLIn } from './sql';
 
 export interface ParametrizedQuery {
   query: string;
@@ -86,8 +86,17 @@ function formatSQLValue(value: unknown, formatter: SQLFormatter): string {
       ? formatter.formatArray(value, (item) => formatSQLValue(item, formatter))
       : formatter.formatLiteral(value);
   }
-  if (typeof value === 'bigint' && formatter.formatBigInt) {
-    return formatter.formatBigInt(value);
+  if (typeof value === 'boolean') {
+    return formatter.formatBoolean
+      ? formatter.formatBoolean(value)
+      : value
+        ? 'TRUE'
+        : 'FALSE';
+  }
+  if (typeof value === 'bigint') {
+    return formatter.formatBigInt
+      ? formatter.formatBigInt(value)
+      : value.toString();
   }
   if (value instanceof Date && formatter.formatDate) {
     return formatter.formatDate(value);
@@ -130,11 +139,17 @@ export function mapSQLValue(value: unknown, formatter: SQLFormatter): unknown {
       ? formatter.mapArray(value, (item) => mapSQLValue(item, formatter))
       : value.map((item) => mapSQLValue(item, formatter));
   }
-  if (typeof value === 'boolean' && formatter.formatBoolean) {
-    return formatter.formatBoolean(value);
+  if (typeof value === 'boolean') {
+    return formatter.formatBoolean
+      ? formatter.formatBoolean(value)
+      : value
+        ? 'TRUE'
+        : 'FALSE';
   }
-  if (typeof value === 'bigint' && formatter.formatBigInt) {
-    return formatter.formatBigInt(value);
+  if (typeof value === 'bigint') {
+    return formatter.formatBigInt
+      ? formatter.formatBigInt(value)
+      : value.toString();
   }
   if (value instanceof Date && formatter.formatDate) {
     return formatter.formatDate(value);
@@ -148,10 +163,7 @@ export function mapSQLValue(value: unknown, formatter: SQLFormatter): unknown {
   return formatter.formatLiteral(value);
 }
 
-function formatSQLIn(
-  sqlIn: { column: string; values: unknown[] },
-  formatter: SQLFormatter,
-): string {
+function formatSQLIn(sqlIn: SQLIn, formatter: SQLFormatter): string {
   const { column, values } = sqlIn;
 
   if (values.length === 0) {

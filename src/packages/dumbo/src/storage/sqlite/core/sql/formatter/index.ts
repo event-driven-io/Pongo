@@ -17,10 +17,7 @@ const sqliteFormatter: SQLFormatter = {
     return '(' + array.map(itemFormatter).join(', ') + ')';
   },
   formatBoolean: (value: boolean): string => (value ? '1' : '0'),
-  formatBigInt: (value: bigint): string => value.toString(),
   formatDate: (value) => format.literal(value.toISOString()),
-  formatObject: (value) =>
-    `'${JSONSerializer.serialize(value).replace(/'/g, "''")}'`,
   mapSQLValue: (value: unknown): unknown => {
     if (typeof value === 'boolean') return value ? 1 : 0;
     if (value instanceof Date) return value.toISOString();

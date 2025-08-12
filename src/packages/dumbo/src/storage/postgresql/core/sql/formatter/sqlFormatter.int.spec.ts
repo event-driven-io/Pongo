@@ -84,7 +84,7 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 1);
     });
 
-    void it('handles string arrays', async () => {
+    void it('handles string array with single value', async () => {
       const names = ['Alice'];
       const result = await count(
         pool.execute.query(
@@ -93,6 +93,17 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
       );
 
       assert.strictEqual(result, 1);
+    });
+
+    void it('handles string array with multiple values', async () => {
+      const names = ['Alice', 'Bob'];
+      const result = await count(
+        pool.execute.query(
+          SQL`SELECT COUNT(*) as count FROM test_users WHERE ${SQL.in('name', names)}`,
+        ),
+      );
+
+      assert.strictEqual(result, 2);
     });
 
     void it('handles empty string', async () => {
