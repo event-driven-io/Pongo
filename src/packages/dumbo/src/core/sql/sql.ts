@@ -24,21 +24,20 @@ type SQLIdentifier = { [ID]: true; value: string };
 type SQLPlain = { [RAW]: true; value: string };
 type SQLLiteral = { [LITERAL]: true; value: unknown };
 
-const emptySQL = (): SQL =>
-  ({
-    __brand: 'parametrized-sql',
-    sql: '',
-    params: [],
-  }) as unknown as SQL;
+const emptySQL = {
+  __brand: 'parametrized-sql',
+  sql: '',
+  params: [],
+} as unknown as SQL;
 
 const mergeSQL = (sqls: SQL[], separator: string = ' '): SQL => {
   if (!Array.isArray(sqls)) return sqls;
-  if (sqls.length === 0) return emptySQL();
+  if (sqls.length === 0) return emptySQL;
   if (sqls.length === 1) return sqls[0]!;
 
   // Filter out empty SQL parts
   const nonEmptySqls = sqls.filter((sql) => !isEmpty(sql));
-  if (nonEmptySqls.length === 0) return emptySQL();
+  if (nonEmptySqls.length === 0) return emptySQL;
   if (nonEmptySqls.length === 1) return nonEmptySqls[0]!;
 
   const strings: string[] = [''];
@@ -58,7 +57,7 @@ const mergeSQL = (sqls: SQL[], separator: string = ' '): SQL => {
 };
 
 const concatSQL = (...sqls: SQL[]): SQL => {
-  if (sqls.length === 0) return SQL.EMPTY;
+  if (sqls.length === 0) return emptySQL;
   if (sqls.length === 1) return sqls[0]!;
 
   const strings: string[] = [''];
@@ -118,20 +117,19 @@ const isSQLIn = (value: unknown): value is SQLIn => {
   return value !== null && typeof value === 'object' && SQLIN in value;
 };
 
-SQL.EMPTY = emptySQL();
+SQL.EMPTY = emptySQL;
 SQL.concat = concatSQL;
 SQL.merge = mergeSQL;
-SQL.isEmpty = isEmpty;
 SQL.format = formatSQLRaw;
 SQL.in = sqlIn;
 SQL.identifier = identifier;
 SQL.plain = plain;
 SQL.literal = literal;
-SQL.in = sqlIn;
 
 SQL.check = {
   isSQL,
   isParametrizedSQL: (value: unknown) => isParametrizedSQL(value),
+  isEmpty,
   isIdentifier,
   isPlain,
   isLiteral,
