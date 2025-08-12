@@ -24,7 +24,12 @@ type SQLIdentifier = { [ID]: true; value: string };
 type SQLPlain = { [RAW]: true; value: string };
 type SQLLiteral = { [LITERAL]: true; value: unknown };
 
-const emptySQL = (): SQL => SQL([''] as unknown as TemplateStringsArray);
+const emptySQL = (): SQL =>
+  ({
+    __brand: 'parametrized-sql',
+    sql: '',
+    params: [],
+  }) as unknown as SQL;
 
 const mergeSQL = (sqls: SQL[], separator: string = ' '): SQL => {
   if (!Array.isArray(sqls)) return sqls;
@@ -126,7 +131,7 @@ SQL.in = sqlIn;
 
 SQL.check = {
   isSQL,
-  isParametrizedSQL,
+  isParametrizedSQL: (value: unknown) => isParametrizedSQL(value),
   isIdentifier,
   isPlain,
   isLiteral,

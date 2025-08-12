@@ -9,7 +9,6 @@ void describe('SQLite SQL Formatter Integration Tests', () => {
   let db: Dumbo;
 
   before(() => {
-    // Use in-memory database for testing
     db = dumbo({
       connectionString: InMemorySQLiteDatabase,
       connector: 'SQLite:sqlite3',
@@ -33,7 +32,7 @@ void describe('SQLite SQL Formatter Integration Tests', () => {
   });
 
   void describe('Direct Array Handling', () => {
-    void it('should throw error for empty arrays in IN clauses', async () => {
+    void it('throws error for empty arrays in IN clauses', async () => {
       const emptyIds: number[] = [];
 
       try {
@@ -51,7 +50,7 @@ void describe('SQLite SQL Formatter Integration Tests', () => {
       }
     });
 
-    void it('should handle non-empty arrays correctly', async () => {
+    void it('handles non-empty arrays correctly', async () => {
       // Non-empty arrays should still work
       const names = ['Alice'];
       const result = await count(
@@ -65,7 +64,7 @@ void describe('SQLite SQL Formatter Integration Tests', () => {
   });
 
   void describe('SQL.in Helper', () => {
-    void it('should handle empty arrays by returning FALSE, so no records', async () => {
+    void it('handles empty arrays by returning FALSE, so no records', async () => {
       const emptyIds: number[] = [];
       const result = await count(
         db.execute.query(
@@ -76,7 +75,7 @@ void describe('SQLite SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 0);
     });
 
-    void it('should handle non-empty arrays with standard IN clause', async () => {
+    void it('handles non-empty arrays with standard IN clause', async () => {
       // Non-empty array should use standard IN clause for SQLite
       const ids = [1];
       const result = await count(
@@ -88,7 +87,7 @@ void describe('SQLite SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 1);
     });
 
-    void it('should handle string arrays correctly', async () => {
+    void it('handles string arrays correctly', async () => {
       const names = ['Alice'];
       const result = await count(
         db.execute.query(
@@ -99,7 +98,7 @@ void describe('SQLite SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 1);
     });
 
-    void it('should handle empty string arrays', async () => {
+    void it('handles empty string arrays', async () => {
       const emptyNames: string[] = [];
       const result = await count(
         db.execute.query(
