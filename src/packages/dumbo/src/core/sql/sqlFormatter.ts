@@ -151,49 +151,30 @@ export function formatParametrizedQuery(
 
   const parametrized = merged as unknown as ParametrizedSQL;
   let query = parametrized.sql;
-  const finalParams: unknown[] = [];
-  let paramIndex = 0;
+  const params: unknown[] = [];
 
   parametrized.params.forEach((param, index) => {
     const placeholder = `__P${index + 1}__`;
+    const placeholderRegex = new RegExp(placeholder, 'g');
 
     if (SQL.check.isIdentifier(param)) {
-      const inlinedIdentifier = formatter.formatIdentifier(param.value);
-      query = query.replace(new RegExp(placeholder, 'g'), inlinedIdentifier);
+      query = query.replace(placeholderRegex, formatter.formatIdentifier(param.value));
     } else if (SQL.check.isSQLIn(param)) {
-      const sqlInResult = formatSQLInParametrized(
+      const result = formatSQLInParametrized(
         param,
         formatter,
         placeholderGenerator,
-        paramIndex,
+        params.length,
       );
-      query = query.replace(new RegExp(placeholder, 'g'), sqlInResult.sql);
-      finalParams.push(...sqlInResult.params);
-      paramIndex += sqlInResult.params.length;
-    } else if (Array.isArray(param)) {
-      if (param.length === 0) {
-        throw new Error(
-          'Empty arrays in IN clauses are not supported. Use SQL.in(column, array) helper instead.',
-        );
-      }
-      const expandedPlaceholders = param.map(() =>
-        placeholderGenerator(paramIndex++),
-      );
-      const expandedPlaceholderString = `(${expandedPlaceholders.join(', ')})`;
-      query = query.replace(
-        new RegExp(placeholder, 'g'),
-        expandedPlaceholderString,
-      );
-      finalParams.push(...(param as unknown[]));
+      query = query.replace(placeholderRegex, result.sql);
+      params.push(...result.params);
     } else {
-      const dbPlaceholder = placeholderGenerator(paramIndex);
-      query = query.replace(new RegExp(placeholder, 'g'), dbPlaceholder);
-      finalParams.push(param);
-      paramIndex++;
+      query = query.replace(placeholderRegex, placeholderGenerator(params.length));
+      params.push(param);
     }
   });
 
-  return { query, params: finalParams };
+  return { query, params };
 }
 
 export function mapSQLValue(value: unknown, formatter: SQLFormatter): unknown {

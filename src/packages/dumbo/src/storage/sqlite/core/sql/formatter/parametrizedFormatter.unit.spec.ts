@@ -58,10 +58,9 @@ void describe('SQLite Parametrized Formatter', () => {
 
     void it('throws error for empty arrays in IN clauses', () => {
       const ids: string[] = [];
-      const sql = SQL`SELECT * FROM users WHERE _id IN ${ids}`;
 
       assert.throws(
-        () => sqliteFormatter.format(sql),
+        () => SQL`SELECT * FROM users WHERE _id IN ${ids}`,
         /Empty arrays in IN clauses are not supported/,
       );
     });

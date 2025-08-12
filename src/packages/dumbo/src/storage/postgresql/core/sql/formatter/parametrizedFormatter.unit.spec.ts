@@ -1,7 +1,6 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
-import { SQL } from '../../../../../core/sql/sql';
-// Tests for PostgreSQL parametrized formatter
+import { SQL } from '../../../../../core/sql';
 import { pgFormatter } from './index';
 
 void describe('PostgreSQL Parametrized Formatter', () => {
@@ -59,10 +58,9 @@ void describe('PostgreSQL Parametrized Formatter', () => {
 
     void it('throws error for empty arrays in IN clauses', () => {
       const ids: string[] = [];
-      const sql = SQL`SELECT * FROM users WHERE _id IN ${ids}`;
 
       assert.throws(
-        () => pgFormatter.format(sql),
+        () => SQL`SELECT * FROM users WHERE _id IN ${ids}`,
         /Empty arrays in IN clauses are not supported/,
       );
     });
