@@ -1,5 +1,5 @@
 import { ParametrizedSQL, isParametrizedSQL } from './parametrizedSQL';
-import { formatSQL } from './sqlFormatter';
+import { formatSQLRaw } from './sqlFormatter';
 
 export type SQL = string & { __brand: 'sql' };
 
@@ -122,7 +122,7 @@ SQL.EMPTY = emptySQL();
 SQL.concat = concatSQL;
 SQL.merge = mergeSQL;
 SQL.isEmpty = isEmpty;
-SQL.format = formatSQL;
+SQL.format = formatSQLRaw;
 SQL.in = sqlIn;
 SQL.identifier = identifier;
 SQL.plain = plain;

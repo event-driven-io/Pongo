@@ -3,14 +3,14 @@ import { describe, it } from 'node:test';
 import { sqliteFormatter } from '.';
 import {
   SQL,
-  formatSQL,
+  formatSQLRaw,
   isParametrizedSQL,
   isSQL,
 } from '../../../../../core/sql';
 
 export function processSQLForTesting(sql: SQL): string {
   const formatter = sqliteFormatter;
-  return formatSQL(sql, formatter);
+  return formatSQLRaw(sql, formatter);
 }
 
 void describe('SQLite SQL Tagged Template Literal', () => {

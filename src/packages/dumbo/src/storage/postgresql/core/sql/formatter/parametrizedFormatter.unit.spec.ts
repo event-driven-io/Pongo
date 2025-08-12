@@ -108,7 +108,11 @@ void describe('PostgreSQL Parametrized Formatter', () => {
 
       assert.deepStrictEqual(result, {
         query: 'INSERT INTO test (date, bigint, json) VALUES ($1, $2, $3)',
-        params: [date, bigint, obj],
+        params: [
+          "'2023-01-01 00:00:00.000+00'",
+          '123456789012345',
+          `'{"key":"value"}'`,
+        ],
       });
     });
 

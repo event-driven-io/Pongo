@@ -1,7 +1,7 @@
 import { JSONSerializer } from '../../../../../core/serializer';
 import {
-  formatParametrizedQuery,
   formatSQL,
+  formatSQLRaw,
   mapSQLValue,
   registerFormatter,
   type SQLFormatter,
@@ -16,6 +16,8 @@ const sqliteFormatter: SQLFormatter = {
     if (array.length === 0) return '()';
     return '(' + array.map(itemFormatter).join(', ') + ')';
   },
+  formatBoolean: (value: boolean): string => (value ? '1' : '0'),
+  formatBigInt: (value: bigint): string => value.toString(),
   formatDate: (value) => format.literal(value.toISOString()),
   formatObject: (value) =>
     `'${JSONSerializer.serialize(value).replace(/'/g, "''")}'`,
@@ -27,7 +29,7 @@ const sqliteFormatter: SQLFormatter = {
     return mapSQLValue(value, sqliteFormatter);
   },
   format: (sql) => {
-    const result = formatParametrizedQuery(sql, () => '?', sqliteFormatter);
+    const result = formatSQL(sql, () => '?', sqliteFormatter);
 
     const formattedParams = result.params.map((param) => {
       if (param === null || param === undefined) return param;
@@ -42,7 +44,7 @@ const sqliteFormatter: SQLFormatter = {
 
     return { query: result.query, params: formattedParams };
   },
-  formatRaw: (sql) => formatSQL(sql, sqliteFormatter),
+  formatRaw: (sql) => formatSQLRaw(sql, sqliteFormatter),
 };
 
 registerFormatter('SQLite', sqliteFormatter);

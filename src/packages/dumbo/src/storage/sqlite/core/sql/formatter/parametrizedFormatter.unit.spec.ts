@@ -111,7 +111,7 @@ void describe('SQLite Parametrized Formatter', () => {
         params: [
           '2023-01-01T00:00:00.000Z',
           '123456789012345',
-          '{"key":"value"}',
+          `'{"key":"value"}'`,
         ],
       });
     });

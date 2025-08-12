@@ -1,8 +1,8 @@
 import {
   type SQLFormatter,
   JSONSerializer,
-  formatParametrizedQuery,
   formatSQL,
+  formatSQLRaw,
   mapSQLValue,
   registerFormatter,
 } from '../../../../../core';
@@ -38,28 +38,17 @@ const pgFormatter: SQLFormatter = {
       return '(' + formattedItems.join(', ') + ')';
     }
   },
-
   formatDate: (value: Date): string => {
     let isoStr = value.toISOString();
     isoStr = isoStr.replace('T', ' ').replace('Z', '+00');
     return `'${isoStr}'`;
   },
-
-  formatObject: (value: object): string => {
-    return `'${JSONSerializer.serialize(value).replace(/'/g, "''")}'`;
-  },
-
-  mapSQLValue: (value: unknown): unknown => {
-    return mapSQLValue(value, pgFormatter);
-  },
-  format: (sql) => {
-    return formatParametrizedQuery(
-      sql,
-      (index) => `$${index + 1}`,
-      pgFormatter,
-    );
-  },
-  formatRaw: (sql) => formatSQL(sql, pgFormatter),
+  formatObject: (value: object): string =>
+    `'${JSONSerializer.serialize(value).replace(/'/g, "''")}'`,
+  formatBigInt: (value: bigint): string => value.toString(),
+  mapSQLValue: (value: unknown): unknown => mapSQLValue(value, pgFormatter),
+  format: (sql) => formatSQL(sql, (index) => `$${index + 1}`, pgFormatter),
+  formatRaw: (sql) => formatSQLRaw(sql, pgFormatter),
 };
 
 registerFormatter('PostgreSQL', pgFormatter);

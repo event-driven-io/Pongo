@@ -1,3 +1,4 @@
+import { JSONSerializer } from '../serializer';
 import { type ParametrizedSQL, isParametrizedSQL } from './parametrizedSQL';
 import { SQL, isSQL } from './sql';
 
@@ -10,10 +11,15 @@ export interface SQLFormatter {
   formatIdentifier: (value: unknown) => string;
   formatLiteral: (value: unknown) => string;
   formatString: (value: unknown) => string;
+  formatBoolean?: (value: boolean) => string;
   formatArray?: (
     array: unknown[],
     itemFormatter: (item: unknown) => string,
   ) => string;
+  mapArray?: (
+    array: unknown[],
+    itemFormatter: (item: unknown) => unknown,
+  ) => unknown[];
   formatDate?: (value: Date) => string;
   formatObject?: (value: object) => string;
   formatBigInt?: (value: bigint) => string;
@@ -44,7 +50,10 @@ export const getFormatter = (dialect: string): SQLFormatter => {
   return formatters[formatterKey];
 };
 
-export const formatSQL = (sql: SQL | SQL[], formatter: SQLFormatter): string =>
+export const formatSQLRaw = (
+  sql: SQL | SQL[],
+  formatter: SQLFormatter,
+): string =>
   Array.isArray(sql)
     ? sql.map((s) => processSQL(s, formatter)).join('\n')
     : processSQL(sql, formatter);
@@ -68,24 +77,72 @@ function formatSQLValue(value: unknown, formatter: SQLFormatter): string {
 
   if (value === null || value === undefined) {
     return 'NULL';
-  } else if (typeof value === 'number') {
+  }
+  if (typeof value === 'number') {
     return value.toString();
-  } else if (Array.isArray(value)) {
+  }
+  if (Array.isArray(value) && formatter.formatArray) {
     return formatter.formatArray
       ? formatter.formatArray(value, (item) => formatSQLValue(item, formatter))
       : formatter.formatLiteral(value);
-  } else if (typeof value === 'bigint') {
-    return formatter.formatBigInt
-      ? formatter.formatBigInt(value)
-      : formatter.formatLiteral(value);
-  } else if (value instanceof Date) {
-    return formatter.formatDate
-      ? formatter.formatDate(value)
-      : formatter.formatLiteral(value);
-  } else if (typeof value === 'object') {
+  }
+  if (typeof value === 'bigint' && formatter.formatBigInt) {
+    return formatter.formatBigInt(value);
+  }
+  if (value instanceof Date && formatter.formatDate) {
+    return formatter.formatDate(value);
+  }
+  if (typeof value === 'object') {
     return formatter.formatObject
       ? formatter.formatObject(value)
       : formatter.formatLiteral(value);
+  }
+
+  return formatter.formatLiteral(value);
+}
+
+export function mapSQLValue(value: unknown, formatter: SQLFormatter): unknown {
+  if (SQL.check.isIdentifier(value)) {
+    return formatter.formatIdentifier(value.value);
+  }
+  if (SQL.check.isPlain(value)) {
+    return value.value;
+  }
+  if (SQL.check.isLiteral(value)) {
+    return formatter.formatLiteral(value.value);
+  }
+  if (isSQL(value)) {
+    return formatSQLRaw(value, formatter);
+  }
+
+  if (value === null || value === undefined) {
+    return null;
+  }
+  if (typeof value === 'number') {
+    return value;
+  }
+  if (typeof value === 'string') {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return formatter.mapArray
+      ? formatter.mapArray(value, (item) => mapSQLValue(item, formatter))
+      : value.map((item) => mapSQLValue(item, formatter));
+  }
+  if (typeof value === 'boolean' && formatter.formatBoolean) {
+    return formatter.formatBoolean(value);
+  }
+  if (typeof value === 'bigint' && formatter.formatBigInt) {
+    return formatter.formatBigInt(value);
+  }
+  if (value instanceof Date && formatter.formatDate) {
+    return formatter.formatDate(value);
+  }
+  if (typeof value === 'object') {
+    return formatter.formatObject
+      ? formatter.formatObject(value)
+      : `'${JSONSerializer.serialize(value).replace(/'/g, "''")}'`;
   }
 
   return formatter.formatLiteral(value);
@@ -108,37 +165,7 @@ function formatSQLIn(
   return `${formattedColumn} IN (${formattedValues})`;
 }
 
-function formatSQLInParametrized(
-  sqlIn: { column: string; values: unknown[] },
-  formatter: SQLFormatter,
-  placeholderGenerator: (index: number) => string,
-  startIndex: number,
-): { sql: string; params: unknown[] } {
-  const { column, values } = sqlIn;
-
-  if (values.length === 0) {
-    return { sql: 'FALSE', params: [] };
-  }
-
-  if (formatter.formatSQLIn) {
-    return formatter.formatSQLIn(
-      column,
-      values,
-      placeholderGenerator,
-      startIndex,
-    );
-  }
-
-  const formattedColumn = formatter.formatIdentifier(column);
-  const placeholders = values.map((_, index) =>
-    placeholderGenerator(startIndex + index),
-  );
-  const sql = `${formattedColumn} IN (${placeholders.join(', ')})`;
-
-  return { sql, params: values };
-}
-
-export function formatParametrizedQuery(
+export function formatSQL(
   sql: SQL | SQL[],
   placeholderGenerator: (index: number) => string,
   formatter: SQLFormatter,
@@ -158,71 +185,21 @@ export function formatParametrizedQuery(
     const placeholderRegex = new RegExp(placeholder, 'g');
 
     if (SQL.check.isIdentifier(param)) {
-      query = query.replace(placeholderRegex, formatter.formatIdentifier(param.value));
-    } else if (SQL.check.isSQLIn(param)) {
-      const result = formatSQLInParametrized(
-        param,
-        formatter,
-        placeholderGenerator,
-        params.length,
+      query = query.replace(
+        placeholderRegex,
+        formatter.formatIdentifier(param.value),
       );
-      query = query.replace(placeholderRegex, result.sql);
-      params.push(...result.params);
-    } else {
-      query = query.replace(placeholderRegex, placeholderGenerator(params.length));
-      params.push(param);
+      return;
     }
+
+    query = query.replace(
+      placeholderRegex,
+      placeholderGenerator(params.length),
+    );
+    params.push(formatter.mapSQLValue(param));
   });
 
   return { query, params };
-}
-
-export function mapSQLValue(value: unknown, formatter: SQLFormatter): unknown {
-  if (SQL.check.isIdentifier(value)) {
-    return formatter.formatIdentifier(value.value);
-  }
-  if (SQL.check.isPlain(value)) {
-    return value.value;
-  }
-  if (SQL.check.isLiteral(value)) {
-    return formatter.formatLiteral(value.value);
-  }
-  if (isSQL(value)) {
-    return formatSQL(value, formatter);
-  }
-
-  if (value === null || value === undefined) {
-    return null;
-  }
-  if (typeof value === 'number') {
-    return value;
-  }
-  if (typeof value === 'string') {
-    return value;
-  }
-
-  if (Array.isArray(value)) {
-    return formatter.formatArray
-      ? formatter.formatArray(value, (item) => String(item))
-      : formatter.formatLiteral(value);
-  }
-  if (typeof value === 'bigint') {
-    return formatter.formatBigInt
-      ? formatter.formatBigInt(value)
-      : formatter.formatLiteral(value);
-  }
-  if (value instanceof Date) {
-    return formatter.formatDate
-      ? formatter.formatDate(value)
-      : formatter.formatLiteral(value);
-  }
-  if (typeof value === 'object') {
-    return formatter.formatObject
-      ? formatter.formatObject(value)
-      : formatter.formatLiteral(value);
-  }
-
-  return formatter.formatLiteral(value);
 }
 
 function processSQL(sql: SQL, formatter: SQLFormatter): string {
