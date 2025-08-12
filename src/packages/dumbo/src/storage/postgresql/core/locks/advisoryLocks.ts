@@ -1,6 +1,5 @@
 import {
   defaultDatabaseLockOptions,
-  plainString,
   single,
   SQL,
   type AcquireDatabaseLockMode,
@@ -23,7 +22,7 @@ export const tryAcquireAdvisoryLock = async (
   try {
     await single(
       execute.query<{ locked: boolean }>(
-        SQL`SELECT ${plainString(advisoryLock)}(${options.lockId}) AS locked`,
+        SQL`SELECT ${SQL.plain(advisoryLock)}(${options.lockId}) AS locked`,
         { timeoutMs },
       ),
     );

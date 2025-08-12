@@ -1,15 +1,8 @@
 import assert from 'assert';
 import { describe, it } from 'node:test';
 import { sqliteFormatter } from '.';
-import {
-  SQL,
-  formatSQL,
-  identifier,
-  isRawSQL,
-  isSQL,
-  literal,
-  plainString,
-} from '../../../../../core/sql';
+import { SQL, formatSQL, isSQL } from '../../../../../core/sql';
+import { isParametrizedSQL } from '../../../../../core/sql/parametrizedSQL';
 
 export function processSQLForTesting(sql: SQL): string {
   const formatter = sqliteFormatter;
@@ -19,7 +12,7 @@ export function processSQLForTesting(sql: SQL): string {
 void describe('SQLite SQL Tagged Template Literal', () => {
   void it('should format literals correctly', () => {
     const name: string = 'John Doe';
-    const query = SQL`SELECT * FROM users WHERE name = ${literal(name)};`;
+    const query = SQL`SELECT * FROM users WHERE name = ${SQL.literal(name)};`;
 
     // Expected output directly without using sqlite-format
     assert.strictEqual(
@@ -31,7 +24,7 @@ void describe('SQLite SQL Tagged Template Literal', () => {
   void it('should format identifiers correctly', () => {
     const tableName: string = 'users';
     const columnName: string = 'name';
-    const query = SQL`SELECT ${identifier(columnName)} FROM ${identifier(tableName)};`;
+    const query = SQL`SELECT ${SQL.identifier(columnName)} FROM ${SQL.identifier(tableName)};`;
 
     // Expected output directly without using sqlite-format
     assert.strictEqual(processSQLForTesting(query), 'SELECT name FROM users;');
@@ -40,7 +33,7 @@ void describe('SQLite SQL Tagged Template Literal', () => {
   void it('should format identifiers with CAPS correctly', () => {
     const tableName: string = 'Users';
     const columnName: string = 'Name';
-    const query = SQL`SELECT ${identifier(columnName)} FROM ${identifier(tableName)};`;
+    const query = SQL`SELECT ${SQL.identifier(columnName)} FROM ${SQL.identifier(tableName)};`;
 
     // Expected output directly without using sqlite-format
     assert.strictEqual(
@@ -51,7 +44,7 @@ void describe('SQLite SQL Tagged Template Literal', () => {
 
   void it('should NOT format plain strings without escaping', () => {
     const unsafeString: string = "some'unsafe";
-    const query = SQL`SELECT ${plainString(unsafeString)};`;
+    const query = SQL`SELECT ${SQL.plain(unsafeString)};`;
 
     // Plain string without escaping
     assert.strictEqual(processSQLForTesting(query), "SELECT some'unsafe;");
@@ -74,8 +67,8 @@ void describe('SQLite SQL Tagged Template Literal', () => {
     const age: number = 30;
     const table: string = 'users';
     const query = SQL`
-      INSERT INTO ${identifier(table)} (name, age)
-      VALUES (${literal(name)}, ${age})
+      INSERT INTO ${SQL.identifier(table)} (name, age)
+      VALUES (${SQL.literal(name)}, ${age})
       RETURNING name, age;
     `;
 
@@ -93,7 +86,7 @@ void describe('SQLite SQL Tagged Template Literal', () => {
   void it('should work with raw SQL', () => {
     const rawQuery = SQL`SELECT * FROM users`;
     assert.strictEqual(isSQL(rawQuery), true);
-    assert.strictEqual(isRawSQL(rawQuery), true);
+    assert.strictEqual(isParametrizedSQL(rawQuery), true);
     assert.strictEqual(
       SQL.format(rawQuery, sqliteFormatter),
       'SELECT * FROM users',
@@ -110,7 +103,7 @@ void describe('SQLite SQL Tagged Template Literal', () => {
 
   void it('should escape special characters in literals', () => {
     const unsafeValue: string = "O'Reilly";
-    const query = SQL`SELECT * FROM users WHERE name = ${literal(unsafeValue)};`;
+    const query = SQL`SELECT * FROM users WHERE name = ${SQL.literal(unsafeValue)};`;
 
     // SQLite uses the same escaping mechanism as PostgreSQL for single quotes
     assert.strictEqual(
@@ -125,7 +118,7 @@ void describe('SQLite SQL Tagged Template Literal', () => {
     const zeroValue: number = 0;
 
     const query = SQL`INSERT INTO test (col1, col2, col3)
-      VALUES (${literal(emptyString)}, ${literal(nullValue)}, ${literal(zeroValue)});`;
+      VALUES (${SQL.literal(emptyString)}, ${SQL.literal(nullValue)}, ${SQL.literal(zeroValue)});`;
 
     // Handle empty string, null, and zero correctly
     assert.strictEqual(
@@ -138,7 +131,7 @@ void describe('SQLite SQL Tagged Template Literal', () => {
   void it('should handle arrays of values using literals', () => {
     const values: string[] = ['John', 'Doe', '30'];
     const query = SQL`INSERT INTO users (first_name, last_name, age)
-      VALUES (${literal(values[0])}, ${literal(values[1])}, ${literal(values[2])});`;
+      VALUES (${SQL.literal(values[0])}, ${SQL.literal(values[1])}, ${SQL.literal(values[2])});`;
 
     // Handle array elements using literal formatting
     assert.strictEqual(
@@ -150,7 +143,7 @@ void describe('SQLite SQL Tagged Template Literal', () => {
 
   void it('should handle SQL injections attempts safely', () => {
     const unsafeInput: string = "'; DROP TABLE users; --";
-    const query = SQL`SELECT * FROM users WHERE name = ${literal(unsafeInput)};`;
+    const query = SQL`SELECT * FROM users WHERE name = ${SQL.literal(unsafeInput)};`;
 
     // Escape SQL injection attempts correctly
     assert.strictEqual(

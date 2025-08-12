@@ -1,5 +1,4 @@
 import {
-  identifier,
   isSQL,
   JSONSerializer,
   SQL,
@@ -23,7 +22,7 @@ import { buildUpdateQuery } from './update';
 
 const createCollection = (collectionName: string): SQL =>
   SQL`
-    CREATE TABLE IF NOT EXISTS ${identifier(collectionName)} (
+    CREATE TABLE IF NOT EXISTS ${SQL.identifier(collectionName)} (
       _id           TEXT           PRIMARY KEY, 
       data          JSONB          NOT NULL, 
       metadata      JSONB          NOT NULL     DEFAULT '{}',
@@ -52,7 +51,7 @@ export const postgresSQLBuilder = (
     const version = document._version ?? 1n;
 
     return SQL`
-      INSERT INTO ${identifier(collectionName)} (_id, data, _version) 
+      INSERT INTO ${SQL.identifier(collectionName)} (_id, data, _version) 
       VALUES (${id}, ${serialized}, ${version}) ON CONFLICT(_id) DO NOTHING;`;
   },
   insertMany: <T>(documents: OptionalUnlessRequiredIdAndVersion<T>[]): SQL => {
@@ -65,7 +64,7 @@ export const postgresSQLBuilder = (
     );
 
     return SQL`
-      INSERT INTO ${identifier(collectionName)} (_id, data, _version) VALUES ${values}
+      INSERT INTO ${SQL.identifier(collectionName)} (_id, data, _version) VALUES ${values}
       ON CONFLICT(_id) DO NOTHING
       RETURNING _id;`;
   },
@@ -77,7 +76,7 @@ export const postgresSQLBuilder = (
     const expectedVersion = expectedVersionValue(options?.expectedVersion);
     const expectedVersionUpdate =
       expectedVersion != null
-        ? SQL`AND ${identifier(collectionName)}._version = ${expectedVersion}`
+        ? SQL`AND ${SQL.identifier(collectionName)}._version = ${expectedVersion}`
         : SQL``;
 
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
@@ -86,17 +85,17 @@ export const postgresSQLBuilder = (
     return SQL`
       WITH existing AS (
         SELECT _id, _version as current_version
-        FROM ${identifier(collectionName)} ${where(filterQuery)}
+        FROM ${SQL.identifier(collectionName)} ${where(filterQuery)}
         LIMIT 1
       ),
       updated AS (
-        UPDATE ${identifier(collectionName)} 
+        UPDATE ${SQL.identifier(collectionName)} 
         SET 
-          data = ${updateQuery} || jsonb_build_object('_id', ${identifier(collectionName)}._id) || jsonb_build_object('_version', (_version + 1)::text),
+          data = ${updateQuery} || jsonb_build_object('_id', ${SQL.identifier(collectionName)}._id) || jsonb_build_object('_version', (_version + 1)::text),
           _version = _version + 1
         FROM existing 
-        WHERE ${identifier(collectionName)}._id = existing._id ${expectedVersionUpdate}
-        RETURNING ${identifier(collectionName)}._id, ${identifier(collectionName)}._version
+        WHERE ${SQL.identifier(collectionName)}._id = existing._id ${expectedVersionUpdate}
+        RETURNING ${SQL.identifier(collectionName)}._id, ${SQL.identifier(collectionName)}._version
       )
       SELECT 
         existing._id,
@@ -115,7 +114,7 @@ export const postgresSQLBuilder = (
     const expectedVersion = expectedVersionValue(options?.expectedVersion);
     const expectedVersionUpdate =
       expectedVersion != null
-        ? SQL`AND ${identifier(collectionName)}._version = ${expectedVersion}`
+        ? SQL`AND ${SQL.identifier(collectionName)}._version = ${expectedVersion}`
         : SQL``;
 
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
@@ -123,17 +122,17 @@ export const postgresSQLBuilder = (
     return SQL`
       WITH existing AS (
         SELECT _id, _version as current_version
-        FROM ${identifier(collectionName)} ${where(filterQuery)}
+        FROM ${SQL.identifier(collectionName)} ${where(filterQuery)}
         LIMIT 1
       ),
       updated AS (
-        UPDATE ${identifier(collectionName)}        
+        UPDATE ${SQL.identifier(collectionName)}        
         SET 
-          data = ${JSONSerializer.serialize(document)} || jsonb_build_object('_id', ${identifier(collectionName)}._id) || jsonb_build_object('_version', (_version + 1)::text),
+          data = ${JSONSerializer.serialize(document)} || jsonb_build_object('_id', ${SQL.identifier(collectionName)}._id) || jsonb_build_object('_version', (_version + 1)::text),
           _version = _version + 1
         FROM existing 
-        WHERE ${identifier(collectionName)}._id = existing._id ${expectedVersionUpdate}
-        RETURNING ${identifier(collectionName)}._id, ${identifier(collectionName)}._version
+        WHERE ${SQL.identifier(collectionName)}._id = existing._id ${expectedVersionUpdate}
+        RETURNING ${SQL.identifier(collectionName)}._id, ${SQL.identifier(collectionName)}._version
       )
       SELECT 
         existing._id,
@@ -152,7 +151,7 @@ export const postgresSQLBuilder = (
     const updateQuery = isSQL(update) ? update : buildUpdateQuery(update);
 
     return SQL`
-      UPDATE ${identifier(collectionName)} 
+      UPDATE ${SQL.identifier(collectionName)} 
       SET 
         data = ${updateQuery} || jsonb_build_object('_version', (_version + 1)::text),
         _version = _version + 1
@@ -165,7 +164,7 @@ export const postgresSQLBuilder = (
     const expectedVersion = expectedVersionValue(options?.expectedVersion);
     const expectedVersionUpdate =
       expectedVersion != null
-        ? SQL`AND ${identifier(collectionName)}._version = ${expectedVersion}`
+        ? SQL`AND ${SQL.identifier(collectionName)}._version = ${expectedVersion}`
         : SQL``;
 
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
@@ -173,14 +172,14 @@ export const postgresSQLBuilder = (
     return SQL`
       WITH existing AS (
         SELECT _id
-        FROM ${identifier(collectionName)} ${where(filterQuery)}
+        FROM ${SQL.identifier(collectionName)} ${where(filterQuery)}
         LIMIT 1
       ),
       deleted AS (
-        DELETE FROM ${identifier(collectionName)}
+        DELETE FROM ${SQL.identifier(collectionName)}
         USING existing
-        WHERE ${identifier(collectionName)}._id = existing._id ${expectedVersionUpdate}
-        RETURNING ${identifier(collectionName)}._id
+        WHERE ${SQL.identifier(collectionName)}._id = existing._id ${expectedVersionUpdate}
+        RETURNING ${SQL.identifier(collectionName)}._id
       )
       SELECT 
         existing._id,
@@ -193,18 +192,18 @@ export const postgresSQLBuilder = (
   deleteMany: <T>(filter: PongoFilter<T> | SQL): SQL => {
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
 
-    return SQL`DELETE FROM ${identifier(collectionName)} ${where(filterQuery)}`;
+    return SQL`DELETE FROM ${SQL.identifier(collectionName)} ${where(filterQuery)}`;
   },
   findOne: <T>(filter: PongoFilter<T> | SQL): SQL => {
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
 
-    return SQL`SELECT data FROM ${identifier(collectionName)} ${where(filterQuery)} LIMIT 1;`;
+    return SQL`SELECT data FROM ${SQL.identifier(collectionName)} ${where(filterQuery)} LIMIT 1;`;
   },
   find: <T>(filter: PongoFilter<T> | SQL, options?: FindOptions): SQL => {
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
     const query: SQL[] = [];
 
-    query.push(SQL`SELECT data FROM ${identifier(collectionName)}`);
+    query.push(SQL`SELECT data FROM ${SQL.identifier(collectionName)}`);
 
     if (!SQL.isEmpty(filterQuery)) {
       query.push(where(filterQuery));
@@ -221,14 +220,16 @@ export const postgresSQLBuilder = (
     return SQL.merge([...query, SQL`;`]);
   },
   countDocuments: <T>(filter: PongoFilter<T> | SQL): SQL => {
-    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
-    return SQL`SELECT COUNT(1) as count FROM ${identifier(collectionName)} ${where(filterQuery)};`;
+    const filterQuery = SQL.isSQL(filter)
+      ? filter
+      : constructFilterQuery(filter);
+    return SQL`SELECT COUNT(1) as count FROM ${SQL.identifier(collectionName)} ${where(filterQuery)};`;
   },
   rename: (newName: string): SQL =>
-    SQL`ALTER TABLE ${identifier(collectionName)} RENAME TO ${identifier(newName)};`,
+    SQL`ALTER TABLE ${SQL.identifier(collectionName)} RENAME TO ${SQL.identifier(newName)};`,
   drop: (targetName: string = collectionName): SQL =>
-    SQL`DROP TABLE IF EXISTS ${identifier(targetName)}`,
+    SQL`DROP TABLE IF EXISTS ${SQL.identifier(targetName)}`,
 });
 
 const where = (filterQuery: SQL): SQL =>
-  SQL.isEmpty(filterQuery) ? SQL.empty : SQL.merge([SQL`WHERE `, filterQuery]);
+  SQL.isEmpty(filterQuery) ? SQL.EMPTY : SQL.merge([SQL`WHERE `, filterQuery]);

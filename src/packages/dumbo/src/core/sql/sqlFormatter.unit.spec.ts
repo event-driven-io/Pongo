@@ -1,15 +1,7 @@
 import assert from 'assert';
 import { before, describe, it } from 'node:test';
-import {
-  identifier,
-  isDeferredSQL,
-  isRawSQL,
-  isSQL,
-  literal,
-  SQL,
-  type DeferredSQL,
-  type RawSQL,
-} from './sql';
+import { isParametrizedSQL, type ParametrizedSQL } from './parametrizedSQL';
+import { isSQL, SQL } from './sql';
 import { registerFormatter, type SQLFormatter } from './sqlFormatter';
 
 const mockFormatter: SQLFormatter = {
@@ -32,7 +24,9 @@ const mockFormatter: SQLFormatter = {
   formatArray: (array: unknown[], itemFormatter) => {
     return '(' + array.map(itemFormatter).join(', ') + ')';
   },
-  format: (sql) => SQL.format(sql, mockFormatter),
+  mapSQLValue: (value: unknown) => value, // Simple pass-through for mock
+  format: (_sql) => ({ query: 'mocked query', params: [] }),
+  formatRaw: (_sql) => 'mocked raw query',
 };
 
 void describe('SQL template', () => {
@@ -44,17 +38,15 @@ void describe('SQL template', () => {
     void it('should create SQL from template literals', () => {
       const query = SQL`SELECT * FROM users`;
       assert.strictEqual(isSQL(query), true);
-      assert.strictEqual(isDeferredSQL(query), false);
-      assert.strictEqual(isRawSQL(query), true);
+      assert.strictEqual(isParametrizedSQL(query), true);
     });
 
     void it('should create SQL from raw string', () => {
       const query = SQL`SELECT * FROM users`;
       assert.strictEqual(isSQL(query), true);
-      assert.strictEqual(isDeferredSQL(query), false);
-      assert.strictEqual(isRawSQL(query), true);
+      assert.strictEqual(isParametrizedSQL(query), true);
       assert.strictEqual(
-        (query as unknown as RawSQL).sql,
+        (query as unknown as ParametrizedSQL).sql,
         'SELECT * FROM users',
       );
     });
@@ -62,21 +54,22 @@ void describe('SQL template', () => {
     void it('should handle SQL with interpolated values', () => {
       const name = 'John';
       const age = 30;
-      const query = SQL`SELECT * FROM users WHERE name = ${literal(name)} AND age = ${age}`;
+      const query = SQL`SELECT * FROM users WHERE name = ${SQL.literal(name)} AND age = ${age}`;
 
       assert.strictEqual(isSQL(query), true);
-      assert.strictEqual(isDeferredSQL(query), true);
+      assert.strictEqual(isParametrizedSQL(query), true);
 
-      const deferred = query as unknown as DeferredSQL;
-      assert.strictEqual(deferred.values.length, 2);
-      assert.strictEqual(deferred.strings.length, 3);
+      const parametrized = query as unknown as ParametrizedSQL;
+      assert.strictEqual(parametrized.params.length, 2);
+      assert.strictEqual(parametrized.sql.includes('__P1__'), true);
+      assert.strictEqual(parametrized.sql.includes('__P2__'), true);
     });
   });
 
   void describe('isEmpty function', () => {
     void it('should correctly identify empty SQL', () => {
       const empty1 = SQL``;
-      const empty2 = SQL.empty;
+      const empty2 = SQL.EMPTY;
       const withContent = SQL`SELECT 1`;
       const withWhitespace = SQL`   `;
 
@@ -87,8 +80,8 @@ void describe('SQL template', () => {
     });
 
     void it('should handle SQL with only values', () => {
-      const onlyValues = SQL`${literal('test')}`;
-      const withEmptyStrings = SQL`${''}${literal('test')}${''}`;
+      const onlyValues = SQL`${SQL.literal('test')}`;
+      const withEmptyStrings = SQL`${''}${SQL.literal('test')}${''}`;
 
       assert.strictEqual(SQL.isEmpty(onlyValues), false);
       assert.strictEqual(SQL.isEmpty(withEmptyStrings), false);
@@ -107,18 +100,18 @@ void describe('SQL template', () => {
     void it('should merge SQL objects', () => {
       const base = SQL`SELECT *`;
       const from = SQL`FROM users`;
-      const where = SQL`WHERE active = ${literal(true)}`;
+      const where = SQL`WHERE active = ${SQL.literal(true)}`;
 
       const result = SQL.merge([base, SQL` `, from, SQL` `, where]);
 
       assert.strictEqual(isSQL(result), true);
-      assert.strictEqual(isDeferredSQL(result), true);
+      assert.strictEqual(isParametrizedSQL(result), true);
       assert.strictEqual(SQL.isEmpty(result), false);
     });
 
     void it('should handle empty SQL in merging', () => {
       const base = SQL`SELECT * FROM users`;
-      const empty = SQL.empty;
+      const empty = SQL.EMPTY;
       const order = SQL`ORDER BY name`;
 
       const result = SQL.merge([base, SQL` `, empty, SQL` `, order]);
@@ -133,12 +126,12 @@ void describe('SQL template', () => {
 
     void it('should return appropriate types for edge cases', () => {
       const empty1 = SQL``;
-      const empty2 = SQL.empty;
+      const empty2 = SQL.EMPTY;
       const content = SQL`SELECT 1`;
 
       // All empty should return empty
       const allEmpty = SQL.merge([empty1, SQL``, empty2]);
-      assert.deepEqual(allEmpty, SQL.empty);
+      assert.deepEqual(allEmpty, SQL.EMPTY);
 
       // Single non-empty should return that item
       const single = SQL.merge([empty1, content, empty2]);
@@ -148,7 +141,7 @@ void describe('SQL template', () => {
 
   void describe('format Method', () => {
     void it('should format simple SQL', () => {
-      const query = SQL`SELECT * FROM ${identifier('users')} WHERE name = ${literal('John')}`;
+      const query = SQL`SELECT * FROM ${SQL.identifier('users')} WHERE name = ${SQL.literal('John')}`;
       const formatted = SQL.format(query, mockFormatter);
 
       assert.strictEqual(
@@ -158,7 +151,7 @@ void describe('SQL template', () => {
     });
 
     void it('should format complex nested SQL', () => {
-      const subquery = SQL`SELECT id FROM roles WHERE name = ${literal('admin')}`;
+      const subquery = SQL`SELECT id FROM roles WHERE name = ${SQL.literal('admin')}`;
       const mainQuery = SQL`SELECT * FROM users WHERE role_id IN (${subquery})`;
 
       const formatted = SQL.format(mainQuery, mockFormatter);
@@ -175,13 +168,13 @@ void describe('SQL template', () => {
           str_col, num_col, bool_col, null_col, 
           array_col, obj_col, id_col
         ) VALUES (
-          ${literal('text')}, 
+          ${SQL.literal('text')}, 
           ${42}, 
-          ${literal(true)}, 
-          ${literal(null)},
+          ${SQL.literal(true)}, 
+          ${SQL.literal(null)},
           ${[1, '2', 3]},
           ${{ key: 'value', num: 3 }},
-          ${identifier('column_name')}
+          ${SQL.identifier('column_name')}
         )
       `;
 
@@ -201,8 +194,8 @@ void describe('SQL template', () => {
 
     void it('should format concatenated SQL correctly', () => {
       const base = SQL`SELECT * FROM users`;
-      const where = SQL`WHERE active = ${literal(true)}`;
-      const order = SQL`ORDER BY ${identifier('name')}`;
+      const where = SQL`WHERE active = ${SQL.literal(true)}`;
+      const order = SQL`ORDER BY ${SQL.identifier('name')}`;
 
       const combined = SQL.merge([base, SQL` `, where, SQL` `, order]);
       const formatted = SQL.format(combined, mockFormatter);

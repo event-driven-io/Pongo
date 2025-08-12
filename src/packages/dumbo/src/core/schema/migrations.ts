@@ -113,7 +113,7 @@ const getMigrationHash = async (
   sqlMigration: SQLMigration,
   sqlFormatter: SQLFormatter,
 ): Promise<string> => {
-  const content = sqlFormatter.format(sqlMigration.sqls);
+  const content = sqlFormatter.formatRaw(sqlMigration.sqls);
 
   const encoder = new TextEncoder();
   const data = encoder.encode(content);
