@@ -28,6 +28,27 @@ export const ParametrizedSQL = (
         resultSql += adjustedSql.sql;
         params.push(...value.params);
         paramIndex += value.params.length;
+      } else if (SQL.check.isSQLIn(value)) {
+        const { values: inValues } = value;
+        if (inValues.length === 0) {
+          resultSql += `__P${paramIndex}__`;
+          params.push(false);
+          paramIndex++;
+        } else {
+          resultSql += `__P${paramIndex}__`;
+          params.push(value);
+          paramIndex++;
+        }
+      } else if (Array.isArray(value)) {
+        if (value.length === 0) {
+          throw new Error(
+            'Empty arrays in IN clauses are not supported. Use SQL.in(column, array) helper instead.',
+          );
+        }
+        const placeholders = value.map((_, idx) => `__P${paramIndex + idx}__`);
+        resultSql += `(${placeholders.join(', ')})`;
+        params.push(...(value as unknown as []));
+        paramIndex += value.length;
       } else {
         resultSql += `__P${paramIndex}__`;
         params.push(value);
