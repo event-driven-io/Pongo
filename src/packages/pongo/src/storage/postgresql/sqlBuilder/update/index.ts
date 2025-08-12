@@ -1,4 +1,4 @@
-import { JSONSerializer, plainString, SQL } from '@event-driven-io/dumbo';
+import { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import {
   objectEntries,
   type $inc,
@@ -45,8 +45,8 @@ export const buildIncQuery = <T>(
   for (const [key, value] of Object.entries(inc)) {
     currentUpdateQuery =
       typeof value === 'bigint'
-        ? SQL`jsonb_set(${currentUpdateQuery}, '{${plainString(key)}}', to_jsonb((COALESCE((data->>'${plainString(key)}')::BIGINT, 0) + ${value})::TEXT), true)`
-        : SQL`jsonb_set(${currentUpdateQuery}, '{${plainString(key)}}', to_jsonb(COALESCE((data->>'${plainString(key)}')::NUMERIC, 0) + ${value}), true)`;
+        ? SQL`jsonb_set(${currentUpdateQuery}, '{${SQL.plain(key)}}', to_jsonb((COALESCE((data->>'${SQL.plain(key)}')::BIGINT, 0) + ${value})::TEXT), true)`
+        : SQL`jsonb_set(${currentUpdateQuery}, '{${SQL.plain(key)}}', to_jsonb(COALESCE((data->>'${SQL.plain(key)}')::NUMERIC, 0) + ${value}), true)`;
   }
   return currentUpdateQuery;
 };
@@ -57,7 +57,7 @@ export const buildPushQuery = <T>(
 ): SQL => {
   for (const [key, value] of Object.entries(push)) {
     const serializedValue = JSONSerializer.serialize([value]);
-    currentUpdateQuery = SQL`jsonb_set(${currentUpdateQuery}, '{${plainString(key)}}', (coalesce(data->'${plainString(key)}', '[]'::jsonb) || ${serializedValue}::jsonb), true)`;
+    currentUpdateQuery = SQL`jsonb_set(${currentUpdateQuery}, '{${SQL.plain(key)}}', (coalesce(data->'${SQL.plain(key)}', '[]'::jsonb) || ${serializedValue}::jsonb), true)`;
   }
   return currentUpdateQuery;
 };

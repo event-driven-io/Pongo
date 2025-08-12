@@ -1,59 +1,39 @@
+import { ParametrizedSQL, isParametrizedSQL } from './parametrizedSQL';
 import { formatSQL } from './sqlFormatter';
 
 export type SQL = string & { __brand: 'sql' };
 
-export interface DeferredSQL {
-  __brand: 'deferred-sql';
-  strings: TemplateStringsArray;
-  values: unknown[];
-}
-
-export interface RawSQL {
-  __brand: 'sql';
-  sql: string;
-}
-
 export function SQL(strings: TemplateStringsArray, ...values: unknown[]): SQL {
-  return strings.length === 1 && values.length === 0
-    ? rawSql(strings[0] as string)
-    : deferredSQL(strings, values);
+  const parametrized = ParametrizedSQL(strings, values);
+  return parametrized as unknown as SQL;
 }
+
+export const isSQL = (value: unknown): value is SQL => {
+  if (value === undefined || value === null) {
+    return false;
+  }
+
+  return isParametrizedSQL(value);
+};
 
 const ID = Symbol.for('SQL_IDENTIFIER');
 const RAW = Symbol.for('SQL_RAW');
 const LITERAL = Symbol.for('SQL_LITERAL');
 
 type SQLIdentifier = { [ID]: true; value: string };
-type SQLRaw = { [RAW]: true; value: string };
+type SQLPlain = { [RAW]: true; value: string };
 type SQLLiteral = { [LITERAL]: true; value: unknown };
 
-const deferredSQL = (strings: TemplateStringsArray, values: unknown[]): SQL => {
-  const deferredSql: DeferredSQL = {
-    __brand: 'deferred-sql',
-    strings,
-    values,
-  };
+const emptySQL = (): SQL => SQL([''] as unknown as TemplateStringsArray);
 
-  return deferredSql as unknown as SQL;
-};
-
-const rawSql = (sqlQuery: string): SQL => {
-  const rawSQL: RawSQL = {
-    __brand: 'sql',
-    sql: sqlQuery,
-  };
-
-  return rawSQL as unknown as SQL;
-};
-
-export const mergeSQL = (sqls: SQL[], separator: string = ' '): SQL => {
+const mergeSQL = (sqls: SQL[], separator: string = ' '): SQL => {
   if (!Array.isArray(sqls)) return sqls;
-  if (sqls.length === 0) return rawSql('');
+  if (sqls.length === 0) return emptySQL();
   if (sqls.length === 1) return sqls[0]!;
 
   // Filter out empty SQL parts
   const nonEmptySqls = sqls.filter((sql) => !isEmpty(sql));
-  if (nonEmptySqls.length === 0) return rawSql('');
+  if (nonEmptySqls.length === 0) return emptySQL();
   if (nonEmptySqls.length === 1) return nonEmptySqls[0]!;
 
   const strings: string[] = [''];
@@ -62,7 +42,7 @@ export const mergeSQL = (sqls: SQL[], separator: string = ' '): SQL => {
   nonEmptySqls.forEach((sql, index) => {
     if (index > 0) {
       strings.push('');
-      values.push(rawSql(separator));
+      values.push(SQL([separator] as unknown as TemplateStringsArray));
     }
     strings.push('');
     values.push(sql);
@@ -72,8 +52,8 @@ export const mergeSQL = (sqls: SQL[], separator: string = ' '): SQL => {
   return SQL(strings as unknown as TemplateStringsArray, ...values);
 };
 
-export const concatSQL = (...sqls: SQL[]): SQL => {
-  if (sqls.length === 0) return SQL.empty;
+const concatSQL = (...sqls: SQL[]): SQL => {
+  if (sqls.length === 0) return SQL.EMPTY;
   if (sqls.length === 1) return sqls[0]!;
 
   const strings: string[] = [''];
@@ -89,100 +69,62 @@ export const concatSQL = (...sqls: SQL[]): SQL => {
 };
 
 const isEmpty = (sql: SQL): boolean => {
-  if (typeof sql === 'string') return sql.trim() === '';
-
-  if (isDeferredSQL(sql)) {
-    const deferred = sql as DeferredSQL;
-    const hasContent =
-      deferred.strings.some((s) => s.trim() !== '') ||
-      deferred.values.length > 0;
-    return !hasContent;
-  }
-
-  if (isRawSQL(sql)) {
-    const raw = sql as RawSQL;
-    return raw.sql.trim() === '';
+  if (isParametrizedSQL(sql)) {
+    const parametrized = sql as unknown as ParametrizedSQL;
+    return parametrized.sql.trim() === '' && parametrized.params.length === 0;
   }
 
   return false;
 };
 
-SQL.empty = rawSql('');
-SQL.concat = concatSQL;
-SQL.merge = mergeSQL;
-SQL.isEmpty = isEmpty;
-SQL.format = formatSQL;
-
-export function identifier(value: string): SQLIdentifier {
+function identifier(value: string): SQLIdentifier {
   return { [ID]: true, value };
 }
 
-export function raw(value: string): SQLRaw {
+function plain(value: string): SQLPlain {
   return { [RAW]: true, value };
 }
 
-//TODO: remove it
-export const plainString = raw;
-
-export function literal(value: unknown): SQLLiteral {
+function literal(value: unknown): SQLLiteral {
   return { [LITERAL]: true, value };
 }
 
 // Type guards
-export const isIdentifier = (value: unknown): value is SQLIdentifier => {
+const isIdentifier = (value: unknown): value is SQLIdentifier => {
   return value !== null && typeof value === 'object' && ID in value;
 };
 
-export const isRaw = (value: unknown): value is SQLRaw => {
+const isPlain = (value: unknown): value is SQLPlain => {
   return value !== null && typeof value === 'object' && RAW in value;
 };
 
-export const isLiteral = (value: unknown): value is SQLLiteral => {
+const isLiteral = (value: unknown): value is SQLLiteral => {
   return value !== null && typeof value === 'object' && LITERAL in value;
 };
 
-export const isDeferredSQL = (value: unknown): value is DeferredSQL => {
-  return (
-    value !== null &&
-    typeof value === 'object' &&
-    '__brand' in value &&
-    value.__brand === 'deferred-sql'
-  );
-};
+const SQLIN = Symbol.for('SQL_IN');
+type SQLIn = { [SQLIN]: true; column: string; values: unknown[] };
 
-export const isRawSQL = (value: unknown): value is RawSQL => {
-  return (
-    value !== null &&
-    typeof value === 'object' &&
-    '__brand' in value &&
-    value.__brand === 'sql'
-  );
-};
-
-export const isReserved = (
-  value: string,
-  reservedWords: Record<string, boolean>,
-): boolean => !!reservedWords[value.toUpperCase()];
-
-// Helper to format arrays as lists
-export function arrayToList(
-  useSpace: boolean,
-  array: unknown[],
-  formatter: (value: unknown) => string,
-): string {
-  let sql = '';
-  sql += useSpace ? ' (' : '(';
-  for (let i = 0; i < array.length; i++) {
-    sql += (i === 0 ? '' : ', ') + formatter(array[i]);
-  }
-  sql += ')';
-  return sql;
+function sqlIn(column: string, values: unknown[]): SQLIn {
+  return { [SQLIN]: true, column, values };
 }
 
-export const isSQL = (value: unknown): value is SQL => {
-  if (value === undefined || value === null) {
-    return false;
-  }
-
-  return isDeferredSQL(value) || isRawSQL(value);
+const isSQLIn = (value: unknown): value is SQLIn => {
+  return value !== null && typeof value === 'object' && SQLIN in value;
 };
+
+SQL.EMPTY = emptySQL();
+SQL.concat = concatSQL;
+SQL.merge = mergeSQL;
+SQL.isEmpty = isEmpty;
+SQL.format = formatSQL;
+SQL.in = sqlIn;
+SQL.isSQL = isSQL;
+SQL.identifier = identifier;
+SQL.isIdentifier = isIdentifier;
+SQL.plain = plain;
+SQL.isPlain = isPlain;
+SQL.literal = literal;
+SQL.isLiteral = isLiteral;
+SQL.in = sqlIn;
+SQL.isIn = isSQLIn;

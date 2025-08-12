@@ -1,6 +1,10 @@
 import { JSONSerializer } from '../../../../../core/serializer';
 import { registerFormatter, type SQLFormatter } from '../../../../../core/sql';
-import { formatSQL } from '../../../../../core/sql/sqlFormatter';
+import {
+  formatSQL,
+  mapSQLValue,
+  formatParametrizedQuery,
+} from '../../../../../core/sql/sqlFormatter';
 import format from './sqliteFormat';
 
 const sqliteFormatter: SQLFormatter = {
@@ -14,7 +18,34 @@ const sqliteFormatter: SQLFormatter = {
   formatDate: (value) => format.literal(value.toISOString()),
   formatObject: (value) =>
     `'${JSONSerializer.serialize(value).replace(/'/g, "''")}'`,
-  format: (sql) => formatSQL(sql, sqliteFormatter),
+  mapSQLValue: (value: unknown): unknown => {
+    // SQLite-specific type conversions first
+    if (typeof value === 'boolean') return value ? 1 : 0; // SQLite booleans as 1/0
+    if (value instanceof Date) return value.toISOString(); // SQLite dates as ISO strings
+    if (typeof value === 'bigint') return value.toString(); // SQLite BigInt as string
+
+    // Use base function for SQL wrapper types and other complex types
+    return mapSQLValue(value, sqliteFormatter);
+  },
+  format: (sql) => {
+    // Use base function with SQLite-specific placeholder generator
+    const result = formatParametrizedQuery(sql, () => '?', sqliteFormatter);
+
+    // Apply SQLite-specific parameter conversions to final params
+    const formattedParams = result.params.map((param) => {
+      if (param === null || param === undefined) return param;
+      if (typeof param === 'string' || typeof param === 'number') return param;
+      if (typeof param === 'boolean') return param ? 1 : 0;
+      if (param instanceof Date) return param.toISOString();
+      if (typeof param === 'bigint') return param.toString();
+      if (Array.isArray(param)) return JSONSerializer.serialize(param);
+      if (typeof param === 'object') return JSONSerializer.serialize(param);
+      return param;
+    });
+
+    return { query: result.query, params: formattedParams };
+  },
+  formatRaw: (sql) => formatSQL(sql, sqliteFormatter),
 };
 
 registerFormatter('SQLite', sqliteFormatter);

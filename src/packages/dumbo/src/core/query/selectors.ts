@@ -53,7 +53,7 @@ export const count = async (
 ): Promise<number> => {
   const result = await single(getResult);
 
-  return result.count;
+  return Number(result.count);
 };
 
 export type ExistsSQLQueryResult = { exists: boolean | 1 | 0 };

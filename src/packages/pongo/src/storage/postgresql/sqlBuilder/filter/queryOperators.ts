@@ -1,4 +1,4 @@
-import { JSONSerializer, plainString, SQL } from '@event-driven-io/dumbo';
+import { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import { objectEntries, OperatorMap } from '../../../../core';
 
 export const handleOperator = (
@@ -17,16 +17,16 @@ export const handleOperator = (
       );
       const serializedValue = JSONSerializer.serialize(value);
 
-      return SQL`(data @> ${nestedPath}::jsonb OR jsonb_path_exists(data, '$.${plainString(path)}[*] ? (@ == ${plainString(serializedValue)})'))`;
+      return SQL`(data @> ${nestedPath}::jsonb OR jsonb_path_exists(data, '$.${SQL.plain(path)}[*] ? (@ == ${SQL.plain(serializedValue)})'))`;
     }
     case '$gt':
     case '$gte':
     case '$lt':
     case '$lte':
     case '$ne': {
-      const jsonPath = plainString(path.split('.').join(','));
+      const jsonPath = SQL.plain(path.split('.').join(','));
 
-      return SQL`data @@ '$.${jsonPath} ${plainString(OperatorMap[operator])} ${value}'`;
+      return SQL`data ->> '${jsonPath}' ${SQL.plain(OperatorMap[operator])} ${value}`;
     }
     case '$in': {
       const jsonPath = `{${path.split('.').join(',')}}`;
@@ -45,7 +45,7 @@ export const handleOperator = (
             `@."${subKey}" == ${JSONSerializer.serialize(subValue)}`,
         )
         .join(' && ');
-      return SQL`jsonb_path_exists(data, '$.${plainString(path)}[*] ? (${plainString(subQuery)})')`;
+      return SQL`jsonb_path_exists(data, '$.${SQL.plain(path)}[*] ? (${SQL.plain(subQuery)})')`;
     }
     case '$all': {
       const nestedPath = JSONSerializer.serialize(
@@ -70,17 +70,17 @@ const handleMetadataOperator = (
 ): SQL => {
   switch (operator) {
     case '$eq':
-      return SQL`${plainString(fieldName)} = ${value}`;
+      return SQL`${SQL.plain(fieldName)} = ${value}`;
     case '$gt':
     case '$gte':
     case '$lt':
     case '$lte':
     case '$ne':
-      return SQL`${plainString(fieldName)} ${plainString(OperatorMap[operator])} ${value}`;
+      return SQL`${SQL.plain(fieldName)} ${SQL.plain(OperatorMap[operator])} ${value}`;
     case '$in':
-      return SQL`${plainString(fieldName)} IN ${value as unknown[]}`;
+      return SQL`${SQL.plain(fieldName)} IN ${value as unknown[]}`;
     case '$nin':
-      return SQL`${plainString(fieldName)} NOT IN ${value as unknown[]}`;
+      return SQL`${SQL.plain(fieldName)} NOT IN ${value as unknown[]}`;
     default:
       throw new Error(`Unsupported operator: ${operator}`);
   }
