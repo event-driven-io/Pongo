@@ -119,12 +119,16 @@ SQL.merge = mergeSQL;
 SQL.isEmpty = isEmpty;
 SQL.format = formatSQL;
 SQL.in = sqlIn;
-SQL.isSQL = isSQL;
 SQL.identifier = identifier;
-SQL.isIdentifier = isIdentifier;
 SQL.plain = plain;
-SQL.isPlain = isPlain;
 SQL.literal = literal;
-SQL.isLiteral = isLiteral;
 SQL.in = sqlIn;
-SQL.isIn = isSQLIn;
+
+SQL.check = {
+  isSQL,
+  isParametrizedSQL,
+  isIdentifier,
+  isPlain,
+  isLiteral,
+  isSQLIn,
+};

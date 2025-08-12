@@ -20,7 +20,7 @@ export const ParametrizedSQL = (
     if (i < values.length) {
       const value = values[i];
 
-      if (SQL.isPlain(value)) {
+      if (SQL.check.isPlain(value)) {
         // Raw values should be inlined immediately, not parametrized
         resultSql += value.value;
       } else if (isParametrizedSQL(value)) {
@@ -41,17 +41,6 @@ export const ParametrizedSQL = (
     sql: resultSql,
     params,
   };
-};
-
-export const parametrizeSQL = (sql: SQL): ParametrizedSQL => {
-  if (isParametrizedSQL(sql)) {
-    return sql as unknown as ParametrizedSQL;
-  }
-
-  return ParametrizedSQL(
-    [sql as string] as unknown as TemplateStringsArray,
-    [],
-  );
 };
 
 export const isParametrizedSQL = (value: unknown): value is ParametrizedSQL => {
