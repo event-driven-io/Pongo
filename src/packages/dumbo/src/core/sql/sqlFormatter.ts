@@ -51,15 +51,15 @@ export const formatSQL = (sql: SQL | SQL[], formatter: SQLFormatter): string =>
 
 function formatSQLValue(value: unknown, formatter: SQLFormatter): string {
   // Handle SQL wrapper types first
-  if (SQL.isIdentifier(value)) {
+  if (SQL.check.isIdentifier(value)) {
     return formatter.formatIdentifier(value.value);
-  } else if (SQL.isPlain(value)) {
+  } else if (SQL.check.isPlain(value)) {
     return value.value;
-  } else if (SQL.isLiteral(value)) {
+  } else if (SQL.check.isLiteral(value)) {
     return formatter.formatLiteral(value.value);
-  } else if (SQL.isIn(value)) {
+  } else if (SQL.check.isSQLIn(value)) {
     return formatSQLIn(value, formatter);
-  } else if (SQL.isSQL(value)) {
+  } else if (SQL.check.isSQL(value)) {
     return processSQL(value as unknown as SQL, formatter);
   }
 
@@ -163,11 +163,11 @@ export function formatParametrizedQuery(
   parametrized.params.forEach((param, index) => {
     const placeholder = `__P${index + 1}__`;
 
-    if (SQL.isIdentifier(param)) {
+    if (SQL.check.isIdentifier(param)) {
       // Identifiers must be inlined in the SQL, not bound as parameters
       const inlinedIdentifier = formatter.formatIdentifier(param.value);
       query = query.replace(new RegExp(placeholder, 'g'), inlinedIdentifier);
-    } else if (SQL.isIn(param)) {
+    } else if (SQL.check.isSQLIn(param)) {
       // SQL.in helper - handle empty arrays gracefully
       const sqlInResult = formatSQLInParametrized(
         param,
@@ -211,13 +211,13 @@ export function formatParametrizedQuery(
 
 export function mapSQLValue(value: unknown, formatter: SQLFormatter): unknown {
   // Handle SQL wrapper types first - these need special processing for parameters
-  if (SQL.isIdentifier(value)) {
+  if (SQL.check.isIdentifier(value)) {
     // For parameter binding, identifiers should be processed by the formatter
     return formatter.formatIdentifier(value.value);
-  } else if (SQL.isPlain(value)) {
+  } else if (SQL.check.isPlain(value)) {
     // Raw values should be processed by the formatter
     return value.value;
-  } else if (SQL.isLiteral(value)) {
+  } else if (SQL.check.isLiteral(value)) {
     // Literals should be processed by the formatter
     return formatter.formatLiteral(value.value);
   } else if (isSQL(value)) {

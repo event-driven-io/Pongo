@@ -220,7 +220,7 @@ export const postgresSQLBuilder = (
     return SQL.merge([...query, SQL`;`]);
   },
   countDocuments: <T>(filter: PongoFilter<T> | SQL): SQL => {
-    const filterQuery = SQL.isSQL(filter)
+    const filterQuery = SQL.check.isSQL(filter)
       ? filter
       : constructFilterQuery(filter);
     return SQL`SELECT COUNT(1) as count FROM ${SQL.identifier(collectionName)} ${where(filterQuery)};`;
