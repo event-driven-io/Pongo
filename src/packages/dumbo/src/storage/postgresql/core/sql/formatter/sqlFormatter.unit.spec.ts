@@ -1,11 +1,11 @@
 import assert from 'assert';
 import { describe, it } from 'node:test';
 import { pgFormatter } from '.';
-import { SQL, formatSQL, isSQL } from '../../../../../core';
+import { SQL, formatSQLRaw, isSQL } from '../../../../../core';
 
 export function processSQLForTesting(sql: SQL): string {
   const formatter = pgFormatter;
-  return formatSQL(sql, formatter);
+  return formatSQLRaw(sql, formatter);
 }
 
 void describe('SQL Tagged Template Literal', () => {
@@ -235,7 +235,7 @@ void describe('SQL Tagged Template Literal', () => {
       const query = SQL`SELECT * FROM large_tables WHERE id = ${bigId};`;
       assert.strictEqual(
         processSQLForTesting(query),
-        "SELECT * FROM large_tables WHERE id = '9007199254740991';",
+        'SELECT * FROM large_tables WHERE id = 9007199254740991;',
       );
     });
 

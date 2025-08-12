@@ -12,6 +12,7 @@ const mockFormatter: SQLFormatter = {
     if (typeof value === 'string') return `'${value.replace(/'/g, "''")}'`;
     if (typeof value === 'boolean') return value ? "'t'" : "'f'";
     if (typeof value === 'number') return String(value);
+    if (typeof value === 'bigint') return value.toString();
     if (Array.isArray(value))
       return (
         '(' + value.map((v) => mockFormatter.formatLiteral(v)).join(', ') + ')'
