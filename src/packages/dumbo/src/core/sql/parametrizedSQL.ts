@@ -22,17 +22,20 @@ export const ParametrizedSQL = (
   };
 
   const expandSQLIn = (value: SQLIn) => {
-    const { values: inValues } = value;
+    const { values: inValues, column } = value;
+
     if (inValues.length === 0) {
-      resultSql += `__P${paramIndex}__`;
+      resultSql += param(paramIndex);
       params.push(false);
       paramIndex++;
       return;
     }
 
-    resultSql += `__P${paramIndex}__`;
-    params.push(value);
+    resultSql += `${param(paramIndex)} IN `;
+    params.push(column);
     paramIndex++;
+
+    expandArray(inValues);
   };
 
   const expandArray = (value: unknown[]) => {
@@ -41,7 +44,7 @@ export const ParametrizedSQL = (
         'Empty arrays in IN clauses are not supported. Use SQL.in(column, array) helper instead.',
       );
     }
-    const placeholders = value.map((_, idx) => `__P${paramIndex + idx}__`);
+    const placeholders = value.map((_, idx) => param(paramIndex + idx));
     resultSql += `(${placeholders.join(', ')})`;
     params.push(...(value as unknown as []));
     paramIndex += value.length;
@@ -63,7 +66,7 @@ export const ParametrizedSQL = (
     } else if (Array.isArray(value)) {
       expandArray(value);
     } else {
-      resultSql += `__P${paramIndex}__`;
+      resultSql += param(paramIndex);
       params.push(value);
       paramIndex++;
     }
@@ -85,6 +88,8 @@ export const isParametrizedSQL = (value: unknown): value is ParametrizedSQL => {
   );
 };
 
+const param = (index: number): string => `__P${index}__`;
+
 const adjustParameterNumbers = (
   sql: string,
   offset: number,
@@ -96,7 +101,7 @@ const adjustParameterNumbers = (
   return {
     sql: sql.replace(/__P(\d+)__/g, (_match, num: string) => {
       const newNum = parseInt(num, 10) + offset;
-      return `__P${newNum}__`;
+      return param(newNum);
     }),
   };
 };

@@ -175,7 +175,7 @@ void describe('SQL Tagged Template Literal', () => {
       const query = SQL`SELECT * FROM users WHERE is_active = ${isActive} AND is_deleted = ${isDeleted};`;
       assert.strictEqual(
         processSQLForTesting(query),
-        "SELECT * FROM users WHERE is_active = 't' AND is_deleted = 'f';",
+        'SELECT * FROM users WHERE is_active = TRUE AND is_deleted = FALSE;',
       );
     });
 
@@ -246,12 +246,15 @@ void describe('SQL Tagged Template Literal', () => {
       // The exact format might vary depending on your implementation
       // This test asserts that it's properly formatted as a JSON string
       const result = processSQLForTesting(query);
-      assert.match(result, /INSERT INTO users \(data\) VALUES \('.*'\);/);
+      assert.match(
+        result,
+        /INSERT INTO users \(data\) VALUES \('.*'::jsonb\);/,
+      );
 
       // Further verify that the string contains valid JSON
-      const jsonMatch = result.match(/VALUES \('(.*)'\);/);
+      const jsonMatch = result.match(/VALUES \('(.*)'::jsonb\);/);
       if (jsonMatch && jsonMatch[1]) {
-        const jsonStr = jsonMatch[1].replace(/''/g, "'"); // Unescape any SQL quotes
+        const jsonStr = jsonMatch[1].replace(/''::jsonb/g, "'"); // Unescape any SQL quotes
         try {
           // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
           const parsed = JSON.parse(jsonStr);
@@ -287,7 +290,7 @@ void describe('SQL Tagged Template Literal', () => {
       // Basic structure checks
       assert.match(result, /id = 123/);
       assert.match(result, /last_name = 'Smith'/);
-      assert.match(result, /is_active = 't'/);
+      assert.match(result, /is_active = TRUE/);
       assert.match(result, /created_at > '/);
       assert.match(result, /tags && \('premium', 'verified'\)/);
       assert.match(result, /settings @> '/);

@@ -6,27 +6,27 @@ import { dumbo } from '../../../../../sqlite3';
 import { InMemorySQLiteDatabase } from '../../connections';
 
 void describe('SQLite SQL Formatter Integration Tests', () => {
-  let db: Dumbo;
+  let pool: Dumbo;
 
   before(() => {
-    db = dumbo({
+    pool = dumbo({
       connectionString: InMemorySQLiteDatabase,
       connector: 'SQLite:sqlite3',
     });
   });
 
   after(async () => {
-    await db.close();
+    await pool.close();
   });
 
   before(async () => {
     // Create test table for all tests
-    await db.execute.query(
+    await pool.execute.query(
       SQL`CREATE TABLE test_users (id INTEGER PRIMARY KEY, name TEXT)`,
     );
 
     // Insert test data
-    await db.execute.query(
+    await pool.execute.query(
       SQL`INSERT INTO test_users (name) VALUES ('Alice'), ('Bob')`,
     );
   });
@@ -36,7 +36,7 @@ void describe('SQLite SQL Formatter Integration Tests', () => {
       const emptyIds: number[] = [];
 
       try {
-        await db.execute.query(
+        await pool.execute.query(
           SQL`SELECT COUNT(*) as count FROM test_users WHERE id IN ${emptyIds}`,
         );
         assert.fail('Should have thrown error for empty array');
@@ -54,7 +54,7 @@ void describe('SQLite SQL Formatter Integration Tests', () => {
       // Non-empty arrays should still work
       const names = ['Alice'];
       const result = await count(
-        db.execute.query(
+        pool.execute.query(
           SQL`SELECT COUNT(*) as count FROM test_users WHERE name IN ${names}`,
         ),
       );
@@ -67,7 +67,7 @@ void describe('SQLite SQL Formatter Integration Tests', () => {
     void it('handles empty arrays by returning FALSE, so no records', async () => {
       const emptyIds: number[] = [];
       const result = await count(
-        db.execute.query(
+        pool.execute.query(
           SQL`SELECT COUNT(*) as count FROM test_users WHERE ${SQL.in('id', emptyIds)}`,
         ),
       );
@@ -79,7 +79,7 @@ void describe('SQLite SQL Formatter Integration Tests', () => {
       // Non-empty array should use standard IN clause for SQLite
       const ids = [1];
       const result = await count(
-        db.execute.query(
+        pool.execute.query(
           SQL`SELECT COUNT(*) as count FROM test_users WHERE ${SQL.in('id', ids)}`,
         ),
       );
@@ -87,10 +87,10 @@ void describe('SQLite SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 1);
     });
 
-    void it('handles string arrays correctly', async () => {
+    void it('handles string array with single value', async () => {
       const names = ['Alice'];
       const result = await count(
-        db.execute.query(
+        pool.execute.query(
           SQL`SELECT COUNT(*) as count FROM test_users WHERE ${SQL.in('name', names)}`,
         ),
       );
@@ -98,10 +98,21 @@ void describe('SQLite SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 1);
     });
 
+    void it('handles string array with multiple values', async () => {
+      const names = ['Alice', 'Bob'];
+      const result = await count(
+        pool.execute.query(
+          SQL`SELECT COUNT(*) as count FROM test_users WHERE ${SQL.in('name', names)}`,
+        ),
+      );
+
+      assert.strictEqual(result, 2);
+    });
+
     void it('handles empty string arrays', async () => {
       const emptyNames: string[] = [];
       const result = await count(
-        db.execute.query(
+        pool.execute.query(
           SQL`SELECT COUNT(*) as count FROM test_users WHERE ${SQL.in('name', emptyNames)}`,
         ),
       );
