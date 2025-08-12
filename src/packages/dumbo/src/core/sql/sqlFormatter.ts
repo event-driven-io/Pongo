@@ -11,6 +11,7 @@ export interface SQLFormatter {
   formatIdentifier: (value: unknown) => string;
   formatLiteral: (value: unknown) => string;
   formatString: (value: unknown) => string;
+  mapBoolean?: (value: boolean) => unknown;
   formatBoolean?: (value: boolean) => string;
   formatArray?: (
     array: unknown[],
@@ -20,6 +21,7 @@ export interface SQLFormatter {
     array: unknown[],
     itemFormatter: (item: unknown) => unknown,
   ) => unknown[];
+  mapDate?: (value: Date) => unknown;
   formatDate?: (value: Date) => string;
   formatObject?: (value: object) => string;
   formatBigInt?: (value: bigint) => string;
@@ -140,8 +142,8 @@ export function mapSQLValue(value: unknown, formatter: SQLFormatter): unknown {
       : value.map((item) => mapSQLValue(item, formatter));
   }
   if (typeof value === 'boolean') {
-    return formatter.formatBoolean
-      ? formatter.formatBoolean(value)
+    return formatter.mapBoolean
+      ? formatter.mapBoolean(value)
       : value
         ? 'TRUE'
         : 'FALSE';
@@ -151,8 +153,8 @@ export function mapSQLValue(value: unknown, formatter: SQLFormatter): unknown {
       ? formatter.formatBigInt(value)
       : value.toString();
   }
-  if (value instanceof Date && formatter.formatDate) {
-    return formatter.formatDate(value);
+  if (value instanceof Date && formatter.mapDate) {
+    return formatter.mapDate(value);
   }
   if (typeof value === 'object') {
     return formatter.formatObject

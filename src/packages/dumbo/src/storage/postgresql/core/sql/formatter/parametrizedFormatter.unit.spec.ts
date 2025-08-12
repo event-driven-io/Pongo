@@ -109,7 +109,7 @@ void describe('PostgreSQL Parametrized Formatter', () => {
       assert.deepStrictEqual(result, {
         query: 'INSERT INTO test (date, bigint, json) VALUES ($1, $2, $3)',
         params: [
-          "'2023-01-01 00:00:00.000+00'",
+          '2023-01-01 00:00:00.000+00',
           '123456789012345',
           `'{"key":"value"}'`,
         ],
@@ -193,7 +193,7 @@ void describe('PostgreSQL Parametrized Formatter', () => {
     void it('handles complex types', () => {
       const date = new Date('2023-01-01T00:00:00.000Z');
       const dateResult = pgFormatter.mapSQLValue(date);
-      assert.strictEqual(dateResult, "'2023-01-01 00:00:00.000+00'");
+      assert.strictEqual(dateResult, '2023-01-01 00:00:00.000+00');
 
       const bigint = BigInt(123456789012345);
       const bigintResult = pgFormatter.mapSQLValue(bigint);
