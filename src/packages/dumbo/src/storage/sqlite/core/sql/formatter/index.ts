@@ -1,4 +1,3 @@
-import { JSONSerializer } from '../../../../../core/serializer';
 import {
   formatSQL,
   formatSQLRaw,
@@ -16,31 +15,13 @@ const sqliteFormatter: SQLFormatter = {
     if (array.length === 0) return '()';
     return '(' + array.map(itemFormatter).join(', ') + ')';
   },
+  mapBoolean: (value: boolean): unknown => (value ? 1 : 0),
   formatBoolean: (value: boolean): string => (value ? '1' : '0'),
-  formatDate: (value) => format.literal(value.toISOString()),
-  mapSQLValue: (value: unknown): unknown => {
-    if (typeof value === 'boolean') return value ? 1 : 0;
-    if (value instanceof Date) return value.toISOString();
-    if (typeof value === 'bigint') return value.toString();
-
-    return mapSQLValue(value, sqliteFormatter);
-  },
-  format: (sql) => {
-    const result = formatSQL(sql, () => '?', sqliteFormatter);
-
-    const formattedParams = result.params.map((param) => {
-      if (param === null || param === undefined) return param;
-      if (typeof param === 'string' || typeof param === 'number') return param;
-      if (typeof param === 'boolean') return param ? 1 : 0;
-      if (param instanceof Date) return param.toISOString();
-      if (typeof param === 'bigint') return param.toString();
-      if (Array.isArray(param)) return JSONSerializer.serialize(param);
-      if (typeof param === 'object') return JSONSerializer.serialize(param);
-      return param;
-    });
-
-    return { query: result.query, params: formattedParams };
-  },
+  mapDate: (value: Date): unknown => value.toISOString(),
+  formatDate: (value: Date): string =>
+    format.literal(sqliteFormatter.mapDate!(value)),
+  mapSQLValue: (value: unknown): unknown => mapSQLValue(value, sqliteFormatter),
+  format: (sql) => formatSQL(sql, () => '?', sqliteFormatter),
   formatRaw: (sql) => formatSQLRaw(sql, sqliteFormatter),
 };
 
