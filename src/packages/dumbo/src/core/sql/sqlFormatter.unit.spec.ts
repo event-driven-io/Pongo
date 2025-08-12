@@ -74,26 +74,26 @@ void describe('SQL template', () => {
       const withContent = SQL`SELECT 1`;
       const withWhitespace = SQL`   `;
 
-      assert.strictEqual(SQL.isEmpty(empty1), true);
-      assert.strictEqual(SQL.isEmpty(empty2), true);
-      assert.strictEqual(SQL.isEmpty(withContent), false);
-      assert.strictEqual(SQL.isEmpty(withWhitespace), true);
+      assert.strictEqual(SQL.check.isEmpty(empty1), true);
+      assert.strictEqual(SQL.check.isEmpty(empty2), true);
+      assert.strictEqual(SQL.check.isEmpty(withContent), false);
+      assert.strictEqual(SQL.check.isEmpty(withWhitespace), true);
     });
 
     void it('handles SQL with only values', () => {
       const onlyValues = SQL`${SQL.literal('test')}`;
       const withEmptyStrings = SQL`${''}${SQL.literal('test')}${''}`;
 
-      assert.strictEqual(SQL.isEmpty(onlyValues), false);
-      assert.strictEqual(SQL.isEmpty(withEmptyStrings), false);
+      assert.strictEqual(SQL.check.isEmpty(onlyValues), false);
+      assert.strictEqual(SQL.check.isEmpty(withEmptyStrings), false);
     });
 
     void it('handles complex empty cases', () => {
       const emptyWithValues = SQL`${''}${''}${''}`;
       const reallyEmpty = SQL``;
 
-      assert.strictEqual(SQL.isEmpty(emptyWithValues), false);
-      assert.strictEqual(SQL.isEmpty(reallyEmpty), true);
+      assert.strictEqual(SQL.check.isEmpty(emptyWithValues), false);
+      assert.strictEqual(SQL.check.isEmpty(reallyEmpty), true);
     });
   });
 
@@ -107,7 +107,7 @@ void describe('SQL template', () => {
 
       assert.strictEqual(isSQL(result), true);
       assert.strictEqual(isParametrizedSQL(result), true);
-      assert.strictEqual(SQL.isEmpty(result), false);
+      assert.strictEqual(SQL.check.isEmpty(result), false);
     });
 
     void it('handles empty SQL in merging', () => {

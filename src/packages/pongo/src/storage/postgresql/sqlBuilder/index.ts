@@ -205,9 +205,7 @@ export const postgresSQLBuilder = (
 
     query.push(SQL`SELECT data FROM ${SQL.identifier(collectionName)}`);
 
-    if (!SQL.isEmpty(filterQuery)) {
-      query.push(where(filterQuery));
-    }
+    query.push(where(filterQuery));
 
     if (options?.limit) {
       query.push(SQL`LIMIT ${options.limit}`);
@@ -232,4 +230,6 @@ export const postgresSQLBuilder = (
 });
 
 const where = (filterQuery: SQL): SQL =>
-  SQL.isEmpty(filterQuery) ? SQL.EMPTY : SQL.merge([SQL`WHERE `, filterQuery]);
+  SQL.check.isEmpty(filterQuery)
+    ? SQL.EMPTY
+    : SQL.merge([SQL`WHERE `, filterQuery]);
