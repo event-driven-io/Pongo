@@ -51,7 +51,7 @@ void describe('SQL template', () => {
       );
     });
 
-    void it('should handle SQL with interpolated values', () => {
+    void it('handles SQL with interpolated values', () => {
       const name = 'John';
       const age = 30;
       const query = SQL`SELECT * FROM users WHERE name = ${SQL.literal(name)} AND age = ${age}`;
@@ -79,7 +79,7 @@ void describe('SQL template', () => {
       assert.strictEqual(SQL.isEmpty(withWhitespace), true);
     });
 
-    void it('should handle SQL with only values', () => {
+    void it('handles SQL with only values', () => {
       const onlyValues = SQL`${SQL.literal('test')}`;
       const withEmptyStrings = SQL`${''}${SQL.literal('test')}${''}`;
 
@@ -87,7 +87,7 @@ void describe('SQL template', () => {
       assert.strictEqual(SQL.isEmpty(withEmptyStrings), false);
     });
 
-    void it('should handle complex empty cases', () => {
+    void it('handles complex empty cases', () => {
       const emptyWithValues = SQL`${''}${''}${''}`;
       const reallyEmpty = SQL``;
 
@@ -109,7 +109,7 @@ void describe('SQL template', () => {
       assert.strictEqual(SQL.isEmpty(result), false);
     });
 
-    void it('should handle empty SQL in merging', () => {
+    void it('handles empty SQL in merging', () => {
       const base = SQL`SELECT * FROM users`;
       const empty = SQL.EMPTY;
       const order = SQL`ORDER BY name`;
@@ -162,7 +162,7 @@ void describe('SQL template', () => {
       assert.strictEqual(formatted.includes("'admin'"), true);
     });
 
-    void it('should handle all data types correctly', () => {
+    void it('handles all data types correctly', () => {
       const query = SQL`
         INSERT INTO test (
           str_col, num_col, bool_col, null_col, 

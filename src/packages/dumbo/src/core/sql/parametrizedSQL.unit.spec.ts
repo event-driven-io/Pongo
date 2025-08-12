@@ -28,7 +28,7 @@ void describe('SQL Parametrizer', () => {
       assert.deepEqual(result.params, [123]);
     });
 
-    void it('should handle multiple parameters', () => {
+    void it('handles multiple parameters', () => {
       const result = asParametrizedSQL(
         SQL`SELECT * FROM users WHERE id = ${123} AND name = ${'John'}`,
       );
@@ -40,7 +40,7 @@ void describe('SQL Parametrizer', () => {
       assert.deepEqual(result.params, [123, 'John']);
     });
 
-    void it('should handle no parameters', () => {
+    void it('handles no parameters', () => {
       const result = asParametrizedSQL(SQL`SELECT * FROM users`);
 
       assert.equal(result.sql, 'SELECT * FROM users');
@@ -61,7 +61,7 @@ void describe('SQL Parametrizer', () => {
       assert.deepEqual(result.params, [1, 'Alice', 30]);
     });
 
-    void it('should handle many parameters', () => {
+    void it('handles many parameters', () => {
       const values = Array.from({ length: 10 }, (_, i) => i + 1);
       const result = asParametrizedSQL(
         SQL`SELECT * FROM table WHERE id IN (${values[0]}, ${values[1]}, ${values[2]}, ${values[3]}, ${values[4]}, ${values[5]}, ${values[6]}, ${values[7]}, ${values[8]}, ${values[9]})`,
@@ -92,7 +92,7 @@ void describe('SQL Parametrizer', () => {
       assert.deepEqual(result.params, [123, 'test', date, null]);
     });
 
-    void it('should handle undefined values', () => {
+    void it('handles undefined values', () => {
       const result = asParametrizedSQL(
         SQL`SELECT * FROM users WHERE status = ${undefined}`,
       );
@@ -116,7 +116,7 @@ void describe('SQL Parametrizer', () => {
       assert.deepEqual(mainQuery.params, ['admin']);
     });
 
-    void it('should handle deeply nested SQL', () => {
+    void it('handles deeply nested SQL', () => {
       const inner = SQL`SELECT id FROM permissions WHERE name = ${'read'}`;
       const middle = SQL`SELECT role_id FROM role_permissions WHERE permission_id IN (${inner})`;
       const outer = asParametrizedSQL(
@@ -130,7 +130,7 @@ void describe('SQL Parametrizer', () => {
       assert.deepEqual(outer.params, ['read']);
     });
 
-    void it('should handle multiple nested SQL with parameters', () => {
+    void it('handles multiple nested SQL with parameters', () => {
       const subQuery1 = SQL`SELECT id FROM roles WHERE name = ${'admin'}`;
       const subQuery2 = SQL`SELECT id FROM departments WHERE code = ${'IT'}`;
       const mainQuery = asParametrizedSQL(

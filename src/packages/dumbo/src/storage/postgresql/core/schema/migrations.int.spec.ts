@@ -101,7 +101,7 @@ void describe('Migration Integration Tests', () => {
         assert.strictEqual(
           error.message,
           'Failed to acquire advisory lock within the specified timeout. Migration aborted.',
-          'Should throw a timeout error.',
+          'throws a timeout error.',
         );
       }
     } finally {
@@ -211,12 +211,12 @@ void describe('Migration Integration Tests', () => {
       assert.strictEqual(
         error.message,
         `Migration hash mismatch for "hash_check_migration". Aborting migration.`,
-        'Should throw a hash mismatch error.',
+        'throws a hash mismatch error.',
       );
     }
   });
 
-  void it('should handle a large migration with multiple SQL statements', async () => {
+  void it('handles a large migration with multiple SQL statements', async () => {
     const migration: SQLMigration = {
       name: 'large_migration',
       sqls: [

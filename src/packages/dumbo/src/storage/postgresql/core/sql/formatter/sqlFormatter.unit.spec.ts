@@ -49,7 +49,7 @@ void describe('SQL Tagged Template Literal', () => {
     assert.strictEqual(processSQLForTesting(query), "SELECT some'unsafe;");
   });
 
-  void it('should handle default literal formatting for plain values', () => {
+  void it('handles default literal formatting for plain values', () => {
     const name: string = 'John Doe';
     const age: number = 30;
     const query = SQL`INSERT INTO users (name, age) VALUES (${name}, ${age});`;
@@ -61,7 +61,7 @@ void describe('SQL Tagged Template Literal', () => {
     );
   });
 
-  void it('should handle mixed types of formatting', () => {
+  void it('handles mixed types of formatting', () => {
     const name: string = 'John Doe';
     const age: number = 30;
     const table: string = 'users';
@@ -125,7 +125,7 @@ void describe('SQL Tagged Template Literal', () => {
     );
   });
 
-  void it('should handle arrays of values using literals', () => {
+  void it('handles arrays of values using literals', () => {
     const values: string[] = ['John', 'Doe', '30'];
     const query = SQL`INSERT INTO users (first_name, last_name, age)
       VALUES (${SQL.literal(values[0])}, ${SQL.literal(values[1])}, ${SQL.literal(values[2])});`;
@@ -138,7 +138,7 @@ void describe('SQL Tagged Template Literal', () => {
     );
   });
 
-  void it('should handle SQL injections attempts safely', () => {
+  void it('handles SQL injections attempts safely', () => {
     const unsafeInput: string = "'; DROP TABLE users; --";
     const query = SQL`SELECT * FROM users WHERE name = ${SQL.literal(unsafeInput)};`;
 

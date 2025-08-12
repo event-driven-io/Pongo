@@ -281,7 +281,7 @@ void describe('format.ident(val)', () => {
     assert.equal(format.ident(testDate), '"2012-12-14 13:06:43.152+00"');
   });
 
-  void it('should throw when undefined', () => {
+  void it('throws when undefined', () => {
     try {
       format.ident(undefined);
       assert.fail();
@@ -293,7 +293,7 @@ void describe('format.ident(val)', () => {
     }
   });
 
-  void it('should throw when null', () => {
+  void it('throws when null', () => {
     try {
       format.ident(null);
       assert.fail();
@@ -305,7 +305,7 @@ void describe('format.ident(val)', () => {
     }
   });
 
-  void it('should throw when object', () => {
+  void it('throws when object', () => {
     try {
       format.ident({});
       assert.fail();

@@ -1,7 +1,6 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
-import { SQL } from '../../../../../core/sql/sql';
-// Tests for SQLite parametrized formatter
+import { SQL } from '../../../../../core/sql';
 import { sqliteFormatter } from './index';
 
 void describe('SQLite Parametrized Formatter', () => {
@@ -16,7 +15,7 @@ void describe('SQLite Parametrized Formatter', () => {
       });
     });
 
-    void it('should handle identifiers by inlining them', () => {
+    void it('handles identifiers by inlining them', () => {
       const sql = SQL`CREATE TABLE ${SQL.identifier('users')} (id INTEGER, name TEXT)`;
       const result = sqliteFormatter.format(sql);
 
@@ -26,7 +25,7 @@ void describe('SQLite Parametrized Formatter', () => {
       });
     });
 
-    void it('should handle quoted identifiers correctly', () => {
+    void it('handles quoted identifiers correctly', () => {
       const sql = SQL`CREATE TABLE ${SQL.identifier('User Table')} (id INTEGER)`;
       const result = sqliteFormatter.format(sql);
 
@@ -46,7 +45,7 @@ void describe('SQLite Parametrized Formatter', () => {
       });
     });
 
-    void it('should handle arrays by expanding to individual parameters', () => {
+    void it('handles arrays by expanding to individual parameters', () => {
       const ids = ['id1', 'id2', 'id3'];
       const sql = SQL`SELECT * FROM users WHERE _id IN ${ids}`;
       const result = sqliteFormatter.format(sql);
@@ -57,7 +56,7 @@ void describe('SQLite Parametrized Formatter', () => {
       });
     });
 
-    void it('should throw error for empty arrays in IN clauses', () => {
+    void it('throws error for empty arrays in IN clauses', () => {
       const ids: string[] = [];
       const sql = SQL`SELECT * FROM users WHERE _id IN ${ids}`;
 
@@ -67,7 +66,7 @@ void describe('SQLite Parametrized Formatter', () => {
       );
     });
 
-    void it('should handle multiple parameters', () => {
+    void it('handles multiple parameters', () => {
       const sql = SQL`SELECT * FROM users WHERE id = ${123} AND name = ${'John'}`;
       const result = sqliteFormatter.format(sql);
 
@@ -77,7 +76,7 @@ void describe('SQLite Parametrized Formatter', () => {
       });
     });
 
-    void it('should handle nested SQL', () => {
+    void it('handles nested SQL', () => {
       const innerSql = SQL`status = ${'active'}`;
       const outerSql = SQL`SELECT * FROM users WHERE ${innerSql} AND id = ${456}`;
       const result = sqliteFormatter.format(outerSql);
@@ -88,7 +87,7 @@ void describe('SQLite Parametrized Formatter', () => {
       });
     });
 
-    void it('should handle array of SQL', () => {
+    void it('handles array of SQL', () => {
       const sql1 = SQL`INSERT INTO users (name) VALUES (${'Alice'})`;
       const sql2 = SQL`INSERT INTO users (name) VALUES (${'Bob'})`;
       const result = sqliteFormatter.format([sql1, sql2]);
@@ -100,7 +99,7 @@ void describe('SQLite Parametrized Formatter', () => {
       });
     });
 
-    void it('should handle special value types', () => {
+    void it('handles special value types', () => {
       const date = new Date('2023-01-01T00:00:00.000Z');
       const bigint = BigInt(123456789012345);
       const obj = { key: 'value' };
@@ -111,24 +110,24 @@ void describe('SQLite Parametrized Formatter', () => {
       assert.deepStrictEqual(result, {
         query: 'INSERT INTO test (date, bigint, json) VALUES (?, ?, ?)',
         params: [
-          '2023-01-01T00:00:00.000Z', // SQLite date as ISO string
-          '123456789012345', // SQLite BigInt as string
-          '{"key":"value"}', // SQLite object as JSON
+          '2023-01-01T00:00:00.000Z',
+          '123456789012345',
+          '{"key":"value"}',
         ],
       });
     });
 
-    void it('should handle boolean values', () => {
+    void it('handles boolean values', () => {
       const sql = SQL`INSERT INTO test (active, inactive) VALUES (${true}, ${false})`;
       const result = sqliteFormatter.format(sql);
 
       assert.deepStrictEqual(result, {
         query: 'INSERT INTO test (active, inactive) VALUES (?, ?)',
-        params: [1, 0], // SQLite booleans as 1/0
+        params: [1, 0],
       });
     });
 
-    void it('should handle empty parameters', () => {
+    void it('handles empty parameters', () => {
       const sql = SQL`SELECT * FROM users`;
       const result = sqliteFormatter.format(sql);
 
@@ -138,7 +137,7 @@ void describe('SQLite Parametrized Formatter', () => {
       });
     });
 
-    void it('should throw error for non-parametrized SQL', () => {
+    void it('throws error for non-parametrized SQL', () => {
       assert.throws(() => {
         sqliteFormatter.format('SELECT * FROM users' as SQL);
       }, /Expected ParametrizedSQL, got string-based SQL/);
@@ -155,7 +154,7 @@ void describe('SQLite Parametrized Formatter', () => {
       assert.ok(result.includes('John'));
     });
 
-    void it('should handle array of SQL', () => {
+    void it('handles array of SQL', () => {
       const sql1 = SQL`SELECT ${123}`;
       const sql2 = SQL`SELECT ${'test'}`;
       const result = sqliteFormatter.formatRaw([sql1, sql2]);
@@ -168,14 +167,14 @@ void describe('SQLite Parametrized Formatter', () => {
   });
 
   void describe('mapSQLValue method', () => {
-    void it('should handle basic types', () => {
+    void it('handles basic types', () => {
       assert.strictEqual(sqliteFormatter.mapSQLValue(123), 123);
       assert.strictEqual(sqliteFormatter.mapSQLValue('test'), 'test');
       assert.strictEqual(sqliteFormatter.mapSQLValue(null), null);
       assert.strictEqual(sqliteFormatter.mapSQLValue(undefined), null);
     });
 
-    void it('should handle SQLite-specific type conversions', () => {
+    void it('handles SQLite-specific type conversions', () => {
       // Boolean conversion
       assert.strictEqual(sqliteFormatter.mapSQLValue(true), 1);
       assert.strictEqual(sqliteFormatter.mapSQLValue(false), 0);
@@ -195,7 +194,7 @@ void describe('SQLite Parametrized Formatter', () => {
       );
     });
 
-    void it('should handle SQL wrapper types', () => {
+    void it('handles SQL wrapper types', () => {
       // Valid unquoted identifier (lowercase, no special chars)
       const validIdentResult = sqliteFormatter.mapSQLValue(
         SQL.identifier('table_name'),
@@ -217,14 +216,14 @@ void describe('SQLite Parametrized Formatter', () => {
       assert.strictEqual(rawResult, 'CURRENT_TIMESTAMP');
     });
 
-    void it('should handle nested SQL', () => {
+    void it('handles nested SQL', () => {
       const nestedSql = SQL`SELECT ${123}`;
       const result = sqliteFormatter.mapSQLValue(nestedSql);
       assert.strictEqual(typeof result, 'string');
       assert.ok((result as string).includes('123'));
     });
 
-    void it('should handle complex types', () => {
+    void it('handles complex types', () => {
       const obj = { key: 'value' };
       const objResult = sqliteFormatter.mapSQLValue(obj);
       assert.ok(typeof objResult === 'string');

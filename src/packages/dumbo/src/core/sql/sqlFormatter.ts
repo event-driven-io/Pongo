@@ -50,20 +50,22 @@ export const formatSQL = (sql: SQL | SQL[], formatter: SQLFormatter): string =>
     : processSQL(sql, formatter);
 
 function formatSQLValue(value: unknown, formatter: SQLFormatter): string {
-  // Handle SQL wrapper types first
   if (SQL.check.isIdentifier(value)) {
     return formatter.formatIdentifier(value.value);
-  } else if (SQL.check.isPlain(value)) {
+  }
+  if (SQL.check.isPlain(value)) {
     return value.value;
-  } else if (SQL.check.isLiteral(value)) {
+  }
+  if (SQL.check.isLiteral(value)) {
     return formatter.formatLiteral(value.value);
-  } else if (SQL.check.isSQLIn(value)) {
+  }
+  if (SQL.check.isSQLIn(value)) {
     return formatSQLIn(value, formatter);
-  } else if (SQL.check.isSQL(value)) {
+  }
+  if (SQL.check.isSQL(value)) {
     return processSQL(value as unknown as SQL, formatter);
   }
 
-  // Handle specific types directly
   if (value === null || value === undefined) {
     return 'NULL';
   } else if (typeof value === 'number') {
@@ -73,24 +75,19 @@ function formatSQLValue(value: unknown, formatter: SQLFormatter): string {
       ? formatter.formatArray(value, (item) => formatSQLValue(item, formatter))
       : formatter.formatLiteral(value);
   } else if (typeof value === 'bigint') {
-    // Format BigInt as a quoted string to match test expectations
-
     return formatter.formatBigInt
       ? formatter.formatBigInt(value)
       : formatter.formatLiteral(value);
   } else if (value instanceof Date) {
-    // Let the formatter handle dates consistently
     return formatter.formatDate
       ? formatter.formatDate(value)
       : formatter.formatLiteral(value);
   } else if (typeof value === 'object') {
-    // Let the formatter handle objects (excluding null which is handled above)
     return formatter.formatObject
       ? formatter.formatObject(value)
       : formatter.formatLiteral(value);
   }
 
-  // For all other types, use the formatter's literal formatting
   return formatter.formatLiteral(value);
 }
 
@@ -132,7 +129,6 @@ function formatSQLInParametrized(
     );
   }
 
-  // Fallback: standard IN clause with parameterized values
   const formattedColumn = formatter.formatIdentifier(column);
   const placeholders = values.map((_, index) =>
     placeholderGenerator(startIndex + index),
@@ -147,7 +143,6 @@ export function formatParametrizedQuery(
   placeholderGenerator: (index: number) => string,
   formatter: SQLFormatter,
 ): ParametrizedQuery {
-  // Handle array by merging with newline separator
   const merged = Array.isArray(sql) ? SQL.merge(sql, '\n') : sql;
 
   if (!isParametrizedSQL(merged)) {
@@ -159,16 +154,13 @@ export function formatParametrizedQuery(
   const finalParams: unknown[] = [];
   let paramIndex = 0;
 
-  // Process each parameter
   parametrized.params.forEach((param, index) => {
     const placeholder = `__P${index + 1}__`;
 
     if (SQL.check.isIdentifier(param)) {
-      // Identifiers must be inlined in the SQL, not bound as parameters
       const inlinedIdentifier = formatter.formatIdentifier(param.value);
       query = query.replace(new RegExp(placeholder, 'g'), inlinedIdentifier);
     } else if (SQL.check.isSQLIn(param)) {
-      // SQL.in helper - handle empty arrays gracefully
       const sqlInResult = formatSQLInParametrized(
         param,
         formatter,
@@ -179,26 +171,21 @@ export function formatParametrizedQuery(
       finalParams.push(...sqlInResult.params);
       paramIndex += sqlInResult.params.length;
     } else if (Array.isArray(param)) {
-      // Arrays - expand to individual parameters for universal compatibility
       if (param.length === 0) {
-        // Empty arrays should use SQL.in helper for proper handling
         throw new Error(
           'Empty arrays in IN clauses are not supported. Use SQL.in(column, array) helper instead.',
         );
-      } else {
-        // Non-empty array - expand to individual parameters
-        const expandedPlaceholders = param.map(() =>
-          placeholderGenerator(paramIndex++),
-        );
-        const expandedPlaceholderString = `(${expandedPlaceholders.join(', ')})`;
-        query = query.replace(
-          new RegExp(placeholder, 'g'),
-          expandedPlaceholderString,
-        );
-        finalParams.push(...(param as unknown[]));
       }
+      const expandedPlaceholders = param.map(() =>
+        placeholderGenerator(paramIndex++),
+      );
+      const expandedPlaceholderString = `(${expandedPlaceholders.join(', ')})`;
+      query = query.replace(
+        new RegExp(placeholder, 'g'),
+        expandedPlaceholderString,
+      );
+      finalParams.push(...(param as unknown[]));
     } else {
-      // Regular parameters get database-specific placeholders and are added to params
       const dbPlaceholder = placeholderGenerator(paramIndex);
       query = query.replace(new RegExp(placeholder, 'g'), dbPlaceholder);
       finalParams.push(param);
@@ -210,50 +197,50 @@ export function formatParametrizedQuery(
 }
 
 export function mapSQLValue(value: unknown, formatter: SQLFormatter): unknown {
-  // Handle SQL wrapper types first - these need special processing for parameters
   if (SQL.check.isIdentifier(value)) {
-    // For parameter binding, identifiers should be processed by the formatter
     return formatter.formatIdentifier(value.value);
-  } else if (SQL.check.isPlain(value)) {
-    // Raw values should be processed by the formatter
+  }
+  if (SQL.check.isPlain(value)) {
     return value.value;
-  } else if (SQL.check.isLiteral(value)) {
-    // Literals should be processed by the formatter
+  }
+  if (SQL.check.isLiteral(value)) {
     return formatter.formatLiteral(value.value);
-  } else if (isSQL(value)) {
-    // Nested SQL should be processed
+  }
+  if (isSQL(value)) {
     return formatSQL(value, formatter);
   }
 
-  // For primitive types, return as-is for parameter binding
   if (value === null || value === undefined) {
     return null;
-  } else if (typeof value === 'number') {
+  }
+  if (typeof value === 'number') {
     return value;
-  } else if (typeof value === 'string') {
+  }
+  if (typeof value === 'string') {
     return value;
   }
 
-  // For complex types, let formatter handle them
   if (Array.isArray(value)) {
     return formatter.formatArray
       ? formatter.formatArray(value, (item) => String(item))
       : formatter.formatLiteral(value);
-  } else if (typeof value === 'bigint') {
+  }
+  if (typeof value === 'bigint') {
     return formatter.formatBigInt
       ? formatter.formatBigInt(value)
       : formatter.formatLiteral(value);
-  } else if (value instanceof Date) {
+  }
+  if (value instanceof Date) {
     return formatter.formatDate
       ? formatter.formatDate(value)
       : formatter.formatLiteral(value);
-  } else if (typeof value === 'object') {
+  }
+  if (typeof value === 'object') {
     return formatter.formatObject
       ? formatter.formatObject(value)
       : formatter.formatLiteral(value);
   }
 
-  // Fallback to literal formatting
   return formatter.formatLiteral(value);
 }
 
@@ -262,7 +249,6 @@ function processSQL(sql: SQL, formatter: SQLFormatter): string {
     const parametrized = sql as unknown as ParametrizedSQL;
     let result = parametrized.sql;
 
-    // Replace __P1__, __P2__, etc. with formatted parameter values
     parametrized.params.forEach((param, index) => {
       const placeholder = `__P${index + 1}__`;
       const formattedValue = formatSQLValue(param, formatter);
@@ -272,6 +258,5 @@ function processSQL(sql: SQL, formatter: SQLFormatter): string {
     return result;
   }
 
-  // Fallback for string-based SQL
   return sql;
 }

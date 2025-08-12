@@ -31,7 +31,7 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
   });
 
   void describe('Direct Array Handling', () => {
-    void it('should throw error for empty arrays in IN clauses', async () => {
+    void it('throws error for empty arrays in IN clauses', async () => {
       const emptyIds: number[] = [];
 
       try {
@@ -49,7 +49,7 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
       }
     });
 
-    void it('should handle non-empty arrays correctly', async () => {
+    void it('handles non-empty arrays', async () => {
       const ids = [1];
       const result = await count(
         pool.execute.query(
@@ -62,7 +62,7 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
   });
 
   void describe('SQL.in Helper', () => {
-    void it('should handle empty arrays by returning FALSE, so no records', async () => {
+    void it('handles empty arrays by returning FALSE, so no records', async () => {
       const emptyIds: number[] = [];
       const result = await count(
         pool.execute.query(
@@ -73,7 +73,7 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 0);
     });
 
-    void it('should handle non-empty arrays with PostgreSQL ANY optimization', async () => {
+    void it('handles non-empty arrays', async () => {
       const ids = [1];
       const result = await count(
         pool.execute.query(
@@ -84,7 +84,7 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 1);
     });
 
-    void it('should handle string arrays correctly', async () => {
+    void it('handles string arrays', async () => {
       const names = ['Alice'];
       const result = await count(
         pool.execute.query(
@@ -95,7 +95,7 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 1);
     });
 
-    void it('should handle empty string arrays', async () => {
+    void it('handles empty string', async () => {
       const emptyNames: string[] = [];
       const result = await count(
         pool.execute.query(
