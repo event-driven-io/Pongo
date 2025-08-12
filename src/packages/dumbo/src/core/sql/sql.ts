@@ -108,7 +108,7 @@ const isLiteral = (value: unknown): value is SQLLiteral => {
 };
 
 const SQLIN = Symbol.for('SQL_IN');
-type SQLIn = { [SQLIN]: true; column: string; values: unknown[] };
+export type SQLIn = { [SQLIN]: true; column: string; values: unknown[] };
 
 function sqlIn(column: string, values: unknown[]): SQLIn {
   return { [SQLIN]: true, column, values };
