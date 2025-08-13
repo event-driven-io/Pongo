@@ -1,12 +1,12 @@
 import {
-  MIGRATIONS_LOCK_ID,
-  runSQLMigrations,
-  schemaComponent,
-  SQL,
-  sqlMigration,
   type DatabaseLockOptions,
   type Dumbo,
   type SQLMigration,
+  MIGRATIONS_LOCK_ID,
+  SQL,
+  runSQLMigrations,
+  schemaComponent,
+  sqlMigration,
 } from '../../../../core';
 import { AdvisoryLock } from '../locks';
 

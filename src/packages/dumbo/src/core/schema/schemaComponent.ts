@@ -1,5 +1,5 @@
 import type { ConnectorType } from '../..';
-import { type SQLMigration } from './migrations';
+import { type SQLMigration } from '../migrations/migrations';
 
 export type SchemaComponentMigrationsOptions = {
   connector: ConnectorType;
