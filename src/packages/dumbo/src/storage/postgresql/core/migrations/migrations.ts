@@ -1,22 +1,13 @@
 import {
   type DatabaseLockOptions,
-  type Dumbo,
-  type SQLMigration,
+  type MigratorOptions,
+  type SchemaComponent,
   MIGRATIONS_LOCK_ID,
   SQL,
-  runSQLMigrations,
   schemaComponent,
   sqlMigration,
 } from '../../../../core';
 import { AdvisoryLock } from '../locks';
-
-export type PostgreSQLMigratorOptions = {
-  lock?: {
-    options?: Omit<DatabaseLockOptions, 'lockId'> &
-      Partial<Pick<DatabaseLockOptions, 'lockId'>>;
-  };
-  dryRun?: boolean | undefined;
-};
 
 const migrationTableSQL = SQL`
   CREATE TABLE IF NOT EXISTS migrations (
@@ -37,21 +28,42 @@ export const migrationTableSchemaComponent = schemaComponent(
   },
 );
 
-export const runPostgreSQLMigrations = (
-  pool: Dumbo,
-  migrations: SQLMigration[],
+export const DefaultPostgreSQLMigratorOptions: MigratorOptions = {
+  schema: {
+    migrationTable: migrationTableSchemaComponent,
+  },
+  lock: {
+    databaseLock: AdvisoryLock,
+    options: {
+      lockId: MIGRATIONS_LOCK_ID,
+    },
+  },
+};
+
+export type PostgreSQLMigratorOptions = {
+  schema?: Omit<SchemaComponent, 'migrationTable'>;
+  lock?: {
+    options?: Omit<DatabaseLockOptions, 'lockId'> &
+      Partial<Pick<DatabaseLockOptions, 'lockId'>>;
+  };
+  dryRun?: boolean | undefined;
+};
+
+export const PostgreSQLMigratorOptions = (
   options?: PostgreSQLMigratorOptions,
-): Promise<void> =>
-  runSQLMigrations(pool, migrations, {
-    schema: {
-      migrationTable: migrationTableSchemaComponent,
+): MigratorOptions => ({
+  ...DefaultPostgreSQLMigratorOptions,
+  schema: {
+    ...DefaultPostgreSQLMigratorOptions.schema,
+    ...(options?.schema ?? {}),
+  },
+  lock: {
+    ...DefaultPostgreSQLMigratorOptions.lock,
+    options: {
+      ...DefaultPostgreSQLMigratorOptions.lock.options,
+      ...(options ?? {}),
+      lockId: MIGRATIONS_LOCK_ID,
     },
-    lock: {
-      databaseLock: AdvisoryLock,
-      options: {
-        ...(options ?? {}),
-        lockId: MIGRATIONS_LOCK_ID,
-      },
-    },
-    dryRun: options?.dryRun,
-  });
+  },
+  dryRun: DefaultPostgreSQLMigratorOptions.dryRun ?? options?.dryRun,
+});

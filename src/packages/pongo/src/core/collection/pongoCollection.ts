@@ -1,4 +1,5 @@
 import {
+  runSQLMigrations,
   schemaComponent,
   single,
   type ConnectorType,
@@ -12,7 +13,7 @@ import {
   type SQLExecutor,
   type SQLMigration,
 } from '@event-driven-io/dumbo';
-import { runPostgreSQLMigrations } from '@event-driven-io/dumbo/pg';
+import { PostgreSQLMigratorOptions } from '@event-driven-io/dumbo/pg';
 import { v7 as uuid } from 'uuid';
 import {
   deepEquals,
@@ -494,7 +495,12 @@ export const pongoCollection = <
           migrations: SqlFor.migrations,
         });
       },
-      migrate: () => runPostgreSQLMigrations(pool, SqlFor.migrations()), // TODO: This needs to change to support more connectors
+      migrate: () =>
+        runSQLMigrations(
+          pool,
+          SqlFor.migrations(),
+          PostgreSQLMigratorOptions(),
+        ),
     },
   };
 
