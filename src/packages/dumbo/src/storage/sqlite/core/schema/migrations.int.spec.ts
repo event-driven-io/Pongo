@@ -5,7 +5,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { InMemorySQLiteDatabase, SQLiteConnectionString } from '..';
 import { count, dumbo, SQL, type Dumbo } from '../../../..';
-import { type SQLMigration } from '../../../../core/schema';
+import { type SQLMigration } from '../../../../core/migrations';
 import { tableExists } from '../../../../sqlite3';
 import { runSQLiteMigrations } from './migrations';
 

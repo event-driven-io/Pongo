@@ -7,7 +7,10 @@ import { after, before, beforeEach, describe, it } from 'node:test';
 import { PostgreSQLConnectionString, tableExists } from '..';
 import { type Dumbo } from '../../../..';
 import { count, SQL } from '../../../../core';
-import { MIGRATIONS_LOCK_ID, type SQLMigration } from '../../../../core/schema';
+import {
+  MIGRATIONS_LOCK_ID,
+  type SQLMigration,
+} from '../../../../core/migrations';
 import { dumbo } from '../../../../pg';
 import { acquireAdvisoryLock, releaseAdvisoryLock } from '../locks';
 import { runPostgreSQLMigrations } from './migrations';

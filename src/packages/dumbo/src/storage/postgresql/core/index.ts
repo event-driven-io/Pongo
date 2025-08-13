@@ -2,6 +2,7 @@ import type { ConnectorType } from '../../../core';
 
 export * from './connections';
 export * from './locks';
+export * from './migrations';
 export * from './schema';
 export * from './sql';
 
