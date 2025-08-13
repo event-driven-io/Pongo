@@ -4,10 +4,7 @@ import {
   parseConnectionString,
   runSQLMigrations,
 } from '@event-driven-io/dumbo';
-import {
-  migrationTableSchemaComponent,
-  PostgreSQLMigratorOptions,
-} from '@event-driven-io/dumbo/pg';
+import { getMigrationTableSchemaComponent } from '@event-driven-io/dumbo/pg';
 import { Command } from 'commander';
 import { pongoCollectionSchemaComponent } from '../core';
 import { loadConfigFile } from './configFile';
@@ -92,13 +89,9 @@ migrateCommand
       }),
     );
 
-    await runSQLMigrations(
-      pool,
-      migrations,
-      PostgreSQLMigratorOptions({
-        dryRun,
-      }),
-    );
+    await runSQLMigrations(pool, migrations, {
+      dryRun,
+    });
   });
 
 migrateCommand
@@ -134,7 +127,7 @@ migrateCommand
       process.exit(1);
     }
 
-    const coreMigrations = migrationTableSchemaComponent.migrations({
+    const coreMigrations = getMigrationTableSchemaComponent().migrations({
       connector: 'PostgreSQL:pg',
     });
     const migrations = [

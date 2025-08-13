@@ -80,5 +80,60 @@ export default [
       '@typescript-eslint/prefer-namespace-keyword': 'off',
     },
   },
+  {
+    files: ['packages/dumbo/src/core/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '../storage/all',
+              importNames: ['dumbo', 'parseConnectionString'],
+              message: 'Core cannot import implementation from storage/all. Use the registry pattern instead.',
+            },
+          ],
+          patterns: [
+            {
+              group: ['../storage/postgresql/**', '../storage/sqlite/**'],
+              message: 'Core cannot import from storage implementations. Use the registry pattern instead.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['packages/dumbo/src/storage/postgresql/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['../sqlite/**', '../../sqlite/**'],
+              message: 'PostgreSQL storage cannot import from SQLite storage.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['packages/dumbo/src/storage/sqlite/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['../postgresql/**', '../../postgresql/**'],
+              message: 'SQLite storage cannot import from PostgreSQL storage.',
+            },
+          ],
+        },
+      ],
+    },
+  },
   eslintConfigPrettier,
 ];

@@ -1,19 +1,15 @@
+import type { Dumbo } from '..';
+import { type DatabaseType, fromConnectorType } from '../connectors';
+import type { SQLExecutor } from '../execute';
 import {
-  fromConnectorType,
-  mapToCamelCase,
-  singleOrNull,
-  SQL,
-  tracer,
-  type SchemaComponent,
-  type SQLExecutor,
-  type SQLFormatter,
-} from '..';
-import {
-  DefaultMigratorOptions,
   type DatabaseLock,
   type DatabaseLockOptions,
-  type Dumbo,
-} from '../..';
+  NoDatabaseLock,
+} from '../locks';
+import { mapToCamelCase, singleOrNull } from '../query';
+import { SQL, type SQLFormatter } from '../sql';
+import { tracer } from '../tracing';
+import type { SchemaComponent } from './schemaComponent';
 
 export type MigrationStyle = 'None' | 'CreateOrUpdate';
 
@@ -36,12 +32,33 @@ export type MigrationRecord = {
 };
 export const MIGRATIONS_LOCK_ID = 999956789;
 
+const defaultMigratorOptions: Record<DatabaseType, MigratorOptions> =
+  {} as Record<DatabaseType, MigratorOptions>;
+
+export const registerDefaultMigratorOptions = (
+  databaseType: DatabaseType,
+  options: MigratorOptions,
+): void => {
+  defaultMigratorOptions[databaseType] = options;
+};
+
+export const getDefaultMigratorOptionsFromRegistry = (
+  databaseType: DatabaseType,
+): MigratorOptions => {
+  if (!defaultMigratorOptions[databaseType]) {
+    throw new Error(
+      `No default migrator options registered for database type: ${databaseType}`,
+    );
+  }
+  return defaultMigratorOptions[databaseType];
+};
+
 export type MigratorOptions = {
   schema: {
     migrationTable: SchemaComponent;
   };
   lock: {
-    databaseLock: DatabaseLock;
+    databaseLock?: DatabaseLock;
     options?: Omit<DatabaseLockOptions, 'lockId'> &
       Partial<Pick<DatabaseLockOptions, 'lockId'>>;
   };
@@ -54,8 +71,9 @@ export const runSQLMigrations = (
   partialOptions?: Partial<MigratorOptions>,
 ): Promise<void> =>
   pool.withTransaction(async ({ execute }) => {
-    const defaultOptions =
-      DefaultMigratorOptions[fromConnectorType(pool.connector).databaseType]!;
+    const defaultOptions = getDefaultMigratorOptionsFromRegistry(
+      fromConnectorType(pool.connector).databaseType,
+    );
     partialOptions ??= {};
 
     const options: MigratorOptions = {
@@ -77,7 +95,9 @@ export const runSQLMigrations = (
       dryRun: defaultOptions.dryRun ?? partialOptions?.dryRun,
     };
 
-    const { databaseLock, ...rest } = options.lock;
+    const { databaseLock: _, ...rest } = options.lock;
+
+    const databaseLock = options.lock.databaseLock ?? NoDatabaseLock;
 
     const lockOptions: DatabaseLockOptions = {
       lockId: MIGRATIONS_LOCK_ID,
