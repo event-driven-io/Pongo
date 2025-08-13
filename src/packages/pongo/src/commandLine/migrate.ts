@@ -2,10 +2,11 @@ import {
   combineMigrations,
   dumbo,
   parseConnectionString,
+  runSQLMigrations,
 } from '@event-driven-io/dumbo';
 import {
   migrationTableSchemaComponent,
-  runPostgreSQLMigrations,
+  PostgreSQLMigratorOptions,
 } from '@event-driven-io/dumbo/pg';
 import { Command } from 'commander';
 import { pongoCollectionSchemaComponent } from '../core';
@@ -91,9 +92,13 @@ migrateCommand
       }),
     );
 
-    await runPostgreSQLMigrations(pool, migrations, {
-      dryRun,
-    });
+    await runSQLMigrations(
+      pool,
+      migrations,
+      PostgreSQLMigratorOptions({
+        dryRun,
+      }),
+    );
   });
 
 migrateCommand
