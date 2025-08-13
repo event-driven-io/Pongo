@@ -135,5 +135,69 @@ export default [
       ],
     },
   },
+  {
+    files: ['packages/pongo/src/core/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'warn',
+        {
+          patterns: [
+            {
+              group: ['../storage/**', '../../storage/**'],
+              message: 'Pongo core cannot import from storage implementations. Use dependency injection or registry pattern instead.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['packages/pongo/src/storage/postgresql/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'warn',
+        {
+          patterns: [
+            {
+              group: ['../sqlite/**', '../../sqlite/**'],
+              message: 'PostgreSQL storage cannot import from SQLite storage.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['packages/pongo/src/storage/sqlite/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'warn',
+        {
+          patterns: [
+            {
+              group: ['../postgresql/**', '../../postgresql/**'],
+              message: 'SQLite storage cannot import from PostgreSQL storage.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['packages/pongo/src/mongo/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'warn',
+        {
+          patterns: [
+            {
+              group: ['../storage/**', '../../storage/**'],
+              message: 'Mongo compatibility layer cannot import from storage implementations.',
+            },
+          ],
+        },
+      ],
+    },
+  },
   eslintConfigPrettier,
 ];
