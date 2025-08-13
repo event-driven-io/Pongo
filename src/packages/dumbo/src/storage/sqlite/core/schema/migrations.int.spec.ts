@@ -5,9 +5,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { InMemorySQLiteDatabase, SQLiteConnectionString } from '..';
 import { count, dumbo, SQL, type Dumbo } from '../../../..';
-import { type SQLMigration } from '../../../../core/migrations';
+import { runSQLMigrations, type SQLMigration } from '../../../../core/schema';
 import { tableExists } from '../../../../sqlite3';
-import { runSQLiteMigrations } from './migrations';
 
 void describe('Migration Integration Tests', () => {
   const inMemoryfileName = InMemorySQLiteDatabase;
@@ -74,7 +73,7 @@ void describe('Migration Integration Tests', () => {
             `,
           ],
         };
-        await runSQLiteMigrations(pool, [firstMigration, secondMigration], {
+        await runSQLMigrations(pool, [firstMigration, secondMigration], {
           lock: { options: { timeoutMs: 300 } },
         });
 
@@ -105,7 +104,7 @@ void describe('Migration Integration Tests', () => {
       //     });
 
       //     try {
-      //       await runSQLiteMigrations(pool, [migration], {
+      //       await runSQLMigrations(pool, [migration], {
       //         lock: { options: { timeoutMs: 300 } },
       //       });
 
@@ -146,7 +145,7 @@ void describe('Migration Integration Tests', () => {
       //       lockId: MIGRATIONS_LOCK_ID,
       //     });
       //     await Promise.all([
-      //       runSQLiteMigrations(pool, [migration]),
+      //       runSQLMigrations(pool, [migration]),
       //       // simulate other projection running in parallel
       //       new Promise((resolve) => setTimeout(resolve, 100)).then(() =>
       //         releaseAdvisoryLock(connection.execute, {
@@ -174,10 +173,10 @@ void describe('Migration Integration Tests', () => {
           ],
         };
 
-        await runSQLiteMigrations(pool, [migration]);
+        await runSQLMigrations(pool, [migration]);
 
         // Attempt to run the same migration again with the same content
-        await runSQLiteMigrations(pool, [migration]); // This should succeed without error
+        await runSQLMigrations(pool, [migration]); // This should succeed without error
 
         const migrationCount = await count(
           pool.execute.query<{ count: number }>(
@@ -203,7 +202,7 @@ void describe('Migration Integration Tests', () => {
           ],
         };
 
-        await runSQLiteMigrations(pool, [migration]);
+        await runSQLMigrations(pool, [migration]);
 
         const modifiedMigration: SQLMigration = {
           ...migration,
@@ -218,7 +217,7 @@ void describe('Migration Integration Tests', () => {
         };
 
         try {
-          await runSQLiteMigrations(pool, [modifiedMigration]);
+          await runSQLMigrations(pool, [modifiedMigration]);
           assert.fail(
             'The migration should have failed due to a hash mismatch.',
           );
@@ -259,7 +258,7 @@ void describe('Migration Integration Tests', () => {
           ],
         };
 
-        await runSQLiteMigrations(pool, [migration]);
+        await runSQLMigrations(pool, [migration]);
 
         const table1Exists = await tableExists(pool, 'large_table_1');
         const table2Exists = await tableExists(pool, 'large_table_2');

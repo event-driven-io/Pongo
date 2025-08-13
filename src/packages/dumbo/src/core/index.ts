@@ -6,7 +6,6 @@ export * from './connections';
 export * from './connectors';
 export * from './execute';
 export * from './locks';
-export * from './migrations';
 export * from './query';
 export * from './schema';
 export * from './serializer';

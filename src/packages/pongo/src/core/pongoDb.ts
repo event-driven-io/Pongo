@@ -11,10 +11,7 @@ import {
   type QueryResultRow,
   type SchemaComponent,
 } from '@event-driven-io/dumbo';
-import {
-  getDatabaseNameOrDefault,
-  PostgreSQLMigratorOptions,
-} from '@event-driven-io/dumbo/pg';
+import { getDatabaseNameOrDefault } from '@event-driven-io/dumbo/pg';
 import { postgresSQLBuilder } from '../storage/postgresql';
 import {
   pongoCollection,
@@ -112,10 +109,8 @@ export const getPongoDb = <
         runSQLMigrations(
           pool,
           [...collections.values()].flatMap((c) =>
-            // TODO: This needs to change to support more connectors
-            c.schema.component.migrations({ connector: 'PostgreSQL:pg' }),
+            c.schema.component.migrations({ connector: pool.connector }),
           ),
-          PostgreSQLMigratorOptions(),
         ),
     },
 

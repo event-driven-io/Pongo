@@ -2,6 +2,7 @@ import {
   runSQLMigrations,
   schemaComponent,
   single,
+  SQL,
   type ConnectorType,
   type DatabaseTransaction,
   type Dumbo,
@@ -9,11 +10,9 @@ import {
   type QueryResult,
   type QueryResultRow,
   type SchemaComponent,
-  type SQL,
   type SQLExecutor,
   type SQLMigration,
 } from '@event-driven-io/dumbo';
-import { PostgreSQLMigratorOptions } from '@event-driven-io/dumbo/pg';
 import { v7 as uuid } from 'uuid';
 import {
   deepEquals,
@@ -495,12 +494,7 @@ export const pongoCollection = <
           migrations: SqlFor.migrations,
         });
       },
-      migrate: () =>
-        runSQLMigrations(
-          pool,
-          SqlFor.migrations(),
-          PostgreSQLMigratorOptions(),
-        ),
+      migrate: () => runSQLMigrations(pool, SqlFor.migrations()),
     },
   };
 

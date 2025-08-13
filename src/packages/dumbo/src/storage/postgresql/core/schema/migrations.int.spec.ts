@@ -4,18 +4,14 @@ import {
 } from '@testcontainers/postgresql';
 import assert from 'assert';
 import { after, before, beforeEach, describe, it } from 'node:test';
-import {
-  PostgreSQLConnectionString,
-  PostgreSQLMigratorOptions,
-  tableExists,
-} from '..';
+import { PostgreSQLConnectionString, tableExists } from '..';
 import { type Dumbo } from '../../../..';
 import { count, SQL } from '../../../../core';
 import {
   MIGRATIONS_LOCK_ID,
   runSQLMigrations,
   type SQLMigration,
-} from '../../../../core/migrations';
+} from '../../../../core/schema';
 import { dumbo } from '../../../../pg';
 import { acquireAdvisoryLock, releaseAdvisoryLock } from '../locks';
 
@@ -67,13 +63,9 @@ void describe('Migration Integration Tests', () => {
       ],
     };
 
-    await runSQLMigrations(
-      pool,
-      [firstMigration, secondMigration],
-      PostgreSQLMigratorOptions({
-        lock: { options: { timeoutMs: 300 } },
-      }),
-    );
+    await runSQLMigrations(pool, [firstMigration, secondMigration], {
+      lock: { options: { timeoutMs: 300 } },
+    });
 
     const usersTableExists = await tableExists(pool, 'users');
     const rolesTableExists = await tableExists(pool, 'roles');
@@ -102,13 +94,9 @@ void describe('Migration Integration Tests', () => {
       });
 
       try {
-        await runSQLMigrations(
-          pool,
-          [migration],
-          PostgreSQLMigratorOptions({
-            lock: { options: { timeoutMs: 300 } },
-          }),
-        );
+        await runSQLMigrations(pool, [migration], {
+          lock: { options: { timeoutMs: 300 } },
+        });
 
         assert.fail('The migration should have timed out and not proceeded.');
       } catch (error) {
@@ -147,7 +135,7 @@ void describe('Migration Integration Tests', () => {
         lockId: MIGRATIONS_LOCK_ID,
       });
       await Promise.all([
-        runSQLMigrations(pool, [migration], PostgreSQLMigratorOptions()),
+        runSQLMigrations(pool, [migration]),
         // simulate other projection running in parallel
         new Promise((resolve) => setTimeout(resolve, 100)).then(() =>
           releaseAdvisoryLock(connection.execute, {
@@ -175,10 +163,10 @@ void describe('Migration Integration Tests', () => {
       ],
     };
 
-    await runSQLMigrations(pool, [migration], PostgreSQLMigratorOptions());
+    await runSQLMigrations(pool, [migration]);
 
     // Attempt to run the same migration again with the same content
-    await runSQLMigrations(pool, [migration], PostgreSQLMigratorOptions()); // This should succeed without error
+    await runSQLMigrations(pool, [migration]); // This should succeed without error
 
     const migrationCount = await count(
       pool.execute.query<{ count: number }>(
@@ -204,7 +192,7 @@ void describe('Migration Integration Tests', () => {
       ],
     };
 
-    await runSQLMigrations(pool, [migration], PostgreSQLMigratorOptions());
+    await runSQLMigrations(pool, [migration]);
 
     const modifiedMigration: SQLMigration = {
       ...migration,
@@ -219,11 +207,7 @@ void describe('Migration Integration Tests', () => {
     };
 
     try {
-      await runSQLMigrations(
-        pool,
-        [modifiedMigration],
-        PostgreSQLMigratorOptions(),
-      );
+      await runSQLMigrations(pool, [modifiedMigration]);
       assert.fail('The migration should have failed due to a hash mismatch.');
     } catch (error) {
       assert.ok(error instanceof Error);
@@ -262,7 +246,7 @@ void describe('Migration Integration Tests', () => {
       ],
     };
 
-    await runSQLMigrations(pool, [migration], PostgreSQLMigratorOptions());
+    await runSQLMigrations(pool, [migration]);
 
     const table1Exists = await tableExists(pool, 'large_table_1');
     const table2Exists = await tableExists(pool, 'large_table_2');

@@ -1,22 +1,14 @@
 import {
   MIGRATIONS_LOCK_ID,
   NoDatabaseLock,
-  runSQLMigrations,
+  registerDefaultMigratorOptions,
   schemaComponent,
   SQL,
   sqlMigration,
   type DatabaseLockOptions,
-  type Dumbo,
-  type SQLMigration,
+  type MigratorOptions,
+  type SchemaComponent,
 } from '../../../../core';
-
-export type SQLiteMigratorOptions = {
-  lock?: {
-    options?: Omit<DatabaseLockOptions, 'lockId'> &
-      Partial<Pick<DatabaseLockOptions, 'lockId'>>;
-  };
-  dryRun?: boolean | undefined;
-};
 
 const migrationTableSQL = SQL`
   CREATE TABLE IF NOT EXISTS migrations (
@@ -28,30 +20,69 @@ const migrationTableSQL = SQL`
 );
 `;
 
-export const migrationTableSchemaComponent = schemaComponent(
-  'dumbo:schema-component:migrations-table',
-  {
+export const getMigrationTableSchemaComponent = () =>
+  schemaComponent('dumbo:schema-component:migrations-table', {
     migrations: () => [
       sqlMigration('dumbo:migrationTable:001', [migrationTableSQL]),
     ],
-  },
-);
+  });
 
-export const runSQLiteMigrations = (
-  pool: Dumbo,
-  migrations: SQLMigration[],
+export const getDefaultSQLiteMigratorOptions = (): MigratorOptions => ({
+  schema: {
+    migrationTable: getMigrationTableSchemaComponent(),
+  },
+  lock: {
+    databaseLock: NoDatabaseLock,
+    options: {
+      lockId: MIGRATIONS_LOCK_ID,
+    },
+  },
+});
+
+// For backward compatibility - but only call when actually needed
+export const DefaultSQLiteMigratorOptions = getDefaultSQLiteMigratorOptions;
+
+export type SQLiteMigratorOptions = {
+  schema?: Omit<SchemaComponent, 'migrationTable'>;
+  lock?: {
+    options?: Omit<DatabaseLockOptions, 'lockId'> &
+      Partial<Pick<DatabaseLockOptions, 'lockId'>>;
+  };
+  dryRun?: boolean | undefined;
+};
+
+export const SQLiteMigratorOptions = (
   options?: SQLiteMigratorOptions,
-): Promise<void> =>
-  runSQLMigrations(pool, migrations, {
+): MigratorOptions => {
+  const defaultOptions = getDefaultSQLiteMigratorOptions();
+  return {
+    ...defaultOptions,
     schema: {
-      migrationTable: migrationTableSchemaComponent,
+      ...defaultOptions.schema,
+      ...(options?.schema ?? {}),
     },
     lock: {
-      databaseLock: NoDatabaseLock, // TODO: Use SQLite compliant locking
+      ...defaultOptions.lock,
       options: {
+        ...defaultOptions.lock.options,
         ...(options ?? {}),
         lockId: MIGRATIONS_LOCK_ID,
       },
     },
-    dryRun: options?.dryRun,
-  });
+    dryRun: defaultOptions.dryRun ?? options?.dryRun,
+  };
+};
+
+const defaultSQLiteMigratorOptions: MigratorOptions = {
+  schema: {
+    migrationTable: getMigrationTableSchemaComponent(),
+  },
+  lock: {
+    databaseLock: NoDatabaseLock,
+    options: {
+      lockId: MIGRATIONS_LOCK_ID,
+    },
+  },
+};
+
+registerDefaultMigratorOptions('SQLite', defaultSQLiteMigratorOptions);
