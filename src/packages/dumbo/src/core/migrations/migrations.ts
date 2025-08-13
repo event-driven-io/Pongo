@@ -1,4 +1,5 @@
 import {
+  fromConnectorType,
   mapToCamelCase,
   singleOrNull,
   SQL,
@@ -7,7 +8,12 @@ import {
   type SQLExecutor,
   type SQLFormatter,
 } from '..';
-import { type DatabaseLock, type DatabaseLockOptions, type Dumbo } from '../..';
+import {
+  DefaultMigratorOptions,
+  type DatabaseLock,
+  type DatabaseLockOptions,
+  type Dumbo,
+} from '../..';
 
 export type MigrationStyle = 'None' | 'CreateOrUpdate';
 
@@ -45,9 +51,32 @@ export type MigratorOptions = {
 export const runSQLMigrations = (
   pool: Dumbo,
   migrations: ReadonlyArray<SQLMigration>,
-  options: MigratorOptions,
+  partialOptions?: Partial<MigratorOptions>,
 ): Promise<void> =>
   pool.withTransaction(async ({ execute }) => {
+    const defaultOptions =
+      DefaultMigratorOptions[fromConnectorType(pool.connector).databaseType]!;
+    partialOptions ??= {};
+
+    const options: MigratorOptions = {
+      ...defaultOptions,
+      ...partialOptions,
+      schema: {
+        ...defaultOptions.schema,
+        ...(partialOptions?.schema ?? {}),
+      },
+      lock: {
+        ...defaultOptions.lock,
+        ...partialOptions?.lock,
+        options: {
+          lockId: MIGRATIONS_LOCK_ID,
+          ...defaultOptions.lock.options,
+          ...partialOptions?.lock?.options,
+        },
+      },
+      dryRun: defaultOptions.dryRun ?? partialOptions?.dryRun,
+    };
+
     const { databaseLock, ...rest } = options.lock;
 
     const lockOptions: DatabaseLockOptions = {
@@ -56,7 +85,7 @@ export const runSQLMigrations = (
     };
 
     const coreMigrations = options.schema.migrationTable.migrations({
-      connector: 'PostgreSQL:pg', // TODO: This will need to change to support more connectors
+      connector: pool.connector,
     });
 
     await databaseLock.withAcquire(

@@ -3,9 +3,12 @@ import {
   type ConnectionPool,
   type ConnectorType,
   createDeferredConnectionPool,
+  type DatabaseType,
   type Dumbo,
   type DumboConnectionOptions,
+  type MigratorOptions,
 } from '../../core';
+import { DefaultPostgreSQLMigratorOptions } from '../postgresql/core';
 import { parseConnectionString } from './connections';
 
 export * from './connections';
@@ -14,6 +17,11 @@ export * from './connections';
 const importDrivers: Record<string, () => Promise<any>> = {
   'PostgreSQL:pg': () => import('../postgresql/pg'),
   'SQLite:sqlite3': () => import('../sqlite/sqlite3'),
+};
+
+export const DefaultMigratorOptions: Record<DatabaseType, MigratorOptions> = {
+  PostgreSQL: DefaultPostgreSQLMigratorOptions,
+  SQLite: DefaultPostgreSQLMigratorOptions,
 };
 
 export function dumbo<
