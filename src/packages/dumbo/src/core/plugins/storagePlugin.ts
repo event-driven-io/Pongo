@@ -33,8 +33,13 @@ export const PluginRegistry = () => {
         | StoragePlugin<Connector, ConnectionType>
         | (() => Promise<StoragePlugin<Connector, ConnectionType>>),
     ): void => {
-      if (plugins.has(connector)) {
+      const entry = plugins.get(connector);
+      if (
+        entry &&
+        (typeof entry !== 'function' || typeof plugin !== 'function')
+      ) {
         tracer.warn(`Plugin already registered for connector: ${connector}`);
+        return;
       }
       plugins.set(connector, plugin);
     },
