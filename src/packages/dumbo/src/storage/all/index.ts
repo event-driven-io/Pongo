@@ -5,16 +5,16 @@ import {
   type Dumbo,
   type DumboConnectionOptions,
 } from '../../core';
-import { pluginRegistry } from '../../core/plugins';
+import { storagePluginRegistry } from '../../core/plugins';
 import { parseConnectionString } from './connections';
 
 export * from './connections';
 
-pluginRegistry.register('PostgreSQL:pg', () =>
+storagePluginRegistry.register('PostgreSQL:pg', () =>
   import('../postgresql/pg').then((m) => m.storagePlugin),
 );
 
-pluginRegistry.register('SQLite:sqlite3', () =>
+storagePluginRegistry.register('SQLite:sqlite3', () =>
   import('../sqlite/sqlite3').then((m) => m.storagePlugin),
 );
 
@@ -30,9 +30,10 @@ export function dumbo<
   const connector: Connector = `${databaseType}:${driverName}` as Connector;
 
   const importAndCreatePool = async () => {
-    const plugin = await pluginRegistry.tryResolve<Connector, ConnectionType>(
-      connector,
-    );
+    const plugin = await storagePluginRegistry.tryResolve<
+      Connector,
+      ConnectionType
+    >(connector);
 
     if (plugin === null) {
       throw new Error(`No plugin found for connector: ${connector}`);
