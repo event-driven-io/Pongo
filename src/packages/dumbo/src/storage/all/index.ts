@@ -1,17 +1,16 @@
 import {
   type Connection,
-  type ConnectionPool,
   type ConnectorType,
   createDeferredConnectionPool,
   type Dumbo,
   type DumboConnectionOptions,
 } from '../../core';
+import { pluginRegistry } from '../../core/plugins';
 import { parseConnectionString } from './connections';
 
 export * from './connections';
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-const importDrivers: Record<string, () => Promise<any>> = {
+const importPlugins: Record<string, () => Promise<unknown>> = {
   'PostgreSQL:pg': () => import('../postgresql/pg'),
   'SQLite:sqlite3': () => import('../sqlite/sqlite3'),
 };
@@ -27,26 +26,23 @@ export function dumbo<
 
   const connector: Connector = `${databaseType}:${driverName}` as Connector;
 
-  const importDriver = importDrivers[connector];
-  if (!importDriver) {
+  const importPlugin = importPlugins[connector];
+  if (!importPlugin) {
     throw new Error(`Unsupported connector: ${connector}`);
   }
 
   const importAndCreatePool = async () => {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const module = await importDriver();
+    if (!pluginRegistry.has(connector)) {
+      await importPlugin();
+    }
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const poolFactory: (options: {
-      connectionString: string;
-    }) => ConnectionPool<Connection<Connector>> =
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-      'dumbo' in module ? module.dumbo : undefined;
+    const plugin = pluginRegistry.tryGet<Connector, ConnectionType>(connector);
 
-    if (poolFactory === undefined)
-      throw new Error(`No pool factory found for connector: ${connector}`);
+    if (plugin === null) {
+      throw new Error(`No plugin found for connector: ${connector}`);
+    }
 
-    return poolFactory({ ...options, connector });
+    return plugin.createPool({ ...options, connector });
   };
 
   return createDeferredConnectionPool(connector, importAndCreatePool);
