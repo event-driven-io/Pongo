@@ -20,16 +20,18 @@ const migrationTableSQL = SQL`
   );
 `;
 
-export const getMigrationTableSchemaComponent = () =>
-  schemaComponent('dumbo:schema-component:migrations-table', {
+export const migrationTableSchemaComponent = schemaComponent(
+  'dumbo:schema-component:migrations-table',
+  {
     migrations: () => [
       sqlMigration('dumbo:migrationTable:001', [migrationTableSQL]),
     ],
-  });
+  },
+);
 
-export const getDefaultPostgreSQLMigratorOptions = (): MigratorOptions => ({
+export const DefaultPostgreSQLMigratorOptions: MigratorOptions = {
   schema: {
-    migrationTable: getMigrationTableSchemaComponent(),
+    migrationTable: migrationTableSchemaComponent,
   },
   lock: {
     databaseLock: AdvisoryLock,
@@ -37,11 +39,7 @@ export const getDefaultPostgreSQLMigratorOptions = (): MigratorOptions => ({
       lockId: MIGRATIONS_LOCK_ID,
     },
   },
-});
-
-// For backward compatibility - but only call when actually needed
-export const DefaultPostgreSQLMigratorOptions =
-  getDefaultPostgreSQLMigratorOptions;
+};
 
 export type PostgreSQLMigratorOptions = {
   schema?: Omit<SchemaComponent, 'migrationTable'>;
@@ -52,38 +50,4 @@ export type PostgreSQLMigratorOptions = {
   dryRun?: boolean | undefined;
 };
 
-export const PostgreSQLMigratorOptions = (
-  options?: PostgreSQLMigratorOptions,
-): MigratorOptions => {
-  const defaultOptions = getDefaultPostgreSQLMigratorOptions();
-  return {
-    ...defaultOptions,
-    schema: {
-      ...defaultOptions.schema,
-      ...(options?.schema ?? {}),
-    },
-    lock: {
-      ...defaultOptions.lock,
-      options: {
-        ...defaultOptions.lock.options,
-        ...(options ?? {}),
-        lockId: MIGRATIONS_LOCK_ID,
-      },
-    },
-    dryRun: defaultOptions.dryRun ?? options?.dryRun,
-  };
-};
-
-const defaultPostgreSQLMigratorOptions: MigratorOptions = {
-  schema: {
-    migrationTable: getMigrationTableSchemaComponent(),
-  },
-  lock: {
-    databaseLock: AdvisoryLock,
-    options: {
-      lockId: MIGRATIONS_LOCK_ID,
-    },
-  },
-};
-
-registerDefaultMigratorOptions('PostgreSQL', defaultPostgreSQLMigratorOptions);
+registerDefaultMigratorOptions('PostgreSQL', DefaultPostgreSQLMigratorOptions);
