@@ -1,10 +1,11 @@
 import {
   combineMigrations,
   dumbo,
+  getDefaultMigratorOptionsFromRegistry,
   parseConnectionString,
   runSQLMigrations,
+  type ConnectorType,
 } from '@event-driven-io/dumbo';
-import { getMigrationTableSchemaComponent } from '@event-driven-io/dumbo/pg';
 import { Command } from 'commander';
 import { pongoCollectionSchemaComponent } from '../core';
 import { loadConfigFile } from './configFile';
@@ -126,15 +127,20 @@ migrateCommand
       );
       process.exit(1);
     }
+    // TODO: Provide connector here
+    const connector: ConnectorType = 'PostgreSQL:pg';
 
-    const coreMigrations = getMigrationTableSchemaComponent().migrations({
-      connector: 'PostgreSQL:pg',
+    const coreMigrations = getDefaultMigratorOptionsFromRegistry(
+      'PostgreSQL',
+    ).schema.migrationTable.migrations({
+      connector,
     });
+
     const migrations = [
       ...coreMigrations,
       ...collectionNames.flatMap((collectionName) =>
         pongoCollectionSchemaComponent(collectionName).migrations({
-          connector: 'PostgreSQL:pg', // TODO: Provide connector here
+          connector,
         }),
       ),
     ];

@@ -20,16 +20,18 @@ const migrationTableSQL = SQL`
 );
 `;
 
-export const getMigrationTableSchemaComponent = () =>
-  schemaComponent('dumbo:schema-component:migrations-table', {
+export const migrationTableSchemaComponent = schemaComponent(
+  'dumbo:schema-component:migrations-table',
+  {
     migrations: () => [
       sqlMigration('dumbo:migrationTable:001', [migrationTableSQL]),
     ],
-  });
+  },
+);
 
-export const getDefaultSQLiteMigratorOptions = (): MigratorOptions => ({
+export const DefaultSQLiteMigratorOptions: MigratorOptions = {
   schema: {
-    migrationTable: getMigrationTableSchemaComponent(),
+    migrationTable: migrationTableSchemaComponent,
   },
   lock: {
     databaseLock: NoDatabaseLock,
@@ -37,10 +39,7 @@ export const getDefaultSQLiteMigratorOptions = (): MigratorOptions => ({
       lockId: MIGRATIONS_LOCK_ID,
     },
   },
-});
-
-// For backward compatibility - but only call when actually needed
-export const DefaultSQLiteMigratorOptions = getDefaultSQLiteMigratorOptions;
+};
 
 export type SQLiteMigratorOptions = {
   schema?: Omit<SchemaComponent, 'migrationTable'>;
@@ -54,7 +53,7 @@ export type SQLiteMigratorOptions = {
 export const SQLiteMigratorOptions = (
   options?: SQLiteMigratorOptions,
 ): MigratorOptions => {
-  const defaultOptions = getDefaultSQLiteMigratorOptions();
+  const defaultOptions = DefaultSQLiteMigratorOptions;
   return {
     ...defaultOptions,
     schema: {
@@ -73,16 +72,4 @@ export const SQLiteMigratorOptions = (
   };
 };
 
-const defaultSQLiteMigratorOptions: MigratorOptions = {
-  schema: {
-    migrationTable: getMigrationTableSchemaComponent(),
-  },
-  lock: {
-    databaseLock: NoDatabaseLock,
-    options: {
-      lockId: MIGRATIONS_LOCK_ID,
-    },
-  },
-};
-
-registerDefaultMigratorOptions('SQLite', defaultSQLiteMigratorOptions);
+registerDefaultMigratorOptions('SQLite', DefaultSQLiteMigratorOptions);
