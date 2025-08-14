@@ -10,10 +10,13 @@ import { parseConnectionString } from './connections';
 
 export * from './connections';
 
-const importPlugins: Record<string, () => Promise<unknown>> = {
-  'PostgreSQL:pg': () => import('../postgresql/pg'),
-  'SQLite:sqlite3': () => import('../sqlite/sqlite3'),
-};
+pluginRegistry.register('PostgreSQL:pg', () =>
+  import('../postgresql/pg').then((m) => m.storagePlugin),
+);
+
+pluginRegistry.register('SQLite:sqlite3', () =>
+  import('../sqlite/sqlite3').then((m) => m.storagePlugin),
+);
 
 export function dumbo<
   DatabaseOptions extends DumboConnectionOptions<Connector>,
@@ -26,17 +29,10 @@ export function dumbo<
 
   const connector: Connector = `${databaseType}:${driverName}` as Connector;
 
-  const importPlugin = importPlugins[connector];
-  if (!importPlugin) {
-    throw new Error(`Unsupported connector: ${connector}`);
-  }
-
   const importAndCreatePool = async () => {
-    if (!pluginRegistry.has(connector)) {
-      await importPlugin();
-    }
-
-    const plugin = pluginRegistry.tryGet<Connector, ConnectionType>(connector);
+    const plugin = await pluginRegistry.tryResolve<Connector, ConnectionType>(
+      connector,
+    );
 
     if (plugin === null) {
       throw new Error(`No plugin found for connector: ${connector}`);
