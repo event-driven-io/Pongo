@@ -23,9 +23,7 @@ const migrationTableSQL = SQL`
 export const migrationTableSchemaComponent = schemaComponent(
   'dumbo:schema-component:migrations-table',
   {
-    migrations: () => [
-      sqlMigration('dumbo:migrationTable:001', [migrationTableSQL]),
-    ],
+    migrations: [sqlMigration('dumbo:migrationTable:001', [migrationTableSQL])],
   },
 );
 

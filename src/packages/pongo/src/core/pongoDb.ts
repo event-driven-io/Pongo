@@ -108,8 +108,8 @@ export const getPongoDb = <
       migrate: () =>
         runSQLMigrations(
           pool,
-          [...collections.values()].flatMap((c) =>
-            c.schema.component.migrations({ connector: pool.connector }),
+          [...collections.values()].flatMap(
+            (c) => c.schema.component.migrations,
           ),
         ),
     },

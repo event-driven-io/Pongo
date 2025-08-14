@@ -4,7 +4,7 @@ import {
   getDefaultMigratorOptionsFromRegistry,
   parseConnectionString,
   runSQLMigrations,
-  type ConnectorType,
+  type DatabaseType,
 } from '@event-driven-io/dumbo';
 import { Command } from 'commander';
 import { pongoCollectionSchemaComponent } from '../core';
@@ -84,10 +84,9 @@ migrateCommand
 
     const pool = dumbo({ connectionString, connector });
 
-    const migrations = collectionNames.flatMap((collectionsName) =>
-      pongoCollectionSchemaComponent(collectionsName).migrations({
-        connector,
-      }),
+    const migrations = collectionNames.flatMap(
+      (collectionsName) =>
+        pongoCollectionSchemaComponent(collectionsName).migrations,
     );
 
     await runSQLMigrations(pool, migrations, {
@@ -128,20 +127,17 @@ migrateCommand
       process.exit(1);
     }
     // TODO: Provide connector here
-    const connector: ConnectorType = 'PostgreSQL:pg';
+    const database: DatabaseType = 'PostgreSQL';
 
-    const coreMigrations = getDefaultMigratorOptionsFromRegistry(
-      'PostgreSQL',
-    ).schema.migrationTable.migrations({
-      connector,
-    });
+    const coreMigrations =
+      getDefaultMigratorOptionsFromRegistry(database).schema.migrationTable
+        .migrations;
 
     const migrations = [
       ...coreMigrations,
-      ...collectionNames.flatMap((collectionName) =>
-        pongoCollectionSchemaComponent(collectionName).migrations({
-          connector,
-        }),
+      ...collectionNames.flatMap(
+        (collectionName) =>
+          pongoCollectionSchemaComponent(collectionName).migrations,
       ),
     ];
 

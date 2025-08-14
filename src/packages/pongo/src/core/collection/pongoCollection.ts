@@ -491,7 +491,7 @@ export const pongoCollection = <
     schema: {
       get component(): SchemaComponent {
         return schemaComponent('pongo:schema_component:collection', {
-          migrations: SqlFor.migrations,
+          migrations: SqlFor.migrations(),
         });
       },
       migrate: () => runSQLMigrations(pool, SqlFor.migrations()),
@@ -503,7 +503,7 @@ export const pongoCollection = <
 
 export const pongoCollectionSchemaComponent = (collectionName: string) =>
   schemaComponent('pongo:schema_component:collection', {
-    migrations: () => pongoCollectionPostgreSQLMigrations(collectionName), // TODO: This needs to change to support more connectors
+    migrations: pongoCollectionPostgreSQLMigrations(collectionName), // TODO: This needs to change to support more connectors
   });
 
 export type PongoCollectionSQLBuilder = {

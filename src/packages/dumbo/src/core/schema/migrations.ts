@@ -104,9 +104,7 @@ export const runSQLMigrations = (
       ...rest,
     };
 
-    const coreMigrations = options.schema.migrationTable.migrations({
-      connector: pool.connector,
-    });
+    const coreMigrations = options.schema.migrationTable.migrations;
 
     await databaseLock.withAcquire(
       execute,
