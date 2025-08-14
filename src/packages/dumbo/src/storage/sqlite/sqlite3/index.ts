@@ -1,7 +1,7 @@
 export * from './connections';
 import type { Dumbo } from '../../../core';
 import {
-  pluginRegistry,
+  storagePluginRegistry,
   type StoragePlugin,
 } from '../../../core/plugins/storagePlugin';
 import {
@@ -28,7 +28,7 @@ const sqlite3StoragePlugin: StoragePlugin<
   defaultMigratorOptions: DefaultSQLiteMigratorOptions,
 };
 
-pluginRegistry.register(SQLite3ConnectorType, sqlite3StoragePlugin);
+storagePluginRegistry.register(SQLite3ConnectorType, sqlite3StoragePlugin);
 
 export { sqliteClient, sqlite3StoragePlugin as storagePlugin };
 

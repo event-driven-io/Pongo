@@ -1,7 +1,7 @@
 import type { Dumbo } from '../../../core';
 import {
-  pluginRegistry,
   type StoragePlugin,
+  storagePluginRegistry,
 } from '../../../core/plugins/storagePlugin';
 import { DefaultPostgreSQLMigratorOptions, pgFormatter } from '../core';
 import {
@@ -24,7 +24,7 @@ const pgStoragePlugin: StoragePlugin<
   defaultMigratorOptions: DefaultPostgreSQLMigratorOptions,
 };
 
-pluginRegistry.register(NodePostgresConnectorType, pgStoragePlugin);
+storagePluginRegistry.register(NodePostgresConnectorType, pgStoragePlugin);
 
 export const dumbo = <
   DumboOptionsType extends PostgresPoolOptions = PostgresPoolOptions,
