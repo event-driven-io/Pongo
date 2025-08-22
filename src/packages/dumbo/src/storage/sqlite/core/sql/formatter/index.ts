@@ -21,8 +21,9 @@ const sqliteFormatter: SQLFormatter = {
   formatDate: (value: Date): string =>
     format.literal(sqliteFormatter.mapDate!(value)),
   mapSQLValue: (value: unknown): unknown => mapSQLValue(value, sqliteFormatter),
-  format: (sql) => formatSQL(sql, () => '?', sqliteFormatter),
+  format: (sql) => formatSQL(sql, sqliteFormatter),
   formatRaw: (sql) => formatSQLRaw(sql, sqliteFormatter),
+  placeholderGenerator: () => '?',
 };
 
 registerFormatter('SQLite', sqliteFormatter);

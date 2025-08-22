@@ -75,7 +75,10 @@ const concatSQL = (...sqls: SQL[]): SQL => {
 const isEmpty = (sql: SQL): boolean => {
   if (isParametrizedSQL(sql)) {
     const parametrized = sql as unknown as ParametrizedSQL;
-    return parametrized.sql.trim() === '' && parametrized.params.length === 0;
+    return (
+      parametrized.sqlChunks.every((chunk) => chunk.trim() === '') &&
+      parametrized.params.length === 0
+    );
   }
 
   return false;
