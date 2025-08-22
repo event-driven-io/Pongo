@@ -167,49 +167,51 @@ void describe('SQLite Parametrized Formatter', () => {
 
   void describe('mapSQLValue method', () => {
     void it('handles basic types', () => {
-      assert.strictEqual(sqliteFormatter.mapSQLValue(123), 123);
-      assert.strictEqual(sqliteFormatter.mapSQLValue('test'), 'test');
-      assert.strictEqual(sqliteFormatter.mapSQLValue(null), null);
-      assert.strictEqual(sqliteFormatter.mapSQLValue(undefined), null);
+      assert.strictEqual(sqliteFormatter.params.mapValue(123), 123);
+      assert.strictEqual(sqliteFormatter.params.mapValue('test'), 'test');
+      assert.strictEqual(sqliteFormatter.params.mapValue(null), null);
+      assert.strictEqual(sqliteFormatter.params.mapValue(undefined), null);
     });
 
     void it('handles SQLite-specific type conversions', () => {
       // Boolean conversion
-      assert.strictEqual(sqliteFormatter.mapSQLValue(true), 1);
-      assert.strictEqual(sqliteFormatter.mapSQLValue(false), 0);
+      assert.strictEqual(sqliteFormatter.params.mapValue(true), 1);
+      assert.strictEqual(sqliteFormatter.params.mapValue(false), 0);
 
       // Date conversion
       const date = new Date('2023-01-01T00:00:00.000Z');
       assert.strictEqual(
-        sqliteFormatter.mapSQLValue(date),
+        sqliteFormatter.params.mapValue(date),
         '2023-01-01T00:00:00.000Z',
       );
 
       // BigInt conversion
       const bigint = BigInt(123456789012345);
       assert.strictEqual(
-        sqliteFormatter.mapSQLValue(bigint),
+        sqliteFormatter.params.mapValue(bigint),
         '123456789012345',
       );
     });
 
     void it('handles SQL wrapper types', () => {
       // Valid unquoted identifier (lowercase, no special chars)
-      const validIdentResult = sqliteFormatter.mapSQLValue(
+      const validIdentResult = sqliteFormatter.params.mapValue(
         SQL.identifier('table_name'),
       );
       assert.strictEqual(validIdentResult, 'table_name');
 
       // Invalid identifier that needs quoting (mixed case)
-      const quotedIdentResult = sqliteFormatter.mapSQLValue(
+      const quotedIdentResult = sqliteFormatter.params.mapValue(
         SQL.identifier('TableName'),
       );
       assert.strictEqual(quotedIdentResult, '"TableName"');
 
-      const literalResult = sqliteFormatter.mapSQLValue(SQL.literal('value'));
+      const literalResult = sqliteFormatter.params.mapValue(
+        SQL.literal('value'),
+      );
       assert.strictEqual(literalResult, "'value'");
 
-      const rawResult = sqliteFormatter.mapSQLValue(
+      const rawResult = sqliteFormatter.params.mapValue(
         SQL.plain('CURRENT_TIMESTAMP'),
       );
       assert.strictEqual(rawResult, 'CURRENT_TIMESTAMP');
@@ -217,14 +219,14 @@ void describe('SQLite Parametrized Formatter', () => {
 
     void it('handles nested SQL', () => {
       const nestedSql = SQL`SELECT ${123}`;
-      const result = sqliteFormatter.mapSQLValue(nestedSql);
+      const result = sqliteFormatter.params.mapValue(nestedSql);
       assert.strictEqual(typeof result, 'string');
       assert.ok((result as string).includes('123'));
     });
 
     void it('handles complex types', () => {
       const obj = { key: 'value' };
-      const objResult = sqliteFormatter.mapSQLValue(obj);
+      const objResult = sqliteFormatter.params.mapValue(obj);
       assert.ok(typeof objResult === 'string');
       assert.ok(objResult.includes('{"key":"value"}'));
     });

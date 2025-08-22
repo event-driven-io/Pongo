@@ -21,11 +21,13 @@ const mockFormatter: SQLFormatter = {
     // eslint-disable-next-line @typescript-eslint/no-base-to-string, @typescript-eslint/restrict-template-expressions
     return `'${value}'`;
   },
-  formatString: (value: unknown) => String(value),
-  formatArray: (array: unknown[], itemFormatter) => {
-    return '(' + array.map(itemFormatter).join(', ') + ')';
+  params: {
+    mapString: (value: unknown) => String(value),
+    mapArray: (array: unknown[], itemFormatter) => {
+      return array.map(itemFormatter);
+    },
+    mapValue: (value: unknown) => value, // Simple pass-through for mock
   },
-  mapSQLValue: (value: unknown) => value, // Simple pass-through for mock
   format: (_sql) => ({ query: 'mocked query', params: [] }),
   formatRaw: (_sql) => 'mocked raw query',
   placeholderGenerator: (index: number) => `$${index + 1}`,
