@@ -45,8 +45,9 @@ const pgFormatter: SQLFormatter = {
   formatDate: (value: Date): string =>
     format.literal(pgFormatter.mapDate!(value)),
   mapSQLValue: (value: unknown): unknown => mapSQLValue(value, pgFormatter),
-  format: (sql) => formatSQL(sql, (index) => `$${index + 1}`, pgFormatter),
+  format: (sql) => formatSQL(sql, pgFormatter),
   formatRaw: (sql) => formatSQLRaw(sql, pgFormatter),
+  placeholderGenerator: (index: number): string => `$${index + 1}`,
 };
 
 registerFormatter('PostgreSQL', pgFormatter);

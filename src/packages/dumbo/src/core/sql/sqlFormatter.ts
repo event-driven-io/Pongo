@@ -34,6 +34,7 @@ export interface SQLFormatter {
   mapSQLValue: (value: unknown) => unknown;
   format: (sql: SQL | SQL[]) => ParametrizedQuery;
   formatRaw: (sql: SQL | SQL[]) => string;
+  placeholderGenerator: (index: number) => string;
 }
 const formatters: Record<string, SQLFormatter> = {};
 
@@ -53,12 +54,9 @@ export const getFormatter = (dialect: string): SQLFormatter => {
 };
 
 export const formatSQLRaw = (
-  sql: SQL | SQL[],
-  formatter: SQLFormatter,
-): string =>
-  Array.isArray(sql)
-    ? sql.map((s) => processSQL(s, formatter)).join('\n')
-    : processSQL(sql, formatter);
+  _sql: SQL | SQL[],
+  _formatter: SQLFormatter,
+): string => 'TODO';
 
 function formatSQLValue(value: unknown, formatter: SQLFormatter): string {
   if (SQL.check.isIdentifier(value)) {
@@ -72,9 +70,6 @@ function formatSQLValue(value: unknown, formatter: SQLFormatter): string {
   }
   if (SQL.check.isSQLIn(value)) {
     return formatSQLIn(value, formatter);
-  }
-  if (SQL.check.isSQL(value)) {
-    return processSQL(value as unknown as SQL, formatter);
   }
 
   if (value === null || value === undefined) {
@@ -179,43 +174,151 @@ function formatSQLIn(sqlIn: SQLIn, formatter: SQLFormatter): string {
   return `${formattedColumn} IN (${formattedValues})`;
 }
 
+const processSQLValue = (
+  sqlChunk: string,
+  value: unknown,
+  {
+    formatter,
+    builder,
+  }: { formatter: SQLFormatter; builder: ParametrizedQueryBuilder },
+): void => {
+  const mapBoolean = (value: boolean) => {
+    builder.addParam(
+      formatter.mapBoolean
+        ? formatter.mapBoolean(value)
+        : value
+          ? 'TRUE'
+          : 'FALSE',
+    );
+  };
+
+  const expandSQLIn = (value: SQLIn) => {
+    const { values: inValues, column } = value;
+
+    if (inValues.length === 0) {
+      mapBoolean(false);
+      return;
+    }
+
+    builder.addParams([column]);
+    builder.addSQL(` IN `);
+
+    expandArray(inValues);
+  };
+
+  const expandArray = (value: unknown[]) => {
+    if (value.length === 0) {
+      throw new Error(
+        'Empty arrays in IN clauses are not supported. Use SQL.in(column, array) helper instead.',
+      );
+    }
+
+    const mappedValues = formatter.mapArray
+      ? formatter.mapArray(value, (item) => mapSQLValue(item, formatter))
+      : value.map((item) => mapSQLValue(item, formatter));
+
+    builder.addParams(mappedValues);
+  };
+
+  builder.addSQL(sqlChunk);
+
+  if (value === null || value === undefined) {
+    builder.addParam(null);
+  } else if (typeof value === 'number') {
+    builder.addParam(value);
+  } else if (typeof value === 'string') {
+    builder.addParam(value);
+  } else if (Array.isArray(value)) {
+    expandArray(value);
+  } else if (typeof value === 'boolean') {
+    mapBoolean(value);
+  } else if (typeof value === 'bigint') {
+    builder.addParam(
+      formatter.formatBigInt ? formatter.formatBigInt(value) : value.toString(),
+    );
+  } else if (value instanceof Date && formatter.mapDate) {
+    builder.addParam(formatter.mapDate(value));
+  } else if (typeof value === 'object') {
+    builder.addParam(
+      formatter.formatObject
+        ? formatter.formatObject(value)
+        : `'${JSONSerializer.serialize(value).replace(/'/g, "''")}'`,
+    );
+  } else if (SQL.check.isLiteral(value)) {
+    builder.addParam(formatter.formatLiteral(value.value));
+  } else if (SQL.check.isIdentifier(value)) {
+    builder.addSQL(formatter.formatIdentifier(value.value));
+  } else if (SQL.check.isSQLIn(value)) {
+    expandSQLIn(value);
+  } else {
+    builder.addParam(formatter.formatLiteral(value));
+  }
+};
+
 export function formatSQL(
   sql: SQL | SQL[],
-  placeholderGenerator: (index: number) => string,
   formatter: SQLFormatter,
 ): ParametrizedQuery {
-  const merged = Array.isArray(sql) ? SQL.merge(sql, '\n') : sql;
+  const merged = (Array.isArray(sql)
+    ? SQL.merge(sql, '\n')
+    : sql) as unknown as ParametrizedSQL;
 
   if (!isParametrizedSQL(merged)) {
     throw new Error('Expected ParametrizedSQL, got string-based SQL');
   }
 
-  const parametrized = merged as unknown as ParametrizedSQL;
+  const builder = ParametrizedQueryBuilder({
+    placeholderGenerator: formatter.placeholderGenerator,
+  });
+
+  for (let i = 0; i < merged.params.length; i++) {
+    processSQLValue(merged.sqlChunks[i]!, merged.params[i], {
+      formatter,
+      builder,
+    });
+  }
+
+  return builder.build();
+}
+
+export type ParametrizedQueryBuilder = {
+  addSQL: (str: string) => ParametrizedQueryBuilder;
+  addParam(value: unknown): ParametrizedQueryBuilder;
+  addParams(values: unknown[]): ParametrizedQueryBuilder;
+  build: () => ParametrizedQuery;
+};
+
+const ParametrizedQueryBuilder = ({
+  placeholderGenerator,
+}: {
+  placeholderGenerator: (index: number) => string;
+}): ParametrizedQueryBuilder => {
+  const sql: string[] = [];
   const params: unknown[] = [];
 
-  let index = 0;
-  const query = parametrized.sql.replace(/__P__/g, () => {
-    const param = parametrized.params[index++];
-    if (SQL.check.isIdentifier(param)) {
-      return formatter.formatIdentifier(param.value);
-    }
-
-    params.push(formatter.mapSQLValue(param));
-
-    return placeholderGenerator(params.length - 1);
-  });
-
-  return { query, params };
-}
-
-function processSQL(sql: SQL, formatter: SQLFormatter): string {
-  if (!isParametrizedSQL(sql)) return sql;
-
-  const parametrized = sql as unknown as ParametrizedSQL;
-
-  let index = 0;
-  return parametrized.sql.replace(/__P__/g, () => {
-    const param = parametrized.params[index++];
-    return formatSQLValue(param, formatter);
-  });
-}
+  return {
+    addSQL(str: string): ParametrizedQueryBuilder {
+      sql.push(str);
+      return this;
+    },
+    addParam(value: unknown): ParametrizedQueryBuilder {
+      sql.push(placeholderGenerator(params.length));
+      params.push(value);
+      return this;
+    },
+    addParams(values: unknown[]): ParametrizedQueryBuilder {
+      const placeholders = values.map((_, i) =>
+        placeholderGenerator(params.length + i),
+      );
+      this.addSQL(`(${placeholders.join(', ')})`);
+      params.push(...values);
+      return this;
+    },
+    build(): ParametrizedQuery {
+      return {
+        query: sql.join(''),
+        params,
+      };
+    },
+  };
+};

@@ -28,6 +28,7 @@ const mockFormatter: SQLFormatter = {
   mapSQLValue: (value: unknown) => value, // Simple pass-through for mock
   format: (_sql) => ({ query: 'mocked query', params: [] }),
   formatRaw: (_sql) => 'mocked raw query',
+  placeholderGenerator: (index: number) => `$${index + 1}`,
 };
 
 void describe('SQL template', () => {
@@ -47,7 +48,7 @@ void describe('SQL template', () => {
       assert.strictEqual(isSQL(query), true);
       assert.strictEqual(isParametrizedSQL(query), true);
       assert.strictEqual(
-        (query as unknown as ParametrizedSQL).sql,
+        (query as unknown as ParametrizedSQL).sqlChunks,
         'SELECT * FROM users',
       );
     });
@@ -62,8 +63,8 @@ void describe('SQL template', () => {
 
       const parametrized = query as unknown as ParametrizedSQL;
       assert.strictEqual(parametrized.params.length, 2);
-      assert.strictEqual(parametrized.sql.includes('__P__'), true);
-      assert.strictEqual(parametrized.sql.includes('__P__'), true);
+      assert.strictEqual(parametrized.sqlChunks.includes('__P__'), true);
+      assert.strictEqual(parametrized.sqlChunks.includes('__P__'), true);
     });
   });
 
