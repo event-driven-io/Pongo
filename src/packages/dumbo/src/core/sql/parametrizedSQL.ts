@@ -3,12 +3,12 @@ import { SQL } from './sql';
 export type ParametrizedSQL = Readonly<{
   __brand: 'parametrized-sql';
   sqlChunks: ReadonlyArray<string>;
-  params: ReadonlyArray<unknown>;
+  values: ReadonlyArray<unknown>;
 }>;
 
 const ParametrizedSQLBuilder = () => {
   const sqlChunks: string[] = [];
-  const params: unknown[] = [];
+  const values: unknown[] = [];
 
   return {
     addSQL(str: string): void {
@@ -17,18 +17,20 @@ const ParametrizedSQLBuilder = () => {
     addSQLs(str: ReadonlyArray<string>): void {
       sqlChunks.push(...str);
     },
-    addParam(value: unknown): void {
-      params.push(value);
+    addValue(value: unknown): void {
+      values.push(value);
     },
-    addParams(values: ReadonlyArray<unknown>): void {
-      params.push(...values);
+    addValues(vals: ReadonlyArray<unknown>): void {
+      values.push(...vals);
     },
     build(): ParametrizedSQL {
-      return {
-        __brand: 'parametrized-sql',
-        sqlChunks,
-        params,
-      };
+      return sqlChunks.length > 0
+        ? {
+            __brand: 'parametrized-sql',
+            sqlChunks,
+            values,
+          }
+        : ParametrizedSQL.empty;
     },
   };
 };
@@ -40,19 +42,20 @@ export const ParametrizedSQL = (
   const builder = ParametrizedSQLBuilder();
 
   for (let i = 0; i < strings.length; i++) {
-    builder.addSQL(strings[i]!);
+    if (strings[i] !== '') builder.addSQL(strings[i]!);
+
     if (i >= values.length) break;
 
     const value = values[i];
 
     if (isParametrizedSQL(value)) {
       builder.addSQLs(value.sqlChunks);
-      builder.addParams(value.params);
+      builder.addValues(value.values);
     } else if (SQL.check.isPlain(value)) {
       builder.addSQL(value.value);
     } else {
-      builder.addSQL(param);
-      builder.addParam(value);
+      builder.addSQL(ParametrizedSQL.paramPlaceholder);
+      builder.addValue(value);
     }
   }
 
@@ -68,4 +71,10 @@ export const isParametrizedSQL = (value: unknown): value is ParametrizedSQL => {
   );
 };
 
-const param = `__P__`;
+ParametrizedSQL.paramPlaceholder = `__P__`;
+
+ParametrizedSQL.empty = {
+  __brand: 'parametrized-sql',
+  sqlChunks: [''],
+  values: [],
+} satisfies ParametrizedSQL;

@@ -1,6 +1,6 @@
 import { JSONSerializer } from '../serializer';
-import { isParametrizedSQL, type ParametrizedSQL } from './parametrizedSQL';
-import { SQL, isSQL, type SQLIn } from './sql';
+import { isParametrizedSQL, ParametrizedSQL } from './parametrizedSQL';
+import { isSQL, SQL, type SQLIn } from './sql';
 
 export interface ParametrizedQuery {
   query: string;
@@ -175,7 +175,6 @@ function formatSQLIn(sqlIn: SQLIn, formatter: SQLFormatter): string {
 }
 
 const processSQLValue = (
-  sqlChunk: string,
   value: unknown,
   {
     formatter,
@@ -219,8 +218,6 @@ const processSQLValue = (
 
     builder.addParams(mappedValues);
   };
-
-  builder.addSQL(sqlChunk);
 
   if (value === null || value === undefined) {
     builder.addParam(null);
@@ -271,8 +268,18 @@ export function formatSQL(
     placeholderGenerator: formatter.placeholderGenerator,
   });
 
-  for (let i = 0; i < merged.params.length; i++) {
-    processSQLValue(merged.sqlChunks[i]!, merged.params[i], {
+  let paramIndex = 0;
+
+  for (let i = 0; i < merged.sqlChunks.length; i++) {
+    const sqlChunk = merged.sqlChunks[i]!;
+    builder.addSQL(sqlChunk);
+
+    if (sqlChunk !== ParametrizedSQL.paramPlaceholder) {
+      builder.addSQL(sqlChunk);
+      continue;
+    }
+
+    processSQLValue(merged.values[paramIndex++], {
       formatter,
       builder,
     });

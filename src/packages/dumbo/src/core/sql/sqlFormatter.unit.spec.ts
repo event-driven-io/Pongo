@@ -62,7 +62,7 @@ void describe('SQL template', () => {
       assert.strictEqual(isParametrizedSQL(query), true);
 
       const parametrized = query as unknown as ParametrizedSQL;
-      assert.strictEqual(parametrized.params.length, 2);
+      assert.strictEqual(parametrized.values.length, 2);
       assert.strictEqual(parametrized.sqlChunks.includes('__P__'), true);
       assert.strictEqual(parametrized.sqlChunks.includes('__P__'), true);
     });
