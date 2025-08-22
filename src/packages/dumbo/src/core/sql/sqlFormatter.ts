@@ -191,44 +191,31 @@ export function formatSQL(
   }
 
   const parametrized = merged as unknown as ParametrizedSQL;
-  let query = parametrized.sql;
   const params: unknown[] = [];
 
-  parametrized.params.forEach((param, index) => {
-    const placeholder = `__P${index + 1}__`;
-    const placeholderRegex = new RegExp(placeholder, 'g');
-
+  let index = 0;
+  const query = parametrized.sql.replace(/__P__/g, () => {
+    const param = parametrized.params[index++];
     if (SQL.check.isIdentifier(param)) {
-      query = query.replace(
-        placeholderRegex,
-        formatter.formatIdentifier(param.value),
-      );
-      return;
+      return formatter.formatIdentifier(param.value);
     }
 
-    query = query.replace(
-      placeholderRegex,
-      placeholderGenerator(params.length),
-    );
     params.push(formatter.mapSQLValue(param));
+
+    return placeholderGenerator(params.length - 1);
   });
 
   return { query, params };
 }
 
 function processSQL(sql: SQL, formatter: SQLFormatter): string {
-  if (isParametrizedSQL(sql)) {
-    const parametrized = sql as unknown as ParametrizedSQL;
-    let result = parametrized.sql;
+  if (!isParametrizedSQL(sql)) return sql;
 
-    parametrized.params.forEach((param, index) => {
-      const placeholder = `__P${index + 1}__`;
-      const formattedValue = formatSQLValue(param, formatter);
-      result = result.replace(new RegExp(placeholder, 'g'), formattedValue);
-    });
+  const parametrized = sql as unknown as ParametrizedSQL;
 
-    return result;
-  }
-
-  return sql;
+  let index = 0;
+  return parametrized.sql.replace(/__P__/g, () => {
+    const param = parametrized.params[index++];
+    return formatSQLValue(param, formatter);
+  });
 }

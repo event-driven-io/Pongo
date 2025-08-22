@@ -6,34 +6,52 @@ export interface ParametrizedSQL {
   params: unknown[];
 }
 
+export const ParametrizedSQLBuilder = () => {
+  const sql: string[] = [];
+  const params: unknown[] = [];
+
+  return {
+    addSQL(str: string): void {
+      sql.push(str);
+    },
+    addParam(value: unknown): void {
+      params.push(value);
+    },
+    addParams(value: unknown[]): void {
+      params.push(...value);
+    },
+    build(): ParametrizedSQL {
+      return {
+        __brand: 'parametrized-sql',
+        sql: sql.join(''),
+        params,
+      };
+    },
+  };
+};
+
 export const ParametrizedSQL = (
   strings: TemplateStringsArray,
   values: unknown[],
 ): ParametrizedSQL => {
-  let resultSql = '';
-  const params: unknown[] = [];
-  let paramIndex = 1;
+  const builder = ParametrizedSQLBuilder();
 
   const expandSQL = (value: ParametrizedSQL) => {
-    const adjustedSql = adjustParameterNumbers(value.sql, paramIndex - 1);
-    resultSql += adjustedSql.sql;
-    params.push(...value.params);
-    paramIndex += value.params.length;
+    builder.addSQL(value.sql);
+    builder.addParams(value.params);
   };
 
   const expandSQLIn = (value: SQLIn) => {
     const { values: inValues, column } = value;
 
     if (inValues.length === 0) {
-      resultSql += param(paramIndex);
-      params.push(false);
-      paramIndex++;
+      builder.addSQL(param);
+      builder.addParam(false);
       return;
     }
 
-    resultSql += `${param(paramIndex)} IN `;
-    params.push(column);
-    paramIndex++;
+    builder.addSQL(`${param} IN `);
+    builder.addParams([column]);
 
     expandArray(inValues);
   };
@@ -44,21 +62,20 @@ export const ParametrizedSQL = (
         'Empty arrays in IN clauses are not supported. Use SQL.in(column, array) helper instead.',
       );
     }
-    const placeholders = value.map((_, idx) => param(paramIndex + idx));
-    resultSql += `(${placeholders.join(', ')})`;
-    params.push(...(value as unknown as []));
-    paramIndex += value.length;
+    const placeholders = value.map(() => param);
+    builder.addSQL(`(${placeholders.join(', ')})`);
+    builder.addParams(value);
   };
 
   for (let i = 0; i < strings.length; i++) {
-    resultSql += strings[i];
+    builder.addSQL(strings[i]!);
 
     if (i >= values.length) break;
 
     const value = values[i];
 
     if (SQL.check.isPlain(value)) {
-      resultSql += value.value;
+      builder.addSQL(value.value);
     } else if (isParametrizedSQL(value)) {
       expandSQL(value);
     } else if (SQL.check.isSQLIn(value)) {
@@ -66,17 +83,12 @@ export const ParametrizedSQL = (
     } else if (Array.isArray(value)) {
       expandArray(value);
     } else {
-      resultSql += param(paramIndex);
-      params.push(value);
-      paramIndex++;
+      builder.addSQL(param);
+      builder.addParam(value);
     }
   }
 
-  return {
-    __brand: 'parametrized-sql',
-    sql: resultSql,
-    params,
-  };
+  return builder.build();
 };
 
 export const isParametrizedSQL = (value: unknown): value is ParametrizedSQL => {
@@ -88,20 +100,4 @@ export const isParametrizedSQL = (value: unknown): value is ParametrizedSQL => {
   );
 };
 
-const param = (index: number): string => `__P${index}__`;
-
-const adjustParameterNumbers = (
-  sql: string,
-  offset: number,
-): { sql: string } => {
-  if (offset === 0) {
-    return { sql };
-  }
-
-  return {
-    sql: sql.replace(/__P(\d+)__/g, (_match, num: string) => {
-      const newNum = parseInt(num, 10) + offset;
-      return param(newNum);
-    }),
-  };
-};
+const param = `__P__`;
