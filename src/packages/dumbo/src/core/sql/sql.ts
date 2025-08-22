@@ -26,58 +26,42 @@ type SQLLiteral = { [LITERAL]: true; value: unknown };
 
 const emptySQL = {
   __brand: 'parametrized-sql',
-  sql: '',
-  params: [],
-} as unknown as SQL;
+  sqlChunks: [''],
+  values: [],
+} satisfies ParametrizedSQL as unknown as SQL;
 
 const mergeSQL = (sqls: SQL[], separator: string = ' '): SQL => {
-  if (!Array.isArray(sqls)) return sqls;
-  if (sqls.length === 0) return emptySQL;
-  if (sqls.length === 1) return sqls[0]!;
+  const parametrized = sqls
+    .filter((sql) => !isEmpty(sql))
+    .map((sql) => sql as unknown as ParametrizedSQL);
 
-  // Filter out empty SQL parts
-  const nonEmptySqls = sqls.filter((sql) => !isEmpty(sql));
-  if (nonEmptySqls.length === 0) return emptySQL;
-  if (nonEmptySqls.length === 1) return nonEmptySqls[0]!;
+  const params = parametrized.flatMap((p) => p.values);
+  const sqlChunks = parametrized.flatMap((p, i) =>
+    i == parametrized.length - 1 || separator === ''
+      ? p.sqlChunks
+      : [...p.sqlChunks, separator],
+  );
 
-  const strings: string[] = [''];
-  const values: unknown[] = [];
+  const merged: ParametrizedSQL =
+    sqlChunks.length > 0
+      ? {
+          __brand: 'parametrized-sql',
+          sqlChunks: sqlChunks,
+          values: params,
+        }
+      : ParametrizedSQL.empty;
 
-  nonEmptySqls.forEach((sql, index) => {
-    if (index > 0) {
-      strings.push('');
-      values.push(SQL([separator] as unknown as TemplateStringsArray));
-    }
-    strings.push('');
-    values.push(sql);
-  });
-  strings.push('');
-
-  return SQL(strings as unknown as TemplateStringsArray, ...values);
+  return merged as unknown as SQL;
 };
 
-const concatSQL = (...sqls: SQL[]): SQL => {
-  if (sqls.length === 0) return emptySQL;
-  if (sqls.length === 1) return sqls[0]!;
-
-  const strings: string[] = [''];
-  const values: unknown[] = [];
-
-  sqls.forEach((part, index) => {
-    if (index > 0) strings.push('');
-    values.push(part);
-  });
-  strings.push('');
-
-  return SQL(strings as unknown as TemplateStringsArray, ...values);
-};
+const concatSQL = (...sqls: SQL[]): SQL => mergeSQL(sqls, '');
 
 const isEmpty = (sql: SQL): boolean => {
   if (isParametrizedSQL(sql)) {
     const parametrized = sql as unknown as ParametrizedSQL;
     return (
       parametrized.sqlChunks.every((chunk) => chunk.trim() === '') &&
-      parametrized.params.length === 0
+      parametrized.values.length === 0
     );
   }
 
