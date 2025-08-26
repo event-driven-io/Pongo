@@ -1,5 +1,5 @@
 import { ParametrizedSQL, isParametrizedSQL } from './parametrizedSQL';
-import { formatSQLRaw } from './sqlFormatter';
+import { describeSQL, formatSQL } from './sqlFormatter';
 
 export type SQL = string & { __brand: 'sql' };
 
@@ -107,7 +107,8 @@ const isSQLIn = (value: unknown): value is SQLIn => {
 SQL.EMPTY = emptySQL;
 SQL.concat = concatSQL;
 SQL.merge = mergeSQL;
-SQL.format = formatSQLRaw;
+SQL.format = formatSQL;
+SQL.describe = describeSQL;
 SQL.in = sqlIn;
 SQL.identifier = identifier;
 SQL.plain = plain;

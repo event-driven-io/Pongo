@@ -1,11 +1,11 @@
 import assert from 'assert';
 import { describe, it } from 'node:test';
 import { pgFormatter } from '.';
-import { SQL, formatSQLRaw, isSQL } from '../../../../../core';
+import { SQL, describeSQL, isSQL } from '../../../../../core';
 
 export function processSQLForTesting(sql: SQL): string {
   const formatter = pgFormatter;
-  return formatSQLRaw(sql, formatter);
+  return describeSQL(sql, formatter);
 }
 
 void describe('SQL Tagged Template Literal', () => {

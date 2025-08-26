@@ -26,10 +26,10 @@ const mockFormatter: SQLFormatter = {
     mapArray: (array: unknown[], itemFormatter) => {
       return array.map(itemFormatter);
     },
-    mapValue: (value: unknown) => value, // Simple pass-through for mock
+    mapParam: (value: unknown) => value, // Simple pass-through for mock
   },
   format: (_sql) => ({ query: 'mocked query', params: [] }),
-  formatRaw: (_sql) => 'mocked raw query',
+  describe: (_sql) => 'mocked raw query',
   placeholderGenerator: (index: number) => `$${index + 1}`,
 };
 
