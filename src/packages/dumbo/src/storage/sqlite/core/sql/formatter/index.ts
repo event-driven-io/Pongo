@@ -1,6 +1,6 @@
 import {
+  describeSQL,
   formatSQL,
-  formatSQLRaw,
   mapSQLParam,
   registerFormatter,
   type SQLFormatter,
@@ -14,10 +14,10 @@ const sqliteFormatter: SQLFormatter = {
     mapString: format.string,
     mapBoolean: (value: boolean): unknown => (value ? 1 : 0),
     mapDate: (value: Date): unknown => value.toISOString(),
-    mapValue: (value: unknown): unknown => mapSQLParam(value, sqliteFormatter),
+    mapParam: (value: unknown): unknown => mapSQLParam(value, sqliteFormatter),
   },
   format: (sql) => formatSQL(sql, sqliteFormatter),
-  formatRaw: (sql) => formatSQLRaw(sql, sqliteFormatter),
+  describe: (sql) => describeSQL(sql, sqliteFormatter),
   placeholderGenerator: () => '?',
 };
 

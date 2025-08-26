@@ -146,7 +146,7 @@ void describe('SQLite Parametrized Formatter', () => {
   void describe('formatRaw method', () => {
     void it('should return inline formatted SQL string', () => {
       const sql = SQL`SELECT * FROM users WHERE id = ${123} AND name = ${'John'}`;
-      const result = sqliteFormatter.formatRaw(sql);
+      const result = sqliteFormatter.describe(sql);
 
       assert.strictEqual(typeof result, 'string');
       assert.ok(result.includes('123'));
@@ -156,7 +156,7 @@ void describe('SQLite Parametrized Formatter', () => {
     void it('handles array of SQL', () => {
       const sql1 = SQL`SELECT ${123}`;
       const sql2 = SQL`SELECT ${'test'}`;
-      const result = sqliteFormatter.formatRaw([sql1, sql2]);
+      const result = sqliteFormatter.describe([sql1, sql2]);
 
       assert.strictEqual(typeof result, 'string');
       assert.ok(result.includes('123'));
@@ -167,51 +167,51 @@ void describe('SQLite Parametrized Formatter', () => {
 
   void describe('mapSQLValue method', () => {
     void it('handles basic types', () => {
-      assert.strictEqual(sqliteFormatter.params.mapValue(123), 123);
-      assert.strictEqual(sqliteFormatter.params.mapValue('test'), 'test');
-      assert.strictEqual(sqliteFormatter.params.mapValue(null), null);
-      assert.strictEqual(sqliteFormatter.params.mapValue(undefined), null);
+      assert.strictEqual(sqliteFormatter.params.mapParam(123), 123);
+      assert.strictEqual(sqliteFormatter.params.mapParam('test'), 'test');
+      assert.strictEqual(sqliteFormatter.params.mapParam(null), null);
+      assert.strictEqual(sqliteFormatter.params.mapParam(undefined), null);
     });
 
     void it('handles SQLite-specific type conversions', () => {
       // Boolean conversion
-      assert.strictEqual(sqliteFormatter.params.mapValue(true), 1);
-      assert.strictEqual(sqliteFormatter.params.mapValue(false), 0);
+      assert.strictEqual(sqliteFormatter.params.mapParam(true), 1);
+      assert.strictEqual(sqliteFormatter.params.mapParam(false), 0);
 
       // Date conversion
       const date = new Date('2023-01-01T00:00:00.000Z');
       assert.strictEqual(
-        sqliteFormatter.params.mapValue(date),
+        sqliteFormatter.params.mapParam(date),
         '2023-01-01T00:00:00.000Z',
       );
 
       // BigInt conversion
       const bigint = BigInt(123456789012345);
       assert.strictEqual(
-        sqliteFormatter.params.mapValue(bigint),
+        sqliteFormatter.params.mapParam(bigint),
         '123456789012345',
       );
     });
 
     void it('handles SQL wrapper types', () => {
       // Valid unquoted identifier (lowercase, no special chars)
-      const validIdentResult = sqliteFormatter.params.mapValue(
+      const validIdentResult = sqliteFormatter.params.mapParam(
         SQL.identifier('table_name'),
       );
       assert.strictEqual(validIdentResult, 'table_name');
 
       // Invalid identifier that needs quoting (mixed case)
-      const quotedIdentResult = sqliteFormatter.params.mapValue(
+      const quotedIdentResult = sqliteFormatter.params.mapParam(
         SQL.identifier('TableName'),
       );
       assert.strictEqual(quotedIdentResult, '"TableName"');
 
-      const literalResult = sqliteFormatter.params.mapValue(
+      const literalResult = sqliteFormatter.params.mapParam(
         SQL.literal('value'),
       );
       assert.strictEqual(literalResult, "'value'");
 
-      const rawResult = sqliteFormatter.params.mapValue(
+      const rawResult = sqliteFormatter.params.mapParam(
         SQL.plain('CURRENT_TIMESTAMP'),
       );
       assert.strictEqual(rawResult, 'CURRENT_TIMESTAMP');
@@ -219,14 +219,14 @@ void describe('SQLite Parametrized Formatter', () => {
 
     void it('handles nested SQL', () => {
       const nestedSql = SQL`SELECT ${123}`;
-      const result = sqliteFormatter.params.mapValue(nestedSql);
+      const result = sqliteFormatter.params.mapParam(nestedSql);
       assert.strictEqual(typeof result, 'string');
       assert.ok((result as string).includes('123'));
     });
 
     void it('handles complex types', () => {
       const obj = { key: 'value' };
-      const objResult = sqliteFormatter.params.mapValue(obj);
+      const objResult = sqliteFormatter.params.mapParam(obj);
       assert.ok(typeof objResult === 'string');
       assert.ok(objResult.includes('{"key":"value"}'));
     });

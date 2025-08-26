@@ -93,7 +93,7 @@ async function batch<Result extends QueryResultRow = QueryResultRow>(
     tracer.info('db:sql:query', {
       query,
       params,
-      debugSQL: pgFormatter.formatRaw(sqls[i]!),
+      debugSQL: pgFormatter.describe(sqls[i]!),
     });
     const result = await client.query<Result>(query, params);
     results[i] = { rowCount: result.rowCount, rows: result.rows };

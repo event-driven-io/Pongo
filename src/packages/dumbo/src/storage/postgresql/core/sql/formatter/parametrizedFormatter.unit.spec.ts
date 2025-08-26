@@ -136,7 +136,7 @@ void describe('PostgreSQL Parametrized Formatter', () => {
   void describe('formatRaw method', () => {
     void it('should return inline formatted SQL string', () => {
       const sql = SQL`SELECT * FROM users WHERE id = ${123} AND name = ${'John'}`;
-      const result = pgFormatter.formatRaw(sql);
+      const result = pgFormatter.describe(sql);
 
       assert.strictEqual(typeof result, 'string');
       assert.ok(result.includes('123'));
@@ -146,7 +146,7 @@ void describe('PostgreSQL Parametrized Formatter', () => {
     void it('handles array of SQL', () => {
       const sql1 = SQL`SELECT ${123}`;
       const sql2 = SQL`SELECT ${'test'}`;
-      const result = pgFormatter.formatRaw([sql1, sql2]);
+      const result = pgFormatter.describe([sql1, sql2]);
 
       assert.strictEqual(typeof result, 'string');
       assert.ok(result.includes('123'));
@@ -157,29 +157,29 @@ void describe('PostgreSQL Parametrized Formatter', () => {
 
   void describe('mapSQLValue method', () => {
     void it('handles basic types', () => {
-      assert.strictEqual(pgFormatter.params.mapValue(123), 123);
-      assert.strictEqual(pgFormatter.params.mapValue('test'), 'test');
-      assert.strictEqual(pgFormatter.params.mapValue(null), null);
-      assert.strictEqual(pgFormatter.params.mapValue(undefined), null);
+      assert.strictEqual(pgFormatter.params.mapParam(123), 123);
+      assert.strictEqual(pgFormatter.params.mapParam('test'), 'test');
+      assert.strictEqual(pgFormatter.params.mapParam(null), null);
+      assert.strictEqual(pgFormatter.params.mapParam(undefined), null);
     });
 
     void it('handles SQL wrapper types', () => {
       // Valid unquoted identifier (lowercase, no special chars)
-      const validIdentResult = pgFormatter.params.mapValue(
+      const validIdentResult = pgFormatter.params.mapParam(
         SQL.identifier('table_name'),
       );
       assert.strictEqual(validIdentResult, 'table_name');
 
       // Invalid identifier that needs quoting (mixed case)
-      const quotedIdentResult = pgFormatter.params.mapValue(
+      const quotedIdentResult = pgFormatter.params.mapParam(
         SQL.identifier('TableName'),
       );
       assert.strictEqual(quotedIdentResult, '"TableName"');
 
-      const literalResult = pgFormatter.params.mapValue(SQL.literal('value'));
+      const literalResult = pgFormatter.params.mapParam(SQL.literal('value'));
       assert.strictEqual(literalResult, "'value'");
 
-      const rawResult = pgFormatter.params.mapValue(
+      const rawResult = pgFormatter.params.mapParam(
         SQL.plain('CURRENT_TIMESTAMP'),
       );
       assert.strictEqual(rawResult, 'CURRENT_TIMESTAMP');
@@ -187,22 +187,22 @@ void describe('PostgreSQL Parametrized Formatter', () => {
 
     void it('handles nested SQL', () => {
       const nestedSql = SQL`SELECT ${123}`;
-      const result = pgFormatter.params.mapValue(nestedSql);
+      const result = pgFormatter.params.mapParam(nestedSql);
       assert.strictEqual(typeof result, 'string');
       assert.ok((result as string).includes('123'));
     });
 
     void it('handles complex types', () => {
       const date = new Date('2023-01-01T00:00:00.000Z');
-      const dateResult = pgFormatter.params.mapValue(date);
+      const dateResult = pgFormatter.params.mapParam(date);
       assert.strictEqual(dateResult, '2023-01-01 00:00:00.000+00');
 
       const bigint = BigInt(123456789012345);
-      const bigintResult = pgFormatter.params.mapValue(bigint);
+      const bigintResult = pgFormatter.params.mapParam(bigint);
       assert.ok(typeof bigintResult === 'string');
 
       const obj = { key: 'value' };
-      const objResult = pgFormatter.params.mapValue(obj);
+      const objResult = pgFormatter.params.mapParam(obj);
       assert.ok(typeof objResult === 'string');
       assert.ok(objResult.includes('{"key":"value"}'));
     });

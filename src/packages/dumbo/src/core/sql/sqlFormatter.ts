@@ -11,12 +11,12 @@ export interface SQLFormatter {
   formatIdentifier: (value: unknown) => string;
   formatLiteral: (value: unknown) => string;
   format: (sql: SQL | SQL[]) => ParametrizedQuery;
-  formatRaw: (sql: SQL | SQL[]) => string;
+  describe: (sql: SQL | SQL[]) => string;
   placeholderGenerator: (index: number) => string;
-  params: SQLParameterMapper;
+  params: SQLParameterProcessor;
 }
 
-export interface SQLParameterMapper {
+export interface SQLParameterProcessor {
   mapString?: (value: unknown) => string;
   mapBoolean?: (value: boolean) => unknown;
   mapArray?: (
@@ -26,7 +26,14 @@ export interface SQLParameterMapper {
   mapDate?: (value: Date) => unknown;
   mapObject?: (value: object) => unknown;
   mapBigInt?: (value: bigint) => unknown;
-  mapValue: (value: unknown) => unknown;
+  mapParam: (value: unknown) => unknown;
+  processParam?: (
+    value: unknown,
+    {
+      formatter,
+      builder,
+    }: { formatter: SQLFormatter; builder: ParametrizedQueryBuilder },
+  ) => void;
 }
 
 const formatters: Record<string, SQLFormatter> = {};
@@ -46,7 +53,7 @@ export const getFormatter = (dialect: string): SQLFormatter => {
   return formatters[formatterKey];
 };
 
-export const formatSQLRaw = (
+export const describeSQL = (
   _sql: SQL | SQL[],
   _formatter: SQLFormatter,
 ): string => 'TODO';
@@ -85,7 +92,7 @@ export function mapSQLParam(value: unknown, formatter: SQLFormatter): unknown {
   }
 }
 
-const processSQLValue = (
+const processSQLParam = (
   value: unknown,
   {
     formatter,
@@ -153,7 +160,7 @@ export function formatSQL(
       continue;
     }
 
-    processSQLValue(merged.values[paramIndex++], {
+    processSQLParam(merged.values[paramIndex++], {
       formatter,
       builder,
     });

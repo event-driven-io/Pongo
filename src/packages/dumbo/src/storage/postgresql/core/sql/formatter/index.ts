@@ -1,7 +1,7 @@
 import {
   type SQLFormatter,
+  describeSQL,
   formatSQL,
-  formatSQLRaw,
   mapSQLParam,
   registerFormatter,
 } from '../../../../../core';
@@ -20,10 +20,10 @@ const pgFormatter: SQLFormatter = {
       isoStr = isoStr.replace('T', ' ').replace('Z', '+00');
       return `${isoStr}`;
     },
-    mapValue: (value: unknown): unknown => mapSQLParam(value, pgFormatter),
+    mapParam: (value: unknown): unknown => mapSQLParam(value, pgFormatter),
   },
   format: (sql) => formatSQL(sql, pgFormatter),
-  formatRaw: (sql) => formatSQLRaw(sql, pgFormatter),
+  describe: (sql) => describeSQL(sql, pgFormatter),
   placeholderGenerator: (index: number): string => `$${index + 1}`,
 };
 
