@@ -7,29 +7,25 @@
       "request": "launch",
       "skipFiles": ["<node_internals>/**"],
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run-script", "test", "--inspect-brk=9229"], // Use --inspect-brk for debugging
+      "runtimeArgs": ["run-script", "test"],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
-      "cwd": "${workspaceFolder}/src/",
+      "cwd": "${workspaceFolder}${pathSeparator}src",
       "sourceMaps": true
     },
     {
       "name": "Debug Current Test File",
       "type": "node",
       "request": "launch",
-      "env": { "DUMBO_LOG_LEVEL": "DEBUG" },
+      "env": {
+        "DUMBO_LOG_LEVEL": "DEBUG"
+      },
       "skipFiles": ["<node_internals>/**"],
       "runtimeExecutable": "npm",
-      "runtimeArgs": [
-        "run-script",
-        "test:file",
-        "--",
-        "${file}",
-        "--inspect-brk=9229"
-      ], // Use --inspect-brk for debugging
+      "runtimeArgs": ["run-script", "test:file", "--", "${file}"],
       "console": "integratedTerminal",
       "internalConsoleOptions": "neverOpen",
-      "cwd": "${workspaceFolder}/src/",
+      "cwd": "${workspaceFolder}${pathSeparator}src",
       "sourceMaps": true
     }
   ]
