@@ -12,7 +12,6 @@ export interface SQLFormatter {
   formatLiteral: (value: unknown) => string;
   format: (sql: SQL | SQL[]) => ParametrizedQuery;
   describe: (sql: SQL | SQL[]) => string;
-  placeholderGenerator: (index: number) => string;
   params: SQLParameterProcessor;
 }
 
@@ -26,15 +25,27 @@ export interface SQLParameterProcessor {
   mapDate?: (value: Date) => unknown;
   mapObject?: (value: object) => unknown;
   mapBigInt?: (value: bigint) => unknown;
-  mapParam: (value: unknown) => unknown;
-  processParam?: (
-    value: unknown,
-    {
-      formatter,
-      builder,
-    }: { formatter: SQLFormatter; builder: ParametrizedQueryBuilder },
-  ) => void;
+  mapValue: (value: unknown) => unknown;
+  mapPlaceholder: (index: number) => string;
 }
+
+export const SQLFormatter = (
+  formatter: Omit<SQLFormatter, 'format' | 'describe' | 'params'> &
+    Partial<Pick<SQLFormatter, 'format' | 'describe' | 'params'>>,
+): SQLFormatter => {
+  const resultFormatter: SQLFormatter = {
+    format: (sql: SQL | SQL[]) => formatSQL(sql, resultFormatter),
+    describe: (sql: SQL | SQL[]) => describeSQL(sql),
+    params: {
+      mapValue: (value: unknown) => mapSQLParamValue(value, resultFormatter),
+      mapPlaceholder: (_index: number) => '?',
+      ...(formatter.params ?? {}),
+    },
+    ...formatter,
+  };
+
+  return resultFormatter;
+};
 
 const formatters: Record<string, SQLFormatter> = {};
 
@@ -53,12 +64,10 @@ export const getFormatter = (dialect: string): SQLFormatter => {
   return formatters[formatterKey];
 };
 
-export const describeSQL = (
-  _sql: SQL | SQL[],
-  _formatter: SQLFormatter,
-): string => 'TODO';
-
-export function mapSQLParam(value: unknown, formatter: SQLFormatter): unknown {
+export function mapSQLParamValue(
+  value: unknown,
+  formatter: SQLFormatter,
+): unknown {
   if (value === null || value === undefined) {
     return null;
   } else if (typeof value === 'number') {
@@ -66,7 +75,7 @@ export function mapSQLParam(value: unknown, formatter: SQLFormatter): unknown {
   } else if (typeof value === 'string') {
     return value;
   } else if (Array.isArray(value)) {
-    return value.map((item) => mapSQLParam(item, formatter));
+    return value.map((item) => mapSQLParamValue(item, formatter));
   } else if (typeof value === 'boolean') {
     return formatter.params.mapBoolean
       ? formatter.params.mapBoolean(value)
@@ -79,14 +88,14 @@ export function mapSQLParam(value: unknown, formatter: SQLFormatter): unknown {
       : value.toString();
   } else if (value instanceof Date && formatter.params.mapDate) {
     return formatter.params.mapDate(value);
-  } else if (typeof value === 'object') {
-    return formatter.params.mapObject
-      ? formatter.params.mapObject(value)
-      : `'${JSONSerializer.serialize(value).replace(/'/g, "''")}'`;
   } else if (SQL.check.isLiteral(value)) {
     return formatter.formatLiteral(value.value);
   } else if (SQL.check.isIdentifier(value)) {
     return formatter.formatIdentifier(value.value);
+  } else if (typeof value === 'object') {
+    return formatter.params.mapObject
+      ? formatter.params.mapObject(value)
+      : `'${JSONSerializer.serialize(value).replace(/'/g, "''")}'`;
   } else {
     return formatter.formatLiteral(value);
   }
@@ -103,7 +112,7 @@ const processSQLParam = (
     const { values: inValues, column } = value;
 
     if (inValues.length === 0) {
-      builder.addParam(mapSQLParam(false, formatter));
+      builder.addParam(mapSQLParamValue(false, formatter));
       return;
     }
 
@@ -119,7 +128,7 @@ const processSQLParam = (
         'Empty arrays in IN clauses are not supported. Use SQL.in(column, array) helper instead.',
       );
     }
-    builder.addParams(mapSQLParam(value, formatter) as unknown[]);
+    builder.addParams(mapSQLParamValue(value, formatter) as unknown[]);
   };
 
   if (SQL.check.isLiteral(value)) {
@@ -128,8 +137,52 @@ const processSQLParam = (
     builder.addSQL(formatter.formatIdentifier(value.value));
   } else if (SQL.check.isSQLIn(value)) {
     expandSQLIn(value);
+  } else if (Array.isArray(value)) {
+    expandArray(value);
   } else {
-    builder.addParam(mapSQLParam(value, formatter));
+    builder.addParam(mapSQLParamValue(value, formatter));
+  }
+};
+
+const describeSQLParam = (
+  value: unknown,
+  {
+    formatter,
+    builder,
+  }: { formatter: SQLFormatter; builder: ParametrizedQueryBuilder },
+): void => {
+  const expandSQLIn = (value: SQLIn) => {
+    const { values: inValues, column } = value;
+
+    builder.addSQL(formatter.formatIdentifier(column.value));
+    builder.addSQL(` IN `);
+
+    expandArray(inValues);
+  };
+
+  const expandArray = (value: unknown[]) => {
+    if (value.length === 0) {
+      throw new Error(
+        'Empty arrays in IN clauses are not supported. Use SQL.in(column, array) helper instead.',
+      );
+    }
+    builder.addSQL(
+      `(${value.map((item) => formatter.formatLiteral(mapSQLParamValue(item, formatter))).join(', ')})`,
+    );
+  };
+
+  if (SQL.check.isLiteral(value)) {
+    builder.addSQL(formatter.formatLiteral(value.value));
+  } else if (SQL.check.isIdentifier(value)) {
+    builder.addSQL(formatter.formatIdentifier(value.value));
+  } else if (SQL.check.isSQLIn(value)) {
+    expandSQLIn(value);
+  } else if (Array.isArray(value)) {
+    expandArray(value);
+  } else {
+    builder.addSQL(
+      JSONSerializer.serialize(mapSQLParamValue(value, formatter)),
+    );
   }
 };
 
@@ -146,14 +199,13 @@ export function formatSQL(
   }
 
   const builder = ParametrizedQueryBuilder({
-    placeholderGenerator: formatter.placeholderGenerator,
+    placeholderGenerator: formatter.params.mapPlaceholder,
   });
 
   let paramIndex = 0;
 
   for (let i = 0; i < merged.sqlChunks.length; i++) {
     const sqlChunk = merged.sqlChunks[i]!;
-    builder.addSQL(sqlChunk);
 
     if (sqlChunk !== ParametrizedSQL.paramPlaceholder) {
       builder.addSQL(sqlChunk);
@@ -168,6 +220,52 @@ export function formatSQL(
 
   return builder.build();
 }
+
+const describeSQLFormatter = SQLFormatter({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  formatIdentifier: (value: unknown) => `${value as any}`,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  formatLiteral: (value: unknown) => `'${value as any}'`,
+  params: {
+    mapValue: (value: unknown) => mapSQLParamValue(value, describeSQLFormatter),
+    mapPlaceholder: (_index: number) => '?',
+  },
+});
+
+export const describeSQL = (
+  sql: SQL | SQL[],
+  formatter?: SQLFormatter,
+): string => {
+  formatter ??= describeSQLFormatter;
+  const merged = (Array.isArray(sql)
+    ? SQL.merge(sql, '\n')
+    : sql) as unknown as ParametrizedSQL;
+
+  if (!isParametrizedSQL(merged)) {
+    throw new Error('Expected ParametrizedSQL, got string-based SQL');
+  }
+
+  const builder = ParametrizedQueryBuilder({
+    placeholderGenerator: describeSQLFormatter.params.mapPlaceholder,
+  });
+
+  let paramIndex = 0;
+
+  for (let i = 0; i < merged.sqlChunks.length; i++) {
+    const sqlChunk = merged.sqlChunks[i]!;
+
+    if (sqlChunk !== ParametrizedSQL.paramPlaceholder) {
+      builder.addSQL(sqlChunk);
+      continue;
+    }
+    describeSQLParam(merged.values[paramIndex++], {
+      builder,
+      formatter,
+    });
+  }
+
+  return builder.build().query;
+};
 
 export type ParametrizedQueryBuilder = {
   addSQL: (str: string) => ParametrizedQueryBuilder;

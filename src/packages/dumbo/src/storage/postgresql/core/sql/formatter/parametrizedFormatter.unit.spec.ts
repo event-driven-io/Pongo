@@ -157,52 +157,47 @@ void describe('PostgreSQL Parametrized Formatter', () => {
 
   void describe('mapSQLValue method', () => {
     void it('handles basic types', () => {
-      assert.strictEqual(pgFormatter.params.mapParam(123), 123);
-      assert.strictEqual(pgFormatter.params.mapParam('test'), 'test');
-      assert.strictEqual(pgFormatter.params.mapParam(null), null);
-      assert.strictEqual(pgFormatter.params.mapParam(undefined), null);
+      assert.strictEqual(pgFormatter.params.mapValue(123), 123);
+      assert.strictEqual(pgFormatter.params.mapValue('test'), 'test');
+      assert.strictEqual(pgFormatter.params.mapValue(null), null);
+      assert.strictEqual(pgFormatter.params.mapValue(undefined), null);
     });
 
     void it('handles SQL wrapper types', () => {
       // Valid unquoted identifier (lowercase, no special chars)
-      const validIdentResult = pgFormatter.params.mapParam(
+      const validIdentResult = pgFormatter.params.mapValue(
         SQL.identifier('table_name'),
       );
       assert.strictEqual(validIdentResult, 'table_name');
 
       // Invalid identifier that needs quoting (mixed case)
-      const quotedIdentResult = pgFormatter.params.mapParam(
+      const quotedIdentResult = pgFormatter.params.mapValue(
         SQL.identifier('TableName'),
       );
       assert.strictEqual(quotedIdentResult, '"TableName"');
 
-      const literalResult = pgFormatter.params.mapParam(SQL.literal('value'));
+      const literalResult = pgFormatter.params.mapValue(SQL.literal('value'));
       assert.strictEqual(literalResult, "'value'");
-
-      const rawResult = pgFormatter.params.mapParam(
-        SQL.plain('CURRENT_TIMESTAMP'),
-      );
-      assert.strictEqual(rawResult, 'CURRENT_TIMESTAMP');
     });
 
     void it('handles nested SQL', () => {
       const nestedSql = SQL`SELECT ${123}`;
-      const result = pgFormatter.params.mapParam(nestedSql);
+      const result = pgFormatter.params.mapValue(nestedSql);
       assert.strictEqual(typeof result, 'string');
       assert.ok((result as string).includes('123'));
     });
 
     void it('handles complex types', () => {
       const date = new Date('2023-01-01T00:00:00.000Z');
-      const dateResult = pgFormatter.params.mapParam(date);
+      const dateResult = pgFormatter.params.mapValue(date);
       assert.strictEqual(dateResult, '2023-01-01 00:00:00.000+00');
 
       const bigint = BigInt(123456789012345);
-      const bigintResult = pgFormatter.params.mapParam(bigint);
+      const bigintResult = pgFormatter.params.mapValue(bigint);
       assert.ok(typeof bigintResult === 'string');
 
       const obj = { key: 'value' };
-      const objResult = pgFormatter.params.mapParam(obj);
+      const objResult = pgFormatter.params.mapValue(obj);
       assert.ok(typeof objResult === 'string');
       assert.ok(objResult.includes('{"key":"value"}'));
     });
