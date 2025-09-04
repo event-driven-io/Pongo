@@ -2,35 +2,24 @@ import assert from 'assert';
 import { before, describe, it } from 'node:test';
 import { isParametrizedSQL, type ParametrizedSQL } from './parametrizedSQL';
 import { isSQL, SQL } from './sql';
-import { registerFormatter, type SQLFormatter } from './sqlFormatter';
+import {
+  describeSQL,
+  formatSQL,
+  registerFormatter,
+  type SQLFormatter,
+} from './sqlFormatter';
 
 const mockFormatter: SQLFormatter = {
   // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
   formatIdentifier: (value: unknown) => `"${value}"`,
-  formatLiteral: (value: unknown) => {
-    if (value === null || value === undefined) return 'NULL';
-    if (typeof value === 'string') return `'${value.replace(/'/g, "''")}'`;
-    if (typeof value === 'boolean') return value ? "'t'" : "'f'";
-    if (typeof value === 'number') return String(value);
-    if (typeof value === 'bigint') return value.toString();
-    if (Array.isArray(value))
-      return (
-        '(' + value.map((v) => mockFormatter.formatLiteral(v)).join(', ') + ')'
-      );
-    if (typeof value === 'object') return `'${JSON.stringify(value)}'::jsonb`;
-    // eslint-disable-next-line @typescript-eslint/no-base-to-string, @typescript-eslint/restrict-template-expressions
-    return `'${value}'`;
-  },
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  formatLiteral: (value: unknown) => `'${value as any as string}'`,
   params: {
-    mapString: (value: unknown) => String(value),
-    mapArray: (array: unknown[], itemFormatter) => {
-      return array.map(itemFormatter);
-    },
-    mapParam: (value: unknown) => value, // Simple pass-through for mock
+    mapValue: (value: unknown) => value,
+    mapPlaceholder: (index: number) => `$${index + 1}`,
   },
-  format: (_sql) => ({ query: 'mocked query', params: [] }),
-  describe: (_sql) => 'mocked raw query',
-  placeholderGenerator: (index: number) => `$${index + 1}`,
+  format: (sql) => formatSQL(sql, mockFormatter),
+  describe: (sql) => describeSQL(sql),
 };
 
 void describe('SQL template', () => {
@@ -118,14 +107,19 @@ void describe('SQL template', () => {
       const empty = SQL.EMPTY;
       const order = SQL`ORDER BY name`;
 
-      const result = SQL.merge([base, SQL` `, empty, SQL` `, order]);
-      const formatted = SQL.format(result, mockFormatter);
+      const result = SQL.merge([
+        base,
+        SQL` `,
+        empty,
+        SQL` `,
+        order,
+      ]) as unknown as ParametrizedSQL;
 
       // Empty parts should be filtered out
-      assert.strictEqual(
-        formatted.includes('SELECT * FROM users ORDER BY name'),
-        true,
-      );
+      assert.deepStrictEqual(result.sqlChunks, [
+        'SELECT * FROM users',
+        'ORDER BY name',
+      ]);
     });
 
     void it('should return appropriate types for edge cases', () => {
@@ -148,10 +142,10 @@ void describe('SQL template', () => {
       const query = SQL`SELECT * FROM ${SQL.identifier('users')} WHERE name = ${SQL.literal('John')}`;
       const formatted = SQL.format(query, mockFormatter);
 
-      assert.strictEqual(
-        formatted,
-        'SELECT * FROM "users" WHERE name = \'John\'',
-      );
+      assert.deepStrictEqual(formatted, {
+        query: 'SELECT * FROM "users" WHERE name = $1',
+        params: ["'John'"],
+      });
     });
 
     void it('should format complex nested SQL', () => {
@@ -160,10 +154,11 @@ void describe('SQL template', () => {
 
       const formatted = SQL.format(mainQuery, mockFormatter);
 
-      assert.strictEqual(formatted.includes('SELECT * FROM users'), true);
-      assert.strictEqual(formatted.includes('WHERE role_id IN'), true);
-      assert.strictEqual(formatted.includes('SELECT id FROM roles'), true);
-      assert.strictEqual(formatted.includes("'admin'"), true);
+      assert.deepStrictEqual(formatted, {
+        query:
+          'SELECT * FROM "users" WHERE role_id IN (SELECT id FROM roles WHERE name = $1)',
+        params: ['admin'],
+      });
     });
 
     void it('handles all data types correctly', () => {
@@ -184,16 +179,30 @@ void describe('SQL template', () => {
 
       const formatted = SQL.format(query, mockFormatter);
 
-      assert.strictEqual(formatted.includes("'text'"), true);
-      assert.strictEqual(formatted.includes('42'), true);
-      assert.strictEqual(formatted.includes("'t'"), true);
-      assert.strictEqual(formatted.includes('NULL'), true);
-      assert.strictEqual(formatted.includes("(1, '2', 3)"), true);
-      assert.strictEqual(
-        formatted.includes('\'{"key":"value","num":3}\'::jsonb'),
-        true,
-      );
-      assert.strictEqual(formatted.includes('"column_name"'), true);
+      assert.deepStrictEqual(formatted, {
+        query: `
+        INSERT INTO "test" (
+          "str_col", "num_col", "bool_col", "null_col", 
+          "array_col", "obj_col", "id_col"
+        ) VALUES (
+          $1, 
+          $2, 
+          $3, 
+          $4,
+          $5,
+          $6,
+          $7
+        )`,
+        params: [
+          'text',
+          42,
+          true,
+          null,
+          [1, '2', 3],
+          { key: 'value', num: 3 },
+          'column_name',
+        ],
+      });
     });
 
     void it('should format concatenated SQL correctly', () => {
@@ -204,10 +213,10 @@ void describe('SQL template', () => {
       const combined = SQL.merge([base, SQL` `, where, SQL` `, order]);
       const formatted = SQL.format(combined, mockFormatter);
 
-      assert.strictEqual(
-        formatted,
-        'SELECT * FROM users WHERE active = \'t\' ORDER BY "name"',
-      );
+      assert.deepStrictEqual(formatted, {
+        query: 'SELECT * FROM users WHERE active = $1 ORDER BY "name"',
+        params: ["'true'"],
+      });
     });
   });
 });

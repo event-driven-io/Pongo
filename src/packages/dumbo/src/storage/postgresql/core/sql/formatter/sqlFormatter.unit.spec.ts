@@ -1,23 +1,18 @@
 import assert from 'assert';
 import { describe, it } from 'node:test';
 import { pgFormatter } from '.';
-import { SQL, describeSQL, isSQL } from '../../../../../core';
+import { SQL, isParametrizedSQL, isSQL } from '../../../../../core/sql';
 
-export function processSQLForTesting(sql: SQL): string {
-  const formatter = pgFormatter;
-  return describeSQL(sql, formatter);
-}
-
-void describe('SQL Tagged Template Literal', () => {
+void describe('SQLite SQL Tagged Template Literal', () => {
   void it('should format literals correctly', () => {
     const name: string = 'John Doe';
     const query = SQL`SELECT * FROM users WHERE name = ${SQL.literal(name)};`;
 
-    // Expected output directly without using pg-format
-    assert.strictEqual(
-      processSQLForTesting(query),
-      "SELECT * FROM users WHERE name = 'John Doe';",
-    );
+    // Expected output directly without using sqlite-format
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: 'SELECT * FROM users WHERE name = $1;',
+      params: [`'John Doe'`],
+    });
   });
 
   void it('should format identifiers correctly', () => {
@@ -25,8 +20,11 @@ void describe('SQL Tagged Template Literal', () => {
     const columnName: string = 'name';
     const query = SQL`SELECT ${SQL.identifier(columnName)} FROM ${SQL.identifier(tableName)};`;
 
-    // Expected output directly without using pg-format
-    assert.strictEqual(processSQLForTesting(query), 'SELECT name FROM users;');
+    // Expected output directly without using sqlite-format
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: 'SELECT name FROM users;',
+      params: [],
+    });
   });
 
   void it('should format identifiers with CAPS correctly', () => {
@@ -34,11 +32,11 @@ void describe('SQL Tagged Template Literal', () => {
     const columnName: string = 'Name';
     const query = SQL`SELECT ${SQL.identifier(columnName)} FROM ${SQL.identifier(tableName)};`;
 
-    // Expected output directly without using pg-format
-    assert.strictEqual(
-      processSQLForTesting(query),
-      'SELECT "Name" FROM "Users";',
-    );
+    // Expected output directly without using sqlite-format
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: 'SELECT "Name" FROM "Users";',
+      params: [],
+    });
   });
 
   void it('should NOT format plain strings without escaping', () => {
@@ -46,7 +44,10 @@ void describe('SQL Tagged Template Literal', () => {
     const query = SQL`SELECT ${SQL.plain(unsafeString)};`;
 
     // Plain string without escaping
-    assert.strictEqual(processSQLForTesting(query), "SELECT some'unsafe;");
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: "SELECT some'unsafe;",
+      params: [],
+    });
   });
 
   void it('handles default literal formatting for plain values', () => {
@@ -55,10 +56,10 @@ void describe('SQL Tagged Template Literal', () => {
     const query = SQL`INSERT INTO users (name, age) VALUES (${name}, ${age});`;
 
     // Default literal formatting for plain values
-    assert.strictEqual(
-      processSQLForTesting(query),
-      "INSERT INTO users (name, age) VALUES ('John Doe', 30);",
-    );
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: 'INSERT INTO users (name, age) VALUES ($1, $2);',
+      params: ['John Doe', 30],
+    });
   });
 
   void it('handles mixed types of formatting', () => {
@@ -72,22 +73,24 @@ void describe('SQL Tagged Template Literal', () => {
     `;
 
     // Mixed formatting for identifiers and literals
-    assert.strictEqual(
-      processSQLForTesting(query),
-      `
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: `
       INSERT INTO users (name, age)
-      VALUES ('John Doe', 30)
+      VALUES ($1, $2)
       RETURNING name, age;
     `,
-    );
+      params: ["'John Doe'", 30],
+    });
   });
 
   void it('should work with raw SQL', () => {
     const rawQuery = SQL`SELECT * FROM users`;
-    assert.strictEqual(
-      SQL.format(rawQuery, pgFormatter),
-      'SELECT * FROM users',
-    );
+    assert.strictEqual(isSQL(rawQuery), true);
+    assert.strictEqual(isParametrizedSQL(rawQuery), true);
+    assert.deepStrictEqual(SQL.format(rawQuery, pgFormatter), {
+      query: 'SELECT * FROM users',
+      params: [],
+    });
   });
 
   void it('should NOT recognize valid SQL using isSQL', () => {
@@ -102,11 +105,11 @@ void describe('SQL Tagged Template Literal', () => {
     const unsafeValue: string = "O'Reilly";
     const query = SQL`SELECT * FROM users WHERE name = ${SQL.literal(unsafeValue)};`;
 
-    // SQL-safe escaping of single quote characters
-    assert.strictEqual(
-      processSQLForTesting(query),
-      "SELECT * FROM users WHERE name = 'O''Reilly';",
-    );
+    // SQLite uses the same escaping mechanism as PostgreSQL for single quotes
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: 'SELECT * FROM users WHERE name = $1;',
+      params: ["'O''Reilly'"],
+    });
   });
 
   void it('should correctly format empty strings and falsy values', () => {
@@ -118,11 +121,11 @@ void describe('SQL Tagged Template Literal', () => {
       VALUES (${SQL.literal(emptyString)}, ${SQL.literal(nullValue)}, ${SQL.literal(zeroValue)});`;
 
     // Handle empty string, null, and zero correctly
-    assert.strictEqual(
-      processSQLForTesting(query),
-      `INSERT INTO test (col1, col2, col3)
-      VALUES ('', NULL, '0');`,
-    );
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: `INSERT INTO test (col1, col2, col3)
+      VALUES ($1, $2, $3);`,
+      params: [`''`, 'NULL', `'0'`],
+    });
   });
 
   void it('handles arrays of values using literals', () => {
@@ -131,11 +134,11 @@ void describe('SQL Tagged Template Literal', () => {
       VALUES (${SQL.literal(values[0])}, ${SQL.literal(values[1])}, ${SQL.literal(values[2])});`;
 
     // Handle array elements using literal formatting
-    assert.strictEqual(
-      processSQLForTesting(query),
-      `INSERT INTO users (first_name, last_name, age)
-      VALUES ('John', 'Doe', '30');`,
-    );
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: `INSERT INTO users (first_name, last_name, age)
+      VALUES ($1, $2, $3);`,
+      params: [`'John'`, `'Doe'`, `'30'`],
+    });
   });
 
   void it('handles SQL injections attempts safely', () => {
@@ -143,157 +146,205 @@ void describe('SQL Tagged Template Literal', () => {
     const query = SQL`SELECT * FROM users WHERE name = ${SQL.literal(unsafeInput)};`;
 
     // Escape SQL injection attempts correctly
-    assert.strictEqual(
-      processSQLForTesting(query),
-      "SELECT * FROM users WHERE name = '''; DROP TABLE users; --';",
-    );
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: 'SELECT * FROM users WHERE name = $1;',
+      params: ["'''; DROP TABLE users; --'"],
+    });
   });
 
-  void describe('SQL Auto-Detection Features', () => {
+  void describe('SQLite Auto-Detection Features', () => {
     void it('should correctly format numbers without quotes', () => {
       const age = 30;
       const query = SQL`SELECT * FROM users WHERE age = ${age};`;
-      assert.strictEqual(
-        processSQLForTesting(query),
-        'SELECT * FROM users WHERE age = 30;',
-      );
+      assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+        query: 'SELECT * FROM users WHERE age = $1;',
+        params: [30],
+      });
     });
+  });
 
-    void it('should correctly format negative numbers and decimals', () => {
-      const temperature = -15.5;
-      const price = 99.99;
-      const query = SQL`SELECT * FROM data WHERE temperature < ${temperature} AND price = ${price};`;
-      assert.strictEqual(
-        processSQLForTesting(query),
-        'SELECT * FROM data WHERE temperature < -15.5 AND price = 99.99;',
-      );
+  void it('should correctly format negative numbers and decimals', () => {
+    const temperature = -15.5;
+    const price = 99.99;
+    const query = SQL`SELECT * FROM data WHERE temperature < ${temperature} AND price = ${price};`;
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: 'SELECT * FROM data WHERE temperature < $1 AND price = $2;',
+      params: [-15.5, 99.99],
     });
+  });
 
-    void it('should correctly format boolean values', () => {
-      const isActive = true;
-      const isDeleted = false;
-      const query = SQL`SELECT * FROM users WHERE is_active = ${isActive} AND is_deleted = ${isDeleted};`;
-      assert.strictEqual(
-        processSQLForTesting(query),
-        'SELECT * FROM users WHERE is_active = TRUE AND is_deleted = FALSE;',
-      );
+  void it('should correctly format boolean values', () => {
+    const isActive = true;
+    const isDeleted = false;
+    const query = SQL`SELECT * FROM users WHERE is_active = ${isActive} AND is_deleted = ${isDeleted};`;
+    // SQLite doesn't have a native boolean type, typically uses 1/0
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: 'SELECT * FROM users WHERE is_active = $1 AND is_deleted = $2;',
+      params: ['TRUE', 'FALSE'],
     });
+  });
 
-    void it('should correctly format strings with quotes', () => {
-      const name = "O'Reilly";
-      const query = SQL`SELECT * FROM users WHERE last_name = ${name};`;
-      assert.strictEqual(
-        processSQLForTesting(query),
-        "SELECT * FROM users WHERE last_name = 'O''Reilly';",
-      );
+  void it('should correctly format strings with quotes', () => {
+    const name = "O'Reilly";
+    const query = SQL`SELECT * FROM users WHERE last_name = ${name};`;
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: 'SELECT * FROM users WHERE last_name = $1;',
+      params: ["O'Reilly"],
     });
+  });
 
-    void it('should correctly format null and undefined values', () => {
-      const nullValue = null;
-      const undefinedValue = undefined;
-      const query = SQL`SELECT * FROM users WHERE middle_name = ${nullValue} OR nickname = ${undefinedValue};`;
-      assert.strictEqual(
-        processSQLForTesting(query),
-        'SELECT * FROM users WHERE middle_name = NULL OR nickname = NULL;',
-      );
+  void it('should correctly format null and undefined values', () => {
+    const nullValue = null;
+    const undefinedValue = undefined;
+    const query = SQL`SELECT * FROM users WHERE middle_name = ${nullValue} OR nickname = ${undefinedValue};`;
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: 'SELECT * FROM users WHERE middle_name = $1 OR nickname = $2;',
+      params: [null, null],
     });
+  });
 
-    void it('should correctly format Date objects', () => {
-      const testDate = new Date('2023-05-15T12:00:00Z');
-      const query = SQL`SELECT * FROM events WHERE created_at = ${testDate};`;
-      // Updated regex to match the standard PostgreSQL timestamp format with timezone
-      assert.match(
-        processSQLForTesting(query),
-        /SELECT \* FROM events WHERE created_at = '\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}\+00';/,
-      );
+  void it('should correctly format Date objects for SQLite', () => {
+    const testDate = new Date('2023-05-15T12:00:00Z');
+    const query = SQL`SELECT * FROM events WHERE created_at = ${testDate};`;
+
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: 'SELECT * FROM events WHERE created_at = $1;',
+      params: ['2023-05-15 12:00:00.000+00'],
     });
+  });
 
-    void it('should correctly format arrays', () => {
-      const ids = [1, 2, 3];
-      const query = SQL`SELECT * FROM users WHERE id IN ${ids};`;
-      assert.strictEqual(
-        processSQLForTesting(query),
-        'SELECT * FROM users WHERE id IN (1, 2, 3);',
-      );
+  void it('should correctly format arrays as comma-separated values', () => {
+    const ids = [1, 2, 3];
+    const query = SQL`SELECT * FROM users WHERE id IN ${ids};`;
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: 'SELECT * FROM users WHERE id IN ($1, $2, $3);',
+      params: [1, 2, 3],
     });
+  });
 
-    void it('should correctly format nested arrays', () => {
-      const points = [
-        [1, 2],
-        [3, 4],
-        [5, 6],
-      ];
-      const query = SQL`SELECT * FROM coordinates WHERE point IN ${points};`;
-      assert.strictEqual(
-        processSQLForTesting(query),
-        'SELECT * FROM coordinates WHERE point IN ((1, 2), (3, 4), (5, 6));',
-      );
+  void it('handles arrays differently from PostgreSQL', () => {
+    const tags = ['admin', 'user'];
+    // SQLite doesn't have the && operator for arrays, so common approach is to use JSON functions or LIKE
+    const query = SQL`SELECT * FROM users WHERE json_extract(tags, '$') LIKE ${`%${tags[0]}%`};`;
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: "SELECT * FROM users WHERE json_extract(tags, '$') LIKE $1;",
+      params: [`%${tags[0]}%`],
     });
+  });
 
-    void it('should correctly format BigInt values', () => {
-      const bigId = BigInt('9007199254740991');
-      const query = SQL`SELECT * FROM large_tables WHERE id = ${bigId};`;
-      assert.strictEqual(
-        processSQLForTesting(query),
-        'SELECT * FROM large_tables WHERE id = 9007199254740991;',
-      );
+  void it('should correctly format BigInt values', () => {
+    const bigId = BigInt('9007199254740991');
+    const query = SQL`SELECT * FROM large_tables WHERE id = ${bigId};`;
+    // SQLite doesn't have special handling for BigInt, usually stringifies
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: 'SELECT * FROM large_tables WHERE id = $1;',
+      params: [bigId.toString()],
     });
+  });
 
-    void it('should correctly format objects as JSON', () => {
-      const userData = { name: 'John', age: 30, roles: ['admin', 'user'] };
-      const query = SQL`INSERT INTO users (data) VALUES (${userData});`;
+  void it('should correctly format objects as JSON strings', () => {
+    const userData = { name: 'John', age: 30, roles: ['admin', 'user'] };
+    const query = SQL`INSERT INTO users (data) VALUES (${userData});`;
 
-      // The exact format might vary depending on your implementation
-      // This test asserts that it's properly formatted as a JSON string
-      const result = processSQLForTesting(query);
-      assert.match(
-        result,
-        /INSERT INTO users \(data\) VALUES \('.*'::jsonb\);/,
-      );
-
-      // Further verify that the string contains valid JSON
-      const jsonMatch = result.match(/VALUES \('(.*)'::jsonb\);/);
-      if (jsonMatch && jsonMatch[1]) {
-        const jsonStr = jsonMatch[1].replace(/''::jsonb/g, "'"); // Unescape any SQL quotes
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-          const parsed = JSON.parse(jsonStr);
-          assert.deepStrictEqual(parsed, userData);
-        } catch {
-          assert.fail(`Failed to parse JSON: ${jsonStr}`);
-        }
-      } else {
-        assert.fail('Failed to extract JSON from query');
-      }
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: 'INSERT INTO users (data) VALUES ($1);',
+      params: [`'{"name":"John","age":30,"roles":["admin","user"]}'`],
     });
+  });
 
-    void it('should correctly handle mixed types in a complex query', () => {
-      const id = 123;
-      const name = 'Smith';
-      const active = true;
-      const createdAt = new Date('2023-01-01T00:00:00Z');
-      const tags = ['premium', 'verified'];
-      const settings = { notifications: true, theme: 'dark' };
+  void it('should correctly handle mixed types in a complex query for SQLite', () => {
+    const id = 123;
+    const name = 'Smith';
+    const active = true;
+    const createdAt = new Date('2023-01-01T00:00:00Z');
+    const tags = ['premium', 'verified'];
+    const settings = { notifications: true, theme: 'dark' };
 
-      const query = SQL`
-      SELECT * FROM users 
-      WHERE id = ${id} 
+    const query = SQL`
+      SELECT * FROM users
+      WHERE id = ${id}
       AND last_name = ${name}
       AND is_active = ${active}
       AND created_at > ${createdAt}
-      AND tags && ${tags}
-      AND settings @> ${settings};
+      AND (
+        json_extract(tags, '$[0]') = ${tags[0]}
+        OR json_extract(tags, '$[1]') = ${tags[1]}
+      )
+      AND json_extract(settings, '$.theme') = ${settings.theme};
     `;
 
-      const result = processSQLForTesting(query);
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: `
+      SELECT * FROM users
+      WHERE id = $1
+      AND last_name = $2
+      AND is_active = $3
+      AND created_at > $4
+      AND (
+        json_extract(tags, '$[0]') = $5
+        OR json_extract(tags, '$[1]') = $6
+      )
+      AND json_extract(settings, '$.theme') = $7;
+    `,
+      params: [
+        id,
+        name,
+        'TRUE',
+        '2023-01-01 00:00:00.000+00',
+        tags[0],
+        tags[1],
+        settings.theme,
+      ],
+    });
+  });
 
-      // Basic structure checks
-      assert.match(result, /id = 123/);
-      assert.match(result, /last_name = 'Smith'/);
-      assert.match(result, /is_active = TRUE/);
-      assert.match(result, /created_at > '/);
-      assert.match(result, /tags && \('premium', 'verified'\)/);
-      assert.match(result, /settings @> '/);
+  void it('should test SQLite-specific RETURNING clause behavior', () => {
+    // Note: RETURNING is supported in SQLite 3.35.0 (2021-03-12) and later
+    const id = 1;
+    const query = SQL`DELETE FROM users WHERE id = ${id} RETURNING id, name;`;
+
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: 'DELETE FROM users WHERE id = $1 RETURNING id, name;',
+      params: [id],
+    });
+  });
+
+  void it('should test SQLite row value syntax', () => {
+    const point = [10, 20];
+    // SQLite doesn't have native ROW constructor but supports value lists
+    const query = SQL`SELECT * FROM points WHERE (x, y) = (${point[0]}, ${point[1]});`;
+
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: 'SELECT * FROM points WHERE (x, y) = ($1, $2);',
+      params: [10, 20],
+    });
+  });
+
+  void it('should test SQLite UPSERT syntax', () => {
+    const name = 'John';
+    const age = 30;
+    const query = SQL`
+        INSERT INTO users (name, age) VALUES (${name}, ${age})
+        ON CONFLICT(name) DO UPDATE SET age = ${age};
+      `;
+
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: `
+        INSERT INTO users (name, age) VALUES ($1, $2)
+        ON CONFLICT(name) DO UPDATE SET age = $3;
+      `,
+      params: [name, age, age],
+    });
+  });
+
+  void it('should test SQLite LIMIT and OFFSET', () => {
+    const limit = 10;
+    const offset = 20;
+    const query = SQL`SELECT * FROM users LIMIT ${limit} OFFSET ${offset};`;
+
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: 'SELECT * FROM users LIMIT $1 OFFSET $2;',
+      params: [limit, offset],
     });
   });
 });
