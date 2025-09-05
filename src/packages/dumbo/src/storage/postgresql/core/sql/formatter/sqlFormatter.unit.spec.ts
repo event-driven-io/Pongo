@@ -4,17 +4,6 @@ import { pgFormatter } from '.';
 import { SQL, isParametrizedSQL, isSQL } from '../../../../../core/sql';
 
 void describe('SQLite SQL Tagged Template Literal', () => {
-  void it('should format literals correctly', () => {
-    const name: string = 'John Doe';
-    const query = SQL`SELECT * FROM users WHERE name = ${SQL.literal(name)};`;
-
-    // Expected output directly without using sqlite-format
-    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
-      query: 'SELECT * FROM users WHERE name = $1;',
-      params: [`'John Doe'`],
-    });
-  });
-
   void it('should format identifiers correctly', () => {
     const tableName: string = 'users';
     const columnName: string = 'name';
@@ -68,7 +57,7 @@ void describe('SQLite SQL Tagged Template Literal', () => {
     const table: string = 'users';
     const query = SQL`
       INSERT INTO ${SQL.identifier(table)} (name, age)
-      VALUES (${SQL.literal(name)}, ${age})
+      VALUES (${name}, ${age})
       RETURNING name, age;
     `;
 
@@ -79,7 +68,7 @@ void describe('SQLite SQL Tagged Template Literal', () => {
       VALUES ($1, $2)
       RETURNING name, age;
     `,
-      params: ["'John Doe'", 30],
+      params: ['John Doe', 30],
     });
   });
 
@@ -99,57 +88,6 @@ void describe('SQLite SQL Tagged Template Literal', () => {
 
     assert.strictEqual(isSQL(validSql), true);
     assert.strictEqual(isSQL(invalidSql), false);
-  });
-
-  void it('should escape special characters in literals', () => {
-    const unsafeValue: string = "O'Reilly";
-    const query = SQL`SELECT * FROM users WHERE name = ${SQL.literal(unsafeValue)};`;
-
-    // SQLite uses the same escaping mechanism as PostgreSQL for single quotes
-    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
-      query: 'SELECT * FROM users WHERE name = $1;',
-      params: ["'O''Reilly'"],
-    });
-  });
-
-  void it('should correctly format empty strings and falsy values', () => {
-    const emptyString: string = '';
-    const nullValue: null = null;
-    const zeroValue: number = 0;
-
-    const query = SQL`INSERT INTO test (col1, col2, col3)
-      VALUES (${SQL.literal(emptyString)}, ${SQL.literal(nullValue)}, ${SQL.literal(zeroValue)});`;
-
-    // Handle empty string, null, and zero correctly
-    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
-      query: `INSERT INTO test (col1, col2, col3)
-      VALUES ($1, $2, $3);`,
-      params: [`''`, 'NULL', `'0'`],
-    });
-  });
-
-  void it('handles arrays of values using literals', () => {
-    const values: string[] = ['John', 'Doe', '30'];
-    const query = SQL`INSERT INTO users (first_name, last_name, age)
-      VALUES (${SQL.literal(values[0])}, ${SQL.literal(values[1])}, ${SQL.literal(values[2])});`;
-
-    // Handle array elements using literal formatting
-    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
-      query: `INSERT INTO users (first_name, last_name, age)
-      VALUES ($1, $2, $3);`,
-      params: [`'John'`, `'Doe'`, `'30'`],
-    });
-  });
-
-  void it('handles SQL injections attempts safely', () => {
-    const unsafeInput: string = "'; DROP TABLE users; --";
-    const query = SQL`SELECT * FROM users WHERE name = ${SQL.literal(unsafeInput)};`;
-
-    // Escape SQL injection attempts correctly
-    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
-      query: 'SELECT * FROM users WHERE name = $1;',
-      params: ["'''; DROP TABLE users; --'"],
-    });
   });
 
   void describe('SQLite Auto-Detection Features', () => {
@@ -180,7 +118,7 @@ void describe('SQLite SQL Tagged Template Literal', () => {
     // SQLite doesn't have a native boolean type, typically uses 1/0
     assert.deepStrictEqual(SQL.format(query, pgFormatter), {
       query: 'SELECT * FROM users WHERE is_active = $1 AND is_deleted = $2;',
-      params: ['TRUE', 'FALSE'],
+      params: [true, false],
     });
   });
 
@@ -248,7 +186,7 @@ void describe('SQLite SQL Tagged Template Literal', () => {
 
     assert.deepStrictEqual(SQL.format(query, pgFormatter), {
       query: 'INSERT INTO users (data) VALUES ($1);',
-      params: [`'{"name":"John","age":30,"roles":["admin","user"]}'`],
+      params: [`{"name":"John","age":30,"roles":["admin","user"]}`],
     });
   });
 
@@ -289,7 +227,7 @@ void describe('SQLite SQL Tagged Template Literal', () => {
       params: [
         id,
         name,
-        'TRUE',
+        true,
         '2023-01-01 00:00:00.000+00',
         tags[0],
         tags[1],
