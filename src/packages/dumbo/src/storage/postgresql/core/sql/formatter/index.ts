@@ -1,10 +1,4 @@
-import {
-  type SQLFormatter,
-  describeSQL,
-  formatSQL,
-  mapSQLParamValue,
-  registerFormatter,
-} from '../../../../../core';
+import { SQLFormatter, registerFormatter } from '../../../../../core';
 import reservedMap from './reserved';
 
 const isReserved = (value: string): boolean => {
@@ -12,7 +6,7 @@ const isReserved = (value: string): boolean => {
 };
 
 // Ported from PostgreSQL 9.2.4 source code in src/interfaces/libpq/fe-exec.c
-const formatIdentifier = (value: string): string => {
+const mapIdentifier = (value: string): string => {
   if (value === undefined || value === null) {
     throw new Error('SQL identifier cannot be null or undefined');
   }
@@ -33,20 +27,14 @@ const formatIdentifier = (value: string): string => {
   return quoted;
 };
 
-const pgFormatter: SQLFormatter = {
-  formatIdentifier,
+const pgFormatter: SQLFormatter = SQLFormatter({
   params: {
-    mapArray: (array: unknown[], itemFormatter: (item: unknown) => unknown) => {
-      return array.map((item) => itemFormatter(item));
-    },
     mapDate: (value: Date): unknown =>
       value.toISOString().replace('T', ' ').replace('Z', '+00'),
-    mapValue: (value: unknown): unknown => mapSQLParamValue(value, pgFormatter),
     mapPlaceholder: (index: number): string => `$${index + 1}`,
+    mapIdentifier,
   },
-  format: (sql) => formatSQL(sql, pgFormatter),
-  describe: (sql) => describeSQL(sql),
-};
+});
 
 registerFormatter('PostgreSQL', pgFormatter);
 

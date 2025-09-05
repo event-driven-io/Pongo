@@ -1,10 +1,6 @@
-import {
-  mapSQLParamValue,
-  registerFormatter,
-  SQLFormatter,
-} from '../../../../../core/sql';
+import { registerFormatter, SQLFormatter } from '../../../../../core/sql';
 
-const formatIdentifier = (value: string): string => {
+const mapIdentifier = (value: string): string => {
   if (value === undefined || value === null) {
     throw new Error('SQL identifier cannot be null or undefined');
   }
@@ -20,13 +16,9 @@ const formatIdentifier = (value: string): string => {
 };
 
 const sqliteFormatter: SQLFormatter = SQLFormatter({
-  formatIdentifier,
   params: {
-    mapBoolean: (value: boolean): unknown => (value ? 1 : 0),
     mapDate: (value: Date): unknown => value.toISOString(),
-    mapValue: (value: unknown): unknown =>
-      mapSQLParamValue(value, sqliteFormatter),
-    mapPlaceholder: (): string => '?',
+    mapIdentifier,
   },
 });
 

@@ -118,7 +118,7 @@ void describe('SQLite SQL Tagged Template Literal', () => {
     // SQLite doesn't have a native boolean type, typically uses 1/0
     assert.deepStrictEqual(SQL.format(query, sqliteFormatter), {
       query: 'SELECT * FROM users WHERE is_active = ? AND is_deleted = ?;',
-      params: [1, 0],
+      params: [true, false],
     });
   });
 
@@ -227,7 +227,7 @@ void describe('SQLite SQL Tagged Template Literal', () => {
       params: [
         id,
         name,
-        1,
+        true,
         '2023-01-01T00:00:00.000Z',
         tags[0],
         tags[1],

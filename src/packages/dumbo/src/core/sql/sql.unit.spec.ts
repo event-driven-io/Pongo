@@ -10,11 +10,11 @@ import {
 } from './sqlFormatter';
 
 const mockFormatter: SQLFormatter = {
-  // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-  formatIdentifier: (value: unknown) => `"${value}"`,
   params: {
     mapValue: (value: unknown) => value,
     mapPlaceholder: (index: number) => `$${index + 1}`,
+    // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+    mapIdentifier: (value: unknown) => `"${value}"`,
   },
   format: (sql) => formatSQL(sql, mockFormatter),
   describe: (sql) => describeSQL(sql),
