@@ -112,13 +112,18 @@ const processSQLParam = (
       return;
     }
 
-    builder.addParams([column]);
+    builder.addSQL(formatter.formatIdentifier(column.value));
     builder.addSQL(` IN `);
 
     expandArray(inValues);
   };
 
   const expandArray = (value: unknown[]) => {
+    if (value.length === 0) {
+      throw new Error(
+        "Empty arrays are not supported. If you're using it with SELECT IN statement Use SQL.in(column, array) helper instead.",
+      );
+    }
     builder.addParams(mapSQLParamValue(value, formatter) as unknown[]);
   };
 
@@ -143,6 +148,11 @@ const describeSQLParam = (
   const expandSQLIn = (value: SQLIn) => {
     const { values: inValues, column } = value;
 
+    if (inValues.length === 0) {
+      builder.addParam(mapSQLParamValue(false, formatter));
+      return;
+    }
+
     builder.addSQL(formatter.formatIdentifier(column.value));
     builder.addSQL(` IN `);
 
@@ -152,7 +162,7 @@ const describeSQLParam = (
   const expandArray = (value: unknown[]) => {
     if (value.length === 0) {
       throw new Error(
-        'Empty arrays in IN clauses are not supported. Use SQL.in(column, array) helper instead.',
+        "Empty arrays are not supported. If you're using it in In statement Use SQL.in(column, array) helper instead.",
       );
     }
     builder.addSQL(

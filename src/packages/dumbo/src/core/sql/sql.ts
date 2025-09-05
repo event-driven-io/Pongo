@@ -18,7 +18,6 @@ export const isSQL = (value: unknown): value is SQL => {
 
 const ID = Symbol.for('SQL_IDENTIFIER');
 const RAW = Symbol.for('SQL_RAW');
-const LITERAL = Symbol.for('SQL_LITERAL');
 
 type SQLIdentifier = { [ID]: true; value: string };
 type SQLPlain = { [RAW]: true; value: string };

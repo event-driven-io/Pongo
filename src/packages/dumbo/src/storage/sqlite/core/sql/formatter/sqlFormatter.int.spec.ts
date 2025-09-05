@@ -42,11 +42,7 @@ void describe('SQLite SQL Formatter Integration Tests', () => {
         assert.fail('Should have thrown error for empty array');
       } catch (error) {
         assert.ok(error instanceof Error);
-        assert.ok(
-          error.message.includes(
-            'Empty arrays in IN clauses are not supported',
-          ),
-        );
+        assert.ok(error.message.includes('Empty arrays are not supported'));
       }
     });
 
