@@ -148,46 +148,52 @@ void describe('PostgreSQL Parametrized Formatter', () => {
 
   void describe('mapSQLValue method', () => {
     void it('handles basic types', () => {
-      assert.strictEqual(mapSQLParamValue(123, pgFormatter.params), 123);
-      assert.strictEqual(mapSQLParamValue('test', pgFormatter.params), 'test');
-      assert.strictEqual(mapSQLParamValue(null, pgFormatter.params), null);
-      assert.strictEqual(mapSQLParamValue(undefined, pgFormatter.params), null);
+      assert.strictEqual(mapSQLParamValue(123, pgFormatter.valueMapper), 123);
+      assert.strictEqual(
+        mapSQLParamValue('test', pgFormatter.valueMapper),
+        'test',
+      );
+      assert.strictEqual(mapSQLParamValue(null, pgFormatter.valueMapper), null);
+      assert.strictEqual(
+        mapSQLParamValue(undefined, pgFormatter.valueMapper),
+        null,
+      );
     });
 
     void it('handles SQL identifier type', () => {
       // Valid unquoted identifier (lowercase, no special chars)
       const validIdentResult = mapSQLParamValue(
         SQL.identifier('table_name'),
-        pgFormatter.params,
+        pgFormatter.valueMapper,
       );
       assert.strictEqual(validIdentResult, 'table_name');
 
       // Invalid identifier that needs quoting (mixed case)
       const quotedIdentResult = mapSQLParamValue(
         SQL.identifier('TableName'),
-        pgFormatter.params,
+        pgFormatter.valueMapper,
       );
       assert.strictEqual(quotedIdentResult, '"TableName"');
     });
 
     void it('handles nested SQL', () => {
       const nestedSql = SQL`SELECT ${123}`;
-      const result = mapSQLParamValue(nestedSql, pgFormatter.params);
+      const result = mapSQLParamValue(nestedSql, pgFormatter.valueMapper);
       assert.strictEqual(typeof result, 'string');
       assert.ok((result as string).includes('123'));
     });
 
     void it('handles complex types', () => {
       const date = new Date('2023-01-01T00:00:00.000Z');
-      const dateResult = mapSQLParamValue(date, pgFormatter.params);
+      const dateResult = mapSQLParamValue(date, pgFormatter.valueMapper);
       assert.strictEqual(dateResult, '2023-01-01 00:00:00.000+00');
 
       const bigint = BigInt(123456789012345);
-      const bigintResult = mapSQLParamValue(bigint, pgFormatter.params);
+      const bigintResult = mapSQLParamValue(bigint, pgFormatter.valueMapper);
       assert.ok(typeof bigintResult === 'string');
 
       const obj = { key: 'value' };
-      const objResult = mapSQLParamValue(obj, pgFormatter.params);
+      const objResult = mapSQLParamValue(obj, pgFormatter.valueMapper);
       assert.ok(typeof objResult === 'string');
       assert.ok(objResult.includes('{"key":"value"}'));
     });

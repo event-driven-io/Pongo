@@ -28,7 +28,7 @@ const mapIdentifier = (value: string): string => {
 };
 
 const pgFormatter: SQLFormatter = SQLFormatter({
-  params: {
+  valueMapper: {
     mapDate: (value: Date): unknown =>
       value.toISOString().replace('T', ' ').replace('Z', '+00'),
     mapPlaceholder: (index: number): string => `$${index + 1}`,

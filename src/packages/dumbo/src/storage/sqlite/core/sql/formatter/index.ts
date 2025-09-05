@@ -16,7 +16,7 @@ const mapIdentifier = (value: string): string => {
 };
 
 const sqliteFormatter: SQLFormatter = SQLFormatter({
-  params: {
+  valueMapper: {
     mapDate: (value: Date): unknown => value.toISOString(),
     mapIdentifier,
   },
