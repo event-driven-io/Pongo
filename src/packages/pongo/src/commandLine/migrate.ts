@@ -84,10 +84,24 @@ migrateCommand
 
     const pool = dumbo({ connectionString, connector });
 
-    const migrations = collectionNames.flatMap(
-      (collectionsName) =>
-        pongoCollectionSchemaComponent(collectionsName).migrations,
-    );
+    const migrationOptions = {
+      databaseType,
+    };
+
+    const coreMigrations =
+      await getDefaultMigratorOptionsFromRegistry(
+        databaseType,
+      ).schema.migrationTable.resolveMigrations(migrationOptions);
+
+    const migrations = [...coreMigrations];
+
+    for (const collectionName of collectionNames) {
+      const collectionMigrations =
+        await pongoCollectionSchemaComponent(collectionName).resolveMigrations(
+          migrationOptions,
+        );
+      migrations.push(...collectionMigrations);
+    }
 
     await runSQLMigrations(pool, migrations, {
       dryRun,
@@ -129,17 +143,24 @@ migrateCommand
     // TODO: Provide connector here
     const database: DatabaseType = 'PostgreSQL';
 
-    const coreMigrations =
-      getDefaultMigratorOptionsFromRegistry(database).schema.migrationTable
-        .migrations;
+    const migrationOptions = {
+      databaseType: database,
+    };
 
-    const migrations = [
-      ...coreMigrations,
-      ...collectionNames.flatMap(
-        (collectionName) =>
-          pongoCollectionSchemaComponent(collectionName).migrations,
-      ),
-    ];
+    const coreMigrations =
+      await getDefaultMigratorOptionsFromRegistry(
+        database,
+      ).schema.migrationTable.resolveMigrations(migrationOptions);
+
+    const migrations = [...coreMigrations];
+
+    for (const collectionName of collectionNames) {
+      const collectionMigrations =
+        await pongoCollectionSchemaComponent(collectionName).resolveMigrations(
+          migrationOptions,
+        );
+      migrations.push(...collectionMigrations);
+    }
 
     console.log('Printing SQL:');
     console.log(combineMigrations(...migrations));

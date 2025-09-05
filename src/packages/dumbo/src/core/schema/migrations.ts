@@ -71,9 +71,8 @@ export const runSQLMigrations = (
   partialOptions?: Partial<MigratorOptions>,
 ): Promise<void> =>
   pool.withTransaction(async ({ execute }) => {
-    const defaultOptions = getDefaultMigratorOptionsFromRegistry(
-      fromConnectorType(pool.connector).databaseType,
-    );
+    const databaseType = fromConnectorType(pool.connector).databaseType;
+    const defaultOptions = getDefaultMigratorOptionsFromRegistry(databaseType);
     partialOptions ??= {};
 
     const options: MigratorOptions = {
@@ -104,7 +103,10 @@ export const runSQLMigrations = (
       ...rest,
     };
 
-    const coreMigrations = options.schema.migrationTable.migrations;
+    const coreMigrations =
+      await options.schema.migrationTable.resolveMigrations({
+        databaseType,
+      });
 
     await databaseLock.withAcquire(
       execute,

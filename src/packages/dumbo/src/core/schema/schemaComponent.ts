@@ -1,9 +1,12 @@
+import type { DatabaseType } from '../connectors';
 import { type SQLMigration } from './migrations';
 
 export type SchemaComponent = {
   schemaComponentType: string;
   components: ReadonlyArray<SchemaComponent>;
-  migrations: ReadonlyArray<SQLMigration>;
+  resolveMigrations(options: {
+    databaseType: DatabaseType;
+  }): ReadonlyArray<SQLMigration> | Promise<ReadonlyArray<SQLMigration>>;
 };
 
 export const schemaComponent = (
@@ -23,14 +26,20 @@ export const schemaComponent = (
       },
 ): SchemaComponent => {
   const components = migrationsOrComponents.components ?? [];
-  const migrations = [
-    ...(migrationsOrComponents.migrations ?? []),
-    ...components.flatMap((component) => component.migrations),
-  ];
 
   return {
     schemaComponentType: type,
     components,
-    migrations,
+    resolveMigrations: async (options) => {
+      const migrations: SQLMigration[] = [
+        ...(migrationsOrComponents.migrations ?? []),
+      ];
+      for (const component of components) {
+        const componentMigrations = await component.resolveMigrations(options);
+        migrations.push(...componentMigrations);
+      }
+
+      return migrations;
+    },
   };
 };

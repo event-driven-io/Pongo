@@ -1,5 +1,6 @@
 import {
   dumbo,
+  fromConnectorType,
   runSQLMigrations,
   schemaComponent,
   SQL,
@@ -80,6 +81,8 @@ export const getPongoDb = <
       sql,
     );
 
+  const databaseType = fromConnectorType(pool.connector).databaseType;
+
   const db: PongoDb<Connector> = {
     connector: options.connector,
     databaseName,
@@ -105,12 +108,14 @@ export const getPongoDb = <
           components: [...collections.values()].map((c) => c.schema.component),
         });
       },
-      migrate: () =>
+      migrate: async () =>
         runSQLMigrations(
           pool,
-          [...collections.values()].flatMap(
-            (c) => c.schema.component.migrations,
-          ),
+          await pongoDbSchemaComponent(
+            [...collections.values()].map((c) => c.schema.component),
+          ).resolveMigrations({
+            databaseType,
+          }),
         ),
     },
 
