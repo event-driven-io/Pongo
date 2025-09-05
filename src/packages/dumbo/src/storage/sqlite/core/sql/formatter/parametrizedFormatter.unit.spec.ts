@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
-import { SQL } from '../../../../../core/sql';
+import { mapSQLParamValue, SQL } from '../../../../../core/sql';
 import { sqliteFormatter } from './index';
 
 void describe('SQLite Parametrized Formatter', () => {
@@ -113,7 +113,7 @@ void describe('SQLite Parametrized Formatter', () => {
 
       assert.deepStrictEqual(result, {
         query: 'INSERT INTO test (active, inactive) VALUES (?, ?)',
-        params: [1, 0],
+        params: [true, false],
       });
     });
 
@@ -158,54 +158,65 @@ void describe('SQLite Parametrized Formatter', () => {
 
   void describe('mapSQLValue method', () => {
     void it('handles basic types', () => {
-      assert.strictEqual(sqliteFormatter.params.mapValue(123), 123);
-      assert.strictEqual(sqliteFormatter.params.mapValue('test'), 'test');
-      assert.strictEqual(sqliteFormatter.params.mapValue(null), null);
-      assert.strictEqual(sqliteFormatter.params.mapValue(undefined), null);
+      assert.strictEqual(mapSQLParamValue(123, sqliteFormatter.params), 123);
+      assert.strictEqual(
+        mapSQLParamValue('test', sqliteFormatter.params),
+        'test',
+      );
+      assert.strictEqual(mapSQLParamValue(null, sqliteFormatter.params), null);
+      assert.strictEqual(
+        mapSQLParamValue(undefined, sqliteFormatter.params),
+        null,
+      );
     });
 
     void it('handles SQLite-specific type conversions', () => {
       // Boolean conversion
-      assert.strictEqual(sqliteFormatter.params.mapValue(true), 1);
-      assert.strictEqual(sqliteFormatter.params.mapValue(false), 0);
+      assert.strictEqual(mapSQLParamValue(true, sqliteFormatter.params), true);
+      assert.strictEqual(
+        mapSQLParamValue(false, sqliteFormatter.params),
+        false,
+      );
 
       // Date conversion
       const date = new Date('2023-01-01T00:00:00.000Z');
       assert.strictEqual(
-        sqliteFormatter.params.mapValue(date),
+        mapSQLParamValue(date, sqliteFormatter.params),
         '2023-01-01T00:00:00.000Z',
       );
 
       // BigInt conversion
       const bigint = BigInt(123456789012345);
       assert.strictEqual(
-        sqliteFormatter.params.mapValue(bigint),
+        mapSQLParamValue(bigint, sqliteFormatter.params),
         '123456789012345',
       );
     });
 
     void it('handles SQL identifier type', () => {
-      const validIdentResult = sqliteFormatter.params.mapValue(
+      const validIdentResult = mapSQLParamValue(
         SQL.identifier('table_name'),
+        sqliteFormatter.params,
       );
       assert.strictEqual(validIdentResult, 'table_name');
 
-      const quotedIdentResult = sqliteFormatter.params.mapValue(
+      const quotedIdentResult = mapSQLParamValue(
         SQL.identifier('TableName'),
+        sqliteFormatter.params,
       );
       assert.strictEqual(quotedIdentResult, '"TableName"');
     });
 
     void it('handles nested SQL', () => {
       const nestedSql = SQL`SELECT ${123}`;
-      const result = sqliteFormatter.params.mapValue(nestedSql);
+      const result = mapSQLParamValue(nestedSql, sqliteFormatter.params);
       assert.strictEqual(typeof result, 'string');
       assert.ok((result as string).includes('123'));
     });
 
     void it('handles complex types', () => {
       const obj = { key: 'value' };
-      const objResult = sqliteFormatter.params.mapValue(obj);
+      const objResult = mapSQLParamValue(obj, sqliteFormatter.params);
       assert.ok(typeof objResult === 'string');
       assert.ok(objResult.includes('{"key":"value"}'));
     });
