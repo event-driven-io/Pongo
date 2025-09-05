@@ -8,15 +8,13 @@ export interface ParametrizedQuery {
 }
 
 export interface SQLFormatter {
-  formatIdentifier: (value: unknown) => string;
-  formatLiteral: (value: unknown) => string;
+  formatIdentifier: (value: string) => string;
   format: (sql: SQL | SQL[]) => ParametrizedQuery;
   describe: (sql: SQL | SQL[]) => string;
   params: SQLParameterProcessor;
 }
 
 export interface SQLParameterProcessor {
-  mapString?: (value: unknown) => string;
   mapBoolean?: (value: boolean) => unknown;
   mapArray?: (
     array: unknown[],
@@ -79,25 +77,23 @@ export function mapSQLParamValue(
   } else if (typeof value === 'boolean') {
     return formatter.params.mapBoolean
       ? formatter.params.mapBoolean(value)
-      : value
-        ? 'TRUE'
-        : 'FALSE';
+      : value;
   } else if (typeof value === 'bigint') {
     return formatter.params.mapBigInt
       ? formatter.params.mapBigInt(value)
       : value.toString();
-  } else if (value instanceof Date && formatter.params.mapDate) {
-    return formatter.params.mapDate(value);
-  } else if (SQL.check.isLiteral(value)) {
-    return formatter.formatLiteral(value.value);
+  } else if (value instanceof Date) {
+    return formatter.params.mapDate
+      ? formatter.params.mapDate(value)
+      : value.toISOString();
   } else if (SQL.check.isIdentifier(value)) {
     return formatter.formatIdentifier(value.value);
   } else if (typeof value === 'object') {
     return formatter.params.mapObject
       ? formatter.params.mapObject(value)
-      : `'${JSONSerializer.serialize(value).replace(/'/g, "''")}'`;
+      : `${JSONSerializer.serialize(value).replace(/'/g, "''")}`;
   } else {
-    return formatter.formatLiteral(value);
+    return JSONSerializer.serialize(value);
   }
 }
 
@@ -123,17 +119,10 @@ const processSQLParam = (
   };
 
   const expandArray = (value: unknown[]) => {
-    if (value.length === 0) {
-      throw new Error(
-        'Empty arrays in IN clauses are not supported. Use SQL.in(column, array) helper instead.',
-      );
-    }
     builder.addParams(mapSQLParamValue(value, formatter) as unknown[]);
   };
 
-  if (SQL.check.isLiteral(value)) {
-    builder.addParam(formatter.formatLiteral(value.value));
-  } else if (SQL.check.isIdentifier(value)) {
+  if (SQL.check.isIdentifier(value)) {
     builder.addSQL(formatter.formatIdentifier(value.value));
   } else if (SQL.check.isSQLIn(value)) {
     expandSQLIn(value);
@@ -167,13 +156,11 @@ const describeSQLParam = (
       );
     }
     builder.addSQL(
-      `(${value.map((item) => formatter.formatLiteral(mapSQLParamValue(item, formatter))).join(', ')})`,
+      `(${value.map((item) => JSONSerializer.serialize(mapSQLParamValue(item, formatter))).join(', ')})`,
     );
   };
 
-  if (SQL.check.isLiteral(value)) {
-    builder.addSQL(formatter.formatLiteral(value.value));
-  } else if (SQL.check.isIdentifier(value)) {
+  if (SQL.check.isIdentifier(value)) {
     builder.addSQL(formatter.formatIdentifier(value.value));
   } else if (SQL.check.isSQLIn(value)) {
     expandSQLIn(value);
@@ -224,8 +211,6 @@ export function formatSQL(
 const describeSQLFormatter = SQLFormatter({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   formatIdentifier: (value: unknown) => `${value as any}`,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  formatLiteral: (value: unknown) => `'${value as any}'`,
   params: {
     mapValue: (value: unknown) => mapSQLParamValue(value, describeSQLFormatter),
     mapPlaceholder: (_index: number) => '?',

@@ -22,7 +22,6 @@ const LITERAL = Symbol.for('SQL_LITERAL');
 
 type SQLIdentifier = { [ID]: true; value: string };
 type SQLPlain = { [RAW]: true; value: string };
-type SQLLiteral = { [LITERAL]: true; value: unknown };
 
 const emptySQL = {
   __brand: 'parametrized-sql',
@@ -76,10 +75,6 @@ function plain(value: string): SQLPlain {
   return { [RAW]: true, value };
 }
 
-function literal(value: unknown): SQLLiteral {
-  return { [LITERAL]: true, value };
-}
-
 // Type guards
 const isIdentifier = (value: unknown): value is SQLIdentifier => {
   return value !== null && typeof value === 'object' && ID in value;
@@ -87,10 +82,6 @@ const isIdentifier = (value: unknown): value is SQLIdentifier => {
 
 const isPlain = (value: unknown): value is SQLPlain => {
   return value !== null && typeof value === 'object' && RAW in value;
-};
-
-const isLiteral = (value: unknown): value is SQLLiteral => {
-  return value !== null && typeof value === 'object' && LITERAL in value;
 };
 
 const SQLIN = Symbol.for('SQL_IN');
@@ -112,7 +103,6 @@ SQL.describe = describeSQL;
 SQL.in = sqlIn;
 SQL.identifier = identifier;
 SQL.plain = plain;
-SQL.literal = literal;
 
 SQL.check = {
   isSQL,
@@ -120,6 +110,5 @@ SQL.check = {
   isEmpty,
   isIdentifier,
   isPlain,
-  isLiteral,
   isSQLIn,
 };

@@ -13,7 +13,7 @@ void describe('SQL Parametrizer', () => {
 
       assert.ok(isParametrizedSQL(result));
       assert.equal(result.__brand, 'parametrized-sql');
-      assert.equal(typeof result.sqlChunks, 'string');
+      assert.ok(Array.isArray(result.sqlChunks));
       assert.ok(Array.isArray(result.values));
     });
   });
@@ -24,7 +24,10 @@ void describe('SQL Parametrizer', () => {
         SQL`SELECT * FROM users WHERE id = ${123}`,
       );
 
-      assert.equal(result.sqlChunks, 'SELECT * FROM users WHERE id = __P__');
+      assert.deepStrictEqual(result.sqlChunks, [
+        'SELECT * FROM users WHERE id = ',
+        '__P__',
+      ]);
       assert.deepEqual(result.values, [123]);
     });
 
@@ -33,10 +36,12 @@ void describe('SQL Parametrizer', () => {
         SQL`SELECT * FROM users WHERE id = ${123} AND name = ${'John'}`,
       );
 
-      assert.equal(
-        result.sqlChunks,
-        'SELECT * FROM users WHERE id = __P__ AND name = __P__',
-      );
+      assert.deepStrictEqual(result.sqlChunks, [
+        'SELECT * FROM users WHERE id = ',
+        '__P__',
+        ' AND name = ',
+        '__P__',
+      ]);
       assert.deepEqual(result.values, [123, 'John']);
     });
 
@@ -54,10 +59,15 @@ void describe('SQL Parametrizer', () => {
         SQL`INSERT INTO users (id, name, age) VALUES (${1}, ${'Alice'}, ${30})`,
       );
 
-      assert.equal(
-        result.sqlChunks,
-        'INSERT INTO users (id, name, age) VALUES (__P__, __P__, __P__)',
-      );
+      assert.deepStrictEqual(result.sqlChunks, [
+        'INSERT INTO users (id, name, age) VALUES (',
+        '__P__',
+        ', ',
+        '__P__',
+        ', ',
+        '__P__',
+        ')',
+      ]);
       assert.deepEqual(result.values, [1, 'Alice', 30]);
     });
 
@@ -68,10 +78,29 @@ void describe('SQL Parametrizer', () => {
       );
 
       const expectedPlaceholders = values.map(() => `__P__`).join(', ');
-      assert.equal(
-        result.sqlChunks,
-        `SELECT * FROM table WHERE id IN (${expectedPlaceholders})`,
-      );
+      assert.deepStrictEqual(result.sqlChunks, [
+        'SELECT * FROM table WHERE id IN (',
+        '__P__',
+        ', ',
+        '__P__',
+        ', ',
+        '__P__',
+        ', ',
+        '__P__',
+        ', ',
+        '__P__',
+        ', ',
+        '__P__',
+        ', ',
+        '__P__',
+        ', ',
+        '__P__',
+        ', ',
+        '__P__',
+        ', ',
+        '__P__',
+        ')',
+      ]);
       assert.deepEqual(result.values, values);
     });
   });
@@ -83,10 +112,17 @@ void describe('SQL Parametrizer', () => {
         SQL`INSERT INTO logs (id, message, created_at, count) VALUES (${123}, ${'test'}, ${date}, ${null})`,
       );
 
-      assert.equal(
-        result.sqlChunks,
-        'INSERT INTO logs (id, message, created_at, count) VALUES (__P__, __P__, __P__, __P__)',
-      );
+      assert.deepStrictEqual(result.sqlChunks, [
+        'INSERT INTO logs (id, message, created_at, count) VALUES (',
+        '__P__',
+        ', ',
+        '__P__',
+        ', ',
+        '__P__',
+        ', ',
+        '__P__',
+        ')',
+      ]);
       assert.deepEqual(result.values, [123, 'test', date, null]);
     });
 
@@ -95,10 +131,10 @@ void describe('SQL Parametrizer', () => {
         SQL`SELECT * FROM users WHERE status = ${undefined}`,
       );
 
-      assert.equal(
-        result.sqlChunks,
-        'SELECT * FROM users WHERE status = __P__',
-      );
+      assert.deepStrictEqual(result.sqlChunks, [
+        'SELECT * FROM users WHERE status = ',
+        '__P__',
+      ]);
       assert.deepEqual(result.values, [undefined]);
     });
   });
@@ -110,10 +146,12 @@ void describe('SQL Parametrizer', () => {
         SQL`SELECT * FROM users WHERE role_id IN (${subQuery})`,
       );
 
-      assert.equal(
-        mainQuery.sqlChunks,
-        'SELECT * FROM users WHERE role_id IN (SELECT id FROM roles WHERE name = __P__)',
-      );
+      assert.deepStrictEqual(mainQuery.sqlChunks, [
+        'SELECT * FROM users WHERE role_id IN (',
+        'SELECT id FROM roles WHERE name = ',
+        '__P__',
+        ')',
+      ]);
       assert.deepEqual(mainQuery.values, ['admin']);
     });
 
@@ -124,10 +162,14 @@ void describe('SQL Parametrizer', () => {
         SQL`SELECT * FROM users WHERE role_id IN (${middle})`,
       );
 
-      assert.equal(
-        outer.sqlChunks,
-        'SELECT * FROM users WHERE role_id IN (SELECT role_id FROM role_permissions WHERE permission_id IN (SELECT id FROM permissions WHERE name = __P__))',
-      );
+      assert.deepStrictEqual(outer.sqlChunks, [
+        'SELECT * FROM users WHERE role_id IN (',
+        'SELECT role_id FROM role_permissions WHERE permission_id IN (',
+        'SELECT id FROM permissions WHERE name = ',
+        '__P__',
+        ')',
+        ')',
+      ]);
       assert.deepEqual(outer.values, ['read']);
     });
 
@@ -138,51 +180,27 @@ void describe('SQL Parametrizer', () => {
         SQL`SELECT * FROM users WHERE role_id IN (${subQuery1}) AND dept_id IN (${subQuery2})`,
       );
 
-      assert.equal(
-        mainQuery.sqlChunks,
-        'SELECT * FROM users WHERE role_id IN (SELECT id FROM roles WHERE name = __P__) AND dept_id IN (SELECT id FROM departments WHERE code = __P__)',
-      );
+      assert.deepStrictEqual(mainQuery.sqlChunks, [
+        'SELECT * FROM users WHERE role_id IN (',
+        'SELECT id FROM roles WHERE name = ',
+        '__P__',
+        ') AND dept_id IN (',
+        'SELECT id FROM departments WHERE code = ',
+        '__P__',
+        ')',
+      ]);
       assert.deepEqual(mainQuery.values, ['admin', 'IT']);
     });
   });
 
   void describe('special value types', () => {
-    void describe('literal() values', () => {
-      void it('should pass through literal values as parameters', () => {
-        const result = asParametrizedSQL(
-          SQL`SELECT * FROM users WHERE name = ${SQL.literal('John')}`,
-        );
-
-        assert.equal(
-          result.sqlChunks,
-          'SELECT * FROM users WHERE name = __P__',
-        );
-        assert.deepEqual(result.values, [SQL.literal('John')]);
-      });
-
-      void it('should pass through multiple literal values as parameters', () => {
-        const result = asParametrizedSQL(
-          SQL`INSERT INTO users (name, age) VALUES (${SQL.literal('Alice')}, ${SQL.literal(25)})`,
-        );
-
-        assert.equal(
-          result.sqlChunks,
-          'INSERT INTO users (name, age) VALUES (__P__, __P__)',
-        );
-        assert.deepEqual(result.values, [
-          SQL.literal('Alice'),
-          SQL.literal(25),
-        ]);
-      });
-    });
-
     void describe('identifier() values', () => {
       void it('should pass through identifier values as parameters', () => {
         const result = asParametrizedSQL(
           SQL`SELECT * FROM ${SQL.identifier('users')}`,
         );
 
-        assert.equal(result.sqlChunks, 'SELECT * FROM __P__');
+        assert.deepStrictEqual(result.sqlChunks, ['SELECT * FROM ', '__P__']);
         assert.deepEqual(result.values, [SQL.identifier('users')]);
       });
 
@@ -191,10 +209,16 @@ void describe('SQL Parametrizer', () => {
           SQL`SELECT ${SQL.identifier('name')}, ${SQL.identifier('age')} FROM ${SQL.identifier('users')} WHERE id = ${123}`,
         );
 
-        assert.equal(
-          result.sqlChunks,
-          'SELECT __P__, __P__ FROM __P__ WHERE id = __P__',
-        );
+        assert.deepStrictEqual(result.sqlChunks, [
+          'SELECT ',
+          '__P__',
+          ', ',
+          '__P__',
+          ' FROM ',
+          '__P__',
+          ' WHERE id = ',
+          '__P__',
+        ]);
         assert.deepEqual(result.values, [
           SQL.identifier('name'),
           SQL.identifier('age'),
@@ -210,10 +234,10 @@ void describe('SQL Parametrizer', () => {
           SQL`SELECT * FROM users ${SQL.plain('ORDER BY created_at DESC')}`,
         );
 
-        assert.equal(
-          result.sqlChunks,
-          'SELECT * FROM users ORDER BY created_at DESC',
-        );
+        assert.deepStrictEqual(result.sqlChunks, [
+          'SELECT * FROM users ',
+          'ORDER BY created_at DESC',
+        ]);
         assert.deepEqual(result.values, []);
       });
 
@@ -222,10 +246,12 @@ void describe('SQL Parametrizer', () => {
           SQL`SELECT * FROM users WHERE ${SQL.plain("status = 'active'")} AND id = ${123}`,
         );
 
-        assert.equal(
-          result.sqlChunks,
-          "SELECT * FROM users WHERE status = 'active' AND id = __P__",
-        );
+        assert.deepStrictEqual(result.sqlChunks, [
+          'SELECT * FROM users WHERE ',
+          "status = 'active'",
+          ' AND id = ',
+          '__P__',
+        ]);
         assert.deepEqual(result.values, [123]);
       });
     });
@@ -235,26 +261,31 @@ void describe('SQL Parametrizer', () => {
         const result = asParametrizedSQL(SQL`
           SELECT ${SQL.identifier('id')}, ${SQL.identifier('name')}
           FROM ${SQL.identifier('users')}
-          WHERE status = ${SQL.literal('active')}
+          WHERE status = ${'active'}
             AND id > ${100}
             ${SQL.plain("AND created_at > NOW() - INTERVAL '7 days'")}
         `);
 
-        assert.equal(
-          result.sqlChunks,
-          `
-          SELECT __P__, __P__
-          FROM __P__
-          WHERE status = __P__
-            AND id > __P__
-            AND created_at > NOW() - INTERVAL '7 days'
-        `,
-        );
+        assert.deepStrictEqual(result.sqlChunks, [
+          '\n          SELECT ',
+          '__P__',
+          ', ',
+          '__P__',
+          '\n          FROM ',
+          '__P__',
+          '\n          WHERE status = ',
+          '__P__',
+          '\n            AND id > ',
+          '__P__',
+          '\n            ',
+          "AND created_at > NOW() - INTERVAL '7 days'",
+          '\n        ',
+        ]);
         assert.deepEqual(result.values, [
           SQL.identifier('id'),
           SQL.identifier('name'),
           SQL.identifier('users'),
-          SQL.literal('active'),
+          'active',
           100,
         ]);
       });
@@ -262,20 +293,33 @@ void describe('SQL Parametrizer', () => {
       void it('should maintain sequential parameter numbering', () => {
         const result = asParametrizedSQL(SQL`
           INSERT INTO ${SQL.identifier('logs')} (${SQL.identifier('level')}, message, user_id, ${SQL.plain('created_at')})
-          VALUES (${SQL.literal('ERROR')}, ${'Database connection failed'}, ${42}, ${SQL.plain('NOW()')})
+          VALUES (${'ERROR'}, ${'Database connection failed'}, ${42}, ${SQL.plain('NOW()')})
         `);
 
-        assert.equal(
-          result.sqlChunks,
+        assert.deepStrictEqual(result.sqlChunks, [
           `
-          INSERT INTO __P__ (__P__, message, user_id, created_at)
-          VALUES (__P__, __P__, __P__, NOW())
+          INSERT INTO `,
+          `__P__`,
+          ` (`,
+          `__P__`,
+          `, message, user_id, `,
+          `created_at`,
+          `)
+          VALUES (`,
+          `__P__`,
+          `, `,
+          `__P__`,
+          `, `,
+          `__P__`,
+          `, `,
+          `NOW()`,
+          `)
         `,
-        );
+        ]);
         assert.deepEqual(result.values, [
           SQL.identifier('logs'),
           SQL.identifier('level'),
-          SQL.literal('ERROR'),
+          'ERROR',
           'Database connection failed',
           42,
         ]);

@@ -12,8 +12,6 @@ import {
 const mockFormatter: SQLFormatter = {
   // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
   formatIdentifier: (value: unknown) => `"${value}"`,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  formatLiteral: (value: unknown) => `'${value as any as string}'`,
   params: {
     mapValue: (value: unknown) => value,
     mapPlaceholder: (index: number) => `$${index + 1}`,
@@ -38,16 +36,15 @@ void describe('SQL template', () => {
       const query = SQL`SELECT * FROM users`;
       assert.strictEqual(isSQL(query), true);
       assert.strictEqual(isParametrizedSQL(query), true);
-      assert.strictEqual(
-        (query as unknown as ParametrizedSQL).sqlChunks,
+      assert.deepStrictEqual((query as unknown as ParametrizedSQL).sqlChunks, [
         'SELECT * FROM users',
-      );
+      ]);
     });
 
     void it('handles SQL with interpolated values', () => {
       const name = 'John';
       const age = 30;
-      const query = SQL`SELECT * FROM users WHERE name = ${SQL.literal(name)} AND age = ${age}`;
+      const query = SQL`SELECT * FROM users WHERE name = ${name} AND age = ${age}`;
 
       assert.strictEqual(isSQL(query), true);
       assert.strictEqual(isParametrizedSQL(query), true);
@@ -73,8 +70,8 @@ void describe('SQL template', () => {
     });
 
     void it('handles SQL with only values', () => {
-      const onlyValues = SQL`${SQL.literal('test')}`;
-      const withEmptyStrings = SQL`${''}${SQL.literal('test')}${''}`;
+      const onlyValues = SQL`${'test'}`;
+      const withEmptyStrings = SQL`${''}${'test'}${''}`;
 
       assert.strictEqual(SQL.check.isEmpty(onlyValues), false);
       assert.strictEqual(SQL.check.isEmpty(withEmptyStrings), false);
@@ -93,7 +90,7 @@ void describe('SQL template', () => {
     void it('should merge SQL objects', () => {
       const base = SQL`SELECT *`;
       const from = SQL`FROM users`;
-      const where = SQL`WHERE active = ${SQL.literal(true)}`;
+      const where = SQL`WHERE active = ${true}`;
 
       const result = SQL.merge([base, SQL` `, from, SQL` `, where]);
 
@@ -118,6 +115,7 @@ void describe('SQL template', () => {
       // Empty parts should be filtered out
       assert.deepStrictEqual(result.sqlChunks, [
         'SELECT * FROM users',
+        ' ',
         'ORDER BY name',
       ]);
     });
@@ -139,39 +137,41 @@ void describe('SQL template', () => {
 
   void describe('format Method', () => {
     void it('should format simple SQL', () => {
-      const query = SQL`SELECT * FROM ${SQL.identifier('users')} WHERE name = ${SQL.literal('John')}`;
+      const query = SQL`SELECT * FROM ${SQL.identifier('users')} WHERE name = ${'John'}`;
       const formatted = SQL.format(query, mockFormatter);
 
       assert.deepStrictEqual(formatted, {
         query: 'SELECT * FROM "users" WHERE name = $1',
-        params: ["'John'"],
+        params: ['John'],
       });
     });
 
     void it('should format complex nested SQL', () => {
-      const subquery = SQL`SELECT id FROM roles WHERE name = ${SQL.literal('admin')}`;
+      const subquery = SQL`SELECT id FROM roles WHERE name = ${'admin'}`;
       const mainQuery = SQL`SELECT * FROM users WHERE role_id IN (${subquery})`;
 
       const formatted = SQL.format(mainQuery, mockFormatter);
 
       assert.deepStrictEqual(formatted, {
         query:
-          'SELECT * FROM "users" WHERE role_id IN (SELECT id FROM roles WHERE name = $1)',
+          'SELECT * FROM users WHERE role_id IN (SELECT id FROM roles WHERE name = $1)',
         params: ['admin'],
       });
     });
 
     void it('handles all data types correctly', () => {
+      const date = new Date('2024-01-01');
       const query = SQL`
         INSERT INTO test (
           str_col, num_col, bool_col, null_col, 
           array_col, obj_col, id_col
         ) VALUES (
-          ${SQL.literal('text')}, 
+          ${'text'}, 
           ${42}, 
-          ${SQL.literal(true)}, 
-          ${SQL.literal(null)},
-          ${[1, '2', 3]},
+          ${true}, 
+          ${null},
+          ${date},
+          ${[1, '2', 3, date]},
           ${{ key: 'value', num: 3 }},
           ${SQL.identifier('column_name')}
         )
@@ -181,33 +181,38 @@ void describe('SQL template', () => {
 
       assert.deepStrictEqual(formatted, {
         query: `
-        INSERT INTO "test" (
-          "str_col", "num_col", "bool_col", "null_col", 
-          "array_col", "obj_col", "id_col"
+        INSERT INTO test (
+          str_col, num_col, bool_col, null_col, 
+          array_col, obj_col, id_col
         ) VALUES (
           $1, 
           $2, 
           $3, 
           $4,
           $5,
-          $6,
-          $7
-        )`,
+          ($6, $7, $8, $9),
+          $10,
+          "column_name"
+        )
+      `,
         params: [
           'text',
           42,
           true,
           null,
-          [1, '2', 3],
-          { key: 'value', num: 3 },
-          'column_name',
+          `2024-01-01T00:00:00.000Z`,
+          1,
+          '2',
+          3,
+          `2024-01-01T00:00:00.000Z`,
+          `{"key":"value","num":3}`,
         ],
       });
     });
 
     void it('should format concatenated SQL correctly', () => {
       const base = SQL`SELECT * FROM users`;
-      const where = SQL`WHERE active = ${SQL.literal(true)}`;
+      const where = SQL`WHERE active = ${true}`;
       const order = SQL`ORDER BY ${SQL.identifier('name')}`;
 
       const combined = SQL.merge([base, SQL` `, where, SQL` `, order]);
@@ -215,7 +220,7 @@ void describe('SQL template', () => {
 
       assert.deepStrictEqual(formatted, {
         query: 'SELECT * FROM users WHERE active = $1 ORDER BY "name"',
-        params: ["'true'"],
+        params: [true],
       });
     });
   });

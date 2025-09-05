@@ -56,15 +56,6 @@ void describe('PostgreSQL Parametrized Formatter', () => {
       });
     });
 
-    void it('throws error for empty arrays in IN clauses', () => {
-      const ids: string[] = [];
-
-      assert.throws(
-        () => SQL`SELECT * FROM users WHERE _id IN ${ids}`,
-        /Empty arrays in IN clauses are not supported/,
-      );
-    });
-
     void it('handles multiple parameters', () => {
       const sql = SQL`SELECT * FROM users WHERE id = ${123} AND name = ${'John'}`;
       const result = pgFormatter.format(sql);
@@ -111,7 +102,7 @@ void describe('PostgreSQL Parametrized Formatter', () => {
         params: [
           '2023-01-01 00:00:00.000+00',
           '123456789012345',
-          `'{"key":"value"}'`,
+          `{"key":"value"}`,
         ],
       });
     });
@@ -163,7 +154,7 @@ void describe('PostgreSQL Parametrized Formatter', () => {
       assert.strictEqual(pgFormatter.params.mapValue(undefined), null);
     });
 
-    void it('handles SQL wrapper types', () => {
+    void it('handles SQL identifier type', () => {
       // Valid unquoted identifier (lowercase, no special chars)
       const validIdentResult = pgFormatter.params.mapValue(
         SQL.identifier('table_name'),
@@ -175,9 +166,6 @@ void describe('PostgreSQL Parametrized Formatter', () => {
         SQL.identifier('TableName'),
       );
       assert.strictEqual(quotedIdentResult, '"TableName"');
-
-      const literalResult = pgFormatter.params.mapValue(SQL.literal('value'));
-      assert.strictEqual(literalResult, "'value'");
     });
 
     void it('handles nested SQL', () => {

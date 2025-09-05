@@ -56,15 +56,6 @@ void describe('SQLite Parametrized Formatter', () => {
       });
     });
 
-    void it('throws error for empty arrays in IN clauses', () => {
-      const ids: string[] = [];
-
-      assert.throws(
-        () => SQL`SELECT * FROM users WHERE _id IN ${ids}`,
-        /Empty arrays in IN clauses are not supported/,
-      );
-    });
-
     void it('handles multiple parameters', () => {
       const sql = SQL`SELECT * FROM users WHERE id = ${123} AND name = ${'John'}`;
       const result = sqliteFormatter.format(sql);
@@ -111,7 +102,7 @@ void describe('SQLite Parametrized Formatter', () => {
         params: [
           '2023-01-01T00:00:00.000Z',
           '123456789012345',
-          `'{"key":"value"}'`,
+          `{"key":"value"}`,
         ],
       });
     });
@@ -193,7 +184,7 @@ void describe('SQLite Parametrized Formatter', () => {
       );
     });
 
-    void it('handles SQL wrapper types', () => {
+    void it('handles SQL identifier type', () => {
       const validIdentResult = sqliteFormatter.params.mapValue(
         SQL.identifier('table_name'),
       );
@@ -203,11 +194,6 @@ void describe('SQLite Parametrized Formatter', () => {
         SQL.identifier('TableName'),
       );
       assert.strictEqual(quotedIdentResult, '"TableName"');
-
-      const literalResult = sqliteFormatter.params.mapValue(
-        SQL.literal('value'),
-      );
-      assert.strictEqual(literalResult, "'value'");
     });
 
     void it('handles nested SQL', () => {
