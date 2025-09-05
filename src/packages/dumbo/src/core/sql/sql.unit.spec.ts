@@ -2,23 +2,15 @@ import assert from 'assert';
 import { before, describe, it } from 'node:test';
 import { isParametrizedSQL, type ParametrizedSQL } from './parametrizedSQL';
 import { isSQL, SQL } from './sql';
-import {
-  describeSQL,
-  formatSQL,
-  registerFormatter,
-  type SQLFormatter,
-} from './sqlFormatter';
+import { registerFormatter, SQLFormatter } from './sqlFormatter';
 
-const mockFormatter: SQLFormatter = {
-  params: {
-    mapValue: (value: unknown) => value,
+const mockFormatter: SQLFormatter = SQLFormatter({
+  valueMapper: {
     mapPlaceholder: (index: number) => `$${index + 1}`,
     // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
     mapIdentifier: (value: unknown) => `"${value}"`,
   },
-  format: (sql) => formatSQL(sql, mockFormatter),
-  describe: (sql) => describeSQL(sql),
-};
+});
 
 void describe('SQL template', () => {
   before(() => {
