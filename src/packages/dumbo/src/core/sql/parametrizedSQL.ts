@@ -55,7 +55,9 @@ export const ParametrizedSQL = (
       builder.addSQL(value.value);
     } else {
       builder.addSQL(ParametrizedSQL.paramPlaceholder);
-      builder.addToken(SQLToken.check(value) ? value : SQLLiteral({ value }));
+      builder.addToken(
+        SQLToken.check(value) ? value : SQLLiteral.from({ value }),
+      );
     }
   }
 

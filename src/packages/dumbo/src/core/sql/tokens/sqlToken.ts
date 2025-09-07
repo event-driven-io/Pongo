@@ -29,7 +29,7 @@ export const SQLToken = <
   const check = (token: unknown): token is SQLTokenType =>
     SQLToken.check(token) && token.sqlTokenType === sqlTokenType;
 
-  return { from: factory, check: check };
+  return { from: factory, check: check, type: sqlTokenType };
 };
 
 SQLToken.check = (token: unknown): token is SQLToken =>
