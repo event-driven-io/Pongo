@@ -7,25 +7,33 @@ export type SQLToken<
   value: TProps;
 };
 
-export const SQLToken = <SQLTokenType extends SQLToken>(
+export const SQLToken = <
+  SQLTokenType extends SQLToken,
+  TValue = SQLTokenType['value'],
+>(
   sqlTokenType: SQLTokenType['sqlTokenType'],
+  map?: (value: TValue) => SQLTokenType['value'],
 ) => {
-  const factory = (props: Omit<SQLTokenType, 'sqlTokenType'>): SQLTokenType => {
+  const factory = (props: TValue): SQLTokenType => {
+    props =
+      map === undefined
+        ? (props as unknown as SQLTokenType['value'])
+        : map(props);
     return {
       sqlTokenType: sqlTokenType,
       [sqlTokenType]: true,
       ...props,
-    } as SQLTokenType;
+    } as unknown as SQLTokenType;
   };
 
-  factory.check = (value: unknown): value is SQLTokenType =>
-    SQLToken.check(value) && value.sqlTokenType === sqlTokenType;
+  const check = (token: unknown): token is SQLTokenType =>
+    SQLToken.check(token) && token.sqlTokenType === sqlTokenType;
 
-  return factory;
+  return { from: factory, check: check };
 };
 
-SQLToken.check = (value: unknown): value is SQLToken =>
-  value !== null && typeof value === 'object' && 'sqlTokenType' in value;
+SQLToken.check = (token: unknown): token is SQLToken =>
+  token !== null && typeof token === 'object' && 'sqlTokenType' in token;
 
 export type SQLIdentifier = SQLToken<'SQL_IDENTIFIER', string>;
 export const SQLIdentifier = SQLToken<SQLIdentifier>('SQL_IDENTIFIER');
@@ -44,6 +52,13 @@ export type SQLDefaultTokensTypes = SQLDefaultTokens['sqlTokenType'];
 
 export type SQLIn = SQLToken<
   'SQL_IN',
-  { column: SQLIdentifier; values: unknown[] }
+  { column: SQLIdentifier; values: SQLArray }
 >;
-export const SQLIn = SQLToken<SQLIn>('SQL_IN');
+
+export const SQLIn = SQLToken<SQLIn, { column: string; values: unknown[] }>(
+  'SQL_IN',
+  ({ column, values }) => ({
+    column: SQLIdentifier.from(column),
+    values: SQLArray.from(values),
+  }),
+);
