@@ -1,6 +1,7 @@
 import { JSONSerializer } from '../serializer';
 import { isParametrizedSQL, ParametrizedSQL } from './parametrizedSQL';
-import { SQL, type SQLIn } from './sql';
+import { SQL } from './sql';
+import type { SQLIn } from './tokens';
 
 export interface ParametrizedQuery {
   query: string;
@@ -112,42 +113,80 @@ export function mapSQLParamValue(
   }
 }
 
+type SQLProcessorContext = {
+  mapper: SQLValueMapper;
+  builder: ParametrizedQueryBuilder;
+};
+
+export type SQLProcessor<Value = unknown> = {
+  canHandle: (value: unknown) => boolean;
+  handle: (value: Value, context: SQLProcessorContext) => void;
+};
+
+export type SQLProcessorOptions<Value = unknown> = {
+  handle: (value: Value, context: SQLProcessorContext) => void;
+  canHandle: (value: unknown) => boolean;
+};
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const SQLProcessor = <Value = any>(
+  options: SQLProcessorOptions<Value>,
+): SQLProcessor<Value> => options;
+
+const expandArray = (
+  value: unknown[],
+  { builder, mapper }: SQLProcessorContext,
+) => {
+  if (value.length === 0) {
+    throw new Error(
+      "Empty arrays are not supported. If you're using it with SELECT IN statement Use SQL.in(column, array) helper instead.",
+    );
+  }
+  builder.addParams(mapper.mapValue(value) as unknown[]);
+};
+
+export const ExpandArrayProcessor: SQLProcessor<unknown[]> = SQLProcessor({
+  canHandle: (value: unknown): value is unknown[] => Array.isArray(value),
+  handle: expandArray,
+});
+
+export const SQLProcessorsRegistry = {
+  processors: [ExpandArrayProcessor] as SQLProcessor[],
+  register(processor: SQLProcessor): void {
+    this.processors.push(processor);
+  },
+  getProcessor<Value = unknown>(value: Value): SQLProcessor<Value> | null {
+    return this.processors.find((p) => p.canHandle(value)) ?? null;
+  },
+};
+
+const expandSQLIn = (
+  value: SQLIn,
+  { builder, mapper }: SQLProcessorContext,
+) => {
+  const { values: inValues, column } = value;
+
+  if (inValues.length === 0) {
+    builder.addParam(mapper.mapValue(false));
+    return;
+  }
+
+  builder.addSQL(mapper.mapIdentifier(column.value));
+  builder.addSQL(` IN `);
+
+  expandArray(inValues, { builder, mapper });
+};
+
 const processSQLParam = (
   value: unknown,
-  {
-    mapper,
-    builder,
-  }: { mapper: SQLValueMapper; builder: ParametrizedQueryBuilder },
+  { mapper, builder }: SQLProcessorContext,
 ): void => {
-  const expandSQLIn = (value: SQLIn) => {
-    const { values: inValues, column } = value;
-
-    if (inValues.length === 0) {
-      builder.addParam(mapper.mapValue(false));
-      return;
-    }
-
-    builder.addSQL(mapper.mapIdentifier(column.value));
-    builder.addSQL(` IN `);
-
-    expandArray(inValues);
-  };
-
-  const expandArray = (value: unknown[]) => {
-    if (value.length === 0) {
-      throw new Error(
-        "Empty arrays are not supported. If you're using it with SELECT IN statement Use SQL.in(column, array) helper instead.",
-      );
-    }
-    builder.addParams(mapper.mapValue(value) as unknown[]);
-  };
-
   if (SQL.check.isIdentifier(value)) {
     builder.addSQL(mapper.mapIdentifier(value.value));
   } else if (SQL.check.isSQLIn(value)) {
-    expandSQLIn(value);
+    expandSQLIn(value, { builder, mapper });
   } else if (Array.isArray(value)) {
-    expandArray(value);
+    expandArray(value, { builder, mapper });
   } else {
     builder.addParam(mapper.mapValue(value));
   }
