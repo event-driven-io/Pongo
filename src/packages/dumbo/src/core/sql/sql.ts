@@ -1,5 +1,6 @@
 import { ParametrizedSQL, isParametrizedSQL } from './parametrizedSQL';
 import { describeSQL, formatSQL } from './sqlFormatter';
+import { SQLIdentifier, SQLIn, SQLPlain } from './tokens';
 
 export type SQL = string & { __brand: 'sql' };
 
@@ -15,12 +16,6 @@ export const isSQL = (value: unknown): value is SQL => {
 
   return isParametrizedSQL(value);
 };
-
-const ID = Symbol.for('SQL_IDENTIFIER');
-const RAW = Symbol.for('SQL_RAW');
-
-type SQLIdentifier = { [ID]: true; value: string };
-type SQLPlain = { [RAW]: true; value: string };
 
 const emptySQL = {
   __brand: 'parametrized-sql',
@@ -66,48 +61,20 @@ const isEmpty = (sql: SQL): boolean => {
   return false;
 };
 
-function identifier(value: string): SQLIdentifier {
-  return { [ID]: true, value };
-}
-
-function plain(value: string): SQLPlain {
-  return { [RAW]: true, value };
-}
-
-// Type guards
-const isIdentifier = (value: unknown): value is SQLIdentifier => {
-  return value !== null && typeof value === 'object' && ID in value;
-};
-
-const isPlain = (value: unknown): value is SQLPlain => {
-  return value !== null && typeof value === 'object' && RAW in value;
-};
-
-const SQLIN = Symbol.for('SQL_IN');
-export type SQLIn = { [SQLIN]: true; column: SQLIdentifier; values: unknown[] };
-
-function sqlIn(column: string, values: unknown[]): SQLIn {
-  return { [SQLIN]: true, column: identifier(column), values };
-}
-
-const isSQLIn = (value: unknown): value is SQLIn => {
-  return value !== null && typeof value === 'object' && SQLIN in value;
-};
-
 SQL.EMPTY = emptySQL;
 SQL.concat = concatSQL;
 SQL.merge = mergeSQL;
 SQL.format = formatSQL;
 SQL.describe = describeSQL;
-SQL.in = sqlIn;
-SQL.identifier = identifier;
-SQL.plain = plain;
+SQL.in = SQLIn;
+SQL.identifier = SQLIdentifier;
+SQL.plain = SQLPlain;
 
 SQL.check = {
   isSQL,
   isParametrizedSQL: (value: unknown) => isParametrizedSQL(value),
   isEmpty,
-  isIdentifier,
-  isPlain,
-  isSQLIn,
+  isIdentifier: SQLIdentifier.is,
+  isPlain: SQLPlain.is,
+  isSQLIn: SQLIn.is,
 };
