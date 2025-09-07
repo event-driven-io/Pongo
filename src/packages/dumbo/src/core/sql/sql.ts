@@ -66,9 +66,9 @@ SQL.concat = concatSQL;
 SQL.merge = mergeSQL;
 SQL.format = formatSQL;
 SQL.describe = describeSQL;
-SQL.in = SQLIn;
-SQL.identifier = SQLIdentifier;
-SQL.plain = SQLPlain;
+SQL.in = (column: string, values: unknown[]) => SQLIn.from({ column, values });
+SQL.identifier = SQLIdentifier.from;
+SQL.plain = SQLPlain.from;
 
 SQL.check = {
   isSQL,

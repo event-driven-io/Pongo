@@ -1,7 +1,7 @@
 import { JSONSerializer } from '../serializer';
 import { isParametrizedSQL, ParametrizedSQL } from './parametrizedSQL';
 import { SQL } from './sql';
-import type { SQLArray, SQLIn, SQLToken } from './tokens';
+import { SQLArray, type SQLIn, type SQLToken } from './tokens';
 
 export interface ParametrizedQuery {
   query: string;
@@ -116,7 +116,7 @@ export function mapSQLParamValue(
 type SQLProcessorContext = {
   mapper: SQLValueMapper;
   builder: ParametrizedQueryBuilder;
-  // TODO: ADD READONLY REGISTRY TO ALLOW REUSING PROCESSOSRS
+  processorsRegistry: SQLProcessorsReadonlyRegistry;
 };
 
 export type SQLProcessor<Token extends SQLToken = SQLToken> = {
@@ -133,17 +133,28 @@ export const SQLProcessor = <Token extends SQLToken = SQLToken>(
   options: SQLProcessorOptions<Token>,
 ): SQLProcessor<Token> => options;
 
-export const SQLProcessorsRegistry = {
-  processors: new Map<string, SQLProcessor>(),
-  register(processor: SQLProcessor): void {
-    this.processors.set(processor.canHandle, processor);
-  },
-  getProcessor<Token extends SQLToken = SQLToken>(
+export interface SQLProcessorsReadonlyRegistry {
+  get<Token extends SQLToken = SQLToken>(
     tokenType: Token['sqlTokenType'],
-  ): SQLProcessor<Token> | null {
-    return (this.processors.get(tokenType) ??
-      null) as SQLProcessor<Token> | null;
-  },
+  ): SQLProcessor<Token> | null;
+}
+
+export interface SQLProcessorsRegistry extends SQLProcessorsReadonlyRegistry {
+  register(processor: SQLProcessor): void;
+}
+
+export const SQLProcessorsRegistry = (): SQLProcessorsRegistry => {
+  const processors = new Map<string, SQLProcessor>();
+  return {
+    register: (processor: SQLProcessor): void => {
+      processors.set(processor.canHandle, processor);
+    },
+    get: <Token extends SQLToken = SQLToken>(
+      tokenType: string,
+    ): SQLProcessor<Token> | null => {
+      return (processors.get(tokenType) ?? null) as SQLProcessor<Token> | null;
+    },
+  };
 };
 
 const expandArray = (
@@ -170,10 +181,8 @@ export const ExpandArrayProcessor: SQLProcessor<SQLArray> = SQLProcessor({
   },
 });
 
-const expandSQLIn = (
-  token: SQLIn,
-  { builder, mapper }: SQLProcessorContext,
-) => {
+const expandSQLIn = (token: SQLIn, context: SQLProcessorContext) => {
+  const { builder, mapper, processorsRegistry } = context;
   const { values: inValues, column } = token.value;
 
   if (inValues.value.length === 0) {
@@ -184,12 +193,21 @@ const expandSQLIn = (
   builder.addSQL(mapper.mapIdentifier(column.value));
   builder.addSQL(` IN `);
 
-  expandArray(inValues, { builder, mapper });
+  const arrayProcessor = processorsRegistry.get(SQLArray.type);
+
+  if (!arrayProcessor) {
+    throw new Error(
+      'No sql processor registered for an array. Cannot expand IN statement',
+    );
+  }
+
+  arrayProcessor.handle(inValues, { builder, mapper, processorsRegistry });
 };
 
 export const ExpandSQLInProcessor: SQLProcessor<SQLIn> = SQLProcessor({
   canHandle: 'SQL_IN',
-  handle: (token: SQLIn, { builder, mapper }: SQLProcessorContext) => {
+  handle: (token: SQLIn, context: SQLProcessorContext) => {
+    const { builder, mapper, processorsRegistry } = context;
     const { values: inValues, column } = token.value;
 
     if (inValues.value.length === 0) {
@@ -200,7 +218,15 @@ export const ExpandSQLInProcessor: SQLProcessor<SQLIn> = SQLProcessor({
     builder.addSQL(mapper.mapIdentifier(column.value));
     builder.addSQL(` IN `);
 
-    expandArray(inValues, { builder, mapper });
+    const arrayProcessor = processorsRegistry.get(SQLArray.type);
+
+    if (!arrayProcessor) {
+      throw new Error(
+        'No sql processor registered for an array. Cannot expand IN statement',
+      );
+    }
+
+    arrayProcessor.handle(inValues, { builder, mapper, processorsRegistry });
   },
 });
 
