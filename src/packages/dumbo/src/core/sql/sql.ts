@@ -20,7 +20,7 @@ export const isSQL = (value: unknown): value is SQL => {
 const emptySQL = {
   __brand: 'parametrized-sql',
   sqlChunks: [''],
-  values: [],
+  sqlTokens: [],
 } satisfies ParametrizedSQL as unknown as SQL;
 
 const mergeSQL = (sqls: SQL[], separator: string = ' '): SQL => {
@@ -28,7 +28,7 @@ const mergeSQL = (sqls: SQL[], separator: string = ' '): SQL => {
     .filter((sql) => !isEmpty(sql))
     .map((sql) => sql as unknown as ParametrizedSQL);
 
-  const params = parametrized.flatMap((p) => p.values);
+  const params = parametrized.flatMap((p) => p.sqlTokens);
   const sqlChunks = parametrized.flatMap((p, i) =>
     i == parametrized.length - 1 || separator === ''
       ? p.sqlChunks
@@ -40,7 +40,7 @@ const mergeSQL = (sqls: SQL[], separator: string = ' '): SQL => {
       ? {
           __brand: 'parametrized-sql',
           sqlChunks: sqlChunks,
-          values: params,
+          sqlTokens: params,
         }
       : ParametrizedSQL.empty;
 
@@ -54,7 +54,7 @@ const isEmpty = (sql: SQL): boolean => {
     const parametrized = sql as unknown as ParametrizedSQL;
     return (
       parametrized.sqlChunks.every((chunk) => chunk.trim() === '') &&
-      parametrized.values.length === 0
+      parametrized.sqlTokens.length === 0
     );
   }
 
@@ -74,7 +74,7 @@ SQL.check = {
   isSQL,
   isParametrizedSQL: (value: unknown) => isParametrizedSQL(value),
   isEmpty,
-  isIdentifier: SQLIdentifier.is,
-  isPlain: SQLPlain.is,
-  isSQLIn: SQLIn.is,
+  isIdentifier: SQLIdentifier.check,
+  isPlain: SQLPlain.check,
+  isSQLIn: SQLIn.check,
 };

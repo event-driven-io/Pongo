@@ -164,7 +164,7 @@ const expandSQLIn = (
   value: SQLIn,
   { builder, mapper }: SQLProcessorContext,
 ) => {
-  const { values: inValues, column } = value;
+  const { values: inValues, column } = value.value;
 
   if (inValues.length === 0) {
     builder.addParam(mapper.mapValue(false));
@@ -200,7 +200,7 @@ const describeSQLParam = (
   }: { mapper: SQLValueMapper; builder: ParametrizedQueryBuilder },
 ): void => {
   const expandSQLIn = (value: SQLIn) => {
-    const { values: inValues, column } = value;
+    const { values: inValues, column } = value.value;
 
     if (inValues.length === 0) {
       builder.addParam(mapper.mapValue(false));
@@ -262,7 +262,7 @@ export function formatSQL(
       continue;
     }
 
-    processSQLParam(merged.values[paramIndex++], {
+    processSQLParam(merged.sqlTokens[paramIndex++], {
       mapper: mapper,
       builder,
     });
@@ -299,7 +299,7 @@ export const describeSQL = (
       builder.addSQL(sqlChunk);
       continue;
     }
-    describeSQLParam(merged.values[paramIndex++], {
+    describeSQLParam(merged.sqlTokens[paramIndex++], {
       builder,
       mapper,
     });
