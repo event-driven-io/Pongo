@@ -1,14 +1,14 @@
-import { SQL } from './sql';
+import { SQLLiteral, SQLPlain, SQLToken } from './tokens';
 
 export type ParametrizedSQL = Readonly<{
   __brand: 'parametrized-sql';
   sqlChunks: ReadonlyArray<string>;
-  values: ReadonlyArray<unknown>;
+  sqlTokens: ReadonlyArray<SQLToken>;
 }>;
 
 const ParametrizedSQLBuilder = () => {
   const sqlChunks: string[] = [];
-  const values: unknown[] = [];
+  const sqlTokens: SQLToken[] = [];
 
   return {
     addSQL(str: string): void {
@@ -17,18 +17,18 @@ const ParametrizedSQLBuilder = () => {
     addSQLs(str: ReadonlyArray<string>): void {
       sqlChunks.push(...str);
     },
-    addValue(value: unknown): void {
-      values.push(value);
+    addToken(value: SQLToken): void {
+      sqlTokens.push(value);
     },
-    addValues(vals: ReadonlyArray<unknown>): void {
-      values.push(...vals);
+    addTokens(vals: ReadonlyArray<SQLToken>): void {
+      sqlTokens.push(...vals);
     },
     build(): ParametrizedSQL {
       return sqlChunks.length > 0
         ? {
             __brand: 'parametrized-sql',
             sqlChunks,
-            values,
+            sqlTokens,
           }
         : ParametrizedSQL.empty;
     },
@@ -50,12 +50,12 @@ export const ParametrizedSQL = (
 
     if (isParametrizedSQL(value)) {
       builder.addSQLs(value.sqlChunks);
-      builder.addValues(value.values);
-    } else if (SQL.check.isPlain(value)) {
+      builder.addTokens(value.sqlTokens);
+    } else if (SQLPlain.check(value)) {
       builder.addSQL(value.value);
     } else {
       builder.addSQL(ParametrizedSQL.paramPlaceholder);
-      builder.addValue(value);
+      builder.addToken(SQLToken.check(value) ? value : SQLLiteral({ value }));
     }
   }
 
@@ -76,5 +76,5 @@ ParametrizedSQL.paramPlaceholder = `__P__`;
 ParametrizedSQL.empty = {
   __brand: 'parametrized-sql',
   sqlChunks: [''],
-  values: [],
+  sqlTokens: [],
 } satisfies ParametrizedSQL;

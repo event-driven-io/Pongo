@@ -14,7 +14,7 @@ void describe('SQL Parametrizer', () => {
       assert.ok(isParametrizedSQL(result));
       assert.equal(result.__brand, 'parametrized-sql');
       assert.ok(Array.isArray(result.sqlChunks));
-      assert.ok(Array.isArray(result.values));
+      assert.ok(Array.isArray(result.sqlTokens));
     });
   });
 
@@ -28,7 +28,7 @@ void describe('SQL Parametrizer', () => {
         'SELECT * FROM users WHERE id = ',
         '__P__',
       ]);
-      assert.deepEqual(result.values, [123]);
+      assert.deepEqual(result.sqlTokens, [123]);
     });
 
     void it('handles multiple parameters', () => {
@@ -42,14 +42,14 @@ void describe('SQL Parametrizer', () => {
         ' AND name = ',
         '__P__',
       ]);
-      assert.deepEqual(result.values, [123, 'John']);
+      assert.deepEqual(result.sqlTokens, [123, 'John']);
     });
 
     void it('handles no parameters', () => {
       const result = asParametrizedSQL(SQL`SELECT * FROM users`);
 
       assert.equal(result.sqlChunks, 'SELECT * FROM users');
-      assert.deepEqual(result.values, []);
+      assert.deepEqual(result.sqlTokens, []);
     });
   });
 
@@ -68,7 +68,7 @@ void describe('SQL Parametrizer', () => {
         '__P__',
         ')',
       ]);
-      assert.deepEqual(result.values, [1, 'Alice', 30]);
+      assert.deepEqual(result.sqlTokens, [1, 'Alice', 30]);
     });
 
     void it('handles many parameters', () => {
@@ -99,7 +99,7 @@ void describe('SQL Parametrizer', () => {
         '__P__',
         ')',
       ]);
-      assert.deepEqual(result.values, values);
+      assert.deepEqual(result.sqlTokens, values);
     });
   });
 
@@ -121,7 +121,7 @@ void describe('SQL Parametrizer', () => {
         '__P__',
         ')',
       ]);
-      assert.deepEqual(result.values, [123, 'test', date, null]);
+      assert.deepEqual(result.sqlTokens, [123, 'test', date, null]);
     });
 
     void it('handles undefined values', () => {
@@ -133,7 +133,7 @@ void describe('SQL Parametrizer', () => {
         'SELECT * FROM users WHERE status = ',
         '__P__',
       ]);
-      assert.deepEqual(result.values, [undefined]);
+      assert.deepEqual(result.sqlTokens, [undefined]);
     });
   });
 
@@ -150,7 +150,7 @@ void describe('SQL Parametrizer', () => {
         '__P__',
         ')',
       ]);
-      assert.deepEqual(mainQuery.values, ['admin']);
+      assert.deepEqual(mainQuery.sqlTokens, ['admin']);
     });
 
     void it('handles deeply nested SQL', () => {
@@ -168,7 +168,7 @@ void describe('SQL Parametrizer', () => {
         ')',
         ')',
       ]);
-      assert.deepEqual(outer.values, ['read']);
+      assert.deepEqual(outer.sqlTokens, ['read']);
     });
 
     void it('handles multiple nested SQL with parameters', () => {
@@ -187,7 +187,7 @@ void describe('SQL Parametrizer', () => {
         '__P__',
         ')',
       ]);
-      assert.deepEqual(mainQuery.values, ['admin', 'IT']);
+      assert.deepEqual(mainQuery.sqlTokens, ['admin', 'IT']);
     });
   });
 
@@ -199,7 +199,7 @@ void describe('SQL Parametrizer', () => {
         );
 
         assert.deepStrictEqual(result.sqlChunks, ['SELECT * FROM ', '__P__']);
-        assert.deepEqual(result.values, [SQL.identifier('users')]);
+        assert.deepEqual(result.sqlTokens, [SQL.identifier('users')]);
       });
 
       void it('should pass through all values as parameters', () => {
@@ -217,7 +217,7 @@ void describe('SQL Parametrizer', () => {
           ' WHERE id = ',
           '__P__',
         ]);
-        assert.deepEqual(result.values, [
+        assert.deepEqual(result.sqlTokens, [
           SQL.identifier('name'),
           SQL.identifier('age'),
           SQL.identifier('users'),
@@ -236,7 +236,7 @@ void describe('SQL Parametrizer', () => {
           'SELECT * FROM users ',
           'ORDER BY created_at DESC',
         ]);
-        assert.deepEqual(result.values, []);
+        assert.deepEqual(result.sqlTokens, []);
       });
 
       void it('should inline raw values and parametrize other values', () => {
@@ -250,7 +250,7 @@ void describe('SQL Parametrizer', () => {
           ' AND id = ',
           '__P__',
         ]);
-        assert.deepEqual(result.values, [123]);
+        assert.deepEqual(result.sqlTokens, [123]);
       });
     });
 
@@ -279,7 +279,7 @@ void describe('SQL Parametrizer', () => {
           "AND created_at > NOW() - INTERVAL '7 days'",
           '\n        ',
         ]);
-        assert.deepEqual(result.values, [
+        assert.deepEqual(result.sqlTokens, [
           SQL.identifier('id'),
           SQL.identifier('name'),
           SQL.identifier('users'),
@@ -314,7 +314,7 @@ void describe('SQL Parametrizer', () => {
           `)
         `,
         ]);
-        assert.deepEqual(result.values, [
+        assert.deepEqual(result.sqlTokens, [
           SQL.identifier('logs'),
           SQL.identifier('level'),
           'ERROR',

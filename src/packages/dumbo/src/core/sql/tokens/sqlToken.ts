@@ -1,9 +1,11 @@
 export type SQLToken<
   TSymbol extends string = string,
-  TProps extends Record<string, unknown> = Record<string, unknown>,
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-constraint, @typescript-eslint/no-explicit-any
+  TProps extends any = any,
 > = {
   sqlTokenType: TSymbol;
-} & TProps;
+  value: TProps;
+};
 
 export const SQLToken = <SQLTokenType extends SQLToken>(
   sqlTokenType: SQLTokenType['sqlTokenType'],
@@ -16,28 +18,25 @@ export const SQLToken = <SQLTokenType extends SQLToken>(
     } as SQLTokenType;
   };
 
-  factory.is = (value: unknown): value is SQLTokenType =>
-    SQLToken.is(sqlTokenType, value);
+  factory.check = (value: unknown): value is SQLTokenType =>
+    SQLToken.check(value) && value.sqlTokenType === sqlTokenType;
 
   return factory;
 };
 
-SQLToken.is = <SQLTokenType extends SQLToken>(
-  sqlToken: SQLTokenType['sqlTokenType'],
-  value: unknown,
-): value is SQLTokenType =>
-  value !== null && typeof value === 'object' && sqlToken in value;
+SQLToken.check = (value: unknown): value is SQLToken =>
+  value !== null && typeof value === 'object' && 'sqlTokenType' in value;
 
-export type SQLIdentifier = SQLToken<'SQL_IDENTIFIER', { value: string }>;
+export type SQLIdentifier = SQLToken<'SQL_IDENTIFIER', string>;
 export const SQLIdentifier = SQLToken<SQLIdentifier>('SQL_IDENTIFIER');
 
-export type SQLPlain = SQLToken<'SQL_RAW', { value: string }>;
+export type SQLPlain = SQLToken<'SQL_RAW', string>;
 export const SQLPlain = SQLToken<SQLPlain>('SQL_RAW');
 
-export type SQLLiteral = SQLToken<'SQL_LITERAL', { value: unknown }>;
+export type SQLLiteral = SQLToken<'SQL_LITERAL', unknown>;
 export const SQLLiteral = SQLToken<SQLLiteral>('SQL_LITERAL');
 
-export type SQLArray = SQLToken<'SQL_ARRAY', { values: unknown[] }>;
+export type SQLArray = SQLToken<'SQL_ARRAY', unknown[]>;
 export const SQLArray = SQLToken<SQLArray>('SQL_ARRAY');
 
 export type SQLDefaultTokens = SQLIdentifier | SQLPlain | SQLLiteral | SQLArray;
