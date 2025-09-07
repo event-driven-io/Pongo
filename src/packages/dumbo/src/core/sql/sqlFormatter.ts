@@ -1,7 +1,7 @@
 import { JSONSerializer } from '../serializer';
 import { isParametrizedSQL, ParametrizedSQL } from './parametrizedSQL';
 import { SQL } from './sql';
-import type { SQLIn } from './tokens';
+import type { SQLArray, SQLIn, SQLToken } from './tokens';
 
 export interface ParametrizedQuery {
   query: string;
@@ -116,57 +116,67 @@ export function mapSQLParamValue(
 type SQLProcessorContext = {
   mapper: SQLValueMapper;
   builder: ParametrizedQueryBuilder;
+  // TODO: ADD READONLY REGISTRY TO ALLOW REUSING PROCESSOSRS
 };
 
-export type SQLProcessor<Value = unknown> = {
-  canHandle: (value: unknown) => boolean;
-  handle: (value: Value, context: SQLProcessorContext) => void;
+export type SQLProcessor<Token extends SQLToken = SQLToken> = {
+  canHandle: Token['sqlTokenType'];
+  handle: (value: Token, context: SQLProcessorContext) => void;
 };
 
-export type SQLProcessorOptions<Value = unknown> = {
-  handle: (value: Value, context: SQLProcessorContext) => void;
-  canHandle: (value: unknown) => boolean;
+export type SQLProcessorOptions<Token extends SQLToken = SQLToken> = {
+  canHandle: Token['sqlTokenType'];
+  handle: (value: Token, context: SQLProcessorContext) => void;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const SQLProcessor = <Value = any>(
-  options: SQLProcessorOptions<Value>,
-): SQLProcessor<Value> => options;
+export const SQLProcessor = <Token extends SQLToken = SQLToken>(
+  options: SQLProcessorOptions<Token>,
+): SQLProcessor<Token> => options;
+
+export const SQLProcessorsRegistry = {
+  processors: new Map<string, SQLProcessor>(),
+  register(processor: SQLProcessor): void {
+    this.processors.set(processor.canHandle, processor);
+  },
+  getProcessor<Token extends SQLToken = SQLToken>(
+    tokenType: Token['sqlTokenType'],
+  ): SQLProcessor<Token> | null {
+    return (this.processors.get(tokenType) ??
+      null) as SQLProcessor<Token> | null;
+  },
+};
 
 const expandArray = (
-  value: unknown[],
+  token: SQLArray,
   { builder, mapper }: SQLProcessorContext,
 ) => {
-  if (value.length === 0) {
+  if (token.value.length === 0) {
     throw new Error(
       "Empty arrays are not supported. If you're using it with SELECT IN statement Use SQL.in(column, array) helper instead.",
     );
   }
-  builder.addParams(mapper.mapValue(value) as unknown[]);
+  builder.addParams(mapper.mapValue(token.value) as unknown[]);
 };
 
-export const ExpandArrayProcessor: SQLProcessor<unknown[]> = SQLProcessor({
-  canHandle: (value: unknown): value is unknown[] => Array.isArray(value),
-  handle: expandArray,
+export const ExpandArrayProcessor: SQLProcessor<SQLArray> = SQLProcessor({
+  canHandle: 'SQL_ARRAY',
+  handle: (token: SQLArray, { builder, mapper }: SQLProcessorContext) => {
+    if (token.value.length === 0) {
+      throw new Error(
+        "Empty arrays are not supported. If you're using it with SELECT IN statement Use SQL.in(column, array) helper instead.",
+      );
+    }
+    builder.addParams(mapper.mapValue(token.value) as unknown[]);
+  },
 });
 
-export const SQLProcessorsRegistry = {
-  processors: [ExpandArrayProcessor] as SQLProcessor[],
-  register(processor: SQLProcessor): void {
-    this.processors.push(processor);
-  },
-  getProcessor<Value = unknown>(value: Value): SQLProcessor<Value> | null {
-    return this.processors.find((p) => p.canHandle(value)) ?? null;
-  },
-};
-
 const expandSQLIn = (
-  value: SQLIn,
+  token: SQLIn,
   { builder, mapper }: SQLProcessorContext,
 ) => {
-  const { values: inValues, column } = value.value;
+  const { values: inValues, column } = token.value;
 
-  if (inValues.length === 0) {
+  if (inValues.value.length === 0) {
     builder.addParam(mapper.mapValue(false));
     return;
   }
@@ -176,6 +186,23 @@ const expandSQLIn = (
 
   expandArray(inValues, { builder, mapper });
 };
+
+export const ExpandSQLInProcessor: SQLProcessor<SQLIn> = SQLProcessor({
+  canHandle: 'SQL_IN',
+  handle: (token: SQLIn, { builder, mapper }: SQLProcessorContext) => {
+    const { values: inValues, column } = token.value;
+
+    if (inValues.value.length === 0) {
+      builder.addParam(mapper.mapValue(false));
+      return;
+    }
+
+    builder.addSQL(mapper.mapIdentifier(column.value));
+    builder.addSQL(` IN `);
+
+    expandArray(inValues, { builder, mapper });
+  },
+});
 
 const processSQLParam = (
   value: unknown,
@@ -202,7 +229,7 @@ const describeSQLParam = (
   const expandSQLIn = (value: SQLIn) => {
     const { values: inValues, column } = value.value;
 
-    if (inValues.length === 0) {
+    if (inValues.value.length === 0) {
       builder.addParam(mapper.mapValue(false));
       return;
     }
@@ -210,7 +237,7 @@ const describeSQLParam = (
     builder.addSQL(mapper.mapIdentifier(column.value));
     builder.addSQL(` IN `);
 
-    expandArray(inValues);
+    expandArray(inValues.value);
   };
 
   const expandArray = (value: unknown[]) => {
