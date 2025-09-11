@@ -3,13 +3,14 @@ import { before, describe, it } from 'node:test';
 import { isParametrizedSQL, type ParametrizedSQL } from './parametrizedSQL';
 import { isSQL, SQL } from './sql';
 import { registerFormatter, SQLFormatter } from './sqlFormatter';
+import { SQLValueMapper } from './valueMappers';
 
 const mockFormatter: SQLFormatter = SQLFormatter({
-  valueMapper: {
+  valueMapper: SQLValueMapper({
     mapPlaceholder: (index: number) => `$${index + 1}`,
     // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
     mapIdentifier: (value: unknown) => `"${value}"`,
-  },
+  }),
 });
 
 void describe('SQL template', () => {
