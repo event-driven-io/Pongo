@@ -4,7 +4,7 @@ import {
   SQLFormatter,
   type FormatSQLOptions,
 } from './formatters';
-import type { ParametrizedQuery } from './parametrizedQuery';
+import type { ParametrizedSQL } from './parametrizedSQL';
 import { isTokenizedSQL, TokenizedSQL } from './tokenizedSQL';
 import { SQLIdentifier, SQLIn, SQLPlain } from './tokens';
 
@@ -74,7 +74,7 @@ SQL.format = (
   sql: SQL | SQL[],
   formatter: SQLFormatter,
   options?: FormatSQLOptions,
-): ParametrizedQuery => formatSQL(sql, formatter, options);
+): ParametrizedSQL => formatSQL(sql, formatter, options);
 SQL.describe = (
   sql: SQL | SQL[],
   formatter: SQLFormatter,

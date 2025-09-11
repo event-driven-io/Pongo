@@ -1,4 +1,4 @@
-import { SQLArray, SQLLiteral, SQLPlain, SQLToken } from './tokens';
+import { SQLArray, SQLLiteral, SQLPlain, SQLToken } from '../tokens';
 
 export type TokenizedSQL = Readonly<{
   __brand: 'tokenized-sql';
