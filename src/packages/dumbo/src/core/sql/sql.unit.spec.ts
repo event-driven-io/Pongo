@@ -1,8 +1,8 @@
 import assert from 'assert';
 import { before, describe, it } from 'node:test';
-import { isParametrizedSQL, type ParametrizedSQL } from './parametrizedSQL';
+import { registerFormatter, SQLFormatter } from './formatters';
 import { isSQL, SQL } from './sql';
-import { registerFormatter, SQLFormatter } from './sqlFormatter';
+import { isTokenizedSQL, type TokenizedSQL } from './tokenizedSQL';
 import { SQLValueMapper } from './valueMappers';
 
 const mockFormatter: SQLFormatter = SQLFormatter({
@@ -22,14 +22,14 @@ void describe('SQL template', () => {
     void it('should create SQL from template literals', () => {
       const query = SQL`SELECT * FROM users`;
       assert.strictEqual(isSQL(query), true);
-      assert.strictEqual(isParametrizedSQL(query), true);
+      assert.strictEqual(isTokenizedSQL(query), true);
     });
 
     void it('should create SQL from raw string', () => {
       const query = SQL`SELECT * FROM users`;
       assert.strictEqual(isSQL(query), true);
-      assert.strictEqual(isParametrizedSQL(query), true);
-      assert.deepStrictEqual((query as unknown as ParametrizedSQL).sqlChunks, [
+      assert.strictEqual(isTokenizedSQL(query), true);
+      assert.deepStrictEqual((query as unknown as TokenizedSQL).sqlChunks, [
         'SELECT * FROM users',
       ]);
     });
@@ -40,9 +40,9 @@ void describe('SQL template', () => {
       const query = SQL`SELECT * FROM users WHERE name = ${name} AND age = ${age}`;
 
       assert.strictEqual(isSQL(query), true);
-      assert.strictEqual(isParametrizedSQL(query), true);
+      assert.strictEqual(isTokenizedSQL(query), true);
 
-      const parametrized = query as unknown as ParametrizedSQL;
+      const parametrized = query as unknown as TokenizedSQL;
       assert.strictEqual(parametrized.sqlTokens.length, 2);
       assert.strictEqual(parametrized.sqlChunks.includes('__P__'), true);
       assert.strictEqual(parametrized.sqlChunks.includes('__P__'), true);
@@ -88,7 +88,7 @@ void describe('SQL template', () => {
       const result = SQL.merge([base, SQL` `, from, SQL` `, where]);
 
       assert.strictEqual(isSQL(result), true);
-      assert.strictEqual(isParametrizedSQL(result), true);
+      assert.strictEqual(isTokenizedSQL(result), true);
       assert.strictEqual(SQL.check.isEmpty(result), false);
     });
 
@@ -103,7 +103,7 @@ void describe('SQL template', () => {
         empty,
         SQL` `,
         order,
-      ]) as unknown as ParametrizedSQL;
+      ]) as unknown as TokenizedSQL;
 
       // Empty parts should be filtered out
       assert.deepStrictEqual(result.sqlChunks, [

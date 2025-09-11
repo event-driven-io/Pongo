@@ -1,12 +1,12 @@
 import { SQLArray, SQLLiteral, SQLPlain, SQLToken } from './tokens';
 
-export type ParametrizedSQL = Readonly<{
-  __brand: 'parametrized-sql';
+export type TokenizedSQL = Readonly<{
+  __brand: 'tokenized-sql';
   sqlChunks: ReadonlyArray<string>;
   sqlTokens: ReadonlyArray<SQLToken>;
 }>;
 
-const ParametrizedSQLBuilder = () => {
+const TokenizedSQLBuilder = () => {
   const sqlChunks: string[] = [];
   const sqlTokens: SQLToken[] = [];
 
@@ -23,23 +23,23 @@ const ParametrizedSQLBuilder = () => {
     addTokens(vals: ReadonlyArray<SQLToken>): void {
       sqlTokens.push(...vals);
     },
-    build(): ParametrizedSQL {
+    build(): TokenizedSQL {
       return sqlChunks.length > 0
         ? {
-            __brand: 'parametrized-sql',
+            __brand: 'tokenized-sql',
             sqlChunks,
             sqlTokens,
           }
-        : ParametrizedSQL.empty;
+        : TokenizedSQL.empty;
     },
   };
 };
 
-export const ParametrizedSQL = (
+export const TokenizedSQL = (
   strings: ReadonlyArray<string>,
   values: unknown[],
-): ParametrizedSQL => {
-  const builder = ParametrizedSQLBuilder();
+): TokenizedSQL => {
+  const builder = TokenizedSQLBuilder();
 
   for (let i = 0; i < strings.length; i++) {
     if (strings[i] !== '') builder.addSQL(strings[i]!);
@@ -48,13 +48,13 @@ export const ParametrizedSQL = (
 
     const value = values[i];
 
-    if (isParametrizedSQL(value)) {
+    if (isTokenizedSQL(value)) {
       builder.addSQLs(value.sqlChunks);
       builder.addTokens(value.sqlTokens);
     } else if (SQLPlain.check(value)) {
       builder.addSQL(value.value);
     } else {
-      builder.addSQL(ParametrizedSQL.paramPlaceholder);
+      builder.addSQL(TokenizedSQL.paramPlaceholder);
       builder.addToken(
         SQLToken.check(value)
           ? value
@@ -68,19 +68,19 @@ export const ParametrizedSQL = (
   return builder.build();
 };
 
-export const isParametrizedSQL = (value: unknown): value is ParametrizedSQL => {
+export const isTokenizedSQL = (value: unknown): value is TokenizedSQL => {
   return (
     value !== null &&
     typeof value === 'object' &&
     '__brand' in value &&
-    value.__brand === 'parametrized-sql'
+    value.__brand === 'tokenized-sql'
   );
 };
 
-ParametrizedSQL.paramPlaceholder = `__P__`;
+TokenizedSQL.paramPlaceholder = `__P__`;
 
-ParametrizedSQL.empty = {
-  __brand: 'parametrized-sql',
+TokenizedSQL.empty = {
+  __brand: 'tokenized-sql',
   sqlChunks: [''],
   sqlTokens: [],
-} satisfies ParametrizedSQL;
+} satisfies TokenizedSQL;

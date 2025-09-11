@@ -1,11 +1,17 @@
-import { ParametrizedSQL, isParametrizedSQL } from './parametrizedSQL';
-import { describeSQL, formatSQL } from './sqlFormatter';
+import {
+  describeSQL,
+  formatSQL,
+  SQLFormatter,
+  type FormatSQLOptions,
+} from './formatters';
+import type { ParametrizedQuery } from './parametrizedQuery';
+import { isTokenizedSQL, TokenizedSQL } from './tokenizedSQL';
 import { SQLIdentifier, SQLIn, SQLPlain } from './tokens';
 
 export type SQL = string & { __brand: 'sql' };
 
 export function SQL(strings: TemplateStringsArray, ...values: unknown[]): SQL {
-  const parametrized = ParametrizedSQL(strings, values);
+  const parametrized = TokenizedSQL(strings, values);
   return parametrized as unknown as SQL;
 }
 
@@ -14,19 +20,19 @@ export const isSQL = (value: unknown): value is SQL => {
     return false;
   }
 
-  return isParametrizedSQL(value);
+  return isTokenizedSQL(value);
 };
 
 const emptySQL = {
-  __brand: 'parametrized-sql',
+  __brand: 'tokenized-sql',
   sqlChunks: [''],
   sqlTokens: [],
-} satisfies ParametrizedSQL as unknown as SQL;
+} satisfies TokenizedSQL as unknown as SQL;
 
 const mergeSQL = (sqls: SQL[], separator: string = ' '): SQL => {
   const parametrized = sqls
     .filter((sql) => !isEmpty(sql))
-    .map((sql) => sql as unknown as ParametrizedSQL);
+    .map((sql) => sql as unknown as TokenizedSQL);
 
   const params = parametrized.flatMap((p) => p.sqlTokens);
   const sqlChunks = parametrized.flatMap((p, i) =>
@@ -35,14 +41,14 @@ const mergeSQL = (sqls: SQL[], separator: string = ' '): SQL => {
       : [...p.sqlChunks, separator],
   );
 
-  const merged: ParametrizedSQL =
+  const merged: TokenizedSQL =
     sqlChunks.length > 0
       ? {
-          __brand: 'parametrized-sql',
+          __brand: 'tokenized-sql',
           sqlChunks: sqlChunks,
           sqlTokens: params,
         }
-      : ParametrizedSQL.empty;
+      : TokenizedSQL.empty;
 
   return merged as unknown as SQL;
 };
@@ -50,8 +56,8 @@ const mergeSQL = (sqls: SQL[], separator: string = ' '): SQL => {
 const concatSQL = (...sqls: SQL[]): SQL => mergeSQL(sqls, '');
 
 const isEmpty = (sql: SQL): boolean => {
-  if (isParametrizedSQL(sql)) {
-    const parametrized = sql as unknown as ParametrizedSQL;
+  if (isTokenizedSQL(sql)) {
+    const parametrized = sql as unknown as TokenizedSQL;
     return (
       parametrized.sqlChunks.every((chunk) => chunk.trim() === '') &&
       parametrized.sqlTokens.length === 0
@@ -64,15 +70,23 @@ const isEmpty = (sql: SQL): boolean => {
 SQL.EMPTY = emptySQL;
 SQL.concat = concatSQL;
 SQL.merge = mergeSQL;
-SQL.format = formatSQL;
-SQL.describe = describeSQL;
+SQL.format = (
+  sql: SQL | SQL[],
+  formatter: SQLFormatter,
+  options?: FormatSQLOptions,
+): ParametrizedQuery => formatSQL(sql, formatter, options);
+SQL.describe = (
+  sql: SQL | SQL[],
+  formatter: SQLFormatter,
+  options?: FormatSQLOptions,
+): string => describeSQL(sql, formatter, options);
 SQL.in = (column: string, values: unknown[]) => SQLIn.from({ column, values });
 SQL.identifier = SQLIdentifier.from;
 SQL.plain = SQLPlain.from;
 
 SQL.check = {
   isSQL,
-  isParametrizedSQL: (value: unknown) => isParametrizedSQL(value),
+  isTokenizedSQL: (value: unknown) => isTokenizedSQL(value),
   isEmpty,
   isIdentifier: SQLIdentifier.check,
   isPlain: SQLPlain.check,

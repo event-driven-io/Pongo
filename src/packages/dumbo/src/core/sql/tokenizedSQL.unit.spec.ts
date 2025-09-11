@@ -1,19 +1,19 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
-import { isParametrizedSQL, type ParametrizedSQL } from './parametrizedSQL';
 import { SQL } from './sql';
+import { isTokenizedSQL, type TokenizedSQL } from './tokenizedSQL';
 import { SQLIdentifier, SQLLiteral } from './tokens';
 
-const asParametrizedSQL = (sql: SQL): ParametrizedSQL =>
-  sql as unknown as ParametrizedSQL;
+const asTokenizedSQL = (sql: SQL): TokenizedSQL =>
+  sql as unknown as TokenizedSQL;
 
 void describe('SQL Parametrizer', () => {
-  void describe('ParametrizedSQL interface structure', () => {
+  void describe('TokenizedSQL interface structure', () => {
     void it('should have correct interface structure', () => {
-      const result = asParametrizedSQL(SQL`SELECT * FROM users`);
+      const result = asTokenizedSQL(SQL`SELECT * FROM users`);
 
-      assert.ok(isParametrizedSQL(result));
-      assert.equal(result.__brand, 'parametrized-sql');
+      assert.ok(isTokenizedSQL(result));
+      assert.equal(result.__brand, 'tokenized-sql');
       assert.ok(Array.isArray(result.sqlChunks));
       assert.ok(Array.isArray(result.sqlTokens));
     });
@@ -21,9 +21,7 @@ void describe('SQL Parametrizer', () => {
 
   void describe('basic template literal parametrization', () => {
     void it('should parametrize simple value interpolation', () => {
-      const result = asParametrizedSQL(
-        SQL`SELECT * FROM users WHERE id = ${123}`,
-      );
+      const result = asTokenizedSQL(SQL`SELECT * FROM users WHERE id = ${123}`);
 
       assert.deepStrictEqual(result.sqlChunks, [
         'SELECT * FROM users WHERE id = ',
@@ -33,7 +31,7 @@ void describe('SQL Parametrizer', () => {
     });
 
     void it('handles multiple parameters', () => {
-      const result = asParametrizedSQL(
+      const result = asTokenizedSQL(
         SQL`SELECT * FROM users WHERE id = ${123} AND name = ${'John'}`,
       );
 
@@ -50,7 +48,7 @@ void describe('SQL Parametrizer', () => {
     });
 
     void it('handles no parameters', () => {
-      const result = asParametrizedSQL(SQL`SELECT * FROM users`);
+      const result = asTokenizedSQL(SQL`SELECT * FROM users`);
 
       assert.equal(result.sqlChunks, 'SELECT * FROM users');
       assert.deepEqual(result.sqlTokens, []);
@@ -59,7 +57,7 @@ void describe('SQL Parametrizer', () => {
 
   void describe('placeholder generation', () => {
     void it('should generate sequential placeholders', () => {
-      const result = asParametrizedSQL(
+      const result = asTokenizedSQL(
         SQL`INSERT INTO users (id, name, age) VALUES (${1}, ${'Alice'}, ${30})`,
       );
       assert.deepStrictEqual(result.sqlChunks, [
@@ -80,7 +78,7 @@ void describe('SQL Parametrizer', () => {
 
     void it('handles many parameters', () => {
       const values = Array.from({ length: 10 }, (_, i) => i + 1);
-      const result = asParametrizedSQL(
+      const result = asTokenizedSQL(
         SQL`SELECT * FROM table WHERE id IN (${values[0]}, ${values[1]}, ${values[2]}, ${values[3]}, ${values[4]}, ${values[5]}, ${values[6]}, ${values[7]}, ${values[8]}, ${values[9]})`,
       );
       assert.deepStrictEqual(result.sqlChunks, [
@@ -116,7 +114,7 @@ void describe('SQL Parametrizer', () => {
   void describe('parameter array extraction', () => {
     void it('should extract different value types', () => {
       const date = new Date('2024-01-01');
-      const result = asParametrizedSQL(
+      const result = asTokenizedSQL(
         SQL`INSERT INTO logs (id, message, created_at, count) VALUES (${123}, ${'test'}, ${date}, ${null})`,
       );
       assert.deepStrictEqual(result.sqlChunks, [
@@ -139,7 +137,7 @@ void describe('SQL Parametrizer', () => {
     });
 
     void it('handles undefined values', () => {
-      const result = asParametrizedSQL(
+      const result = asTokenizedSQL(
         SQL`SELECT * FROM users WHERE status = ${undefined}`,
       );
       assert.deepStrictEqual(result.sqlChunks, [
@@ -153,7 +151,7 @@ void describe('SQL Parametrizer', () => {
   void describe('nested SQL template flattening', () => {
     void it('should flatten simple nested SQL', () => {
       const subQuery = SQL`SELECT id FROM roles WHERE name = ${'admin'}`;
-      const mainQuery = asParametrizedSQL(
+      const mainQuery = asTokenizedSQL(
         SQL`SELECT * FROM users WHERE role_id IN (${subQuery})`,
       );
       assert.deepStrictEqual(mainQuery.sqlChunks, [
@@ -168,7 +166,7 @@ void describe('SQL Parametrizer', () => {
     void it('handles deeply nested SQL', () => {
       const inner = SQL`SELECT id FROM permissions WHERE name = ${'read'}`;
       const middle = SQL`SELECT role_id FROM role_permissions WHERE permission_id IN (${inner})`;
-      const outer = asParametrizedSQL(
+      const outer = asTokenizedSQL(
         SQL`SELECT * FROM users WHERE role_id IN (${middle})`,
       );
       assert.deepStrictEqual(outer.sqlChunks, [
@@ -185,7 +183,7 @@ void describe('SQL Parametrizer', () => {
     void it('handles multiple nested SQL with parameters', () => {
       const subQuery1 = SQL`SELECT id FROM roles WHERE name = ${'admin'}`;
       const subQuery2 = SQL`SELECT id FROM departments WHERE code = ${'IT'}`;
-      const mainQuery = asParametrizedSQL(
+      const mainQuery = asTokenizedSQL(
         SQL`SELECT * FROM users WHERE role_id IN (${subQuery1}) AND dept_id IN (${subQuery2})`,
       );
       assert.deepStrictEqual(mainQuery.sqlChunks, [
@@ -207,14 +205,14 @@ void describe('SQL Parametrizer', () => {
   void describe('special value types', () => {
     void describe('identifier() values', () => {
       void it('should pass through identifier values as parameters', () => {
-        const result = asParametrizedSQL(
+        const result = asTokenizedSQL(
           SQL`SELECT * FROM ${SQL.identifier('users')}`,
         );
         assert.deepStrictEqual(result.sqlChunks, ['SELECT * FROM ', '__P__']);
         assert.deepEqual(result.sqlTokens, [SQL.identifier('users')]);
       });
       void it('should pass through all values as parameters', () => {
-        const result = asParametrizedSQL(
+        const result = asTokenizedSQL(
           SQL`SELECT ${SQL.identifier('name')}, ${SQL.identifier('age')} FROM ${SQL.identifier('users')} WHERE id = ${123}`,
         );
         assert.deepStrictEqual(result.sqlChunks, [
@@ -237,7 +235,7 @@ void describe('SQL Parametrizer', () => {
     });
     void describe('raw() values', () => {
       void it('should inline raw SQL immediately', () => {
-        const result = asParametrizedSQL(
+        const result = asTokenizedSQL(
           SQL`SELECT * FROM users ${SQL.plain('ORDER BY created_at DESC')}`,
         );
         assert.deepStrictEqual(result.sqlChunks, [
@@ -248,7 +246,7 @@ void describe('SQL Parametrizer', () => {
       });
 
       void it('should inline raw values and parametrize other values', () => {
-        const result = asParametrizedSQL(
+        const result = asTokenizedSQL(
           SQL`SELECT * FROM users WHERE ${SQL.plain("status = 'active'")} AND id = ${123}`,
         );
         assert.deepStrictEqual(result.sqlChunks, [
@@ -263,7 +261,7 @@ void describe('SQL Parametrizer', () => {
 
     void describe('mixed special value types', () => {
       void it('should pass through all special types as parameters', () => {
-        const result = asParametrizedSQL(SQL`
+        const result = asTokenizedSQL(SQL`
             SELECT ${SQL.identifier('id')}, ${SQL.identifier('name')}
             FROM ${SQL.identifier('users')}
             WHERE status = ${'active'}
@@ -295,7 +293,7 @@ void describe('SQL Parametrizer', () => {
       });
 
       void it('should maintain sequential parameter numbering', () => {
-        const result = asParametrizedSQL(SQL`
+        const result = asTokenizedSQL(SQL`
             INSERT INTO ${SQL.identifier('logs')} (${SQL.identifier('level')}, message, user_id, ${SQL.plain('created_at')})
             VALUES (${'ERROR'}, ${'Database connection failed'}, ${42}, ${SQL.plain('NOW()')})
           `);

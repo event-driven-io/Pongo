@@ -130,7 +130,7 @@ void describe('SQLite Parametrized Formatter', () => {
     void it('throws error for non-parametrized SQL', () => {
       assert.throws(() => {
         sqliteFormatter.format('SELECT * FROM users' as SQL);
-      }, /Expected ParametrizedSQL, got string-based SQL/);
+      }, /Expected TokenizedSQL, got string-based SQL/);
     });
   });
 
