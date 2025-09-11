@@ -1,7 +1,7 @@
 import assert from 'assert';
 import { describe, it } from 'node:test';
 import { pgFormatter } from '.';
-import { SQL, isParametrizedSQL, isSQL } from '../../../../../core/sql';
+import { SQL, isSQL, isTokenizedSQL } from '../../../../../core/sql';
 
 void describe('SQLite SQL Tagged Template Literal', () => {
   void it('should format identifiers correctly', () => {
@@ -75,7 +75,7 @@ void describe('SQLite SQL Tagged Template Literal', () => {
   void it('should work with raw SQL', () => {
     const rawQuery = SQL`SELECT * FROM users`;
     assert.strictEqual(isSQL(rawQuery), true);
-    assert.strictEqual(isParametrizedSQL(rawQuery), true);
+    assert.strictEqual(isTokenizedSQL(rawQuery), true);
     assert.deepStrictEqual(SQL.format(rawQuery, pgFormatter), {
       query: 'SELECT * FROM users',
       params: [],

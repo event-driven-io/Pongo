@@ -1,17 +1,17 @@
-import { JSONSerializer } from '../serializer';
+import { JSONSerializer } from '../../serializer';
 import {
   ParametrizedQueryBuilder,
   type ParametrizedQuery,
-} from './parametrizedQuery';
-import { isParametrizedSQL, ParametrizedSQL } from './parametrizedSQL';
+} from '../parametrizedQuery';
 import {
   defaultProcessorsRegistry,
   SQLProcessorsRegistry,
   type SQLProcessorContext,
   type SQLProcessorsReadonlyRegistry,
-} from './processors';
-import { SQL } from './sql';
-import { SQLValueMapper, type MapSQLParamValueOptions } from './valueMappers';
+} from '../processors';
+import { SQL } from '../sql';
+import { isTokenizedSQL, TokenizedSQL } from '../tokenizedSQL';
+import { SQLValueMapper, type MapSQLParamValueOptions } from '../valueMappers';
 
 export interface SQLFormatter {
   format: (
@@ -23,9 +23,8 @@ export interface SQLFormatter {
 }
 
 export type FormatSQLOptions = {
-  mapper: MapSQLParamValueOptions;
-  builder: ParametrizedQueryBuilder;
-  processorsRegistry: SQLProcessorsReadonlyRegistry;
+  mapper?: MapSQLParamValueOptions;
+  processorsRegistry?: SQLProcessorsReadonlyRegistry;
 };
 
 export type SQLFormatterOptions = Partial<Omit<SQLFormatter, 'valueMapper'>> & {
@@ -103,10 +102,10 @@ export function formatSQL(
 
   const merged = (Array.isArray(sql)
     ? SQL.merge(sql, '\n')
-    : sql) as unknown as ParametrizedSQL;
+    : sql) as unknown as TokenizedSQL;
 
-  if (!isParametrizedSQL(merged)) {
-    throw new Error('Expected ParametrizedSQL, got string-based SQL');
+  if (!isTokenizedSQL(merged)) {
+    throw new Error('Expected TokenizedSQL, got string-based SQL');
   }
 
   const builder = ParametrizedQueryBuilder({
@@ -118,7 +117,7 @@ export function formatSQL(
   for (let i = 0; i < merged.sqlChunks.length; i++) {
     const sqlChunk = merged.sqlChunks[i]!;
 
-    if (sqlChunk !== ParametrizedSQL.paramPlaceholder) {
+    if (sqlChunk !== TokenizedSQL.paramPlaceholder) {
       builder.addSQL(sqlChunk);
       continue;
     }
@@ -146,10 +145,10 @@ export function formatSQL(
 export const describeSQL = (
   sql: SQL | SQL[],
   formatter: SQLFormatter,
-  options: FormatSQLOptions,
+  options?: FormatSQLOptions,
 ): string =>
   formatSQL(sql, formatter, {
-    ...options,
+    ...(options ?? {}),
     mapper: {
       mapPlaceholder: (_, value) => JSONSerializer.serialize(value),
     },
