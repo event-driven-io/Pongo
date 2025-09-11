@@ -8,6 +8,7 @@ import {
   defaultProcessorsRegistry,
   SQLProcessorsRegistry,
   type SQLProcessorContext,
+  type SQLProcessorsReadonlyRegistry,
 } from './processors';
 import { SQL } from './sql';
 import { SQLValueMapper, type MapSQLParamValueOptions } from './valueMappers';
@@ -21,7 +22,11 @@ export interface SQLFormatter {
   valueMapper: SQLValueMapper;
 }
 
-export type FormatSQLOptions = Partial<SQLProcessorContext>;
+export type FormatSQLOptions = {
+  mapper: MapSQLParamValueOptions;
+  builder: ParametrizedQueryBuilder;
+  processorsRegistry: SQLProcessorsReadonlyRegistry;
+};
 
 export type SQLFormatterOptions = Partial<Omit<SQLFormatter, 'valueMapper'>> & {
   valueMapper?: MapSQLParamValueOptions;
@@ -86,7 +91,13 @@ export function formatSQL(
   formatter: SQLFormatter,
   context?: FormatSQLOptions,
 ): ParametrizedQuery {
-  const mapper = context?.mapper ?? formatter.valueMapper;
+  const mapper: SQLValueMapper =
+    context?.mapper == undefined
+      ? formatter.valueMapper
+      : {
+          ...formatter.valueMapper,
+          ...context.mapper,
+        };
   const processorsRegistry =
     context?.processorsRegistry ?? defaultProcessorsRegistry;
 
@@ -132,10 +143,6 @@ export function formatSQL(
   return builder.build();
 }
 
-const describeSQLMapper = SQLValueMapper({
-  mapPlaceholder: (_, value) => JSONSerializer.serialize(value),
-});
-
 export const describeSQL = (
   sql: SQL | SQL[],
   formatter: SQLFormatter,
@@ -144,7 +151,6 @@ export const describeSQL = (
   formatSQL(sql, formatter, {
     ...options,
     mapper: {
-      ...(options?.mapper ?? describeSQLMapper),
       mapPlaceholder: (_, value) => JSONSerializer.serialize(value),
     },
   }).query;

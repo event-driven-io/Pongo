@@ -3,14 +3,14 @@ import { SQL } from '../sql';
 import { ansiSqlReservedMap as ansiSqlReservedWordsMap } from './reservedSqlWords';
 
 export interface SQLValueMapper {
-  mapValue: (value: unknown) => unknown;
+  mapValue: MapSQLParamValue;
   mapPlaceholder: (index: number, value: unknown) => string;
   mapIdentifier: (value: string) => string;
 }
 
 export type MapSQLParamValue = (
   value: unknown,
-  options: MapSQLParamValueOptions,
+  options?: MapSQLParamValueOptions,
 ) => unknown;
 
 export interface MapSQLParamValueOptions {
@@ -93,7 +93,7 @@ export const SQLValueMapper = (
 
 export function mapSQLParamValue(
   value: unknown,
-  options: MapSQLParamValueOptions,
+  options?: MapSQLParamValueOptions,
 ): unknown {
   if (value === null || value === undefined) {
     return null;
@@ -102,20 +102,20 @@ export function mapSQLParamValue(
   } else if (typeof value === 'string') {
     return value;
   } else if (Array.isArray(value)) {
-    const mapValue: MapSQLParamValue = options.mapValue ?? mapSQLParamValue;
-    return options.mapArray
+    const mapValue: MapSQLParamValue = options?.mapValue ?? mapSQLParamValue;
+    return options?.mapArray
       ? options.mapArray(value, mapValue)
       : value.map((item) => mapValue(item, options));
   } else if (typeof value === 'boolean') {
-    return options.mapBoolean ? options.mapBoolean(value) : value;
+    return options?.mapBoolean ? options.mapBoolean(value) : value;
   } else if (typeof value === 'bigint') {
-    return options.mapBigInt ? options.mapBigInt(value) : value.toString();
+    return options?.mapBigInt ? options.mapBigInt(value) : value.toString();
   } else if (value instanceof Date) {
-    return options.mapDate ? options.mapDate(value) : value.toISOString();
+    return options?.mapDate ? options.mapDate(value) : value.toISOString();
   } else if (SQL.check.isIdentifier(value)) {
-    return (options.mapIdentifier ?? mapSQLIdentifier)(value.value);
+    return (options?.mapIdentifier ?? mapSQLIdentifier)(value.value);
   } else if (typeof value === 'object') {
-    return options.mapObject
+    return options?.mapObject
       ? options.mapObject(value)
       : `${JSONSerializer.serialize(value).replace(/'/g, "''")}`;
   } else {
