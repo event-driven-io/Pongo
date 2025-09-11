@@ -2,6 +2,7 @@ import assert from 'node:assert';
 import { describe, it } from 'node:test';
 import { isParametrizedSQL, type ParametrizedSQL } from './parametrizedSQL';
 import { SQL } from './sql';
+import { SQLIdentifier, SQLLiteral } from './tokens';
 
 const asParametrizedSQL = (sql: SQL): ParametrizedSQL =>
   sql as unknown as ParametrizedSQL;
@@ -28,7 +29,7 @@ void describe('SQL Parametrizer', () => {
         'SELECT * FROM users WHERE id = ',
         '__P__',
       ]);
-      assert.deepEqual(result.sqlTokens, [123]);
+      assert.deepEqual(result.sqlTokens, [SQLLiteral.from(123)]);
     });
 
     void it('handles multiple parameters', () => {
@@ -42,7 +43,10 @@ void describe('SQL Parametrizer', () => {
         ' AND name = ',
         '__P__',
       ]);
-      assert.deepEqual(result.sqlTokens, [123, 'John']);
+      assert.deepEqual(result.sqlTokens, [
+        SQLLiteral.from(123),
+        SQLLiteral.from('John'),
+      ]);
     });
 
     void it('handles no parameters', () => {
@@ -58,7 +62,6 @@ void describe('SQL Parametrizer', () => {
       const result = asParametrizedSQL(
         SQL`INSERT INTO users (id, name, age) VALUES (${1}, ${'Alice'}, ${30})`,
       );
-
       assert.deepStrictEqual(result.sqlChunks, [
         'INSERT INTO users (id, name, age) VALUES (',
         '__P__',
@@ -68,7 +71,11 @@ void describe('SQL Parametrizer', () => {
         '__P__',
         ')',
       ]);
-      assert.deepEqual(result.sqlTokens, [1, 'Alice', 30]);
+      assert.deepEqual(result.sqlTokens, [
+        SQLLiteral.from(1),
+        SQLLiteral.from('Alice'),
+        SQLLiteral.from(30),
+      ]);
     });
 
     void it('handles many parameters', () => {
@@ -99,7 +106,10 @@ void describe('SQL Parametrizer', () => {
         '__P__',
         ')',
       ]);
-      assert.deepEqual(result.sqlTokens, values);
+      assert.deepEqual(
+        result.sqlTokens,
+        values.map((v) => SQLLiteral.from(v)),
+      );
     });
   });
 
@@ -109,7 +119,6 @@ void describe('SQL Parametrizer', () => {
       const result = asParametrizedSQL(
         SQL`INSERT INTO logs (id, message, created_at, count) VALUES (${123}, ${'test'}, ${date}, ${null})`,
       );
-
       assert.deepStrictEqual(result.sqlChunks, [
         'INSERT INTO logs (id, message, created_at, count) VALUES (',
         '__P__',
@@ -121,19 +130,23 @@ void describe('SQL Parametrizer', () => {
         '__P__',
         ')',
       ]);
-      assert.deepEqual(result.sqlTokens, [123, 'test', date, null]);
+      assert.deepEqual(result.sqlTokens, [
+        SQLLiteral.from(123),
+        SQLLiteral.from('test'),
+        SQLLiteral.from(date),
+        SQLLiteral.from(null),
+      ]);
     });
 
     void it('handles undefined values', () => {
       const result = asParametrizedSQL(
         SQL`SELECT * FROM users WHERE status = ${undefined}`,
       );
-
       assert.deepStrictEqual(result.sqlChunks, [
         'SELECT * FROM users WHERE status = ',
         '__P__',
       ]);
-      assert.deepEqual(result.sqlTokens, [undefined]);
+      assert.deepEqual(result.sqlTokens, [SQLLiteral.from(undefined)]);
     });
   });
 
@@ -143,14 +156,13 @@ void describe('SQL Parametrizer', () => {
       const mainQuery = asParametrizedSQL(
         SQL`SELECT * FROM users WHERE role_id IN (${subQuery})`,
       );
-
       assert.deepStrictEqual(mainQuery.sqlChunks, [
         'SELECT * FROM users WHERE role_id IN (',
         'SELECT id FROM roles WHERE name = ',
         '__P__',
         ')',
       ]);
-      assert.deepEqual(mainQuery.sqlTokens, ['admin']);
+      assert.deepEqual(mainQuery.sqlTokens, [SQLLiteral.from('admin')]);
     });
 
     void it('handles deeply nested SQL', () => {
@@ -159,7 +171,6 @@ void describe('SQL Parametrizer', () => {
       const outer = asParametrizedSQL(
         SQL`SELECT * FROM users WHERE role_id IN (${middle})`,
       );
-
       assert.deepStrictEqual(outer.sqlChunks, [
         'SELECT * FROM users WHERE role_id IN (',
         'SELECT role_id FROM role_permissions WHERE permission_id IN (',
@@ -168,7 +179,7 @@ void describe('SQL Parametrizer', () => {
         ')',
         ')',
       ]);
-      assert.deepEqual(outer.sqlTokens, ['read']);
+      assert.deepEqual(outer.sqlTokens, [SQLLiteral.from('read')]);
     });
 
     void it('handles multiple nested SQL with parameters', () => {
@@ -177,7 +188,6 @@ void describe('SQL Parametrizer', () => {
       const mainQuery = asParametrizedSQL(
         SQL`SELECT * FROM users WHERE role_id IN (${subQuery1}) AND dept_id IN (${subQuery2})`,
       );
-
       assert.deepStrictEqual(mainQuery.sqlChunks, [
         'SELECT * FROM users WHERE role_id IN (',
         'SELECT id FROM roles WHERE name = ',
@@ -187,7 +197,10 @@ void describe('SQL Parametrizer', () => {
         '__P__',
         ')',
       ]);
-      assert.deepEqual(mainQuery.sqlTokens, ['admin', 'IT']);
+      assert.deepEqual(mainQuery.sqlTokens, [
+        SQLLiteral.from('admin'),
+        SQLLiteral.from('IT'),
+      ]);
     });
   });
 
@@ -197,16 +210,13 @@ void describe('SQL Parametrizer', () => {
         const result = asParametrizedSQL(
           SQL`SELECT * FROM ${SQL.identifier('users')}`,
         );
-
         assert.deepStrictEqual(result.sqlChunks, ['SELECT * FROM ', '__P__']);
         assert.deepEqual(result.sqlTokens, [SQL.identifier('users')]);
       });
-
       void it('should pass through all values as parameters', () => {
         const result = asParametrizedSQL(
           SQL`SELECT ${SQL.identifier('name')}, ${SQL.identifier('age')} FROM ${SQL.identifier('users')} WHERE id = ${123}`,
         );
-
         assert.deepStrictEqual(result.sqlChunks, [
           'SELECT ',
           '__P__',
@@ -218,20 +228,18 @@ void describe('SQL Parametrizer', () => {
           '__P__',
         ]);
         assert.deepEqual(result.sqlTokens, [
-          SQL.identifier('name'),
-          SQL.identifier('age'),
-          SQL.identifier('users'),
-          123,
+          SQLIdentifier.from('name'),
+          SQLIdentifier.from('age'),
+          SQLIdentifier.from('users'),
+          SQLLiteral.from(123),
         ]);
       });
     });
-
     void describe('raw() values', () => {
       void it('should inline raw SQL immediately', () => {
         const result = asParametrizedSQL(
           SQL`SELECT * FROM users ${SQL.plain('ORDER BY created_at DESC')}`,
         );
-
         assert.deepStrictEqual(result.sqlChunks, [
           'SELECT * FROM users ',
           'ORDER BY created_at DESC',
@@ -243,67 +251,64 @@ void describe('SQL Parametrizer', () => {
         const result = asParametrizedSQL(
           SQL`SELECT * FROM users WHERE ${SQL.plain("status = 'active'")} AND id = ${123}`,
         );
-
         assert.deepStrictEqual(result.sqlChunks, [
           'SELECT * FROM users WHERE ',
           "status = 'active'",
           ' AND id = ',
           '__P__',
         ]);
-        assert.deepEqual(result.sqlTokens, [123]);
+        assert.deepEqual(result.sqlTokens, [SQLLiteral.from(123)]);
       });
     });
 
     void describe('mixed special value types', () => {
       void it('should pass through all special types as parameters', () => {
         const result = asParametrizedSQL(SQL`
-          SELECT ${SQL.identifier('id')}, ${SQL.identifier('name')}
-          FROM ${SQL.identifier('users')}
-          WHERE status = ${'active'}
-            AND id > ${100}
-            ${SQL.plain("AND created_at > NOW() - INTERVAL '7 days'")}
-        `);
-
+            SELECT ${SQL.identifier('id')}, ${SQL.identifier('name')}
+            FROM ${SQL.identifier('users')}
+            WHERE status = ${'active'}
+              AND id > ${100}
+              ${SQL.plain("AND created_at > NOW() - INTERVAL '7 days'")}
+          `);
         assert.deepStrictEqual(result.sqlChunks, [
-          '\n          SELECT ',
+          '\n            SELECT ',
           '__P__',
           ', ',
           '__P__',
-          '\n          FROM ',
+          '\n            FROM ',
           '__P__',
-          '\n          WHERE status = ',
+          '\n            WHERE status = ',
           '__P__',
-          '\n            AND id > ',
+          '\n              AND id > ',
           '__P__',
-          '\n            ',
+          '\n              ',
           "AND created_at > NOW() - INTERVAL '7 days'",
-          '\n        ',
+          '\n          ',
         ]);
         assert.deepEqual(result.sqlTokens, [
-          SQL.identifier('id'),
-          SQL.identifier('name'),
-          SQL.identifier('users'),
-          'active',
-          100,
+          SQLIdentifier.from('id'),
+          SQLIdentifier.from('name'),
+          SQLIdentifier.from('users'),
+          SQLLiteral.from('active'),
+          SQLLiteral.from(100),
         ]);
       });
 
       void it('should maintain sequential parameter numbering', () => {
         const result = asParametrizedSQL(SQL`
-          INSERT INTO ${SQL.identifier('logs')} (${SQL.identifier('level')}, message, user_id, ${SQL.plain('created_at')})
-          VALUES (${'ERROR'}, ${'Database connection failed'}, ${42}, ${SQL.plain('NOW()')})
-        `);
-
+            INSERT INTO ${SQL.identifier('logs')} (${SQL.identifier('level')}, message, user_id, ${SQL.plain('created_at')})
+            VALUES (${'ERROR'}, ${'Database connection failed'}, ${42}, ${SQL.plain('NOW()')})
+          `);
         assert.deepStrictEqual(result.sqlChunks, [
           `
-          INSERT INTO `,
+            INSERT INTO `,
           `__P__`,
           ` (`,
           `__P__`,
           `, message, user_id, `,
           `created_at`,
           `)
-          VALUES (`,
+            VALUES (`,
           `__P__`,
           `, `,
           `__P__`,
@@ -312,14 +317,14 @@ void describe('SQL Parametrizer', () => {
           `, `,
           `NOW()`,
           `)
-        `,
+          `,
         ]);
         assert.deepEqual(result.sqlTokens, [
-          SQL.identifier('logs'),
-          SQL.identifier('level'),
-          'ERROR',
-          'Database connection failed',
-          42,
+          SQLIdentifier.from('logs'),
+          SQLIdentifier.from('level'),
+          SQLLiteral.from('ERROR'),
+          SQLLiteral.from('Database connection failed'),
+          SQLLiteral.from(42),
         ]);
       });
     });

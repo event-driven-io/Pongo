@@ -1,4 +1,4 @@
-import { SQLLiteral, SQLPlain, SQLToken } from './tokens';
+import { SQLArray, SQLLiteral, SQLPlain, SQLToken } from './tokens';
 
 export type ParametrizedSQL = Readonly<{
   __brand: 'parametrized-sql';
@@ -56,7 +56,11 @@ export const ParametrizedSQL = (
     } else {
       builder.addSQL(ParametrizedSQL.paramPlaceholder);
       builder.addToken(
-        SQLToken.check(value) ? value : SQLLiteral.from({ value }),
+        SQLToken.check(value)
+          ? value
+          : Array.isArray(value)
+            ? SQLArray.from(value)
+            : SQLLiteral.from(value),
       );
     }
   }
