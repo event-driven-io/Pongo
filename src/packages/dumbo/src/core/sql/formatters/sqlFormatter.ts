@@ -1,8 +1,8 @@
 import { JSONSerializer } from '../../serializer';
 import {
-  ParametrizedQueryBuilder,
-  type ParametrizedQuery,
-} from '../parametrizedQuery';
+  ParametrizedSQLBuilder,
+  type ParametrizedSQL,
+} from '../parametrizedSQL';
 import {
   defaultProcessorsRegistry,
   SQLProcessorsRegistry,
@@ -14,10 +14,7 @@ import { isTokenizedSQL, TokenizedSQL } from '../tokenizedSQL';
 import { SQLValueMapper, type MapSQLParamValueOptions } from '../valueMappers';
 
 export interface SQLFormatter {
-  format: (
-    sql: SQL | SQL[],
-    context?: SQLProcessorContext,
-  ) => ParametrizedQuery;
+  format: (sql: SQL | SQL[], context?: SQLProcessorContext) => ParametrizedSQL;
   describe: (sql: SQL | SQL[], context?: SQLProcessorContext) => string;
   valueMapper: SQLValueMapper;
 }
@@ -40,7 +37,7 @@ export const SQLFormatter = ({
 }: SQLFormatterOptions): SQLFormatter => {
   const valueMapper = SQLValueMapper(valueMapperOptions);
   const options = {
-    builder: ParametrizedQueryBuilder({
+    builder: ParametrizedSQLBuilder({
       mapParamPlaceholder: valueMapper.mapPlaceholder,
     }),
     mapper: valueMapper,
@@ -89,7 +86,7 @@ export function formatSQL(
   sql: SQL | SQL[],
   formatter: SQLFormatter,
   context?: FormatSQLOptions,
-): ParametrizedQuery {
+): ParametrizedSQL {
   const mapper: SQLValueMapper =
     context?.mapper == undefined
       ? formatter.valueMapper
@@ -108,7 +105,7 @@ export function formatSQL(
     throw new Error('Expected TokenizedSQL, got string-based SQL');
   }
 
-  const builder = ParametrizedQueryBuilder({
+  const builder = ParametrizedSQLBuilder({
     mapParamPlaceholder: mapper.mapPlaceholder,
   });
 

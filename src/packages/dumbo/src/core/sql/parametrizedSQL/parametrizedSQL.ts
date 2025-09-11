@@ -1,34 +1,34 @@
-export interface ParametrizedQuery {
+export interface ParametrizedSQL {
   query: string;
   params: unknown[];
 }
 
-export type ParametrizedQueryBuilder = {
-  addSQL: (str: string) => ParametrizedQueryBuilder;
-  addParam(value: unknown): ParametrizedQueryBuilder;
-  addParams(values: unknown[]): ParametrizedQueryBuilder;
-  build: () => ParametrizedQuery;
-};
+export interface ParametrizedSQLBuilder {
+  addSQL: (str: string) => ParametrizedSQLBuilder;
+  addParam(value: unknown): ParametrizedSQLBuilder;
+  addParams(values: unknown[]): ParametrizedSQLBuilder;
+  build: () => ParametrizedSQL;
+}
 
-export const ParametrizedQueryBuilder = ({
+export const ParametrizedSQLBuilder = ({
   mapParamPlaceholder,
 }: {
   mapParamPlaceholder: (index: number, value: unknown) => string;
-}): ParametrizedQueryBuilder => {
+}): ParametrizedSQLBuilder => {
   const sql: string[] = [];
   const params: unknown[] = [];
 
   return {
-    addSQL(str: string): ParametrizedQueryBuilder {
+    addSQL(str: string): ParametrizedSQLBuilder {
       sql.push(str);
       return this;
     },
-    addParam(value: unknown): ParametrizedQueryBuilder {
+    addParam(value: unknown): ParametrizedSQLBuilder {
       sql.push(mapParamPlaceholder(params.length, value));
       params.push(value);
       return this;
     },
-    addParams(values: unknown[]): ParametrizedQueryBuilder {
+    addParams(values: unknown[]): ParametrizedSQLBuilder {
       const placeholders = values.map((value, i) =>
         mapParamPlaceholder(params.length + i, value),
       );
@@ -36,7 +36,7 @@ export const ParametrizedQueryBuilder = ({
       params.push(...values);
       return this;
     },
-    build(): ParametrizedQuery {
+    build(): ParametrizedSQL {
       return {
         query: sql.join(''),
         params,

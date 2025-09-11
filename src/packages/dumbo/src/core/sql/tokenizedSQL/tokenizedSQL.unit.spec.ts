@@ -1,8 +1,8 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
-import { SQL } from './sql';
-import { isTokenizedSQL, type TokenizedSQL } from './tokenizedSQL';
-import { SQLIdentifier, SQLLiteral } from './tokens';
+import { isTokenizedSQL, type TokenizedSQL } from '.';
+import { SQL } from '../sql';
+import { SQLIdentifier, SQLLiteral } from '../tokens';
 
 const asTokenizedSQL = (sql: SQL): TokenizedSQL =>
   sql as unknown as TokenizedSQL;
