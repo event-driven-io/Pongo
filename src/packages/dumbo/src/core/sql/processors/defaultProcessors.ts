@@ -24,7 +24,7 @@ export const ExpandSQLInProcessor: SQLProcessor<SQLIn> = SQLProcessor({
       return;
     }
 
-    builder.addSQL(mapper.mapIdentifier(column.value));
+    builder.addSQL(mapper.mapValue(column.value) as string);
     builder.addSQL(` IN `);
 
     const arrayProcessor = processorsRegistry.get(SQLArray.type);

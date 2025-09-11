@@ -10,7 +10,7 @@ import {
   type SQLProcessorContext,
 } from './processors';
 import { SQL } from './sql';
-import { SQLValueMapper } from './valueMappers';
+import { SQLValueMapper, type MapSQLParamValueOptions } from './valueMappers';
 
 export interface SQLFormatter {
   format: (
@@ -24,7 +24,7 @@ export interface SQLFormatter {
 export type FormatSQLOptions = Partial<SQLProcessorContext>;
 
 export type SQLFormatterOptions = Partial<Omit<SQLFormatter, 'valueMapper'>> & {
-  valueMapper?: Partial<SQLValueMapper>;
+  valueMapper?: MapSQLParamValueOptions;
   processorsRegistry?: SQLProcessorsRegistry;
 };
 
