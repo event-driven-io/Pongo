@@ -47,9 +47,6 @@ export const SQLLiteral = SQLToken<SQLLiteral>('SQL_LITERAL');
 export type SQLArray = SQLToken<'SQL_ARRAY', unknown[]>;
 export const SQLArray = SQLToken<SQLArray>('SQL_ARRAY');
 
-export type SQLDefaultTokens = SQLIdentifier | SQLPlain | SQLLiteral | SQLArray;
-export type SQLDefaultTokensTypes = SQLDefaultTokens['sqlTokenType'];
-
 export type SQLIn = SQLToken<
   'SQL_IN',
   { column: SQLIdentifier; values: SQLArray }
@@ -62,3 +59,6 @@ export const SQLIn = SQLToken<SQLIn, { column: string; values: unknown[] }>(
     values: SQLArray.from(values),
   }),
 );
+
+export type SQLDefaultTokens = SQLIdentifier | SQLPlain | SQLLiteral | SQLArray;
+export type SQLDefaultTokensTypes = SQLDefaultTokens['sqlTokenType'];
