@@ -1,5 +1,6 @@
-import type { ParametrizedQueryBuilder, SQLValueMapper } from '../sqlFormatter';
+import type { ParametrizedQueryBuilder } from '../parametrizedQuery';
 import type { SQLToken } from '../tokens';
+import type { SQLValueMapper } from '../valueMappers';
 import type { SQLProcessorsReadonlyRegistry } from './sqlProcessorRegistry';
 
 export type SQLProcessorContext = {

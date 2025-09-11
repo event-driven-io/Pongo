@@ -22,7 +22,7 @@ export const SQLToken = <
     return {
       sqlTokenType: sqlTokenType,
       [sqlTokenType]: true,
-      ...props,
+      value: props,
     } as unknown as SQLTokenType;
   };
 

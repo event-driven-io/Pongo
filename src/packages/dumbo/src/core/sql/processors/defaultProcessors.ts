@@ -46,7 +46,8 @@ export const FormatIdentifierProcessor: SQLProcessor<SQLIdentifier> =
       token: SQLIdentifier,
       { builder, mapper }: SQLProcessorContext,
     ) => {
-      builder.addParam(mapper.mapValue(token.value));
+      // TODO: use MapIdentifier from mapper
+      builder.addSQL(mapper.mapValue(token) as string);
     },
   });
 
