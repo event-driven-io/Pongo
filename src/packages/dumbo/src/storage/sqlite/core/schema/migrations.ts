@@ -10,14 +10,16 @@ import {
   type SchemaComponent,
 } from '../../../../core';
 
+const { Serial, Varchar, Timestamp } = SQL.column.type;
+
 const migrationTableSQL = SQL`
   CREATE TABLE IF NOT EXISTS migrations (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    application TEXT NOT NULL DEFAULT 'default',
-    sql_hash TEXT NOT NULL,
-    timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+    id ${Serial} PRIMARY KEY,
+    name ${Varchar(255)} NOT NULL UNIQUE,
+    application ${Varchar(255)} NOT NULL DEFAULT 'default',
+    sql_hash ${Varchar(64)} NOT NULL,
+    timestamp ${Timestamp} NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
 `;
 
 export const migrationTableSchemaComponent = schemaComponent(
