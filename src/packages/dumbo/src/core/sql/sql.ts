@@ -6,8 +6,13 @@ import {
 } from './formatters';
 import type { ParametrizedSQL } from './parametrizedSQL';
 import { isTokenizedSQL, TokenizedSQL } from './tokenizedSQL';
-import { SQLIdentifier, SQLIn, SQLPlain } from './tokens';
-import { SQLColumnToken, SQLColumnTokens } from './tokens/columnTokens';
+import {
+  SQLColumnToken,
+  SQLColumnTokens,
+  SQLIdentifier,
+  SQLIn,
+  SQLPlain,
+} from './tokens';
 
 export type SQL = string & { __brand: 'sql' };
 

@@ -6,6 +6,7 @@ import {
 } from './defaultProcessors';
 import { SQLProcessorsRegistry } from './sqlProcessorRegistry';
 
+export * from './columnProcessors';
 export * from './defaultProcessors';
 export * from './sqlProcessor';
 export * from './sqlProcessorRegistry';

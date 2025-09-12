@@ -1,11 +1,19 @@
 import {
   SQLFormatter,
+  SQLProcessorsRegistry,
+  defaultProcessorsRegistry,
   mapSQLIdentifier,
   registerFormatter,
 } from '../../../../../core';
+import { postgreSQLColumnProcessors } from '../processors';
 import reservedMap from './reserved';
 
+const postgreSQLProcessorsRegistry = SQLProcessorsRegistry({
+  from: defaultProcessorsRegistry,
+}).register(postgreSQLColumnProcessors);
+
 const pgFormatter: SQLFormatter = SQLFormatter({
+  processorsRegistry: postgreSQLProcessorsRegistry,
   valueMapper: {
     mapDate: (value: Date): unknown =>
       value.toISOString().replace('T', ' ').replace('Z', '+00'),
