@@ -4,10 +4,11 @@ import {
   SQLFormatter,
   SQLProcessorsRegistry,
 } from '../../../../../core/sql';
+import { sqliteColumnProcessors } from '../processors';
 
 const sqliteSQLProcessorsRegistry = SQLProcessorsRegistry({
   from: defaultProcessorsRegistry,
-}).register();
+}).register(sqliteColumnProcessors);
 
 const sqliteFormatter: SQLFormatter = SQLFormatter({
   processorsRegistry: sqliteSQLProcessorsRegistry,

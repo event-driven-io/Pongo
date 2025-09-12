@@ -9,32 +9,35 @@ const mapColumnType = (
   token: DefaultSQLColumnToken,
   { builder }: SQLProcessorContext,
 ): void => {
-  let columnType: string;
+  let columnSQL: string;
   const { sqlTokenType, value } = token;
   switch (sqlTokenType) {
+    case 'SQL_COLUMN_AUTO_INCREMENT':
+      columnSQL = `INTEGER ${value.primaryKey ? 'PRIMARY KEY' : ''} AUTOINCREMENT`;
+      break;
     case 'SQL_COLUMN_BIGINT':
-      columnType = 'INTEGER';
+      columnSQL = 'INTEGER';
       break;
     case 'SQL_COLUMN_SERIAL':
-      columnType = 'INTEGER';
+      columnSQL = 'INTEGER';
       break;
     case 'SQL_COLUMN_INTEGER':
-      columnType = 'INTEGER';
+      columnSQL = 'INTEGER';
       break;
     case 'SQL_COLUMN_JSONB':
-      columnType = 'BLOB';
+      columnSQL = 'BLOB';
       break;
     case 'SQL_COLUMN_BIGSERIAL':
-      columnType = 'INTEGER';
+      columnSQL = 'INTEGER';
       break;
     case 'SQL_COLUMN_TIMESTAMP':
-      columnType = 'DATETIME';
+      columnSQL = 'DATETIME';
       break;
     case 'SQL_COLUMN_TIMESTAMPTZ':
-      columnType = 'DATETIME';
+      columnSQL = 'DATETIME';
       break;
     case 'SQL_COLUMN_VARCHAR':
-      columnType = `VARCHAR ${Number.isNaN(value) ? '' : `(${value})`}`;
+      columnSQL = `VARCHAR ${Number.isNaN(value) ? '' : `(${value})`}`;
       break;
     default: {
       const exhaustiveCheck: never = sqlTokenType;
@@ -42,7 +45,7 @@ const mapColumnType = (
       throw new Error(`Unknown column type: ${exhaustiveCheck}`);
     }
   }
-  builder.addSQL(columnType);
+  builder.addSQL(columnSQL);
 };
 
 export const sqliteColumnProcessors: DefaultSQLColumnProcessors =

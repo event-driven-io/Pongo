@@ -26,6 +26,12 @@ export const mapDefaultSQLColumnProcessors = (
     context: SQLProcessorContext,
   ) => void,
 ): DefaultSQLColumnProcessors => ({
+  AutoIncrement: SQLProcessor({
+    canHandle: 'SQL_COLUMN_AUTO_INCREMENT',
+    handle: (token, context) => {
+      mapColumnType(token, context);
+    },
+  }),
   BigInteger: SQLProcessor({
     canHandle: 'SQL_COLUMN_BIGINT',
     handle: (token: BigIntegerToken, context: SQLProcessorContext) =>
