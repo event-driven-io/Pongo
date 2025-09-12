@@ -5,7 +5,6 @@ import {
 } from '../parametrizedSQL';
 import {
   defaultProcessorsRegistry,
-  SQLProcessorsRegistry,
   type SQLProcessorContext,
   type SQLProcessorsReadonlyRegistry,
 } from '../processors';
@@ -26,7 +25,7 @@ export type FormatSQLOptions = {
 
 export type SQLFormatterOptions = Partial<Omit<SQLFormatter, 'valueMapper'>> & {
   valueMapper?: MapSQLParamValueOptions;
-  processorsRegistry?: SQLProcessorsRegistry;
+  processorsRegistry?: SQLProcessorsReadonlyRegistry;
 };
 
 export const SQLFormatter = ({

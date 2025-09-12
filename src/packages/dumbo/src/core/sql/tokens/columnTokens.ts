@@ -67,5 +67,16 @@ export const SQLColumnTokens = {
   Timestamptz: TimestamptzToken.from(undefined!),
   Varchar: VarcharToken.from,
 };
+export type SQLColumnTokens = typeof SQLColumnTokens;
+
+export type DefaultSQLColumnToken =
+  | BigIntegerToken
+  | BigSerialToken
+  | IntegerToken
+  | JSONBToken
+  | SerialToken
+  | TimestampToken
+  | TimestamptzToken
+  | VarcharToken;
 
 export const SQLColumnToken = SQLToken<SQLColumnToken>('SQL_COLUMN');
