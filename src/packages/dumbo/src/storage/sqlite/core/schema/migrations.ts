@@ -10,11 +10,11 @@ import {
   type SchemaComponent,
 } from '../../../../core';
 
-const { Serial, Varchar, Timestamp } = SQL.column.type;
+const { AutoIncrement, Varchar, Timestamp } = SQL.column.type;
 
 const migrationTableSQL = SQL`
   CREATE TABLE IF NOT EXISTS migrations (
-    id ${Serial} PRIMARY KEY,
+    id ${AutoIncrement({ primaryKey: true })},
     name ${Varchar(255)} NOT NULL UNIQUE,
     application ${Varchar(255)} NOT NULL DEFAULT 'default',
     sql_hash ${Varchar(64)} NOT NULL,

@@ -9,32 +9,35 @@ const mapColumnType = (
   token: DefaultSQLColumnToken,
   { builder }: SQLProcessorContext,
 ): void => {
-  let columnType: string;
+  let columnSQL: string;
   const { sqlTokenType, value } = token;
   switch (sqlTokenType) {
+    case 'SQL_COLUMN_AUTO_INCREMENT':
+      columnSQL = `${value.bigint ? 'BIGSERIAL' : 'SERIAL'} ${value.primaryKey ? 'PRIMARY KEY' : ''}`;
+      break;
     case 'SQL_COLUMN_BIGINT':
-      columnType = 'BIGINT';
+      columnSQL = 'BIGINT';
       break;
     case 'SQL_COLUMN_SERIAL':
-      columnType = 'SERIAL';
+      columnSQL = 'SERIAL';
       break;
     case 'SQL_COLUMN_INTEGER':
-      columnType = 'INTEGER';
+      columnSQL = 'INTEGER';
       break;
     case 'SQL_COLUMN_JSONB':
-      columnType = 'JSONB';
+      columnSQL = 'JSONB';
       break;
     case 'SQL_COLUMN_BIGSERIAL':
-      columnType = 'BIGSERIAL';
+      columnSQL = 'BIGSERIAL';
       break;
     case 'SQL_COLUMN_TIMESTAMP':
-      columnType = 'TIMESTAMP';
+      columnSQL = 'TIMESTAMP';
       break;
     case 'SQL_COLUMN_TIMESTAMPTZ':
-      columnType = 'TIMESTAMPTZ';
+      columnSQL = 'TIMESTAMPTZ';
       break;
     case 'SQL_COLUMN_VARCHAR':
-      columnType = `VARCHAR ${Number.isNaN(value) ? '' : `(${value})`}`;
+      columnSQL = `VARCHAR ${Number.isNaN(value) ? '' : `(${value})`}`;
       break;
     default: {
       const exhaustiveCheck: never = sqlTokenType;
@@ -42,7 +45,7 @@ const mapColumnType = (
       throw new Error(`Unknown column type: ${exhaustiveCheck}`);
     }
   }
-  builder.addSQL(columnType);
+  builder.addSQL(columnSQL);
 };
 
 export const postgreSQLColumnProcessors: DefaultSQLColumnProcessors =
