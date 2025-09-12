@@ -1,10 +1,10 @@
 import {
   combineMigrations,
   dumbo,
-  getDefaultMigratorOptionsFromRegistry,
   parseConnectionString,
   runSQLMigrations,
   type DatabaseType,
+  type SQLMigration,
 } from '@event-driven-io/dumbo';
 import { Command } from 'commander';
 import { pongoCollectionSchemaComponent } from '../core';
@@ -88,12 +88,7 @@ migrateCommand
       databaseType,
     };
 
-    const coreMigrations =
-      await getDefaultMigratorOptionsFromRegistry(
-        databaseType,
-      ).schema.migrationTable.resolveMigrations(migrationOptions);
-
-    const migrations = [...coreMigrations];
+    const migrations: SQLMigration[] = [];
 
     for (const collectionName of collectionNames) {
       const collectionMigrations =
@@ -147,12 +142,7 @@ migrateCommand
       databaseType: database,
     };
 
-    const coreMigrations =
-      await getDefaultMigratorOptionsFromRegistry(
-        database,
-      ).schema.migrationTable.resolveMigrations(migrationOptions);
-
-    const migrations = [...coreMigrations];
+    const migrations: SQLMigration[] = [];
 
     for (const collectionName of collectionNames) {
       const collectionMigrations =

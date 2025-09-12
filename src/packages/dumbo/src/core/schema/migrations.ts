@@ -9,7 +9,7 @@ import {
 import { mapToCamelCase, singleOrNull } from '../query';
 import { SQL, type SQLFormatter } from '../sql';
 import { tracer } from '../tracing';
-import type { SchemaComponent } from './schemaComponent';
+import { schemaComponent, type SchemaComponent } from './schemaComponent';
 
 export type MigrationStyle = 'None' | 'CreateOrUpdate';
 
@@ -31,6 +31,25 @@ export type MigrationRecord = {
   timestamp: Date;
 };
 export const MIGRATIONS_LOCK_ID = 999956789;
+
+const { AutoIncrement, Varchar, Timestamp } = SQL.column.type;
+
+const migrationTableSQL = SQL`
+  CREATE TABLE IF NOT EXISTS migrations (
+    id ${AutoIncrement({ primaryKey: true })},
+    name ${Varchar(255)} NOT NULL UNIQUE,
+    application ${Varchar(255)} NOT NULL DEFAULT 'default',
+    sql_hash ${Varchar(64)} NOT NULL,
+    timestamp ${Timestamp} NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+`;
+
+export const migrationTableSchemaComponent = schemaComponent(
+  'dumbo:schema-component:migrations-table',
+  {
+    migrations: [sqlMigration('dumbo:migrationTable:001', [migrationTableSQL])],
+  },
+);
 
 const defaultMigratorOptions: Record<DatabaseType, MigratorOptions> =
   {} as Record<DatabaseType, MigratorOptions>;
@@ -54,10 +73,10 @@ export const getDefaultMigratorOptionsFromRegistry = (
 };
 
 export type MigratorOptions = {
-  schema: {
-    migrationTable: SchemaComponent;
+  schema?: {
+    migrationTable?: SchemaComponent;
   };
-  lock: {
+  lock?: {
     databaseLock?: DatabaseLock;
     options?: Omit<DatabaseLockOptions, 'lockId'> &
       Partial<Pick<DatabaseLockOptions, 'lockId'>>;
@@ -87,26 +106,28 @@ export const runSQLMigrations = (
         ...partialOptions?.lock,
         options: {
           lockId: MIGRATIONS_LOCK_ID,
-          ...defaultOptions.lock.options,
+          ...defaultOptions.lock?.options,
           ...partialOptions?.lock?.options,
         },
       },
       dryRun: defaultOptions.dryRun ?? partialOptions?.dryRun,
     };
 
-    const { databaseLock: _, ...rest } = options.lock;
+    const { databaseLock: _, ...rest } = options.lock ?? {};
 
-    const databaseLock = options.lock.databaseLock ?? NoDatabaseLock;
+    const databaseLock = options.lock?.databaseLock ?? NoDatabaseLock;
 
     const lockOptions: DatabaseLockOptions = {
       lockId: MIGRATIONS_LOCK_ID,
       ...rest,
     };
 
-    const coreMigrations =
-      await options.schema.migrationTable.resolveMigrations({
-        databaseType,
-      });
+    const migrationTable =
+      options.schema?.migrationTable ?? migrationTableSchemaComponent;
+
+    const coreMigrations = await migrationTable.resolveMigrations({
+      databaseType,
+    });
 
     await databaseLock.withAcquire(
       execute,
