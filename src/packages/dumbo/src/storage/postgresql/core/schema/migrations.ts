@@ -10,13 +10,15 @@ import {
 } from '../../../../core';
 import { AdvisoryLock } from '../locks';
 
+const { Serial, Varchar, Timestamp } = SQL.column.type;
+
 const migrationTableSQL = SQL`
   CREATE TABLE IF NOT EXISTS migrations (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL UNIQUE,
-    application VARCHAR(255) NOT NULL DEFAULT 'default',
-    sql_hash VARCHAR(64) NOT NULL,
-    timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    id ${Serial} PRIMARY KEY,
+    name ${Varchar(255)} NOT NULL UNIQUE,
+    application ${Varchar(255)} NOT NULL DEFAULT 'default',
+    sql_hash ${Varchar(64)} NOT NULL,
+    timestamp ${Timestamp} NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 `;
 
