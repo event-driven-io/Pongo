@@ -1,5 +1,14 @@
-import type { NodePostgresConnection } from '@event-driven-io/dumbo/pg';
+import {
+  NodePostgresConnectorType,
+  pgStoragePlugin,
+  type NodePostgresConnection,
+  type NodePostgresConnector,
+} from '@event-driven-io/dumbo/pg';
 import pg from 'pg';
+import {
+  pongoStoragePluginRegistry,
+  type PongoStoragePlugin,
+} from '../../../core/plugins';
 
 export type NodePostgresPongoClientOptions =
   | PooledPongoClientOptions
@@ -33,3 +42,16 @@ export type NotPooledPongoOptions =
       connection: NodePostgresConnection;
       pooled?: false;
     };
+
+const pgPongoStoragePlugin: PongoStoragePlugin<
+  NodePostgresConnector,
+  NodePostgresConnection
+> = {
+  connector: NodePostgresConnectorType,
+  dumboPlugin: pgStoragePlugin,
+};
+
+pongoStoragePluginRegistry.register(
+  NodePostgresConnectorType,
+  pgPongoStoragePlugin,
+);

@@ -6,6 +6,8 @@ import type {
 import { NodePostgresConnectorType } from '@event-driven-io/dumbo/pg';
 import type { PongoClientOptions, PongoDbClientOptions } from '../../core';
 
+export * from './collection';
+
 export const clientToDbOptions = <
   ConnectionString extends DatabaseConnectionString<
     InferConnectorDatabaseType<Connector>

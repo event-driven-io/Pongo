@@ -13,7 +13,7 @@ import {
   type NodePostgresPoolOptions,
 } from './connections';
 
-const pgStoragePlugin: StoragePlugin<
+export const pgStoragePlugin: StoragePlugin<
   NodePostgresConnector,
   NodePostgresConnection
 > = {
