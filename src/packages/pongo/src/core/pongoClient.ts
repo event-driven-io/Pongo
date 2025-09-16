@@ -1,10 +1,10 @@
 import {
+  parseConnectionString,
   type ConnectorType,
   type DatabaseConnectionString,
   type InferConnectorDatabaseType,
   type MigrationStyle,
 } from '@event-driven-io/dumbo';
-import { clientToDbOptions } from '../storage/all';
 import { getPongoDb, type PongoDbClientOptions } from './database/pongoDb';
 import { pongoSession } from './pongoSession';
 import {
@@ -45,12 +45,18 @@ export const pongoClient = <
 ): PongoClient & PongoClientWithSchema<TypedClientSchema> => {
   const dbClients = new Map<string, PongoDb>();
 
-  const dbClient = getPongoDb<ConnectionString, Connector, DbClientOptions>(
-    clientToDbOptions({
-      connectionString: options.connectionString as ConnectionString,
-      clientOptions: options,
-    }),
-  );
+  const { connectionString } = options;
+
+  const { databaseType, driverName } = parseConnectionString(connectionString);
+
+  const connector: Connector = `${databaseType}:${driverName}` as Connector;
+
+  const dbClient = getPongoDb<ConnectionString, Connector, DbClientOptions>({
+    connector,
+    connectionString: connectionString as ConnectionString,
+    clientOptions: options,
+    dbSchemaComponent: undefined!, // TODO: Add dbSchemaComponent resolution
+  });
   dbClients.set(dbClient.databaseName, dbClient);
 
   const pongoClient: PongoClient = {
@@ -71,13 +77,12 @@ export const pongoClient = <
         dbClients
           .set(
             dbName,
-            getPongoDb<ConnectionString, Connector, DbClientOptions>(
-              clientToDbOptions({
-                connectionString: options.connectionString as ConnectionString,
-                dbName,
-                clientOptions: options,
-              }),
-            ),
+            getPongoDb<ConnectionString, Connector, DbClientOptions>({
+              connector,
+              connectionString: connectionString as ConnectionString,
+              clientOptions: options,
+              dbSchemaComponent: undefined!, // TODO: Add dbSchemaComponent resolution
+            }),
           )
           .get(dbName)!
       );
