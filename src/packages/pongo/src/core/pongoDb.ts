@@ -13,12 +13,9 @@ import {
   type SchemaComponent,
 } from '@event-driven-io/dumbo';
 import { getDatabaseNameOrDefault } from '@event-driven-io/dumbo/pg';
+import { pongoCollectionSchemaComponent } from '../storage/all';
 import { postgresSQLBuilder } from '../storage/postgresql';
-import {
-  pongoCollection,
-  pongoCollectionSchemaComponent,
-  transactionExecutorOrDefault,
-} from './collection';
+import { pongoCollection, transactionExecutorOrDefault } from './collection';
 import type { PongoClientOptions } from './pongoClient';
 import { proxyPongoDbWithSchema } from './schema';
 import {
@@ -112,6 +109,7 @@ export const getPongoDb = <
         runSQLMigrations(
           pool,
           await pongoDbSchemaComponent(
+            connector,
             [...collections.values()].map((c) => c.schema.component),
           ).resolveMigrations({
             databaseType,
@@ -150,12 +148,16 @@ export const getPongoDb = <
 };
 
 export const pongoDbSchemaComponent = (
+  connector: ConnectorType,
   collections: string[] | SchemaComponent[],
 ) => {
   const components =
     collections.length > 0 && typeof collections[0] === 'string'
       ? collections.map((collectionName) =>
-          pongoCollectionSchemaComponent(collectionName as string),
+          pongoCollectionSchemaComponent({
+            connector,
+            collectionName: collectionName as string,
+          }),
         )
       : (collections as SchemaComponent[]);
 

@@ -45,7 +45,6 @@ import {
   type WithoutId,
   type WithVersion,
 } from '..';
-import { pongoCollectionPostgreSQLMigrations } from '../../storage/postgresql';
 
 export type PongoCollectionOptions<
   Connector extends ConnectorType = ConnectorType,
@@ -500,11 +499,6 @@ export const pongoCollection = <
 
   return collection;
 };
-
-export const pongoCollectionSchemaComponent = (collectionName: string) =>
-  schemaComponent('pongo:schema_component:collection', {
-    migrations: pongoCollectionPostgreSQLMigrations(collectionName), // TODO: This needs to change to support more connectors
-  });
 
 export type PongoCollectionSQLBuilder = {
   migrations: () => SQLMigration[];
