@@ -5,13 +5,13 @@ import {
   JSONSerializer,
   type QueryResult,
   type QueryResultRow,
-  type SchemaComponent,
   type SQL,
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
 import { v7 as uuid } from 'uuid';
-import { ConcurrencyError } from '../errors';
 import type { PongoCollectionSchemaComponent } from '../../storage/all';
+import type { PongoDatabaseSchemaComponent } from '../database/pongoDatabaseSchemaComponent';
+import { ConcurrencyError } from '../errors';
 
 export interface PongoClient {
   connect(): Promise<this>;
@@ -72,7 +72,7 @@ export interface PongoDb<Connector extends ConnectorType = ConnectorType>
   collection<T extends PongoDocument>(name: string): PongoCollection<T>;
   collections(): ReadonlyArray<PongoCollection<PongoDocument>>;
   readonly schema: Readonly<{
-    component: SchemaComponent;
+    component: PongoDatabaseSchemaComponent<Connector>;
     migrate(): Promise<void>;
   }>;
   sql: {
