@@ -7,7 +7,7 @@ import {
   type SQLMigration,
 } from '@event-driven-io/dumbo';
 import { Command } from 'commander';
-import { pongoCollectionSchemaComponent } from '../core';
+import { pongoCollectionSchemaComponent } from '../storage/all';
 import { loadConfigFile } from './configFile';
 
 interface MigrateRunOptions {
@@ -21,6 +21,7 @@ interface MigrateRunOptions {
 interface MigrateSqlOptions {
   print?: boolean;
   write?: string;
+  databaseDriver: string;
   config?: string;
   collection: string[];
 }
@@ -91,10 +92,10 @@ migrateCommand
     const migrations: SQLMigration[] = [];
 
     for (const collectionName of collectionNames) {
-      const collectionMigrations =
-        await pongoCollectionSchemaComponent(collectionName).resolveMigrations(
-          migrationOptions,
-        );
+      const collectionMigrations = await pongoCollectionSchemaComponent({
+        collectionName,
+        connector,
+      }).resolveMigrations(migrationOptions);
       migrations.push(...collectionMigrations);
     }
 
@@ -106,6 +107,11 @@ migrateCommand
 migrateCommand
   .command('sql')
   .description('Generate SQL for database migration')
+  .option(
+    '-drv, --database-driver <string>',
+    'Database driver that should be used for connection (e.g., "pg" for PostgreSQL, "sqlite3" for SQLite)',
+    'pg',
+  )
   .option(
     '-col, --collection <name>',
     'Specify the collection name',
@@ -136,19 +142,20 @@ migrateCommand
       process.exit(1);
     }
     // TODO: Provide connector here
-    const database: DatabaseType = 'PostgreSQL';
+    const databaseType: DatabaseType = 'PostgreSQL';
+    const connector = `${databaseType}:${options.databaseDriver}` as const;
 
     const migrationOptions = {
-      databaseType: database,
+      databaseType,
     };
 
     const migrations: SQLMigration[] = [];
 
     for (const collectionName of collectionNames) {
-      const collectionMigrations =
-        await pongoCollectionSchemaComponent(collectionName).resolveMigrations(
-          migrationOptions,
-        );
+      const collectionMigrations = await pongoCollectionSchemaComponent({
+        collectionName,
+        connector,
+      }).resolveMigrations(migrationOptions);
       migrations.push(...collectionMigrations);
     }
 
