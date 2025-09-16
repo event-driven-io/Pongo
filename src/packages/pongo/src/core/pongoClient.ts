@@ -5,7 +5,7 @@ import {
   type MigrationStyle,
 } from '@event-driven-io/dumbo';
 import { clientToDbOptions } from '../storage/all';
-import { getPongoDb, type PongoDbClientOptions } from './pongoDb';
+import { getPongoDb, type PongoDbClientOptions } from './database/pongoDb';
 import { pongoSession } from './pongoSession';
 import {
   proxyClientWithSchema,
