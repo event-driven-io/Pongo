@@ -3,7 +3,6 @@ import {
   JSONSerializer,
   SQL,
   sqlMigration,
-  type SQLMigration,
 } from '@event-driven-io/dumbo';
 import {
   expectedVersionValue,
@@ -42,8 +41,6 @@ export const pongoCollectionPostgreSQLMigrations = (collectionName: string) => [
 export const postgresSQLBuilder = (
   collectionName: string,
 ): PongoCollectionSQLBuilder => ({
-  migrations: (): SQLMigration[] =>
-    pongoCollectionPostgreSQLMigrations(collectionName),
   createCollection: (): SQL => createCollection(collectionName),
   insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
     const serialized = JSONSerializer.serialize(document);
