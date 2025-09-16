@@ -2,7 +2,6 @@ import {
   dumbo,
   fromConnectorType,
   runSQLMigrations,
-  schemaComponent,
   SQL,
   type ConnectorType,
   type DatabaseConnectionString,
@@ -10,10 +9,8 @@ import {
   type InferConnectorDatabaseType,
   type QueryResult,
   type QueryResultRow,
-  type SchemaComponent,
 } from '@event-driven-io/dumbo';
 import { getDatabaseNameOrDefault } from '@event-driven-io/dumbo/pg';
-import { PongoCollectionSchemaComponent } from '../../storage/all';
 import { pongoCollection, transactionExecutorOrDefault } from '../collection';
 import type { PongoClientOptions } from '../pongoClient';
 import { proxyPongoDbWithSchema } from '../schema';
@@ -34,6 +31,7 @@ export type PongoDbClientOptions<
 > = {
   connector: Connector;
   dbName: string | undefined;
+  dbSchemaComponent: PongoDatabaseSchemaComponent<Connector>;
 } & PongoClientOptions<ConnectionString, Connector>;
 
 export const getPongoDb = <
@@ -48,7 +46,7 @@ export const getPongoDb = <
 >(
   options: DbClientOptions,
 ): PongoDb => {
-  const { connectionString, dbName, connector } = options;
+  const { connectionString, dbName, dbSchemaComponent, connector } = options;
   const databaseName = dbName ?? getDatabaseNameOrDefault(connectionString);
 
   const pool = dumbo<
@@ -87,12 +85,13 @@ export const getPongoDb = <
     close: () => pool.close(),
 
     collections: () => [...collections.values()],
-    collection: (collectionName) =>
+    collection: <T extends Document>(collectionName: string) =>
+      (collections.get(collectionName) as PongoCollection<T> | undefined) ??
       pongoCollection({
         collectionName,
         db,
         pool,
-        schemaComponent: PongoCollectionSchemaComponent({
+        schemaComponent: dbSchemaComponent.addCollection({
           collectionName,
           connector,
         }),
@@ -103,18 +102,13 @@ export const getPongoDb = <
     withTransaction: (handle) => pool.withTransaction(handle),
 
     schema: {
-      get component(): SchemaComponent {
-        return schemaComponent('pongoDb', {
-          components: [...collections.values()].map((c) => c.schema.component),
-        });
+      get component(): PongoDatabaseSchemaComponent<Connector> {
+        return dbSchemaComponent;
       },
       migrate: async () =>
         runSQLMigrations(
           pool,
-          await PongoDatabaseSchemaComponent(
-            connector,
-            [...collections.values()].map((c) => c.schema.component),
-          ).resolveMigrations({
+          await dbSchemaComponent.resolveMigrations({
             databaseType,
           }),
         ),

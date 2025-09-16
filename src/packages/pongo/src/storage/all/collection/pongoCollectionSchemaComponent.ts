@@ -10,16 +10,20 @@ import type {
 import { pongoCollectionPostgreSQLMigrations } from '../../postgresql';
 
 export type PongoCollectionSchemaComponent =
-  SchemaComponent<'pongo:schema-component:collection'> &
-    PongoCollectionSQLBuilder;
+  SchemaComponent<'pongo:schema-component:collection'> & {
+    collectionName: string;
+  } & PongoCollectionSQLBuilder;
 
 export const PongoCollectionSchemaComponent = <
   Connector extends ConnectorType = ConnectorType,
->(
-  options: PongoCollectionSchemaComponentOptions<Connector>,
-): PongoCollectionSchemaComponent =>
-  schemaComponent('pongo:schema-component:collection', {
-    migrations: pongoCollectionPostgreSQLMigrations(options.collectionName), // TODO: This needs to change to support more connectors
+>({
+  collectionName,
+}: PongoCollectionSchemaComponentOptions<Connector>): PongoCollectionSchemaComponent =>
+  ({
+    ...schemaComponent('pongo:schema-component:collection', {
+      migrations: pongoCollectionPostgreSQLMigrations(collectionName), // TODO: This needs to change to support more connectors
+    }),
+    collectionName,
   }) as PongoCollectionSchemaComponent;
 
 PongoCollectionSchemaComponent.from = <
@@ -31,6 +35,6 @@ PongoCollectionSchemaComponent.from = <
   collections.map((collectionName) =>
     PongoCollectionSchemaComponent({
       connector,
-      collectionName: collectionName,
+      collectionName,
     }),
   );
