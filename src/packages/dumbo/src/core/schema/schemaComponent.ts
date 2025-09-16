@@ -1,16 +1,16 @@
 import type { DatabaseType } from '../connectors';
 import { type SQLMigration } from './migrations';
 
-export type SchemaComponent = {
-  schemaComponentType: string;
+export type SchemaComponent<ComponentType extends string = string> = {
+  schemaComponentType: ComponentType;
   components: ReadonlyArray<SchemaComponent>;
   resolveMigrations(options: {
     databaseType: DatabaseType;
   }): ReadonlyArray<SQLMigration> | Promise<ReadonlyArray<SQLMigration>>;
 };
 
-export const schemaComponent = (
-  type: string,
+export const schemaComponent = <ComponentType extends string = string>(
+  type: ComponentType,
   migrationsOrComponents:
     | {
         migrations: ReadonlyArray<SQLMigration>;
@@ -24,7 +24,7 @@ export const schemaComponent = (
         migrations?: never;
         components: ReadonlyArray<SchemaComponent>;
       },
-): SchemaComponent => {
+): SchemaComponent<ComponentType> => {
   const components = migrationsOrComponents.components ?? [];
 
   return {

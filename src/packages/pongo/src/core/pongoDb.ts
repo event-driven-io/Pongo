@@ -13,9 +13,12 @@ import {
   type SchemaComponent,
 } from '@event-driven-io/dumbo';
 import { getDatabaseNameOrDefault } from '@event-driven-io/dumbo/pg';
-import { pongoCollectionSchemaComponent } from '../storage/all';
-import { postgresSQLBuilder } from '../storage/postgresql';
-import { pongoCollection, transactionExecutorOrDefault } from './collection';
+import { PongoCollectionSchemaComponent } from '../storage/all';
+import {
+  pongoCollection,
+  transactionExecutorOrDefault,
+  type PongoCollectionSchemaComponentOptions,
+} from './collection';
 import type { PongoClientOptions } from './pongoClient';
 import { proxyPongoDbWithSchema } from './schema';
 import {
@@ -92,7 +95,10 @@ export const getPongoDb = <
         collectionName,
         db,
         pool,
-        sqlBuilder: postgresSQLBuilder(collectionName),
+        schemaComponent: PongoCollectionSchemaComponent({
+          collectionName,
+          connector,
+        }),
         schema: options.schema ? options.schema : {},
         errors: options.errors ? options.errors : {},
       }),
@@ -108,7 +114,7 @@ export const getPongoDb = <
       migrate: async () =>
         runSQLMigrations(
           pool,
-          await pongoDbSchemaComponent(
+          await PongoDatabaseSchemaComponent(
             connector,
             [...collections.values()].map((c) => c.schema.component),
           ).resolveMigrations({
@@ -147,21 +153,31 @@ export const getPongoDb = <
   return db;
 };
 
-export const pongoDbSchemaComponent = (
-  connector: ConnectorType,
-  collections: string[] | SchemaComponent[],
-) => {
-  const components =
-    collections.length > 0 && typeof collections[0] === 'string'
-      ? collections.map((collectionName) =>
-          pongoCollectionSchemaComponent({
-            connector,
-            collectionName: collectionName as string,
-          }),
-        )
-      : (collections as SchemaComponent[]);
+export type PongoDatabaseSchemaComponent =
+  SchemaComponent<'pongo:schema-component:database'> & {
+    collections: ReadonlyArray<PongoCollectionSchemaComponent>;
 
-  return schemaComponent('pongo:schema_component:db', {
-    components,
-  });
+    addCollection: (
+      options: PongoCollectionSchemaComponentOptions,
+    ) => PongoCollectionSchemaComponent;
+  };
+
+export const PongoDatabaseSchemaComponent = (
+  _connector: ConnectorType,
+  existingCollections: PongoCollectionSchemaComponent[],
+): PongoDatabaseSchemaComponent => {
+  const collections = [...existingCollections];
+
+  return {
+    ...schemaComponent('pongo:schema-component:database', {
+      components: collections,
+    }),
+    collections,
+
+    addCollection: (options: PongoCollectionSchemaComponentOptions) => {
+      const newCollection = PongoCollectionSchemaComponent(options);
+      collections.push(newCollection);
+      return newCollection;
+    },
+  };
 };

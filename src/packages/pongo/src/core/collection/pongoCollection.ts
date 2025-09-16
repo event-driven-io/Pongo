@@ -1,6 +1,6 @@
 import {
+  fromConnectorType,
   runSQLMigrations,
-  schemaComponent,
   single,
   SQL,
   type ConnectorType,
@@ -9,9 +9,7 @@ import {
   type MigrationStyle,
   type QueryResult,
   type QueryResultRow,
-  type SchemaComponent,
   type SQLExecutor,
-  type SQLMigration,
 } from '@event-driven-io/dumbo';
 import { v7 as uuid } from 'uuid';
 import {
@@ -45,6 +43,7 @@ import {
   type WithoutId,
   type WithVersion,
 } from '..';
+import { PongoCollectionSchemaComponent } from '../../storage/all';
 
 export type PongoCollectionOptions<
   Connector extends ConnectorType = ConnectorType,
@@ -52,7 +51,7 @@ export type PongoCollectionOptions<
   db: PongoDb<Connector>;
   collectionName: string;
   pool: Dumbo<ConnectorType>;
-  sqlBuilder: PongoCollectionSQLBuilder;
+  schemaComponent: PongoCollectionSchemaComponent;
   schema?: { autoMigration?: MigrationStyle };
   errors?: { throwOnOperationFailures?: boolean };
 };
@@ -88,10 +87,11 @@ export const pongoCollection = <
   db,
   collectionName,
   pool,
-  sqlBuilder: SqlFor,
+  schemaComponent,
   schema,
   errors,
 }: PongoCollectionOptions<Connector>): PongoCollection<T> => {
+  const SqlFor = schemaComponent;
   const sqlExecutor = pool.execute;
   const command = async <Result extends QueryResultRow = QueryResultRow>(
     sql: SQL,
@@ -488,12 +488,16 @@ export const pongoCollection = <
       },
     },
     schema: {
-      get component(): SchemaComponent {
-        return schemaComponent('pongo:schema_component:collection', {
-          migrations: SqlFor.migrations(),
-        });
+      get component(): PongoCollectionSchemaComponent {
+        return schemaComponent;
       },
-      migrate: () => runSQLMigrations(pool, SqlFor.migrations()),
+      migrate: async () =>
+        runSQLMigrations(
+          pool,
+          await schemaComponent.resolveMigrations({
+            databaseType: fromConnectorType(pool.connector).databaseType,
+          }),
+        ),
     },
   };
 
@@ -501,7 +505,6 @@ export const pongoCollection = <
 };
 
 export type PongoCollectionSQLBuilder = {
-  migrations: () => SQLMigration[];
   createCollection: () => SQL;
   insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>) => SQL;
   insertMany: <T>(documents: OptionalUnlessRequiredIdAndVersion<T>[]) => SQL;

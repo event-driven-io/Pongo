@@ -7,7 +7,7 @@ import {
   type SQLMigration,
 } from '@event-driven-io/dumbo';
 import { Command } from 'commander';
-import { pongoCollectionSchemaComponent } from '../storage/all';
+import { PongoCollectionSchemaComponent } from '../storage/all';
 import { loadConfigFile } from './configFile';
 
 interface MigrateRunOptions {
@@ -92,7 +92,7 @@ migrateCommand
     const migrations: SQLMigration[] = [];
 
     for (const collectionName of collectionNames) {
-      const collectionMigrations = await pongoCollectionSchemaComponent({
+      const collectionMigrations = await PongoCollectionSchemaComponent({
         collectionName,
         connector,
       }).resolveMigrations(migrationOptions);
@@ -152,7 +152,7 @@ migrateCommand
     const migrations: SQLMigration[] = [];
 
     for (const collectionName of collectionNames) {
-      const collectionMigrations = await pongoCollectionSchemaComponent({
+      const collectionMigrations = await PongoCollectionSchemaComponent({
         collectionName,
         connector,
       }).resolveMigrations(migrationOptions);
