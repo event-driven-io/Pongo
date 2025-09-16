@@ -34,6 +34,12 @@ export const PongoDatabaseSchemaComponent = <
     collections,
 
     addCollection: (options: PongoCollectionSchemaComponentOptions) => {
+      const existing = collections.find(
+        (c) => c.collectionName === options.collectionName,
+      );
+
+      if (existing) return existing;
+
       const newCollection = PongoCollectionSchemaComponent(options);
       collections.push(newCollection);
       return newCollection;
