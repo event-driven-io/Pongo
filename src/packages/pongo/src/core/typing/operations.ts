@@ -11,6 +11,7 @@ import {
 } from '@event-driven-io/dumbo';
 import { v7 as uuid } from 'uuid';
 import { ConcurrencyError } from '../errors';
+import type { PongoCollectionSchemaComponent } from '../../storage/all';
 
 export interface PongoClient {
   connect(): Promise<this>;
@@ -211,7 +212,7 @@ export interface PongoCollection<T extends PongoDocument> {
     options?: HandleOptions,
   ): Promise<PongoHandleResult<T>>;
   readonly schema: Readonly<{
-    component: SchemaComponent;
+    component: PongoCollectionSchemaComponent;
     migrate(): Promise<void>;
   }>;
   sql: {
