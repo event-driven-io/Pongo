@@ -4,10 +4,10 @@ import {
   parseConnectionString,
   runSQLMigrations,
   type DatabaseType,
-  type SQLMigration,
 } from '@event-driven-io/dumbo';
 import { Command } from 'commander';
-import { PongoCollectionSchemaComponent } from '../storage/all';
+import { pongoSchema, type PongoCollectionSchema, type PongoDb } from '../core';
+import { pongoDatabaseDriverRegistry } from '../core/plugins';
 import { loadConfigFile } from './configFile';
 
 interface MigrateRunOptions {
@@ -83,21 +83,40 @@ migrateCommand
     const { databaseType } = parseConnectionString(connectionString);
     const connector = `${databaseType}:${options.databaseDriver}` as const;
 
+    const driver = pongoDatabaseDriverRegistry.tryGet(connector);
+
+    if (driver === null) {
+      console.error(
+        `Error: No database driver found for connector "${connector}". Make sure the driver is installed and the connector string is correct.`,
+      );
+      process.exit(1);
+    }
+
+    const databaseName: string | undefined = undefined;
+
+    const dbDefinition = pongoSchema.db(
+      collectionNames.reduce(
+        (acc, collectionName) => (
+          (acc[collectionName] = pongoSchema.collection(collectionName)), acc
+        ),
+        {} as Record<string, PongoCollectionSchema>,
+      ),
+    );
+
+    const db = driver.databaseFactory({
+      connectionString,
+      databaseName,
+      schema: { definition: dbDefinition },
+    }) as PongoDb;
+
     const pool = dumbo({ connectionString, connector });
 
     const migrationOptions = {
       databaseType,
     };
 
-    const migrations: SQLMigration[] = [];
-
-    for (const collectionName of collectionNames) {
-      const collectionMigrations = await PongoCollectionSchemaComponent({
-        collectionName,
-        connector,
-      }).resolveMigrations(migrationOptions);
-      migrations.push(...collectionMigrations);
-    }
+    const migrations =
+      await db.schema.component.resolveMigrations(migrationOptions);
 
     await runSQLMigrations(pool, migrations, {
       dryRun,
@@ -145,19 +164,40 @@ migrateCommand
     const databaseType: DatabaseType = 'PostgreSQL';
     const connector = `${databaseType}:${options.databaseDriver}` as const;
 
+    const driver = pongoDatabaseDriverRegistry.tryGet(connector);
+
+    if (driver === null) {
+      console.error(
+        `Error: No database driver found for connector "${connector}". Make sure the driver is installed and the connector string is correct.`,
+      );
+      process.exit(1);
+    }
+
+    const databaseName: string | undefined = undefined;
+
+    const dbDefinition = pongoSchema.db(
+      collectionNames.reduce(
+        (acc, collectionName) => (
+          (acc[collectionName] = pongoSchema.collection(collectionName)), acc
+        ),
+        {} as Record<string, PongoCollectionSchema>,
+      ),
+    );
+
+    const connectionString = 'DRIVER_PLACEHOLDER'; // TODO: replace with getting database schema without connection
+
+    const db = driver.databaseFactory({
+      connectionString,
+      databaseName,
+      schema: { definition: dbDefinition },
+    }) as PongoDb;
+
     const migrationOptions = {
       databaseType,
     };
 
-    const migrations: SQLMigration[] = [];
-
-    for (const collectionName of collectionNames) {
-      const collectionMigrations = await PongoCollectionSchemaComponent({
-        collectionName,
-        connector,
-      }).resolveMigrations(migrationOptions);
-      migrations.push(...collectionMigrations);
-    }
+    const migrations =
+      await db.schema.component.resolveMigrations(migrationOptions);
 
     console.log('Printing SQL:');
     console.log(combineMigrations(...migrations));

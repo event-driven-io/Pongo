@@ -2,6 +2,7 @@ import {
   color,
   LogLevel,
   LogStyle,
+  parseConnectionString,
   prettyJson,
   SQL,
   type MigrationStyle,
@@ -17,6 +18,7 @@ import {
   type PongoCollectionSchema,
   type PongoDb,
 } from '../core';
+import { pongoDatabaseDriverRegistry } from '../core/plugins';
 
 let pongo: PongoClient;
 
@@ -118,6 +120,7 @@ const startRepl = async (options: {
     autoMigration: MigrationStyle;
   };
   connectionString: string | undefined;
+  databaseDriver: string;
 }) => {
   // TODO: This will change when we have proper tracing and logging config
   // For now, that's enough
@@ -142,6 +145,18 @@ const startRepl = async (options: {
         `No connection string provided, using: 'postgresql://postgres:postgres@localhost:5432/postgres'`,
       ),
     );
+  }
+
+  const { databaseType } = parseConnectionString(connectionString);
+  const connector = `${databaseType}:${options.databaseDriver}` as const;
+
+  const driver = pongoDatabaseDriverRegistry.tryGet(connector);
+
+  if (driver === null) {
+    console.error(
+      `Error: No database driver found for connector "${connector}". Make sure the driver is installed and the connector string is correct.`,
+    );
+    process.exit(1);
   }
 
   const connectionCheck = await checkConnection(connectionString);
@@ -191,6 +206,7 @@ const startRepl = async (options: {
     });
 
     const typedClient = pongoClient({
+      driver,
       connectionString,
       schema: {
         definition: schema,
@@ -207,6 +223,7 @@ const startRepl = async (options: {
     pongo = typedClient;
   } else {
     pongo = pongoClient({
+      driver,
       connectionString,
       schema: { autoMigration: options.schema.autoMigration },
     });
@@ -249,6 +266,7 @@ process.on('SIGINT', teardown);
 interface ShellOptions {
   database: string;
   collection: string[];
+  databaseDriver: string;
   connectionString?: string;
   disableAutoMigrations: boolean;
   logStyle?: string;
@@ -259,6 +277,11 @@ interface ShellOptions {
 
 const shellCommand = new Command('shell')
   .description('Start an interactive Pongo shell')
+  .option(
+    '-drv, --database-driver <string>',
+    'Database driver that should be used for connection (e.g., "pg" for PostgreSQL, "sqlite3" for SQLite)',
+    'pg',
+  )
   .option(
     '-cs, --connectionString <string>',
     'Connection string for the database',
@@ -309,6 +332,7 @@ const shellCommand = new Command('shell')
           : 'CreateOrUpdate',
       },
       connectionString,
+      databaseDriver: options.databaseDriver,
     });
   });
 

@@ -1,5 +1,8 @@
-import type { PostgreSQLConnectionString } from '@event-driven-io/dumbo/pg';
-import type { ClientSessionOptions } from 'http2';
+import type {
+  DatabaseConnectionString,
+  InferConnectorDatabaseType,
+} from '@event-driven-io/dumbo/src';
+import { type ClientSessionOptions } from 'http2';
 import type { ClientSession, WithSessionCallback } from 'mongodb';
 import {
   pongoClient,
@@ -7,19 +10,27 @@ import {
   type PongoClient,
   type PongoClientOptions,
 } from '../core';
+import type {
+  AnyPongoDatabaseDriver,
+  ExtractDatabaseTypeFromDriver,
+} from '../core/plugins';
 import { Db } from './mongoDb';
 
-export class MongoClient {
-  private pongoClient: PongoClient;
+export class MongoClient<
+  DatabaseDriver extends AnyPongoDatabaseDriver = AnyPongoDatabaseDriver,
+  ConnectionString extends DatabaseConnectionString<
+    InferConnectorDatabaseType<DatabaseDriver['connector']>
+  > = DatabaseConnectionString<
+    InferConnectorDatabaseType<DatabaseDriver['connector']>
+  >,
+> {
+  private pongoClient: PongoClient<
+    DatabaseDriver['connector'],
+    ExtractDatabaseTypeFromDriver<DatabaseDriver>
+  >;
 
-  constructor(
-    connectionString: PostgreSQLConnectionString,
-    options: Omit<
-      PongoClientOptions<PostgreSQLConnectionString>,
-      'connectionString'
-    > = {},
-  ) {
-    this.pongoClient = pongoClient({ ...options, connectionString });
+  constructor(options: PongoClientOptions<DatabaseDriver, ConnectionString>) {
+    this.pongoClient = pongoClient(options);
   }
 
   async connect() {

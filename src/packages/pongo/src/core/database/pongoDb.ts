@@ -1,62 +1,59 @@
 import {
-  dumbo,
   fromConnectorType,
   runSQLMigrations,
   SQL,
-  type ConnectorType,
-  type DatabaseConnectionString,
-  type DumboConnectionOptions,
-  type InferConnectorDatabaseType,
+  type Dumbo,
+  type MigrationStyle,
   type QueryResult,
   type QueryResultRow,
 } from '@event-driven-io/dumbo';
-import { getDatabaseNameOrDefault } from '@event-driven-io/dumbo/pg';
 import { pongoCollection, transactionExecutorOrDefault } from '../collection';
-import type { PongoClientOptions } from '../pongoClient';
-import { proxyPongoDbWithSchema } from '../schema';
 import {
-  objectEntries,
+  proxyPongoDbWithSchema,
+  type PongoCollectionSchema,
+  type PongoDbSchema,
+} from '../schema';
+import {
+  type AnyPongoDb,
   type CollectionOperationOptions,
   type Document,
   type PongoCollection,
   type PongoDb,
 } from '../typing';
-import { PongoDatabaseSchemaComponent } from './pongoDatabaseSchemaComponent';
+import { type PongoDatabaseSchemaComponent } from './pongoDatabaseSchemaComponent';
 
-export type PongoDbClientOptions<
-  ConnectionString extends DatabaseConnectionString<
-    InferConnectorDatabaseType<Connector>
+export type PongoDatabaseOptions<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  DumboType extends Dumbo<any, any> = Dumbo<any, any>,
+  CollectionsSchema extends Record<string, PongoCollectionSchema> = Record<
+    string,
+    PongoCollectionSchema
   >,
-  Connector extends ConnectorType = ConnectorType,
 > = {
-  connector: Connector;
-  dbName: string | undefined;
-  dbSchemaComponent: PongoDatabaseSchemaComponent<Connector>;
-} & PongoClientOptions<ConnectionString, Connector>;
+  databaseName: string;
+  pool: DumboType;
+  dbSchemaComponent: PongoDatabaseSchemaComponent<DumboType['connector']>;
+  schema?:
+    | {
+        autoMigration?: MigrationStyle;
+        definition?: PongoDbSchema<CollectionsSchema>;
+      }
+    | undefined;
+  errors?: { throwOnOperationFailures?: boolean } | undefined;
+};
 
-export const getPongoDb = <
-  ConnectionString extends DatabaseConnectionString<
-    InferConnectorDatabaseType<Connector>
+export const PongoDatabase = <
+  Database extends AnyPongoDb = AnyPongoDb,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  DumboType extends Dumbo<Database['connector'], any> = Dumbo<
+    Database['connector'],
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any
   >,
-  Connector extends ConnectorType = ConnectorType,
-  DbClientOptions extends PongoDbClientOptions<
-    ConnectionString,
-    Connector
-  > = PongoDbClientOptions<ConnectionString, Connector>,
 >(
-  options: DbClientOptions,
-): PongoDb => {
-  const { connectionString, dbName, dbSchemaComponent, connector } = options;
-  const databaseName = dbName ?? getDatabaseNameOrDefault(connectionString);
-
-  const pool = dumbo<
-    DumboConnectionOptions<Connector, ConnectionString>,
-    Connector
-  >({
-    connector,
-    connectionString,
-    ...(options.connectionOptions ?? {}),
-  });
+  options: PongoDatabaseOptions<DumboType>,
+): Database => {
+  const { databaseName, dbSchemaComponent, pool } = options;
 
   const collections = new Map<string, PongoCollection<Document>>();
 
@@ -76,10 +73,13 @@ export const getPongoDb = <
       sql,
     );
 
-  const databaseType = fromConnectorType(pool.connector).databaseType;
+  const connector = pool.connector as Database['connector'];
 
-  const db: PongoDb<Connector> = {
-    connector: options.connector,
+  const databaseType =
+    fromConnectorType<Database['connector']>(connector).databaseType;
+
+  const db = {
+    connector,
     databaseName,
     connect: () => Promise.resolve(),
     close: () => pool.close(),
@@ -91,10 +91,7 @@ export const getPongoDb = <
         collectionName,
         db,
         pool,
-        schemaComponent: dbSchemaComponent.addCollection({
-          collectionName,
-          connector,
-        }),
+        schemaComponent: dbSchemaComponent.collection(collectionName),
         schema: options.schema ? options.schema : {},
         errors: options.errors ? options.errors : {},
       }),
@@ -102,7 +99,7 @@ export const getPongoDb = <
     withTransaction: (handle) => pool.withTransaction(handle),
 
     schema: {
-      get component(): PongoDatabaseSchemaComponent<Connector> {
+      get component(): PongoDatabaseSchemaComponent<Database['connector']> {
         return dbSchemaComponent;
       },
       migrate: async () =>
@@ -129,16 +126,12 @@ export const getPongoDb = <
         return command(sql, options);
       },
     },
-  };
+  } satisfies PongoDb<Database['connector']> as unknown as Database;
 
-  const dbsSchema = options?.schema?.definition?.dbs;
+  const dbSchema = options?.schema?.definition;
 
-  if (dbsSchema) {
-    const dbSchema = objectEntries(dbsSchema)
-      .map((e) => e[1])
-      .find((db) => db.name === dbName || db.name === databaseName);
-
-    if (dbSchema) return proxyPongoDbWithSchema(db, dbSchema, collections);
+  if (dbSchema) {
+    return proxyPongoDbWithSchema(db, dbSchema, collections);
   }
 
   return db;

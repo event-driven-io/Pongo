@@ -10,7 +10,8 @@ import {
 } from '@testcontainers/postgresql';
 import assert from 'assert';
 import { after, before, beforeEach, describe, it } from 'node:test';
-import { pongoClient, pongoSchema, type PongoClient } from '../../../core';
+import { pongoClient, pongoSchema, type PongoClient } from '../../../../core';
+import { databaseDriver } from '..';
 
 void describe('Migration Integration Tests', () => {
   let pool: Dumbo;
@@ -30,6 +31,7 @@ void describe('Migration Integration Tests', () => {
     connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
     pool = dumbo({ connectionString });
     client = pongoClient({
+      driver: databaseDriver,
       connectionString,
       schema: { autoMigration: 'CreateOrUpdate', definition: schema },
     });

@@ -1,4 +1,4 @@
-import { SQL, type ConnectorType } from '@event-driven-io/dumbo';
+import { SQL } from '@event-driven-io/dumbo';
 import type {
   DeleteOneOptions,
   FindOptions,
@@ -9,13 +9,6 @@ import type {
   UpdateOneOptions,
   WithoutId,
 } from '../typing';
-
-export type PongoCollectionSchemaComponentOptions<
-  Connector extends ConnectorType = ConnectorType,
-> = Readonly<{
-  collectionName: string;
-  connector: Connector;
-}>;
 
 export type PongoCollectionSQLBuilder = {
   createCollection: () => SQL;

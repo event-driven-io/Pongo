@@ -14,6 +14,7 @@ import {
   type PongoCollection,
   type PongoDb,
 } from '../';
+import { databaseDriver } from '../pg';
 
 type History = { street: string };
 type Address = {
@@ -51,6 +52,7 @@ void describe('MongoDB Compatibility Tests', () => {
     const dbName = postgres.getDatabase();
 
     client = pongoClient({
+      driver: databaseDriver,
       connectionString: postgresConnectionString,
       schema: {
         autoMigration: 'CreateOrUpdate',
