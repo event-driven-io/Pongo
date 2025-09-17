@@ -1,91 +1,71 @@
 import {
-  parseConnectionString,
-  type ConnectorType,
   type DatabaseConnectionString,
   type InferConnectorDatabaseType,
-  type MigrationStyle,
 } from '@event-driven-io/dumbo';
-import { getPongoDb, type PongoDbClientOptions } from './database/pongoDb';
+import { PongoDatabaseCache } from './database';
+import type {
+  AnyPongoDatabaseDriver,
+  ExtractDatabaseTypeFromDriver,
+} from './plugins';
 import { pongoSession } from './pongoSession';
 import {
   proxyClientWithSchema,
   type PongoClientSchema,
   type PongoClientWithSchema,
 } from './schema';
-import type { PongoClient, PongoDb, PongoSession } from './typing';
-
-export type PongoClientOptions<
-  ConnectionString extends DatabaseConnectionString<
-    InferConnectorDatabaseType<Connector>
-  >,
-  Connector extends ConnectorType = ConnectorType,
-  TypedClientSchema extends PongoClientSchema = PongoClientSchema,
-  ConnectionOptions = unknown,
-> = {
-  connectionString: ConnectionString | string;
-  schema?:
-    | { autoMigration?: MigrationStyle; definition?: TypedClientSchema }
-    | undefined;
-  errors?: { throwOnOperationFailures?: boolean } | undefined;
-  connectionOptions?: ConnectionOptions | undefined;
-};
+import type {
+  PongoClient,
+  PongoClientOptions,
+  PongoDb,
+  PongoSession,
+} from './typing';
 
 export const pongoClient = <
+  DatabaseDriver extends AnyPongoDatabaseDriver,
   ConnectionString extends DatabaseConnectionString<
-    InferConnectorDatabaseType<Connector>
+    InferConnectorDatabaseType<DatabaseDriver['connector']>
   >,
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
-  Connector extends ConnectorType = ConnectorType,
-  DbClientOptions extends PongoDbClientOptions<
-    ConnectionString,
-    Connector
-  > = PongoDbClientOptions<ConnectionString, Connector>,
 >(
-  options: PongoClientOptions<ConnectionString, Connector, TypedClientSchema>,
-): PongoClient & PongoClientWithSchema<TypedClientSchema> => {
-  const dbClients = new Map<string, PongoDb>();
+  options: PongoClientOptions<
+    DatabaseDriver,
+    ConnectionString,
+    TypedClientSchema
+  >,
+): PongoClient<
+  DatabaseDriver['connector'],
+  ExtractDatabaseTypeFromDriver<DatabaseDriver>
+> &
+  PongoClientWithSchema<TypedClientSchema> => {
+  const { driver, connectionString } = options;
 
-  const { connectionString } = options;
-
-  const { databaseType, driverName } = parseConnectionString(connectionString);
-
-  const connector: Connector = `${databaseType}:${driverName}` as Connector;
-
-  const dbClient = getPongoDb<ConnectionString, Connector, DbClientOptions>({
-    connector,
-    connectionString: connectionString as ConnectionString,
-    clientOptions: options,
-    dbSchemaComponent: undefined!, // TODO: Add dbSchemaComponent resolution
+  const dbClients = PongoDatabaseCache<PongoDb, TypedClientSchema>({
+    driver,
+    typedSchema: options?.schema?.definition,
   });
-  dbClients.set(dbClient.databaseName, dbClient);
 
-  const pongoClient: PongoClient = {
+  const pongoClient: PongoClient<
+    DatabaseDriver['connector'],
+    ExtractDatabaseTypeFromDriver<DatabaseDriver>
+  > = {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    connector: driver.connector,
     connect: async () => {
-      await dbClient.connect();
+      await dbClients.forAll((db) => db.connect());
       return pongoClient;
     },
     close: async () => {
-      for (const db of dbClients.values()) {
-        await db.close();
-      }
+      await dbClients.forAll((db) => db.close());
     },
-    db: (dbName?: string): PongoDb => {
-      if (!dbName) return dbClient;
+    db: (dbName?: string): ExtractDatabaseTypeFromDriver<DatabaseDriver> => {
+      const db = dbClients.getOrCreate({
+        connectionString,
+        databaseName: dbName,
+        errors: options.errors,
+      });
 
-      return (
-        dbClients.get(dbName) ??
-        dbClients
-          .set(
-            dbName,
-            getPongoDb<ConnectionString, Connector, DbClientOptions>({
-              connector,
-              connectionString: connectionString as ConnectionString,
-              clientOptions: options,
-              dbSchemaComponent: undefined!, // TODO: Add dbSchemaComponent resolution
-            }),
-          )
-          .get(dbName)!
-      );
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      return db as unknown as ExtractDatabaseTypeFromDriver<DatabaseDriver>;
     },
     startSession: pongoSession,
     withSession: async <T>(

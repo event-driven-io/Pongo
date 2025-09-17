@@ -2,30 +2,43 @@ import {
   type ConnectorType,
   type SchemaComponent,
   schemaComponent,
-} from '@event-driven-io/dumbo/src';
-import { PongoCollectionSchemaComponent } from '../../storage/all';
-import type {
-  PongoCollectionSchemaComponentOptions,
-  PongoCollectionSQLBuilder,
+} from '@event-driven-io/dumbo';
+import {
+  PongoCollectionSchemaComponent,
+  type PongoCollectionSQLBuilder,
 } from '../collection';
 
 export type PongoDatabaseSchemaComponent<
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   Connector extends ConnectorType = ConnectorType,
 > = SchemaComponent<'pongo:schema-component:database'> & {
   collections: ReadonlyArray<PongoCollectionSchemaComponent>;
 
-  addCollection: (
-    options: PongoCollectionSchemaComponentOptions,
-  ) => PongoCollectionSchemaComponent;
+  collection: (collectionName: string) => PongoCollectionSchemaComponent;
 };
+
+export type PongoDatabaseSchemaComponentFactory = <
+  Connector extends ConnectorType = ConnectorType,
+>(
+  connector: Connector,
+  existingCollections: PongoCollectionSchemaComponent[],
+) => PongoDatabaseSchemaComponent;
+
+export type PongoDatabaseSchemaComponentOptions<
+  Connector extends ConnectorType = ConnectorType,
+> = Readonly<{
+  connector: Connector;
+  collectionFactory: (collectionName: string) => PongoCollectionSchemaComponent;
+  existingCollections?: PongoCollectionSchemaComponent[] | undefined;
+}>;
 
 export const PongoDatabaseSchemaComponent = <
   Connector extends ConnectorType = ConnectorType,
->(
-  _connector: Connector,
-  existingCollections: PongoCollectionSchemaComponent[],
-): PongoDatabaseSchemaComponent => {
-  const collections = [...existingCollections];
+>({
+  existingCollections,
+  collectionFactory,
+}: PongoDatabaseSchemaComponentOptions<Connector>): PongoDatabaseSchemaComponent => {
+  const collections = [...(existingCollections ?? [])];
 
   return {
     ...schemaComponent('pongo:schema-component:database', {
@@ -33,14 +46,14 @@ export const PongoDatabaseSchemaComponent = <
     }),
     collections,
 
-    addCollection: (options: PongoCollectionSchemaComponentOptions) => {
+    collection: (collectionName: string) => {
       const existing = collections.find(
-        (c) => c.collectionName === options.collectionName,
+        (c) => c.collectionName === collectionName,
       );
 
       if (existing) return existing;
 
-      const newCollection = PongoCollectionSchemaComponent(options);
+      const newCollection = collectionFactory(collectionName);
       collections.push(newCollection);
       return newCollection;
     },

@@ -46,14 +46,16 @@ export type PongoDbWithSchema<
 export type DBsMap<
   T extends Record<string, PongoDbSchema>,
   Connector extends ConnectorType = ConnectorType,
+  Database extends PongoDb<Connector> = PongoDb<Connector>,
 > = {
-  [K in keyof T]: CollectionsMap<T[K]['collections']> & PongoDb<Connector>;
+  [K in keyof T]: CollectionsMap<T[K]['collections']> & Database;
 };
 
 export type PongoClientWithSchema<
   T extends PongoClientSchema,
   Connector extends ConnectorType = ConnectorType,
-> = DBsMap<T['dbs'], Connector> & PongoClient;
+  Database extends PongoDb<Connector> = PongoDb<Connector>,
+> = DBsMap<T['dbs'], Connector, Database> & PongoClient<Connector, Database>;
 
 const pongoCollectionSchema = <T extends PongoDocument>(
   name: string,
@@ -103,13 +105,14 @@ export const pongoSchema = {
 
 // Factory function to create DB instances
 export const proxyPongoDbWithSchema = <
-  T extends Record<string, PongoCollectionSchema>,
+  Collections extends Record<string, PongoCollectionSchema>,
   Connector extends ConnectorType = ConnectorType,
+  Database extends PongoDb<Connector> = PongoDb<Connector>,
 >(
-  pongoDb: PongoDb<Connector>,
-  dbSchema: PongoDbSchema<T>,
+  pongoDb: Database,
+  dbSchema: PongoDbSchema<Collections>,
   collections: Map<string, PongoCollection<Document>>,
-): PongoDbWithSchema<T, Connector> => {
+): PongoDbWithSchema<Collections, Connector> & Database => {
   const collectionNames = Object.keys(dbSchema.collections);
 
   for (const collectionName of collectionNames) {
@@ -117,7 +120,7 @@ export const proxyPongoDbWithSchema = <
   }
 
   return new Proxy(
-    pongoDb as PongoDb<Connector> & {
+    pongoDb as Database & {
       [key: string]: unknown;
     },
     {
@@ -125,21 +128,28 @@ export const proxyPongoDbWithSchema = <
         return collections.get(prop) ?? target[prop];
       },
     },
-  ) as PongoDbWithSchema<T, Connector>;
+  ) as PongoDbWithSchema<Collections, Connector> & Database;
 };
 
 export const proxyClientWithSchema = <
   TypedClientSchema extends PongoClientSchema,
+  Connector extends ConnectorType = ConnectorType,
+  Database extends PongoDb<Connector> = PongoDb<Connector>,
 >(
-  client: PongoClient,
+  client: PongoClient<Connector, Database>,
   schema: TypedClientSchema | undefined,
-): PongoClientWithSchema<TypedClientSchema> => {
-  if (!schema) return client as PongoClientWithSchema<TypedClientSchema>;
+): PongoClientWithSchema<TypedClientSchema, Connector, Database> => {
+  if (!schema)
+    return client as PongoClientWithSchema<
+      TypedClientSchema,
+      Connector,
+      Database
+    >;
 
   const dbNames = Object.keys(schema.dbs);
 
   return new Proxy(
-    client as PongoClient & {
+    client as PongoClient<Connector, Database> & {
       [key: string]: unknown;
     },
     {
@@ -149,7 +159,7 @@ export const proxyClientWithSchema = <
         return target[prop];
       },
     },
-  ) as PongoClientWithSchema<TypedClientSchema>;
+  ) as PongoClientWithSchema<TypedClientSchema, Connector, Database>;
 };
 
 export type PongoCollectionSchemaMetadata = {

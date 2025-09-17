@@ -9,21 +9,23 @@ export type SchemaComponent<ComponentType extends string = string> = {
   }): ReadonlyArray<SQLMigration> | Promise<ReadonlyArray<SQLMigration>>;
 };
 
+export type SchemaComponentOptions =
+  | {
+      migrations: ReadonlyArray<SQLMigration>;
+      components?: never;
+    }
+  | {
+      migrations: ReadonlyArray<SQLMigration>;
+      components: ReadonlyArray<SchemaComponent>;
+    }
+  | {
+      migrations?: never;
+      components: ReadonlyArray<SchemaComponent>;
+    };
+
 export const schemaComponent = <ComponentType extends string = string>(
   type: ComponentType,
-  migrationsOrComponents:
-    | {
-        migrations: ReadonlyArray<SQLMigration>;
-        components?: never;
-      }
-    | {
-        migrations: ReadonlyArray<SQLMigration>;
-        components: ReadonlyArray<SchemaComponent>;
-      }
-    | {
-        migrations?: never;
-        components: ReadonlyArray<SchemaComponent>;
-      },
+  migrationsOrComponents: SchemaComponentOptions,
 ): SchemaComponent<ComponentType> => {
   const components = migrationsOrComponents.components ?? [];
 

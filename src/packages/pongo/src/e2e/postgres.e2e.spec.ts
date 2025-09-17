@@ -14,6 +14,7 @@ import {
   type PongoDb,
 } from '../';
 import { pongoSchema } from '../core';
+import { databaseDriver } from '../pg';
 import { MongoClient, type Db } from '../shim';
 
 type History = { street: string };
@@ -46,8 +47,14 @@ void describe('MongoDB Compatibility Tests', () => {
     postgresConnectionString = PostgreSQLConnectionString(
       postgres.getConnectionUri(),
     );
-    client = pongoClient({ connectionString: postgresConnectionString });
-    shim = new MongoClient(postgresConnectionString);
+    client = pongoClient({
+      driver: databaseDriver,
+      connectionString: postgresConnectionString,
+    });
+    shim = new MongoClient({
+      driver: databaseDriver,
+      connectionString: postgresConnectionString,
+    });
     await client.connect();
     await shim.connect();
 
@@ -1261,6 +1268,7 @@ void describe('MongoDB Compatibility Tests', () => {
 
     void it('should access typed collection and perform operation', async () => {
       const typedClient = pongoClient({
+        driver: databaseDriver,
         connectionString: postgresConnectionString,
         schema: { definition: schema },
       });
@@ -1287,6 +1295,7 @@ void describe('MongoDB Compatibility Tests', () => {
 
     void it('should access collection by name and perform operation', async () => {
       const typedClient = pongoClient({
+        driver: databaseDriver,
         connectionString: postgresConnectionString,
         schema: { definition: schema },
       });

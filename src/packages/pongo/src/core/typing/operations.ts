@@ -1,41 +1,76 @@
 import {
   type ConnectorType,
+  type DatabaseConnectionString,
   type DatabaseTransaction,
   type DatabaseTransactionFactory,
+  type InferConnectorDatabaseType,
   JSONSerializer,
+  type MigrationStyle,
   type QueryResult,
   type QueryResultRow,
   type SQL,
   type SQLExecutor,
 } from '@event-driven-io/dumbo';
 import { v7 as uuid } from 'uuid';
-import type { PongoCollectionSchemaComponent } from '../../storage/all';
+import type { PongoCollectionSchemaComponent } from '../collection';
 import type { PongoDatabaseSchemaComponent } from '../database/pongoDatabaseSchemaComponent';
 import { ConcurrencyError } from '../errors';
+import type {
+  AnyPongoDatabaseDriver,
+  ExtractDatabaseDriverOptions,
+} from '../plugins';
+import type { PongoClientSchema } from '../schema';
 
-export interface PongoClient {
+export interface PongoClient<
+  Connector extends ConnectorType = ConnectorType,
+  Database extends PongoDb<Connector> = PongoDb<Connector>,
+> {
+  connector: Connector;
+
   connect(): Promise<this>;
 
   close(): Promise<void>;
 
-  db(dbName?: string): PongoDb;
+  db(dbName?: string): Database;
 
-  startSession(): PongoSession;
+  startSession(): PongoSession<Connector>;
 
   withSession<T = unknown>(
-    callback: (session: PongoSession) => Promise<T>,
+    callback: (session: PongoSession<Connector>) => Promise<T>,
   ): Promise<T>;
 }
+
+export type PongoClientOptions<
+  DatabaseDriver extends AnyPongoDatabaseDriver = AnyPongoDatabaseDriver,
+  ConnectionString extends DatabaseConnectionString<
+    InferConnectorDatabaseType<DatabaseDriver['connector']>
+  > = DatabaseConnectionString<
+    InferConnectorDatabaseType<DatabaseDriver['connector']>
+  >,
+  TypedClientSchema extends PongoClientSchema = PongoClientSchema,
+> = {
+  driver: DatabaseDriver;
+  connectionString: ConnectionString | string;
+  schema?:
+    | { autoMigration?: MigrationStyle; definition?: TypedClientSchema }
+    | undefined;
+  errors?: { throwOnOperationFailures?: boolean } | undefined;
+} & Omit<ExtractDatabaseDriverOptions<DatabaseDriver>, 'driver'>;
 
 export declare interface PongoTransactionOptions {
   get snapshotEnabled(): boolean;
   maxCommitTimeMS?: number;
 }
 
-export interface PongoDbTransaction {
+export interface PongoDbTransaction<
+  Connector extends ConnectorType = ConnectorType,
+  Database extends PongoDb<Connector> = PongoDb<Connector>,
+> {
   get databaseName(): string | null;
   options: PongoTransactionOptions;
-  enlistDatabase: (database: PongoDb) => Promise<DatabaseTransaction>;
+  enlistDatabase: (
+    database: Database,
+  ) => Promise<DatabaseTransaction<Connector>>;
   commit: () => Promise<void>;
   rollback: (error?: unknown) => Promise<void>;
   get sqlExecutor(): SQLExecutor;
@@ -44,11 +79,11 @@ export interface PongoDbTransaction {
   get isCommitted(): boolean;
 }
 
-export interface PongoSession {
+export interface PongoSession<Connector extends ConnectorType = ConnectorType> {
   hasEnded: boolean;
   explicit: boolean;
   defaultTransactionOptions: PongoTransactionOptions;
-  transaction: PongoDbTransaction | null;
+  transaction: PongoDbTransaction<Connector> | null;
   get snapshotEnabled(): boolean;
 
   endSession(): Promise<void>;
@@ -58,15 +93,15 @@ export interface PongoSession {
   commitTransaction(): Promise<void>;
   abortTransaction(): Promise<void>;
   withTransaction<T = unknown>(
-    fn: (session: PongoSession) => Promise<T>,
+    fn: (session: PongoSession<Connector>) => Promise<T>,
     options?: PongoTransactionOptions,
   ): Promise<T>;
 }
 
 export interface PongoDb<Connector extends ConnectorType = ConnectorType>
   extends DatabaseTransactionFactory<Connector> {
-  get connector(): Connector;
-  get databaseName(): string;
+  connector: Connector;
+  databaseName: string;
   connect(): Promise<void>;
   close(): Promise<void>;
   collection<T extends PongoDocument>(name: string): PongoCollection<T>;
@@ -86,6 +121,9 @@ export interface PongoDb<Connector extends ConnectorType = ConnectorType>
     ): Promise<QueryResult<Result>>;
   };
 }
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnyPongoDb = PongoDb<any>;
 
 export type CollectionOperationOptions = {
   session?: PongoSession;

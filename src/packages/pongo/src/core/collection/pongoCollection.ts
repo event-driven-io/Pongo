@@ -16,6 +16,7 @@ import {
   deepEquals,
   expectedVersionValue,
   operationResult,
+  PongoCollectionSchemaComponent,
   type CollectionOperationOptions,
   type DeleteManyOptions,
   type DeleteOneOptions,
@@ -43,7 +44,6 @@ import {
   type WithoutId,
   type WithVersion,
 } from '..';
-import { PongoCollectionSchemaComponent } from '../../storage/all';
 
 export type PongoCollectionOptions<
   Connector extends ConnectorType = ConnectorType,

@@ -1,5 +1,5 @@
 import { JSONSerializer, SQL } from '@event-driven-io/dumbo';
-import { objectEntries, OperatorMap } from '../../../../core';
+import { objectEntries, OperatorMap } from '../../../../../core';
 
 export const handleOperator = (
   path: string,

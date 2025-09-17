@@ -1,13 +1,16 @@
 import {
+  dumbo,
+  getDatabaseNameOrDefault,
   NodePostgresConnectorType,
-  pgStoragePlugin,
   type NodePostgresConnection,
   type NodePostgresConnector,
 } from '@event-driven-io/dumbo/pg';
 import pg from 'pg';
+import { PongoDatabase, type PongoDb } from '../../../core';
 import {
-  pongoStoragePluginRegistry,
-  type PongoStoragePlugin,
+  pongoDatabaseDriverRegistry,
+  type PongoDatabaseDriver,
+  type PongoDatabaseDriverOptions,
 } from '../../../core/plugins';
 
 export type NodePostgresPongoClientOptions =
@@ -43,15 +46,30 @@ export type NotPooledPongoOptions =
       pooled?: false;
     };
 
-const pgPongoStoragePlugin: PongoStoragePlugin<
-  NodePostgresConnector,
-  NodePostgresConnection
+type NodePostgresDatabaseDriverOptions =
+  PongoDatabaseDriverOptions<NodePostgresPongoClientOptions>;
+
+const pgDatabaseDriver: PongoDatabaseDriver<
+  PongoDb<NodePostgresConnector>,
+  NodePostgresDatabaseDriverOptions
 > = {
   connector: NodePostgresConnectorType,
-  dumboPlugin: pgStoragePlugin,
+  databaseFactory: (options) => {
+    return PongoDatabase({
+      ...options,
+      pool: dumbo(options),
+      dbSchemaComponent: undefined!,
+      databaseName:
+        options.databaseName ??
+        getDatabaseNameOrDefault(options.connectionString),
+    });
+  },
+  getDatabaseNameOrDefault,
 };
 
-pongoStoragePluginRegistry.register(
+pongoDatabaseDriverRegistry.register(
   NodePostgresConnectorType,
-  pgPongoStoragePlugin,
+  pgDatabaseDriver,
 );
+
+export { pgDatabaseDriver as databaseDriver };
