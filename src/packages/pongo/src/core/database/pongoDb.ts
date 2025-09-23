@@ -9,6 +9,7 @@ import {
 } from '@event-driven-io/dumbo';
 import { pongoCollection, transactionExecutorOrDefault } from '../collection';
 import {
+  pongoSchema,
   proxyPongoDbWithSchema,
   type PongoCollectionSchema,
   type PongoDbSchema,
@@ -91,7 +92,9 @@ export const PongoDatabase = <
         collectionName,
         db,
         pool,
-        schemaComponent: dbSchemaComponent.collection(collectionName),
+        schemaComponent: dbSchemaComponent.collection(
+          pongoSchema.collection<T>(collectionName),
+        ),
         schema: options.schema ? options.schema : {},
         errors: options.errors ? options.errors : {},
       }),

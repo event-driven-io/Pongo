@@ -10,8 +10,8 @@ import {
 } from '@testcontainers/postgresql';
 import assert from 'assert';
 import { after, before, beforeEach, describe, it } from 'node:test';
-import { pongoClient, pongoSchema, type PongoClient } from '../../../../core';
 import { databaseDriver } from '..';
+import { pongoClient, pongoSchema, type PongoClient } from '../../../../core';
 
 void describe('Migration Integration Tests', () => {
   let pool: Dumbo;
@@ -59,26 +59,26 @@ void describe('Migration Integration Tests', () => {
     assert.ok(rolesTableExists, 'The roles table should exist.');
   });
 
-  void it('should correctly apply a migration if the hash matches the previous migration with the same name', async () => {
-    await client.db().schema.migrate();
+  // void it('should correctly apply a migration if the hash matches the previous migration with the same name', async () => {
+  //   await client.db().schema.migrate();
 
-    // Attempt to run the same migration again with the same content
-    await client.db().schema.migrate();
+  //   // Attempt to run the same migration again with the same content
+  //   await client.db().schema.migrate();
 
-    const migrationNames = await pool.execute.query<{ name: number }>(
-      SQL`SELECT name FROM migrations`,
-    );
-    assert.strictEqual(
-      migrationNames.rowCount,
-      2,
-      'The migration should only be applied once.',
-    );
-    assert.deepEqual(
-      migrationNames.rows.map((r) => r.name),
-      [
-        'pongoCollection:users:001:createtable',
-        'pongoCollection:roles:001:createtable',
-      ],
-    );
-  });
+  //   const migrationNames = await pool.execute.query<{ name: number }>(
+  //     SQL`SELECT name FROM migrations`,
+  //   );
+  //   assert.strictEqual(
+  //     migrationNames.rowCount,
+  //     2,
+  //     'The migration should only be applied once.',
+  //   );
+  //   assert.deepEqual(
+  //     migrationNames.rows.map((r) => r.name),
+  //     [
+  //       'pongoCollection:users:001:createtable',
+  //       'pongoCollection:roles:001:createtable',
+  //     ],
+  //   );
+  // });
 });

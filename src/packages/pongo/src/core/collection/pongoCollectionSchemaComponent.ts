@@ -4,17 +4,18 @@ import {
   type SchemaComponent,
   type SchemaComponentOptions,
 } from '@event-driven-io/dumbo';
-import type { PongoCollectionSQLBuilder } from '..';
+import type { PongoCollectionSchema, PongoCollectionSQLBuilder } from '..';
 
 export type PongoCollectionSchemaComponent =
   SchemaComponent<'pongo:schema-component:collection'> & {
     collectionName: string;
+    definition: PongoCollectionSchema;
   } & PongoCollectionSQLBuilder;
 
 export type PongoCollectionSchemaComponentOptions<
   Connector extends ConnectorType = ConnectorType,
 > = Readonly<{
-  collectionName: string;
+  definition: PongoCollectionSchema;
   connector: Connector;
   migrationsOrSchemaComponents: SchemaComponentOptions;
 }>;
@@ -29,7 +30,7 @@ export type PongoCollectionSchemaComponentOptions<
 export const PongoCollectionSchemaComponent = <
   Connector extends ConnectorType = ConnectorType,
 >({
-  collectionName,
+  definition,
   migrationsOrSchemaComponents,
 }: PongoCollectionSchemaComponentOptions<Connector>): PongoCollectionSchemaComponent =>
   ({
@@ -40,5 +41,8 @@ export const PongoCollectionSchemaComponent = <
     //   {
     //   migrations: pongoCollectionPostgreSQLMigrations(collectionName), // TODO: This needs to change to support more connectors
     // }),
-    collectionName,
+    definition,
+    get collectionName() {
+      return this.definition.name;
+    },
   }) as PongoCollectionSchemaComponent;

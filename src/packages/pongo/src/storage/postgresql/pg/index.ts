@@ -6,12 +6,19 @@ import {
   type NodePostgresConnector,
 } from '@event-driven-io/dumbo/pg';
 import pg from 'pg';
-import { PongoDatabase, type PongoDb } from '../../../core';
+import {
+  PongoCollectionSchemaComponent,
+  PongoDatabase,
+  PongoDatabaseSchemaComponent,
+  pongoSchema,
+  type PongoDb,
+} from '../../../core';
 import {
   pongoDatabaseDriverRegistry,
   type PongoDatabaseDriver,
   type PongoDatabaseDriverOptions,
 } from '../../../core/plugins';
+import { pongoCollectionPostgreSQLMigrations } from '../core';
 
 export type NodePostgresPongoClientOptions =
   | PooledPongoClientOptions
@@ -55,13 +62,27 @@ const pgDatabaseDriver: PongoDatabaseDriver<
 > = {
   connector: NodePostgresConnectorType,
   databaseFactory: (options) => {
+    const databaseName =
+      options.databaseName ??
+      getDatabaseNameOrDefault(options.connectionString);
+
     return PongoDatabase({
       ...options,
       pool: dumbo(options),
-      dbSchemaComponent: undefined!,
-      databaseName:
-        options.databaseName ??
-        getDatabaseNameOrDefault(options.connectionString),
+      dbSchemaComponent: PongoDatabaseSchemaComponent({
+        connector: NodePostgresConnectorType,
+        collectionFactory: (schema) =>
+          PongoCollectionSchemaComponent({
+            connector: NodePostgresConnectorType,
+            definition: schema,
+            migrationsOrSchemaComponents: {
+              migrations: pongoCollectionPostgreSQLMigrations(schema.name),
+            },
+          }),
+        definition:
+          options.schema?.definition ?? pongoSchema.db(databaseName, {}),
+      }),
+      databaseName,
     });
   },
   getDatabaseNameOrDefault,
