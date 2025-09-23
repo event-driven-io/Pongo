@@ -86,4 +86,10 @@ export const StoragePluginRegistry = () => {
   };
 };
 
-export const storagePluginRegistry = StoragePluginRegistry();
+declare global {
+  // eslint-disable-next-line no-var
+  var storagePluginRegistry: ReturnType<typeof StoragePluginRegistry>;
+}
+
+export const storagePluginRegistry = (globalThis.storagePluginRegistry =
+  globalThis.storagePluginRegistry ?? StoragePluginRegistry());

@@ -10,7 +10,8 @@ export type PongoCollectionSchemaComponent =
   SchemaComponent<'pongo:schema-component:collection'> & {
     collectionName: string;
     definition: PongoCollectionSchema;
-  } & PongoCollectionSQLBuilder;
+    sqlBuilder: PongoCollectionSQLBuilder;
+  };
 
 export type PongoCollectionSchemaComponentOptions<
   Connector extends ConnectorType = ConnectorType,
@@ -18,29 +19,22 @@ export type PongoCollectionSchemaComponentOptions<
   definition: PongoCollectionSchema;
   connector: Connector;
   migrationsOrSchemaComponents: SchemaComponentOptions;
+  sqlBuilder: PongoCollectionSQLBuilder;
 }>;
-
-// export type PongoCollectionSchemaComponentOptions = <
-//   Connector extends ConnectorType = ConnectorType,
-// >(
-//   connector: Connector,
-//   existingCollections: PongoCollectionSchemaComponent[],
-// ) => PongoCollectionSchemaComponent;
 
 export const PongoCollectionSchemaComponent = <
   Connector extends ConnectorType = ConnectorType,
 >({
   definition,
   migrationsOrSchemaComponents,
+  sqlBuilder,
 }: PongoCollectionSchemaComponentOptions<Connector>): PongoCollectionSchemaComponent =>
   ({
     ...schemaComponent(
       'pongo:schema-component:collection',
       migrationsOrSchemaComponents,
     ),
-    //   {
-    //   migrations: pongoCollectionPostgreSQLMigrations(collectionName), // TODO: This needs to change to support more connectors
-    // }),
+    sqlBuilder,
     definition,
     get collectionName() {
       return this.definition.name;

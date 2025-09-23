@@ -51,25 +51,29 @@ export const migrationTableSchemaComponent = schemaComponent(
   },
 );
 
-const defaultMigratorOptions: Record<DatabaseType, MigratorOptions> =
-  {} as Record<DatabaseType, MigratorOptions>;
+declare global {
+  // eslint-disable-next-line no-var
+  var defaultMigratorOptions: Record<DatabaseType, MigratorOptions>;
+}
+
+globalThis.defaultMigratorOptions = {};
 
 export const registerDefaultMigratorOptions = (
   databaseType: DatabaseType,
   options: MigratorOptions,
 ): void => {
-  defaultMigratorOptions[databaseType] = options;
+  globalThis.defaultMigratorOptions[databaseType] = options;
 };
 
 export const getDefaultMigratorOptionsFromRegistry = (
   databaseType: DatabaseType,
 ): MigratorOptions => {
-  if (!defaultMigratorOptions[databaseType]) {
+  if (!globalThis.defaultMigratorOptions[databaseType]) {
     throw new Error(
       `No default migrator options registered for database type: ${databaseType}`,
     );
   }
-  return defaultMigratorOptions[databaseType];
+  return globalThis.defaultMigratorOptions[databaseType];
 };
 
 export type MigratorOptions = {

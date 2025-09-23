@@ -120,4 +120,13 @@ export const PongoDatabaseDriverRegistry = () => {
   };
 };
 
-export const pongoDatabaseDriverRegistry = PongoDatabaseDriverRegistry();
+declare global {
+  // eslint-disable-next-line no-var
+  var pongoDatabaseDriverRegistry: ReturnType<
+    typeof PongoDatabaseDriverRegistry
+  >;
+}
+
+export const pongoDatabaseDriverRegistry =
+  (globalThis.pongoDatabaseDriverRegistry =
+    globalThis.pongoDatabaseDriverRegistry ?? PongoDatabaseDriverRegistry());

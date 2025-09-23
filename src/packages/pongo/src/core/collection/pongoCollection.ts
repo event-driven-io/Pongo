@@ -91,7 +91,7 @@ export const pongoCollection = <
   schema,
   errors,
 }: PongoCollectionOptions<Connector>): PongoCollection<T> => {
-  const SqlFor = schemaComponent;
+  const SqlFor = schemaComponent.sqlBuilder;
   const sqlExecutor = pool.execute;
   const command = async <Result extends QueryResultRow = QueryResultRow>(
     sql: SQL,
