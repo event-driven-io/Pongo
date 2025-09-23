@@ -71,7 +71,10 @@ const pgDatabaseDriver: PongoDatabaseDriver<
 
     return PongoDatabase({
       ...options,
-      pool: dumbo(options),
+      pool: dumbo({
+        connectionString: options.connectionString,
+        ...options.connectionOptions,
+      }),
       dbSchemaComponent: PongoDatabaseSchemaComponent({
         connector: NodePostgresConnectorType,
         collectionFactory: (schema) =>
