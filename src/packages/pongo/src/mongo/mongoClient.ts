@@ -7,13 +7,11 @@ import type { ClientSession, WithSessionCallback } from 'mongodb';
 import {
   pongoClient,
   pongoSession,
+  type AnyPongoDatabaseDriver,
+  type ExtractDatabaseTypeFromDriver,
   type PongoClient,
   type PongoClientOptions,
 } from '../core';
-import type {
-  AnyPongoDatabaseDriver,
-  ExtractDatabaseTypeFromDriver,
-} from '../core/plugins';
 import { Db } from './mongoDb';
 
 export class MongoClient<

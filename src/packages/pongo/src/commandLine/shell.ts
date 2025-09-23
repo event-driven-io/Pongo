@@ -13,12 +13,12 @@ import { Command } from 'commander';
 import repl from 'node:repl';
 import {
   pongoClient,
+  pongoDatabaseDriverRegistry,
   pongoSchema,
   type PongoClient,
   type PongoCollectionSchema,
   type PongoDb,
 } from '../core';
-import { pongoDatabaseDriverRegistry } from '../core/plugins';
 
 let pongo: PongoClient;
 

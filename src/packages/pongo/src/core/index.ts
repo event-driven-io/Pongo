@@ -1,6 +1,6 @@
 export * from './collection';
 export * from './database';
-export * from './database/pongoDb';
+export * from './drivers';
 export * from './errors';
 export * from './pongoClient';
 export * from './pongoSession';

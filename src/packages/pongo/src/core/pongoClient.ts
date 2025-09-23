@@ -6,7 +6,7 @@ import { PongoDatabaseCache } from './database';
 import type {
   AnyPongoDatabaseDriver,
   ExtractDatabaseTypeFromDriver,
-} from './plugins';
+} from './drivers';
 import { pongoSession } from './pongoSession';
 import {
   proxyClientWithSchema,
