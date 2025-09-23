@@ -18,7 +18,10 @@ import {
   type PongoDatabaseDriver,
   type PongoDatabaseDriverOptions,
 } from '../../../core/plugins';
-import { pongoCollectionPostgreSQLMigrations } from '../core';
+import {
+  pongoCollectionPostgreSQLMigrations,
+  postgresSQLBuilder,
+} from '../core';
 
 export type NodePostgresPongoClientOptions =
   | PooledPongoClientOptions
@@ -78,6 +81,7 @@ const pgDatabaseDriver: PongoDatabaseDriver<
             migrationsOrSchemaComponents: {
               migrations: pongoCollectionPostgreSQLMigrations(schema.name),
             },
+            sqlBuilder: postgresSQLBuilder(schema.name),
           }),
         definition:
           options.schema?.definition ?? pongoSchema.db(databaseName, {}),

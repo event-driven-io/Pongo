@@ -18,6 +18,9 @@ export const PongoDatabaseCache = <
 }) => {
   const dbClients = new Map<string, PongoDb>();
 
+  const getDatabaseDefinition = (dbName: string | undefined) =>
+    Object.values(typedSchema?.dbs ?? {}).find((d) => d.name === dbName);
+
   return {
     getOrCreate: <
       CollectionsSchema extends Record<string, PongoCollectionSchema> = Record<
@@ -41,13 +44,14 @@ export const PongoDatabaseCache = <
       const existing = dbClients.get(dbName);
       if (existing) return existing as Database;
 
+      const definition = getDatabaseDefinition(createOptions.databaseName);
+
       const newDb: Database = driver.databaseFactory({
         ...createOptions,
+        databaseName: dbName,
         schema: {
           ...createOptions.schema,
-          ...(typedSchema?.dbs[dbName]
-            ? { definition: typedSchema?.dbs[dbName] }
-            : {}),
+          ...(definition ? { definition } : {}),
         },
       });
       dbClients.set(dbName, newDb);
