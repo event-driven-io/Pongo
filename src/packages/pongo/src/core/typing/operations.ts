@@ -14,11 +14,11 @@ import {
 import { v7 as uuid } from 'uuid';
 import type { PongoCollectionSchemaComponent } from '../collection';
 import type { PongoDatabaseSchemaComponent } from '../database/pongoDatabaseSchemaComponent';
-import { ConcurrencyError } from '../errors';
 import type {
   AnyPongoDatabaseDriver,
   ExtractDatabaseDriverOptions,
-} from '../plugins';
+} from '../drivers';
+import { ConcurrencyError } from '../errors';
 import type { PongoClientSchema } from '../schema';
 
 export interface PongoClient<

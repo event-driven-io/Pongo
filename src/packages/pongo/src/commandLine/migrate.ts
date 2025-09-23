@@ -6,8 +6,12 @@ import {
   type DatabaseType,
 } from '@event-driven-io/dumbo';
 import { Command } from 'commander';
-import { pongoSchema, type PongoCollectionSchema, type PongoDb } from '../core';
-import { pongoDatabaseDriverRegistry } from '../core/plugins';
+import {
+  pongoDatabaseDriverRegistry,
+  pongoSchema,
+  type PongoCollectionSchema,
+  type PongoDb,
+} from '../core';
 import { loadConfigFile } from './configFile';
 
 interface MigrateRunOptions {

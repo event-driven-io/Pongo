@@ -2,7 +2,7 @@ import type { ConnectorType, MigrationStyle } from '@event-driven-io/dumbo';
 import type {
   PongoDatabaseDriver,
   PongoDatabaseFactoryOptions,
-} from '../plugins';
+} from '../drivers';
 import type { PongoClientSchema, PongoCollectionSchema } from '../schema';
 import type { PongoDb } from '../typing';
 

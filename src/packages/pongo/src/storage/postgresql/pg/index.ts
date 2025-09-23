@@ -9,15 +9,13 @@ import pg from 'pg';
 import {
   PongoCollectionSchemaComponent,
   PongoDatabase,
+  pongoDatabaseDriverRegistry,
   PongoDatabaseSchemaComponent,
   pongoSchema,
-  type PongoDb,
-} from '../../../core';
-import {
-  pongoDatabaseDriverRegistry,
   type PongoDatabaseDriver,
   type PongoDatabaseDriverOptions,
-} from '../../../core/plugins';
+  type PongoDb,
+} from '../../../core';
 import {
   pongoCollectionPostgreSQLMigrations,
   postgresSQLBuilder,
