@@ -115,12 +115,7 @@ migrateCommand
 
     const pool = dumbo({ connectionString, connector });
 
-    const migrationOptions = {
-      databaseType,
-    };
-
-    const migrations =
-      await db.schema.component.resolveMigrations(migrationOptions);
+    const migrations = db.schema.component.migrations;
 
     await runSQLMigrations(pool, migrations, {
       dryRun,
@@ -196,12 +191,7 @@ migrateCommand
       schema: { definition: dbDefinition },
     }) as PongoDb;
 
-    const migrationOptions = {
-      databaseType,
-    };
-
-    const migrations =
-      await db.schema.component.resolveMigrations(migrationOptions);
+    const migrations = db.schema.component.migrations;
 
     console.log('Printing SQL:');
     console.log(combineMigrations(...migrations));

@@ -67,7 +67,7 @@ export const pongoClient = <
       });
 
       // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-      return db as unknown as ExtractDatabaseTypeFromDriver<DatabaseDriver>;
+      return db as ExtractDatabaseTypeFromDriver<DatabaseDriver>;
     },
     startSession: pongoSession,
     withSession: async <T>(

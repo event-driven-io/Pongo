@@ -73,7 +73,7 @@ const pgDatabaseDriver: PongoDatabaseDriver<
         connectionString: options.connectionString,
         ...options.connectionOptions,
       }),
-      dbSchemaComponent: PongoDatabaseSchemaComponent({
+      schemaComponent: PongoDatabaseSchemaComponent({
         connector: NodePostgresConnectorType,
         collectionFactory: (schema) =>
           PongoCollectionSchemaComponent({
