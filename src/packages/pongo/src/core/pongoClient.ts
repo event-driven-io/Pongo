@@ -37,11 +37,12 @@ export const pongoClient = <
   ExtractDatabaseTypeFromDriver<DatabaseDriver>
 > &
   PongoClientWithSchema<TypedClientSchema> => {
-  const { driver, connectionString } = options;
+  const { driver, connectionString, schema, errors, ...connectionOptions } =
+    options;
 
   const dbClients = PongoDatabaseCache<PongoDb, TypedClientSchema>({
     driver,
-    typedSchema: options?.schema?.definition,
+    typedSchema: schema?.definition,
   });
 
   const pongoClient: PongoClient<
@@ -59,9 +60,10 @@ export const pongoClient = <
     },
     db: (dbName?: string): ExtractDatabaseTypeFromDriver<DatabaseDriver> => {
       const db = dbClients.getOrCreate({
+        ...connectionOptions, // TODO: Factory should include the driver related connection options
         connectionString,
         databaseName: dbName,
-        errors: options.errors,
+        errors,
       });
 
       // eslint-disable-next-line @typescript-eslint/no-unsafe-return
@@ -81,5 +83,5 @@ export const pongoClient = <
     },
   };
 
-  return proxyClientWithSchema(pongoClient, options?.schema?.definition);
+  return proxyClientWithSchema(pongoClient, schema?.definition);
 };

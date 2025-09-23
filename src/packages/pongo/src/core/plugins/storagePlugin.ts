@@ -14,6 +14,8 @@ export type PongoDatabaseFactoryOptions<
     string,
     PongoCollectionSchema
   >,
+  DriverOptions extends
+    AnyPongoDatabaseDriverOptions = AnyPongoDatabaseDriverOptions,
 > = {
   databaseName?: string | undefined;
   connectionString: string;
@@ -24,11 +26,10 @@ export type PongoDatabaseFactoryOptions<
       }
     | undefined;
   errors?: { throwOnOperationFailures?: boolean } | undefined;
-};
+} & DriverOptions;
 
 export interface PongoDatabaseDriver<
   Database extends AnyPongoDb = AnyPongoDb,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   DriverOptions extends
     AnyPongoDatabaseDriverOptions = AnyPongoDatabaseDriverOptions,
 > {
@@ -39,7 +40,7 @@ export interface PongoDatabaseDriver<
       PongoCollectionSchema
     >,
   >(
-    options: PongoDatabaseFactoryOptions<CollectionsSchema>,
+    options: PongoDatabaseFactoryOptions<CollectionsSchema, DriverOptions>,
   ): Database;
   getDatabaseNameOrDefault(connectionString: string): string;
 }
