@@ -1,5 +1,4 @@
 import {
-  fromConnectorType,
   runSQLMigrations,
   SQL,
   type Dumbo,
@@ -33,7 +32,7 @@ export type PongoDatabaseOptions<
 > = {
   databaseName: string;
   pool: DumboType;
-  dbSchemaComponent: PongoDatabaseSchemaComponent<DumboType['connector']>;
+  schemaComponent: PongoDatabaseSchemaComponent<DumboType['connector']>;
   schema?:
     | {
         autoMigration?: MigrationStyle;
@@ -54,7 +53,7 @@ export const PongoDatabase = <
 >(
   options: PongoDatabaseOptions<DumboType>,
 ): Database => {
-  const { databaseName, dbSchemaComponent, pool } = options;
+  const { databaseName, schemaComponent, pool } = options;
 
   const collections = new Map<string, PongoCollection<Document>>();
 
@@ -76,9 +75,6 @@ export const PongoDatabase = <
 
   const connector = pool.connector as Database['connector'];
 
-  const databaseType =
-    fromConnectorType<Database['connector']>(connector).databaseType;
-
   const db = {
     connector,
     databaseName,
@@ -92,7 +88,7 @@ export const PongoDatabase = <
         collectionName,
         db,
         pool,
-        schemaComponent: dbSchemaComponent.collection(
+        schemaComponent: schemaComponent.collection(
           pongoSchema.collection<T>(collectionName),
         ),
         schema: options.schema ? options.schema : {},
@@ -102,16 +98,8 @@ export const PongoDatabase = <
     withTransaction: (handle) => pool.withTransaction(handle),
 
     schema: {
-      get component(): PongoDatabaseSchemaComponent<Database['connector']> {
-        return dbSchemaComponent;
-      },
-      migrate: async () =>
-        runSQLMigrations(
-          pool,
-          await dbSchemaComponent.resolveMigrations({
-            databaseType,
-          }),
-        ),
+      component: schemaComponent,
+      migrate: async () => runSQLMigrations(pool, schemaComponent.migrations),
     },
 
     sql: {

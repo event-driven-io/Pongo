@@ -130,9 +130,7 @@ export const runSQLMigrations = (
     const migrationTable =
       options.schema?.migrationTable ?? migrationTableSchemaComponent;
 
-    const coreMigrations = await migrationTable.resolveMigrations({
-      databaseType,
-    });
+    const coreMigrations = migrationTable.migrations;
 
     await databaseLock.withAcquire(
       execute,

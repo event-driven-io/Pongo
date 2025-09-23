@@ -1,5 +1,4 @@
 import {
-  fromConnectorType,
   runSQLMigrations,
   single,
   SQL,
@@ -491,13 +490,7 @@ export const pongoCollection = <
       get component(): PongoCollectionSchemaComponent {
         return schemaComponent;
       },
-      migrate: async () =>
-        runSQLMigrations(
-          pool,
-          await schemaComponent.resolveMigrations({
-            databaseType: fromConnectorType(pool.connector).databaseType,
-          }),
-        ),
+      migrate: async () => runSQLMigrations(pool, schemaComponent.migrations),
     },
   };
 
