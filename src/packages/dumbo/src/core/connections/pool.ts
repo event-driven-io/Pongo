@@ -1,7 +1,4 @@
-import { createDeferredConnection } from '../connections';
-import { type DatabaseDriverType } from '../drivers';
 import {
-  createDeferredExecutor,
   executeInNewConnection,
   sqlExecutorInNewConnection,
   type WithSQLExecutor,
@@ -77,44 +74,4 @@ export const createConnectionPool = <
   };
 
   return result as ConnectionPoolType;
-};
-
-export const createDeferredConnectionPool = <
-  DriverType extends DatabaseDriverType,
-  ConnectionType extends Connection<DriverType> = Connection<DriverType>,
->(
-  driverType: DriverType,
-  importPool: () => Promise<ConnectionPool<Connection<DriverType>>>,
-): ConnectionPool<ConnectionType> => {
-  let poolPromise: Promise<ConnectionPool<Connection<DriverType>>> | null =
-    null;
-
-  const getPool = async (): Promise<ConnectionPool<Connection<DriverType>>> => {
-    if (poolPromise) return poolPromise;
-    try {
-      return (poolPromise = importPool());
-    } catch (error) {
-      throw new Error(
-        `Failed to import connection pool: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  };
-
-  return createConnectionPool({
-    driverType,
-    execute: createDeferredExecutor(driverType, async () => {
-      const connection = await getPool();
-      return connection.execute;
-    }),
-    close: async () => {
-      if (!poolPromise) return;
-      const pool = await poolPromise;
-      await pool.close();
-      poolPromise = null;
-    },
-    getConnection: () =>
-      createDeferredConnection(driverType, async () =>
-        (await getPool()).connection(),
-      ),
-  });
 };

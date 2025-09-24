@@ -1,5 +1,4 @@
 import {
-  createDeferredConnectionPool,
   type Connection,
   type DatabaseDriverType,
   type Dumbo,
@@ -29,20 +28,13 @@ export function dumbo<
 
   const driverType = `${databaseType}:${driverName}` as DriverType;
 
-  const importAndCreatePool = async () => {
-    const plugin = await storagePluginRegistry.tryResolve<
-      DriverType,
-      ConnectionType
-    >(driverType);
+  const plugin = storagePluginRegistry.tryGet<DriverType, ConnectionType>(
+    driverType,
+  );
 
-    if (plugin === null) {
-      throw new Error(
-        `No plugin found for database driver type: ${driverType}`,
-      );
-    }
+  if (plugin === null) {
+    throw new Error(`No plugin found for database driver type: ${driverType}`);
+  }
 
-    return plugin.createPool({ ...options, driverType });
-  };
-
-  return createDeferredConnectionPool(driverType, importAndCreatePool);
+  return plugin.createPool({ ...options, driverType });
 }
