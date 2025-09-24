@@ -1,9 +1,9 @@
 import {
-  type ConnectorType,
   type DatabaseConnectionString,
+  type DatabaseDriverType,
   type DatabaseTransaction,
   type DatabaseTransactionFactory,
-  type InferConnectorDatabaseType,
+  type InferDriverDatabaseType,
   JSONSerializer,
   type MigrationStyle,
   type QueryResult,
@@ -22,10 +22,10 @@ import { ConcurrencyError } from '../errors';
 import type { PongoClientSchema } from '../schema';
 
 export interface PongoClient<
-  Connector extends ConnectorType = ConnectorType,
-  Database extends PongoDb<Connector> = PongoDb<Connector>,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
+  Database extends PongoDb<DriverType> = PongoDb<DriverType>,
 > {
-  connector: Connector;
+  driverType: DriverType;
 
   connect(): Promise<this>;
 
@@ -33,19 +33,19 @@ export interface PongoClient<
 
   db(dbName?: string): Database;
 
-  startSession(): PongoSession<Connector>;
+  startSession(): PongoSession<DriverType>;
 
   withSession<T = unknown>(
-    callback: (session: PongoSession<Connector>) => Promise<T>,
+    callback: (session: PongoSession<DriverType>) => Promise<T>,
   ): Promise<T>;
 }
 
 export type PongoClientOptions<
   DatabaseDriver extends AnyPongoDatabaseDriver = AnyPongoDatabaseDriver,
   ConnectionString extends DatabaseConnectionString<
-    InferConnectorDatabaseType<DatabaseDriver['connector']>
+    InferDriverDatabaseType<DatabaseDriver['driverType']>
   > = DatabaseConnectionString<
-    InferConnectorDatabaseType<DatabaseDriver['connector']>
+    InferDriverDatabaseType<DatabaseDriver['driverType']>
   >,
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
 > = {
@@ -63,14 +63,14 @@ export declare interface PongoTransactionOptions {
 }
 
 export interface PongoDbTransaction<
-  Connector extends ConnectorType = ConnectorType,
-  Database extends PongoDb<Connector> = PongoDb<Connector>,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
+  Database extends PongoDb<DriverType> = PongoDb<DriverType>,
 > {
   get databaseName(): string | null;
   options: PongoTransactionOptions;
   enlistDatabase: (
     database: Database,
-  ) => Promise<DatabaseTransaction<Connector>>;
+  ) => Promise<DatabaseTransaction<DriverType>>;
   commit: () => Promise<void>;
   rollback: (error?: unknown) => Promise<void>;
   get sqlExecutor(): SQLExecutor;
@@ -79,11 +79,13 @@ export interface PongoDbTransaction<
   get isCommitted(): boolean;
 }
 
-export interface PongoSession<Connector extends ConnectorType = ConnectorType> {
+export interface PongoSession<
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
+> {
   hasEnded: boolean;
   explicit: boolean;
   defaultTransactionOptions: PongoTransactionOptions;
-  transaction: PongoDbTransaction<Connector> | null;
+  transaction: PongoDbTransaction<DriverType> | null;
   get snapshotEnabled(): boolean;
 
   endSession(): Promise<void>;
@@ -93,21 +95,22 @@ export interface PongoSession<Connector extends ConnectorType = ConnectorType> {
   commitTransaction(): Promise<void>;
   abortTransaction(): Promise<void>;
   withTransaction<T = unknown>(
-    fn: (session: PongoSession<Connector>) => Promise<T>,
+    fn: (session: PongoSession<DriverType>) => Promise<T>,
     options?: PongoTransactionOptions,
   ): Promise<T>;
 }
 
-export interface PongoDb<Connector extends ConnectorType = ConnectorType>
-  extends DatabaseTransactionFactory<Connector> {
-  connector: Connector;
+export interface PongoDb<
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
+> extends DatabaseTransactionFactory<DriverType> {
+  driverType: DriverType;
   databaseName: string;
   connect(): Promise<void>;
   close(): Promise<void>;
   collection<T extends PongoDocument>(name: string): PongoCollection<T>;
   collections(): ReadonlyArray<PongoCollection<PongoDocument>>;
   readonly schema: Readonly<{
-    component: PongoDatabaseSchemaComponent<Connector>;
+    component: PongoDatabaseSchemaComponent<DriverType>;
     migrate(): Promise<void>;
   }>;
   sql: {

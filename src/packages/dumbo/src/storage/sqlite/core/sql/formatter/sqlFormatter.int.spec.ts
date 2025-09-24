@@ -11,7 +11,7 @@ void describe('SQLite SQL Formatter Integration Tests', () => {
   before(() => {
     pool = dumbo({
       connectionString: InMemorySQLiteDatabase,
-      connector: 'SQLite:sqlite3',
+      driverType: 'SQLite:sqlite3',
     });
   });
 

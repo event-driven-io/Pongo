@@ -6,31 +6,30 @@ import {
 import { DefaultPostgreSQLMigratorOptions, pgFormatter } from '../core';
 import {
   type NodePostgresConnection,
-  type NodePostgresConnector,
-  NodePostgresConnectorType,
+  NodePostgresDriverType,
   type NodePostgresPool,
   nodePostgresPool,
   type NodePostgresPoolOptions,
 } from './connections';
 
 export const pgStoragePlugin: StoragePlugin<
-  NodePostgresConnector,
+  NodePostgresDriverType,
   NodePostgresConnection
 > = {
-  connector: NodePostgresConnectorType,
+  driverType: NodePostgresDriverType,
   createPool: (options) =>
     nodePostgresPool(options as unknown as PostgresPoolOptions),
   sqlFormatter: pgFormatter,
   defaultMigratorOptions: DefaultPostgreSQLMigratorOptions,
 };
 
-storagePluginRegistry.register(NodePostgresConnectorType, pgStoragePlugin);
+storagePluginRegistry.register(NodePostgresDriverType, pgStoragePlugin);
 
 export const dumbo = <
   DumboOptionsType extends PostgresPoolOptions = PostgresPoolOptions,
 >(
   options: DumboOptionsType,
-): Dumbo<NodePostgresConnector> => nodePostgresPool(options);
+): Dumbo<NodePostgresDriverType> => nodePostgresPool(options);
 
 export * from './connections';
 export * from './execute';
@@ -40,7 +39,7 @@ export { pgStoragePlugin as storagePlugin };
 
 // TODO: Remove stuff below
 
-export type PostgresConnector = NodePostgresConnector;
+export type PostgresDriverType = NodePostgresDriverType;
 export type PostgresPool = NodePostgresPool;
 export type PostgresConnection = NodePostgresConnection;
 

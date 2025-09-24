@@ -1,5 +1,5 @@
 import type { Connection } from '../connections';
-import { fromConnectorType, type ConnectorType } from '../connectors';
+import { fromDatabaseDriverType, type DatabaseDriverType } from '../drivers';
 import type { QueryResult, QueryResultRow } from '../query';
 import { getFormatter, type SQL, type SQLFormatter } from '../sql';
 
@@ -7,10 +7,10 @@ export type SQLQueryOptions = { timeoutMs?: number };
 export type SQLCommandOptions = { timeoutMs?: number };
 
 export interface DbSQLExecutor<
-  Connector extends ConnectorType = ConnectorType,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
   DbClient = unknown,
 > {
-  connector: Connector;
+  driverType: DriverType;
   query<Result extends QueryResultRow = QueryResultRow>(
     client: DbClient,
     sql: SQL,
@@ -69,7 +69,7 @@ export const sqlExecutor = <
   },
 ): SQLExecutor => ({
   formatter: getFormatter(
-    fromConnectorType(sqlExecutor.connector).databaseType,
+    fromDatabaseDriverType(sqlExecutor.driverType).databaseType,
   ),
   query: (sql, queryOptions) =>
     executeInNewDbClient(
@@ -96,7 +96,7 @@ export const sqlExecutor = <
 export const sqlExecutorInNewConnection = <
   ConnectionType extends Connection,
 >(options: {
-  connector: ConnectionType['connector'];
+  driverType: ConnectionType['driverType'];
   connection: () => Promise<ConnectionType>;
 }): SQLExecutor => ({
   query: (sql) =>
@@ -120,7 +120,9 @@ export const sqlExecutorInNewConnection = <
       options,
     ),
 
-  formatter: getFormatter(fromConnectorType(options.connector).databaseType),
+  formatter: getFormatter(
+    fromDatabaseDriverType(options.driverType).databaseType,
+  ),
 });
 
 export const executeInNewDbClient = async <
@@ -162,8 +164,8 @@ export const executeInNewConnection = async <
   }
 };
 
-export const createDeferredExecutor = <Connector extends ConnectorType>(
-  connector: Connector,
+export const createDeferredExecutor = <DriverType extends DatabaseDriverType>(
+  driverType: DriverType,
   importExecutor: () => Promise<SQLExecutor>,
 ): SQLExecutor => {
   let executor: SQLExecutor | null = null;
@@ -214,7 +216,7 @@ export const createDeferredExecutor = <Connector extends ConnectorType>(
       return exec.batchCommand<Result>(sqls, options);
     },
     get formatter() {
-      return getFormatter(fromConnectorType(connector).databaseType);
+      return getFormatter(fromDatabaseDriverType(driverType).databaseType);
     },
   };
 };

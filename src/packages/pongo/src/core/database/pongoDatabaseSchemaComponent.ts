@@ -1,6 +1,6 @@
 import {
   schemaComponent,
-  type ConnectorType,
+  type DatabaseDriverType,
   type SchemaComponent,
 } from '@event-driven-io/dumbo';
 import {
@@ -16,7 +16,7 @@ import type { PongoDocument } from '../typing';
 
 export type PongoDatabaseSchemaComponent<
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  Connector extends ConnectorType = ConnectorType,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
   T extends Record<string, PongoCollectionSchema> = Record<
     string,
     PongoCollectionSchema
@@ -31,20 +31,20 @@ export type PongoDatabaseSchemaComponent<
 };
 
 export type PongoDatabaseSchemaComponentFactory = <
-  Connector extends ConnectorType = ConnectorType,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
 >(
-  connector: Connector,
+  driverType: DriverType,
   existingCollections: PongoCollectionSchemaComponent[],
 ) => PongoDatabaseSchemaComponent;
 
 export type PongoDatabaseSchemaComponentOptions<
-  Connector extends ConnectorType = ConnectorType,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
   T extends Record<string, PongoCollectionSchema> = Record<
     string,
     PongoCollectionSchema
   >,
 > = Readonly<{
-  connector: Connector;
+  driverType: DriverType;
   definition: PongoDbSchema<T>;
   collectionFactory: <T extends PongoDocument = PongoDocument>(
     schema: PongoCollectionSchema<T>,
@@ -52,11 +52,11 @@ export type PongoDatabaseSchemaComponentOptions<
 }>;
 
 export const PongoDatabaseSchemaComponent = <
-  Connector extends ConnectorType = ConnectorType,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
 >({
   definition,
   collectionFactory,
-}: PongoDatabaseSchemaComponentOptions<Connector>): PongoDatabaseSchemaComponent => {
+}: PongoDatabaseSchemaComponentOptions<DriverType>): PongoDatabaseSchemaComponent => {
   const collections: PongoCollectionSchemaComponent[] =
     Object.values(definition.collections).map(collectionFactory) ?? [];
 
@@ -87,8 +87,8 @@ export const PongoDatabaseSchemaComponent = <
 };
 
 export type PongoDatabaseSQLBuilder<
-  Connector extends ConnectorType = ConnectorType,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
 > = {
-  connector: Connector;
+  driverType: DriverType;
   collection: PongoCollectionSQLBuilder;
 };

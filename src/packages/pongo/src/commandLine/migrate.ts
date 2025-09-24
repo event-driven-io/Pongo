@@ -3,7 +3,7 @@ import {
   dumbo,
   parseConnectionString,
   runSQLMigrations,
-  type ConnectorType,
+  type DatabaseDriverType,
 } from '@event-driven-io/dumbo';
 import { Command } from 'commander';
 import {
@@ -101,16 +101,16 @@ migrateCommand
       process.exit(1);
     }
 
-    const connector = `${databaseType}:${databaseDriver}` as const;
+    const driverType = `${databaseType}:${databaseDriver}` as const;
 
     const migrations = getMigrations({
-      connector,
+      driverType,
       connectionString,
       databaseName,
       collectionNames,
     });
 
-    const pool = dumbo({ connectionString, connector });
+    const pool = dumbo({ connectionString, driverType });
 
     await runSQLMigrations(pool, migrations, {
       dryRun,
@@ -163,10 +163,10 @@ migrateCommand
       process.exit(1);
     }
 
-    const connector = `${databaseType}:${databaseDriver}` as const;
+    const driverType = `${databaseType}:${databaseDriver}` as const;
 
     const migrations = getMigrations({
-      connector,
+      driverType,
       connectionString: undefined,
       databaseName,
       collectionNames,
@@ -177,21 +177,21 @@ migrateCommand
   });
 
 const getMigrations = ({
-  connector,
+  driverType,
   connectionString,
   databaseName,
   collectionNames,
 }: {
-  connector: ConnectorType;
+  driverType: DatabaseDriverType;
   connectionString: string | undefined;
   databaseName: string | undefined;
   collectionNames: string[];
 }) => {
-  const driver = pongoDatabaseDriverRegistry.tryGet(connector);
+  const driver = pongoDatabaseDriverRegistry.tryGet(driverType);
 
   if (driver === null) {
     console.error(
-      `Error: No database driver found for connector "${connector}". Make sure the driver is registered and the connector string is correct.`,
+      `Error: No database driver found for driver type "${driverType}". Make sure the driver is registered and the connection string is correct.`,
     );
     process.exit(1);
   }

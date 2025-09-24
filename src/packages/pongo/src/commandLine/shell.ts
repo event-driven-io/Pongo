@@ -148,13 +148,13 @@ const startRepl = async (options: {
   }
 
   const { databaseType } = parseConnectionString(connectionString);
-  const connector = `${databaseType}:${options.databaseDriver}` as const;
+  const driverType = `${databaseType}:${options.databaseDriver}` as const;
 
-  const driver = pongoDatabaseDriverRegistry.tryGet(connector);
+  const driver = pongoDatabaseDriverRegistry.tryGet(driverType);
 
   if (driver === null) {
     console.error(
-      `Error: No database driver found for connector "${connector}". Make sure the driver is installed and the connector string is correct.`,
+      `Error: No database driver found for driver type "${driverType}". Make sure the driver is installed and the connection string is correct.`,
     );
     process.exit(1);
   }

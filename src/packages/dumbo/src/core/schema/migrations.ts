@@ -1,5 +1,5 @@
 import type { Dumbo } from '..';
-import { type DatabaseType, fromConnectorType } from '../connectors';
+import { type DatabaseType, fromDatabaseDriverType } from '../drivers';
 import type { SQLExecutor } from '../execute';
 import {
   type DatabaseLock,
@@ -96,7 +96,7 @@ export const runSQLMigrations = (
   partialOptions?: Partial<MigratorOptions>,
 ): Promise<void> =>
   pool.withTransaction(async ({ execute }) => {
-    const databaseType = fromConnectorType(pool.connector).databaseType;
+    const databaseType = fromDatabaseDriverType(pool.driverType).databaseType;
     const defaultOptions = getDefaultMigratorOptionsFromRegistry(databaseType);
     partialOptions ??= {};
 

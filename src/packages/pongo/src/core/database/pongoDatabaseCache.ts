@@ -1,4 +1,7 @@
-import type { ConnectorType, MigrationStyle } from '@event-driven-io/dumbo';
+import type {
+  DatabaseDriverType,
+  MigrationStyle,
+} from '@event-driven-io/dumbo';
 import type {
   PongoDatabaseDriver,
   PongoDatabaseFactoryOptions,
@@ -7,7 +10,7 @@ import type { PongoClientSchema, PongoCollectionSchema } from '../schema';
 import type { PongoDb } from '../typing';
 
 export const PongoDatabaseCache = <
-  Database extends PongoDb<ConnectorType> = PongoDb<ConnectorType>,
+  Database extends PongoDb<DatabaseDriverType> = PongoDb<DatabaseDriverType>,
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
 >({
   driver,

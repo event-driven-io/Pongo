@@ -1,4 +1,4 @@
-import type { ConnectorTypeParts, DatabaseType } from '../../../core';
+import type { DatabaseDriverTypeParts, DatabaseType } from '../../../core';
 
 export type DatabaseConnectionString<
   DatabaseTypeName extends DatabaseType = DatabaseType,
@@ -9,7 +9,7 @@ export type DatabaseConnectionString<
 
 export const parseConnectionString = (
   connectionString: DatabaseConnectionString | string,
-): ConnectorTypeParts => {
+): DatabaseDriverTypeParts => {
   if (
     connectionString.startsWith('postgresql://') ||
     connectionString.startsWith('postgres://')

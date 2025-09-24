@@ -1,4 +1,4 @@
-import type { SQLiteConnectorType } from '..';
+import type { SQLiteDriverType } from '..';
 import {
   SQL,
   tracer,
@@ -21,15 +21,15 @@ export const sqliteExecute = async <Result = void>(
 };
 
 export type SQLiteSQLExecutor<
-  ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
-> = DbSQLExecutor<ConnectorType, SQLiteClient>;
+  DriverType extends SQLiteDriverType = SQLiteDriverType,
+> = DbSQLExecutor<DriverType, SQLiteClient>;
 
 export const sqliteSQLExecutor = <
-  ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
+  DriverType extends SQLiteDriverType = SQLiteDriverType,
 >(
-  connector: ConnectorType,
-): SQLiteSQLExecutor<ConnectorType> => ({
-  connector,
+  driverType: DriverType,
+): SQLiteSQLExecutor<DriverType> => ({
+  driverType,
   query: batch,
   batchQuery: batch,
   command: batch,
