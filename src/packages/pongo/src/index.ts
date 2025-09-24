@@ -1,2 +1,2 @@
 export * from './core';
-export * from './storage/postgresql';
+export * from './storage/all';

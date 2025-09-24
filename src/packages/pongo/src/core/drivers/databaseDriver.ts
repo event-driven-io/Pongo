@@ -76,7 +76,7 @@ export const PongoDatabaseDriverRegistry = () => {
     const entry = drivers.get(connector);
     if (
       entry &&
-      (typeof entry !== 'function' || typeof driver !== 'function')
+      (typeof entry !== 'function' || typeof driver === 'function')
     ) {
       return;
     }
@@ -106,7 +106,7 @@ export const PongoDatabaseDriverRegistry = () => {
     connector: Driver['connector'],
   ): Driver | null => {
     const entry = drivers.get(connector);
-    return typeof entry !== 'function' ? (entry as Driver) : null;
+    return entry && typeof entry !== 'function' ? (entry as Driver) : null;
   };
 
   const has = (connector: ConnectorType): boolean => drivers.has(connector);

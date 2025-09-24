@@ -35,7 +35,7 @@ export const StoragePluginRegistry = () => {
     const entry = plugins.get(connector);
     if (
       entry &&
-      (typeof entry !== 'function' || typeof plugin !== 'function')
+      (typeof entry !== 'function' || typeof plugin === 'function')
     ) {
       return;
     }
@@ -68,7 +68,7 @@ export const StoragePluginRegistry = () => {
     connector: ConnectorType,
   ): StoragePlugin<Connector, ConnectionType> | null => {
     const entry = plugins.get(connector);
-    return typeof entry !== 'function'
+    return entry && typeof entry !== 'function'
       ? (entry as unknown as StoragePlugin<Connector, ConnectionType>)
       : null;
   };
