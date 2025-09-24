@@ -91,6 +91,7 @@ const pgDatabaseDriver: PongoDatabaseDriver<
     });
   },
   getDatabaseNameOrDefault,
+  defaultConnectionString: 'postgresql://localhost:5432/postgres',
 };
 
 pongoDatabaseDriverRegistry.register(
@@ -98,4 +99,4 @@ pongoDatabaseDriverRegistry.register(
   pgDatabaseDriver,
 );
 
-export { pgDatabaseDriver as databaseDriver };
+export { pgDatabaseDriver as databaseDriver, pgDatabaseDriver as pgDriver };
