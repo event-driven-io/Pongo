@@ -60,7 +60,7 @@ export const pongoClient = <
     },
     db: (dbName?: string): ExtractDatabaseTypeFromDriver<DatabaseDriver> => {
       const db = dbClients.getOrCreate({
-        ...connectionOptions, // TODO: Factory should include the driver related connection options
+        ...connectionOptions,
         connectionString,
         databaseName: dbName,
         errors,

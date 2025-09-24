@@ -99,7 +99,7 @@ export const PongoDatabase = <
 
     schema: {
       component: schemaComponent,
-      migrate: async () => runSQLMigrations(pool, schemaComponent.migrations),
+      migrate: () => runSQLMigrations(pool, schemaComponent.migrations),
     },
 
     sql: {

@@ -487,10 +487,8 @@ export const pongoCollection = <
       },
     },
     schema: {
-      get component(): PongoCollectionSchemaComponent {
-        return schemaComponent;
-      },
-      migrate: async () => runSQLMigrations(pool, schemaComponent.migrations),
+      component: schemaComponent,
+      migrate: () => runSQLMigrations(pool, schemaComponent.migrations),
     },
   };
 
