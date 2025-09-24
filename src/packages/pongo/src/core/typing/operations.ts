@@ -125,8 +125,7 @@ export interface PongoDb<
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyPongoDb = PongoDb<any>;
+export type AnyPongoDb = PongoDb<DatabaseDriverType>;
 
 export type CollectionOperationOptions = {
   session?: PongoSession;
