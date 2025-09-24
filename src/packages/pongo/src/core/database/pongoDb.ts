@@ -1,6 +1,7 @@
 import {
   runSQLMigrations,
   SQL,
+  type DatabaseDriverType,
   type Dumbo,
   type MigrationStyle,
   type QueryResult,
@@ -24,7 +25,11 @@ import { type PongoDatabaseSchemaComponent } from './pongoDatabaseSchemaComponen
 
 export type PongoDatabaseOptions<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  DumboType extends Dumbo<any, any> = Dumbo<any, any>,
+  DumboType extends Dumbo<DatabaseDriverType, any> = Dumbo<
+    DatabaseDriverType,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any
+  >,
   CollectionsSchema extends Record<string, PongoCollectionSchema> = Record<
     string,
     PongoCollectionSchema

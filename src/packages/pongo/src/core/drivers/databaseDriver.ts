@@ -3,7 +3,7 @@ import type {
   MigrationStyle,
 } from '@event-driven-io/dumbo';
 import type { PongoCollectionSchema, PongoDbSchema } from '../schema';
-import type { AnyPongoDb } from '../typing';
+import type { AnyPongoDb, PongoDb } from '../typing';
 
 export interface PongoDatabaseDriverOptions<ConnectionOptions = unknown> {
   connectionOptions?: ConnectionOptions | undefined;
@@ -44,16 +44,14 @@ export interface PongoDatabaseDriver<
     >,
   >(
     options: PongoDatabaseFactoryOptions<CollectionsSchema, DriverOptions>,
-  ): Database;
+  ): Database & PongoDb<Database['driverType']>;
   getDatabaseNameOrDefault(connectionString: string): string;
   defaultConnectionString: string;
 }
 
 export type AnyPongoDatabaseDriver = PongoDatabaseDriver<
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  any
+  AnyPongoDb,
+  AnyPongoDatabaseDriverOptions
 >;
 
 export type ExtractDatabaseDriverOptions<DatabaseDriver> =
