@@ -63,6 +63,16 @@ const pongoCollectionSchema = <T extends PongoDocument>(
   name,
 });
 
+pongoCollectionSchema.from = (
+  collectionNames: string[],
+): Record<string, PongoCollectionSchema> =>
+  collectionNames.reduce(
+    (acc, collectionName) => (
+      (acc[collectionName] = pongoSchema.collection(collectionName)), acc
+    ),
+    {} as Record<string, PongoCollectionSchema>,
+  );
+
 function pongoDbSchema<T extends Record<string, PongoCollectionSchema>>(
   collections: T,
 ): PongoDbSchema<T>;
@@ -90,6 +100,14 @@ function pongoDbSchema<T extends Record<string, PongoCollectionSchema>>(
       }
     : { collections: collections };
 }
+
+pongoDbSchema.from = (
+  databaseName: string | undefined,
+  collectionNames: string[],
+): PongoDbSchema =>
+  databaseName
+    ? pongoDbSchema(databaseName, pongoCollectionSchema.from(collectionNames))
+    : pongoDbSchema(pongoCollectionSchema.from(collectionNames));
 
 const pongoClientSchema = <T extends Record<string, PongoDbSchema>>(
   dbs: T,
