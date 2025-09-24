@@ -30,7 +30,7 @@ void describe('Migration Integration Tests', () => {
 
     void describe(`dumbo with ${testName} database`, () => {
       beforeEach(() => {
-        pool = dumbo({ connectionString, connector: 'SQLite:sqlite3' });
+        pool = dumbo({ connectionString, driverType: 'SQLite:sqlite3' });
       });
 
       afterEach(() => {

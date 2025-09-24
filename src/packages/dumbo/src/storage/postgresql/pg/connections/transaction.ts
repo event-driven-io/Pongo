@@ -5,24 +5,23 @@ import {
 } from '../../../../core';
 import { nodePostgresSQLExecutor } from '../execute';
 import {
-  NodePostgresConnectorType,
-  type NodePostgresConnector,
+  NodePostgresDriverType,
   type NodePostgresPoolOrClient,
 } from './connection';
 
 export type NodePostgresTransaction =
-  DatabaseTransaction<NodePostgresConnector>;
+  DatabaseTransaction<NodePostgresDriverType>;
 
 export const nodePostgresTransaction =
   <DbClient extends NodePostgresPoolOrClient = NodePostgresPoolOrClient>(
-    connection: () => Connection<NodePostgresConnector, DbClient>,
+    connection: () => Connection<NodePostgresDriverType, DbClient>,
   ) =>
   (
     getClient: Promise<DbClient>,
     options?: { close: (client: DbClient, error?: unknown) => Promise<void> },
-  ): DatabaseTransaction<NodePostgresConnector, DbClient> => ({
+  ): DatabaseTransaction<NodePostgresDriverType, DbClient> => ({
     connection: connection(),
-    connector: NodePostgresConnectorType,
+    driverType: NodePostgresDriverType,
     begin: async () => {
       const client = await getClient;
       await client.query('BEGIN');

@@ -1,4 +1,4 @@
-import type { SQLiteConnectorType } from '..';
+import type { SQLiteDriverType } from '..';
 import {
   sqlExecutor,
   type Connection,
@@ -11,26 +11,26 @@ import {
 } from '../connections';
 
 export type SQLiteTransaction<
-  ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
-> = DatabaseTransaction<ConnectorType>;
+  DriverType extends SQLiteDriverType = SQLiteDriverType,
+> = DatabaseTransaction<DriverType>;
 
 export const sqliteTransaction =
   <
-    ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
+    DriverType extends SQLiteDriverType = SQLiteDriverType,
     DbClient extends SQLiteClientOrPoolClient = SQLiteClientOrPoolClient,
   >(
-    connector: ConnectorType,
-    connection: () => Connection<ConnectorType, DbClient>,
+    driverType: DriverType,
+    connection: () => Connection<DriverType, DbClient>,
     allowNestedTransactions: boolean,
   ) =>
   (
     getClient: Promise<DbClient>,
     options?: { close: (client: DbClient, error?: unknown) => Promise<void> },
-  ): DatabaseTransaction<ConnectorType, DbClient> => {
+  ): DatabaseTransaction<DriverType, DbClient> => {
     const transactionCounter = transactionNestingCounter();
     return {
       connection: connection(),
-      connector,
+      driverType,
       begin: async function () {
         const client = await getClient;
 
@@ -84,7 +84,7 @@ export const sqliteTransaction =
           if (options?.close) await options?.close(client, error);
         }
       },
-      execute: sqlExecutor(sqliteSQLExecutor(connector), {
+      execute: sqlExecutor(sqliteSQLExecutor(driverType), {
         connect: () => getClient,
       }),
     };

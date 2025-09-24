@@ -1,16 +1,18 @@
 import { type Dumbo, type DumboConnectionOptions } from '..';
 import type { Connection } from '../connections';
-import type { ConnectorType } from '../connectors';
+import type { DatabaseDriverType } from '../drivers';
 import type { MigratorOptions } from '../schema';
 import type { SQLFormatter } from '../sql';
 
 export interface StoragePlugin<
-  Connector extends ConnectorType = ConnectorType,
-  ConnectionType extends Connection<Connector> = Connection<Connector>,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
+  ConnectionType extends Connection<DriverType> = Connection<DriverType>,
 > {
-  readonly connector: Connector;
+  readonly driverType: DriverType;
 
-  createPool(options: DumboConnectionOptions): Dumbo<Connector, ConnectionType>;
+  createPool(
+    options: DumboConnectionOptions,
+  ): Dumbo<DriverType, ConnectionType>;
 
   readonly sqlFormatter: SQLFormatter;
 
@@ -19,68 +21,69 @@ export interface StoragePlugin<
 
 export const StoragePluginRegistry = () => {
   const plugins = new Map<
-    ConnectorType,
+    DatabaseDriverType,
     StoragePlugin | (() => Promise<StoragePlugin>)
   >();
 
   const register = <
-    Connector extends ConnectorType = ConnectorType,
-    ConnectionType extends Connection<Connector> = Connection<Connector>,
+    DriverType extends DatabaseDriverType = DatabaseDriverType,
+    ConnectionType extends Connection<DriverType> = Connection<DriverType>,
   >(
-    connector: Connector,
+    driverType: DriverType,
     plugin:
-      | StoragePlugin<Connector, ConnectionType>
-      | (() => Promise<StoragePlugin<Connector, ConnectionType>>),
+      | StoragePlugin<DriverType, ConnectionType>
+      | (() => Promise<StoragePlugin<DriverType, ConnectionType>>),
   ): void => {
-    const entry = plugins.get(connector);
+    const entry = plugins.get(driverType);
     if (
       entry &&
       (typeof entry !== 'function' || typeof plugin === 'function')
     ) {
       return;
     }
-    plugins.set(connector, plugin);
+    plugins.set(driverType, plugin);
   };
 
   const tryResolve = async <
-    Connector extends ConnectorType = ConnectorType,
-    ConnectionType extends Connection<Connector> = Connection<Connector>,
+    DriverType extends DatabaseDriverType = DatabaseDriverType,
+    ConnectionType extends Connection<DriverType> = Connection<DriverType>,
   >(
-    connector: ConnectorType,
-  ): Promise<StoragePlugin<Connector, ConnectionType> | null> => {
-    const entry = plugins.get(connector);
+    driverType: DatabaseDriverType,
+  ): Promise<StoragePlugin<DriverType, ConnectionType> | null> => {
+    const entry = plugins.get(driverType);
 
     if (!entry) return null;
 
     if (typeof entry !== 'function')
-      return entry as unknown as StoragePlugin<Connector, ConnectionType>;
+      return entry as unknown as StoragePlugin<DriverType, ConnectionType>;
 
     const plugin = await entry();
 
-    register(connector, plugin);
-    return plugin as unknown as StoragePlugin<Connector, ConnectionType>;
+    register(driverType, plugin);
+    return plugin as unknown as StoragePlugin<DriverType, ConnectionType>;
   };
 
   const tryGet = <
-    Connector extends ConnectorType = ConnectorType,
-    ConnectionType extends Connection<Connector> = Connection<Connector>,
+    DriverType extends DatabaseDriverType = DatabaseDriverType,
+    ConnectionType extends Connection<DriverType> = Connection<DriverType>,
   >(
-    connector: ConnectorType,
-  ): StoragePlugin<Connector, ConnectionType> | null => {
-    const entry = plugins.get(connector);
+    driverType: DatabaseDriverType,
+  ): StoragePlugin<DriverType, ConnectionType> | null => {
+    const entry = plugins.get(driverType);
     return entry && typeof entry !== 'function'
-      ? (entry as unknown as StoragePlugin<Connector, ConnectionType>)
+      ? (entry as unknown as StoragePlugin<DriverType, ConnectionType>)
       : null;
   };
 
-  const has = (connector: ConnectorType): boolean => plugins.has(connector);
+  const has = (driverType: DatabaseDriverType): boolean =>
+    plugins.has(driverType);
 
   return {
     register,
     tryResolve,
     tryGet,
     has,
-    get connectorTypes(): ConnectorType[] {
+    get databaseDriverTypes(): DatabaseDriverType[] {
       return Array.from(plugins.keys());
     },
   };

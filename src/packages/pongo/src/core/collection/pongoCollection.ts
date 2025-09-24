@@ -2,7 +2,7 @@ import {
   runSQLMigrations,
   single,
   SQL,
-  type ConnectorType,
+  type DatabaseDriverType,
   type DatabaseTransaction,
   type Dumbo,
   type MigrationStyle,
@@ -45,20 +45,20 @@ import {
 } from '..';
 
 export type PongoCollectionOptions<
-  Connector extends ConnectorType = ConnectorType,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
 > = {
-  db: PongoDb<Connector>;
+  db: PongoDb<DriverType>;
   collectionName: string;
-  pool: Dumbo<ConnectorType>;
+  pool: Dumbo<DatabaseDriverType>;
   schemaComponent: PongoCollectionSchemaComponent;
   schema?: { autoMigration?: MigrationStyle };
   errors?: { throwOnOperationFailures?: boolean };
 };
 
 const enlistIntoTransactionIfActive = async <
-  Connector extends ConnectorType = ConnectorType,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
 >(
-  db: PongoDb<Connector>,
+  db: PongoDb<DriverType>,
   options: CollectionOperationOptions | undefined,
 ): Promise<DatabaseTransaction | null> => {
   const transaction = options?.session?.transaction;
@@ -69,9 +69,9 @@ const enlistIntoTransactionIfActive = async <
 };
 
 export const transactionExecutorOrDefault = async <
-  Connector extends ConnectorType = ConnectorType,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
 >(
-  db: PongoDb<Connector>,
+  db: PongoDb<DriverType>,
   options: CollectionOperationOptions | undefined,
   defaultSqlExecutor: SQLExecutor,
 ): Promise<SQLExecutor> => {
@@ -81,7 +81,7 @@ export const transactionExecutorOrDefault = async <
 
 export const pongoCollection = <
   T extends PongoDocument,
-  Connector extends ConnectorType = ConnectorType,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
 >({
   db,
   collectionName,
@@ -89,7 +89,7 @@ export const pongoCollection = <
   schemaComponent,
   schema,
   errors,
-}: PongoCollectionOptions<Connector>): PongoCollection<T> => {
+}: PongoCollectionOptions<DriverType>): PongoCollection<T> => {
   const SqlFor = schemaComponent.sqlBuilder;
   const sqlExecutor = pool.execute;
   const command = async <Result extends QueryResultRow = QueryResultRow>(

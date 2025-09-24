@@ -1,9 +1,8 @@
 import {
   dumbo,
   getDatabaseNameOrDefault,
-  NodePostgresConnectorType,
+  NodePostgresDriverType,
   type NodePostgresConnection,
-  type NodePostgresConnector,
 } from '@event-driven-io/dumbo/pg';
 import pg from 'pg';
 import {
@@ -58,10 +57,10 @@ type NodePostgresDatabaseDriverOptions =
   PongoDatabaseDriverOptions<NodePostgresPongoClientOptions>;
 
 const pgDatabaseDriver: PongoDatabaseDriver<
-  PongoDb<NodePostgresConnector>,
+  PongoDb<NodePostgresDriverType>,
   NodePostgresDatabaseDriverOptions
 > = {
-  connector: NodePostgresConnectorType,
+  driverType: NodePostgresDriverType,
   databaseFactory: (options) => {
     const databaseName =
       options.databaseName ??
@@ -74,10 +73,10 @@ const pgDatabaseDriver: PongoDatabaseDriver<
         ...options.connectionOptions,
       }),
       schemaComponent: PongoDatabaseSchemaComponent({
-        connector: NodePostgresConnectorType,
+        driverType: NodePostgresDriverType,
         collectionFactory: (schema) =>
           PongoCollectionSchemaComponent({
-            connector: NodePostgresConnectorType,
+            driverType: NodePostgresDriverType,
             definition: schema,
             migrationsOrSchemaComponents: {
               migrations: pongoCollectionPostgreSQLMigrations(schema.name),
@@ -96,7 +95,7 @@ const pgDatabaseDriver: PongoDatabaseDriver<
 
 export const usePgDatabaseDriver = () => {
   pongoDatabaseDriverRegistry.register(
-    NodePostgresConnectorType,
+    NodePostgresDriverType,
     pgDatabaseDriver,
   );
 };

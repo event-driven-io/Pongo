@@ -1,5 +1,5 @@
 import { createDeferredConnection } from '../connections';
-import { type ConnectorType } from '../connectors';
+import { type DatabaseDriverType } from '../drivers';
 import {
   createDeferredExecutor,
   executeInNewConnection,
@@ -15,8 +15,8 @@ import {
 export interface ConnectionPool<ConnectionType extends Connection = Connection>
   extends WithSQLExecutor,
     ConnectionFactory<ConnectionType>,
-    DatabaseTransactionFactory<ConnectionType['connector']> {
-  connector: ConnectionType['connector'];
+    DatabaseTransactionFactory<ConnectionType['driverType']> {
+  driverType: ConnectionType['driverType'];
   close: () => Promise<void>;
 }
 
@@ -29,12 +29,12 @@ export const createConnectionPool = <
   ConnectionType extends Connection,
   ConnectionPoolType extends ConnectionPool<ConnectionType>,
 >(
-  pool: Pick<ConnectionPool<ConnectionType>, 'connector'> &
+  pool: Pick<ConnectionPool<ConnectionType>, 'driverType'> &
     Partial<ConnectionPool<ConnectionType>> & {
       getConnection: () => ConnectionType;
     },
 ): ConnectionPoolType => {
-  const { connector, getConnection } = pool;
+  const { driverType, getConnection } = pool;
 
   const connection =
     'connection' in pool
@@ -55,7 +55,7 @@ export const createConnectionPool = <
     'execute' in pool
       ? pool.execute
       : sqlExecutorInNewConnection({
-          connector,
+          driverType,
           connection,
         });
 
@@ -68,7 +68,7 @@ export const createConnectionPool = <
       : transactionFactoryWithNewConnection(getConnection);
 
   const result: ConnectionPool<ConnectionType> = {
-    connector,
+    driverType,
     connection,
     withConnection,
     close,
@@ -80,15 +80,16 @@ export const createConnectionPool = <
 };
 
 export const createDeferredConnectionPool = <
-  Connector extends ConnectorType,
-  ConnectionType extends Connection<Connector> = Connection<Connector>,
+  DriverType extends DatabaseDriverType,
+  ConnectionType extends Connection<DriverType> = Connection<DriverType>,
 >(
-  connector: Connector,
-  importPool: () => Promise<ConnectionPool<Connection<Connector>>>,
+  driverType: DriverType,
+  importPool: () => Promise<ConnectionPool<Connection<DriverType>>>,
 ): ConnectionPool<ConnectionType> => {
-  let poolPromise: Promise<ConnectionPool<Connection<Connector>>> | null = null;
+  let poolPromise: Promise<ConnectionPool<Connection<DriverType>>> | null =
+    null;
 
-  const getPool = async (): Promise<ConnectionPool<Connection<Connector>>> => {
+  const getPool = async (): Promise<ConnectionPool<Connection<DriverType>>> => {
     if (poolPromise) return poolPromise;
     try {
       return (poolPromise = importPool());
@@ -100,8 +101,8 @@ export const createDeferredConnectionPool = <
   };
 
   return createConnectionPool({
-    connector,
-    execute: createDeferredExecutor(connector, async () => {
+    driverType,
+    execute: createDeferredExecutor(driverType, async () => {
       const connection = await getPool();
       return connection.execute;
     }),
@@ -112,7 +113,7 @@ export const createDeferredConnectionPool = <
       poolPromise = null;
     },
     getConnection: () =>
-      createDeferredConnection(connector, async () =>
+      createDeferredConnection(driverType, async () =>
         (await getPool()).connection(),
       ),
   });

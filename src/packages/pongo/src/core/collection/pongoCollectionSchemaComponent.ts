@@ -1,6 +1,6 @@
 import {
   schemaComponent,
-  type ConnectorType,
+  type DatabaseDriverType,
   type SchemaComponent,
   type SchemaComponentOptions,
 } from '@event-driven-io/dumbo';
@@ -14,21 +14,21 @@ export type PongoCollectionSchemaComponent =
   };
 
 export type PongoCollectionSchemaComponentOptions<
-  Connector extends ConnectorType = ConnectorType,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
 > = Readonly<{
+  driverType: DriverType;
   definition: PongoCollectionSchema;
-  connector: Connector;
   migrationsOrSchemaComponents: SchemaComponentOptions;
   sqlBuilder: PongoCollectionSQLBuilder;
 }>;
 
 export const PongoCollectionSchemaComponent = <
-  Connector extends ConnectorType = ConnectorType,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
 >({
   definition,
   migrationsOrSchemaComponents,
   sqlBuilder,
-}: PongoCollectionSchemaComponentOptions<Connector>): PongoCollectionSchemaComponent =>
+}: PongoCollectionSchemaComponentOptions<DriverType>): PongoCollectionSchemaComponent =>
   ({
     ...schemaComponent(
       'pongo:schema-component:collection',

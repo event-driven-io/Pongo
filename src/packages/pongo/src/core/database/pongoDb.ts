@@ -32,7 +32,7 @@ export type PongoDatabaseOptions<
 > = {
   databaseName: string;
   pool: DumboType;
-  schemaComponent: PongoDatabaseSchemaComponent<DumboType['connector']>;
+  schemaComponent: PongoDatabaseSchemaComponent<DumboType['driverType']>;
   schema?:
     | {
         autoMigration?: MigrationStyle;
@@ -45,8 +45,8 @@ export type PongoDatabaseOptions<
 export const PongoDatabase = <
   Database extends AnyPongoDb = AnyPongoDb,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  DumboType extends Dumbo<Database['connector'], any> = Dumbo<
-    Database['connector'],
+  DumboType extends Dumbo<Database['driverType'], any> = Dumbo<
+    Database['driverType'],
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     any
   >,
@@ -73,10 +73,10 @@ export const PongoDatabase = <
       sql,
     );
 
-  const connector = pool.connector as Database['connector'];
+  const driverType = pool.driverType as Database['driverType'];
 
   const db = {
-    connector,
+    driverType,
     databaseName,
     connect: () => Promise.resolve(),
     close: () => pool.close(),
@@ -117,7 +117,7 @@ export const PongoDatabase = <
         return command(sql, options);
       },
     },
-  } satisfies PongoDb<Database['connector']> as unknown as Database;
+  } satisfies PongoDb<Database['driverType']> as unknown as Database;
 
   const dbSchema = options?.schema?.definition;
 

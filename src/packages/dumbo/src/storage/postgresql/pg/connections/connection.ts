@@ -1,11 +1,11 @@
 import pg from 'pg';
 import { createConnection, type Connection } from '../../../../core';
-import type { PostgreSQLConnectorType } from '../../core';
+import type { PostgreSQLDriverType } from '../../core';
 import { nodePostgresSQLExecutor } from '../execute';
 import { nodePostgresTransaction } from './transaction';
 
-export type NodePostgresConnector = PostgreSQLConnectorType<'pg'>;
-export const NodePostgresConnectorType: NodePostgresConnector = 'PostgreSQL:pg';
+export type NodePostgresDriverType = PostgreSQLDriverType<'pg'>;
+export const NodePostgresDriverType: NodePostgresDriverType = 'PostgreSQL:pg';
 
 export type NodePostgresPoolClient = pg.PoolClient;
 export type NodePostgresClient = pg.Client;
@@ -20,12 +20,12 @@ export type NodePostgresPoolOrClient =
   | NodePostgresClient;
 
 export type NodePostgresClientConnection = Connection<
-  NodePostgresConnector,
+  NodePostgresDriverType,
   NodePostgresClient
 >;
 
 export type NodePostgresPoolClientConnection = Connection<
-  NodePostgresConnector,
+  NodePostgresDriverType,
   NodePostgresPoolClient
 >;
 
@@ -51,7 +51,7 @@ export const nodePostgresClientConnection = (
   const { connect, close } = options;
 
   return createConnection({
-    connector: NodePostgresConnectorType,
+    driverType: NodePostgresDriverType,
     connect,
     close,
     initTransaction: (connection) => nodePostgresTransaction(connection),
@@ -65,7 +65,7 @@ export const nodePostgresPoolClientConnection = (
   const { connect, close } = options;
 
   return createConnection({
-    connector: NodePostgresConnectorType,
+    driverType: NodePostgresDriverType,
     connect,
     close,
     initTransaction: (connection) => nodePostgresTransaction(connection),

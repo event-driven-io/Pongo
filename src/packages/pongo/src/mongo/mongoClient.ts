@@ -1,4 +1,7 @@
-import { parseConnectionString, toConnectorType } from '@event-driven-io/dumbo';
+import {
+  parseConnectionString,
+  toDatabaseDriverType,
+} from '@event-driven-io/dumbo';
 import { type ClientSessionOptions } from 'http2';
 import type { ClientSession, WithSessionCallback } from 'mongodb';
 import {
@@ -26,7 +29,7 @@ export class MongoClient {
     const driver =
       options?.driver ??
       pongoDatabaseDriverRegistry.tryGet(
-        toConnectorType(databaseType, driverName),
+        toDatabaseDriverType(databaseType, driverName),
       );
 
     if (driver === null) {

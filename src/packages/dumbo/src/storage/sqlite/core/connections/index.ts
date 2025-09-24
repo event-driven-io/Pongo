@@ -1,7 +1,7 @@
 import {
   SQLiteConnectionString,
   sqliteSQLExecutor,
-  type SQLiteConnectorType,
+  type SQLiteDriverType,
   type SQLiteFileNameOrConnectionString,
 } from '..';
 import { createConnection, type Connection } from '../../../../core';
@@ -43,9 +43,9 @@ export const isSQLiteError = (error: unknown): error is SQLiteError => {
 };
 
 export type SQLitePoolConnectionOptions<
-  ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
+  DriverType extends SQLiteDriverType = SQLiteDriverType,
 > = {
-  connector: ConnectorType;
+  driverType: DriverType;
   type: 'PoolClient';
   connect: () => Promise<SQLitePoolClient>;
   close: (client: SQLitePoolClient) => Promise<void>;
@@ -53,9 +53,9 @@ export type SQLitePoolConnectionOptions<
 };
 
 export type SQLiteClientConnectionOptions<
-  ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
+  DriverType extends SQLiteDriverType = SQLiteDriverType,
 > = {
-  connector: ConnectorType;
+  driverType: DriverType;
   type: 'Client';
   connect: () => Promise<SQLiteClient>;
   close: (client: SQLiteClient) => Promise<void>;
@@ -63,33 +63,35 @@ export type SQLiteClientConnectionOptions<
 };
 
 export type SQLiteClientConnection<
-  ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
-> = Connection<ConnectorType, SQLiteClient>;
+  DriverType extends SQLiteDriverType = SQLiteDriverType,
+> = Connection<DriverType, SQLiteClient>;
 
 export type SQLitePoolClientConnection<
-  ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
-> = Connection<ConnectorType, SQLitePoolClient>;
+  DriverType extends SQLiteDriverType = SQLiteDriverType,
+> = Connection<DriverType, SQLitePoolClient>;
 
 export type SQLiteConnection<
-  ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
-> =
-  | SQLiteClientConnection<ConnectorType>
-  | SQLitePoolClientConnection<ConnectorType>;
+  DriverType extends SQLiteDriverType = SQLiteDriverType,
+> = SQLiteClientConnection<DriverType> | SQLitePoolClientConnection<DriverType>;
 
 export const sqliteClientConnection = <
-  ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
+  DriverType extends SQLiteDriverType = SQLiteDriverType,
 >(
-  options: SQLiteClientConnectionOptions<ConnectorType>,
-): SQLiteClientConnection<ConnectorType> => {
+  options: SQLiteClientConnectionOptions<DriverType>,
+): SQLiteClientConnection<DriverType> => {
   const { connect, close, allowNestedTransactions } = options;
 
   return createConnection({
-    connector: options.connector,
+    driverType: options.driverType,
     connect,
     close,
     initTransaction: (connection) =>
-      sqliteTransaction(options.connector, connection, allowNestedTransactions),
-    executor: () => sqliteSQLExecutor(options.connector),
+      sqliteTransaction(
+        options.driverType,
+        connection,
+        allowNestedTransactions,
+      ),
+    executor: () => sqliteSQLExecutor(options.driverType),
   });
 };
 
@@ -124,50 +126,44 @@ export const transactionNestingCounter = (): TransactionNestingCounter => {
 };
 
 export const sqlitePoolClientConnection = <
-  ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
+  DriverType extends SQLiteDriverType = SQLiteDriverType,
 >(
-  options: SQLitePoolConnectionOptions<ConnectorType>,
-): SQLitePoolClientConnection<ConnectorType> => {
+  options: SQLitePoolConnectionOptions<DriverType>,
+): SQLitePoolClientConnection<DriverType> => {
   const { connect, close, allowNestedTransactions } = options;
 
   return createConnection({
-    connector: options.connector,
+    driverType: options.driverType,
     connect,
     close,
     initTransaction: (connection) =>
       sqliteTransaction(
-        options.connector,
+        options.driverType,
         connection,
         allowNestedTransactions ?? false,
       ),
-    executor: () => sqliteSQLExecutor(options.connector),
+    executor: () => sqliteSQLExecutor(options.driverType),
   });
 };
 
 export function sqliteConnection<
-  ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
->(
-  options: SQLitePoolConnectionOptions<ConnectorType>,
-): SQLitePoolClientConnection;
+  DriverType extends SQLiteDriverType = SQLiteDriverType,
+>(options: SQLitePoolConnectionOptions<DriverType>): SQLitePoolClientConnection;
 
 export function sqliteConnection<
-  ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
->(
-  options: SQLiteClientConnectionOptions<ConnectorType>,
-): SQLiteClientConnection;
+  DriverType extends SQLiteDriverType = SQLiteDriverType,
+>(options: SQLiteClientConnectionOptions<DriverType>): SQLiteClientConnection;
 
 export function sqliteConnection<
-  ConnectorType extends SQLiteConnectorType = SQLiteConnectorType,
+  DriverType extends SQLiteDriverType = SQLiteDriverType,
 >(
   options:
-    | SQLitePoolConnectionOptions<ConnectorType>
-    | SQLiteClientConnectionOptions<ConnectorType>,
-):
-  | SQLitePoolClientConnection<ConnectorType>
-  | SQLiteClientConnection<ConnectorType> {
+    | SQLitePoolConnectionOptions<DriverType>
+    | SQLiteClientConnectionOptions<DriverType>,
+): SQLitePoolClientConnection<DriverType> | SQLiteClientConnection<DriverType> {
   return options.type === 'Client'
-    ? sqliteClientConnection<ConnectorType>(options)
-    : sqlitePoolClientConnection<ConnectorType>(options);
+    ? sqliteClientConnection<DriverType>(options)
+    : sqlitePoolClientConnection<DriverType>(options);
 }
 
 export type InMemorySQLiteDatabase = ':memory:';

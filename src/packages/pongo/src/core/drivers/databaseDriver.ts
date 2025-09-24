@@ -1,4 +1,7 @@
-import type { ConnectorType, MigrationStyle } from '@event-driven-io/dumbo';
+import type {
+  DatabaseDriverType,
+  MigrationStyle,
+} from '@event-driven-io/dumbo';
 import type { PongoCollectionSchema, PongoDbSchema } from '../schema';
 import type { AnyPongoDb } from '../typing';
 
@@ -33,7 +36,7 @@ export interface PongoDatabaseDriver<
   DriverOptions extends
     AnyPongoDatabaseDriverOptions = AnyPongoDatabaseDriverOptions,
 > {
-  connector: Database['connector'];
+  driverType: Database['driverType'];
   databaseFactory<
     CollectionsSchema extends Record<string, PongoCollectionSchema> = Record<
       string,
@@ -63,32 +66,32 @@ export type ExtractDatabaseTypeFromDriver<DatabaseDriver> =
 
 export const PongoDatabaseDriverRegistry = () => {
   const drivers = new Map<
-    ConnectorType,
+    DatabaseDriverType,
     PongoDatabaseDriver | (() => Promise<PongoDatabaseDriver>)
   >();
 
   const register = <Database extends AnyPongoDb = AnyPongoDb>(
-    connector: Database['connector'],
+    driverType: Database['driverType'],
     driver:
       | PongoDatabaseDriver<Database>
       | (() => Promise<PongoDatabaseDriver<Database>>),
   ): void => {
-    const entry = drivers.get(connector);
+    const entry = drivers.get(driverType);
     if (
       entry &&
       (typeof entry !== 'function' || typeof driver === 'function')
     ) {
       return;
     }
-    drivers.set(connector, driver);
+    drivers.set(driverType, driver);
   };
 
   const tryResolve = async <
     Driver extends AnyPongoDatabaseDriver = AnyPongoDatabaseDriver,
   >(
-    connector: Driver['connector'],
+    driverType: Driver['driverType'],
   ): Promise<Driver | null> => {
-    const entry = drivers.get(connector);
+    const entry = drivers.get(driverType);
 
     if (!entry) return null;
 
@@ -96,27 +99,28 @@ export const PongoDatabaseDriverRegistry = () => {
 
     const driver = await entry();
 
-    register(connector, driver);
+    register(driverType, driver);
     return driver as Driver;
   };
 
   const tryGet = <
     Driver extends AnyPongoDatabaseDriver = AnyPongoDatabaseDriver,
   >(
-    connector: Driver['connector'],
+    driverType: Driver['driverType'],
   ): Driver | null => {
-    const entry = drivers.get(connector);
+    const entry = drivers.get(driverType);
     return entry && typeof entry !== 'function' ? (entry as Driver) : null;
   };
 
-  const has = (connector: ConnectorType): boolean => drivers.has(connector);
+  const has = (driverType: DatabaseDriverType): boolean =>
+    drivers.has(driverType);
 
   return {
     register,
     tryResolve,
     tryGet,
     has,
-    get connectorTypes(): ConnectorType[] {
+    get databaseDriverTypes(): DatabaseDriverType[] {
       return Array.from(drivers.keys());
     },
   };

@@ -1,5 +1,5 @@
 import sqlite3 from 'sqlite3';
-import type { SQLiteConnectorType } from '../../core';
+import type { SQLiteDriverType } from '../../core';
 import {
   InMemorySQLiteDatabase,
   type Parameters,
@@ -7,8 +7,8 @@ import {
   type SQLiteClientOptions,
 } from '../../core/connections';
 
-export type SQLite3Connector = SQLiteConnectorType<'sqlite3'>;
-export const SQLite3ConnectorType: SQLite3Connector = 'SQLite:sqlite3';
+export type SQLite3DriverType = SQLiteDriverType<'sqlite3'>;
+export const SQLite3DriverType: SQLite3DriverType = 'SQLite:sqlite3';
 
 export type ConnectionCheckResult =
   | { successful: true }

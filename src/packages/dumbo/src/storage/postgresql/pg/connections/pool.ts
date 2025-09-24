@@ -12,9 +12,8 @@ import {
 import { setNodePostgresTypeParser } from '../serialization';
 import {
   nodePostgresConnection,
-  NodePostgresConnectorType,
+  NodePostgresDriverType,
   type NodePostgresClientConnection,
-  type NodePostgresConnector,
   type NodePostgresPoolClientConnection,
 } from './connection';
 
@@ -51,7 +50,7 @@ export const nodePostgresNativePool = (options: {
   const close = () => endPool({ connectionString, database });
 
   return createConnectionPool({
-    connector: NodePostgresConnectorType,
+    driverType: NodePostgresDriverType,
     connection: open,
     close,
     getConnection,
@@ -64,7 +63,7 @@ export const nodePostgresAmbientNativePool = (options: {
   const { pool } = options;
 
   return createConnectionPool({
-    connector: NodePostgresConnectorType,
+    driverType: NodePostgresDriverType,
     getConnection: () =>
       nodePostgresConnection({
         type: 'PoolClient',
@@ -80,7 +79,7 @@ export const nodePostgresAmbientConnectionPool = (options: {
   const { connection } = options;
 
   return createConnectionPool({
-    connector: NodePostgresConnectorType,
+    driverType: NodePostgresDriverType,
     getConnection: () => connection,
     execute: connection.execute,
     transaction: () => connection.transaction(),
@@ -95,7 +94,7 @@ export const nodePostgresClientPool = (options: {
   const { connectionString, database } = options;
 
   return createConnectionPool({
-    connector: NodePostgresConnectorType,
+    driverType: NodePostgresDriverType,
     getConnection: () => {
       const connect = async () => {
         const client = new pg.Client({ connectionString, database });
@@ -131,7 +130,7 @@ export const nodePostgresAmbientClientPool = (options: {
   const close = () => Promise.resolve();
 
   return createConnectionPool({
-    connector: NodePostgresConnectorType,
+    driverType: NodePostgresDriverType,
     connection: open,
     close,
     getConnection,
@@ -140,52 +139,52 @@ export const nodePostgresAmbientClientPool = (options: {
 
 export type NodePostgresPoolPooledOptions =
   | {
-      connector?: NodePostgresConnector;
+      driverType?: NodePostgresDriverType;
       connectionString: string;
       database?: string;
       pooled: true;
       pool: pg.Pool;
     }
   | {
-      connector?: NodePostgresConnector;
+      driverType?: NodePostgresDriverType;
       connectionString: string;
       database?: string;
       pool: pg.Pool;
     }
   | {
-      connector?: NodePostgresConnector;
+      driverType?: NodePostgresDriverType;
       connectionString: string;
       database?: string;
       pooled: true;
     }
   | {
-      connector?: NodePostgresConnector;
+      driverType?: NodePostgresDriverType;
       connectionString: string;
       database?: string;
     };
 
 export type NodePostgresPoolNotPooledOptions =
   | {
-      connector?: NodePostgresConnector;
+      driverType?: NodePostgresDriverType;
       connectionString: string;
       database?: string;
       pooled: false;
       client: pg.Client;
     }
   | {
-      connector?: NodePostgresConnector;
+      driverType?: NodePostgresDriverType;
       connectionString: string;
       database?: string;
       client: pg.Client;
     }
   | {
-      connector?: NodePostgresConnector;
+      driverType?: NodePostgresDriverType;
       connectionString: string;
       database?: string;
       pooled: false;
     }
   | {
-      connector?: NodePostgresConnector;
+      driverType?: NodePostgresDriverType;
       connectionString: string;
       database?: string;
       connection:

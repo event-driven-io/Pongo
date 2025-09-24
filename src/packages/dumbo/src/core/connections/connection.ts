@@ -1,4 +1,4 @@
-import { type ConnectorType } from '../connectors';
+import { type DatabaseDriverType } from '../drivers';
 import {
   createDeferredExecutor,
   sqlExecutor,
@@ -12,11 +12,11 @@ import {
 } from './transaction';
 
 export interface Connection<
-  Connector extends ConnectorType = ConnectorType,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
   DbClient = unknown,
 > extends WithSQLExecutor,
-    DatabaseTransactionFactory<Connector, DbClient> {
-  connector: Connector;
+    DatabaseTransactionFactory<DriverType, DbClient> {
+  driverType: DriverType;
   open: () => Promise<DbClient>;
   close: () => Promise<void>;
 }
@@ -32,15 +32,15 @@ export interface ConnectionFactory<
 }
 
 export type CreateConnectionOptions<
-  Connector extends ConnectorType = ConnectorType,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
   DbClient = unknown,
-  ConnectionType extends Connection<Connector, DbClient> = Connection<
-    Connector,
+  ConnectionType extends Connection<DriverType, DbClient> = Connection<
+    DriverType,
     DbClient
   >,
   Executor extends DbSQLExecutor = DbSQLExecutor,
 > = {
-  connector: Connector;
+  driverType: DriverType;
   connect: () => Promise<DbClient>;
   close: (client: DbClient) => Promise<void>;
   initTransaction: (
@@ -48,27 +48,27 @@ export type CreateConnectionOptions<
   ) => (
     client: Promise<DbClient>,
     options?: { close: (client: DbClient, error?: unknown) => Promise<void> },
-  ) => DatabaseTransaction<Connector, DbClient>;
+  ) => DatabaseTransaction<DriverType, DbClient>;
   executor: () => Executor;
 };
 
 export const createConnection = <
-  Connector extends ConnectorType = ConnectorType,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
   DbClient = unknown,
-  ConnectionType extends Connection<Connector, DbClient> = Connection<
-    Connector,
+  ConnectionType extends Connection<DriverType, DbClient> = Connection<
+    DriverType,
     DbClient
   >,
   Executor extends DbSQLExecutor = DbSQLExecutor,
 >(
   options: CreateConnectionOptions<
-    Connector,
+    DriverType,
     DbClient,
     ConnectionType,
     Executor
   >,
 ): ConnectionType => {
-  const { connector, connect, close, initTransaction, executor } = options;
+  const { driverType, connect, close, initTransaction, executor } = options;
 
   let client: DbClient | null = null;
   let connectPromise: Promise<DbClient> | null = null;
@@ -84,8 +84,8 @@ export const createConnection = <
     return connectPromise;
   };
 
-  const connection: Connection<Connector, DbClient> = {
-    connector,
+  const connection: Connection<DriverType, DbClient> = {
+    driverType,
     open: getClient,
     close: () => (client ? close(client) : Promise.resolve()),
     ...transactionFactoryWithDbClient(
@@ -100,19 +100,19 @@ export const createConnection = <
   return typedConnection;
 };
 
-export const createDeferredConnection = <Connector extends ConnectorType>(
-  connector: Connector,
-  importConnection: () => Promise<Connection<Connector>>,
-): Connection<Connector> => {
+export const createDeferredConnection = <DriverType extends DatabaseDriverType>(
+  driverType: DriverType,
+  importConnection: () => Promise<Connection<DriverType>>,
+): Connection<DriverType> => {
   const getConnection = importConnection();
 
-  const execute = createDeferredExecutor(connector, async () => {
+  const execute = createDeferredExecutor(driverType, async () => {
     const conn = await getConnection;
     return conn.execute;
   });
 
-  const connection: Connection<Connector> = {
-    connector,
+  const connection: Connection<DriverType> = {
+    driverType,
     execute,
 
     open: async (): Promise<unknown> => {
@@ -131,10 +131,10 @@ export const createDeferredConnection = <Connector extends ConnectorType>(
       const transaction = getConnection.then((c) => c.transaction());
 
       return {
-        connector,
+        driverType,
         connection,
         execute: createDeferredExecutor(
-          connector,
+          driverType,
           async () => (await transaction).execute,
         ),
         begin: async () => (await transaction).begin(),

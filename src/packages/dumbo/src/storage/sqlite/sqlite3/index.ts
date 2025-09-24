@@ -12,23 +12,22 @@ import {
   type SQLitePoolOptions,
 } from '../core';
 import {
-  SQLite3ConnectorType,
+  SQLite3DriverType,
   sqlite3Client as sqliteClient,
-  type SQLite3Connector,
 } from './connections';
 
 const sqlite3StoragePlugin: StoragePlugin<
-  SQLite3Connector,
-  SQLiteConnection<SQLite3Connector>
+  SQLite3DriverType,
+  SQLiteConnection<SQLite3DriverType>
 > = {
-  connector: SQLite3ConnectorType,
+  driverType: SQLite3DriverType,
   createPool: (options) =>
-    sqlitePool(options as unknown as SQLitePoolOptions<SQLite3Connector>),
+    sqlitePool(options as unknown as SQLitePoolOptions<SQLite3DriverType>),
   sqlFormatter: sqliteFormatter,
   defaultMigratorOptions: DefaultSQLiteMigratorOptions,
 };
 
-storagePluginRegistry.register(SQLite3ConnectorType, sqlite3StoragePlugin);
+storagePluginRegistry.register(SQLite3DriverType, sqlite3StoragePlugin);
 
 export { sqliteClient, sqlite3StoragePlugin as storagePlugin };
 
@@ -36,8 +35,8 @@ export const connectionPool = sqlitePool;
 
 export const dumbo = <
   DumboOptionsType extends
-    SQLitePoolOptions<SQLite3Connector> = SQLitePoolOptions<SQLite3Connector>,
+    SQLitePoolOptions<SQLite3DriverType> = SQLitePoolOptions<SQLite3DriverType>,
 >(
   options: DumboOptionsType,
-): Dumbo<SQLite3Connector, SQLiteConnection<SQLite3Connector>> =>
+): Dumbo<SQLite3DriverType, SQLiteConnection<SQLite3DriverType>> =>
   sqlitePool(options);

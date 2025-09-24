@@ -1,4 +1,4 @@
-import type { ConnectorType } from '@event-driven-io/dumbo';
+import type { DatabaseDriverType } from '@event-driven-io/dumbo';
 import {
   type Document,
   type PongoClient,
@@ -40,22 +40,22 @@ export type CollectionsMap<T extends Record<string, PongoCollectionSchema>> = {
 
 export type PongoDbWithSchema<
   T extends Record<string, PongoCollectionSchema>,
-  Connector extends ConnectorType = ConnectorType,
-> = CollectionsMap<T> & PongoDb<Connector>;
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
+> = CollectionsMap<T> & PongoDb<DriverType>;
 
 export type DBsMap<
   T extends Record<string, PongoDbSchema>,
-  Connector extends ConnectorType = ConnectorType,
-  Database extends PongoDb<Connector> = PongoDb<Connector>,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
+  Database extends PongoDb<DriverType> = PongoDb<DriverType>,
 > = {
   [K in keyof T]: CollectionsMap<T[K]['collections']> & Database;
 };
 
 export type PongoClientWithSchema<
   T extends PongoClientSchema,
-  Connector extends ConnectorType = ConnectorType,
-  Database extends PongoDb<Connector> = PongoDb<Connector>,
-> = DBsMap<T['dbs'], Connector, Database> & PongoClient<Connector, Database>;
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
+  Database extends PongoDb<DriverType> = PongoDb<DriverType>,
+> = DBsMap<T['dbs'], DriverType, Database> & PongoClient<DriverType, Database>;
 
 const pongoCollectionSchema = <T extends PongoDocument>(
   name: string,
@@ -124,13 +124,13 @@ export const pongoSchema = {
 // Factory function to create DB instances
 export const proxyPongoDbWithSchema = <
   Collections extends Record<string, PongoCollectionSchema>,
-  Connector extends ConnectorType = ConnectorType,
-  Database extends PongoDb<Connector> = PongoDb<Connector>,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
+  Database extends PongoDb<DriverType> = PongoDb<DriverType>,
 >(
   pongoDb: Database,
   dbSchema: PongoDbSchema<Collections>,
   collections: Map<string, PongoCollection<Document>>,
-): PongoDbWithSchema<Collections, Connector> & Database => {
+): PongoDbWithSchema<Collections, DriverType> & Database => {
   const collectionNames = Object.keys(dbSchema.collections);
 
   for (const collectionName of collectionNames) {
@@ -146,28 +146,28 @@ export const proxyPongoDbWithSchema = <
         return collections.get(prop) ?? target[prop];
       },
     },
-  ) as PongoDbWithSchema<Collections, Connector> & Database;
+  ) as PongoDbWithSchema<Collections, DriverType> & Database;
 };
 
 export const proxyClientWithSchema = <
   TypedClientSchema extends PongoClientSchema,
-  Connector extends ConnectorType = ConnectorType,
-  Database extends PongoDb<Connector> = PongoDb<Connector>,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
+  Database extends PongoDb<DriverType> = PongoDb<DriverType>,
 >(
-  client: PongoClient<Connector, Database>,
+  client: PongoClient<DriverType, Database>,
   schema: TypedClientSchema | undefined,
-): PongoClientWithSchema<TypedClientSchema, Connector, Database> => {
+): PongoClientWithSchema<TypedClientSchema, DriverType, Database> => {
   if (!schema)
     return client as PongoClientWithSchema<
       TypedClientSchema,
-      Connector,
+      DriverType,
       Database
     >;
 
   const dbNames = Object.keys(schema.dbs);
 
   return new Proxy(
-    client as PongoClient<Connector, Database> & {
+    client as PongoClient<DriverType, Database> & {
       [key: string]: unknown;
     },
     {
@@ -177,7 +177,7 @@ export const proxyClientWithSchema = <
         return target[prop];
       },
     },
-  ) as PongoClientWithSchema<TypedClientSchema, Connector, Database>;
+  ) as PongoClientWithSchema<TypedClientSchema, DriverType, Database>;
 };
 
 export type PongoCollectionSchemaMetadata = {

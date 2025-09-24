@@ -36,7 +36,7 @@ void describe('Node SQLite pool', () => {
   void describe(`in-memory database`, () => {
     void it('returns the singleton connection', async () => {
       const pool = sqlitePool({
-        connector: 'SQLite:sqlite3',
+        driverType: 'SQLite:sqlite3',
         fileName: inMemoryfileName,
       });
       const connection = await pool.connection();
@@ -58,7 +58,7 @@ void describe('Node SQLite pool', () => {
 
   void describe(`file-based database`, () => {
     void it('returns the new connection each time', async () => {
-      const pool = sqlitePool({ connector: 'SQLite:sqlite3', fileName });
+      const pool = sqlitePool({ driverType: 'SQLite:sqlite3', fileName });
       const connection = await pool.connection();
       const otherConnection = await pool.connection();
 
@@ -77,7 +77,7 @@ void describe('Node SQLite pool', () => {
 
     void it('for singleton setting returns the singleton connection', async () => {
       const pool = sqlitePool({
-        connector: 'SQLite:sqlite3',
+        driverType: 'SQLite:sqlite3',
         fileName,
         singleton: true,
       });
@@ -101,7 +101,7 @@ void describe('Node SQLite pool', () => {
   for (const { testName, fileName } of testCases) {
     void describe(`sqlitePool with ${testName} database`, () => {
       void it('connects using default pool', async () => {
-        const pool = sqlitePool({ connector: 'SQLite:sqlite3', fileName });
+        const pool = sqlitePool({ driverType: 'SQLite:sqlite3', fileName });
         const connection = await pool.connection();
 
         try {
@@ -117,7 +117,7 @@ void describe('Node SQLite pool', () => {
 
       void it('connects using client', async () => {
         const pool = sqlitePool({
-          connector: 'SQLite:sqlite3',
+          driverType: 'SQLite:sqlite3',
           fileName,
           pooled: false,
         });
@@ -136,7 +136,7 @@ void describe('Node SQLite pool', () => {
         await existingClient.connect();
 
         const pool = sqlitePool({
-          connector: 'SQLite:sqlite3',
+          driverType: 'SQLite:sqlite3',
           fileName,
           client: existingClient,
         });
@@ -153,14 +153,14 @@ void describe('Node SQLite pool', () => {
 
       void it('connects using connected ambient connected connection', async () => {
         const ambientPool = sqlitePool({
-          connector: 'SQLite:sqlite3',
+          driverType: 'SQLite:sqlite3',
           fileName,
         });
         const ambientConnection = await ambientPool.connection();
         await ambientConnection.open();
 
         const pool = sqlitePool({
-          connector: 'SQLite:sqlite3',
+          driverType: 'SQLite:sqlite3',
           fileName,
           connection: ambientConnection,
         });
@@ -176,13 +176,13 @@ void describe('Node SQLite pool', () => {
 
       void it('connects using connected ambient not-connected connection', async () => {
         const ambientPool = sqlitePool({
-          connector: 'SQLite:sqlite3',
+          driverType: 'SQLite:sqlite3',
           fileName,
         });
         const ambientConnection = await ambientPool.connection();
 
         const pool = sqlitePool({
-          connector: 'SQLite:sqlite3',
+          driverType: 'SQLite:sqlite3',
           fileName,
           connection: ambientConnection,
         });
@@ -198,7 +198,7 @@ void describe('Node SQLite pool', () => {
 
       void it('connects using ambient connected connection with transaction', async () => {
         const ambientPool = sqlitePool({
-          connector: 'SQLite:sqlite3',
+          driverType: 'SQLite:sqlite3',
           fileName,
         });
         const ambientConnection = await ambientPool.connection();
@@ -207,7 +207,7 @@ void describe('Node SQLite pool', () => {
         try {
           await ambientConnection.withTransaction<void>(async () => {
             const pool = sqlitePool({
-              connector: 'SQLite:sqlite3',
+              driverType: 'SQLite:sqlite3',
               fileName,
               connection: ambientConnection,
             });
@@ -227,7 +227,7 @@ void describe('Node SQLite pool', () => {
 
       void it('connects using ambient not-connected connection with transaction', async () => {
         const ambientPool = sqlitePool({
-          connector: 'SQLite:sqlite3',
+          driverType: 'SQLite:sqlite3',
           fileName,
         });
         const ambientConnection = await ambientPool.connection();
@@ -235,7 +235,7 @@ void describe('Node SQLite pool', () => {
         try {
           await ambientConnection.withTransaction<void>(async () => {
             const pool = sqlitePool({
-              connector: 'SQLite:sqlite3',
+              driverType: 'SQLite:sqlite3',
               fileName,
               connection: ambientConnection,
             });
@@ -255,13 +255,13 @@ void describe('Node SQLite pool', () => {
 
       void it('connects using ambient connection in withConnection scope', async () => {
         const ambientPool = sqlitePool({
-          connector: 'SQLite:sqlite3',
+          driverType: 'SQLite:sqlite3',
           fileName,
         });
         try {
           await ambientPool.withConnection(async (ambientConnection) => {
             const pool = sqlitePool({
-              connector: 'SQLite:sqlite3',
+              driverType: 'SQLite:sqlite3',
               fileName,
               connection: ambientConnection,
             });
@@ -280,14 +280,14 @@ void describe('Node SQLite pool', () => {
 
       void it('connects using ambient connection in withConnection and withTransaction scope', async () => {
         const ambientPool = sqlitePool({
-          connector: 'SQLite:sqlite3',
+          driverType: 'SQLite:sqlite3',
           fileName,
         });
         try {
           await ambientPool.withConnection((ambientConnection) =>
             ambientConnection.withTransaction<void>(async () => {
               const pool = sqlitePool({
-                connector: 'SQLite:sqlite3',
+                driverType: 'SQLite:sqlite3',
                 fileName,
                 connection: ambientConnection,
               });

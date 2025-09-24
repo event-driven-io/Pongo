@@ -1,7 +1,7 @@
 import {
-  type Connection,
-  type ConnectorType,
   createDeferredConnectionPool,
+  type Connection,
+  type DatabaseDriverType,
   type Dumbo,
   type DumboConnectionOptions,
 } from '../../core';
@@ -19,28 +19,30 @@ storagePluginRegistry.register('SQLite:sqlite3', () =>
 );
 
 export function dumbo<
-  DatabaseOptions extends DumboConnectionOptions<Connector>,
-  Connector extends ConnectorType = ConnectorType,
-  ConnectionType extends Connection<Connector> = Connection<Connector>,
->(options: DatabaseOptions): Dumbo<Connector, ConnectionType> {
+  DatabaseOptions extends DumboConnectionOptions<DriverType>,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
+  ConnectionType extends Connection<DriverType> = Connection<DriverType>,
+>(options: DatabaseOptions): Dumbo<DriverType, ConnectionType> {
   const { connectionString } = options;
 
   const { databaseType, driverName } = parseConnectionString(connectionString);
 
-  const connector: Connector = `${databaseType}:${driverName}` as Connector;
+  const driverType = `${databaseType}:${driverName}` as DriverType;
 
   const importAndCreatePool = async () => {
     const plugin = await storagePluginRegistry.tryResolve<
-      Connector,
+      DriverType,
       ConnectionType
-    >(connector);
+    >(driverType);
 
     if (plugin === null) {
-      throw new Error(`No plugin found for connector: ${connector}`);
+      throw new Error(
+        `No plugin found for database driver type: ${driverType}`,
+      );
     }
 
-    return plugin.createPool({ ...options, connector });
+    return plugin.createPool({ ...options, driverType });
   };
 
-  return createDeferredConnectionPool(connector, importAndCreatePool);
+  return createDeferredConnectionPool(driverType, importAndCreatePool);
 }

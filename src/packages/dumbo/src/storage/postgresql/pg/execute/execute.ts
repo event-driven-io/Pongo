@@ -8,9 +8,8 @@ import {
 } from '../../../../core';
 import { pgFormatter } from '../../core';
 import {
-  NodePostgresConnectorType,
+  NodePostgresDriverType,
   type NodePostgresClientOrPoolClient,
-  type NodePostgresConnector,
 } from '../connections';
 
 export const isNodePostgresNativePool = (
@@ -49,12 +48,12 @@ export const nodePostgresExecute = async <Result = void>(
 };
 
 export type NodePostgresSQLExecutor = DbSQLExecutor<
-  NodePostgresConnector,
+  NodePostgresDriverType,
   NodePostgresClientOrPoolClient
 >;
 
 export const nodePostgresSQLExecutor = (): NodePostgresSQLExecutor => ({
-  connector: NodePostgresConnectorType,
+  driverType: NodePostgresDriverType,
   query: batch,
   batchQuery: batch,
   command: batch,
