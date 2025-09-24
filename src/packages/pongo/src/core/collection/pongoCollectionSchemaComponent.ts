@@ -36,7 +36,5 @@ export const PongoCollectionSchemaComponent = <
     ),
     sqlBuilder,
     definition,
-    get collectionName() {
-      return this.definition.name;
-    },
+    collectionName: definition.name,
   }) as PongoCollectionSchemaComponent;
