@@ -1,9 +1,9 @@
-import { type DumboConnectionOptions } from '../../core';
 import {
   dumboDatabaseDriverRegistry,
   type AnyDumboDatabaseDriver,
+  type DumboConnectionOptions,
   type ExtractDumboTypeFromDriver,
-} from '../../core/plugins';
+} from '../../core';
 
 export * from './connections';
 

@@ -1,5 +1,7 @@
-import type { DumboDatabaseDriver } from '../../../core';
-import { dumboDatabaseDriverRegistry } from '../../../core/plugins/storagePlugin';
+import {
+  type DumboDatabaseDriver,
+  dumboDatabaseDriverRegistry,
+} from '../../../core';
 import {
   defaultPostgreSQLConnectionString,
   DefaultPostgreSQLMigratorOptions,

@@ -1,6 +1,8 @@
 export * from './connections';
-import type { DumboDatabaseDriver } from '../../../core';
-import { dumboDatabaseDriverRegistry } from '../../../core/plugins/storagePlugin';
+import {
+  dumboDatabaseDriverRegistry,
+  type DumboDatabaseDriver,
+} from '../../../core';
 import {
   DefaultSQLiteMigratorOptions,
   InMemorySQLiteDatabase,

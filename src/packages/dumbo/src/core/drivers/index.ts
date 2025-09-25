@@ -59,3 +59,5 @@ export function getDatabaseType<T extends DatabaseType>(
   const { databaseType } = fromDatabaseDriverType(databaseDriverType);
   return databaseType;
 }
+
+export * from './databaseDriver';
