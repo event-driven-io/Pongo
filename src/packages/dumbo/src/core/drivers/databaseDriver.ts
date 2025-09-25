@@ -1,3 +1,4 @@
+import type { DatabaseDriverType } from '.';
 import {
   type Dumbo,
   type DumboConnectionOptions,
@@ -5,7 +6,6 @@ import {
 } from '..';
 import type { DatabaseConnectionString } from '../../storage/all';
 import type { AnyConnection } from '../connections';
-import type { DatabaseDriverType } from '../drivers';
 import type { MigratorOptions } from '../schema';
 import type { SQLFormatter } from '../sql';
 
