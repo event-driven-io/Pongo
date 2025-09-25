@@ -35,7 +35,14 @@ export const pgDatabaseDriver: DumboDatabaseDriver<
   },
 };
 
-dumboDatabaseDriverRegistry.register(NodePostgresDriverType, pgDatabaseDriver);
+export const usePgDatabaseDriver = () => {
+  dumboDatabaseDriverRegistry.register(
+    NodePostgresDriverType,
+    pgDatabaseDriver,
+  );
+};
+
+usePgDatabaseDriver();
 
 export * from './connections';
 export * from './execute';

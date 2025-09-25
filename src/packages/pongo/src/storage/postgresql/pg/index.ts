@@ -1,5 +1,6 @@
 import { dumbo } from '@event-driven-io/dumbo';
 import {
+  pgDatabaseDriver as dumboDriver,
   getDatabaseNameOrDefault,
   NodePostgresDriverType,
   type NodePostgresConnection,
@@ -70,6 +71,7 @@ const pgDatabaseDriver: PongoDatabaseDriver<
       ...options,
       pool: dumbo({
         connectionString: options.connectionString,
+        driver: dumboDriver,
         ...options.connectionOptions,
       }),
       schemaComponent: PongoDatabaseSchemaComponent({
