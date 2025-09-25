@@ -7,7 +7,7 @@ import {
   NoDatabaseLock,
 } from '../locks';
 import { mapToCamelCase, singleOrNull } from '../query';
-import { SQL, type SQLFormatter } from '../sql';
+import { getFormatter, SQL, type SQLFormatter } from '../sql';
 import { tracer } from '../tracing';
 import { schemaComponent, type SchemaComponent } from './schemaComponent';
 
@@ -141,7 +141,7 @@ export const runSQLMigrations = (
         }
 
         for (const migration of migrations) {
-          await runSQLMigration(execute, migration);
+          await runSQLMigration(databaseType, execute, migration);
         }
       },
       lockOptions,
@@ -151,11 +151,12 @@ export const runSQLMigrations = (
   });
 
 const runSQLMigration = async (
+  databaseType: DatabaseType,
   execute: SQLExecutor,
   migration: SQLMigration,
 ): Promise<void> => {
   const sqls = combineMigrations(migration);
-  const sqlHash = await getMigrationHash(migration, execute.formatter);
+  const sqlHash = await getMigrationHash(migration, getFormatter(databaseType));
 
   try {
     const newMigration = {

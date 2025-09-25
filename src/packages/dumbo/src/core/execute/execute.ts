@@ -1,7 +1,7 @@
 import type { Connection } from '../connections';
-import { fromDatabaseDriverType, type DatabaseDriverType } from '../drivers';
+import { type DatabaseDriverType } from '../drivers';
 import type { QueryResult, QueryResultRow } from '../query';
-import { getFormatter, type SQL, type SQLFormatter } from '../sql';
+import { type SQL, type SQLFormatter } from '../sql';
 
 export type SQLQueryOptions = { timeoutMs?: number };
 export type SQLCommandOptions = { timeoutMs?: number };
@@ -31,6 +31,7 @@ export interface DbSQLExecutor<
     sqls: SQL[],
     options?: SQLCommandOptions,
   ): Promise<QueryResult<Result>[]>;
+  formatter: SQLFormatter;
 }
 
 export interface SQLExecutor {
@@ -50,7 +51,6 @@ export interface SQLExecutor {
     sqls: SQL[],
     options?: SQLCommandOptions,
   ): Promise<QueryResult<Result>[]>;
-  formatter: SQLFormatter;
 }
 
 export interface WithSQLExecutor {
@@ -68,9 +68,6 @@ export const sqlExecutor = <
     close?: (client: DbClient, error?: unknown) => Promise<void>;
   },
 ): SQLExecutor => ({
-  formatter: getFormatter(
-    fromDatabaseDriverType(sqlExecutor.driverType).databaseType,
-  ),
   query: (sql, queryOptions) =>
     executeInNewDbClient(
       (client) => sqlExecutor.query(client, sql, queryOptions),
@@ -119,10 +116,6 @@ export const sqlExecutorInNewConnection = <
       (connection) => connection.execute.batchCommand(sqls),
       options,
     ),
-
-  formatter: getFormatter(
-    fromDatabaseDriverType(options.driverType).databaseType,
-  ),
 });
 
 export const executeInNewDbClient = async <
@@ -162,61 +155,4 @@ export const executeInNewConnection = async <
   } finally {
     await connection.close();
   }
-};
-
-export const createDeferredExecutor = <DriverType extends DatabaseDriverType>(
-  driverType: DriverType,
-  importExecutor: () => Promise<SQLExecutor>,
-): SQLExecutor => {
-  let executor: SQLExecutor | null = null;
-
-  const getExecutor = async (): Promise<SQLExecutor> => {
-    if (!executor) {
-      try {
-        executor = await importExecutor();
-      } catch (error) {
-        throw new Error(
-          `Failed to import SQL executor: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-    }
-    return executor;
-  };
-
-  return {
-    query: async <Result extends QueryResultRow = QueryResultRow>(
-      sql: SQL,
-      options?: SQLQueryOptions,
-    ): Promise<QueryResult<Result>> => {
-      const exec = await getExecutor();
-      return exec.query<Result>(sql, options);
-    },
-
-    batchQuery: async <Result extends QueryResultRow = QueryResultRow>(
-      sqls: SQL[],
-      options?: SQLQueryOptions,
-    ): Promise<QueryResult<Result>[]> => {
-      const exec = await getExecutor();
-      return exec.batchQuery<Result>(sqls, options);
-    },
-
-    command: async <Result extends QueryResultRow = QueryResultRow>(
-      sql: SQL,
-      options?: SQLCommandOptions,
-    ): Promise<QueryResult<Result>> => {
-      const exec = await getExecutor();
-      return exec.command<Result>(sql, options);
-    },
-
-    batchCommand: async <Result extends QueryResultRow = QueryResultRow>(
-      sqls: SQL[],
-      options?: SQLCommandOptions,
-    ): Promise<QueryResult<Result>[]> => {
-      const exec = await getExecutor();
-      return exec.batchCommand<Result>(sqls, options);
-    },
-    get formatter() {
-      return getFormatter(fromDatabaseDriverType(driverType).databaseType);
-    },
-  };
 };
