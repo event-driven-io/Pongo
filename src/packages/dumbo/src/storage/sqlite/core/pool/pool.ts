@@ -209,7 +209,7 @@ export type SQLitePoolNotPooledOptions<
       allowNestedTransactions?: boolean;
     };
 
-export type SQLitePoolOptions<
+export type SQLiteDumboConnectionOptions<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
 > = (
   | SQLitePoolPooledOptions<DriverType>
@@ -228,7 +228,7 @@ export function sqlitePool<
 export function sqlitePool<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
 >(
-  options: SQLitePoolOptions<DriverType>,
+  options: SQLiteDumboConnectionOptions<DriverType>,
 ):
   | SQLiteAmbientClientPool<DriverType>
   | SQLiteAmbientConnectionPool<DriverType> {
