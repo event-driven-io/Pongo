@@ -1,7 +1,4 @@
-import type {
-  DumboConnectionOptions,
-  DumboDatabaseDriver,
-} from '../../../core';
+import type { DumboDatabaseDriver } from '../../../core';
 import { storagePluginRegistry } from '../../../core/plugins/storagePlugin';
 import {
   defaultPostgreSQLConnectionString,
@@ -37,10 +34,6 @@ export const pgDatabaseDriver: DumboDatabaseDriver<
     }
   },
 };
-
-type TestOpt = DumboConnectionOptions<typeof pgDatabaseDriver>;
-const opt: TestOpt = { connectionString: '', pooled: true };
-console.log(opt);
 
 storagePluginRegistry.register(NodePostgresDriverType, pgDatabaseDriver);
 

@@ -19,7 +19,7 @@ const pooled = process.env.BENCHMARK_CONNECTION_POOLED === 'true';
 const pool = dumbo({
   connectionString,
   driver: pgDatabaseDriver,
-  database: '',
+  pooled,
 });
 
 const rawPgPool = new pg.Pool({ connectionString });
