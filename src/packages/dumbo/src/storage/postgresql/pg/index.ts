@@ -1,5 +1,5 @@
 import type { DumboDatabaseDriver } from '../../../core';
-import { storagePluginRegistry } from '../../../core/plugins/storagePlugin';
+import { dumboDatabaseDriverRegistry } from '../../../core/plugins/storagePlugin';
 import {
   defaultPostgreSQLConnectionString,
   DefaultPostgreSQLMigratorOptions,
@@ -35,7 +35,7 @@ export const pgDatabaseDriver: DumboDatabaseDriver<
   },
 };
 
-storagePluginRegistry.register(NodePostgresDriverType, pgDatabaseDriver);
+dumboDatabaseDriverRegistry.register(NodePostgresDriverType, pgDatabaseDriver);
 
 export * from './connections';
 export * from './execute';

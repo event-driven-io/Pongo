@@ -1,6 +1,6 @@
 export * from './connections';
 import type { DumboDatabaseDriver } from '../../../core';
-import { storagePluginRegistry } from '../../../core/plugins/storagePlugin';
+import { dumboDatabaseDriverRegistry } from '../../../core/plugins/storagePlugin';
 import {
   DefaultSQLiteMigratorOptions,
   InMemorySQLiteDatabase,
@@ -36,7 +36,7 @@ export const sqlite3DatabaseDriver: DumboDatabaseDriver<
   },
 };
 
-storagePluginRegistry.register(SQLite3DriverType, sqlite3DatabaseDriver);
+dumboDatabaseDriverRegistry.register(SQLite3DriverType, sqlite3DatabaseDriver);
 
 export { sqlite3DatabaseDriver as databaseDriver, sqliteClient };
 
