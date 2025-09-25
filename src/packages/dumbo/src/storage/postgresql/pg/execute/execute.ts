@@ -58,6 +58,7 @@ export const nodePostgresSQLExecutor = (): NodePostgresSQLExecutor => ({
   batchQuery: batch,
   command: batch,
   batchCommand: batch,
+  formatter: pgFormatter,
 });
 
 export type BatchQueryOptions = { timeoutMs?: number };

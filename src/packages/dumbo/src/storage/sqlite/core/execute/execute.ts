@@ -1,6 +1,7 @@
 import type { SQLiteDriverType } from '..';
 import {
   SQL,
+  SQLFormatter,
   tracer,
   type DbSQLExecutor,
   type QueryResult,
@@ -28,12 +29,14 @@ export const sqliteSQLExecutor = <
   DriverType extends SQLiteDriverType = SQLiteDriverType,
 >(
   driverType: DriverType,
+  formatter?: SQLFormatter,
 ): SQLiteSQLExecutor<DriverType> => ({
   driverType,
   query: batch,
   batchQuery: batch,
   command: batch,
   batchCommand: batch,
+  formatter: formatter ?? sqliteFormatter,
 });
 
 export type BatchQueryOptions = { timeoutMs?: number };
