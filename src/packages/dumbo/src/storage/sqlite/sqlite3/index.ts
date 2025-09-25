@@ -36,7 +36,14 @@ export const sqlite3DatabaseDriver: DumboDatabaseDriver<
   },
 };
 
-dumboDatabaseDriverRegistry.register(SQLite3DriverType, sqlite3DatabaseDriver);
+export const useSqlite3DatabaseDriver = () => {
+  dumboDatabaseDriverRegistry.register(
+    SQLite3DriverType,
+    sqlite3DatabaseDriver,
+  );
+};
+
+useSqlite3DatabaseDriver();
 
 export { sqlite3DatabaseDriver as databaseDriver, sqliteClient };
 
