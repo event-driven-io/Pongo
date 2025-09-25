@@ -32,18 +32,10 @@ export type DumboConnectionOptions<
 > =
   ExtractDumboDatabaseDriverOptions<DatabaseDriver> extends infer Options
     ? Options extends unknown
-      ? (
-          | {
-              driver?: DatabaseDriver;
-              driverType?: never;
-              connectionString: string | ConnectionString;
-            }
-          | {
-              driver?: never;
-              driverType: DatabaseDriver['driverType'];
-              connectionString: string | ConnectionString;
-            }
-        ) &
-          Omit<Options, 'driver' | 'driverType' | 'connectionString'>
+      ? {
+          driver?: DatabaseDriver;
+          driverType?: DatabaseDriver['driverType'];
+          connectionString: string | ConnectionString;
+        } & Omit<Options, 'driver' | 'driverType' | 'connectionString'>
       : never
     : never;

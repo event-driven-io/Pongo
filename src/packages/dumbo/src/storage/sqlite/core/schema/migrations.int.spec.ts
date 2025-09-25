@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url';
 import { InMemorySQLiteDatabase, SQLiteConnectionString } from '..';
 import { count, dumbo, SQL, type Dumbo } from '../../../..';
 import { runSQLMigrations, type SQLMigration } from '../../../../core/schema';
-import { tableExists } from '../../../../sqlite3';
+import { SQLite3DriverType, tableExists } from '../../../../sqlite3';
 
 void describe('Migration Integration Tests', () => {
   const inMemoryfileName = InMemorySQLiteDatabase;
@@ -30,7 +30,7 @@ void describe('Migration Integration Tests', () => {
 
     void describe(`dumbo with ${testName} database`, () => {
       beforeEach(() => {
-        pool = dumbo({ connectionString, driverType: 'SQLite:sqlite3' });
+        pool = dumbo({ connectionString, driverType: SQLite3DriverType });
       });
 
       afterEach(() => {

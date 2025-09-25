@@ -64,21 +64,27 @@ export const SQLFormatter = ({
   return resultFormatter;
 };
 
-const formatters: Record<string, SQLFormatter> = {};
+declare global {
+  // eslint-disable-next-line no-var
+  var dumboSQLFormatters: Record<string, SQLFormatter>;
+}
+
+const dumboSQLFormatters = (globalThis.dumboSQLFormatters =
+  globalThis.dumboSQLFormatters ?? ({} as Record<string, SQLFormatter>));
 
 export const registerFormatter = (
   dialect: string,
   formatter: SQLFormatter,
 ): void => {
-  formatters[dialect] = formatter;
+  dumboSQLFormatters[dialect] = formatter;
 };
 
 export const getFormatter = (dialect: string): SQLFormatter => {
   const formatterKey = dialect;
-  if (!formatters[formatterKey]) {
+  if (!dumboSQLFormatters[formatterKey]) {
     throw new Error(`No SQL formatter registered for dialect: ${dialect}`);
   }
-  return formatters[formatterKey];
+  return dumboSQLFormatters[formatterKey];
 };
 
 export function formatSQL(

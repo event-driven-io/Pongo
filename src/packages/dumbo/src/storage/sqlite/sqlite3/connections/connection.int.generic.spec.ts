@@ -3,7 +3,10 @@ import fs from 'fs';
 import { afterEach, describe, it } from 'node:test';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { useSqlite3DatabaseDriver } from '..';
+import {
+  useSqlite3DatabaseDriver,
+  type SQLite3DumboConnectionOptions,
+} from '..';
 import { SQL } from '../../../../core';
 import { dumbo } from '../../../all';
 import { InMemorySQLiteDatabase, SQLiteConnectionString } from '../../core';
@@ -133,11 +136,13 @@ void describe('Node SQLite pool', () => {
       });
 
       void it('connects using client', async () => {
-        const pool = dumbo({
+        const options: SQLite3DumboConnectionOptions = {
           driverType: `SQLite:sqlite3`,
           connectionString,
           pooled: false,
-        });
+        };
+
+        const pool = dumbo(options);
         const connection = await pool.connection();
 
         try {
