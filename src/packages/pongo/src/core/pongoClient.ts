@@ -5,7 +5,7 @@ import {
 import { PongoDatabaseCache } from './database';
 import type {
   AnyPongoDatabaseDriver,
-  ExtractDatabaseTypeFromDriver,
+  ExtractPongoDatabaseTypeFromDriver,
 } from './drivers';
 import { pongoSession } from './pongoSession';
 import {
@@ -34,7 +34,7 @@ export const pongoClient = <
   >,
 ): PongoClient<
   DatabaseDriver['driverType'],
-  ExtractDatabaseTypeFromDriver<DatabaseDriver>
+  ExtractPongoDatabaseTypeFromDriver<DatabaseDriver>
 > &
   PongoClientWithSchema<TypedClientSchema> => {
   const { driver, connectionString, schema, errors, ...connectionOptions } =
@@ -47,9 +47,8 @@ export const pongoClient = <
 
   const pongoClient: PongoClient<
     DatabaseDriver['driverType'],
-    ExtractDatabaseTypeFromDriver<DatabaseDriver>
+    ExtractPongoDatabaseTypeFromDriver<DatabaseDriver>
   > = {
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     driverType: driver.driverType,
     connect: async () => {
       await dbClients.forAll((db) => db.connect());
@@ -58,7 +57,9 @@ export const pongoClient = <
     close: async () => {
       await dbClients.forAll((db) => db.close());
     },
-    db: (dbName?: string): ExtractDatabaseTypeFromDriver<DatabaseDriver> => {
+    db: (
+      dbName?: string,
+    ): ExtractPongoDatabaseTypeFromDriver<DatabaseDriver> => {
       const db = dbClients.getOrCreate({
         ...connectionOptions,
         connectionString,
@@ -66,8 +67,7 @@ export const pongoClient = <
         errors,
       });
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-      return db as ExtractDatabaseTypeFromDriver<DatabaseDriver>;
+      return db as ExtractPongoDatabaseTypeFromDriver<DatabaseDriver>;
     },
     startSession: pongoSession,
     withSession: async <T>(

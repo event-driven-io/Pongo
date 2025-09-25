@@ -1,11 +1,10 @@
 export * from './connections';
-import type { Dumbo } from '../../../core';
-import {
-  storagePluginRegistry,
-  type StoragePlugin,
-} from '../../../core/plugins/storagePlugin';
+import type { Dumbo, DumboDatabaseDriver } from '../../../core';
+import { storagePluginRegistry } from '../../../core/plugins/storagePlugin';
 import {
   DefaultSQLiteMigratorOptions,
+  InMemorySQLiteDatabase,
+  SQLiteConnectionString,
   sqliteFormatter,
   sqlitePool,
   type SQLiteConnection,
@@ -16,15 +15,25 @@ import {
   sqlite3Client as sqliteClient,
 } from './connections';
 
-const sqlite3StoragePlugin: StoragePlugin<
-  SQLite3DriverType,
-  SQLiteConnection<SQLite3DriverType>
+const sqlite3StoragePlugin: DumboDatabaseDriver<
+  SQLiteConnection<SQLite3DriverType>,
+  SQLitePoolOptions<SQLite3DriverType>,
+  SQLiteConnectionString
 > = {
   driverType: SQLite3DriverType,
   createPool: (options) =>
     sqlitePool(options as unknown as SQLitePoolOptions<SQLite3DriverType>),
   sqlFormatter: sqliteFormatter,
   defaultMigratorOptions: DefaultSQLiteMigratorOptions,
+  getDatabaseNameOrDefault: () => InMemorySQLiteDatabase,
+  defaultConnectionString: InMemorySQLiteDatabase,
+  tryParseConnectionString: (connectionString) => {
+    try {
+      return SQLiteConnectionString(connectionString);
+    } catch {
+      return null;
+    }
+  },
 };
 
 storagePluginRegistry.register(SQLite3DriverType, sqlite3StoragePlugin);

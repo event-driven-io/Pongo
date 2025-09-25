@@ -54,11 +54,11 @@ export type AnyPongoDatabaseDriver = PongoDatabaseDriver<
   AnyPongoDatabaseDriverOptions
 >;
 
-export type ExtractDatabaseDriverOptions<DatabaseDriver> =
+export type ExtractPongoDatabaseDriverOptions<DatabaseDriver> =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   DatabaseDriver extends PongoDatabaseDriver<any, infer O> ? O : never;
 
-export type ExtractDatabaseTypeFromDriver<DatabaseDriver> =
+export type ExtractPongoDatabaseTypeFromDriver<DatabaseDriver> =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   DatabaseDriver extends PongoDatabaseDriver<infer D, any> ? D : never;
 
