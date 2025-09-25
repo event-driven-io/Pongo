@@ -9,21 +9,6 @@ import type { DatabaseDriverType } from '../drivers';
 import type { MigratorOptions } from '../schema';
 import type { SQLFormatter } from '../sql';
 
-// export interface StoragePlugin<
-//   DriverType extends DatabaseDriverType = DatabaseDriverType,
-//   ConnectionType extends Connection<DriverType> = Connection<DriverType>,
-// > {
-//   readonly driverType: DriverType;
-
-//   createPool(
-//     options: DumboConnectionOptions,
-//   ): Dumbo<DriverType, ConnectionType>;
-
-//   readonly sqlFormatter: SQLFormatter;
-
-//   readonly defaultMigratorOptions: MigratorOptions;
-// }
-
 export interface DumboDatabaseDriver<
   ConnectionType extends AnyConnection = AnyConnection,
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-constraint, @typescript-eslint/no-unused-vars
@@ -73,18 +58,13 @@ export type ExtractDumboTypeFromDriver<DatabaseDriver> =
     ? D
     : never;
 
-export type DatabaseDriverResolutionOptions =
-  | {
-      driverType: DatabaseDriverType;
-      connectionString?: never;
-    }
-  | {
-      driverType?: never;
-      connectionString: string;
-    };
+type DatabaseDriverResolutionOptions = {
+  driverType?: DatabaseDriverType | undefined;
+  connectionString: string;
+};
 
-export const StoragePluginRegistry = () => {
-  const plugins = new Map<
+export const DumboDatabaseDriverRegistry = () => {
+  const drivers = new Map<
     DatabaseDriverType,
     DumboDatabaseDriver | (() => Promise<DumboDatabaseDriver>)
   >();
@@ -93,44 +73,59 @@ export const StoragePluginRegistry = () => {
     driverType: Driver['driverType'],
     plugin: Driver | (() => Promise<Driver>),
   ): void => {
-    const entry = plugins.get(driverType);
+    const entry = drivers.get(driverType);
     if (
       entry &&
       (typeof entry !== 'function' || typeof plugin === 'function')
     ) {
       return;
     }
-    plugins.set(driverType, plugin);
+    drivers.set(driverType, plugin);
   };
+
+  const getDriver = ({
+    driverType,
+    connectionString,
+  }: DatabaseDriverResolutionOptions) =>
+    driverType
+      ? drivers.get(driverType)
+      : drivers
+          .values()
+          .find(
+            (d) =>
+              typeof d !== 'function' &&
+              d.tryParseConnectionString(connectionString),
+          );
 
   const tryResolve = async <
     Driver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
   >(
-    driverType: DatabaseDriverType,
+    options: DatabaseDriverResolutionOptions,
   ): Promise<Driver | null> => {
-    const entry = plugins.get(driverType);
+    const driver = getDriver(options);
 
-    if (!entry) return null;
+    if (!driver) return null;
 
-    if (typeof entry !== 'function') return entry as Driver;
+    if (typeof driver !== 'function') return driver as Driver;
 
-    const plugin = await entry();
+    const plugin = await driver();
 
-    register(driverType, plugin);
+    register(plugin.driverType, plugin);
     return plugin as Driver;
   };
 
   const tryGet = <
     Driver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
   >(
-    driverType: DatabaseDriverType,
+    options: DatabaseDriverResolutionOptions,
   ): Driver | null => {
-    const entry = plugins.get(driverType);
-    return entry && typeof entry !== 'function' ? (entry as Driver) : null;
+    const driver = getDriver(options);
+
+    return driver && typeof driver !== 'function' ? (driver as Driver) : null;
   };
 
   const has = (driverType: DatabaseDriverType): boolean =>
-    plugins.has(driverType);
+    drivers.has(driverType);
 
   return {
     register,
@@ -138,15 +133,18 @@ export const StoragePluginRegistry = () => {
     tryGet,
     has,
     get databaseDriverTypes(): DatabaseDriverType[] {
-      return Array.from(plugins.keys());
+      return Array.from(drivers.keys());
     },
   };
 };
 
 declare global {
   // eslint-disable-next-line no-var
-  var storagePluginRegistry: ReturnType<typeof StoragePluginRegistry>;
+  var dumboDatabaseDriverRegistry: ReturnType<
+    typeof DumboDatabaseDriverRegistry
+  >;
 }
 
-export const storagePluginRegistry = (globalThis.storagePluginRegistry =
-  globalThis.storagePluginRegistry ?? StoragePluginRegistry());
+export const dumboDatabaseDriverRegistry =
+  (globalThis.dumboDatabaseDriverRegistry =
+    globalThis.dumboDatabaseDriverRegistry ?? DumboDatabaseDriverRegistry());
