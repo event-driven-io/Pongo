@@ -4,9 +4,10 @@ import {
 } from '@testcontainers/postgresql';
 import assert from 'assert';
 import { after, before, describe, it } from 'node:test';
-import { PostgreSQLConnectionString } from '../..';
-import { dumbo, type Dumbo } from '../../../../..';
-import { count, SQL } from '../../../../../core';
+import { pgDatabaseDriver } from '..';
+import { dumbo, type Dumbo } from '../../../..';
+import { count, SQL } from '../../../../core';
+import { PostgreSQLConnectionString } from '../../core';
 
 void describe('PostgreSQL SQL Formatter Integration Tests', () => {
   let pool: Dumbo;
@@ -16,7 +17,7 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
     connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
-    pool = dumbo({ connectionString });
+    pool = dumbo({ connectionString, driver: pgDatabaseDriver });
 
     await pool.execute.batchCommand([
       SQL`CREATE TABLE test_users (id SERIAL PRIMARY KEY, name TEXT)`,

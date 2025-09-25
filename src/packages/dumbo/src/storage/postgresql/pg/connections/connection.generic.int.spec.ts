@@ -5,9 +5,10 @@ import {
 import { after, before, describe, it } from 'node:test';
 import pg from 'pg';
 import { nodePostgresPool } from '.';
+import { pgDatabaseDriver } from '..';
 import { SQL } from '../../../../core';
-import { endPool, getPool } from './pool';
 import { dumbo } from '../../../all';
+import { endPool, getPool } from './pool';
 
 void describe('Node Postgresql', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -24,7 +25,7 @@ void describe('Node Postgresql', () => {
 
   void describe('nodePostgresPool', () => {
     void it('connects using default pool', async () => {
-      const pool = dumbo({ connectionString });
+      const pool = dumbo({ connectionString, driver: pgDatabaseDriver });
       const connection = await pool.connection();
 
       try {

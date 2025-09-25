@@ -6,12 +6,14 @@ import assert from 'assert';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { PostgreSQLConnectionString, tableExists } from '..';
 import { dumbo, type Dumbo } from '../../../..';
-import { count, SQL } from '../../../../core';
 import {
+  count,
   MIGRATIONS_LOCK_ID,
   runSQLMigrations,
+  SQL,
   type SQLMigration,
-} from '../../../../core/schema';
+} from '../../../../core';
+import { pgDatabaseDriver } from '../../pg';
 import { acquireAdvisoryLock, releaseAdvisoryLock } from '../locks';
 
 void describe('Migration Integration Tests', () => {
@@ -22,7 +24,7 @@ void describe('Migration Integration Tests', () => {
   before(async () => {
     postgres = await new PostgreSqlContainer().start();
     connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
-    pool = dumbo({ connectionString });
+    pool = dumbo({ connectionString, driver: pgDatabaseDriver });
   });
 
   after(async () => {

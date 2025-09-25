@@ -1,8 +1,9 @@
 import assert from 'assert';
 import { after, before, describe, it } from 'node:test';
-import { dumbo, type Dumbo } from '../../../../..';
-import { count, SQL } from '../../../../../core';
-import { InMemorySQLiteDatabase } from '../../connections';
+import { sqlite3DatabaseDriver } from '..';
+import { dumbo, type Dumbo } from '../../../..';
+import { count, SQL } from '../../../../core';
+import { InMemorySQLiteDatabase } from '../../core/connections';
 
 void describe('SQLite SQL Formatter Integration Tests', () => {
   let pool: Dumbo;
@@ -10,7 +11,7 @@ void describe('SQLite SQL Formatter Integration Tests', () => {
   before(() => {
     pool = dumbo({
       connectionString: InMemorySQLiteDatabase,
-      driverType: 'SQLite:sqlite3',
+      driver: sqlite3DatabaseDriver,
     });
   });
 

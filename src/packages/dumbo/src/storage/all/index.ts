@@ -35,6 +35,6 @@ export function dumbo<
 
   return driver.createPool({
     ...options,
-    driverType,
+    driverType: driver.driverType,
   }) as ExtractDumboTypeFromDriver<DatabaseDriver>;
 }

@@ -89,13 +89,11 @@ export const DumboDatabaseDriverRegistry = () => {
   }: DatabaseDriverResolutionOptions) =>
     driverType
       ? drivers.get(driverType)
-      : drivers
-          .values()
-          .find(
-            (d) =>
-              typeof d !== 'function' &&
-              d.tryParseConnectionString(connectionString),
-          );
+      : [...drivers.values()].find(
+          (d) =>
+            typeof d !== 'function' &&
+            d.tryParseConnectionString(connectionString),
+        );
 
   const tryResolve = async <
     Driver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,

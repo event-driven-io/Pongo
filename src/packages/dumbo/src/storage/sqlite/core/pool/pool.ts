@@ -184,13 +184,16 @@ export type SQLitePoolNotPooledOptions<
 > =
   | {
       driverType: DriverType;
-      pooled?: false;
+      connection?: never;
       client: SQLiteClient;
+      pooled?: false;
       singleton?: true;
       allowNestedTransactions?: boolean;
     }
   | {
       driverType: DriverType;
+      connection?: never;
+      client?: never;
       pooled?: boolean;
       singleton?: boolean;
       allowNestedTransactions?: boolean;
@@ -200,6 +203,7 @@ export type SQLitePoolNotPooledOptions<
       connection:
         | SQLitePoolClientConnection<DriverType>
         | SQLiteClientConnection<DriverType>;
+      client?: never;
       pooled?: false;
       singleton?: true;
       allowNestedTransactions?: boolean;
