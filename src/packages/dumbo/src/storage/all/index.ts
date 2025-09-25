@@ -12,11 +12,11 @@ import { parseConnectionString } from './connections';
 export * from './connections';
 
 storagePluginRegistry.register('PostgreSQL:pg', () =>
-  import('../postgresql/pg').then((m) => m.storagePlugin),
+  import('../postgresql/pg').then((m) => m.databaseDriver),
 );
 
 storagePluginRegistry.register('SQLite:sqlite3', () =>
-  import('../sqlite/sqlite3').then((m) => m.storagePlugin),
+  import('../sqlite/sqlite3').then((m) => m.databaseDriver),
 );
 
 export function dumbo<

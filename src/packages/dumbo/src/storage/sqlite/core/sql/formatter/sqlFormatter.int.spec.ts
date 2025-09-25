@@ -1,8 +1,7 @@
 import assert from 'assert';
 import { after, before, describe, it } from 'node:test';
-import { type Dumbo } from '../../../../..';
+import { dumbo, type Dumbo } from '../../../../..';
 import { count, SQL } from '../../../../../core';
-import { dumbo } from '../../../../../sqlite3';
 import { InMemorySQLiteDatabase } from '../../connections';
 
 void describe('SQLite SQL Formatter Integration Tests', () => {

@@ -2,10 +2,10 @@ import 'dotenv/config';
 
 import Benchmark from 'benchmark';
 import pg from 'pg';
-import { single, SQL } from '..';
+import { dumbo, single, SQL } from '..';
 import {
   defaultPostgreSQLConnectionString,
-  dumbo,
+  pgDatabaseDriver,
   PostgreSQLConnectionString,
 } from '../pg';
 
@@ -18,7 +18,8 @@ const pooled = process.env.BENCHMARK_CONNECTION_POOLED === 'true';
 
 const pool = dumbo({
   connectionString,
-  pooled,
+  driver: pgDatabaseDriver,
+  database: '',
 });
 
 const rawPgPool = new pg.Pool({ connectionString });

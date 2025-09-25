@@ -5,14 +5,13 @@ import {
 import assert from 'assert';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { PostgreSQLConnectionString, tableExists } from '..';
-import { type Dumbo } from '../../../..';
+import { dumbo, type Dumbo } from '../../../..';
 import { count, SQL } from '../../../../core';
 import {
   MIGRATIONS_LOCK_ID,
   runSQLMigrations,
   type SQLMigration,
 } from '../../../../core/schema';
-import { dumbo } from '../../../../pg';
 import { acquireAdvisoryLock, releaseAdvisoryLock } from '../locks';
 
 void describe('Migration Integration Tests', () => {

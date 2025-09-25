@@ -5,9 +5,8 @@ import {
 import assert from 'assert';
 import { after, before, describe, it } from 'node:test';
 import { PostgreSQLConnectionString } from '../..';
-import { type Dumbo } from '../../../../..';
+import { dumbo, type Dumbo } from '../../../../..';
 import { count, SQL } from '../../../../../core';
-import { dumbo } from '../../../../../pg';
 
 void describe('PostgreSQL SQL Formatter Integration Tests', () => {
   let pool: Dumbo;

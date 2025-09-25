@@ -139,52 +139,44 @@ export const nodePostgresAmbientClientPool = (options: {
 
 export type NodePostgresPoolPooledOptions =
   | {
-      driverType?: NodePostgresDriverType;
       connectionString: string;
       database?: string;
       pooled: true;
       pool: pg.Pool;
     }
   | {
-      driverType?: NodePostgresDriverType;
       connectionString: string;
       database?: string;
       pool: pg.Pool;
     }
   | {
-      driverType?: NodePostgresDriverType;
       connectionString: string;
       database?: string;
       pooled: true;
     }
   | {
-      driverType?: NodePostgresDriverType;
       connectionString: string;
       database?: string;
     };
 
 export type NodePostgresPoolNotPooledOptions =
   | {
-      driverType?: NodePostgresDriverType;
       connectionString: string;
       database?: string;
       pooled: false;
       client: pg.Client;
     }
   | {
-      driverType?: NodePostgresDriverType;
       connectionString: string;
       database?: string;
       client: pg.Client;
     }
   | {
-      driverType?: NodePostgresDriverType;
       connectionString: string;
       database?: string;
       pooled: false;
     }
   | {
-      driverType?: NodePostgresDriverType;
       connectionString: string;
       database?: string;
       connection:

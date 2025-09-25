@@ -1,6 +1,5 @@
-import { SQL, type Dumbo } from '@event-driven-io/dumbo';
+import { dumbo, SQL, type Dumbo } from '@event-driven-io/dumbo';
 import {
-  dumbo,
   PostgreSQLConnectionString,
   tableExists,
 } from '@event-driven-io/dumbo/pg';
