@@ -1,38 +1,87 @@
-import { type Dumbo, type DumboConnectionOptions } from '..';
-import type { Connection } from '../connections';
+import {
+  type Dumbo,
+  type DumboConnectionOptions,
+  type InferDriverDatabaseType,
+} from '..';
+import type { DatabaseConnectionString } from '../../storage/all';
+import type { AnyConnection } from '../connections';
 import type { DatabaseDriverType } from '../drivers';
 import type { MigratorOptions } from '../schema';
 import type { SQLFormatter } from '../sql';
 
-export interface StoragePlugin<
-  DriverType extends DatabaseDriverType = DatabaseDriverType,
-  ConnectionType extends Connection<DriverType> = Connection<DriverType>,
+// export interface StoragePlugin<
+//   DriverType extends DatabaseDriverType = DatabaseDriverType,
+//   ConnectionType extends Connection<DriverType> = Connection<DriverType>,
+// > {
+//   readonly driverType: DriverType;
+
+//   createPool(
+//     options: DumboConnectionOptions,
+//   ): Dumbo<DriverType, ConnectionType>;
+
+//   readonly sqlFormatter: SQLFormatter;
+
+//   readonly defaultMigratorOptions: MigratorOptions;
+// }
+
+export interface DumboDatabaseDriver<
+  ConnectionType extends AnyConnection = AnyConnection,
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-constraint, @typescript-eslint/no-unused-vars
+  DriverOptions extends unknown = unknown,
+  ConnectionString extends DatabaseConnectionString<
+    InferDriverDatabaseType<ConnectionType['driverType']>
+  > = DatabaseConnectionString<
+    InferDriverDatabaseType<ConnectionType['driverType']>
+  >,
+  DumboType extends Dumbo<ConnectionType['driverType'], ConnectionType> = Dumbo<
+    ConnectionType['driverType'],
+    ConnectionType
+  >,
 > {
-  readonly driverType: DriverType;
+  readonly driverType: ConnectionType['driverType'];
+  readonly sqlFormatter: SQLFormatter;
+  readonly defaultMigratorOptions: MigratorOptions;
+  readonly defaultConnectionString: string;
+
+  getDatabaseNameOrDefault(connectionString: string): string;
 
   createPool(
-    options: DumboConnectionOptions,
-  ): Dumbo<DriverType, ConnectionType>;
+    options: DumboConnectionOptions<this, ConnectionString>,
+  ): DumboType;
 
-  readonly sqlFormatter: SQLFormatter;
-
-  readonly defaultMigratorOptions: MigratorOptions;
+  tryParseConnectionString(connectionString: string): ConnectionString | null;
 }
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnyDumboDatabaseDriver = DumboDatabaseDriver<AnyConnection, any>;
+
+export type ExtractDumboDatabaseDriverOptions<DatabaseDriver> =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  DatabaseDriver extends DumboDatabaseDriver<any, infer O, any, any>
+    ? O
+    : never;
+
+export type ExtractDumboConnectionFromDriver<DatabaseDriver> =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  DatabaseDriver extends DumboDatabaseDriver<infer D, any, any, any>
+    ? D
+    : never;
+
+export type ExtractDumboTypeFromDriver<DatabaseDriver> =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  DatabaseDriver extends DumboDatabaseDriver<any, any, any, infer D>
+    ? D
+    : never;
 
 export const StoragePluginRegistry = () => {
   const plugins = new Map<
     DatabaseDriverType,
-    StoragePlugin | (() => Promise<StoragePlugin>)
+    DumboDatabaseDriver | (() => Promise<DumboDatabaseDriver>)
   >();
 
-  const register = <
-    DriverType extends DatabaseDriverType = DatabaseDriverType,
-    ConnectionType extends Connection<DriverType> = Connection<DriverType>,
-  >(
-    driverType: DriverType,
-    plugin:
-      | StoragePlugin<DriverType, ConnectionType>
-      | (() => Promise<StoragePlugin<DriverType, ConnectionType>>),
+  const register = <Driver extends AnyDumboDatabaseDriver>(
+    driverType: Driver['driverType'],
+    plugin: Driver | (() => Promise<Driver>),
   ): void => {
     const entry = plugins.get(driverType);
     if (
@@ -45,34 +94,29 @@ export const StoragePluginRegistry = () => {
   };
 
   const tryResolve = async <
-    DriverType extends DatabaseDriverType = DatabaseDriverType,
-    ConnectionType extends Connection<DriverType> = Connection<DriverType>,
+    Driver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
   >(
     driverType: DatabaseDriverType,
-  ): Promise<StoragePlugin<DriverType, ConnectionType> | null> => {
+  ): Promise<Driver | null> => {
     const entry = plugins.get(driverType);
 
     if (!entry) return null;
 
-    if (typeof entry !== 'function')
-      return entry as unknown as StoragePlugin<DriverType, ConnectionType>;
+    if (typeof entry !== 'function') return entry as Driver;
 
     const plugin = await entry();
 
     register(driverType, plugin);
-    return plugin as unknown as StoragePlugin<DriverType, ConnectionType>;
+    return plugin as Driver;
   };
 
   const tryGet = <
-    DriverType extends DatabaseDriverType = DatabaseDriverType,
-    ConnectionType extends Connection<DriverType> = Connection<DriverType>,
+    Driver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
   >(
     driverType: DatabaseDriverType,
-  ): StoragePlugin<DriverType, ConnectionType> | null => {
+  ): Driver | null => {
     const entry = plugins.get(driverType);
-    return entry && typeof entry !== 'function'
-      ? (entry as unknown as StoragePlugin<DriverType, ConnectionType>)
-      : null;
+    return entry && typeof entry !== 'function' ? (entry as Driver) : null;
   };
 
   const has = (driverType: DatabaseDriverType): boolean =>

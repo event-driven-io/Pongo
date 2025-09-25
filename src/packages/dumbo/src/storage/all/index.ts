@@ -1,10 +1,12 @@
 import {
-  type Connection,
   type DatabaseDriverType,
-  type Dumbo,
   type DumboConnectionOptions,
 } from '../../core';
-import { storagePluginRegistry } from '../../core/plugins';
+import {
+  storagePluginRegistry,
+  type AnyDumboDatabaseDriver,
+  type ExtractDumboTypeFromDriver,
+} from '../../core/plugins';
 import { parseConnectionString } from './connections';
 
 export * from './connections';
@@ -18,23 +20,25 @@ storagePluginRegistry.register('SQLite:sqlite3', () =>
 );
 
 export function dumbo<
-  DatabaseOptions extends DumboConnectionOptions<DriverType>,
+  DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
   DriverType extends DatabaseDriverType = DatabaseDriverType,
-  ConnectionType extends Connection<DriverType> = Connection<DriverType>,
->(options: DatabaseOptions): Dumbo<DriverType, ConnectionType> {
+>(
+  options: DumboConnectionOptions<DatabaseDriver>,
+): ExtractDumboTypeFromDriver<DatabaseDriver> {
   const { connectionString } = options;
 
   const { databaseType, driverName } = parseConnectionString(connectionString);
 
   const driverType = `${databaseType}:${driverName}` as DriverType;
 
-  const plugin = storagePluginRegistry.tryGet<DriverType, ConnectionType>(
-    driverType,
-  );
+  const driver = storagePluginRegistry.tryGet<DatabaseDriver>(driverType);
 
-  if (plugin === null) {
+  if (driver === null) {
     throw new Error(`No plugin found for database driver type: ${driverType}`);
   }
 
-  return plugin.createPool({ ...options, driverType });
+  return driver.createPool({
+    ...options,
+    driverType,
+  }) as ExtractDumboTypeFromDriver<DatabaseDriver>;
 }

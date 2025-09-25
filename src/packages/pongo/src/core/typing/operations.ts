@@ -16,7 +16,7 @@ import type { PongoCollectionSchemaComponent } from '../collection';
 import type { PongoDatabaseSchemaComponent } from '../database/pongoDatabaseSchemaComponent';
 import type {
   AnyPongoDatabaseDriver,
-  ExtractDatabaseDriverOptions,
+  ExtractPongoDatabaseDriverOptions,
 } from '../drivers';
 import { ConcurrencyError } from '../errors';
 import type { PongoClientSchema } from '../schema';
@@ -55,7 +55,7 @@ export type PongoClientOptions<
     | { autoMigration?: MigrationStyle; definition?: TypedClientSchema }
     | undefined;
   errors?: { throwOnOperationFailures?: boolean } | undefined;
-} & Omit<ExtractDatabaseDriverOptions<DatabaseDriver>, 'driver'>;
+} & Omit<ExtractPongoDatabaseDriverOptions<DatabaseDriver>, 'driver'>;
 
 export declare interface PongoTransactionOptions {
   get snapshotEnabled(): boolean;

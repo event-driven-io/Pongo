@@ -1,6 +1,10 @@
 import type { DatabaseConnectionString } from '../storage/all';
 import { type Connection, type ConnectionPool } from './connections';
 import type { DatabaseDriverType, InferDriverDatabaseType } from './drivers';
+import type {
+  AnyDumboDatabaseDriver,
+  ExtractDumboDatabaseDriverOptions,
+} from './plugins';
 
 export * from './connections';
 export * from './drivers';
@@ -19,11 +23,13 @@ export type Dumbo<
 > = ConnectionPool<ConnectionType>;
 
 export type DumboConnectionOptions<
-  DriverType extends DatabaseDriverType = DatabaseDriverType,
+  DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
   ConnectionString extends DatabaseConnectionString<
-    InferDriverDatabaseType<DatabaseDriverType>
-  > = DatabaseConnectionString<InferDriverDatabaseType<DatabaseDriverType>>,
+    InferDriverDatabaseType<DatabaseDriver['driverType']>
+  > = DatabaseConnectionString<
+    InferDriverDatabaseType<DatabaseDriver['driverType']>
+  >,
 > = {
+  driver?: DatabaseDriver;
   connectionString: string | ConnectionString;
-  driverType: DriverType;
-};
+} & Omit<ExtractDumboDatabaseDriverOptions<DatabaseDriver>, 'driver'>;

@@ -1,9 +1,12 @@
-import type { Dumbo } from '../../../core';
+import type { Dumbo, DumboDatabaseDriver } from '../../../core';
+import { storagePluginRegistry } from '../../../core/plugins/storagePlugin';
 import {
-  type StoragePlugin,
-  storagePluginRegistry,
-} from '../../../core/plugins/storagePlugin';
-import { DefaultPostgreSQLMigratorOptions, pgFormatter } from '../core';
+  defaultPostgreSQLConnectionString,
+  DefaultPostgreSQLMigratorOptions,
+  getDatabaseNameOrDefault,
+  pgFormatter,
+  PostgreSQLConnectionString,
+} from '../core';
 import {
   type NodePostgresConnection,
   NodePostgresDriverType,
@@ -12,15 +15,24 @@ import {
   type NodePostgresPoolOptions,
 } from './connections';
 
-export const pgStoragePlugin: StoragePlugin<
-  NodePostgresDriverType,
-  NodePostgresConnection
+export const pgStoragePlugin: DumboDatabaseDriver<
+  NodePostgresConnection,
+  NodePostgresPoolOptions,
+  PostgreSQLConnectionString
 > = {
   driverType: NodePostgresDriverType,
-  createPool: (options) =>
-    nodePostgresPool(options as unknown as PostgresPoolOptions),
+  createPool: (options) => nodePostgresPool(options),
   sqlFormatter: pgFormatter,
   defaultMigratorOptions: DefaultPostgreSQLMigratorOptions,
+  defaultConnectionString: defaultPostgreSQLConnectionString,
+  getDatabaseNameOrDefault,
+  tryParseConnectionString: (connectionString) => {
+    try {
+      return PostgreSQLConnectionString(connectionString);
+    } catch {
+      return null;
+    }
+  },
 };
 
 storagePluginRegistry.register(NodePostgresDriverType, pgStoragePlugin);
