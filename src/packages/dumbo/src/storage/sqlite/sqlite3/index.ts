@@ -1,5 +1,5 @@
 export * from './connections';
-import type { Dumbo, DumboDatabaseDriver } from '../../../core';
+import type { DumboDatabaseDriver } from '../../../core';
 import { storagePluginRegistry } from '../../../core/plugins/storagePlugin';
 import {
   DefaultSQLiteMigratorOptions,
@@ -15,7 +15,7 @@ import {
   sqlite3Client as sqliteClient,
 } from './connections';
 
-const sqlite3StoragePlugin: DumboDatabaseDriver<
+export const sqlite3DatabaseDriver: DumboDatabaseDriver<
   SQLiteConnection<SQLite3DriverType>,
   SQLitePoolOptions<SQLite3DriverType>,
   SQLiteConnectionString
@@ -36,16 +36,8 @@ const sqlite3StoragePlugin: DumboDatabaseDriver<
   },
 };
 
-storagePluginRegistry.register(SQLite3DriverType, sqlite3StoragePlugin);
+storagePluginRegistry.register(SQLite3DriverType, sqlite3DatabaseDriver);
 
-export { sqliteClient, sqlite3StoragePlugin as storagePlugin };
+export { sqlite3DatabaseDriver as databaseDriver, sqliteClient };
 
 export const connectionPool = sqlitePool;
-
-export const dumbo = <
-  DumboOptionsType extends
-    SQLitePoolOptions<SQLite3DriverType> = SQLitePoolOptions<SQLite3DriverType>,
->(
-  options: DumboOptionsType,
-): Dumbo<SQLite3DriverType, SQLiteConnection<SQLite3DriverType>> =>
-  sqlitePool(options);

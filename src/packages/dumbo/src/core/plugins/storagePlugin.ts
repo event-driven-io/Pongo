@@ -73,6 +73,16 @@ export type ExtractDumboTypeFromDriver<DatabaseDriver> =
     ? D
     : never;
 
+export type DatabaseDriverResolutionOptions =
+  | {
+      driverType: DatabaseDriverType;
+      connectionString?: never;
+    }
+  | {
+      driverType?: never;
+      connectionString: string;
+    };
+
 export const StoragePluginRegistry = () => {
   const plugins = new Map<
     DatabaseDriverType,

@@ -1,5 +1,5 @@
+import { dumbo } from '@event-driven-io/dumbo';
 import {
-  dumbo,
   getDatabaseNameOrDefault,
   NodePostgresDriverType,
   type NodePostgresConnection,

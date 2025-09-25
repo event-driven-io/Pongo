@@ -5,9 +5,9 @@ import {
 import { after, before, describe, it } from 'node:test';
 import pg from 'pg';
 import { nodePostgresPool } from '.';
-import { dumbo } from '..';
 import { SQL } from '../../../../core';
 import { endPool, getPool } from './pool';
+import { dumbo } from '../../../all';
 
 void describe('Node Postgresql', () => {
   let postgres: StartedPostgreSqlContainer;

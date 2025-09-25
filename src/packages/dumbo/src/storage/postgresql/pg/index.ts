@@ -1,4 +1,7 @@
-import type { Dumbo, DumboDatabaseDriver } from '../../../core';
+import type {
+  DumboConnectionOptions,
+  DumboDatabaseDriver,
+} from '../../../core';
 import { storagePluginRegistry } from '../../../core/plugins/storagePlugin';
 import {
   defaultPostgreSQLConnectionString,
@@ -15,7 +18,7 @@ import {
   type NodePostgresPoolOptions,
 } from './connections';
 
-export const pgStoragePlugin: DumboDatabaseDriver<
+export const pgDatabaseDriver: DumboDatabaseDriver<
   NodePostgresConnection,
   NodePostgresPoolOptions,
   PostgreSQLConnectionString
@@ -35,19 +38,17 @@ export const pgStoragePlugin: DumboDatabaseDriver<
   },
 };
 
-storagePluginRegistry.register(NodePostgresDriverType, pgStoragePlugin);
+type TestOpt = DumboConnectionOptions<typeof pgDatabaseDriver>;
+const opt: TestOpt = { connectionString: '', pooled: true };
+console.log(opt);
 
-export const dumbo = <
-  DumboOptionsType extends PostgresPoolOptions = PostgresPoolOptions,
->(
-  options: DumboOptionsType,
-): Dumbo<NodePostgresDriverType> => nodePostgresPool(options);
+storagePluginRegistry.register(NodePostgresDriverType, pgDatabaseDriver);
 
 export * from './connections';
 export * from './execute';
 export * from './serialization';
 
-export { pgStoragePlugin as storagePlugin };
+export { pgDatabaseDriver as databaseDriver };
 
 // TODO: Remove stuff below
 
