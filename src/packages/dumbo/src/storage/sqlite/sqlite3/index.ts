@@ -22,7 +22,7 @@ export const sqlite3DatabaseDriver: DumboDatabaseDriver<
 > = {
   driverType: SQLite3DriverType,
   createPool: (options) =>
-    sqlitePool(options as unknown as SQLitePoolOptions<SQLite3DriverType>),
+    sqlitePool(options as SQLitePoolOptions<SQLite3DriverType>),
   sqlFormatter: sqliteFormatter,
   defaultMigratorOptions: DefaultSQLiteMigratorOptions,
   getDatabaseNameOrDefault: () => InMemorySQLiteDatabase,
