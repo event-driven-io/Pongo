@@ -48,14 +48,19 @@ export type PongoClientOptions<
     InferDriverDatabaseType<DatabaseDriver['driverType']>
   >,
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
-> = {
-  driver: DatabaseDriver;
-  connectionString: ConnectionString | string;
-  schema?:
-    | { autoMigration?: MigrationStyle; definition?: TypedClientSchema }
-    | undefined;
-  errors?: { throwOnOperationFailures?: boolean } | undefined;
-} & Omit<ExtractPongoDatabaseDriverOptions<DatabaseDriver>, 'driver'>;
+> =
+  ExtractPongoDatabaseDriverOptions<DatabaseDriver> extends infer Options
+    ? Options extends unknown
+      ? {
+          driver: DatabaseDriver;
+          connectionString: ConnectionString | string;
+          schema?:
+            | { autoMigration?: MigrationStyle; definition?: TypedClientSchema }
+            | undefined;
+          errors?: { throwOnOperationFailures?: boolean } | undefined;
+        } & Omit<Options, 'driver'>
+      : never
+    : never;
 
 export declare interface PongoTransactionOptions {
   get snapshotEnabled(): boolean;
