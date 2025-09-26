@@ -1,5 +1,6 @@
 import type { SQLiteDriverType } from '..';
 import {
+  JSONSerializer,
   SQL,
   SQLFormatter,
   tracer,
@@ -39,7 +40,10 @@ export const sqliteSQLExecutor = <
   formatter: formatter ?? sqliteFormatter,
 });
 
-export type BatchQueryOptions = { timeoutMs?: number };
+export type BatchQueryOptions = {
+  timeoutMs?: number;
+  mapping?: { resultColumnsToJson?: string[] };
+};
 
 function batch<Result extends QueryResultRow = QueryResultRow>(
   client: SQLiteClient,
@@ -78,7 +82,27 @@ async function batch<Result extends QueryResultRow = QueryResultRow>(
       debugSQL: sqliteFormatter.describe(sqls[i]!),
     });
 
-    const result = await client.query<Result>(query, params as Parameters[]);
+    let result = await client.query<Result>(query, params as Parameters[]);
+
+    const columnsToJson = options?.mapping?.resultColumnsToJson;
+    if (columnsToJson?.length) {
+      result = result.map((row) => {
+        let changed = false;
+        const newRow = row as Record<string, unknown>;
+        for (const col of columnsToJson) {
+          const val = newRow[col];
+          if (typeof val === 'string') {
+            try {
+              newRow[col] = JSONSerializer.deserialize(val);
+              changed = true;
+            } catch {
+              // ignore parse errors
+            }
+          }
+        }
+        return changed ? (newRow as Result) : row;
+      });
+    }
 
     results[i] = { rowCount: result.length, rows: result };
   }

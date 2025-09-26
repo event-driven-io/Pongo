@@ -106,6 +106,7 @@ export const pongoCollection = <
   ) =>
     (await transactionExecutorOrDefault(db, options, sqlExecutor)).query<T>(
       sql,
+      { mapping: { resultColumnsToJson: ['data', 'metadata'] } },
     );
 
   let shouldMigrate = schema?.autoMigration !== 'None';

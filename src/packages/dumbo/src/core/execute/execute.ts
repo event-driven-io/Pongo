@@ -3,8 +3,14 @@ import { type DatabaseDriverType } from '../drivers';
 import type { QueryResult, QueryResultRow } from '../query';
 import { type SQL, type SQLFormatter } from '../sql';
 
-export type SQLQueryOptions = { timeoutMs?: number };
-export type SQLCommandOptions = { timeoutMs?: number };
+export type SQLQueryOptions = {
+  timeoutMs?: number;
+  mapping?: { resultColumnsToJson?: string[] };
+};
+export type SQLCommandOptions = {
+  timeoutMs?: number;
+  mapping?: { resultColumnsToJson?: string[] };
+};
 
 export interface DbSQLExecutor<
   DriverType extends DatabaseDriverType = DatabaseDriverType,
@@ -96,24 +102,24 @@ export const sqlExecutorInNewConnection = <
   driverType: ConnectionType['driverType'];
   connection: () => Promise<ConnectionType>;
 }): SQLExecutor => ({
-  query: (sql) =>
+  query: (sql, queryOptions) =>
     executeInNewConnection(
-      (connection) => connection.execute.query(sql),
+      (connection) => connection.execute.query(sql, queryOptions),
       options,
     ),
-  batchQuery: (sqls) =>
+  batchQuery: (sqls, queryOptions) =>
     executeInNewConnection(
-      (connection) => connection.execute.batchQuery(sqls),
+      (connection) => connection.execute.batchQuery(sqls, queryOptions),
       options,
     ),
-  command: (sql) =>
+  command: (sql, commandOptions) =>
     executeInNewConnection(
-      (connection) => connection.execute.command(sql),
+      (connection) => connection.execute.command(sql, commandOptions),
       options,
     ),
-  batchCommand: (sqls) =>
+  batchCommand: (sqls, commandOptions) =>
     executeInNewConnection(
-      (connection) => connection.execute.batchCommand(sqls),
+      (connection) => connection.execute.batchCommand(sqls, commandOptions),
       options,
     ),
 });
