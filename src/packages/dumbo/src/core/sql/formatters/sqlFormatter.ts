@@ -65,7 +65,6 @@ export const SQLFormatter = ({
 };
 
 declare global {
-  // eslint-disable-next-line no-var
   var dumboSQLFormatters: Record<string, SQLFormatter>;
 }
 

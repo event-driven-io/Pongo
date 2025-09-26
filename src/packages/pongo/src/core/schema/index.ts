@@ -68,7 +68,8 @@ pongoCollectionSchema.from = (
 ): Record<string, PongoCollectionSchema> =>
   collectionNames.reduce(
     (acc, collectionName) => (
-      (acc[collectionName] = pongoSchema.collection(collectionName)), acc
+      (acc[collectionName] = pongoSchema.collection(collectionName)),
+      acc
     ),
     {} as Record<string, PongoCollectionSchema>,
   );

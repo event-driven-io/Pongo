@@ -125,7 +125,6 @@ export const PongoDatabaseDriverRegistry = () => {
 };
 
 declare global {
-  // eslint-disable-next-line no-var
   var pongoDatabaseDriverRegistry: ReturnType<
     typeof PongoDatabaseDriverRegistry
   >;

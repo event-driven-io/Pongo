@@ -12,7 +12,6 @@ export * from './sqlProcessor';
 export * from './sqlProcessorRegistry';
 
 declare global {
-  // eslint-disable-next-line no-var
   var defaultProcessorsRegistry: ReturnType<typeof SQLProcessorsRegistry>;
 }
 

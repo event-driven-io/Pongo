@@ -26,7 +26,7 @@ void describe('Migration Integration Tests', () => {
   });
 
   before(async () => {
-    postgres = await new PostgreSqlContainer().start();
+    postgres = await new PostgreSqlContainer('postgres:18.0').start();
     connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
     pool = dumbo({ connectionString });
     client = pongoClient({

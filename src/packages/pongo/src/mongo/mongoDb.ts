@@ -30,6 +30,6 @@ export class Db {
       options?: HandleOptions,
     ): Promise<PongoHandleResult<T>>;
   } {
-    return new Collection<T>(this.pongoDb.collection<T>(collectionName));
+    return new Collection<T>(this, this.pongoDb.collection<T>(collectionName));
   }
 }

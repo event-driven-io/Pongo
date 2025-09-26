@@ -137,7 +137,6 @@ export const DumboDatabaseDriverRegistry = () => {
 };
 
 declare global {
-  // eslint-disable-next-line no-var
   var dumboDatabaseDriverRegistry: ReturnType<
     typeof DumboDatabaseDriverRegistry
   >;
