@@ -23,8 +23,8 @@ const createCollection = (collectionName: string): SQL =>
   SQL`
     CREATE TABLE IF NOT EXISTS ${SQL.identifier(collectionName)} (
       _id           TEXT           PRIMARY KEY,
-      data          TEXT           NOT NULL CHECK(json_valid(data)),
-      metadata      TEXT           NOT NULL     DEFAULT '{}' CHECK(json_valid(metadata)),
+      data          TEXT           NOT NULL,
+      metadata      TEXT           NOT NULL     DEFAULT '{}',
       _version      INTEGER        NOT NULL     DEFAULT 1,
       _partition    TEXT           NOT NULL     DEFAULT 'png_global',
       _archived     INTEGER        NOT NULL     DEFAULT 0,
@@ -78,35 +78,25 @@ export const sqliteSQLBuilder = (
 
     // SQLite needs to handle both cases: when a row matches and when it doesn't
     return SQL`
-      WITH target AS (
-        SELECT _id, _version
-        FROM ${SQL.identifier(collectionName)} ${where(filterQuery)}
+      UPDATE ${SQL.identifier(collectionName)}
+      SET
+        data = json_set(
+          json_set(${updateQuery}, '$._id', _id),
+          '$._version',
+          CAST((_version + 1) AS TEXT)
+        ),
+        _version = _version + 1,
+        _updated = datetime('now')
+      WHERE _id = (
+        SELECT _id FROM ${SQL.identifier(collectionName)}
+        ${where(filterQuery)}
         LIMIT 1
-      ),
-      updated AS (
-        UPDATE ${SQL.identifier(collectionName)}
-        SET
-          data = json_set(
-            json_set(${updateQuery}, '$._id', _id),
-            '$._version',
-            CAST((_version + 1) AS TEXT)
-          ),
-          _version = _version + 1,
-          _updated = datetime('now')
-        WHERE _id IN (SELECT _id FROM target) ${expectedVersionCheck}
-        RETURNING _id, _version
-      )
-      SELECT
-        COALESCE(updated._id, target._id) AS _id,
-        COALESCE(updated._version, target._version) AS version,
-        COUNT(target._id) AS matched,
-        COUNT(updated._id) AS modified
-      FROM target
-      LEFT JOIN updated ON target._id = updated._id
-      UNION ALL
-      SELECT NULL AS _id, 0 AS version, 0 AS matched, 0 AS modified
-      WHERE NOT EXISTS (SELECT 1 FROM target)
-      LIMIT 1;`;
+      ) ${expectedVersionCheck}
+      RETURNING
+        _id,
+        _version as version,
+        1 as matched,
+        1 as modified;`;
   },
   replaceOne: <T>(
     filter: PongoFilter<T> | SQL,
@@ -120,11 +110,6 @@ export const sqliteSQLBuilder = (
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
 
     return SQL`
-      WITH target AS (
-        SELECT _id, _version
-        FROM ${SQL.identifier(collectionName)} ${where(filterQuery)}
-        LIMIT 1
-      )
       UPDATE ${SQL.identifier(collectionName)}
       SET
         data = json_set(
@@ -134,7 +119,11 @@ export const sqliteSQLBuilder = (
         ),
         _version = _version + 1,
         _updated = datetime('now')
-      WHERE _id IN (SELECT _id FROM target) ${expectedVersionCheck}
+      WHERE _id = (
+        SELECT _id FROM ${SQL.identifier(collectionName)}
+        ${where(filterQuery)}
+        LIMIT 1
+      ) ${expectedVersionCheck}
       RETURNING
         _id,
         _version AS version,
@@ -167,13 +156,12 @@ export const sqliteSQLBuilder = (
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
 
     return SQL`
-      WITH target AS (
-        SELECT _id
-        FROM ${SQL.identifier(collectionName)} ${where(filterQuery)}
-        LIMIT 1
-      )
       DELETE FROM ${SQL.identifier(collectionName)}
-      WHERE _id IN (SELECT _id FROM target) ${expectedVersionCheck}
+      WHERE _id = (
+        SELECT _id FROM ${SQL.identifier(collectionName)}
+        ${where(filterQuery)}
+        LIMIT 1
+      ) ${expectedVersionCheck}
       RETURNING
         _id,
         1 AS matched,
