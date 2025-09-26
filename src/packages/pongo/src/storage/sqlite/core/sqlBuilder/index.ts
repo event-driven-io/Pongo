@@ -23,8 +23,8 @@ const createCollection = (collectionName: string): SQL =>
   SQL`
     CREATE TABLE IF NOT EXISTS ${SQL.identifier(collectionName)} (
       _id           TEXT           PRIMARY KEY,
-      data          TEXT           NOT NULL,
-      metadata      TEXT           NOT NULL     DEFAULT '{}',
+      data          JSON           NOT NULL,
+      metadata      JSON           NOT NULL     DEFAULT '{}',
       _version      INTEGER        NOT NULL     DEFAULT 1,
       _partition    TEXT           NOT NULL     DEFAULT 'png_global',
       _archived     INTEGER        NOT NULL     DEFAULT 0,
@@ -43,13 +43,14 @@ export const sqliteSQLBuilder = (
 ): PongoCollectionSQLBuilder => ({
   createCollection: (): SQL => createCollection(collectionName),
   insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
-    const serialized = JSONSerializer.serialize(document);
+    const serialized = document;
     const id = document._id;
     const version = document._version ?? 1n;
 
     return SQL`
       INSERT OR IGNORE INTO ${SQL.identifier(collectionName)} (_id, data, _version)
-      VALUES (${id}, ${serialized}, ${version});`;
+      VALUES (${id}, ${serialized}, ${version})
+      RETURNING _id;`;
   },
   insertMany: <T>(documents: OptionalUnlessRequiredIdAndVersion<T>[]): SQL => {
     const values = SQL.merge(
@@ -80,11 +81,7 @@ export const sqliteSQLBuilder = (
     return SQL`
       UPDATE ${SQL.identifier(collectionName)}
       SET
-        data = json_set(
-          json_set(${updateQuery}, '$._id', _id),
-          '$._version',
-          CAST((_version + 1) AS TEXT)
-        ),
+        data = json_patch(${updateQuery}, json_object('_id', _id, '_version', CAST((_version + 1) AS TEXT))),
         _version = _version + 1,
         _updated = datetime('now')
       WHERE _id = (
@@ -112,11 +109,7 @@ export const sqliteSQLBuilder = (
     return SQL`
       UPDATE ${SQL.identifier(collectionName)}
       SET
-        data = json_set(
-          json_set(${JSONSerializer.serialize(document)}, '$._id', _id),
-          '$._version',
-          CAST((_version + 1) AS TEXT)
-        ),
+        data = json_patch(${JSONSerializer.serialize(document)}, json_object('_id', _id, '_version', CAST((_version + 1) AS TEXT))),
         _version = _version + 1,
         _updated = datetime('now')
       WHERE _id = (
@@ -140,7 +133,7 @@ export const sqliteSQLBuilder = (
     return SQL`
       UPDATE ${SQL.identifier(collectionName)}
       SET
-        data = json_set(${updateQuery}, '$._version', CAST((_version + 1) AS TEXT)),
+        data = json_patch(${updateQuery}, json_object('_version', CAST((_version + 1) AS TEXT))),
         _version = _version + 1,
         _updated = datetime('now')
       ${where(filterQuery)};`;
