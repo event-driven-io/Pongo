@@ -61,7 +61,10 @@ export const nodePostgresSQLExecutor = (): NodePostgresSQLExecutor => ({
   formatter: pgFormatter,
 });
 
-export type BatchQueryOptions = { timeoutMs?: number };
+export type BatchQueryOptions = {
+  timeoutMs?: number;
+  mapping?: { resultColumnsToJson?: string[] };
+};
 
 function batch<Result extends QueryResultRow = QueryResultRow>(
   client: NodePostgresClientOrPoolClient,

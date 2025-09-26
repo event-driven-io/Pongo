@@ -1,6 +1,10 @@
+import { SQLiteConnectionString } from '@event-driven-io/dumbo/sqlite3';
 import assert from 'assert';
 import console from 'console';
-import { afterEach, beforeEach, describe, it } from 'node:test';
+import fs from 'fs';
+import { after, before, describe, it } from 'node:test';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
 import { ObjectId, pongoClient, type PongoClient, type PongoDb } from '../';
 import { MongoClient, type Db } from '../shim';
@@ -23,17 +27,18 @@ type User = {
 };
 
 void describe('SQLite MongoDB Compatibility Tests', () => {
-  let connectionString: string;
   let client: PongoClient;
   let shim: MongoClient;
 
   let pongoDb: PongoDb;
   let mongoDb: Db;
+  const testDatabasePath = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+  );
+  const fileName = path.resolve(testDatabasePath, 'test.db');
+  const connectionString = SQLiteConnectionString(`file:${fileName}`);
 
-  beforeEach(async () => {
-    // Use in-memory SQLite database for tests
-    connectionString = ':memory:';
-
+  before(async () => {
     client = pongoClient({
       driver: databaseDriver,
       connectionString,
@@ -50,12 +55,18 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
     mongoDb = shim.db(dbName);
   });
 
-  afterEach(async () => {
+  after(async () => {
+    await client.close();
+    await shim.close();
+    if (!fs.existsSync(fileName)) {
+      return;
+    }
     try {
-      await client.close();
-      await shim.close();
+      fs.unlinkSync(fileName);
+      fs.unlinkSync(`${fileName}-shm`);
+      fs.unlinkSync(`${fileName}-wal`);
     } catch (error) {
-      console.log(error);
+      console.log('Error deleting file:', error);
     }
   });
 
@@ -76,409 +87,405 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
     });
   });
 
-  void describe('Insert Operations', () => {
-    void it('should insert a document with id into both SQLite and MongoDB shim', async () => {
-      try {
-        const pongoCollection = pongoDb.collection<User>('insertOne');
-        const mongoCollection = mongoDb.collection<User>('shiminsertOne');
-        const doc: User = {
-          _id: new Date().toISOString(),
-          name: 'Anita',
-          age: 25,
-        };
-        const pongoInsertResult = await pongoCollection.insertOne(doc);
-        const mongoInsertResult = await mongoCollection.insertOne(doc);
-        assert(pongoInsertResult.insertedId);
-      } catch (error) {
-        console.error(error);
-      }
-      // assert(mongoInsertResult.insertedId);
-      // const pongoDoc = await pongoCollection.findOne({
-      //   _id: pongoInsertResult.insertedId,
-      // });
-      // const mongoDoc = await mongoCollection.findOne({
-      //   _id: mongoInsertResult.insertedId,
-      // });
-      // assert.ok(pongoDoc);
-      // assert.ok(mongoDoc);
-      // assert.deepStrictEqual(
-      //   {
-      //     name: pongoDoc.name,
-      //     age: pongoDoc.age,
-      //   },
-      //   {
-      //     name: mongoDoc.name,
-      //     age: mongoDoc.age,
-      //   },
-      // );
+  void describe('Insert Operations', async () => {
+    await it('should insert a document with id into both SQLite and MongoDB shim', async () => {
+      const pongoCollection = pongoDb.collection<User>('insertOne');
+      const mongoCollection = mongoDb.collection<User>('shiminsertOne');
+      const doc: User = {
+        _id: new Date().toISOString(),
+        name: 'Anita',
+        age: 25,
+      };
+      const pongoInsertResult = await pongoCollection.insertOne(doc);
+      const mongoInsertResult = await mongoCollection.insertOne(doc);
+      assert.ok(pongoInsertResult.insertedId !== null);
+      assert.ok(mongoInsertResult.insertedId !== null);
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: mongoInsertResult.insertedId,
+      });
+      assert.ok(pongoDoc);
+      assert.ok(mongoDoc);
+      assert.deepStrictEqual(
+        {
+          name: pongoDoc.name,
+          age: pongoDoc.age,
+        },
+        {
+          name: mongoDoc.name,
+          age: mongoDoc.age,
+        },
+      );
     });
 
-    // void it('should insert a document into both SQLite and MongoDB shim', async () => {
-    //   const pongoCollection = pongoDb.collection<User>('insertOne');
-    //   const mongoCollection = mongoDb.collection<User>('shiminsertOne');
-    //   const doc = { name: 'Anita', age: 25 };
-    //   const pongoInsertResult = await pongoCollection.insertOne(doc);
-    //   const mongoInsertResult = await mongoCollection.insertOne(doc);
-    //   assert(pongoInsertResult.insertedId);
-    //   assert(mongoInsertResult.insertedId);
-    //   const pongoDoc = await pongoCollection.findOne({
-    //     _id: pongoInsertResult.insertedId,
-    //   });
-    //   const mongoDoc = await mongoCollection.findOne({
-    //     _id: mongoInsertResult.insertedId,
-    //   });
-    //   assert.deepStrictEqual(
-    //     {
-    //       name: pongoDoc!.name,
-    //       age: pongoDoc!.age,
-    //     },
-    //     {
-    //       name: mongoDoc!.name,
-    //       age: mongoDoc!.age,
-    //     },
-    //   );
-    // });
+    void it('should insert a document into both SQLite and MongoDB shim', async () => {
+      const pongoCollection = pongoDb.collection<User>('insertOne');
+      const mongoCollection = mongoDb.collection<User>('shiminsertOne');
+      const doc = { name: 'Anita', age: 25 };
+      const pongoInsertResult = await pongoCollection.insertOne(doc);
+      const mongoInsertResult = await mongoCollection.insertOne(doc);
+      assert(pongoInsertResult.insertedId);
+      assert(mongoInsertResult.insertedId);
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: mongoInsertResult.insertedId,
+      });
+      assert.deepStrictEqual(
+        {
+          name: pongoDoc!.name,
+          age: pongoDoc!.age,
+        },
+        {
+          name: mongoDoc!.name,
+          age: mongoDoc!.age,
+        },
+      );
+    });
 
-    // void it('should insert many documents into both SQLite and MongoDB shim', async () => {
-    //   const pongoCollection = pongoDb.collection<User>('insertMany');
-    //   const mongoCollection = mongoDb.collection<User>('shiminsertMany');
-    //   const docs = [
-    //     { name: 'David', age: 40 },
-    //     { name: 'Eve', age: 45 },
-    //     { name: 'Frank', age: 50 },
-    //   ];
-    //   const pongoInsertResult = await pongoCollection.insertMany(docs);
-    //   const mongoInsertResult = await mongoCollection.insertMany(docs);
-    //   const pongoIds = Object.values(pongoInsertResult.insertedIds);
-    //   const mongoIds = Object.values(mongoInsertResult.insertedIds);
-    //   assert.equal(pongoInsertResult.insertedCount, docs.length);
-    //   assert.equal(mongoInsertResult.insertedCount, docs.length);
-    //   const pongoDocs = await pongoCollection.find({
-    //     _id: { $in: pongoIds },
-    //   });
-    //   const mongoDocs = await mongoCollection
-    //     .find({
-    //       _id: { $in: mongoIds },
-    //     })
-    //     .toArray();
-    //   assert.deepStrictEqual(
-    //     pongoDocs.map((doc) => ({
-    //       name: doc.name,
-    //       age: doc.age,
-    //     })),
-    //     mongoDocs.map((doc) => ({
-    //       name: doc.name,
-    //       age: doc.age,
-    //     })),
-    //   );
-    // });
+    void it('should insert many documents into both SQLite and MongoDB shim', async () => {
+      const pongoCollection = pongoDb.collection<User>('insertMany');
+      const mongoCollection = mongoDb.collection<User>('shiminsertMany');
+      const docs = [
+        { name: 'David', age: 40 },
+        { name: 'Eve', age: 45 },
+        { name: 'Frank', age: 50 },
+      ];
+      const pongoInsertResult = await pongoCollection.insertMany(docs);
+      const mongoInsertResult = await mongoCollection.insertMany(docs);
+      const pongoIds = Object.values(pongoInsertResult.insertedIds);
+      const mongoIds = Object.values(mongoInsertResult.insertedIds);
+      assert.equal(pongoInsertResult.insertedCount, docs.length);
+      assert.equal(mongoInsertResult.insertedCount, docs.length);
+      const pongoDocs = await pongoCollection.find({
+        _id: { $in: pongoIds },
+      });
+      const mongoDocs = await mongoCollection
+        .find({
+          _id: { $in: mongoIds },
+        })
+        .toArray();
+      assert.deepStrictEqual(
+        pongoDocs.map((doc) => ({
+          name: doc.name,
+          age: doc.age,
+        })),
+        mongoDocs.map((doc) => ({
+          name: doc.name,
+          age: doc.age,
+        })),
+      );
+    });
   });
 
-  // void describe('Update Operations', () => {
-  //   void it('should update a document', async () => {
-  //     const pongoCollection = pongoDb.collection<User>('updateOne');
-  //     const mongoCollection = mongoDb.collection<User>('shimupdateOne');
-  //     const doc = { name: 'Roger', age: 30 };
+  void describe('Update Operations', () => {
+    void it('should update a document', async () => {
+      const pongoCollection = pongoDb.collection<User>('updateOne');
+      const mongoCollection = mongoDb.collection<User>('shimupdateOne');
+      const doc = { name: 'Roger', age: 30 };
 
-  //     const pongoInsertResult = await pongoCollection.insertOne(doc);
-  //     const mongoInsertResult = await mongoCollection.insertOne(doc);
+      const pongoInsertResult = await pongoCollection.insertOne(doc);
+      const mongoInsertResult = await mongoCollection.insertOne(doc);
 
-  //     const update = { $set: { age: 31 } };
+      const update = { $set: { age: 31 } };
 
-  //     await pongoCollection.updateOne(
-  //       { _id: pongoInsertResult.insertedId! },
-  //       update,
-  //     );
-  //     await mongoCollection.updateOne(
-  //       { _id: mongoInsertResult.insertedId },
-  //       update,
-  //     );
+      await pongoCollection.updateOne(
+        { _id: pongoInsertResult.insertedId! },
+        update,
+      );
+      await mongoCollection.updateOne(
+        { _id: mongoInsertResult.insertedId },
+        update,
+      );
 
-  //     const pongoDoc = await pongoCollection.findOne({
-  //       _id: pongoInsertResult.insertedId!,
-  //     });
-  //     const mongoDoc = await mongoCollection.findOne({
-  //       _id: mongoInsertResult.insertedId,
-  //     });
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId!,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: mongoInsertResult.insertedId,
+      });
+      assert.equal(pongoDoc?.age, 31);
+      assert.equal(mongoDoc?.age, 31);
+      assert.deepStrictEqual(
+        {
+          name: pongoDoc!.name,
+          age: pongoDoc!.age,
+        },
+        {
+          name: mongoDoc!.name,
+          age: mongoDoc!.age,
+        },
+      );
+    });
 
-  //     assert.equal(mongoDoc?.age, 31);
-  //     assert.deepStrictEqual(
-  //       {
-  //         name: pongoDoc!.name,
-  //         age: pongoDoc!.age,
-  //       },
-  //       {
-  //         name: mongoDoc!.name,
-  //         age: mongoDoc!.age,
-  //       },
-  //     );
-  //   });
+    //   void it('should NOT update a non-existing document', async () => {
+    //     const pongoCollection = pongoDb.collection<User>('updateOne');
+    //     const mongoCollection = mongoDb.collection<User>('shimupdateOne');
+    //     const nonExistingId = 'non-existing';
 
-  //   void it('should NOT update a non-existing document', async () => {
-  //     const pongoCollection = pongoDb.collection<User>('updateOne');
-  //     const mongoCollection = mongoDb.collection<User>('shimupdateOne');
-  //     const nonExistingId = 'non-existing';
+    //     const update = { $set: { age: 31 } };
 
-  //     const update = { $set: { age: 31 } };
+    //     const updateResult = await pongoCollection.updateOne(
+    //       { _id: nonExistingId },
+    //       update,
+    //     );
+    //     const shimUpdateResult = await mongoCollection.updateOne(
+    //       { _id: nonExistingId },
+    //       update,
+    //     );
 
-  //     const updateResult = await pongoCollection.updateOne(
-  //       { _id: nonExistingId },
-  //       update,
-  //     );
-  //     const shimUpdateResult = await mongoCollection.updateOne(
-  //       { _id: nonExistingId },
-  //       update,
-  //     );
+    //     assert(updateResult);
+    //     assert(updateResult.successful === false);
+    //     assert(updateResult.matchedCount === 0);
+    //     assert(updateResult.modifiedCount === 0);
+    //     assert(updateResult.nextExpectedVersion === 0n);
 
-  //     assert(updateResult);
-  //     assert(updateResult.successful === false);
-  //     assert(updateResult.matchedCount === 0);
-  //     assert(updateResult.modifiedCount === 0);
-  //     assert(updateResult.nextExpectedVersion === 0n);
+    //     assert(shimUpdateResult);
+    //     assert(updateResult.matchedCount === 0);
+    //     assert(updateResult.modifiedCount === 0);
 
-  //     assert(shimUpdateResult);
-  //     assert(updateResult.matchedCount === 0);
-  //     assert(updateResult.modifiedCount === 0);
+    //     const pongoDoc = await pongoCollection.findOne({
+    //       _id: nonExistingId,
+    //     });
+    //     const mongoDoc = await mongoCollection.findOne({
+    //       _id: nonExistingId,
+    //     });
 
-  //     const pongoDoc = await pongoCollection.findOne({
-  //       _id: nonExistingId,
-  //     });
-  //     const mongoDoc = await mongoCollection.findOne({
-  //       _id: nonExistingId,
-  //     });
+    //     assert(pongoDoc === null);
+    //     assert(mongoDoc === null);
+    //   });
 
-  //     assert(pongoDoc === null);
-  //     assert(mongoDoc === null);
-  //   });
+    //   void it('should update a multiple properties in document', async () => {
+    //     const pongoCollection = pongoDb.collection<User>('updateOneMultiple');
+    //     const mongoCollection = mongoDb.collection<User>('shimupdateOneMultiple');
+    //     const doc = { name: 'Roger', age: 30 };
 
-  //   void it('should update a multiple properties in document', async () => {
-  //     const pongoCollection = pongoDb.collection<User>('updateOneMultiple');
-  //     const mongoCollection = mongoDb.collection<User>('shimupdateOneMultiple');
-  //     const doc = { name: 'Roger', age: 30 };
+    //     const pongoInsertResult = await pongoCollection.insertOne(doc);
+    //     const mongoInsertResult = await mongoCollection.insertOne(doc);
 
-  //     const pongoInsertResult = await pongoCollection.insertOne(doc);
-  //     const mongoInsertResult = await mongoCollection.insertOne(doc);
+    //     const update = { $set: { age: 31, tags: ['t', 'a', 'g'] } };
 
-  //     const update = { $set: { age: 31, tags: ['t', 'a', 'g'] } };
+    //     await pongoCollection.updateOne(
+    //       { _id: pongoInsertResult.insertedId! },
+    //       update,
+    //     );
+    //     await mongoCollection.updateOne(
+    //       { _id: mongoInsertResult.insertedId },
+    //       update,
+    //     );
 
-  //     await pongoCollection.updateOne(
-  //       { _id: pongoInsertResult.insertedId! },
-  //       update,
-  //     );
-  //     await mongoCollection.updateOne(
-  //       { _id: mongoInsertResult.insertedId },
-  //       update,
-  //     );
+    //     const pongoDoc = await pongoCollection.findOne({
+    //       _id: pongoInsertResult.insertedId!,
+    //     });
+    //     const mongoDoc = await mongoCollection.findOne({
+    //       _id: mongoInsertResult.insertedId,
+    //     });
 
-  //     const pongoDoc = await pongoCollection.findOne({
-  //       _id: pongoInsertResult.insertedId!,
-  //     });
-  //     const mongoDoc = await mongoCollection.findOne({
-  //       _id: mongoInsertResult.insertedId,
-  //     });
+    //     assert.equal(mongoDoc?.age, 31);
+    //     assert.deepEqual(mongoDoc?.tags, ['t', 'a', 'g']);
+    //     assert.deepStrictEqual(
+    //       {
+    //         name: pongoDoc!.name,
+    //         age: pongoDoc!.age,
+    //         tags: pongoDoc!.tags,
+    //       },
+    //       {
+    //         name: mongoDoc!.name,
+    //         age: mongoDoc!.age,
+    //         tags: mongoDoc!.tags,
+    //       },
+    //     );
+    //   });
 
-  //     assert.equal(mongoDoc?.age, 31);
-  //     assert.deepEqual(mongoDoc?.tags, ['t', 'a', 'g']);
-  //     assert.deepStrictEqual(
-  //       {
-  //         name: pongoDoc!.name,
-  //         age: pongoDoc!.age,
-  //         tags: pongoDoc!.tags,
-  //       },
-  //       {
-  //         name: mongoDoc!.name,
-  //         age: mongoDoc!.age,
-  //         tags: mongoDoc!.tags,
-  //       },
-  //     );
-  //   });
+    //   void it('should update documents', async () => {
+    //     const pongoCollection = pongoDb.collection<User>('updateMany');
+    //     const mongoCollection = mongoDb.collection<User>('shimupdateMany');
 
-  //   void it('should update documents', async () => {
-  //     const pongoCollection = pongoDb.collection<User>('updateMany');
-  //     const mongoCollection = mongoDb.collection<User>('shimupdateMany');
+    //     const docs = [
+    //       { name: 'David', age: 40 },
+    //       { name: 'Eve', age: 45 },
+    //       { name: 'Frank', age: 50 },
+    //     ];
 
-  //     const docs = [
-  //       { name: 'David', age: 40 },
-  //       { name: 'Eve', age: 45 },
-  //       { name: 'Frank', age: 50 },
-  //     ];
+    //     const pongoInsertResult = await pongoCollection.insertMany(docs);
+    //     const mongoInsertResult = await mongoCollection.insertMany(docs);
 
-  //     const pongoInsertResult = await pongoCollection.insertMany(docs);
-  //     const mongoInsertResult = await mongoCollection.insertMany(docs);
+    //     const pongoIds = Object.values(pongoInsertResult.insertedIds);
+    //     const mongoIds = Object.values(mongoInsertResult.insertedIds);
 
-  //     const pongoIds = Object.values(pongoInsertResult.insertedIds);
-  //     const mongoIds = Object.values(mongoInsertResult.insertedIds);
+    //     const update = { $set: { age: 31 } };
 
-  //     const update = { $set: { age: 31 } };
+    //     const pongoUpdateResult = await pongoCollection.updateMany(
+    //       { _id: { $in: pongoIds } },
+    //       update,
+    //     );
+    //     const mongoUpdateResult = await mongoCollection.updateMany(
+    //       { _id: { $in: mongoIds } },
+    //       update,
+    //     );
 
-  //     const pongoUpdateResult = await pongoCollection.updateMany(
-  //       { _id: { $in: pongoIds } },
-  //       update,
-  //     );
-  //     const mongoUpdateResult = await mongoCollection.updateMany(
-  //       { _id: { $in: mongoIds } },
-  //       update,
-  //     );
+    //     assert.equal(3, pongoUpdateResult.modifiedCount);
+    //     assert.equal(3, mongoUpdateResult.modifiedCount);
 
-  //     assert.equal(3, pongoUpdateResult.modifiedCount);
-  //     assert.equal(3, mongoUpdateResult.modifiedCount);
+    //     const pongoDocs = await pongoCollection.find({
+    //       _id: { $in: pongoIds },
+    //     });
+    //     const mongoDocs = await mongoCollection
+    //       .find({
+    //         _id: { $in: mongoIds },
+    //       })
+    //       .toArray();
 
-  //     const pongoDocs = await pongoCollection.find({
-  //       _id: { $in: pongoIds },
-  //     });
-  //     const mongoDocs = await mongoCollection
-  //       .find({
-  //         _id: { $in: mongoIds },
-  //       })
-  //       .toArray();
+    //     assert.deepStrictEqual(
+    //       pongoDocs.map((doc) => ({
+    //         name: doc.name,
+    //         age: doc.age,
+    //       })),
+    //       mongoDocs.map((doc) => ({
+    //         name: doc.name,
+    //         age: doc.age,
+    //       })),
+    //     );
+    //   });
 
-  //     assert.deepStrictEqual(
-  //       pongoDocs.map((doc) => ({
-  //         name: doc.name,
-  //         age: doc.age,
-  //       })),
-  //       mongoDocs.map((doc) => ({
-  //         name: doc.name,
-  //         age: doc.age,
-  //       })),
-  //     );
-  //   });
+    //   void it('should update a document using $unset', async () => {
+    //     const pongoCollection = pongoDb.collection<User>('testCollection');
+    //     const mongoCollection = mongoDb.collection<User>('shimtestCollection');
+    //     const doc = { name: 'Roger', age: 30, address: { city: 'Wonderland' } };
 
-  //   void it('should update a document using $unset', async () => {
-  //     const pongoCollection = pongoDb.collection<User>('testCollection');
-  //     const mongoCollection = mongoDb.collection<User>('shimtestCollection');
-  //     const doc = { name: 'Roger', age: 30, address: { city: 'Wonderland' } };
+    //     const pongoInsertResult = await pongoCollection.insertOne(doc);
+    //     const mongoInsertResult = await mongoCollection.insertOne(doc);
 
-  //     const pongoInsertResult = await pongoCollection.insertOne(doc);
-  //     const mongoInsertResult = await mongoCollection.insertOne(doc);
+    //     const { modifiedCount } = await pongoCollection.updateOne(
+    //       { _id: pongoInsertResult.insertedId! },
+    //       { $unset: { address: '' } },
+    //     );
+    //     assert.equal(modifiedCount, 1);
+    //     await mongoCollection.updateOne(
+    //       { _id: mongoInsertResult.insertedId },
+    //       { $unset: { address: '' } },
+    //     );
 
-  //     const { modifiedCount } = await pongoCollection.updateOne(
-  //       { _id: pongoInsertResult.insertedId! },
-  //       { $unset: { address: '' } },
-  //     );
-  //     assert.equal(modifiedCount, 1);
-  //     await mongoCollection.updateOne(
-  //       { _id: mongoInsertResult.insertedId },
-  //       { $unset: { address: '' } },
-  //     );
+    //     const pongoDoc = await pongoCollection.findOne({
+    //       _id: pongoInsertResult.insertedId!,
+    //     });
+    //     const mongoDoc = await mongoCollection.findOne({
+    //       _id: mongoInsertResult.insertedId,
+    //     });
 
-  //     const pongoDoc = await pongoCollection.findOne({
-  //       _id: pongoInsertResult.insertedId!,
-  //     });
-  //     const mongoDoc = await mongoCollection.findOne({
-  //       _id: mongoInsertResult.insertedId,
-  //     });
+    //     assert.deepStrictEqual(
+    //       {
+    //         name: pongoDoc!.name,
+    //         age: pongoDoc!.age,
+    //         address: undefined,
+    //       },
+    //       {
+    //         name: mongoDoc!.name,
+    //         age: mongoDoc!.age,
+    //         address: undefined,
+    //       },
+    //     );
+    //   });
 
-  //     assert.deepStrictEqual(
-  //       {
-  //         name: pongoDoc!.name,
-  //         age: pongoDoc!.age,
-  //         address: undefined,
-  //       },
-  //       {
-  //         name: mongoDoc!.name,
-  //         age: mongoDoc!.age,
-  //         address: undefined,
-  //       },
-  //     );
-  //   });
+    //   void it('should update a document using $inc', async () => {
+    //     const pongoCollection = pongoDb.collection<User>('testCollection');
+    //     const mongoCollection = mongoDb.collection<User>('shimtestCollection');
+    //     const doc = { name: 'Roger', age: 30 };
 
-  //   void it('should update a document using $inc', async () => {
-  //     const pongoCollection = pongoDb.collection<User>('testCollection');
-  //     const mongoCollection = mongoDb.collection<User>('shimtestCollection');
-  //     const doc = { name: 'Roger', age: 30 };
+    //     const pongoInsertResult = await pongoCollection.insertOne(doc);
+    //     const mongoInsertResult = await mongoCollection.insertOne(doc);
 
-  //     const pongoInsertResult = await pongoCollection.insertOne(doc);
-  //     const mongoInsertResult = await mongoCollection.insertOne(doc);
+    //     const update = { $inc: { age: 1 } };
 
-  //     const update = { $inc: { age: 1 } };
+    //     const { modifiedCount } = await pongoCollection.updateOne(
+    //       { _id: pongoInsertResult.insertedId! },
+    //       update,
+    //     );
+    //     assert.equal(modifiedCount, 1);
+    //     await mongoCollection.updateOne(
+    //       { _id: mongoInsertResult.insertedId },
+    //       update,
+    //     );
 
-  //     const { modifiedCount } = await pongoCollection.updateOne(
-  //       { _id: pongoInsertResult.insertedId! },
-  //       update,
-  //     );
-  //     assert.equal(modifiedCount, 1);
-  //     await mongoCollection.updateOne(
-  //       { _id: mongoInsertResult.insertedId },
-  //       update,
-  //     );
+    //     const pongoDoc = await pongoCollection.findOne({
+    //       _id: pongoInsertResult.insertedId!,
+    //     });
+    //     const mongoDoc = await mongoCollection.findOne({
+    //       _id: mongoInsertResult.insertedId,
+    //     });
 
-  //     const pongoDoc = await pongoCollection.findOne({
-  //       _id: pongoInsertResult.insertedId!,
-  //     });
-  //     const mongoDoc = await mongoCollection.findOne({
-  //       _id: mongoInsertResult.insertedId,
-  //     });
+    //     assert.deepStrictEqual(
+    //       {
+    //         name: pongoDoc!.name,
+    //         age: 31,
+    //       },
+    //       {
+    //         name: mongoDoc!.name,
+    //         age: 31,
+    //       },
+    //     );
+    //   });
 
-  //     assert.deepStrictEqual(
-  //       {
-  //         name: pongoDoc!.name,
-  //         age: 31,
-  //       },
-  //       {
-  //         name: mongoDoc!.name,
-  //         age: 31,
-  //       },
-  //     );
-  //   });
+    //   void it('should update a document using $push', async () => {
+    //     const pongoCollection = pongoDb.collection<User>('testCollection');
+    //     const mongoCollection = mongoDb.collection<User>('shimtestCollection');
+    //     const doc = { name: 'Roger', age: 30 };
 
-  //   void it('should update a document using $push', async () => {
-  //     const pongoCollection = pongoDb.collection<User>('testCollection');
-  //     const mongoCollection = mongoDb.collection<User>('shimtestCollection');
-  //     const doc = { name: 'Roger', age: 30 };
+    //     const pongoInsertResult = await pongoCollection.insertOne(doc);
+    //     const mongoInsertResult = await mongoCollection.insertOne(doc);
+    //     let pongoDoc = await pongoCollection.findOne({
+    //       _id: pongoInsertResult.insertedId!,
+    //     });
+    //     // Push to non existing
+    //     let updateResult = await pongoCollection.updateOne(
+    //       { _id: pongoInsertResult.insertedId! },
+    //       //TODO: fix $push type definition to allow non-array
+    //       { $push: { tags: 'tag1' as unknown as string[] } },
+    //     );
+    //     assert.equal(updateResult.modifiedCount, 1);
+    //     await mongoCollection.updateOne(
+    //       { _id: mongoInsertResult.insertedId },
+    //       { $push: { tags: 'tag1' } },
+    //     );
+    //     pongoDoc = await pongoCollection.findOne({
+    //       _id: pongoInsertResult.insertedId!,
+    //     });
 
-  //     const pongoInsertResult = await pongoCollection.insertOne(doc);
-  //     const mongoInsertResult = await mongoCollection.insertOne(doc);
-  //     let pongoDoc = await pongoCollection.findOne({
-  //       _id: pongoInsertResult.insertedId!,
-  //     });
-  //     // Push to non existing
-  //     let updateResult = await pongoCollection.updateOne(
-  //       { _id: pongoInsertResult.insertedId! },
-  //       //TODO: fix $push type definition to allow non-array
-  //       { $push: { tags: 'tag1' as unknown as string[] } },
-  //     );
-  //     assert.equal(updateResult.modifiedCount, 1);
-  //     await mongoCollection.updateOne(
-  //       { _id: mongoInsertResult.insertedId },
-  //       { $push: { tags: 'tag1' } },
-  //     );
-  //     pongoDoc = await pongoCollection.findOne({
-  //       _id: pongoInsertResult.insertedId!,
-  //     });
+    //     // Push to existing
+    //     updateResult = await pongoCollection.updateOne(
+    //       { _id: pongoInsertResult.insertedId! },
+    //       { $push: { tags: 'tag2' as unknown as string[] } },
+    //     );
+    //     assert.equal(updateResult.modifiedCount, 1);
+    //     await mongoCollection.updateOne(
+    //       { _id: mongoInsertResult.insertedId },
+    //       { $push: { tags: 'tag2' } },
+    //     );
 
-  //     // Push to existing
-  //     updateResult = await pongoCollection.updateOne(
-  //       { _id: pongoInsertResult.insertedId! },
-  //       { $push: { tags: 'tag2' as unknown as string[] } },
-  //     );
-  //     assert.equal(updateResult.modifiedCount, 1);
-  //     await mongoCollection.updateOne(
-  //       { _id: mongoInsertResult.insertedId },
-  //       { $push: { tags: 'tag2' } },
-  //     );
+    //     pongoDoc = await pongoCollection.findOne({
+    //       _id: pongoInsertResult.insertedId!,
+    //     });
+    //     const mongoDoc = await mongoCollection.findOne({
+    //       _id: mongoInsertResult.insertedId,
+    //     });
 
-  //     pongoDoc = await pongoCollection.findOne({
-  //       _id: pongoInsertResult.insertedId!,
-  //     });
-  //     const mongoDoc = await mongoCollection.findOne({
-  //       _id: mongoInsertResult.insertedId,
-  //     });
-
-  //     assert.deepStrictEqual(
-  //       {
-  //         name: pongoDoc!.name,
-  //         age: pongoDoc!.age,
-  //         tags: ['tag1', 'tag2'],
-  //       },
-  //       {
-  //         name: mongoDoc!.name,
-  //         age: mongoDoc!.age,
-  //         tags: ['tag1', 'tag2'],
-  //       },
-  //     );
-  //   });
-  // });
+    //     assert.deepStrictEqual(
+    //       {
+    //         name: pongoDoc!.name,
+    //         age: pongoDoc!.age,
+    //         tags: ['tag1', 'tag2'],
+    //       },
+    //       {
+    //         name: mongoDoc!.name,
+    //         age: mongoDoc!.age,
+    //         tags: ['tag1', 'tag2'],
+    //       },
+    //     );
+    //   });
+  });
 
   // void describe('Replace Operations', () => {
   //   void it('should replace a document', async () => {
