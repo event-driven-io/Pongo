@@ -14,10 +14,19 @@ void describe('sqliteSQLBuilder', () => {
       const result = builder.createCollection();
       const { query } = SQL.format(result, sqliteFormatter);
 
-      assert.ok(query.includes('CREATE TABLE IF NOT EXISTS'));
-      assert.ok(query.includes('_id'));
-      assert.ok(query.includes('data'));
-      assert.ok(query.includes('json_valid(data)'));
+      const expected = `
+    CREATE TABLE IF NOT EXISTS "${collectionName}" (
+      _id           TEXT           PRIMARY KEY,
+      data          TEXT           NOT NULL,
+      metadata      TEXT           NOT NULL     DEFAULT '{}',
+      _version      INTEGER        NOT NULL     DEFAULT 1,
+      _partition    TEXT           NOT NULL     DEFAULT 'png_global',
+      _archived     INTEGER        NOT NULL     DEFAULT 0,
+      _created      TEXT           NOT NULL     DEFAULT (datetime('now')),
+      _updated      TEXT           NOT NULL     DEFAULT (datetime('now'))
+  )`;
+
+      assert.equal(query, expected);
     });
   });
 
