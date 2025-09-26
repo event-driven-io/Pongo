@@ -13,7 +13,7 @@ void describe('Node Postgresql', () => {
   let connectionString: string;
 
   before(async () => {
-    postgres = await new PostgreSqlContainer().start();
+    postgres = await new PostgreSqlContainer('postgres:18.0').start();
     connectionString = postgres.getConnectionUri();
   });
 

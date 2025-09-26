@@ -13,15 +13,15 @@ Sample require EventStoreDB, you can start it by running
 with PostgreSQL:
 
 ```bash
-docker-compose up
+docker compose up
 ```
 
 Alternatively, with YugabyteDB (PostgreSQL-compatible distributed SQL) starting 3 nodes:
 
 ```bash
-docker-compose -f docker-compose-yugabytedb.yml up -d --scale dist=0
-docker-compose -f docker-compose-yugabytedb.yml up -d --scale dist=1
-docker-compose -f docker-compose-yugabytedb.yml up -d --scale dist=2
+docker compose -f docker-compose-yugabytedb.yml up -d --scale dist=0
+docker compose -f docker-compose-yugabytedb.yml up -d --scale dist=1
+docker compose -f docker-compose-yugabytedb.yml up -d --scale dist=2
 ```
 
 You need to install packages with
@@ -43,13 +43,13 @@ npm run start
 To build application:
 
 ```bash
-docker-compose --profile app build
+docker compose --profile app build
 ```
 
 To run application:
 
 ```bash
-docker-compose --profile app up
+docker compose --profile app up
 ```
 
 ### Testing

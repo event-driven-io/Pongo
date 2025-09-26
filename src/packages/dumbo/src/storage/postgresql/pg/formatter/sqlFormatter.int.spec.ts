@@ -15,7 +15,7 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
   let connectionString: PostgreSQLConnectionString;
 
   before(async () => {
-    postgres = await new PostgreSqlContainer().start();
+    postgres = await new PostgreSqlContainer('postgres:18.0').start();
     connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
     pool = dumbo({ connectionString, driver: pgDatabaseDriver });
 

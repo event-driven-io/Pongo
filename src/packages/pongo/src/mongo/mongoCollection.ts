@@ -13,6 +13,7 @@ import type {
   CountDocumentsOptions,
   CountOptions,
   CreateIndexesOptions,
+  Db,
   DeleteOptions,
   DeleteResult,
   Document,
@@ -71,6 +72,7 @@ import type {
   PongoSession,
   PongoUpdate,
 } from '../core';
+import type { Db as ShimDb } from '../shim';
 import { FindCursor } from './findCursor';
 
 const toCollectionOperationOptions = (
@@ -104,9 +106,14 @@ const toFindOptions = (
 
 export class Collection<T extends Document> implements MongoCollection<T> {
   private collection: PongoCollection<T>;
+  private database: ShimDb;
 
-  constructor(collection: PongoCollection<T>) {
+  constructor(database: ShimDb, collection: PongoCollection<T>) {
     this.collection = collection;
+    this.database = database;
+  }
+  get db(): Db {
+    return this.database as unknown as Db;
   }
   get dbName(): string {
     return this.collection.dbName;
@@ -130,6 +137,9 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     return undefined;
   }
   get hint(): Hint | undefined {
+    return undefined;
+  }
+  get timeoutMS(): number | undefined {
     return undefined;
   }
   set hint(v: Hint | undefined) {
@@ -191,12 +201,12 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     filter: Filter<T>,
     document: WithoutId<T>,
     options?: ReplaceOptions,
-  ): Promise<Document | UpdateResult<T>> {
+  ): Promise<UpdateResult<T>> {
     return this.collection.replaceOne(
       filter as unknown as PongoFilter<T>,
       document,
       toCollectionOperationOptions(options),
-    );
+    ) as unknown as Promise<UpdateResult<T>>;
   }
   async updateMany(
     filter: Filter<T>,

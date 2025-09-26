@@ -51,7 +51,7 @@ export default [
       },
 
       parser: tsParser,
-      ecmaVersion: 2023,
+      ecmaVersion: 'latest',
       sourceType: 'module',
 
       parserOptions: {
@@ -90,13 +90,15 @@ export default [
             {
               name: '../storage/all',
               importNames: ['dumbo', 'parseConnectionString'],
-              message: 'Core cannot import implementation from storage/all. Use the registry pattern instead.',
+              message:
+                'Core cannot import implementation from storage/all. Use the registry pattern instead.',
             },
           ],
           patterns: [
             {
               group: ['../storage/postgresql/**', '../storage/sqlite/**'],
-              message: 'Core cannot import from storage implementations. Use the registry pattern instead.',
+              message:
+                'Core cannot import from storage implementations. Use the registry pattern instead.',
             },
           ],
         },
@@ -144,7 +146,8 @@ export default [
           patterns: [
             {
               group: ['../storage/**', '../../storage/**'],
-              message: 'Pongo core cannot import from storage implementations. Use dependency injection or registry pattern instead.',
+              message:
+                'Pongo core cannot import from storage implementations. Use dependency injection or registry pattern instead.',
             },
           ],
         },
@@ -192,7 +195,8 @@ export default [
           patterns: [
             {
               group: ['../storage/**', '../../storage/**'],
-              message: 'Mongo compatibility layer cannot import from storage implementations.',
+              message:
+                'Mongo compatibility layer cannot import from storage implementations.',
             },
           ],
         },

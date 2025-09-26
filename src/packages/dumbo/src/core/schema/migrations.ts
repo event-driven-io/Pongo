@@ -52,7 +52,6 @@ export const migrationTableSchemaComponent = schemaComponent(
 );
 
 declare global {
-  // eslint-disable-next-line no-var
   var defaultMigratorOptions: Record<DatabaseType, MigratorOptions>;
 }
 

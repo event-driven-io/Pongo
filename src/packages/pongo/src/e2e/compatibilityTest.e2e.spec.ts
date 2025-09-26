@@ -49,7 +49,7 @@ void describe('MongoDB Compatibility Tests', () => {
   before(async () => {
     usePgDatabaseDriver();
 
-    postgres = await new PostgreSqlContainer().start();
+    postgres = await new PostgreSqlContainer('postgres:18.0').start();
     postgresConnectionString = PostgreSQLConnectionString(
       postgres.getConnectionUri(),
     );

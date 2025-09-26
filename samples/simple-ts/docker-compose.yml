@@ -1,10 +1,10 @@
-version: "3.8" # Specify Docker Compose version
+version: '3.8' # Specify Docker Compose version
 
 services:
   postgres:
-    image: postgres:15.1-alpine
+    image: postgres:18.0
     ports:
-      - "5432:5432"
+      - '5432:5432'
     environment:
       - POSTGRES_DB=postgres
       - POSTGRES_PASSWORD=postgres
@@ -19,7 +19,7 @@ services:
       - PGADMIN_CONFIG_SERVER_MODE=False
       - PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED=False
     ports:
-      - "${PGADMIN_PORT:-5050}:80"
+      - '${PGADMIN_PORT:-5050}:80'
     entrypoint: /bin/sh -c "chmod 600 /pgpass; /entrypoint.sh;"
     user: root
     volumes:
