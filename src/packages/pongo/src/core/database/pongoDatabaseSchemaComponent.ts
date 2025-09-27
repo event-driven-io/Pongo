@@ -30,13 +30,6 @@ export type PongoDatabaseSchemaComponent<
   ) => PongoCollectionSchemaComponent;
 };
 
-export type PongoDatabaseSchemaComponentFactory = <
-  DriverType extends DatabaseDriverType = DatabaseDriverType,
->(
-  driverType: DriverType,
-  existingCollections: PongoCollectionSchemaComponent[],
-) => PongoDatabaseSchemaComponent;
-
 export type PongoDatabaseSchemaComponentOptions<
   DriverType extends DatabaseDriverType = DatabaseDriverType,
   T extends Record<string, PongoCollectionSchema> = Record<

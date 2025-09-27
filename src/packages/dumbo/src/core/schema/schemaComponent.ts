@@ -35,3 +35,19 @@ export const schemaComponent = <ComponentType extends string = string>(
     },
   };
 };
+
+export type DatabaseSchemaComponent<ComponentType extends string = string> =
+  SchemaComponent<ComponentType>;
+
+export type DatabaseSchemaSchemaComponent<
+  ComponentType extends string = string,
+> = SchemaComponent<ComponentType>;
+
+export type TableSchemaComponent<ComponentType extends string = string> =
+  SchemaComponent<ComponentType>;
+
+export type ColumnSchemaComponent<ComponentType extends string = string> =
+  SchemaComponent<ComponentType>;
+
+export type IndexSchemaComponent<ComponentType extends string = string> =
+  SchemaComponent<ComponentType>;
