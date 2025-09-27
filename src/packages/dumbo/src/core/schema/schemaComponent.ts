@@ -1,4 +1,9 @@
-import { type SQLMigration } from './migrations';
+import type { DatabaseDriverType, Dumbo } from '..';
+import {
+  runSQLMigrations,
+  type MigratorOptions,
+  type SQLMigration,
+} from './migrations';
 
 export type SchemaComponent<ComponentType extends string = string> = {
   schemaComponentType: ComponentType;
@@ -51,3 +56,31 @@ export type ColumnSchemaComponent<ComponentType extends string = string> =
 
 export type IndexSchemaComponent<ComponentType extends string = string> =
   SchemaComponent<ComponentType>;
+
+export type SchemaComponentMigrator = {
+  component: SchemaComponent;
+  run: (options?: Partial<MigratorOptions>) => Promise<void>;
+};
+
+export const SchemaComponentMigrator = <DriverType extends DatabaseDriverType>(
+  component: SchemaComponent,
+  dumbo: Dumbo,
+): SchemaComponentMigrator => {
+  const completedMigrations: string[] = [];
+
+  return {
+    component,
+    run: async (options) => {
+      //TODO: name is not the safest choice here, so we might want to add an id or hash instead
+      const pendingMigrations = component.migrations.filter(
+        (m) => !completedMigrations.includes(m.name),
+      );
+
+      if (pendingMigrations.length === 0) return;
+
+      await runSQLMigrations(dumbo, pendingMigrations, options);
+
+      completedMigrations.push(...pendingMigrations.map((m) => m.name));
+    },
+  };
+};
