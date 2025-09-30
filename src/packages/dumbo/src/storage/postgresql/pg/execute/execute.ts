@@ -5,6 +5,8 @@ import {
   type QueryResult,
   type QueryResultRow,
   type SQL,
+  type SQLCommandOptions,
+  type SQLQueryOptions,
 } from '../../../../core';
 import { pgFormatter } from '../../core';
 import {
@@ -61,25 +63,20 @@ export const nodePostgresSQLExecutor = (): NodePostgresSQLExecutor => ({
   formatter: pgFormatter,
 });
 
-export type BatchQueryOptions = {
-  timeoutMs?: number;
-  mapping?: { resultColumnsToJson?: string[] };
-};
-
 function batch<Result extends QueryResultRow = QueryResultRow>(
   client: NodePostgresClientOrPoolClient,
   sqlOrSqls: SQL,
-  options?: BatchQueryOptions,
+  options?: SQLQueryOptions | SQLCommandOptions,
 ): Promise<QueryResult<Result>>;
 function batch<Result extends QueryResultRow = QueryResultRow>(
   client: NodePostgresClientOrPoolClient,
   sqlOrSqls: SQL[],
-  options?: BatchQueryOptions,
+  options?: SQLQueryOptions | SQLCommandOptions,
 ): Promise<QueryResult<Result>[]>;
 async function batch<Result extends QueryResultRow = QueryResultRow>(
   client: NodePostgresClientOrPoolClient,
   sqlOrSqls: SQL | SQL[],
-  options?: BatchQueryOptions,
+  options?: SQLQueryOptions | SQLCommandOptions,
 ): Promise<QueryResult<Result> | QueryResult<Result>[]> {
   const sqls = Array.isArray(sqlOrSqls) ? sqlOrSqls : [sqlOrSqls];
   const results: QueryResult<Result>[] = Array<QueryResult<Result>>(

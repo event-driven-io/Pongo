@@ -17,8 +17,8 @@ void describe('sqliteSQLBuilder', () => {
       const expected = `
     CREATE TABLE IF NOT EXISTS "${collectionName}" (
       _id           TEXT           PRIMARY KEY,
-      data          TEXT           NOT NULL,
-      metadata      TEXT           NOT NULL     DEFAULT '{}',
+      data          JSON           NOT NULL,
+      metadata      JSON           NOT NULL     DEFAULT '{}',
       _version      INTEGER        NOT NULL     DEFAULT 1,
       _partition    TEXT           NOT NULL     DEFAULT 'png_global',
       _archived     INTEGER        NOT NULL     DEFAULT 0,

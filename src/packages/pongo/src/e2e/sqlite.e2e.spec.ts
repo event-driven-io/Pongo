@@ -691,8 +691,8 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
 
   void describe('Find Operations', () => {
     void it('should find documents with a filter', async () => {
-      const pongoCollection = pongoDb.collection<User>('testCollection');
-      const mongoCollection = mongoDb.collection<User>('shimtestCollection');
+      const pongoCollection = pongoDb.collection<User>('findWithFilter');
+      const mongoCollection = mongoDb.collection<User>('shimfindWithFilter');
       const docs = [
         { name: 'David', age: 40 },
         { name: 'Eve', age: 45 },

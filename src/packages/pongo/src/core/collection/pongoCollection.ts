@@ -1,4 +1,5 @@
 import {
+  mapColumnToJSON,
   runSQLMigrations,
   single,
   SQL,
@@ -9,6 +10,7 @@ import {
   type QueryResult,
   type QueryResultRow,
   type SQLExecutor,
+  type SQLQueryResultColumnMapping,
 } from '@event-driven-io/dumbo';
 import { v7 as uuid } from 'uuid';
 import {
@@ -79,6 +81,14 @@ export const transactionExecutorOrDefault = async <
   return existingTransaction?.execute ?? defaultSqlExecutor;
 };
 
+const columnMapping = {
+  mapping: {
+    ...mapColumnToJSON('data'),
+    //...mapColumnToJSON('metadata'),
+    //...mapColumnToBigint('_version'),
+  } satisfies SQLQueryResultColumnMapping,
+};
+
 export const pongoCollection = <
   T extends PongoDocument,
   DriverType extends DatabaseDriverType = DatabaseDriverType,
@@ -106,7 +116,7 @@ export const pongoCollection = <
   ) =>
     (await transactionExecutorOrDefault(db, options, sqlExecutor)).query<T>(
       sql,
-      { mapping: { resultColumnsToJson: ['data', 'metadata'] } },
+      columnMapping,
     );
 
   let shouldMigrate = schema?.autoMigration !== 'None';
@@ -206,7 +216,7 @@ export const pongoCollection = <
             result.rows[0]!.modified === result.rows[0]!.matched,
           modifiedCount: Number(result.rows[0]?.modified ?? 0),
           matchedCount: Number(result.rows[0]?.matched ?? 0),
-          nextExpectedVersion: result.rows[0]?.version ?? 0n,
+          nextExpectedVersion: BigInt(result.rows[0]?.version ?? 0n),
         },
         { operationName: 'updateOne', collectionName, errors },
       );
@@ -227,7 +237,7 @@ export const pongoCollection = <
           successful: result.rows.length > 0 && result.rows[0]!.modified > 0,
           modifiedCount: Number(result.rows[0]?.modified ?? 0),
           matchedCount: Number(result.rows[0]?.matched ?? 0),
-          nextExpectedVersion: result.rows[0]?.version ?? 0n,
+          nextExpectedVersion: BigInt(result.rows[0]?.version ?? 0n),
         },
         { operationName: 'replaceOne', collectionName, errors },
       );

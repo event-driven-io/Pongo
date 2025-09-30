@@ -1,12 +1,14 @@
 import type { SQLiteDriverType } from '..';
 import {
-  JSONSerializer,
+  mapSQLQueryResult,
   SQL,
   SQLFormatter,
   tracer,
   type DbSQLExecutor,
   type QueryResult,
   type QueryResultRow,
+  type SQLCommandOptions,
+  type SQLQueryOptions,
 } from '../../../../core';
 import type { Parameters, SQLiteClient } from '../connections';
 import { sqliteFormatter } from '../sql/formatter';
@@ -40,25 +42,20 @@ export const sqliteSQLExecutor = <
   formatter: formatter ?? sqliteFormatter,
 });
 
-export type BatchQueryOptions = {
-  timeoutMs?: number;
-  mapping?: { resultColumnsToJson?: string[] };
-};
-
 function batch<Result extends QueryResultRow = QueryResultRow>(
   client: SQLiteClient,
   sqlOrSqls: SQL,
-  options?: BatchQueryOptions,
+  options?: SQLQueryOptions | SQLCommandOptions,
 ): Promise<QueryResult<Result>>;
 function batch<Result extends QueryResultRow = QueryResultRow>(
   client: SQLiteClient,
   sqlOrSqls: SQL[],
-  options?: BatchQueryOptions,
+  options?: SQLQueryOptions | SQLCommandOptions,
 ): Promise<QueryResult<Result>[]>;
 async function batch<Result extends QueryResultRow = QueryResultRow>(
   client: SQLiteClient,
   sqlOrSqls: SQL | SQL[],
-  options?: BatchQueryOptions,
+  options?: SQLQueryOptions | SQLCommandOptions,
 ): Promise<QueryResult<Result> | QueryResult<Result>[]> {
   const sqls = Array.isArray(sqlOrSqls) ? sqlOrSqls : [sqlOrSqls];
   const results: QueryResult<Result>[] = Array<QueryResult<Result>>(
@@ -84,24 +81,8 @@ async function batch<Result extends QueryResultRow = QueryResultRow>(
 
     let result = await client.query<Result>(query, params as Parameters[]);
 
-    const columnsToJson = options?.mapping?.resultColumnsToJson;
-    if (columnsToJson?.length) {
-      result = result.map((row) => {
-        let changed = false;
-        const newRow = row as Record<string, unknown>;
-        for (const col of columnsToJson) {
-          const val = newRow[col];
-          if (typeof val === 'string') {
-            try {
-              newRow[col] = JSONSerializer.deserialize(val);
-              changed = true;
-            } catch {
-              // ignore parse errors
-            }
-          }
-        }
-        return changed ? (newRow as Result) : row;
-      });
+    if (options?.mapping) {
+      result = result.map((row) => mapSQLQueryResult(row, options.mapping!));
     }
 
     results[i] = { rowCount: result.length, rows: result };
