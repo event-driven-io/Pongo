@@ -13,10 +13,17 @@ export const handleOperator = (
   switch (operator) {
     case '$eq': {
       const jsonPath = buildJsonPath(path);
-      const serializedValue = JSONSerializer.serialize(value);
 
-      // For SQLite, we use json_extract and handle arrays differently
-      return SQL`(json_extract(data, '${SQL.plain(jsonPath)}') = json(${serializedValue}) OR EXISTS(SELECT 1 FROM json_each(data, '${SQL.plain(jsonPath)}') WHERE json_each.value = json(${serializedValue})))`;
+      return SQL`(
+        json_extract(data, '${SQL.plain(jsonPath)}') = ${value}
+        OR (
+          json_type(data, '${SQL.plain(jsonPath)}') = 'array'
+          AND EXISTS(
+            SELECT 1 FROM json_each(data, '${SQL.plain(jsonPath)}')
+            WHERE json_each.value = ${value}
+          )
+        )
+      )`;
     }
     case '$gt':
     case '$gte':

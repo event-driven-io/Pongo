@@ -81,7 +81,7 @@ export const sqliteSQLBuilder = (
     return SQL`
       UPDATE ${SQL.identifier(collectionName)}
       SET
-        data = json_patch(${updateQuery}, json_object('_id', _id, '_version', CAST((_version + 1) AS TEXT))),
+        data = json_patch(${updateQuery}, json_object('_id', _id, '_version', _version + 1)),
         _version = _version + 1,
         _updated = datetime('now')
       WHERE _id = (
@@ -109,7 +109,7 @@ export const sqliteSQLBuilder = (
     return SQL`
       UPDATE ${SQL.identifier(collectionName)}
       SET
-        data = json_patch(${JSONSerializer.serialize(document)}, json_object('_id', _id, '_version', CAST((_version + 1) AS TEXT))),
+        data = json_patch(${JSONSerializer.serialize(document)}, json_object('_id', _id, '_version', _version + 1)),
         _version = _version + 1,
         _updated = datetime('now')
       WHERE _id = (
@@ -133,10 +133,11 @@ export const sqliteSQLBuilder = (
     return SQL`
       UPDATE ${SQL.identifier(collectionName)}
       SET
-        data = json_patch(${updateQuery}, json_object('_version', CAST((_version + 1) AS TEXT))),
+        data = json_patch(${updateQuery}, json_object('_version', _version + 1)),
         _version = _version + 1,
         _updated = datetime('now')
-      ${where(filterQuery)};`;
+      ${where(filterQuery)}
+      RETURNING _id;`;
   },
   deleteOne: <T>(
     filter: PongoFilter<T> | SQL,
@@ -163,7 +164,7 @@ export const sqliteSQLBuilder = (
   deleteMany: <T>(filter: PongoFilter<T> | SQL): SQL => {
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
 
-    return SQL`DELETE FROM ${SQL.identifier(collectionName)} ${where(filterQuery)}`;
+    return SQL`DELETE FROM ${SQL.identifier(collectionName)} ${where(filterQuery)} RETURNING _id`;
   },
   findOne: <T>(filter: PongoFilter<T> | SQL): SQL => {
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
