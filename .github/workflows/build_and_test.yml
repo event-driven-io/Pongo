@@ -41,6 +41,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build sqlite3
+        run: npm install sqlite3 --build-from-source
+
       - name: Build TS
         run: npm run build:ts
 
