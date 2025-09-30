@@ -88,12 +88,14 @@
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "sqlite3": "^5.1.7"
+  },
   "peerDependencies": {
     "@types/pg": "^8.15.5",
     "pg": "^8.16.3",
     "pg-connection-string": "^2.9.1",
-    "uuid": "^13.0.0",
-    "sqlite3": "^5.1.7"
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.5.2"

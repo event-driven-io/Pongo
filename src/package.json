@@ -106,10 +106,11 @@
     "commander": "^14.0.1",
     "pg": "^8.16.3",
     "pg-connection-string": "^2.9.1",
-    "ansis": "^4.1.0",
+    "ansis": "^4.1.0"
+  },
+  "dependencies": {
     "sqlite3": "^5.1.7"
   },
-  "dependencies": {},
   "workspaces": [
     "packages/dumbo",
     "packages/pongo"
