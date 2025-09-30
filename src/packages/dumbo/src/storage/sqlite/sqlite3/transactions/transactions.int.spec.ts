@@ -3,8 +3,9 @@ import fs from 'fs';
 import { afterEach, describe, it } from 'node:test';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { InMemorySQLiteDatabase, sqlitePool } from '..';
+import { sqlite3Pool } from '..';
 import { SQL } from '../../../../core';
+import { InMemorySQLiteDatabase } from '../../core';
 
 void describe('SQLite Transactions', () => {
   const inMemoryfileName: string = InMemorySQLiteDatabase;
@@ -35,7 +36,7 @@ void describe('SQLite Transactions', () => {
   for (const { testName, fileName } of testCases) {
     void describe(`transactions with ${testName} database`, () => {
       void it('commits a nested transaction with pool', async () => {
-        const pool = sqlitePool({
+        const pool = sqlite3Pool({
           driverType: 'SQLite:sqlite3',
           fileName,
           allowNestedTransactions: true,
@@ -77,7 +78,7 @@ void describe('SQLite Transactions', () => {
         }
       });
       void it('should fail with an error if transaction nested is false', async () => {
-        const pool = sqlitePool({
+        const pool = sqlite3Pool({
           driverType: 'SQLite:sqlite3',
           fileName,
           allowNestedTransactions: false,
@@ -117,7 +118,7 @@ void describe('SQLite Transactions', () => {
       });
 
       void it('should try catch and roll back everything when the inner transaction errors for a pooled connection', async () => {
-        const pool = sqlitePool({
+        const pool = sqlite3Pool({
           driverType: 'SQLite:sqlite3',
           fileName,
           allowNestedTransactions: true,
@@ -158,7 +159,7 @@ void describe('SQLite Transactions', () => {
       });
 
       void it('should try catch and roll back everything when the outer transactions errors for a pooled connection', async () => {
-        const pool = sqlitePool({
+        const pool = sqlite3Pool({
           driverType: 'SQLite:sqlite3',
           fileName,
           singleton: true,
@@ -212,7 +213,7 @@ void describe('SQLite Transactions', () => {
       });
 
       void it('commits a nested transaction with singleton pool', async () => {
-        const pool = sqlitePool({
+        const pool = sqlite3Pool({
           driverType: 'SQLite:sqlite3',
           fileName,
           singleton: true,
@@ -259,7 +260,7 @@ void describe('SQLite Transactions', () => {
       });
 
       void it('transactions errors inside the nested inner transaction for a singleton should try catch and roll back everything', async () => {
-        const pool = sqlitePool({
+        const pool = sqlite3Pool({
           driverType: 'SQLite:sqlite3',
           fileName,
           allowNestedTransactions: true,
@@ -307,7 +308,7 @@ void describe('SQLite Transactions', () => {
       });
 
       void it('transactions errors inside the outer transaction for a singleton should try catch and roll back everything', async () => {
-        const pool = sqlitePool({
+        const pool = sqlite3Pool({
           driverType: 'SQLite:sqlite3',
           fileName,
           singleton: true,

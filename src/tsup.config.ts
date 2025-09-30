@@ -15,4 +15,5 @@ export default defineConfig({
   outDir: 'dist', //env === 'production' ? 'dist' : 'lib',
   entry: ['src/index.ts'],
   sourcemap: true,
+  external: ['sqlite3'],
 });
