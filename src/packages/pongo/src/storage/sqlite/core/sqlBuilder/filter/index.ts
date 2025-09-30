@@ -28,11 +28,10 @@ const constructComplexFilterQuery = (
   const isEquality = !hasOperators(value);
 
   return SQL.merge(
-    objectEntries(value).map(
-      ([nestedKey, val]) =>
-        isEquality
-          ? handleOperator(`${key}.${nestedKey}`, QueryOperators.$eq, val) // regular value
-          : handleOperator(key, nestedKey, val), // operator
+    objectEntries(value).map(([nestedKey, val]) =>
+      isEquality
+        ? handleOperator(`${key}.${nestedKey}`, QueryOperators.$eq, val)
+        : handleOperator(key, nestedKey, val),
     ),
     ` ${AND} `,
   );

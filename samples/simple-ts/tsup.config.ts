@@ -6,7 +6,7 @@ export default defineConfig({
   dts: true, // generate dts files
   format: ['cjs', 'esm'], // generate cjs and esm files
   minify: true, //env === 'production',
-  bundle: false, //env === 'production',
+  bundle: true, //env === 'production',
   skipNodeModulesBundle: true,
   target: 'esnext',
   outDir: 'dist', //env === 'production' ? 'dist' : 'lib',

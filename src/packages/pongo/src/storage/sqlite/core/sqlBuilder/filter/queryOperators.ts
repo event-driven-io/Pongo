@@ -69,7 +69,6 @@ export const handleOperator = (
       const jsonPath = buildJsonPath(path);
       const serializedValue = JSONSerializer.serialize(value);
 
-      // Check if all elements are present
       return SQL`(SELECT COUNT(*) FROM json_each(json(${serializedValue})) WHERE json_each.value NOT IN (SELECT value FROM json_each(data, '${SQL.plain(jsonPath)}'))) = 0`;
     }
     case '$size': {
