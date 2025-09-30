@@ -1,15 +1,67 @@
 import type { Connection } from '../connections';
 import { type DatabaseDriverType } from '../drivers';
 import type { QueryResult, QueryResultRow } from '../query';
+import { JSONSerializer, type JSONDeserializeOptions } from '../serializer';
 import { type SQL, type SQLFormatter } from '../sql';
+
+export const mapColumnToJSON = (
+  column: string,
+  options?: JSONDeserializeOptions,
+) => ({
+  [column]: (value: unknown) => {
+    if (typeof value === 'string') {
+      try {
+        return JSONSerializer.deserialize(value, options);
+      } catch {
+        // ignore
+      }
+    }
+
+    return value;
+  },
+});
+
+export const mapColumnToBigint = (column: string) => ({
+  [column]: (value: unknown) => {
+    if (typeof value === 'number' || typeof value === 'string') {
+      return BigInt(value);
+    }
+
+    return value;
+  },
+});
+
+export const mapSQLQueryResult = <T>(
+  result: T,
+  mapping: SQLQueryResultColumnMapping,
+) => {
+  if (typeof result !== 'object' || result === null) return result;
+
+  const mappedResult: Record<string, unknown> = {
+    ...(result as Record<string, unknown>),
+  };
+
+  for (const column of Object.keys(mapping)) {
+    if (column in mappedResult) {
+      mappedResult[column] = mapping[column]!(mappedResult[column]);
+    }
+  }
+
+  return mappedResult as T;
+};
+
+export type SQLQueryResultColumnMapping = {
+  [column: string]: (value: unknown) => unknown;
+};
 
 export type SQLQueryOptions = {
   timeoutMs?: number;
-  mapping?: { resultColumnsToJson?: string[] };
+  mapping?: SQLQueryResultColumnMapping;
 };
+
 export type SQLCommandOptions = {
   timeoutMs?: number;
-  mapping?: { resultColumnsToJson?: string[] };
+  mapping?: SQLQueryResultColumnMapping;
 };
 
 export interface DbSQLExecutor<

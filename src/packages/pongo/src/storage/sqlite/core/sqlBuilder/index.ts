@@ -77,11 +77,10 @@ export const sqliteSQLBuilder = (
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
     const updateQuery = isSQL(update) ? update : buildUpdateQuery(update);
 
-    // SQLite needs to handle both cases: when a row matches and when it doesn't
     return SQL`
       UPDATE ${SQL.identifier(collectionName)}
       SET
-        data = json_patch(${updateQuery}, json_object('_id', _id, '_version', _version + 1)),
+        data = json_patch(${updateQuery}, json_object('_id', _id, '_version', cast(_version + 1 as TEXT))),
         _version = _version + 1,
         _updated = datetime('now')
       WHERE _id = (
@@ -91,7 +90,7 @@ export const sqliteSQLBuilder = (
       ) ${expectedVersionCheck}
       RETURNING
         _id,
-        _version as version,
+        cast(_version as TEXT) as version,
         1 as matched,
         1 as modified;`;
   },
@@ -109,7 +108,7 @@ export const sqliteSQLBuilder = (
     return SQL`
       UPDATE ${SQL.identifier(collectionName)}
       SET
-        data = json_patch(${JSONSerializer.serialize(document)}, json_object('_id', _id, '_version', _version + 1)),
+        data = json_patch(${JSONSerializer.serialize(document)}, json_object('_id', _id, '_version', cast(_version + 1 as TEXT))),
         _version = _version + 1,
         _updated = datetime('now')
       WHERE _id = (
@@ -119,7 +118,7 @@ export const sqliteSQLBuilder = (
       ) ${expectedVersionCheck}
       RETURNING
         _id,
-        _version AS version,
+        cast(_version as TEXT) AS version,
         1 AS matched,
         1 AS modified;`;
   },
@@ -133,7 +132,7 @@ export const sqliteSQLBuilder = (
     return SQL`
       UPDATE ${SQL.identifier(collectionName)}
       SET
-        data = json_patch(${updateQuery}, json_object('_version', _version + 1)),
+        data = json_patch(${updateQuery}, json_object('_version', cast(_version + 1 as TEXT))),
         _version = _version + 1,
         _updated = datetime('now')
       ${where(filterQuery)}

@@ -8,15 +8,15 @@ interface JSONSerializer<
   deserialize<T>(payload: string, options?: DeserializeOptions): T;
 }
 
-type JSONSerializerOptions = {
+export type JSONSerializerOptions = {
   disableBigIntSerialization?: boolean;
 };
 
-type JSONSerializeOptions = {
+export type JSONSerializeOptions = {
   replacer?: JSONReplacer;
 } & JSONSerializerOptions;
 
-type JSONDeserializeOptions = {
+export type JSONDeserializeOptions = {
   reviver?: JSONReviver;
 } & JSONSerializerOptions;
 
