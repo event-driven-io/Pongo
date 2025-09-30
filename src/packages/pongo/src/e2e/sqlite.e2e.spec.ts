@@ -69,8 +69,12 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
     }
     try {
       fs.unlinkSync(fileName);
-      fs.unlinkSync(`${fileName}-shm`);
-      fs.unlinkSync(`${fileName}-wal`);
+      if (fs.existsSync(`${fileName}-shm`)) {
+        fs.unlinkSync(`${fileName}-shm`);
+      }
+      if (fs.existsSync(`${fileName}-wal`)) {
+        fs.unlinkSync(`${fileName}-wal`);
+      }
     } catch (error) {
       console.log('Error deleting file:', error);
     }

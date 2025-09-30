@@ -120,6 +120,9 @@
   "bin": {
     "pongo": "./dist/cli.js"
   },
+  "dependencies": {
+    "sqlite3": "^5.1.7"
+  },
   "peerDependencies": {
     "@event-driven-io/dumbo": "0.13.0-alpha.6",
     "@types/mongodb": "^4.0.7",
@@ -129,8 +132,7 @@
     "ansis": "^4.1.0",
     "cli-table3": "^0.6.5",
     "commander": "^14.0.1",
-    "pg-connection-string": "^2.9.1",
-    "sqlite3": "^5.1.7"
+    "pg-connection-string": "^2.9.1"
   },
   "devDependencies": {
     "@types/node": "^24.5.2"
