@@ -47,29 +47,52 @@ export type DatabaseSchemaComponent<Kind extends string = 'regular'> =
     schemas: ReadonlyArray<DatabaseSchemaSchemaComponent>;
   };
 
-export type DatabaseSchemaSchemaComponent<
-  ComponentType extends string = string,
-> = SchemaComponent<ComponentType> & {
-  schemaName: string;
-  tables: ReadonlyArray<TableSchemaComponent>;
+export const databaseSchemaComponent = <Kind extends string = 'regular'>({
+  kind,
+  databaseName,
+  schemas,
+  ...migrationsOrComponents
+}: {
+  kind?: Kind;
+  databaseName: string;
+  schemas: ReadonlyArray<DatabaseSchemaSchemaComponent>;
+} & SchemaComponentOptions): DatabaseSchemaComponent<Kind> => {
+  const component = schemaComponent<`sc:dumbo:database:${Kind}`>(
+    `sc:dumbo:database:${(kind ?? 'regular') as Kind}`,
+    migrationsOrComponents,
+  );
+
+  return {
+    ...component,
+    databaseName,
+    get schemas() {
+      return schemas;
+    },
+  };
 };
 
-export type TableSchemaComponent<ComponentType extends string = string> =
-  SchemaComponent<ComponentType> & {
-    tableName: string;
-    columns: ReadonlyArray<ColumnSchemaComponent>;
-    indexes: ReadonlyArray<IndexSchemaComponent>;
+export type DatabaseSchemaSchemaComponent<Kind extends string = 'regular'> =
+  SchemaComponent<`sc:dumbo:database_schema:${Kind}`> & {
+    schemaName: string;
+    tables: ReadonlyMap<string, TableSchemaComponent>;
   };
 
-export type ColumnSchemaComponent<ComponentType extends string = string> =
-  SchemaComponent<ComponentType> & {
+export type TableSchemaComponent<Kind extends string = 'regular'> =
+  SchemaComponent<`sc:dumbo:table:${Kind}`> & {
+    tableName: string;
+    columns: ReadonlyMap<string, ColumnSchemaComponent>;
+    indexes: ReadonlyMap<string, IndexSchemaComponent>;
+  };
+
+export type ColumnSchemaComponent<Kind extends string = 'regular'> =
+  SchemaComponent<`sc:dumbo:column:${Kind}`> & {
     columnName: string;
   };
 
-export type IndexSchemaComponent<ComponentType extends string = string> =
-  SchemaComponent<ComponentType> & {
+export type IndexSchemaComponent<Kind extends string = 'regular'> =
+  SchemaComponent<`sc:dumbo:index:${Kind}`> & {
     indexName: string;
-    columns: ReadonlyArray<string>;
+    columns: ReadonlyMap<string, ColumnSchemaComponent>;
     unique: boolean;
   };
 
