@@ -41,21 +41,37 @@ export const schemaComponent = <ComponentType extends string = string>(
   };
 };
 
-export type DatabaseSchemaComponent<ComponentType extends string = string> =
-  SchemaComponent<ComponentType>;
+export type DatabaseSchemaComponent<Kind extends string = 'regular'> =
+  SchemaComponent<`sc:dumbo:database:${Kind}`> & {
+    databaseName: string;
+    schemas: ReadonlyArray<DatabaseSchemaSchemaComponent>;
+  };
 
 export type DatabaseSchemaSchemaComponent<
   ComponentType extends string = string,
-> = SchemaComponent<ComponentType>;
+> = SchemaComponent<ComponentType> & {
+  schemaName: string;
+  tables: ReadonlyArray<TableSchemaComponent>;
+};
 
 export type TableSchemaComponent<ComponentType extends string = string> =
-  SchemaComponent<ComponentType>;
+  SchemaComponent<ComponentType> & {
+    tableName: string;
+    columns: ReadonlyArray<ColumnSchemaComponent>;
+    indexes: ReadonlyArray<IndexSchemaComponent>;
+  };
 
 export type ColumnSchemaComponent<ComponentType extends string = string> =
-  SchemaComponent<ComponentType>;
+  SchemaComponent<ComponentType> & {
+    columnName: string;
+  };
 
 export type IndexSchemaComponent<ComponentType extends string = string> =
-  SchemaComponent<ComponentType>;
+  SchemaComponent<ComponentType> & {
+    indexName: string;
+    columns: ReadonlyArray<string>;
+    unique: boolean;
+  };
 
 export type SchemaComponentMigrator = {
   component: SchemaComponent;
