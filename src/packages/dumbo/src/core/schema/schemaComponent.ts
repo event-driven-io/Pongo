@@ -5,13 +5,18 @@ import {
   type SQLMigration,
 } from './migrations';
 
-export type SchemaComponent<ComponentType extends string = string> = {
+export type SchemaComponent<
+  ComponentType extends string = string,
+  AdditionalOptions extends Record<string, unknown> = Record<string, unknown>,
+> = {
   schemaComponentType: ComponentType;
   components: ReadonlyArray<SchemaComponent>;
   migrations: ReadonlyArray<SQLMigration>;
-};
+} & AdditionalOptions;
 
-export type SchemaComponentOptions =
+export type SchemaComponentOptions<
+  AdditionalOptions = Record<string, unknown>,
+> = (
   | {
       migrations: ReadonlyArray<SQLMigration>;
       components?: never;
@@ -23,7 +28,9 @@ export type SchemaComponentOptions =
   | {
       migrations?: never;
       components: ReadonlyArray<SchemaComponent>;
-    };
+    }
+) &
+  Omit<AdditionalOptions, 'migrations' | 'components'>;
 
 export const schemaComponent = <ComponentType extends string = string>(
   type: ComponentType,
@@ -42,10 +49,13 @@ export const schemaComponent = <ComponentType extends string = string>(
 };
 
 export type DatabaseSchemaComponent<Kind extends string = 'regular'> =
-  SchemaComponent<`sc:dumbo:database:${Kind}`> & {
-    databaseName: string;
-    schemas: ReadonlyArray<DatabaseSchemaSchemaComponent>;
-  };
+  SchemaComponent<
+    `sc:dumbo:database:${Kind}`,
+    {
+      databaseName: string;
+      schemas: ReadonlyArray<DatabaseSchemaSchemaComponent>;
+    }
+  >;
 
 export const databaseSchemaComponent = <Kind extends string = 'regular'>({
   kind,
@@ -72,17 +82,23 @@ export const databaseSchemaComponent = <Kind extends string = 'regular'>({
 };
 
 export type DatabaseSchemaSchemaComponent<Kind extends string = 'regular'> =
-  SchemaComponent<`sc:dumbo:database_schema:${Kind}`> & {
-    schemaName: string;
-    tables: ReadonlyMap<string, TableSchemaComponent>;
-  };
+  SchemaComponent<
+    `sc:dumbo:database_schema:${Kind}`,
+    {
+      schemaName: string;
+      tables: ReadonlyMap<string, TableSchemaComponent>;
+    }
+  >;
 
 export type TableSchemaComponent<Kind extends string = 'regular'> =
-  SchemaComponent<`sc:dumbo:table:${Kind}`> & {
-    tableName: string;
-    columns: ReadonlyMap<string, ColumnSchemaComponent>;
-    indexes: ReadonlyMap<string, IndexSchemaComponent>;
-  };
+  SchemaComponent<
+    `sc:dumbo:table:${Kind}`,
+    {
+      tableName: string;
+      columns: ReadonlyMap<string, ColumnSchemaComponent>;
+      indexes: ReadonlyMap<string, IndexSchemaComponent>;
+    }
+  >;
 
 export type ColumnSchemaComponent<Kind extends string = 'regular'> =
   SchemaComponent<`sc:dumbo:column:${Kind}`> & {
