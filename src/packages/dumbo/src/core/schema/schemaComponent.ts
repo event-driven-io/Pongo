@@ -7,24 +7,46 @@ import {
 
 export type SchemaComponent<
   ComponentType extends string = string,
-  AdditionalOptions extends Record<string, unknown> = Record<string, unknown>,
+  AdditionalData extends Record<string, unknown> | undefined = undefined,
 > = {
   schemaComponentType: ComponentType;
   components: ReadonlyArray<SchemaComponent>;
   migrations: ReadonlyArray<SQLMigration>;
-} & AdditionalOptions;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  addComponent: (component: SchemaComponent<string, any>) => void;
+  addMigration: (migration: SQLMigration) => void;
+} & Omit<
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+  AdditionalData extends undefined ? {} : AdditionalData,
+  | 'schemaComponentType'
+  | 'components'
+  | 'migrations'
+  | 'addComponent'
+  | 'addMigration'
+>;
+
+export type ExtractAdditionalData<T> =
+  T extends SchemaComponent<infer _ComponentType, infer Data> ? Data : never;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnySchemaComponent = SchemaComponent<string, any>;
+export type AnySchemaComponentOfType<ComponentType extends string = string> =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  SchemaComponent<ComponentType, any>;
+
+export type MigrationsAndComponents = {
+  migrations: ReadonlyArray<SQLMigration>;
+  components: ReadonlyArray<SchemaComponent>;
+};
 
 export type SchemaComponentOptions<
-  AdditionalOptions = Record<string, unknown>,
+  AdditionalOptions extends Record<string, unknown> = Record<string, unknown>,
 > = (
   | {
       migrations: ReadonlyArray<SQLMigration>;
       components?: never;
     }
-  | {
-      migrations: ReadonlyArray<SQLMigration>;
-      components: ReadonlyArray<SchemaComponent>;
-    }
+  | MigrationsAndComponents
   | {
       migrations?: never;
       components: ReadonlyArray<SchemaComponent>;
@@ -32,12 +54,31 @@ export type SchemaComponentOptions<
 ) &
   Omit<AdditionalOptions, 'migrations' | 'components'>;
 
-export const schemaComponent = <ComponentType extends string = string>(
-  type: ComponentType,
-  migrationsOrComponents: SchemaComponentOptions,
-): SchemaComponent<ComponentType> => {
-  const components = migrationsOrComponents.components ?? [];
-  const migrations = migrationsOrComponents.migrations ?? [];
+export const schemaComponentFactory = <
+  SchemaComponentToCreate extends AnySchemaComponent = AnySchemaComponent,
+>(
+  ...args: ExtractAdditionalData<SchemaComponentToCreate> extends undefined
+    ? [
+        type: SchemaComponentToCreate['schemaComponentType'],
+        migrationsOrComponents: SchemaComponentOptions,
+      ]
+    : [
+        type: SchemaComponentToCreate['schemaComponentType'],
+        migrationsOrComponents: SchemaComponentOptions,
+        setup: (options: {
+          migrations: Array<SQLMigration>;
+          components: Array<SchemaComponent>;
+        }) => ExtractAdditionalData<SchemaComponentToCreate>,
+      ]
+): SchemaComponentToCreate => {
+  const [type, migrationsOrComponents, setup] = args;
+
+  const components: AnySchemaComponent[] = [
+    ...(migrationsOrComponents.components ?? []),
+  ];
+  const migrations: SQLMigration[] = [
+    ...(migrationsOrComponents.migrations ?? []),
+  ];
 
   return {
     schemaComponentType: type,
@@ -45,12 +86,65 @@ export const schemaComponent = <ComponentType extends string = string>(
     get migrations(): SQLMigration[] {
       return [...migrations, ...components.flatMap((c) => c.migrations)];
     },
+    addComponent: (component: SchemaComponent) => {
+      components.push(component);
+      migrations.push(...component.migrations);
+    },
+    addMigration: (migration: SQLMigration) => {
+      migrations.push(migration);
+    },
+    ...(setup
+      ? setup({ migrations, components })
+      : ({} as ExtractAdditionalData<SchemaComponentToCreate>)),
+  } satisfies SchemaComponent as unknown as SchemaComponentToCreate;
+};
+
+export type SchemaComponentType<Kind extends string = string> = `sc:${Kind}`;
+export type DumboSchemaComponentType<Kind extends string = string> =
+  SchemaComponentType<`dumbo:${Kind}`>;
+
+export const schemaComponent = <ComponentType extends string = string>(
+  type: ComponentType,
+  migrationsOrComponents: SchemaComponentOptions,
+): SchemaComponent<ComponentType> =>
+  schemaComponentFactory(type, migrationsOrComponents);
+
+export const isSchemaComponentOfKind = <
+  SchemaComponentOfKind extends AnySchemaComponent = AnySchemaComponent,
+>(
+  component: AnySchemaComponent,
+  kind: AnySchemaComponent['schemaComponentType'],
+): component is SchemaComponentOfKind =>
+  component.schemaComponentType.startsWith(kind);
+
+export const filterSchemaComponentsOfType = <T extends AnySchemaComponent>(
+  components: ReadonlyArray<AnySchemaComponent>,
+  typeGuard: (component: AnySchemaComponent) => component is T,
+): T[] => components.filter(typeGuard);
+
+export const findSchemaComponentsOfType = <T extends AnySchemaComponent>(
+  root: AnySchemaComponent,
+  typeGuard: (component: AnySchemaComponent) => component is T,
+): T[] => {
+  const results: T[] = [];
+
+  const traverse = (component: AnySchemaComponent) => {
+    if (typeGuard(component)) {
+      results.push(component);
+    }
+    for (const child of component.components) {
+      traverse(child);
+    }
   };
+
+  traverse(root);
+
+  return results;
 };
 
 export type DatabaseSchemaComponent<Kind extends string = 'regular'> =
   SchemaComponent<
-    `sc:dumbo:database:${Kind}`,
+    `sc:dumbo:database_schema:${Kind}`,
     {
       databaseName: string;
       schemas: ReadonlyArray<DatabaseSchemaSchemaComponent>;
@@ -67,18 +161,35 @@ export const databaseSchemaComponent = <Kind extends string = 'regular'>({
   databaseName: string;
   schemas: ReadonlyArray<DatabaseSchemaSchemaComponent>;
 } & SchemaComponentOptions): DatabaseSchemaComponent<Kind> => {
-  const component = schemaComponent<`sc:dumbo:database:${Kind}`>(
-    `sc:dumbo:database:${(kind ?? 'regular') as Kind}`,
-    migrationsOrComponents,
-  );
+  kind ??= 'regular' as Kind;
 
-  return {
-    ...component,
-    databaseName,
-    get schemas() {
-      return schemas;
+  const { migrations, components } = migrationsOrComponents;
+
+  return schemaComponentFactory(
+    `sc:dumbo:database_schema:${kind}`,
+    {
+      migrations: migrations ?? [],
+      components: [...(components ?? []), ...schemas],
     },
-  };
+    ({
+      components,
+    }: {
+      migrations: ReadonlyArray<SQLMigration>;
+      components: ReadonlyArray<SchemaComponent>;
+    }) => ({
+      databaseName,
+      get schemas() {
+        return filterSchemaComponentsOfType<
+          DatabaseSchemaSchemaComponent<Kind>
+        >(components, (c) =>
+          isSchemaComponentOfKind<DatabaseSchemaSchemaComponent<Kind>>(
+            c,
+            `sc:dumbo:database_schema:${kind}`,
+          ),
+        );
+      },
+    }),
+  );
 };
 
 export type DatabaseSchemaSchemaComponent<Kind extends string = 'regular'> =
@@ -119,7 +230,7 @@ export type SchemaComponentMigrator = {
 
 export const SchemaComponentMigrator = <DriverType extends DatabaseDriverType>(
   component: SchemaComponent,
-  dumbo: Dumbo,
+  dumbo: Dumbo<DriverType>,
 ): SchemaComponentMigrator => {
   const completedMigrations: string[] = [];
 
