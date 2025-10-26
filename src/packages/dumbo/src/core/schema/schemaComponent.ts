@@ -1,4 +1,4 @@
-import type { DatabaseDriverType, Dumbo } from '..';
+import { type DatabaseDriverType, type Dumbo } from '..';
 import {
   runSQLMigrations,
   type MigratorOptions,
@@ -34,45 +34,21 @@ export type AnySchemaComponentOfType<ComponentType extends string = string> =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   SchemaComponent<ComponentType, any>;
 
-export type MigrationsAndComponents = {
-  migrations: ReadonlyArray<SQLMigration>;
-  components: ReadonlyArray<SchemaComponent>;
-};
-
 export type SchemaComponentOptions<
   AdditionalOptions extends Record<string, unknown> = Record<string, unknown>,
-> = (
-  | {
-      migrations: ReadonlyArray<SQLMigration>;
-      components?: never;
-    }
-  | MigrationsAndComponents
-  | {
-      migrations?: never;
-      components: ReadonlyArray<SchemaComponent>;
-    }
-) &
-  Omit<AdditionalOptions, 'migrations' | 'components'>;
+> = {
+  migrations?: ReadonlyArray<SQLMigration>;
+  components?: ReadonlyArray<SchemaComponent>;
+} & Omit<AdditionalOptions, 'migrations' | 'components'>;
 
-export const schemaComponentFactory = <
-  SchemaComponentToCreate extends AnySchemaComponent = AnySchemaComponent,
->(
-  ...args: ExtractAdditionalData<SchemaComponentToCreate> extends undefined
-    ? [
-        type: SchemaComponentToCreate['schemaComponentType'],
-        migrationsOrComponents: SchemaComponentOptions,
-      ]
-    : [
-        type: SchemaComponentToCreate['schemaComponentType'],
-        migrationsOrComponents: SchemaComponentOptions,
-        setup: (options: {
-          migrations: Array<SQLMigration>;
-          components: Array<SchemaComponent>;
-        }) => ExtractAdditionalData<SchemaComponentToCreate>,
-      ]
-): SchemaComponentToCreate => {
-  const [type, migrationsOrComponents, setup] = args;
+export type SchemaComponentType<Kind extends string = string> = `sc:${Kind}`;
+export type DumboSchemaComponentType<Kind extends string = string> =
+  SchemaComponentType<`dumbo:${Kind}`>;
 
+export const schemaComponent = <ComponentType extends string = string>(
+  type: ComponentType,
+  migrationsOrComponents: SchemaComponentOptions,
+): SchemaComponent<ComponentType> => {
   const components: AnySchemaComponent[] = [
     ...(migrationsOrComponents.components ?? []),
   ];
@@ -93,29 +69,16 @@ export const schemaComponentFactory = <
     addMigration: (migration: SQLMigration) => {
       migrations.push(migration);
     },
-    ...(setup
-      ? setup({ migrations, components })
-      : ({} as ExtractAdditionalData<SchemaComponentToCreate>)),
-  } satisfies SchemaComponent as unknown as SchemaComponentToCreate;
+  };
 };
 
-export type SchemaComponentType<Kind extends string = string> = `sc:${Kind}`;
-export type DumboSchemaComponentType<Kind extends string = string> =
-  SchemaComponentType<`dumbo:${Kind}`>;
-
-export const schemaComponent = <ComponentType extends string = string>(
-  type: ComponentType,
-  migrationsOrComponents: SchemaComponentOptions,
-): SchemaComponent<ComponentType> =>
-  schemaComponentFactory(type, migrationsOrComponents);
-
-export const isSchemaComponentOfKind = <
-  SchemaComponentOfKind extends AnySchemaComponent = AnySchemaComponent,
+export const isSchemaComponentOfType = <
+  SchemaComponentOfType extends AnySchemaComponent = AnySchemaComponent,
 >(
   component: AnySchemaComponent,
-  kind: AnySchemaComponent['schemaComponentType'],
-): component is SchemaComponentOfKind =>
-  component.schemaComponentType.startsWith(kind);
+  type: AnySchemaComponent['schemaComponentType'],
+): component is SchemaComponentOfType =>
+  component.schemaComponentType.startsWith(type);
 
 export const filterSchemaComponentsOfType = <T extends AnySchemaComponent>(
   components: ReadonlyArray<AnySchemaComponent>,
@@ -142,86 +105,216 @@ export const findSchemaComponentsOfType = <T extends AnySchemaComponent>(
   return results;
 };
 
-export type DatabaseSchemaComponent<Kind extends string = 'regular'> =
-  SchemaComponent<
-    `sc:dumbo:database_schema:${Kind}`,
-    {
-      databaseName: string;
-      schemas: ReadonlyArray<DatabaseSchemaSchemaComponent>;
-    }
-  >;
+export type DatabaseSchemaComponent = SchemaComponent<
+  `sc:dumbo:database`,
+  {
+    databaseName: string;
+    schemas: ReadonlyMap<string, DatabaseSchemaSchemaComponent>;
+    //addSchema: (schema: DatabaseSchemaSchemaComponent) => void;
+  }
+>;
 
-export const databaseSchemaComponent = <Kind extends string = 'regular'>({
-  kind,
-  databaseName,
-  schemas,
-  ...migrationsOrComponents
-}: {
-  kind?: Kind;
-  databaseName: string;
-  schemas: ReadonlyArray<DatabaseSchemaSchemaComponent>;
-} & SchemaComponentOptions): DatabaseSchemaComponent<Kind> => {
-  kind ??= 'regular' as Kind;
+export type DatabaseSchemaSchemaComponent = SchemaComponent<
+  `sc:dumbo:database_schema`,
+  {
+    schemaName: string;
+    tables: ReadonlyMap<string, TableSchemaComponent>;
+  }
+>;
 
-  const { migrations, components } = migrationsOrComponents;
+export type TableSchemaComponent = SchemaComponent<
+  `sc:dumbo:table`,
+  {
+    tableName: string;
+    columns: ReadonlyMap<string, ColumnSchemaComponent>;
+    indexes: ReadonlyMap<string, IndexSchemaComponent>;
+  }
+>;
 
-  return schemaComponentFactory(
-    `sc:dumbo:database_schema:${kind}`,
-    {
-      migrations: migrations ?? [],
-      components: [...(components ?? []), ...schemas],
-    },
-    ({
-      components,
-    }: {
-      migrations: ReadonlyArray<SQLMigration>;
-      components: ReadonlyArray<SchemaComponent>;
-    }) => ({
-      databaseName,
-      get schemas() {
-        return filterSchemaComponentsOfType<
-          DatabaseSchemaSchemaComponent<Kind>
-        >(components, (c) =>
-          isSchemaComponentOfKind<DatabaseSchemaSchemaComponent<Kind>>(
-            c,
-            `sc:dumbo:database_schema:${kind}`,
-          ),
-        );
-      },
-    }),
-  );
+export type ColumnSchemaComponent = SchemaComponent<`sc:dumbo:column`> & {
+  columnName: string;
 };
 
-export type DatabaseSchemaSchemaComponent<Kind extends string = 'regular'> =
-  SchemaComponent<
-    `sc:dumbo:database_schema:${Kind}`,
-    {
-      schemaName: string;
-      tables: ReadonlyMap<string, TableSchemaComponent>;
-    }
-  >;
+export type IndexSchemaComponent = SchemaComponent<`sc:dumbo:index`> & {
+  indexName: string;
+  columns: ReadonlyMap<string, ColumnSchemaComponent>;
+  isUnique: boolean;
+};
 
-export type TableSchemaComponent<Kind extends string = 'regular'> =
-  SchemaComponent<
-    `sc:dumbo:table:${Kind}`,
-    {
-      tableName: string;
-      columns: ReadonlyMap<string, ColumnSchemaComponent>;
-      indexes: ReadonlyMap<string, IndexSchemaComponent>;
-    }
-  >;
+export const databaseSchemaComponent = ({
+  databaseName,
+  schemaNames,
+  ...migrationsOrComponents
+}: {
+  databaseName: string;
+  schemaNames?: string[];
+} & SchemaComponentOptions): DatabaseSchemaComponent => {
+  const migrations = migrationsOrComponents.migrations ?? [];
+  const components = migrationsOrComponents.components ?? [];
+  schemaNames = schemaNames ?? [];
 
-export type ColumnSchemaComponent<Kind extends string = 'regular'> =
-  SchemaComponent<`sc:dumbo:column:${Kind}`> & {
-    columnName: string;
+  const sc = schemaComponent(`sc:dumbo:database`, {
+    migrations,
+    components: [
+      ...components,
+      ...schemaNames.map((schemaName) =>
+        databaseSchemaSchemaComponent({ schemaName }),
+      ),
+    ],
+  });
+
+  return {
+    ...sc,
+    databaseName,
+    get schemas() {
+      return filterSchemaComponentsOfType<DatabaseSchemaSchemaComponent>(
+        sc.components,
+        (c) =>
+          isSchemaComponentOfType<DatabaseSchemaSchemaComponent>(
+            c,
+            `sc:dumbo:database`,
+          ),
+      ).reduce((map, schema) => {
+        map.set(schema.schemaName, schema);
+        return map;
+      }, new Map<string, DatabaseSchemaSchemaComponent>());
+    },
   };
+};
 
-export type IndexSchemaComponent<Kind extends string = 'regular'> =
-  SchemaComponent<`sc:dumbo:index:${Kind}`> & {
-    indexName: string;
-    columns: ReadonlyMap<string, ColumnSchemaComponent>;
-    unique: boolean;
+export const databaseSchemaSchemaComponent = ({
+  schemaName,
+  tableNames,
+  ...migrationsOrComponents
+}: {
+  schemaName: string;
+  tableNames?: string[];
+} & SchemaComponentOptions): DatabaseSchemaSchemaComponent => {
+  const migrations = migrationsOrComponents.migrations ?? [];
+  const components = migrationsOrComponents.components ?? [];
+  tableNames = tableNames ?? [];
+
+  const sc = schemaComponent(`sc:dumbo:database_schema`, {
+    migrations,
+    components: [
+      ...components,
+      ...tableNames.map((tableName) => tableSchemaComponent({ tableName })),
+    ],
+  });
+
+  return {
+    ...sc,
+    schemaName,
+    get tables() {
+      return filterSchemaComponentsOfType<TableSchemaComponent>(
+        sc.components,
+        (c) =>
+          isSchemaComponentOfType<TableSchemaComponent>(c, `sc:dumbo:table`),
+      ).reduce((map, table) => {
+        map.set(table.tableName, table);
+        return map;
+      }, new Map<string, TableSchemaComponent>());
+    },
   };
+};
+
+export const tableSchemaComponent = ({
+  tableName,
+  columnNames,
+  ...migrationsOrComponents
+}: {
+  tableName: string;
+  columnNames?: string[];
+} & SchemaComponentOptions): TableSchemaComponent => {
+  const migrations = migrationsOrComponents.migrations ?? [];
+  const components = migrationsOrComponents.components ?? [];
+  columnNames = columnNames ?? [];
+
+  const sc = schemaComponent(`sc:dumbo:table`, {
+    migrations,
+    components: [
+      ...components,
+      ...columnNames.map((columnName) => columnSchemaComponent({ columnName })),
+    ],
+  });
+
+  return {
+    ...sc,
+    tableName,
+    get columns() {
+      return filterSchemaComponentsOfType<ColumnSchemaComponent>(
+        sc.components,
+        (c) =>
+          isSchemaComponentOfType<ColumnSchemaComponent>(c, `sc:dumbo:column`),
+      ).reduce((map, column) => {
+        map.set(column.columnName, column);
+        return map;
+      }, new Map<string, ColumnSchemaComponent>());
+    },
+    get indexes() {
+      return filterSchemaComponentsOfType<IndexSchemaComponent>(
+        sc.components,
+        (c) =>
+          isSchemaComponentOfType<IndexSchemaComponent>(c, `sc:dumbo:index`),
+      ).reduce((map, index) => {
+        map.set(index.indexName, index);
+        return map;
+      }, new Map<string, IndexSchemaComponent>());
+    },
+  };
+};
+
+export const columnSchemaComponent = ({
+  columnName,
+  ...migrationsOrComponents
+}: {
+  columnName: string;
+} & SchemaComponentOptions): ColumnSchemaComponent => {
+  const sc = schemaComponent(`sc:dumbo:column`, migrationsOrComponents);
+
+  return {
+    ...sc,
+    columnName,
+  };
+};
+
+export const indexSchemaComponent = ({
+  indexName,
+  columnNames,
+  isUnique,
+  ...migrationsOrComponents
+}: {
+  indexName: string;
+  columnNames: string[];
+  isUnique: boolean;
+} & SchemaComponentOptions): IndexSchemaComponent => {
+  const migrations = migrationsOrComponents.migrations ?? [];
+  const components = migrationsOrComponents.components ?? [];
+
+  const sc = schemaComponent(`sc:dumbo:index`, {
+    migrations,
+    components: [
+      ...components,
+      ...columnNames.map((columnName) => columnSchemaComponent({ columnName })),
+    ],
+  });
+
+  return {
+    ...sc,
+    indexName,
+    get columns() {
+      return filterSchemaComponentsOfType<ColumnSchemaComponent>(
+        sc.components,
+        (c) =>
+          isSchemaComponentOfType<ColumnSchemaComponent>(c, `sc:dumbo:column`),
+      ).reduce((map, column) => {
+        map.set(column.columnName, column);
+        return map;
+      }, new Map<string, ColumnSchemaComponent>());
+    },
+    isUnique,
+  };
+};
 
 export type SchemaComponentMigrator = {
   component: SchemaComponent;
