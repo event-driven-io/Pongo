@@ -1,3 +1,4 @@
 export * from './components';
-export * from './migrations';
+export * from './migrators';
 export * from './schemaComponent';
+export * from './sqlMigration';
