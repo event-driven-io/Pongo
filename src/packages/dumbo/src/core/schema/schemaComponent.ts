@@ -124,13 +124,21 @@ export const isSchemaComponentOfType = <
 export const filterSchemaComponentsOfType = <T extends AnySchemaComponent>(
   components: ReadonlyMap<string, AnySchemaComponent>,
   prefix: string,
-): ReadonlyMap<string, T> => {
-  return new Map(
+): ReadonlyMap<string, T> => mapSchemaComponentsOfType<T>(components, prefix);
+
+export const mapSchemaComponentsOfType = <T extends AnySchemaComponent>(
+  components: ReadonlyMap<string, AnySchemaComponent>,
+  prefix: string,
+  keyMapper?: (component: T) => string,
+): ReadonlyMap<string, T> =>
+  new Map(
     Array.from(components.entries())
       .filter(([urn]) => urn.startsWith(prefix))
-      .map(([urn, component]) => [urn, component as T]),
+      .map(([urn, component]) => [
+        keyMapper ? keyMapper(component) : urn,
+        component as T,
+      ]),
   );
-};
 
 export const findSchemaComponentsOfType = <T extends AnySchemaComponent>(
   root: AnySchemaComponent,
@@ -215,9 +223,10 @@ export const databaseSchemaComponent = ({
     ...sc,
     databaseName,
     get schemas() {
-      return filterSchemaComponentsOfType<DatabaseSchemaSchemaComponent>(
+      return mapSchemaComponentsOfType<DatabaseSchemaSchemaComponent>(
         sc.components,
         schemaComponentURN.schema.type,
+        (c) => c.schemaName,
       );
     },
   };
@@ -243,9 +252,10 @@ export const databaseSchemaSchemaComponent = ({
     ...sc,
     schemaName,
     get tables() {
-      return filterSchemaComponentsOfType<TableSchemaComponent>(
+      return mapSchemaComponentsOfType<TableSchemaComponent>(
         sc.components,
         schemaComponentURN.table.type,
+        (c) => c.tableName,
       );
     },
   };
@@ -272,15 +282,17 @@ export const tableSchemaComponent = ({
     ...sc,
     tableName,
     get columns() {
-      return filterSchemaComponentsOfType<ColumnSchemaComponent>(
+      return mapSchemaComponentsOfType<ColumnSchemaComponent>(
         sc.components,
         schemaComponentURN.column.type,
+        (c) => c.columnName,
       );
     },
     get indexes() {
-      return filterSchemaComponentsOfType<IndexSchemaComponent>(
+      return mapSchemaComponentsOfType<IndexSchemaComponent>(
         sc.components,
         schemaComponentURN.index.type,
+        (c) => c.indexName,
       );
     },
   };
@@ -326,9 +338,10 @@ export const indexSchemaComponent = ({
     ...sc,
     indexName,
     get columns() {
-      return filterSchemaComponentsOfType<ColumnSchemaComponent>(
+      return mapSchemaComponentsOfType<ColumnSchemaComponent>(
         sc.components,
         schemaComponentURN.column.type,
+        (c) => c.columnName,
       );
     },
     isUnique,
@@ -349,16 +362,22 @@ export const SchemaComponentMigrator = <DriverType extends DatabaseDriverType>(
   return {
     component,
     run: async (options) => {
-      //TODO: name is not the safest choice here, so we might want to add an id or hash instead
       const pendingMigrations = component.migrations.filter(
-        (m) => !completedMigrations.includes(m.name),
+        (m) =>
+          !completedMigrations.includes(
+            `${component.schemaComponentKey}:${m.name}`,
+          ),
       );
 
       if (pendingMigrations.length === 0) return;
 
       await runSQLMigrations(dumbo, pendingMigrations, options);
 
-      completedMigrations.push(...pendingMigrations.map((m) => m.name));
+      completedMigrations.push(
+        ...pendingMigrations.map(
+          (m) => `${component.schemaComponentKey}:${m.name}`,
+        ),
+      );
     },
   };
 };
