@@ -5,6 +5,7 @@ import {
   type SchemaComponentOptions,
 } from '../schemaComponent';
 import {
+  ColumnURNType,
   columnSchemaComponent,
   type ColumnSchemaComponent,
 } from './columnSchemaComponent';
@@ -52,7 +53,7 @@ export const tableSchemaComponent = ({
     get columns() {
       return mapSchemaComponentsOfType<ColumnSchemaComponent>(
         sc.components,
-        TableURNType,
+        ColumnURNType,
         (c) => c.columnName,
       );
     },
