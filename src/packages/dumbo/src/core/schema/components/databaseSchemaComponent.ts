@@ -5,6 +5,7 @@ import {
   type SchemaComponentOptions,
 } from '../schemaComponent';
 import {
+  DatabaseSchemaURNType,
   databaseSchemaSchemaComponent,
   type DatabaseSchemaSchemaComponent,
 } from './databaseSchemaSchemaComponent';
@@ -48,7 +49,7 @@ export const databaseSchemaComponent = ({
     get schemas() {
       return mapSchemaComponentsOfType<DatabaseSchemaSchemaComponent>(
         sc.components,
-        DatabaseURNType,
+        DatabaseSchemaURNType,
         (c) => c.schemaName,
       );
     },
