@@ -1,48 +1,10 @@
-import { type DatabaseDriverType, type Dumbo } from '..';
+import { SQL, type DatabaseDriverType, type Dumbo } from '..';
 import {
   runSQLMigrations,
+  sqlMigration,
   type MigratorOptions,
   type SQLMigration,
 } from './migrations';
-
-export type DatabaseURNType = 'sc:dumbo:database';
-export type SchemaURNType = 'sc:dumbo:schema';
-export type TableURNType = 'sc:dumbo:table';
-export type ColumnURNType = 'sc:dumbo:column';
-export type IndexURNType = 'sc:dumbo:index';
-
-export type DatabaseURN = `${DatabaseURNType}:${string}`;
-export type SchemaURN = `${SchemaURNType}:${string}`;
-export type TableURN = `${TableURNType}:${string}`;
-export type ColumnURN = `${ColumnURNType}:${string}`;
-export type IndexURN = `${IndexURNType}:${string}`;
-
-export const schemaComponentURN = {
-  database: {
-    type: 'sc:dumbo:database' as DatabaseURNType,
-    build: (name: string): DatabaseURN => `sc:dumbo:database:${name}`,
-  },
-  schema: {
-    type: 'sc:dumbo:schema' as SchemaURNType,
-    build: (name: string): SchemaURN => `sc:dumbo:schema:${name}`,
-  },
-  table: {
-    type: 'sc:dumbo:table' as TableURNType,
-    build: (name: string): TableURN => `sc:dumbo:table:${name}`,
-  },
-  column: {
-    type: 'sc:dumbo:column' as ColumnURNType,
-    build: (name: string): ColumnURN => `sc:dumbo:column:${name}`,
-  },
-  index: {
-    type: 'sc:dumbo:index' as IndexURNType,
-    build: (name: string): IndexURN => `sc:dumbo:index:${name}`,
-  },
-  extractName: (urn: string): string => {
-    const parts = urn.split(':');
-    return parts[parts.length - 1] || '';
-  },
-} as const;
 
 export type SchemaComponent<
   ComponentKey extends string = string,
@@ -81,6 +43,7 @@ export type SchemaComponentOptions<
 } & Omit<AdditionalOptions, 'migrations' | 'components'>;
 
 export type SchemaComponentType<Kind extends string = string> = `sc:${Kind}`;
+
 export type DumboSchemaComponentType<Kind extends string = string> =
   SchemaComponentType<`dumbo:${Kind}`>;
 
@@ -160,193 +123,24 @@ export const findSchemaComponentsOfType = <T extends AnySchemaComponent>(
   return results;
 };
 
-export type DatabaseSchemaComponent = SchemaComponent<
-  DatabaseURN,
-  Readonly<{
-    databaseName: string;
-    schemas: ReadonlyMap<string, DatabaseSchemaSchemaComponent>;
-  }>
->;
+const { AutoIncrement, Varchar, Timestamp } = SQL.column.type;
 
-export type DatabaseSchemaSchemaComponent = SchemaComponent<
-  SchemaURN,
-  Readonly<{
-    schemaName: string;
-    tables: ReadonlyMap<string, TableSchemaComponent>;
-  }>
->;
-
-export type TableSchemaComponent = SchemaComponent<
-  TableURN,
-  Readonly<{
-    tableName: string;
-    columns: ReadonlyMap<string, ColumnSchemaComponent>;
-    indexes: ReadonlyMap<string, IndexSchemaComponent>;
-  }>
->;
-
-export type ColumnSchemaComponent = SchemaComponent<
-  ColumnURN,
-  Readonly<{
-    columnName: string;
-  }>
->;
-
-export type IndexSchemaComponent = SchemaComponent<
-  IndexURN,
-  Readonly<{
-    indexName: string;
-    columns: ReadonlyMap<string, ColumnSchemaComponent>;
-    isUnique: boolean;
-  }>
->;
-
-export const databaseSchemaComponent = ({
-  databaseName,
-  schemaNames,
-  ...migrationsOrComponents
-}: {
-  databaseName: string;
-  schemaNames?: string[];
-} & SchemaComponentOptions): DatabaseSchemaComponent => {
-  const schemas =
-    schemaNames?.map((schemaName) =>
-      databaseSchemaSchemaComponent({ schemaName }),
-    ) ?? [];
-
-  const sc = schemaComponent(schemaComponentURN.database.build(databaseName), {
-    migrations: migrationsOrComponents.migrations ?? [],
-    components: [...(migrationsOrComponents.components ?? []), ...schemas],
-  });
-
-  return {
-    ...sc,
-    databaseName,
-    get schemas() {
-      return mapSchemaComponentsOfType<DatabaseSchemaSchemaComponent>(
-        sc.components,
-        schemaComponentURN.schema.type,
-        (c) => c.schemaName,
-      );
-    },
-  };
-};
-
-export const databaseSchemaSchemaComponent = ({
-  schemaName,
-  tableNames,
-  ...migrationsOrComponents
-}: {
-  schemaName: string;
-  tableNames?: string[];
-} & SchemaComponentOptions): DatabaseSchemaSchemaComponent => {
-  const tables =
-    tableNames?.map((tableName) => tableSchemaComponent({ tableName })) ?? [];
-
-  const sc = schemaComponent(schemaComponentURN.schema.build(schemaName), {
-    migrations: migrationsOrComponents.migrations ?? [],
-    components: [...(migrationsOrComponents.components ?? []), ...tables],
-  });
-
-  return {
-    ...sc,
-    schemaName,
-    get tables() {
-      return mapSchemaComponentsOfType<TableSchemaComponent>(
-        sc.components,
-        schemaComponentURN.table.type,
-        (c) => c.tableName,
-      );
-    },
-  };
-};
-
-export const tableSchemaComponent = ({
-  tableName,
-  columnNames,
-  ...migrationsOrComponents
-}: {
-  tableName: string;
-  columnNames?: string[];
-} & SchemaComponentOptions): TableSchemaComponent => {
-  const columns =
-    columnNames?.map((columnName) => columnSchemaComponent({ columnName })) ??
-    [];
-
-  const sc = schemaComponent(schemaComponentURN.table.build(tableName), {
-    migrations: migrationsOrComponents.migrations ?? [],
-    components: [...(migrationsOrComponents.components ?? []), ...columns],
-  });
-
-  return {
-    ...sc,
-    tableName,
-    get columns() {
-      return mapSchemaComponentsOfType<ColumnSchemaComponent>(
-        sc.components,
-        schemaComponentURN.column.type,
-        (c) => c.columnName,
-      );
-    },
-    get indexes() {
-      return mapSchemaComponentsOfType<IndexSchemaComponent>(
-        sc.components,
-        schemaComponentURN.index.type,
-        (c) => c.indexName,
-      );
-    },
-  };
-};
-
-export const columnSchemaComponent = ({
-  columnName,
-  ...migrationsOrComponents
-}: {
-  columnName: string;
-} & SchemaComponentOptions): ColumnSchemaComponent => {
-  const sc = schemaComponent(
-    schemaComponentURN.column.build(columnName),
-    migrationsOrComponents,
+const migrationTableSQL = SQL`
+  CREATE TABLE IF NOT EXISTS migrations (
+    id ${AutoIncrement({ primaryKey: true })},
+    name ${Varchar(255)} NOT NULL UNIQUE,
+    application ${Varchar(255)} NOT NULL DEFAULT 'default',
+    sql_hash ${Varchar(64)} NOT NULL,
+    timestamp ${Timestamp} NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+`;
 
-  return {
-    ...sc,
-    columnName,
-  };
-};
-
-export const indexSchemaComponent = ({
-  indexName,
-  columnNames,
-  isUnique,
-  ...migrationsOrComponents
-}: {
-  indexName: string;
-  columnNames: string[];
-  isUnique: boolean;
-} & SchemaComponentOptions): IndexSchemaComponent => {
-  const columns = columnNames.map((columnName) =>
-    columnSchemaComponent({ columnName }),
-  );
-
-  const sc = schemaComponent(schemaComponentURN.index.build(indexName), {
-    migrations: migrationsOrComponents.migrations ?? [],
-    components: [...(migrationsOrComponents.components ?? []), ...columns],
-  });
-
-  return {
-    ...sc,
-    indexName,
-    get columns() {
-      return mapSchemaComponentsOfType<ColumnSchemaComponent>(
-        sc.components,
-        schemaComponentURN.column.type,
-        (c) => c.columnName,
-      );
-    },
-    isUnique,
-  };
-};
+export const migrationTableSchemaComponent = schemaComponent(
+  'dumbo:schema-component:migrations-table',
+  {
+    migrations: [sqlMigration('dumbo:migrationTable:001', [migrationTableSQL])],
+  },
+);
 
 export type SchemaComponentMigrator = {
   component: SchemaComponent;
