@@ -1,17 +1,17 @@
 import {
   columnSchemaComponent,
   type ColumnSchemaComponent,
+  databaseSchemaComponent,
+  type DatabaseSchemaComponent,
+  databaseSchemaSchemaComponent,
+  type DatabaseSchemaSchemaComponent,
   indexSchemaComponent,
   type IndexSchemaComponent,
   tableSchemaComponent,
   type TableSchemaComponent,
-  databaseSchemaSchemaComponent,
-  type DatabaseSchemaSchemaComponent,
-  databaseSchemaComponent,
-  type DatabaseSchemaComponent,
 } from '../components';
 import type { SchemaComponentOptions } from '../schemaComponent';
-import { DEFAULT_SCHEMA, DATABASE_DEFAULTS } from './constants';
+import { DATABASE_DEFAULTS, DEFAULT_SCHEMA } from './constants';
 
 const dumboColumn = (
   name: string,
@@ -116,7 +116,7 @@ const dumboDatabase = (
 
   const schemaComponents: DatabaseSchemaSchemaComponent[] = [];
 
-  for (const [key, schemaComponent] of Object.entries(schemaMap)) {
+  for (const [_, schemaComponent] of Object.entries(schemaMap)) {
     schemaComponents.push(schemaComponent);
   }
 
