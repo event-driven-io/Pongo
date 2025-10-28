@@ -1,35 +1,18 @@
-import type { Dumbo } from '..';
-import { type DatabaseType, fromDatabaseDriverType } from '../drivers';
-import type { SQLExecutor } from '../execute';
+import { type Dumbo } from '../..';
+import { type DatabaseType, fromDatabaseDriverType } from '../../drivers';
+import type { SQLExecutor } from '../../execute';
 import {
   type DatabaseLock,
   type DatabaseLockOptions,
   NoDatabaseLock,
-} from '../locks';
-import { mapToCamelCase, singleOrNull } from '../query';
-import { getFormatter, SQL, type SQLFormatter } from '../sql';
-import { tracer } from '../tracing';
-import { type SchemaComponent } from './schemaComponent';
+} from '../../locks';
+import { mapToCamelCase, singleOrNull } from '../../query';
+import { SQL, SQLFormatter, getFormatter } from '../../sql';
+import { tracer } from '../../tracing';
+import { type SchemaComponent } from '../schemaComponent';
+import type { MigrationRecord, SQLMigration } from '../sqlMigration';
+import { migrationTableSchemaComponent } from './schemaComponentMigrator';
 
-export type MigrationStyle = 'None' | 'CreateOrUpdate';
-
-export type SQLMigration = {
-  name: string;
-  sqls: SQL[];
-};
-
-export const sqlMigration = (name: string, sqls: SQL[]): SQLMigration => ({
-  name,
-  sqls,
-});
-
-export type MigrationRecord = {
-  id: number;
-  name: string;
-  application: string;
-  sqlHash: string;
-  timestamp: Date;
-};
 export const MIGRATIONS_LOCK_ID = 999956789;
 
 declare global {
