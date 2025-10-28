@@ -9,7 +9,7 @@ import {
 import { mapToCamelCase, singleOrNull } from '../query';
 import { getFormatter, SQL, type SQLFormatter } from '../sql';
 import { tracer } from '../tracing';
-import { schemaComponent, type SchemaComponent } from './schemaComponent';
+import { type SchemaComponent } from './schemaComponent';
 
 export type MigrationStyle = 'None' | 'CreateOrUpdate';
 
@@ -31,25 +31,6 @@ export type MigrationRecord = {
   timestamp: Date;
 };
 export const MIGRATIONS_LOCK_ID = 999956789;
-
-const { AutoIncrement, Varchar, Timestamp } = SQL.column.type;
-
-const migrationTableSQL = SQL`
-  CREATE TABLE IF NOT EXISTS migrations (
-    id ${AutoIncrement({ primaryKey: true })},
-    name ${Varchar(255)} NOT NULL UNIQUE,
-    application ${Varchar(255)} NOT NULL DEFAULT 'default',
-    sql_hash ${Varchar(64)} NOT NULL,
-    timestamp ${Timestamp} NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );
-`;
-
-export const migrationTableSchemaComponent = schemaComponent(
-  'dumbo:schema-component:migrations-table',
-  {
-    migrations: [sqlMigration('dumbo:migrationTable:001', [migrationTableSQL])],
-  },
-);
 
 declare global {
   var defaultMigratorOptions: Record<DatabaseType, MigratorOptions>;
