@@ -10,10 +10,11 @@ import {
   type TableSchemaComponent,
 } from './tableSchemaComponent';
 
-export type DatabaseSchemaURNType = 'sc:dumbo:schema';
+export type DatabaseSchemaURNType = 'sc:dumbo:database_schema';
 export type DatabaseSchemaURN = `${DatabaseSchemaURNType}:${string}`;
 
-export const DatabaseSchemaURNType: DatabaseSchemaURNType = 'sc:dumbo:schema';
+export const DatabaseSchemaURNType: DatabaseSchemaURNType =
+  'sc:dumbo:database_schema';
 export const DatabaseSchemaURN = ({
   name,
 }: {

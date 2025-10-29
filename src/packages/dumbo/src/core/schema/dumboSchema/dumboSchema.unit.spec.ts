@@ -62,8 +62,24 @@ void describe('dumboSchema', () => {
       }),
     });
 
-    assert.strictEqual(sch.schemaName, '');
+    assert.strictEqual(sch.schemaName, dumboSchema.schema.defaultName);
     assert.strictEqual(sch.tables.size, 1);
+  });
+
+  void it('should create a default database', () => {
+    const db = dumboSchema.database({
+      public: dumboSchema.schema('public', {
+        users: dumboSchema.table('users', {
+          columns: {
+            id: dumboSchema.column('id'),
+          },
+        }),
+      }),
+    });
+
+    assert.strictEqual(db.databaseName, dumboSchema.database.defaultName);
+    assert.strictEqual(db.schemas.size, 1);
+    assert.ok(db.schemas.has('public'));
   });
 
   void it('should create a named database', () => {
@@ -85,23 +101,18 @@ void describe('dumboSchema', () => {
   void it('should handle DEFAULT_SCHEMA', () => {
     const db = dumboSchema.database(
       'myapp',
-      {
-        [dumboSchema.DEFAULT_SCHEMA]: dumboSchema.schema({
-          users: dumboSchema.table('users', {
-            columns: {
-              id: dumboSchema.column('id'),
-            },
-          }),
+      dumboSchema.schema({
+        users: dumboSchema.table('users', {
+          columns: {
+            id: dumboSchema.column('id'),
+          },
         }),
-      },
-      {
-        defaultSchemaName: 'main',
-      },
+      }),
     );
 
     assert.strictEqual(db.databaseName, 'myapp');
     assert.strictEqual(db.schemas.size, 1);
-    assert.ok(db.schemas.has('main'));
+    assert.ok(db.schemas.has(dumboSchema.schema.defaultName));
   });
 
   void it('should create schema from table names', () => {
@@ -122,25 +133,20 @@ void describe('dumboSchema', () => {
 // Simple database with tables in default schema
 export const simpleDb = dumboSchema.database(
   'myapp',
-  {
-    [dumboSchema.DEFAULT_SCHEMA]: dumboSchema.schema({
-      users: dumboSchema.table('users', {
-        columns: {
-          id: dumboSchema.column('id'),
-          email: dumboSchema.column('email'),
-          name: dumboSchema.column('name'),
-        },
-        indexes: {
-          idx_email: dumboSchema.index('idx_email', ['email'], {
-            unique: true,
-          }),
-        },
-      }),
+  dumboSchema.schema({
+    users: dumboSchema.table('users', {
+      columns: {
+        id: dumboSchema.column('id'),
+        email: dumboSchema.column('email'),
+        name: dumboSchema.column('name'),
+      },
+      indexes: {
+        idx_email: dumboSchema.index('idx_email', ['email'], {
+          unique: true,
+        }),
+      },
     }),
-  },
-  {
-    defaultSchemaName: 'public', // PostgreSQL default
-  },
+  }),
 );
 
 // Database with multiple schemas
