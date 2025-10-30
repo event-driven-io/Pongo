@@ -61,26 +61,33 @@ const dumboTable = (
   });
 };
 
-const dumboDatabaseSchema = (
+function dumboDatabaseSchema(
+  tables: Record<string, TableSchemaComponent>,
+): DatabaseSchemaSchemaComponent;
+function dumboDatabaseSchema(
+  schemaName: string,
+  tables: Record<string, TableSchemaComponent>,
+  options?: SchemaComponentOptions,
+): DatabaseSchemaSchemaComponent;
+function dumboDatabaseSchema(
   nameOrTables: string | Record<string, TableSchemaComponent>,
   tables?: Record<string, TableSchemaComponent>,
   options?: SchemaComponentOptions,
-): DatabaseSchemaSchemaComponent => {
-  if (typeof nameOrTables === 'string') {
-    const tableComponents = Object.values(tables || {});
-    return databaseSchemaSchemaComponent({
-      schemaName: nameOrTables,
-      components: tableComponents,
-      ...options,
-    });
-  } else {
-    const tableComponents = Object.values(nameOrTables || {});
-    return databaseSchemaSchemaComponent({
-      schemaName: DEFAULT_DATABASE_SCHEMA_NAME,
-      components: tableComponents,
-    });
-  }
-};
+): DatabaseSchemaSchemaComponent {
+  const schemaName =
+    typeof nameOrTables === 'string'
+      ? nameOrTables
+      : DEFAULT_DATABASE_SCHEMA_NAME;
+  const components = Object.values(
+    (typeof nameOrTables === 'string' ? tables : nameOrTables) ?? {},
+  );
+
+  return databaseSchemaSchemaComponent({
+    schemaName,
+    components,
+    ...options,
+  });
+}
 
 dumboDatabaseSchema.from = (
   schemaName: string | undefined,
@@ -99,7 +106,23 @@ dumboDatabaseSchema.from = (
     : dumboDatabaseSchema(tables);
 };
 
-const dumboDatabase = (
+function dumboDatabase(
+  schemas: Record<string, DatabaseSchemaSchemaComponent>,
+): DatabaseSchemaComponent;
+function dumboDatabase(
+  schema: DatabaseSchemaSchemaComponent,
+): DatabaseSchemaComponent;
+function dumboDatabase(
+  databaseName: string,
+  schemas: Record<string, DatabaseSchemaSchemaComponent>,
+  options?: SchemaComponentOptions,
+): DatabaseSchemaComponent;
+function dumboDatabase(
+  databaseName: string,
+  schema: DatabaseSchemaSchemaComponent,
+  options?: SchemaComponentOptions,
+): DatabaseSchemaComponent;
+function dumboDatabase(
   nameOrSchemas:
     | string
     | DatabaseSchemaSchemaComponent
@@ -109,7 +132,7 @@ const dumboDatabase = (
     | Record<string, DatabaseSchemaSchemaComponent>
     | SchemaComponentOptions,
   options?: SchemaComponentOptions,
-): DatabaseSchemaComponent => {
+): DatabaseSchemaComponent {
   const databaseName =
     typeof nameOrSchemas === 'string' ? nameOrSchemas : DEFAULT_DATABASE_NAME;
 
@@ -145,7 +168,7 @@ const dumboDatabase = (
     components: schemaComponents,
     ...dbOptions,
   });
-};
+}
 
 dumboDatabase.from = (
   databaseName: string | undefined,
