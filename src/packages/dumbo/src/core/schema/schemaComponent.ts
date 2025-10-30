@@ -2,7 +2,16 @@ import { type SQLMigration } from './sqlMigration';
 
 export type SchemaComponent<
   ComponentKey extends string = string,
-  AdditionalData extends Record<string, unknown> | undefined = undefined,
+  AdditionalData extends
+    | Exclude<
+        Record<string, unknown>,
+        | 'schemaComponentKey'
+        | 'components'
+        | 'migrations'
+        | 'addComponent'
+        | 'addMigration'
+      >
+    | undefined = undefined,
 > = {
   schemaComponentKey: ComponentKey;
   components: ReadonlyMap<string, SchemaComponent>;
@@ -10,7 +19,7 @@ export type SchemaComponent<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   addComponent: (component: SchemaComponent<string, any>) => void;
   addMigration: (migration: SQLMigration) => void;
-} & Omit<
+} & Exclude<
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   AdditionalData extends undefined ? {} : AdditionalData,
   | 'schemaComponentKey'
