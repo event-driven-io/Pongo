@@ -22,6 +22,9 @@ export type DatabaseSchemaComponent = SchemaComponent<
   Readonly<{
     databaseName: string;
     schemas: ReadonlyMap<string, DatabaseSchemaSchemaComponent>;
+    addSchema: (
+      schema: string | DatabaseSchemaSchemaComponent,
+    ) => DatabaseSchemaSchemaComponent;
   }>
 >;
 
@@ -38,20 +41,26 @@ export const databaseSchemaComponent = ({
       databaseSchemaSchemaComponent({ schemaName }),
     ) ?? [];
 
-  const sc = schemaComponent(DatabaseURN({ name: databaseName }), {
+  const base = schemaComponent(DatabaseURN({ name: databaseName }), {
     migrations: migrationsOrComponents.migrations ?? [],
     components: [...(migrationsOrComponents.components ?? []), ...schemas],
   });
 
   return {
-    ...sc,
+    ...base,
     databaseName,
     get schemas() {
       return mapSchemaComponentsOfType<DatabaseSchemaSchemaComponent>(
-        sc.components,
+        base.components,
         DatabaseSchemaURNType,
         (c) => c.schemaName,
       );
     },
+    addSchema: (schema: string | DatabaseSchemaSchemaComponent) =>
+      base.addComponent(
+        typeof schema === 'string'
+          ? databaseSchemaSchemaComponent({ schemaName: schema })
+          : schema,
+      ),
   };
 };

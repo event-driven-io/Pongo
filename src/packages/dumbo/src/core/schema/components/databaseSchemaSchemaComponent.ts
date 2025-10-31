@@ -26,6 +26,7 @@ export type DatabaseSchemaSchemaComponent = SchemaComponent<
   Readonly<{
     schemaName: string;
     tables: ReadonlyMap<string, TableSchemaComponent>;
+    addTable: (table: string | TableSchemaComponent) => TableSchemaComponent;
   }>
 >;
 
@@ -40,20 +41,26 @@ export const databaseSchemaSchemaComponent = ({
   const tables =
     tableNames?.map((tableName) => tableSchemaComponent({ tableName })) ?? [];
 
-  const sc = schemaComponent(DatabaseSchemaURN({ name: schemaName }), {
+  const base = schemaComponent(DatabaseSchemaURN({ name: schemaName }), {
     migrations: migrationsOrComponents.migrations ?? [],
     components: [...(migrationsOrComponents.components ?? []), ...tables],
   });
 
   return {
-    ...sc,
+    ...base,
     schemaName,
     get tables() {
       return mapSchemaComponentsOfType<TableSchemaComponent>(
-        sc.components,
+        base.components,
         TableURNType,
         (c) => c.tableName,
       );
     },
+    addTable: (table: string | TableSchemaComponent) =>
+      base.addComponent(
+        typeof table === 'string'
+          ? tableSchemaComponent({ tableName: table })
+          : table,
+      ),
   };
 };

@@ -16,8 +16,20 @@ export type SchemaComponent<
   schemaComponentKey: ComponentKey;
   components: ReadonlyMap<string, SchemaComponent>;
   migrations: ReadonlyArray<SQLMigration>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  addComponent: (component: SchemaComponent<string, any>) => void;
+
+  addComponent: <
+    SchemaComponentType extends SchemaComponent<
+      string,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      Record<string, any>
+    > = SchemaComponent<
+      string,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      Record<string, any>
+    >,
+  >(
+    component: SchemaComponentType,
+  ) => SchemaComponentType;
   addMigration: (migration: SQLMigration) => void;
 } & Exclude<
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
@@ -33,7 +45,8 @@ export type ExtractAdditionalData<T> =
   T extends SchemaComponent<infer _ComponentType, infer Data> ? Data : never;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnySchemaComponent = SchemaComponent<string, any>;
+export type AnySchemaComponent = SchemaComponent<string, Record<string, any>>;
+
 export type AnySchemaComponentOfType<ComponentType extends string = string> =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   SchemaComponent<ComponentType, any>;
@@ -69,9 +82,14 @@ export const schemaComponent = <ComponentKey extends string = string>(
         ...Array.from(componentsMap.values()).flatMap((c) => c.migrations),
       ];
     },
-    addComponent: (component: SchemaComponent) => {
+    addComponent: <
+      SchemaComponentType extends AnySchemaComponent = AnySchemaComponent,
+    >(
+      component: SchemaComponentType,
+    ): SchemaComponentType => {
       componentsMap.set(component.schemaComponentKey, component);
       migrations.push(...component.migrations);
+      return component;
     },
     addMigration: (migration: SQLMigration) => {
       migrations.push(migration);
@@ -101,7 +119,7 @@ export const mapSchemaComponentsOfType = <T extends AnySchemaComponent>(
     Array.from(components.entries())
       .filter(([urn]) => urn.startsWith(prefix))
       .map(([urn, component]) => [
-        keyMapper ? keyMapper(component) : urn,
+        keyMapper ? keyMapper(component as T) : urn,
         component as T,
       ]),
   );
