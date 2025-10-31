@@ -18,6 +18,9 @@ export type IndexSchemaComponent = SchemaComponent<
     indexName: string;
     columns: ReadonlyMap<string, ColumnSchemaComponent>;
     isUnique: boolean;
+    addColumn: (
+      column: string | ColumnSchemaComponent,
+    ) => ColumnSchemaComponent;
   }>
 >;
 
@@ -54,6 +57,12 @@ export const indexSchemaComponent = ({
         (c) => c.columnName,
       );
     },
+    addColumn: (column: string | ColumnSchemaComponent) =>
+      sc.addComponent(
+        typeof column === 'string'
+          ? columnSchemaComponent({ columnName: column })
+          : column,
+      ),
     isUnique,
   };
 };
