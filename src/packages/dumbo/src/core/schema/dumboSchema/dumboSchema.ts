@@ -1,4 +1,4 @@
-import type { SQLColumnToken } from '../../sql';
+import type { SQLColumnToken, SQLToken } from '../../sql';
 import {
   columnSchemaComponent,
   type ColumnSchemaComponent,
@@ -22,10 +22,13 @@ const DEFAULT_DATABASE_SCHEMA_NAME = '__default_database_schema__';
 
 const dumboColumn = (
   name: string,
-  options: SchemaComponentOptions & Omit<SQLColumnToken['value'], 'name'>,
+  type: string | SQLToken,
+  options: SchemaComponentOptions &
+    Omit<SQLColumnToken['value'], 'name' | 'type'> = {},
 ): ColumnSchemaComponent =>
   columnSchemaComponent({
     columnName: name,
+    type,
     ...options,
   });
 

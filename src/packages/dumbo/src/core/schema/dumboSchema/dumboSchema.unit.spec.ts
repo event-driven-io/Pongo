@@ -8,9 +8,7 @@ const { Varchar } = SQL.column.type;
 
 void describe('dumboSchema', () => {
   void it('should create a column', () => {
-    const col = column('id', {
-      type: Varchar('max'),
-    });
+    const col = column('id', Varchar('max'));
     assert.strictEqual(col.columnName, 'id');
   });
 
@@ -29,12 +27,8 @@ void describe('dumboSchema', () => {
   void it('should create a table with columns and indexes', () => {
     const tbl = table('users', {
       columns: {
-        id: column('id', {
-          type: Varchar('max'),
-        }),
-        email: column('email', {
-          type: Varchar('max'),
-        }),
+        id: column('id', Varchar('max')),
+        email: column('email', Varchar('max')),
       },
       indexes: {
         idx_email: index('idx_email', ['email']),
@@ -53,9 +47,7 @@ void describe('dumboSchema', () => {
     const sch = schema('public', {
       users: table('users', {
         columns: {
-          id: column('id', {
-            type: Varchar('max'),
-          }),
+          id: column('id', Varchar('max')),
         },
       }),
     });
@@ -69,9 +61,7 @@ void describe('dumboSchema', () => {
     const sch = schema({
       users: table('users', {
         columns: {
-          id: column('id', {
-            type: Varchar('max'),
-          }),
+          id: column('id', Varchar('max')),
         },
       }),
     });
@@ -85,9 +75,7 @@ void describe('dumboSchema', () => {
       public: schema('public', {
         users: table('users', {
           columns: {
-            id: column('id', {
-              type: Varchar('max'),
-            }),
+            id: column('id', Varchar('max')),
           },
         }),
       }),
@@ -103,9 +91,7 @@ void describe('dumboSchema', () => {
       public: schema('public', {
         users: table('users', {
           columns: {
-            id: column('id', {
-              type: Varchar('max'),
-            }),
+            id: column('id', Varchar('max')),
           },
         }),
       }),
@@ -122,9 +108,7 @@ void describe('dumboSchema', () => {
       schema({
         users: table('users', {
           columns: {
-            id: column('id', {
-              type: Varchar('max'),
-            }),
+            id: column('id', Varchar('max')),
           },
         }),
       }),
@@ -154,15 +138,9 @@ void describe('dumboSchema', () => {
 
 const users = table('users', {
   columns: {
-    id: column('id', {
-      type: Varchar('max'),
-    }),
-    email: column('email', {
-      type: Varchar('max'),
-    }),
-    name: column('name', {
-      type: Varchar('max'),
-    }),
+    id: column('id', Varchar('max')),
+    email: column('email', Varchar('max')),
+    name: column('name', Varchar('max')),
   },
 });
 
@@ -178,27 +156,17 @@ const multiSchemaDb = database('myapp', {
   public: schema('public', {
     users: table('users', {
       columns: {
-        id: column('id', {
-          type: Varchar('max'),
-        }),
-        email: column('email', {
-          type: Varchar('max'),
-        }),
+        id: column('id', Varchar('max')),
+        email: column('email', Varchar('max')),
       },
     }),
   }),
   analytics: schema('analytics', {
     events: table('events', {
       columns: {
-        id: column('id', {
-          type: Varchar('max'),
-        }),
-        user_id: column('user_id', {
-          type: Varchar('max'),
-        }),
-        timestamp: column('timestamp', {
-          type: Varchar('max'),
-        }),
+        id: column('id', Varchar('max')),
+        userId: column('user_id', Varchar('max')),
+        timestamp: column('timestamp', Varchar('max')),
       },
     }),
   }),
