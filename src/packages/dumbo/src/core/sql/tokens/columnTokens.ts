@@ -67,7 +67,7 @@ export type AutoIncrementSQLColumnToken = SQLToken<
 export const AutoIncrementSQLColumnToken =
   SQLToken<AutoIncrementSQLColumnToken>('SQL_COLUMN_AUTO_INCREMENT');
 
-export const SQLColumnTokens = {
+export const SQLColumnTypeTokens = {
   AutoIncrement: AutoIncrementSQLColumnToken.from,
   BigInteger: BigIntegerToken.from(undefined!),
   BigSerial: BigSerialToken.from(undefined!),
@@ -78,7 +78,7 @@ export const SQLColumnTokens = {
   Timestamptz: TimestamptzToken.from(undefined!),
   Varchar: VarcharToken.from,
 };
-export type SQLColumnTokens = typeof SQLColumnTokens;
+export type SQLColumnTypeTokens = typeof SQLColumnTypeTokens;
 
 export type DefaultSQLColumnToken =
   | AutoIncrementSQLColumnToken
