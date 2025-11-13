@@ -6,7 +6,6 @@ import {
 } from '../schemaComponent';
 import {
   ColumnURNType,
-  columnSchemaComponent,
   type ColumnSchemaComponent,
 } from './columnSchemaComponent';
 import {
@@ -27,24 +26,20 @@ export type TableSchemaComponent = SchemaComponent<
     tableName: string;
     columns: ReadonlyMap<string, ColumnSchemaComponent>;
     indexes: ReadonlyMap<string, IndexSchemaComponent>;
-    addColumn: (
-      column: string | ColumnSchemaComponent,
-    ) => ColumnSchemaComponent;
+    addColumn: (column: ColumnSchemaComponent) => ColumnSchemaComponent;
     addIndex: (index: IndexSchemaComponent) => IndexSchemaComponent;
   }>
 >;
 
 export const tableSchemaComponent = ({
   tableName,
-  columnNames,
+  columns,
   ...migrationsOrComponents
 }: {
   tableName: string;
-  columnNames?: string[];
+  columns?: ColumnSchemaComponent[];
 } & SchemaComponentOptions): TableSchemaComponent => {
-  const columns =
-    columnNames?.map((columnName) => columnSchemaComponent({ columnName })) ??
-    [];
+  columns ??= [];
 
   const base = schemaComponent(TableURN({ name: tableName }), {
     migrations: migrationsOrComponents.migrations ?? [],
@@ -68,12 +63,7 @@ export const tableSchemaComponent = ({
         (c) => c.indexName,
       );
     },
-    addColumn: (column: string | ColumnSchemaComponent) =>
-      base.addComponent(
-        typeof column === 'string'
-          ? columnSchemaComponent({ columnName: column })
-          : column,
-      ),
+    addColumn: (column: ColumnSchemaComponent) => base.addComponent(column),
     addIndex: (index: IndexSchemaComponent) => base.addComponent(index),
   };
 };

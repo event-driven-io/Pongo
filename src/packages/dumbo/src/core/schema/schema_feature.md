@@ -33,15 +33,18 @@ A feature is an opaque schema component that encapsulates internal components (t
 // Base marker interface for all features
 export type FeatureSchemaComponent<
   URN extends string = string,
-  AdditionalData extends Record<string, unknown> = Record<string, unknown>
-> = SchemaComponent<URN, AdditionalData & {
-  __featureMarker: true;
-  internalComponents: ReadonlyMap<string, SchemaComponent>; // Hidden from user API
-}>;
+  AdditionalData extends Record<string, unknown> = Record<string, unknown>,
+> = SchemaComponent<
+  URN,
+  AdditionalData & {
+    __featureMarker: true;
+    internalComponents: ReadonlyMap<string, SchemaComponent>; // Hidden from user API
+  }
+>;
 
 // Type guard
 export const isFeatureSchemaComponent = (
-  comp: AnySchemaComponent
+  comp: AnySchemaComponent,
 ): comp is FeatureSchemaComponent => {
   return '__featureMarker' in comp && comp.__featureMarker === true;
 };
@@ -60,37 +63,38 @@ export type EventStoreSchemaComponent = FeatureSchemaComponent<
   }
 >;
 
-export const eventStoreSchema = (
-  options?: {
-    inlineProjections?: Record<string, PongoCollectionSchema>;
-  }
-): EventStoreSchemaComponent => {
+export const eventStoreSchema = (options?: {
+  inlineProjections?: Record<string, PongoCollectionSchema>;
+}): EventStoreSchemaComponent => {
   // Create internal tables (opaque to user)
   const streams = dumboTable('streams', {
-    migrations: [sqlMigration('create_streams', [streamsTableSQL])]
+    migrations: [sqlMigration('create_streams', [streamsTableSQL])],
   });
 
   const messages = dumboTable('messages', {
-    migrations: [sqlMigration('create_messages', [messagesTableSQL])]
+    migrations: [sqlMigration('create_messages', [messagesTableSQL])],
   });
 
   const subscriptions = dumboTable('subscriptions', {
-    migrations: [sqlMigration('create_subscriptions', [subscriptionsTableSQL])]
+    migrations: [sqlMigration('create_subscriptions', [subscriptionsTableSQL])],
   });
 
   // Create functions
   const appendFunction = dumboFunction('emt_append_to_stream', {
-    migrations: [sqlMigration('create_append_function', [appendToStreamSQL])]
+    migrations: [sqlMigration('create_append_function', [appendToStreamSQL])],
   });
 
   // Handle inline projections (create tables from Pongo collections)
   const projectionTables = Object.entries(options?.inlineProjections ?? {}).map(
-    ([name, collectionSchema]) => dumboTable(collectionSchema.name, {
-      // Auto-generate table structure for Pongo collection
-      migrations: [sqlMigration(`create_projection_${name}`, [
-        // Generate CREATE TABLE with _id and document columns
-      ])]
-    })
+    ([name, collectionSchema]) =>
+      dumboTable(collectionSchema.name, {
+        // Auto-generate table structure for Pongo collection
+        migrations: [
+          sqlMigration(`create_projection_${name}`, [
+            // Generate CREATE TABLE with _id and document columns
+          ]),
+        ],
+      }),
   );
 
   const allComponents = [
@@ -98,7 +102,7 @@ export const eventStoreSchema = (
     messages,
     subscriptions,
     appendFunction,
-    ...projectionTables
+    ...projectionTables,
   ];
 
   const base = schemaComponent('sc:dumbo:feature:event_store', {
@@ -110,7 +114,9 @@ export const eventStoreSchema = (
     __featureMarker: true as const,
     eventStoreName: 'event_store',
     inlineProjections: options?.inlineProjections,
-    internalComponents: new Map(allComponents.map(c => [c.schemaComponentKey, c])),
+    internalComponents: new Map(
+      allComponents.map((c) => [c.schemaComponentKey, c]),
+    ),
   };
 };
 ```
@@ -128,21 +134,23 @@ export type PongoCollectionsSchemaComponent = FeatureSchemaComponent<
 >;
 
 export const pongoCollectionsSchema = (
-  collections: Record<string, PongoCollectionSchema>
+  collections: Record<string, PongoCollectionSchema>,
 ): PongoCollectionsSchemaComponent => {
   // Create Dumbo table for each Pongo collection
   const tables = Object.entries(collections).map(([_name, collectionSchema]) =>
     dumboTable(collectionSchema.name, {
-      migrations: [sqlMigration(`create_collection_${collectionSchema.name}`, [
-        // Auto-generate table structure:
-        // CREATE TABLE {name} (
-        //   _id TEXT PRIMARY KEY,
-        //   document JSONB NOT NULL,
-        //   created_at TIMESTAMP DEFAULT NOW(),
-        //   updated_at TIMESTAMP DEFAULT NOW()
-        // )
-      ])]
-    })
+      migrations: [
+        sqlMigration(`create_collection_${collectionSchema.name}`, [
+          // Auto-generate table structure:
+          // CREATE TABLE {name} (
+          //   _id TEXT PRIMARY KEY,
+          //   document JSONB NOT NULL,
+          //   created_at TIMESTAMP DEFAULT NOW(),
+          //   updated_at TIMESTAMP DEFAULT NOW()
+          // )
+        ]),
+      ],
+    }),
   );
 
   const base = schemaComponent('sc:dumbo:feature:pongo_collections', {
@@ -153,7 +161,7 @@ export const pongoCollectionsSchema = (
     ...base,
     __featureMarker: true as const,
     pongoSchema: pongoSchema.db(collections),
-    internalComponents: new Map(tables.map(t => [t.schemaComponentKey, t])),
+    internalComponents: new Map(tables.map((t) => [t.schemaComponentKey, t])),
   };
 };
 ```
@@ -182,56 +190,71 @@ export function systemSchema(options: {
   schemaIntrospection?: boolean;
 }): SystemSchemaComponent;
 export function systemSchema(
-  nameOrOptions?: string | {
-    migrationTracking?: boolean;
-    pongoMetadata?: boolean;
-    schemaIntrospection?: boolean;
-  }
+  nameOrOptions?:
+    | string
+    | {
+        migrationTracking?: boolean;
+        pongoMetadata?: boolean;
+        schemaIntrospection?: boolean;
+      },
 ): SystemSchemaComponent | DatabaseSchemaSchemaComponent {
-  const options = typeof nameOrOptions === 'string'
-    ? { schemaName: nameOrOptions }
-    : nameOrOptions;
+  const options =
+    typeof nameOrOptions === 'string'
+      ? { schemaName: nameOrOptions }
+      : nameOrOptions;
 
   const tables: TableSchemaComponent[] = [];
 
   if (options?.migrationTracking !== false) {
-    tables.push(dumboTable('__migrations', {
-      migrations: [sqlMigration('create_migrations_table', [
-        SQL`CREATE TABLE IF NOT EXISTS __migrations (
+    tables.push(
+      dumboTable('__migrations', {
+        migrations: [
+          sqlMigration('create_migrations_table', [
+            SQL`CREATE TABLE IF NOT EXISTS __migrations (
           id SERIAL PRIMARY KEY,
           name TEXT NOT NULL UNIQUE,
           applied_at TIMESTAMP DEFAULT NOW()
-        )`
-      ])]
-    }));
+        )`,
+          ]),
+        ],
+      }),
+    );
   }
 
   if (options?.pongoMetadata !== false) {
-    tables.push(dumboTable('__pongo_collections', {
-      migrations: [sqlMigration('create_pongo_metadata_table', [
-        SQL`CREATE TABLE IF NOT EXISTS __pongo_collections (
+    tables.push(
+      dumboTable('__pongo_collections', {
+        migrations: [
+          sqlMigration('create_pongo_metadata_table', [
+            SQL`CREATE TABLE IF NOT EXISTS __pongo_collections (
           collection_name TEXT PRIMARY KEY,
           json_schema JSONB,
           created_at TIMESTAMP DEFAULT NOW(),
           updated_at TIMESTAMP DEFAULT NOW()
-        )`
-      ])]
-    }));
+        )`,
+          ]),
+        ],
+      }),
+    );
   }
 
   if (options?.schemaIntrospection !== false) {
-    tables.push(dumboTable('__schema_metadata', {
-      migrations: [sqlMigration('create_schema_metadata_table', [
-        SQL`CREATE TABLE IF NOT EXISTS __schema_metadata (
+    tables.push(
+      dumboTable('__schema_metadata', {
+        migrations: [
+          sqlMigration('create_schema_metadata_table', [
+            SQL`CREATE TABLE IF NOT EXISTS __schema_metadata (
           component_type TEXT NOT NULL,
           component_name TEXT NOT NULL,
           component_key TEXT PRIMARY KEY,
           definition JSONB NOT NULL,
           created_at TIMESTAMP DEFAULT NOW(),
           updated_at TIMESTAMP DEFAULT NOW()
-        )`
-      ])]
-    }));
+        )`,
+          ]),
+        ],
+      }),
+    );
   }
 
   const base = schemaComponent('sc:dumbo:feature:system', {
@@ -246,7 +269,7 @@ export function systemSchema(
       pongoMetadata: options?.pongoMetadata !== false,
       schemaIntrospection: options?.schemaIntrospection !== false,
     },
-    internalComponents: new Map(tables.map(t => [t.schemaComponentKey, t])),
+    internalComponents: new Map(tables.map((t) => [t.schemaComponentKey, t])),
   } satisfies SystemSchemaComponent;
 
   // If schemaName provided, wrap in schema component
@@ -258,7 +281,7 @@ export function systemSchema(
 }
 
 export const isSystemSchemaComponent = (
-  comp: AnySchemaComponent
+  comp: AnySchemaComponent,
 ): comp is SystemSchemaComponent => {
   return comp.schemaComponentKey === 'sc:dumbo:feature:system';
 };
@@ -284,7 +307,7 @@ export const dumboFunction = (
   name: string,
   options: SchemaComponentOptions & {
     language?: 'plpgsql' | 'sql' | 'javascript';
-  }
+  },
 ): FunctionSchemaComponent => {
   const base = schemaComponent(`sc:dumbo:function:${name}` as FunctionURN, {
     migrations: options.migrations ?? [],
@@ -311,15 +334,15 @@ const simpleApp = dumboDatabase('my_app', {
       columns: {
         id: dumboColumn('id', { type: 'serial', primaryKey: true }),
         email: dumboColumn('email', { type: 'varchar', length: 255 }),
-      }
+      },
     }),
     posts: dumboTable('posts', {
       columns: {
         id: dumboColumn('id', { type: 'serial', primaryKey: true }),
         userId: dumboColumn('user_id', { type: 'int' }),
-      }
+      },
     }),
-  })
+  }),
 });
 
 // System tables (__migrations, __pongo_collections, __schema_metadata)
@@ -340,16 +363,16 @@ const hotelApp = dumboDatabase('hotel', {
       columns: {
         id: dumboColumn('id', { type: 'serial', primaryKey: true }),
         name: dumboColumn('name', { type: 'varchar', length: 255 }),
-      }
+      },
     }),
 
     reservations: dumboTable('reservations', {
       columns: {
         id: dumboColumn('id', { type: 'serial', primaryKey: true }),
         guestId: dumboColumn('guest_id', { type: 'int' }),
-      }
+      },
     }),
-  })
+  }),
 });
 
 // Generated migrations include:
@@ -374,8 +397,12 @@ const hotelApp = dumboDatabase('hotel', {
 
   // Read models in separate schema
   read_models: dumboDatabaseSchema('read_models', {
-    guests: dumboTable('guests', { /* ... */ }),
-    reservations: dumboTable('reservations', { /* ... */ }),
+    guests: dumboTable('guests', {
+      /* ... */
+    }),
+    reservations: dumboTable('reservations', {
+      /* ... */
+    }),
   }),
 });
 
@@ -398,7 +425,7 @@ const hotelApp = dumboDatabase('hotel', {
       inlineProjections: {
         guestSummary: pongoSchema.collection('guest_summary'),
         reservationSummary: pongoSchema.collection('reservation_summary'),
-      }
+      },
     }),
   }),
 
@@ -423,59 +450,81 @@ const hotelApp = dumboDatabase('hotel', {
 
 ```typescript
 // Database group for organizing related databases
-const hotelSystemGroup = databaseGroup('hotel_system', {
-  // Operational database
-  operational: dumboDatabase('hotel_operational', {
-    event_store: dumboDatabaseSchema('event_store', {
-      eventStore: eventStoreSchema(),
+const hotelSystemGroup = databaseGroup(
+  'hotel_system',
+  {
+    // Operational database
+    operational: dumboDatabase('hotel_operational', {
+      event_store: dumboDatabaseSchema('event_store', {
+        eventStore: eventStoreSchema(),
+      }),
+      read_models: dumboDatabaseSchema('read_models', {
+        guests: dumboTable('guests', {
+          /* ... */
+        }),
+        reservations: dumboTable('reservations', {
+          /* ... */
+        }),
+      }),
     }),
-    read_models: dumboDatabaseSchema('read_models', {
-      guests: dumboTable('guests', { /* ... */ }),
-      reservations: dumboTable('reservations', { /* ... */ }),
-    }),
-  }),
 
-  // Analytics database
-  analytics: dumboDatabase('hotel_analytics', {
-    public: dumboDatabaseSchema('public', {
-      events: dumboTable('events', { /* ... */ }),
-      metrics: dumboTable('metrics', { /* ... */ }),
+    // Analytics database
+    analytics: dumboDatabase('hotel_analytics', {
+      public: dumboDatabaseSchema('public', {
+        events: dumboTable('events', {
+          /* ... */
+        }),
+        metrics: dumboTable('metrics', {
+          /* ... */
+        }),
+      }),
     }),
-  }),
 
-  // Reporting database
-  reporting: dumboDatabase('hotel_reporting', {
-    public: dumboDatabaseSchema('public', {
-      reports: dumboTable('reports', { /* ... */ }),
+    // Reporting database
+    reporting: dumboDatabase('hotel_reporting', {
+      public: dumboDatabaseSchema('public', {
+        reports: dumboTable('reports', {
+          /* ... */
+        }),
+      }),
     }),
-  }),
-}, {
-  // Shared system schema across all databases
-  shared: {
-    systemSchema: systemSchema('shared_system'),
-  }
-});
+  },
+  {
+    // Shared system schema across all databases
+    shared: {
+      systemSchema: systemSchema('shared_system'),
+    },
+  },
+);
 ```
 
 ## System Schema Placement Strategy
 
 ### Single Schema
+
 When database has exactly one schema, system tables are automatically added to that schema.
 
 ```typescript
 const db = dumboDatabase('app', {
-  public: dumboDatabaseSchema('public', { /* ... */ })
+  public: dumboDatabaseSchema('public', {
+    /* ... */
+  }),
 });
 // ✅ System tables → 'public' schema
 ```
 
 ### Multiple Schemas Without Explicit System Schema
+
 Default behavior: Use database type's default schema convention.
 
 ```typescript
 const db = dumboDatabase('app', {
-  event_store: dumboDatabaseSchema('event_store', { /* ... */ }),
-  read_models: dumboDatabaseSchema('read_models', { /* ... */ }),
+  event_store: dumboDatabaseSchema('event_store', {
+    /* ... */
+  }),
+  read_models: dumboDatabaseSchema('read_models', {
+    /* ... */
+  }),
 });
 
 // PostgreSQL: Check for 'public' schema, otherwise use first schema
@@ -487,14 +536,19 @@ const db = dumboDatabase('app', {
 ```
 
 ### Explicit System Schema
+
 User can explicitly place system schema anywhere:
 
 ```typescript
 // Option A: Dedicated system schema
 const db = dumboDatabase('app', {
   system: systemSchema('admin'), // Returns DatabaseSchemaSchemaComponent
-  event_store: dumboDatabaseSchema('event_store', { /* ... */ }),
-  read_models: dumboDatabaseSchema('read_models', { /* ... */ }),
+  event_store: dumboDatabaseSchema('event_store', {
+    /* ... */
+  }),
+  read_models: dumboDatabaseSchema('read_models', {
+    /* ... */
+  }),
 });
 
 // Option B: System schema within existing schema
@@ -503,7 +557,9 @@ const db = dumboDatabase('app', {
     system: systemSchema(), // Just the component
     eventStore: eventStoreSchema(),
   }),
-  read_models: dumboDatabaseSchema('read_models', { /* ... */ }),
+  read_models: dumboDatabaseSchema('read_models', {
+    /* ... */
+  }),
 });
 ```
 
@@ -577,23 +633,31 @@ export const shardingStrategies = {
 #### Schema-Level Sharding (Multi-Tenancy)
 
 ```typescript
-const hotelApp = dumboDatabase('hotel', {
-  system: systemSchema('system'), // Not sharded
+const hotelApp = dumboDatabase(
+  'hotel',
+  {
+    system: systemSchema('system'), // Not sharded
 
-  event_store: dumboDatabaseSchema('event_store', {
-    eventStore: eventStoreSchema(),
-  }),
+    event_store: dumboDatabaseSchema('event_store', {
+      eventStore: eventStoreSchema(),
+    }),
 
-  read_models: dumboDatabaseSchema('read_models', {
-    guests: dumboTable('guests', { /* ... */ }),
-    reservations: dumboTable('reservations', { /* ... */ }),
-  }),
-}, {
-  sharding: {
-    level: 'schema',
-    strategy: shardingStrategies.multiTenant(['hilton', 'marriott', 'hyatt']),
-  }
-});
+    read_models: dumboDatabaseSchema('read_models', {
+      guests: dumboTable('guests', {
+        /* ... */
+      }),
+      reservations: dumboTable('reservations', {
+        /* ... */
+      }),
+    }),
+  },
+  {
+    sharding: {
+      level: 'schema',
+      strategy: shardingStrategies.multiTenant(['hilton', 'marriott', 'hyatt']),
+    },
+  },
+);
 
 // PostgreSQL generates:
 // CREATE SCHEMA system; -- Not sharded
@@ -611,15 +675,23 @@ const hotelApp = dumboDatabase('hotel', {
 #### Database-Level Sharding
 
 ```typescript
-const hotelApp = dumboDatabase('hotel', {
-  event_store: dumboDatabaseSchema('event_store', { /* ... */ }),
-  read_models: dumboDatabaseSchema('read_models', { /* ... */ }),
-}, {
-  sharding: {
-    level: 'database',
-    strategy: shardingStrategies.multiTenant(['hilton', 'marriott']),
-  }
-});
+const hotelApp = dumboDatabase(
+  'hotel',
+  {
+    event_store: dumboDatabaseSchema('event_store', {
+      /* ... */
+    }),
+    read_models: dumboDatabaseSchema('read_models', {
+      /* ... */
+    }),
+  },
+  {
+    sharding: {
+      level: 'database',
+      strategy: shardingStrategies.multiTenant(['hilton', 'marriott']),
+    },
+  },
+);
 
 // PostgreSQL generates separate databases:
 // CREATE DATABASE hilton_hotel;
@@ -633,18 +705,30 @@ const hotelApp = dumboDatabase('hotel', {
 #### Table-Level Sharding (Time Partitioning)
 
 ```typescript
-const analyticsDb = dumboDatabase('analytics', {
-  public: dumboDatabaseSchema('public', {
-    events: dumboTable('events', { /* ... */ }),
-    metrics: dumboTable('metrics', { /* ... */ }),
-  }),
-}, {
-  sharding: {
-    level: 'table',
-    strategy: shardingStrategies.timePartition(['2024_01', '2024_02', '2024_03']),
-    applyTo: ['events'], // Only shard events table
-  }
-});
+const analyticsDb = dumboDatabase(
+  'analytics',
+  {
+    public: dumboDatabaseSchema('public', {
+      events: dumboTable('events', {
+        /* ... */
+      }),
+      metrics: dumboTable('metrics', {
+        /* ... */
+      }),
+    }),
+  },
+  {
+    sharding: {
+      level: 'table',
+      strategy: shardingStrategies.timePartition([
+        '2024_01',
+        '2024_02',
+        '2024_03',
+      ]),
+      applyTo: ['events'], // Only shard events table
+    },
+  },
+);
 
 // Generates:
 // CREATE TABLE events_2024_01 (...);
@@ -656,19 +740,29 @@ const analyticsDb = dumboDatabase('analytics', {
 #### Database Group Sharding
 
 ```typescript
-const hotelSystemGroup = databaseGroup('hotel_system', {
-  operational: dumboDatabase('hotel_operational', { /* ... */ }),
-  analytics: dumboDatabase('hotel_analytics', { /* ... */ }),
-  reporting: dumboDatabase('hotel_reporting', { /* ... */ }),
-}, {
-  sharding: {
-    level: 'database',
-    strategy: shardingStrategies.multiTenant(['hilton', 'marriott']),
+const hotelSystemGroup = databaseGroup(
+  'hotel_system',
+  {
+    operational: dumboDatabase('hotel_operational', {
+      /* ... */
+    }),
+    analytics: dumboDatabase('hotel_analytics', {
+      /* ... */
+    }),
+    reporting: dumboDatabase('hotel_reporting', {
+      /* ... */
+    }),
   },
-  shared: {
-    systemSchema: systemSchema('shared_system'),
-  }
-});
+  {
+    sharding: {
+      level: 'database',
+      strategy: shardingStrategies.multiTenant(['hilton', 'marriott']),
+    },
+    shared: {
+      systemSchema: systemSchema('shared_system'),
+    },
+  },
+);
 
 // Generates for each tenant:
 // Tenant 'hilton':
@@ -691,25 +785,35 @@ const hotelSystemGroup = databaseGroup('hotel_system', {
 const hotelApp = dumboDatabase('hotel', {
   system: systemSchema('system'), // No sharding
 
-  event_store: dumboDatabaseSchema('event_store', {
-    eventStore: eventStoreSchema(),
-  }, {
-    // Override: shard event store by tenant
-    sharding: {
-      level: 'schema',
-      strategy: shardingStrategies.multiTenant(['hilton', 'marriott']),
-    }
-  }),
+  event_store: dumboDatabaseSchema(
+    'event_store',
+    {
+      eventStore: eventStoreSchema(),
+    },
+    {
+      // Override: shard event store by tenant
+      sharding: {
+        level: 'schema',
+        strategy: shardingStrategies.multiTenant(['hilton', 'marriott']),
+      },
+    },
+  ),
 
-  analytics: dumboDatabaseSchema('analytics', {
-    events: dumboTable('events', { /* ... */ }),
-  }, {
-    // Override: shard analytics by region
-    sharding: {
-      level: 'table',
-      strategy: shardingStrategies.region(['us_east', 'us_west', 'eu']),
-    }
-  }),
+  analytics: dumboDatabaseSchema(
+    'analytics',
+    {
+      events: dumboTable('events', {
+        /* ... */
+      }),
+    },
+    {
+      // Override: shard analytics by region
+      sharding: {
+        level: 'table',
+        strategy: shardingStrategies.region(['us_east', 'us_west', 'eu']),
+      },
+    },
+  ),
 });
 
 // Generates:
@@ -728,7 +832,10 @@ const hotelApp = dumboDatabase('hotel', {
 
 ```typescript
 export type DatabaseGroup<
-  Databases extends Record<string, DatabaseSchemaComponent> = Record<string, DatabaseSchemaComponent>
+  Databases extends Record<string, DatabaseSchemaComponent> = Record<
+    string,
+    DatabaseSchemaComponent
+  >,
 > = {
   groupName: string;
   databases: Databases;
@@ -742,7 +849,9 @@ export type DatabaseGroup<
   };
 };
 
-export const databaseGroup = <T extends Record<string, DatabaseSchemaComponent>>(
+export const databaseGroup = <
+  T extends Record<string, DatabaseSchemaComponent>,
+>(
   groupName: string,
   databases: T,
   options?: {
@@ -750,7 +859,7 @@ export const databaseGroup = <T extends Record<string, DatabaseSchemaComponent>>
     shared?: {
       systemSchema?: SystemSchemaComponent;
     };
-  }
+  },
 ): DatabaseGroup<T> => ({
   groupName,
   databases,
@@ -780,13 +889,15 @@ const hotelSchema = dumboDatabase('hotel', {
     eventStore: eventStoreSchema(),
   }),
   read_models: dumboDatabaseSchema('read_models', {
-    guests: dumboTable('guests', { /* ... */ }),
+    guests: dumboTable('guests', {
+      /* ... */
+    }),
   }),
 });
 
 // PostgreSQL migration generation
 const pgMigrations = generateMigrations(hotelSchema, {
-  databaseType: 'postgresql'
+  databaseType: 'postgresql',
 });
 // Generates:
 // CREATE SCHEMA event_store;
@@ -797,7 +908,7 @@ const pgMigrations = generateMigrations(hotelSchema, {
 // SQLite migration generation
 const sqliteMigrations = generateMigrations(hotelSchema, {
   databaseType: 'sqlite',
-  sqliteStrategy: 'prefix-tables' // or 'separate-files'
+  sqliteStrategy: 'prefix-tables', // or 'separate-files'
 });
 // prefix-tables generates:
 // CREATE TABLE event_store_streams (...);
@@ -854,8 +965,10 @@ While features are opaque at definition time, generated types expose internal st
 const hotelSchema = dumboDatabase('hotel', {
   public: dumboDatabaseSchema('public', {
     eventStore: eventStoreSchema(),
-    guests: dumboTable('guests', { /* ... */ }),
-  })
+    guests: dumboTable('guests', {
+      /* ... */
+    }),
+  }),
 });
 
 // Generated types expose all tables (including event store internals)
@@ -953,8 +1066,12 @@ const hotelSchema = dumboDatabase('hotel', {
   }),
 
   read_models: dumboDatabaseSchema('read_models', {
-    guests: dumboTable('guests', { /* ... */ }),
-    reservations: dumboTable('reservations', { /* ... */ }),
+    guests: dumboTable('guests', {
+      /* ... */
+    }),
+    reservations: dumboTable('reservations', {
+      /* ... */
+    }),
   }),
 });
 
@@ -965,39 +1082,44 @@ const deployment = {
   mapping: {
     // Map Emmett components to Dumbo schemas/tables
     'event-store': 'event_store.eventStore',
-    'guests': 'read_models.guests',
-    'reservations': 'read_models.reservations',
-  }
+    guests: 'read_models.guests',
+    reservations: 'read_models.reservations',
+  },
 };
 ```
 
 ## Design Decisions
 
 ### 1. Why Feature Components Extend SchemaComponent?
+
 - **Uniform Composition**: Features compose like tables, indexes, etc.
 - **Consistent API**: Same `addComponent()` pattern everywhere
 - **Type Safety**: Generic `SchemaComponent` infrastructure works for features
 - **Migration System**: Features participate in migration collection automatically
 
 ### 2. Why System Schema is a Feature Component?
+
 - **Consistent Placement**: Same composition rules as other features
 - **Flexible Location**: Can be in dedicated schema or mixed with application schemas
-- **Opaque Internals**: Users don't need to know about __migrations, __pongo_collections tables
+- **Opaque Internals**: Users don't need to know about **migrations, **pongo_collections tables
 - **Customizable**: Power users can configure which system tables to include
 
 ### 3. Why Generic Sharding vs. Hardcoded Multi-Tenancy?
+
 - **Extensibility**: Supports time partitioning, regional sharding, custom strategies
 - **Composition**: Can combine multiple sharding dimensions in the future
 - **Flexibility**: Same mechanism for different use cases (multi-tenancy, scaling, compliance)
 - **Simplicity**: Single concept to learn instead of multiple special cases
 
 ### 4. Why Database Groups?
+
 - **Organization**: Large systems have multiple related databases
 - **Shared Resources**: System schema can be shared across databases
 - **Consistent Sharding**: Apply same tenant strategy to command/query/event databases
 - **Documentation**: Architecture diagrams show logical database groupings
 
 ### 5. Why Portable Schema Definitions?
+
 - **Developer Experience**: Write once, deploy to PostgreSQL or SQLite
 - **Testing**: Test with SQLite, deploy to PostgreSQL
 - **Flexibility**: Change database type without rewriting schema
@@ -1015,7 +1137,7 @@ Support multiple sharding dimensions:
     { level: 'database', strategy: shardingStrategies.multiTenant(['hilton']) },
     { level: 'schema', strategy: shardingStrategies.region(['us', 'eu']) },
     { level: 'table', strategy: shardingStrategies.timePartition(['2024_01']) },
-  ]
+  ];
 }
 // Generates: Database hilton_hotel → Schema us_event_store → Table events_2024_01
 ```
@@ -1057,7 +1179,7 @@ Support foreign keys across sharded databases:
 const relationship = crossDatabaseForeignKey(
   'read_models.reservations.guest_id',
   'read_models.guests.id',
-  { onDelete: 'CASCADE' }
+  { onDelete: 'CASCADE' },
 );
 ```
 
@@ -1066,16 +1188,26 @@ const relationship = crossDatabaseForeignKey(
 Explicit migration dependencies for complex scenarios:
 
 ```typescript
-const createUsersMigration = sqlMigration('create_users', [/* ... */]);
-const createPostsMigration = sqlMigration('create_posts', [/* ... */], {
-  dependsOn: [createUsersMigration], // Posts table needs users table first
-});
+const createUsersMigration = sqlMigration('create_users', [
+  /* ... */
+]);
+const createPostsMigration = sqlMigration(
+  'create_posts',
+  [
+    /* ... */
+  ],
+  {
+    dependsOn: [createUsersMigration], // Posts table needs users table first
+  },
+);
 ```
 
 ## Open Questions
 
 ### Q1: Function Component Placement
+
 Should functions be:
+
 - Top-level components in schema (like tables)?
 - Nested within table components?
 - Only within feature components?
@@ -1083,7 +1215,9 @@ Should functions be:
 **Current decision**: Top-level and within features (flexible)
 
 ### Q2: SQLite Multiple Schema Strategy Default
+
 For SQLite with multiple schemas, default to:
+
 - Table prefixing (simpler, single file)
 - Separate database files (stronger isolation)
 - Error (force explicit choice)
@@ -1091,7 +1225,9 @@ For SQLite with multiple schemas, default to:
 **Current decision**: Table prefixing (simpler default, user can override)
 
 ### Q3: System Schema Naming Convention
+
 Should system schema default name be:
+
 - `__dumbo_system` (clear it's framework)
 - `_system` (shorter)
 - `system` (clean but might conflict)
@@ -1099,20 +1235,25 @@ Should system schema default name be:
 **Current decision**: `system` for dedicated schema, auto-add to first schema otherwise
 
 ### Q4: Sharding Naming Pattern Syntax
+
 Support only string templates, or also functions?
+
 - String: `'{shard}_{resource}'`
 - Function: `(shard, resource) => ...`
 
 **Current decision**: Both (string for simplicity, function for flexibility)
 
 ### Q5: Feature Component Registration
+
 Should there be a registry for custom feature components?
 
 ```typescript
 // Register custom feature
 registerFeatureComponent('custom_feature', {
   detect: (comp) => comp.schemaComponentKey.startsWith('sc:custom:'),
-  extractMigrations: (comp) => { /* ... */ },
+  extractMigrations: (comp) => {
+    /* ... */
+  },
 });
 ```
 
@@ -1121,6 +1262,7 @@ registerFeatureComponent('custom_feature', {
 ## Implementation Checklist
 
 ### Phase 1: Core Feature Components
+
 - [ ] `FeatureSchemaComponent` base type
 - [ ] `isFeatureSchemaComponent()` type guard
 - [ ] `EventStoreSchemaComponent` implementation
@@ -1129,12 +1271,14 @@ registerFeatureComponent('custom_feature', {
 - [ ] `FunctionSchemaComponent` implementation
 
 ### Phase 2: System Schema Placement
+
 - [ ] Auto-detection logic for single schema
 - [ ] Database type default schema logic (PostgreSQL 'public', etc.)
 - [ ] Explicit system schema placement
 - [ ] System schema component tests
 
 ### Phase 3: Generic Sharding
+
 - [ ] `ShardingStrategy` type definition
 - [ ] `ShardingConfig` type definition
 - [ ] Predefined strategies (`multiTenant`, `region`, `timePartition`)
@@ -1144,6 +1288,7 @@ registerFeatureComponent('custom_feature', {
 - [ ] Exclusion logic for shared resources
 
 ### Phase 4: Database Groups
+
 - [ ] `DatabaseGroup` type definition
 - [ ] `databaseGroup()` factory function
 - [ ] Shared system schema across databases
@@ -1151,6 +1296,7 @@ registerFeatureComponent('custom_feature', {
 - [ ] Migration generation for groups
 
 ### Phase 5: Migration Generation
+
 - [ ] Detect feature components in migration collector
 - [ ] Extract internal migrations from features
 - [ ] Database-specific migration generation (PostgreSQL vs SQLite)
@@ -1159,6 +1305,7 @@ registerFeatureComponent('custom_feature', {
 - [ ] Sharding-aware migration generation
 
 ### Phase 6: Type Generation
+
 - [ ] Extract internal structure from features
 - [ ] Generate types for event store tables
 - [ ] Generate types for Pongo collections
@@ -1166,6 +1313,7 @@ registerFeatureComponent('custom_feature', {
 - [ ] Exclude system tables from main types (optional)
 
 ### Phase 7: Integration & Documentation
+
 - [ ] Dumbo schema API updates
 - [ ] Pongo schema integration
 - [ ] Emmett architecture mapping examples

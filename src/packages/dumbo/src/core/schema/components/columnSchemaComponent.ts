@@ -1,3 +1,4 @@
+import type { SQLColumnToken } from '../../sql';
 import {
   schemaComponent,
   type SchemaComponent,
@@ -22,7 +23,8 @@ export const columnSchemaComponent = ({
   ...migrationsOrComponents
 }: {
   columnName: string;
-} & SchemaComponentOptions): ColumnSchemaComponent => {
+} & SchemaComponentOptions &
+  Omit<SQLColumnToken['value'], 'name'>): ColumnSchemaComponent => {
   const sc = schemaComponent(
     ColumnURN({ name: columnName }),
     migrationsOrComponents,
