@@ -1,13 +1,9 @@
 import {
-  mapSchemaComponentsOfType,
   schemaComponent,
   type SchemaComponent,
   type SchemaComponentOptions,
 } from '../schemaComponent';
-import {
-  columnSchemaComponent,
-  type ColumnSchemaComponent,
-} from './columnSchemaComponent';
+import { type ColumnSchemaComponent } from './columnSchemaComponent';
 
 export type IndexURNType = 'sc:dumbo:index';
 export type IndexURN = `${IndexURNType}:${string}`;
@@ -16,11 +12,9 @@ export type IndexSchemaComponent = SchemaComponent<
   IndexURN,
   Readonly<{
     indexName: string;
-    columns: ReadonlyMap<string, ColumnSchemaComponent>;
+    columnNames: ReadonlyArray<string>;
     isUnique: boolean;
-    addColumn: (
-      column: string | ColumnSchemaComponent,
-    ) => ColumnSchemaComponent;
+    addColumn: (column: string | ColumnSchemaComponent) => void;
   }>
 >;
 
@@ -38,31 +32,19 @@ export const indexSchemaComponent = ({
   columnNames: string[];
   isUnique: boolean;
 } & SchemaComponentOptions): IndexSchemaComponent => {
-  const columns = columnNames.map((columnName) =>
-    columnSchemaComponent({ columnName }),
-  );
-
   const sc = schemaComponent(IndexURN({ name: indexName }), {
     migrations: migrationsOrComponents.migrations ?? [],
-    components: [...(migrationsOrComponents.components ?? []), ...columns],
+    components: [...(migrationsOrComponents.components ?? [])],
   });
 
   return {
     ...sc,
     indexName,
-    get columns() {
-      return mapSchemaComponentsOfType<ColumnSchemaComponent>(
-        sc.components,
-        IndexURNType,
-        (c) => c.columnName,
-      );
+    get columnNames() {
+      return columnNames;
     },
     addColumn: (column: string | ColumnSchemaComponent) =>
-      sc.addComponent(
-        typeof column === 'string'
-          ? columnSchemaComponent({ columnName: column })
-          : column,
-      ),
+      columnNames.push(typeof column === 'string' ? column : column.columnName),
     isUnique,
   };
 };

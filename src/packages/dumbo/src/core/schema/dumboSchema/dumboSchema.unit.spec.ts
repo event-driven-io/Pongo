@@ -1,33 +1,43 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
+import { SQL } from '../../sql';
 import { dumboSchema } from './index';
+
+const { database, schema, table, column, index } = dumboSchema;
+const { Varchar } = SQL.column.type;
 
 void describe('dumboSchema', () => {
   void it('should create a column', () => {
-    const col = dumboSchema.column('id');
+    const col = column('id', {
+      type: Varchar('max'),
+    });
     assert.strictEqual(col.columnName, 'id');
   });
 
   void it('should create an index', () => {
-    const idx = dumboSchema.index('idx_email', ['email']);
+    const idx = index('idx_email', ['email']);
     assert.strictEqual(idx.indexName, 'idx_email');
     assert.strictEqual(idx.isUnique, false);
   });
 
   void it('should create a unique index', () => {
-    const idx = dumboSchema.index('idx_email', ['email'], { unique: true });
+    const idx = index('idx_email', ['email'], { unique: true });
     assert.strictEqual(idx.indexName, 'idx_email');
     assert.strictEqual(idx.isUnique, true);
   });
 
   void it('should create a table with columns and indexes', () => {
-    const tbl = dumboSchema.table('users', {
+    const tbl = table('users', {
       columns: {
-        id: dumboSchema.column('id'),
-        email: dumboSchema.column('email'),
+        id: column('id', {
+          type: Varchar('max'),
+        }),
+        email: column('email', {
+          type: Varchar('max'),
+        }),
       },
       indexes: {
-        idx_email: dumboSchema.index('idx_email', ['email']),
+        idx_email: index('idx_email', ['email']),
       },
     });
 
@@ -40,10 +50,12 @@ void describe('dumboSchema', () => {
   });
 
   void it('should create a named schema', () => {
-    const sch = dumboSchema.schema('public', {
-      users: dumboSchema.table('users', {
+    const sch = schema('public', {
+      users: table('users', {
         columns: {
-          id: dumboSchema.column('id'),
+          id: column('id', {
+            type: Varchar('max'),
+          }),
         },
       }),
     });
@@ -54,10 +66,12 @@ void describe('dumboSchema', () => {
   });
 
   void it('should create a default schema without name', () => {
-    const sch = dumboSchema.schema({
-      users: dumboSchema.table('users', {
+    const sch = schema({
+      users: table('users', {
         columns: {
-          id: dumboSchema.column('id'),
+          id: column('id', {
+            type: Varchar('max'),
+          }),
         },
       }),
     });
@@ -67,11 +81,13 @@ void describe('dumboSchema', () => {
   });
 
   void it('should create a default database', () => {
-    const db = dumboSchema.database({
-      public: dumboSchema.schema('public', {
-        users: dumboSchema.table('users', {
+    const db = database({
+      public: schema('public', {
+        users: table('users', {
           columns: {
-            id: dumboSchema.column('id'),
+            id: column('id', {
+              type: Varchar('max'),
+            }),
           },
         }),
       }),
@@ -83,11 +99,13 @@ void describe('dumboSchema', () => {
   });
 
   void it('should create a named database', () => {
-    const db = dumboSchema.database('myapp', {
-      public: dumboSchema.schema('public', {
-        users: dumboSchema.table('users', {
+    const db = database('myapp', {
+      public: schema('public', {
+        users: table('users', {
           columns: {
-            id: dumboSchema.column('id'),
+            id: column('id', {
+              type: Varchar('max'),
+            }),
           },
         }),
       }),
@@ -99,12 +117,14 @@ void describe('dumboSchema', () => {
   });
 
   void it('should handle DEFAULT_SCHEMA', () => {
-    const db = dumboSchema.database(
+    const db = database(
       'myapp',
-      dumboSchema.schema({
-        users: dumboSchema.table('users', {
+      schema({
+        users: table('users', {
           columns: {
-            id: dumboSchema.column('id'),
+            id: column('id', {
+              type: Varchar('max'),
+            }),
           },
         }),
       }),
@@ -116,13 +136,13 @@ void describe('dumboSchema', () => {
   });
 
   void it('should create schema from table names', () => {
-    const sch = dumboSchema.schema.from('public', ['users', 'posts']);
+    const sch = schema.from('public', ['users', 'posts']);
     assert.strictEqual(sch.schemaName, 'public');
     assert.strictEqual(sch.tables.size, 2);
   });
 
   void it('should create database from schema names', () => {
-    const db = dumboSchema.database.from('myapp', ['public', 'analytics']);
+    const db = database.from('myapp', ['public', 'analytics']);
     assert.strictEqual(db.databaseName, 'myapp');
     assert.strictEqual(db.schemas.size, 2);
   });
@@ -131,40 +151,54 @@ void describe('dumboSchema', () => {
 // Samples
 
 // Simple database with tables in default schema
-export const simpleDb = dumboSchema.database(
-  'myapp',
-  dumboSchema.schema({
-    users: dumboSchema.table('users', {
-      columns: {
-        id: dumboSchema.column('id'),
-        email: dumboSchema.column('email'),
-        name: dumboSchema.column('name'),
-      },
-      indexes: {
-        idx_email: dumboSchema.index('idx_email', ['email'], {
-          unique: true,
-        }),
-      },
+
+const users = table('users', {
+  columns: {
+    id: column('id', {
+      type: Varchar('max'),
     }),
+    email: column('email', {
+      type: Varchar('max'),
+    }),
+    name: column('name', {
+      type: Varchar('max'),
+    }),
+  },
+});
+
+export const simpleDb = database(
+  'myapp',
+  schema({
+    users,
   }),
 );
 
 // Database with multiple schemas
-const multiSchemaDb = dumboSchema.database('myapp', {
-  public: dumboSchema.schema('public', {
-    users: dumboSchema.table('users', {
+const multiSchemaDb = database('myapp', {
+  public: schema('public', {
+    users: table('users', {
       columns: {
-        id: dumboSchema.column('id'),
-        email: dumboSchema.column('email'),
+        id: column('id', {
+          type: Varchar('max'),
+        }),
+        email: column('email', {
+          type: Varchar('max'),
+        }),
       },
     }),
   }),
-  analytics: dumboSchema.schema('analytics', {
-    events: dumboSchema.table('events', {
+  analytics: schema('analytics', {
+    events: table('events', {
       columns: {
-        id: dumboSchema.column('id'),
-        user_id: dumboSchema.column('user_id'),
-        timestamp: dumboSchema.column('timestamp'),
+        id: column('id', {
+          type: Varchar('max'),
+        }),
+        user_id: column('user_id', {
+          type: Varchar('max'),
+        }),
+        timestamp: column('timestamp', {
+          type: Varchar('max'),
+        }),
       },
     }),
   }),

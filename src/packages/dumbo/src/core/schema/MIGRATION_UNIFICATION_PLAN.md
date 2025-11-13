@@ -1,11 +1,13 @@
 # Schema Component Migration Unification Plan
 
 ## Overview
+
 This plan details the unification of SQL migrations and TypeScript schema definitions in the Dumbo schema component system. The goal is to support both SQL-first and TypeScript-first workflows while maintaining a clear source of truth and enabling strongly-typed query builders for Pongo.
 
 ## Context and Current State
 
 ### Key Files
+
 - **Core Schema Component**: [src/packages/dumbo/src/core/schema/schemaComponent.ts](src/packages/dumbo/src/core/schema/schemaComponent.ts) - Lines 3-146
 - **Component Implementations**:
   - [src/packages/dumbo/src/core/schema/components/databaseSchemaComponent.ts](src/packages/dumbo/src/core/schema/components/databaseSchemaComponent.ts)
@@ -22,7 +24,9 @@ This plan details the unification of SQL migrations and TypeScript schema defini
 - **Pongo Integration Target**: [src/packages/pongo/src/core/schema/index.ts](src/packages/pongo/src/core/schema/index.ts)
 
 ### Current Problem
+
 The system cannot distinguish between:
+
 1. **Initial schema definitions** (CREATE TABLE)
 2. **Schema evolution** (ALTER TABLE)
 3. **Data migrations** (UPDATE/INSERT)
@@ -34,6 +38,7 @@ All migrations are stored in a single `migrations` array and bubble up through t
 ### Core Principle: TypeScript as Source of Truth (When Present)
 
 **The Rule**: When TypeScript definitions exist, they represent the desired schema state. Migrations are either:
+
 1. **Generated** from TypeScript definitions (if no migrations provided)
 2. **Validated** against TypeScript definitions (if migrations provided)
 3. **Trusted** completely (if no TypeScript definitions provided - SQL-first mode)
@@ -41,39 +46,38 @@ All migrations are stored in a single `migrations` array and bubble up through t
 ### Three Usage Modes
 
 #### 1. TypeScript-First (Generates Migrations)
+
 ```typescript
 const table = tableSchemaComponent({
   tableName: 'users',
   columns: {
     id: column('id', { type: 'serial', primaryKey: true }),
-    email: column('email', { type: 'varchar', length: 255 })
-  }
+    email: column('email', { type: 'varchar', length: 255 }),
+  },
   // No migrations = will generate CREATE TABLE IF NOT EXISTS
 });
 ```
 
 #### 2. SQL-First (Migrations as Source of Truth)
+
 ```typescript
 const table = tableSchemaComponent({
   tableName: 'users',
-  migrations: [
-    sqlMigration('001_create', [SQL`CREATE TABLE users ...`])
-  ]
+  migrations: [sqlMigration('001_create', [SQL`CREATE TABLE users ...`])],
   // No columns = trust the SQL completely
 });
 ```
 
 #### 3. Hybrid with Validation
+
 ```typescript
 const table = tableSchemaComponent({
   tableName: 'users',
   columns: {
     id: column('id', { type: 'serial' }),
-    email: column('email', { type: 'varchar' })
+    email: column('email', { type: 'varchar' }),
   },
-  migrations: [
-    sqlMigration('001_create', [SQL`CREATE TABLE users ...`])
-  ]
+  migrations: [sqlMigration('001_create', [SQL`CREATE TABLE users ...`])],
   // Both provided = TypeScript is truth, validate migrations match
 });
 ```
@@ -86,7 +90,17 @@ const table = tableSchemaComponent({
 
 ```typescript
 export type ColumnDefinition = {
-  type: 'serial' | 'varchar' | 'int' | 'bigint' | 'text' | 'timestamp' | 'boolean' | 'uuid' | 'json' | 'jsonb';
+  type:
+    | 'serial'
+    | 'varchar'
+    | 'int'
+    | 'bigint'
+    | 'text'
+    | 'timestamp'
+    | 'boolean'
+    | 'uuid'
+    | 'json'
+    | 'jsonb';
   nullable?: boolean;
   primaryKey?: boolean;
   unique?: boolean;
@@ -106,8 +120,8 @@ export type ColumnSchemaComponent = SchemaComponent<
   ColumnURN,
   Readonly<{
     columnName: string;
-    definition?: ColumnDefinition;  // NEW: Optional definition for TypeScript-first
-    generateMigration?: () => SQL;  // NEW: Self-contained migration generation
+    definition?: ColumnDefinition; // NEW: Optional definition for TypeScript-first
+    generateMigration?: () => SQL; // NEW: Self-contained migration generation
   }>
 >;
 
@@ -115,7 +129,8 @@ export type ColumnSchemaComponent = SchemaComponent<
 export const generateColumnSQL = (column: ColumnSchemaComponent): string => {
   if (!column.definition) return `${column.columnName} TEXT`; // fallback
 
-  const { type, nullable, primaryKey, unique, length, defaultValue } = column.definition;
+  const { type, nullable, primaryKey, unique, length, defaultValue } =
+    column.definition;
   let sql = `${column.columnName} ${type.toUpperCase()}`;
 
   if (length) sql += `(${length})`;
@@ -131,6 +146,7 @@ export const generateColumnSQL = (column: ColumnSchemaComponent): string => {
 ### Phase 2: Nested Schema Snapshot System
 
 **Complete directory structure**:
+
 ```
 .dumbo/
   snapshots/                              # Current state + migration tracking
@@ -191,12 +207,12 @@ export const usersSnapshot = {
   tableName: 'users',
   columns: {
     id: { type: 'serial' as const, primaryKey: true },
-    email: { type: 'varchar' as const, length: 255, nullable: false }
+    email: { type: 'varchar' as const, length: 255, nullable: false },
   },
   indexes: {
-    idx_users_email: { columns: ['email'], unique: false }
+    idx_users_email: { columns: ['email'], unique: false },
   },
-  migrations: []  // No migrations provided, will be generated
+  migrations: [], // No migrations provided, will be generated
 } as const;
 
 // SCENARIO 2: SQL-first (only migrations provided)
@@ -215,13 +231,19 @@ export const ordersSnapshot = {
     // Introspected from database after applying migrations
     id: { type: 'serial' as const, primaryKey: false },
     total: { type: 'decimal' as const, precision: 10, scale: 2 },
-    user_id: { type: 'int' as const, nullable: true }
+    user_id: { type: 'int' as const, nullable: true },
   },
   indexes: {},
   migrations: [
-    { name: '001_create', sqls: ['CREATE TABLE orders (id SERIAL, total DECIMAL(10,2))'] },
-    { name: '002_add_user', sqls: ['ALTER TABLE orders ADD COLUMN user_id INT'] }
-  ]
+    {
+      name: '001_create',
+      sqls: ['CREATE TABLE orders (id SERIAL, total DECIMAL(10,2))'],
+    },
+    {
+      name: '002_add_user',
+      sqls: ['ALTER TABLE orders ADD COLUMN user_id INT'],
+    },
+  ],
 } as const;
 
 // SCENARIO 3: Hybrid (TypeScript definitions + SQL migrations)
@@ -237,12 +259,17 @@ export const postsSnapshot = {
   columns: {
     // TypeScript definitions as source of truth
     id: { type: 'serial' as const, primaryKey: true },
-    title: { type: 'varchar' as const, length: 255, nullable: false }
+    title: { type: 'varchar' as const, length: 255, nullable: false },
   },
   indexes: {},
   migrations: [
-    { name: '001_custom', sqls: ['CREATE TABLE posts (id SERIAL PRIMARY KEY, title VARCHAR(255), internal_field JSONB)'] }
-  ]
+    {
+      name: '001_custom',
+      sqls: [
+        'CREATE TABLE posts (id SERIAL PRIMARY KEY, title VARCHAR(255), internal_field JSONB)',
+      ],
+    },
+  ],
 } as const;
 
 // .dumbo/snapshots/schemas/public.snapshot.ts
@@ -255,8 +282,8 @@ export const publicSnapshot = {
   tables: {
     users: usersSnapshot,
     posts: postsSnapshot,
-    comments: commentsSnapshot
-  }
+    comments: commentsSnapshot,
+  },
 } as const;
 
 // .dumbo/snapshots/myapp.snapshot.ts
@@ -269,12 +296,13 @@ export const databaseSnapshot = {
   timestamp: '2024-01-15T10:30:00Z',
   schemas: {
     public: publicSnapshot,
-    analytics: analyticsSnapshot
-  }
+    analytics: analyticsSnapshot,
+  },
 } as const;
 ```
 
 **Benefits of nested structure**:
+
 - Minimizes git merge conflicts (each table in separate file)
 - Clear ownership and change tracking
 - Natural composition mirroring schema hierarchy
@@ -310,13 +338,13 @@ export type TableSnapshot = {
   tableName: string;
   columns: Record<string, ColumnSnapshot>;
   indexes: Record<string, IndexSnapshot>;
-  migrations: SQLMigration[];  // Track migrations defined in component
+  migrations: SQLMigration[]; // Track migrations defined in component
 };
 
 export type SchemaSnapshot = {
   schemaName: string;
   tables: Record<string, TableSnapshot>;
-  migrations: SQLMigration[];  // Schema-level migrations
+  migrations: SQLMigration[]; // Schema-level migrations
 };
 
 export type DatabaseSnapshot = {
@@ -324,7 +352,7 @@ export type DatabaseSnapshot = {
   version: string;
   timestamp: string;
   schemas: Record<string, SchemaSnapshot>;
-  migrations: SQLMigration[];  // Database-level migrations
+  migrations: SQLMigration[]; // Database-level migrations
 };
 ```
 
@@ -340,7 +368,7 @@ export type DatabaseSnapshot = {
 // Add to tableSchemaComponent.ts
 export const generateTableMigrations = (
   table: TableSchemaComponent,
-  snapshot?: TableSnapshot
+  snapshot?: TableSnapshot,
 ): SQLMigration[] => {
   // If migrations already provided, return them (SQL-first mode)
   if (table.migrations.length > 0) {
@@ -357,15 +385,15 @@ export const generateTableMigrations = (
   if (!snapshot) {
     // No snapshot = first time creation
     const columnDefinitions = Array.from(table.columns.values())
-      .map(col => generateColumnSQL(col))
+      .map((col) => generateColumnSQL(col))
       .join(',\n  ');
 
     migrations.push(
       sqlMigration(`create_table_${table.tableName}`, [
         SQL`CREATE TABLE IF NOT EXISTS ${table.tableName} (
   ${columnDefinitions}
-)`
-      ])
+)`,
+      ]),
     );
   } else {
     // Generate ALTER statements based on diff with snapshot
@@ -374,8 +402,8 @@ export const generateTableMigrations = (
     for (const newColumn of changes.addedColumns) {
       migrations.push(
         sqlMigration(`add_${newColumn.columnName}_to_${table.tableName}`, [
-          SQL`ALTER TABLE ${table.tableName} ADD COLUMN IF NOT EXISTS ${generateColumnSQL(newColumn)}`
-        ])
+          SQL`ALTER TABLE ${table.tableName} ADD COLUMN IF NOT EXISTS ${generateColumnSQL(newColumn)}`,
+        ]),
       );
     }
   }
@@ -391,13 +419,15 @@ export const generateTableMigrations = (
 };
 
 // Table component enhanced constructor
-export const tableSchemaComponent = (options: TableOptions): TableSchemaComponent => {
+export const tableSchemaComponent = (
+  options: TableOptions,
+): TableSchemaComponent => {
   // ... existing implementation ...
 
   const component = {
     // ... existing properties ...
     generateMigrations: (snapshot?: TableSnapshot) =>
-      generateTableMigrations(component, snapshot)
+      generateTableMigrations(component, snapshot),
   };
 
   return component;
@@ -411,14 +441,14 @@ export const tableSchemaComponent = (options: TableOptions): TableSchemaComponen
 ```typescript
 export const generateIndexMigration = (
   tableName: string,
-  index: IndexSchemaComponent
+  index: IndexSchemaComponent,
 ): SQLMigration => {
   const uniqueClause = index.unique ? 'UNIQUE ' : '';
   const columns = index.columns.join(', ');
 
   return sqlMigration(`create_index_${index.indexName}`, [
     SQL`CREATE ${uniqueClause}INDEX IF NOT EXISTS ${index.indexName}
-        ON ${tableName}(${columns})`
+        ON ${tableName}(${columns})`,
   ]);
 };
 ```
@@ -430,7 +460,7 @@ export const generateIndexMigration = (
 ```typescript
 export const generateSchemaMigrations = (
   schema: DatabaseSchemaSchemaComponent,
-  snapshot?: SchemaSnapshot
+  snapshot?: SchemaSnapshot,
 ): SQLMigration[] => {
   if (schema.migrations.length > 0) {
     return schema.migrations;
@@ -441,14 +471,16 @@ export const generateSchemaMigrations = (
   // Create schema if doesn't exist
   migrations.push(
     sqlMigration(`create_schema_${schema.schemaName}`, [
-      SQL`CREATE SCHEMA IF NOT EXISTS ${schema.schemaName}`
-    ])
+      SQL`CREATE SCHEMA IF NOT EXISTS ${schema.schemaName}`,
+    ]),
   );
 
   // Tables will generate their own migrations
   // But we collect them here for ordering
   for (const table of schema.tables.values()) {
-    migrations.push(...table.generateMigrations(snapshot?.tables[table.tableName]));
+    migrations.push(
+      ...table.generateMigrations(snapshot?.tables[table.tableName]),
+    );
   }
 
   return migrations;
@@ -464,7 +496,7 @@ The database component is the root and orchestrates migration generation by trav
 ```typescript
 export const collectAllMigrations = (
   database: DatabaseSchemaComponent,
-  snapshot?: DatabaseSnapshot
+  snapshot?: DatabaseSnapshot,
 ): SQLMigration[] => {
   const migrations: SQLMigration[] = [];
 
@@ -485,8 +517,8 @@ export const collectAllMigrations = (
   // 1. Database-level setup
   migrations.push(
     sqlMigration(`setup_database_${database.databaseName}`, [
-      SQL`-- Database setup for ${database.databaseName}`
-    ])
+      SQL`-- Database setup for ${database.databaseName}`,
+    ]),
   );
 
   // 2. Traverse schemas
@@ -496,8 +528,8 @@ export const collectAllMigrations = (
     // Create schema
     migrations.push(
       sqlMigration(`create_schema_${schema.schemaName}`, [
-        SQL`CREATE SCHEMA IF NOT EXISTS ${schema.schemaName}`
-      ])
+        SQL`CREATE SCHEMA IF NOT EXISTS ${schema.schemaName}`,
+      ]),
     );
 
     // 3. Collect all tables first (structure only, no foreign keys)
@@ -515,7 +547,7 @@ export const collectAllMigrations = (
         const tableMigrations = table.generateMigrations(tableSnapshot);
 
         // Separate table creation from index creation
-        tableMigrations.forEach(m => {
+        tableMigrations.forEach((m) => {
           if (m.name.includes('index')) {
             indexCreations.push(m);
           } else {
@@ -526,8 +558,8 @@ export const collectAllMigrations = (
     }
 
     // Add in correct order
-    migrations.push(...tableCreations);  // All tables first
-    migrations.push(...indexCreations);  // Then all indexes
+    migrations.push(...tableCreations); // All tables first
+    migrations.push(...indexCreations); // Then all indexes
   }
 
   // Future: Foreign key constraints would go here
@@ -537,13 +569,15 @@ export const collectAllMigrations = (
 };
 
 // Enhanced database component
-export const databaseSchemaComponent = (options: DatabaseOptions): DatabaseSchemaComponent => {
+export const databaseSchemaComponent = (
+  options: DatabaseOptions,
+): DatabaseSchemaComponent => {
   // ... existing implementation ...
 
   const component = {
     // ... existing properties ...
     collectAllMigrations: (snapshot?: DatabaseSnapshot) =>
-      collectAllMigrations(component, snapshot)
+      collectAllMigrations(component, snapshot),
   };
 
   return component;
@@ -567,12 +601,12 @@ export type TableChanges = {
 
 export const diffTableWithSnapshot = (
   table: TableSchemaComponent,
-  snapshot: TableSnapshot
+  snapshot: TableSnapshot,
 ): TableChanges => {
   const changes: TableChanges = {
     addedColumns: [],
     removedColumns: [],
-    modifiedColumns: []
+    modifiedColumns: [],
   };
 
   // Find added columns
@@ -596,7 +630,7 @@ export const diffTableWithSnapshot = (
       changes.modifiedColumns.push({
         name,
         from: snapshotColumn,
-        to: column.definition
+        to: column.definition,
       });
     }
   }
@@ -604,7 +638,10 @@ export const diffTableWithSnapshot = (
   return changes;
 };
 
-const columnsEqual = (def: ColumnDefinition | undefined, snap: ColumnSnapshot): boolean => {
+const columnsEqual = (
+  def: ColumnDefinition | undefined,
+  snap: ColumnSnapshot,
+): boolean => {
   if (!def) return false;
   return (
     def.type === snap.type &&
@@ -621,7 +658,9 @@ const columnsEqual = (def: ColumnDefinition | undefined, snap: ColumnSnapshot): 
 **New file to create**: `src/packages/dumbo/src/core/schema/generators/typeGenerator.ts`
 
 ```typescript
-export const generateTypesFromSnapshot = (snapshot: DatabaseSnapshot): string => {
+export const generateTypesFromSnapshot = (
+  snapshot: DatabaseSnapshot,
+): string => {
   const lines: string[] = [];
 
   lines.push('// Auto-generated database types from schema snapshot');
@@ -715,32 +754,40 @@ export type ImmutabilityValidationResult = {
 
 export const validateMigrationImmutability = (
   currentMigrations: ReadonlyArray<SQLMigration>,
-  snapshotMigrations: ReadonlyArray<SQLMigration>
+  snapshotMigrations: ReadonlyArray<SQLMigration>,
 ): ImmutabilityValidationResult => {
   // Check that no migrations were removed
   for (const snapshotMigration of snapshotMigrations) {
-    const currentMigration = currentMigrations.find(m => m.name === snapshotMigration.name);
+    const currentMigration = currentMigrations.find(
+      (m) => m.name === snapshotMigration.name,
+    );
 
     if (!currentMigration) {
       return {
         valid: false,
-        error: `Migration '${snapshotMigration.name}' was removed from component!\n` +
-               `Migrations cannot be deleted once defined.\n` +
-               `If you need to undo a migration, add a new migration that reverses it.`
+        error:
+          `Migration '${snapshotMigration.name}' was removed from component!\n` +
+          `Migrations cannot be deleted once defined.\n` +
+          `If you need to undo a migration, add a new migration that reverses it.`,
       };
     }
 
     // Check that migration content hasn't changed
-    const snapshotSqls = snapshotMigration.sqls.map(sql => sql.toString()).join('\n');
-    const currentSqls = currentMigration.sqls.map(sql => sql.toString()).join('\n');
+    const snapshotSqls = snapshotMigration.sqls
+      .map((sql) => sql.toString())
+      .join('\n');
+    const currentSqls = currentMigration.sqls
+      .map((sql) => sql.toString())
+      .join('\n');
 
     if (snapshotSqls !== currentSqls) {
       return {
         valid: false,
-        error: `Migration '${snapshotMigration.name}' has been modified!\n` +
-               `Original SQL:\n${snapshotSqls}\n\n` +
-               `Current SQL:\n${currentSqls}\n\n` +
-               `Migrations must be immutable once defined. Add a new migration instead.`
+        error:
+          `Migration '${snapshotMigration.name}' has been modified!\n` +
+          `Original SQL:\n${snapshotSqls}\n\n` +
+          `Current SQL:\n${currentSqls}\n\n` +
+          `Migrations must be immutable once defined. Add a new migration instead.`,
       };
     }
   }
@@ -751,10 +798,10 @@ export const validateMigrationImmutability = (
 // Helper to detect new migrations
 export const getNewMigrations = (
   currentMigrations: ReadonlyArray<SQLMigration>,
-  snapshotMigrations: ReadonlyArray<SQLMigration>
+  snapshotMigrations: ReadonlyArray<SQLMigration>,
 ): SQLMigration[] => {
-  const snapshotNames = new Set(snapshotMigrations.map(m => m.name));
-  return currentMigrations.filter(m => !snapshotNames.has(m.name));
+  const snapshotNames = new Set(snapshotMigrations.map((m) => m.name));
+  return currentMigrations.filter((m) => !snapshotNames.has(m.name));
 };
 ```
 
@@ -770,7 +817,11 @@ export type ValidationResult = {
 };
 
 export type ValidationError = {
-  type: 'missing_column' | 'type_mismatch' | 'constraint_mismatch' | 'missing_table';
+  type:
+    | 'missing_column'
+    | 'type_mismatch'
+    | 'constraint_mismatch'
+    | 'missing_table';
   message: string;
   location: {
     component: string;
@@ -788,16 +839,19 @@ export type ValidationWarning = {
 
 export const validateMigrationsAgainstSchema = (
   component: SchemaComponent,
-  options?: { strict: boolean }
+  options?: { strict: boolean },
 ): ValidationResult => {
   const result: ValidationResult = {
     valid: true,
     errors: [],
-    warnings: []
+    warnings: [],
   };
 
   // Only validate if component has both TypeScript definitions AND migrations
-  if (!hasTypeScriptDefinitions(component) || component.migrations.length === 0) {
+  if (
+    !hasTypeScriptDefinitions(component) ||
+    component.migrations.length === 0
+  ) {
     return result;
   }
 
@@ -815,10 +869,10 @@ export const validateMigrationsAgainstSchema = (
       location: {
         component: component.schemaComponentKey,
         file: mismatch.file,
-        line: mismatch.line
+        line: mismatch.line,
       },
       expected: mismatch.expected,
-      actual: mismatch.actual
+      actual: mismatch.actual,
     });
     result.valid = false;
   }
@@ -871,7 +925,7 @@ export class MigrationOrchestrator {
   constructor(
     private database: DatabaseSchemaComponent,
     private snapshotPath: string = '.dumbo/snapshots',
-    private migrationsPath: string = '.dumbo/migrations'
+    private migrationsPath: string = '.dumbo/migrations',
   ) {}
 
   async processMigrations(): Promise<ProcessedMigrations> {
@@ -885,29 +939,40 @@ export class MigrationOrchestrator {
     }
 
     // Process user-provided migrations
-    const userProvidedMigrations = await this.processUserProvidedMigrations(snapshot);
+    const userProvidedMigrations =
+      await this.processUserProvidedMigrations(snapshot);
 
     // Generate migrations for TypeScript-defined components
-    const generatedMigrations = await this.generateMigrationsFromDefinitions(snapshot);
+    const generatedMigrations =
+      await this.generateMigrationsFromDefinitions(snapshot);
 
     return {
       userProvided: userProvidedMigrations,
       generated: generatedMigrations,
-      all: [...userProvidedMigrations, ...generatedMigrations]
+      all: [...userProvidedMigrations, ...generatedMigrations],
     };
   }
 
-  private async processUserProvidedMigrations(snapshot: DatabaseSnapshot | null): Promise<SQLMigration[]> {
+  private async processUserProvidedMigrations(
+    snapshot: DatabaseSnapshot | null,
+  ): Promise<SQLMigration[]> {
     const newMigrations: SQLMigration[] = [];
 
     // Process database-level migrations
     if (this.database.migrations.length > 0) {
       const snapshotMigrations = snapshot?.migrations || [];
-      const newDbMigrations = getNewMigrations(this.database.migrations, snapshotMigrations);
+      const newDbMigrations = getNewMigrations(
+        this.database.migrations,
+        snapshotMigrations,
+      );
 
       for (const migration of newDbMigrations) {
         // Write to migrations folder
-        await this.writeMigrationToFile(migration, 'database', this.database.schemaComponentKey);
+        await this.writeMigrationToFile(
+          migration,
+          'database',
+          this.database.schemaComponentKey,
+        );
         newMigrations.push(migration);
       }
     }
@@ -919,10 +984,17 @@ export class MigrationOrchestrator {
       // Process schema migrations
       if (schema.migrations.length > 0) {
         const snapshotMigrations = schemaSnapshot?.migrations || [];
-        const newSchemaMigrations = getNewMigrations(schema.migrations, snapshotMigrations);
+        const newSchemaMigrations = getNewMigrations(
+          schema.migrations,
+          snapshotMigrations,
+        );
 
         for (const migration of newSchemaMigrations) {
-          await this.writeMigrationToFile(migration, 'schema', schema.schemaComponentKey);
+          await this.writeMigrationToFile(
+            migration,
+            'schema',
+            schema.schemaComponentKey,
+          );
           newMigrations.push(migration);
         }
       }
@@ -933,10 +1005,17 @@ export class MigrationOrchestrator {
 
         if (table.migrations.length > 0) {
           const snapshotMigrations = tableSnapshot?.migrations || [];
-          const newTableMigrations = getNewMigrations(table.migrations, snapshotMigrations);
+          const newTableMigrations = getNewMigrations(
+            table.migrations,
+            snapshotMigrations,
+          );
 
           for (const migration of newTableMigrations) {
-            await this.writeMigrationToFile(migration, 'table', table.schemaComponentKey);
+            await this.writeMigrationToFile(
+              migration,
+              'table',
+              table.schemaComponentKey,
+            );
             newMigrations.push(migration);
           }
         }
@@ -949,7 +1028,7 @@ export class MigrationOrchestrator {
   private async writeMigrationToFile(
     migration: SQLMigration,
     type: 'database' | 'schema' | 'table',
-    componentKey: string
+    componentKey: string,
   ): Promise<void> {
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `${timestamp}-${migration.name}.sql`;
@@ -961,21 +1040,24 @@ export class MigrationOrchestrator {
       `-- Migration name: ${migration.name}`,
       `-- Written at: ${new Date().toISOString()}`,
       '',
-      ''
+      '',
     ].join('\n');
 
-    const content = header + migration.sqls.map(sql => sql.toString()).join(';\n') + ';';
+    const content =
+      header + migration.sqls.map((sql) => sql.toString()).join(';\n') + ';';
 
     await writeFile(`${this.migrationsPath}/${filename}`, content);
   }
 
-  private async validateMigrations(snapshot: DatabaseSnapshot | null): Promise<ImmutabilityValidationResult> {
+  private async validateMigrations(
+    snapshot: DatabaseSnapshot | null,
+  ): Promise<ImmutabilityValidationResult> {
     if (!snapshot) return { valid: true };
 
     // Validate database migrations
     const dbValidation = validateMigrationImmutability(
       this.database.migrations,
-      snapshot.migrations || []
+      snapshot.migrations || [],
     );
     if (!dbValidation.valid) return dbValidation;
 
@@ -986,7 +1068,7 @@ export class MigrationOrchestrator {
 
       const schemaValidation = validateMigrationImmutability(
         schema.migrations,
-        schemaSnapshot.migrations || []
+        schemaSnapshot.migrations || [],
       );
       if (!schemaValidation.valid) return schemaValidation;
 
@@ -996,7 +1078,7 @@ export class MigrationOrchestrator {
 
         const tableValidation = validateMigrationImmutability(
           table.migrations,
-          tableSnapshot.migrations || []
+          tableSnapshot.migrations || [],
         );
         if (!tableValidation.valid) return tableValidation;
       }
@@ -1025,7 +1107,9 @@ export class MigrationOrchestrator {
   private async loadSnapshot(): Promise<DatabaseSnapshot | null> {
     try {
       // Load root snapshot which imports all nested snapshots
-      const module = await import(`${this.snapshotPath}/${this.database.databaseName}.snapshot.ts`);
+      const module = await import(
+        `${this.snapshotPath}/${this.database.databaseName}.snapshot.ts`
+      );
       return module.databaseSnapshot;
     } catch (error) {
       // No snapshot found, will generate everything from scratch
@@ -1038,7 +1122,9 @@ export class MigrationOrchestrator {
     await this.generateDatabaseSnapshot(this.database);
   }
 
-  private async generateDatabaseSnapshot(database: DatabaseSchemaComponent): Promise<void> {
+  private async generateDatabaseSnapshot(
+    database: DatabaseSchemaComponent,
+  ): Promise<void> {
     // Generate nested snapshot files
     for (const schema of database.schemas.values()) {
       await this.generateSchemaSnapshot(schema);
@@ -1046,7 +1132,10 @@ export class MigrationOrchestrator {
 
     // Generate root database snapshot that imports schemas
     const imports = Array.from(database.schemas.values())
-      .map(s => `import { ${s.schemaName}Snapshot } from './schemas/${s.schemaName}.snapshot';`)
+      .map(
+        (s) =>
+          `import { ${s.schemaName}Snapshot } from './schemas/${s.schemaName}.snapshot';`,
+      )
       .join('\n');
 
     const migrationsStr = this.formatMigrationsForSnapshot(database.migrations);
@@ -1059,16 +1148,21 @@ export const databaseSnapshot = {
   timestamp: '${new Date().toISOString()}',
   schemas: {
     ${Array.from(database.schemas.values())
-      .map(s => `${s.schemaName}: ${s.schemaName}Snapshot`)
+      .map((s) => `${s.schemaName}: ${s.schemaName}Snapshot`)
       .join(',\n    ')}
   },
   migrations: ${migrationsStr}
 } as const;`;
 
-    await writeFile(`${this.snapshotPath}/${database.databaseName}.snapshot.ts`, content);
+    await writeFile(
+      `${this.snapshotPath}/${database.databaseName}.snapshot.ts`,
+      content,
+    );
   }
 
-  private async generateSchemaSnapshot(schema: DatabaseSchemaSchemaComponent): Promise<void> {
+  private async generateSchemaSnapshot(
+    schema: DatabaseSchemaSchemaComponent,
+  ): Promise<void> {
     // Generate table snapshots first
     for (const table of schema.tables.values()) {
       await this.generateTableSnapshot(schema.schemaName, table);
@@ -1076,7 +1170,10 @@ export const databaseSnapshot = {
 
     // Generate schema snapshot that imports tables
     const imports = Array.from(schema.tables.values())
-      .map(t => `import { ${t.tableName}Snapshot } from './${schema.schemaName}/${t.tableName}.snapshot';`)
+      .map(
+        (t) =>
+          `import { ${t.tableName}Snapshot } from './${schema.schemaName}/${t.tableName}.snapshot';`,
+      )
       .join('\n');
 
     const migrationsStr = this.formatMigrationsForSnapshot(schema.migrations);
@@ -1087,16 +1184,22 @@ export const ${schema.schemaName}Snapshot = {
   schemaName: '${schema.schemaName}',
   tables: {
     ${Array.from(schema.tables.values())
-      .map(t => `${t.tableName}: ${t.tableName}Snapshot`)
+      .map((t) => `${t.tableName}: ${t.tableName}Snapshot`)
       .join(',\n    ')}
   },
   migrations: ${migrationsStr}
 } as const;`;
 
-    await writeFile(`${this.snapshotPath}/schemas/${schema.schemaName}.snapshot.ts`, content);
+    await writeFile(
+      `${this.snapshotPath}/schemas/${schema.schemaName}.snapshot.ts`,
+      content,
+    );
   }
 
-  private async generateTableSnapshot(schemaName: string, table: TableSchemaComponent): Promise<void> {
+  private async generateTableSnapshot(
+    schemaName: string,
+    table: TableSchemaComponent,
+  ): Promise<void> {
     const migrationsStr = this.formatMigrationsForSnapshot(table.migrations);
 
     const content = `export const ${table.tableName}Snapshot = {
@@ -1114,14 +1217,21 @@ export const ${schema.schemaName}Snapshot = {
   migrations: ${migrationsStr}
 } as const;`;
 
-    await writeFile(`${this.snapshotPath}/schemas/${schemaName}/${table.tableName}.snapshot.ts`, content);
+    await writeFile(
+      `${this.snapshotPath}/schemas/${schemaName}/${table.tableName}.snapshot.ts`,
+      content,
+    );
   }
 
-  private formatMigrationsForSnapshot(migrations: ReadonlyArray<SQLMigration>): string {
+  private formatMigrationsForSnapshot(
+    migrations: ReadonlyArray<SQLMigration>,
+  ): string {
     if (migrations.length === 0) return '[]';
 
-    const migrationStrs = migrations.map(m => {
-      const sqlsStr = m.sqls.map(sql => `'${sql.toString().replace(/'/g, "\\'")}'`).join(', ');
+    const migrationStrs = migrations.map((m) => {
+      const sqlsStr = m.sqls
+        .map((sql) => `'${sql.toString().replace(/'/g, "\\'")}'`)
+        .join(', ');
       return `{ name: '${m.name}', sqls: [${sqlsStr}] }`;
     });
 
@@ -1130,10 +1240,12 @@ export const ${schema.schemaName}Snapshot = {
 
   private groupMigrations(migrations: SQLMigration[]) {
     return {
-      schemas: migrations.filter(m => m.name.includes('schema')),
-      tables: migrations.filter(m => m.name.includes('create_table')),
-      columns: migrations.filter(m => m.name.includes('add_') || m.name.includes('alter_')),
-      indexes: migrations.filter(m => m.name.includes('index')),
+      schemas: migrations.filter((m) => m.name.includes('schema')),
+      tables: migrations.filter((m) => m.name.includes('create_table')),
+      columns: migrations.filter(
+        (m) => m.name.includes('add_') || m.name.includes('alter_'),
+      ),
+      indexes: migrations.filter((m) => m.name.includes('index')),
     };
   }
 }
@@ -1157,8 +1269,12 @@ describe('generateTableMigrations', () => {
       tableName: 'users',
       columns: {
         id: column('id', { type: 'serial', primaryKey: true }),
-        email: column('email', { type: 'varchar', length: 255, nullable: false })
-      }
+        email: column('email', {
+          type: 'varchar',
+          length: 255,
+          nullable: false,
+        }),
+      },
     });
 
     const migrations = table.generateMigrations();
@@ -1173,23 +1289,26 @@ describe('generateTableMigrations', () => {
     const snapshot = {
       tableName: 'users',
       columns: {
-        id: { type: 'serial' as const, primaryKey: true }
+        id: { type: 'serial' as const, primaryKey: true },
       },
-      indexes: {}
+      indexes: {},
     };
 
     const table = tableSchemaComponent({
       tableName: 'users',
       columns: {
         id: column('id', { type: 'serial', primaryKey: true }),
-        email: column('email', { type: 'varchar', length: 255 })
-      }
+        email: column('email', { type: 'varchar', length: 255 }),
+      },
     });
 
     const migrations = table.generateMigrations(snapshot);
 
     assert.equal(migrations.length, 1);
-    assert.match(migrations[0].sqls[0], /ALTER TABLE users ADD COLUMN IF NOT EXISTS email/);
+    assert.match(
+      migrations[0].sqls[0],
+      /ALTER TABLE users ADD COLUMN IF NOT EXISTS email/,
+    );
   });
 });
 ```
@@ -1220,19 +1339,22 @@ describe('MigrationOrchestrator integration', () => {
               tableName: 'users',
               columns: {
                 id: column('id', { type: 'serial', primaryKey: true }),
-                email: column('email', { type: 'varchar', length: 255 })
-              }
+                email: column('email', { type: 'varchar', length: 255 }),
+              },
             }),
             posts: tableSchemaComponent({
               tableName: 'posts',
               columns: {
                 id: column('id', { type: 'serial', primaryKey: true }),
-                userId: column('userId', { type: 'int', references: { table: 'users', column: 'id' } })
-              }
-            })
-          }
-        })
-      }
+                userId: column('userId', {
+                  type: 'int',
+                  references: { table: 'users', column: 'id' },
+                }),
+              },
+            }),
+          },
+        }),
+      },
     });
 
     const orchestrator = new MigrationOrchestrator(schema);
@@ -1245,7 +1367,10 @@ describe('MigrationOrchestrator integration', () => {
       WHERE table_schema = 'public'
     `);
 
-    assert.deepEqual(tables.map(t => t.table_name).sort(), ['posts', 'users']);
+    assert.deepEqual(tables.map((t) => t.table_name).sort(), [
+      'posts',
+      'users',
+    ]);
 
     // Verify columns exist
     const columns = await db.query(`
@@ -1273,7 +1398,7 @@ describe('Schema evolution E2E', () => {
     // 2. Schema modification
     const v2Schema = createSchema({
       version: 2,
-      addColumn: { table: 'users', column: 'phone' }
+      addColumn: { table: 'users', column: 'phone' },
     });
 
     // 3. Diff detection
@@ -1314,7 +1439,7 @@ const usersTable = tableSchemaComponent({
   tableName: 'users',
   columns: {
     id: column('id', { type: 'serial', primaryKey: true }),
-    email: column('email', { type: 'varchar', length: 255 })
+    email: column('email', { type: 'varchar', length: 255 }),
   },
   migrations: [
     sqlMigration('001_custom_create', [
@@ -1322,9 +1447,9 @@ const usersTable = tableSchemaComponent({
         id SERIAL PRIMARY KEY,
         email VARCHAR(255) UNIQUE,
         internal_tracking JSONB DEFAULT '{}'
-      )`
-    ])
-  ]
+      )`,
+    ]),
+  ],
 });
 ```
 
@@ -1363,15 +1488,17 @@ export const usersSnapshot = {
   tableName: 'users',
   columns: {
     id: { type: 'serial' as const, primaryKey: true },
-    email: { type: 'varchar' as const, length: 255, nullable: false }
+    email: { type: 'varchar' as const, length: 255, nullable: false },
   },
   indexes: {},
   migrations: [
     {
       name: '001_custom_create',
-      sqls: ['CREATE TABLE users (id SERIAL PRIMARY KEY, email VARCHAR(255) UNIQUE, internal_tracking JSONB DEFAULT \'{}\')']
-    }
-  ]
+      sqls: [
+        "CREATE TABLE users (id SERIAL PRIMARY KEY, email VARCHAR(255) UNIQUE, internal_tracking JSONB DEFAULT '{}')",
+      ],
+    },
+  ],
 } as const;
 ```
 
@@ -1384,7 +1511,7 @@ const usersTable = tableSchemaComponent({
   columns: {
     id: column('id', { type: 'serial', primaryKey: true }),
     email: column('email', { type: 'varchar', length: 255 }),
-    name: column('name', { type: 'varchar', length: 100 })  // NEW!
+    name: column('name', { type: 'varchar', length: 100 }), // NEW!
   },
   migrations: [
     sqlMigration('001_custom_create', [
@@ -1392,12 +1519,13 @@ const usersTable = tableSchemaComponent({
         id SERIAL PRIMARY KEY,
         email VARCHAR(255) UNIQUE,
         internal_tracking JSONB DEFAULT '{}'
-      )`
+      )`,
     ]),
-    sqlMigration('002_add_name', [  // NEW!
-      SQL`ALTER TABLE users ADD COLUMN name VARCHAR(100)`
-    ])
-  ]
+    sqlMigration('002_add_name', [
+      // NEW!
+      SQL`ALTER TABLE users ADD COLUMN name VARCHAR(100)`,
+    ]),
+  ],
 });
 ```
 
@@ -1423,12 +1551,12 @@ const usersTable = tableSchemaComponent({
         id BIGSERIAL PRIMARY KEY,  // Changed from SERIAL!
         email VARCHAR(255) UNIQUE,
         internal_tracking JSONB DEFAULT '{}'
-      )`
+      )`,
     ]),
     sqlMigration('002_add_name', [
-      SQL`ALTER TABLE users ADD COLUMN name VARCHAR(100)`
-    ])
-  ]
+      SQL`ALTER TABLE users ADD COLUMN name VARCHAR(100)`,
+    ]),
+  ],
 });
 
 await orchestrator.processMigrations();
@@ -1452,8 +1580,11 @@ const postsTable = tableSchemaComponent({
   columns: {
     id: column('id', { type: 'serial', primaryKey: true }),
     title: column('title', { type: 'varchar', length: 255 }),
-    userId: column('userId', { type: 'int', references: { table: 'users', column: 'id' } })
-  }
+    userId: column('userId', {
+      type: 'int',
+      references: { table: 'users', column: 'id' },
+    }),
+  },
   // No migrations provided - will be generated!
 });
 
@@ -1565,6 +1696,7 @@ Each phase builds on the previous one and can be tested independently. The key i
 This plan unifies SQL migrations and TypeScript schema definitions through:
 
 ### Core Innovations
+
 1. **Dual-purpose snapshots** - Track both current schema state AND component migrations
 2. **Migration diffing** - Detect new user-provided migrations by comparing with snapshots
 3. **Immutability enforcement** - Prevent dangerous modification of existing migrations
@@ -1572,6 +1704,7 @@ This plan unifies SQL migrations and TypeScript schema definitions through:
 5. **Nested snapshot structure** - Minimize git conflicts by separating tables into files
 
 ### Key Benefits
+
 - **Flexibility** - Support SQL-first, TypeScript-first, or hybrid approaches
 - **Safety** - Migration immutability prevents accidental schema corruption
 - **Type Safety** - Generate types from snapshots for Pongo query builders
@@ -1579,6 +1712,7 @@ This plan unifies SQL migrations and TypeScript schema definitions through:
 - **Clear Audit Trail** - Track all migrations with source metadata
 
 ### Migration Workflow
+
 1. Component defines schema (TypeScript) and/or migrations (SQL)
 2. Orchestrator validates immutability against snapshot
 3. New user-provided migrations are written to files
