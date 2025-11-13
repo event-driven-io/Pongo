@@ -1,9 +1,9 @@
 import type {
   BigIntegerToken,
   DefaultSQLColumnToken,
+  SQLColumnTypeTokens,
   SQLToken,
 } from '../tokens';
-import { SQLColumnTokens } from '../tokens';
 import { SQLProcessor, type SQLProcessorContext } from './sqlProcessor';
 
 type ExtractTokenType<T> = T extends (...args: never[]) => infer R
@@ -15,8 +15,8 @@ type ExtractTokenType<T> = T extends (...args: never[]) => infer R
     : never;
 
 export type DefaultSQLColumnProcessors = {
-  [key in keyof SQLColumnTokens]: SQLProcessor<
-    ExtractTokenType<(typeof SQLColumnTokens)[key]>
+  [key in keyof SQLColumnTypeTokens]: SQLProcessor<
+    ExtractTokenType<(typeof SQLColumnTypeTokens)[key]>
   >;
 };
 

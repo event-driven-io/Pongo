@@ -8,7 +8,7 @@ import type { ParametrizedSQL } from './parametrizedSQL';
 import { isTokenizedSQL, TokenizedSQL } from './tokenizedSQL';
 import {
   SQLColumnToken,
-  SQLColumnTokens,
+  SQLColumnTypeTokens,
   SQLIdentifier,
   SQLIn,
   SQLPlain,
@@ -99,10 +99,10 @@ SQL.check = {
   isSQLIn: SQLIn.check,
 };
 
-const columnFactory: SQLColumnToken & { type: typeof SQLColumnTokens } =
+const columnFactory: SQLColumnToken & { type: typeof SQLColumnTypeTokens } =
   SQLColumnToken as unknown as SQLColumnToken & {
-    type: typeof SQLColumnTokens;
+    type: typeof SQLColumnTypeTokens;
   };
-columnFactory.type = SQLColumnTokens;
+columnFactory.type = SQLColumnTypeTokens;
 
 SQL.column = columnFactory;
