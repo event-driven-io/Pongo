@@ -10,10 +10,10 @@ const mapColumnType = (
   { builder }: SQLProcessorContext,
 ): void => {
   let columnSQL: string;
-  const { sqlTokenType, value } = token;
+  const { sqlTokenType } = token;
   switch (sqlTokenType) {
     case 'SQL_COLUMN_AUTO_INCREMENT':
-      columnSQL = `INTEGER ${value.primaryKey ? 'PRIMARY KEY' : ''} AUTOINCREMENT`;
+      columnSQL = `INTEGER ${token.primaryKey ? 'PRIMARY KEY' : ''} AUTOINCREMENT`;
       break;
     case 'SQL_COLUMN_BIGINT':
       columnSQL = 'INTEGER';
@@ -37,7 +37,7 @@ const mapColumnType = (
       columnSQL = 'DATETIME';
       break;
     case 'SQL_COLUMN_VARCHAR':
-      columnSQL = `VARCHAR ${Number.isNaN(value) ? '' : `(${value})`}`;
+      columnSQL = `VARCHAR ${Number.isNaN(token.length) ? '' : `(${token.length})`}`;
       break;
     default: {
       const exhaustiveCheck: never = sqlTokenType;

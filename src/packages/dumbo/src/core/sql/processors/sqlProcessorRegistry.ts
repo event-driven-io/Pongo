@@ -1,8 +1,8 @@
-import type { SQLToken } from '../tokens';
+import type { AnySQLToken } from '../tokens';
 import type { AnySQLProcessor, SQLProcessor } from './sqlProcessor';
 
 export interface SQLProcessorsReadonlyRegistry {
-  get<Token extends SQLToken = SQLToken>(
+  get<Token extends AnySQLToken = AnySQLToken>(
     tokenType: Token['sqlTokenType'],
   ): SQLProcessor<Token> | null;
   all(): ReadonlyMap<string, AnySQLProcessor>;
@@ -46,7 +46,7 @@ export const SQLProcessorsRegistry = (options?: {
 
   const registry = {
     register,
-    get: <Token extends SQLToken = SQLToken>(
+    get: <Token extends AnySQLToken = AnySQLToken>(
       tokenType: string,
     ): SQLProcessor<Token> | null => {
       return processors.get(tokenType) ?? null;
