@@ -1,14 +1,20 @@
-import { SQLArray, SQLLiteral, SQLPlain, SQLToken } from '../tokens';
+import {
+  SQLArray,
+  SQLLiteral,
+  SQLPlain,
+  SQLToken,
+  type AnySQLToken,
+} from '../tokens';
 
 export type TokenizedSQL = Readonly<{
   __brand: 'tokenized-sql';
   sqlChunks: ReadonlyArray<string>;
-  sqlTokens: ReadonlyArray<SQLToken>;
+  sqlTokens: ReadonlyArray<AnySQLToken>;
 }>;
 
 const TokenizedSQLBuilder = () => {
   const sqlChunks: string[] = [];
-  const sqlTokens: SQLToken[] = [];
+  const sqlTokens: AnySQLToken[] = [];
 
   return {
     addSQL(str: string): void {
@@ -17,10 +23,10 @@ const TokenizedSQLBuilder = () => {
     addSQLs(str: ReadonlyArray<string>): void {
       sqlChunks.push(...str);
     },
-    addToken(value: SQLToken): void {
+    addToken(value: AnySQLToken): void {
       sqlTokens.push(value);
     },
-    addTokens(vals: ReadonlyArray<SQLToken>): void {
+    addTokens(vals: ReadonlyArray<AnySQLToken>): void {
       sqlTokens.push(...vals);
     },
     build(): TokenizedSQL {

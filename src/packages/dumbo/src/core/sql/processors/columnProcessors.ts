@@ -1,23 +1,9 @@
-import type {
-  BigIntegerToken,
-  DefaultSQLColumnToken,
-  SQLColumnTypeTokens,
-  SQLToken,
-} from '../tokens';
+import type { BigIntegerToken, DefaultSQLColumnToken } from '../tokens';
+import { AutoIncrementSQLColumnToken, SQLColumnTypeTokens } from '../tokens';
 import { SQLProcessor, type SQLProcessorContext } from './sqlProcessor';
 
-type ExtractTokenType<T> = T extends (...args: never[]) => infer R
-  ? R extends SQLToken
-    ? R
-    : never
-  : T extends SQLToken
-    ? T
-    : never;
-
 export type DefaultSQLColumnProcessors = {
-  [key in keyof SQLColumnTypeTokens]: SQLProcessor<
-    ExtractTokenType<(typeof SQLColumnTypeTokens)[key]>
-  >;
+  [key in keyof SQLColumnTypeTokens]: SQLProcessor<SQLColumnTypeTokens[key]>;
 };
 
 export const mapDefaultSQLColumnProcessors = (
@@ -26,9 +12,9 @@ export const mapDefaultSQLColumnProcessors = (
     context: SQLProcessorContext,
   ) => void,
 ): DefaultSQLColumnProcessors => ({
-  AutoIncrement: SQLProcessor({
+  AutoIncrement: SQLProcessor<AutoIncrementSQLColumnToken>({
     canHandle: 'SQL_COLUMN_AUTO_INCREMENT',
-    handle: (token, context) => {
+    handle: (token: AutoIncrementSQLColumnToken, context) => {
       mapColumnType(token, context);
     },
   }),

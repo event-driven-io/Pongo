@@ -24,7 +24,7 @@ export const columnSchemaComponent = ({
 }: {
   columnName: string;
 } & SchemaComponentOptions &
-  Omit<SQLColumnToken['value'], 'name'>): ColumnSchemaComponent => {
+  Omit<SQLColumnToken, 'name' | 'sqlTokenType'>): ColumnSchemaComponent => {
   const sc = schemaComponent(
     ColumnURN({ name: columnName }),
     migrationsOrComponents,

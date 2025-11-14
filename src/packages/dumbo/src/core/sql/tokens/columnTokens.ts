@@ -1,55 +1,44 @@
-import { SQLToken } from './sqlToken';
+import { SQLToken, type AnySQLToken } from './sqlToken';
 
-export type SerialToken = SQLToken<'SQL_COLUMN_SERIAL', never>;
-export const SerialToken = SQLToken<SerialToken>(
-  'SQL_COLUMN_SERIAL',
-  () => undefined!,
-);
+export type SerialToken = SQLToken<'SQL_COLUMN_SERIAL'>;
+export const SerialToken = SQLToken<SerialToken>('SQL_COLUMN_SERIAL');
 
-export type BigSerialToken = SQLToken<'SQL_COLUMN_BIGSERIAL', never>;
-export const BigSerialToken = SQLToken<BigSerialToken>(
-  'SQL_COLUMN_BIGSERIAL',
-  () => undefined!,
-);
+export type BigSerialToken = SQLToken<'SQL_COLUMN_BIGSERIAL'>;
+export const BigSerialToken = SQLToken<BigSerialToken>('SQL_COLUMN_BIGSERIAL');
 
-export type IntegerToken = SQLToken<'SQL_COLUMN_INTEGER', never>;
-export const IntegerToken = SQLToken<IntegerToken>(
-  'SQL_COLUMN_INTEGER',
-  () => undefined!,
-);
+export type IntegerToken = SQLToken<'SQL_COLUMN_INTEGER'>;
+export const IntegerToken = SQLToken<IntegerToken>('SQL_COLUMN_INTEGER');
 
-export type BigIntegerToken = SQLToken<'SQL_COLUMN_BIGINT', never>;
-export const BigIntegerToken = SQLToken<BigIntegerToken>(
-  'SQL_COLUMN_BIGINT',
-  () => undefined!,
-);
+export type BigIntegerToken = SQLToken<'SQL_COLUMN_BIGINT'>;
+export const BigIntegerToken = SQLToken<BigIntegerToken>('SQL_COLUMN_BIGINT');
 
-export type JSONBToken = SQLToken<'SQL_COLUMN_JSONB', never>;
-export const JSONBToken = SQLToken<JSONBToken>(
-  'SQL_COLUMN_JSONB',
-  () => undefined!,
-);
+export type JSONBToken = SQLToken<'SQL_COLUMN_JSONB'>;
+export const JSONBToken = SQLToken<JSONBToken>('SQL_COLUMN_JSONB');
 
-export type TimestampToken = SQLToken<'SQL_COLUMN_TIMESTAMP', never>;
-export const TimestampToken = SQLToken<TimestampToken>(
-  'SQL_COLUMN_TIMESTAMP',
-  () => undefined!,
-);
+export type TimestampToken = SQLToken<'SQL_COLUMN_TIMESTAMP'>;
+export const TimestampToken = SQLToken<TimestampToken>('SQL_COLUMN_TIMESTAMP');
 
-export type TimestamptzToken = SQLToken<'SQL_COLUMN_TIMESTAMPTZ', never>;
+export type TimestamptzToken = SQLToken<'SQL_COLUMN_TIMESTAMPTZ'>;
 export const TimestamptzToken = SQLToken<TimestamptzToken>(
   'SQL_COLUMN_TIMESTAMPTZ',
-  () => undefined!,
 );
 
-export type VarcharToken = SQLToken<'SQL_COLUMN_VARCHAR', number | 'max'>;
-export const VarcharToken = SQLToken<VarcharToken>('SQL_COLUMN_VARCHAR');
+export type VarcharToken = SQLToken<
+  'SQL_COLUMN_VARCHAR',
+  { length: number | 'max' }
+>;
+export const VarcharToken = SQLToken<VarcharToken, number | 'max'>(
+  'SQL_COLUMN_VARCHAR',
+  (length) => ({
+    length,
+  }),
+);
 
 export type SQLColumnToken<ColumnType = string> = SQLToken<
   'SQL_COLUMN',
   {
     name: string;
-    type: ColumnType | SQLToken;
+    type: ColumnType | AnySQLToken;
     notNull?: boolean;
     unique?: boolean;
     primaryKey?: boolean;
@@ -68,25 +57,48 @@ export const AutoIncrementSQLColumnToken =
   SQLToken<AutoIncrementSQLColumnToken>('SQL_COLUMN_AUTO_INCREMENT');
 
 export const SQLColumnTypeTokens = {
+  AutoIncrement: AutoIncrementSQLColumnToken,
+  BigInteger: BigIntegerToken,
+  BigSerial: BigSerialToken,
+  Integer: IntegerToken,
+  JSONB: JSONBToken,
+  Serial: SerialToken,
+  Timestamp: TimestampToken,
+  Timestamptz: TimestamptzToken,
+  Varchar: VarcharToken,
+};
+
+export type SQLColumnTypeTokens = {
+  AutoIncrement: AutoIncrementSQLColumnToken;
+  BigInteger: BigIntegerToken;
+  BigSerial: BigSerialToken;
+  Integer: IntegerToken;
+  JSONB: JSONBToken;
+  Serial: SerialToken;
+  Timestamp: TimestampToken;
+  Timestamptz: TimestamptzToken;
+  Varchar: VarcharToken;
+};
+
+export const SQLColumnTypeTokensFactory = {
   AutoIncrement: AutoIncrementSQLColumnToken.from,
-  BigInteger: BigIntegerToken.from(undefined!),
-  BigSerial: BigSerialToken.from(undefined!),
-  Integer: IntegerToken.from(undefined!),
-  JSONB: JSONBToken.from(undefined!),
-  Serial: SerialToken.from(undefined!),
-  Timestamp: TimestampToken.from(undefined!),
-  Timestamptz: TimestamptzToken.from(undefined!),
+  BigInteger: BigIntegerToken.from(),
+  BigSerial: BigSerialToken.from(),
+  Integer: IntegerToken.from(),
+  JSONB: JSONBToken.from(),
+  Serial: SerialToken.from(),
+  Timestamp: TimestampToken.from(),
+  Timestamptz: TimestamptzToken.from(),
   Varchar: VarcharToken.from,
 };
-export type SQLColumnTypeTokens = typeof SQLColumnTypeTokens;
 
 export type DefaultSQLColumnToken =
   | AutoIncrementSQLColumnToken
-  | BigIntegerToken
+  | SerialToken
   | BigSerialToken
   | IntegerToken
   | JSONBToken
-  | SerialToken
+  | BigIntegerToken
   | TimestampToken
   | TimestamptzToken
   | VarcharToken;

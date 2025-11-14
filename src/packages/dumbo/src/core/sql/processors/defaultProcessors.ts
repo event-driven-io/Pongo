@@ -17,7 +17,7 @@ export const ExpandSQLInProcessor: SQLProcessor<SQLIn> = SQLProcessor({
   canHandle: 'SQL_IN',
   handle: (token: SQLIn, context: SQLProcessorContext) => {
     const { builder, mapper, processorsRegistry } = context;
-    const { values: inValues, column } = token.value;
+    const { values: inValues, column } = token;
 
     if (inValues.value.length === 0) {
       builder.addParam(mapper.mapValue(false));
