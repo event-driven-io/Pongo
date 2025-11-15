@@ -6,6 +6,8 @@ import type {
   ExtractDumboDatabaseDriverOptions,
   InferDriverDatabaseType,
 } from './drivers';
+import { dumboSchema } from './schema';
+import { SQL, SQLColumnTypeTokensFactory } from './sql';
 
 export * from './connections';
 export * from './drivers';
@@ -39,3 +41,16 @@ export type DumboConnectionOptions<
         } & Omit<Options, 'driver' | 'driverType' | 'connectionString'>
       : never
     : never;
+
+declare module './sql' {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace SQL {
+    export const columnN: typeof dumboSchema.column & {
+      type: typeof SQLColumnTypeTokensFactory;
+    };
+  }
+}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+(SQL as any).columnN = Object.assign(dumboSchema.column, {
+  type: SQLColumnTypeTokensFactory,
+});
