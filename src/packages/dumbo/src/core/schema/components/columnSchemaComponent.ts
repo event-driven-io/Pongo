@@ -17,9 +17,12 @@ export type ColumnSchemaComponent = SchemaComponent<
   Readonly<{
     columnName: string;
   }>
->;
+> &
+  SQLColumnToken;
+
 export const columnSchemaComponent = ({
   columnName,
+  type,
   ...migrationsOrComponents
 }: {
   columnName: string;
@@ -33,5 +36,8 @@ export const columnSchemaComponent = ({
   return {
     ...sc,
     columnName,
+    sqlTokenType: 'SQL_COLUMN',
+    name: columnName,
+    type,
   };
 };
