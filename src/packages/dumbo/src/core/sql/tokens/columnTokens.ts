@@ -1,36 +1,47 @@
-import { SQLToken, type AnySQLToken } from './sqlToken';
+import { SQLToken } from './sqlToken';
 
-export type SerialToken = SQLToken<'SQL_COLUMN_SERIAL'>;
+// TODO: Use URNs for sqltoken
+export type ColumnTypeToken<
+  ColumnTypeName extends string = string,
+  TProps extends Omit<Record<string, unknown>, 'sqlTokenType'> | undefined =
+    | Omit<Record<string, unknown>, 'sqlTokenType'>
+    | undefined,
+> = SQLToken<`SQL_COLUMN_${ColumnTypeName}`, TProps>;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnyColumnTypeToken = ColumnTypeToken<string, any>;
+
+export type SerialToken = ColumnTypeToken<'SERIAL'>;
 export const SerialToken = SQLToken<SerialToken>('SQL_COLUMN_SERIAL');
 
-export type BigSerialToken = SQLToken<'SQL_COLUMN_BIGSERIAL'>;
+export type BigSerialToken = ColumnTypeToken<'BIGSERIAL'>;
 export const BigSerialToken = SQLToken<BigSerialToken>('SQL_COLUMN_BIGSERIAL');
 
-export type IntegerToken = SQLToken<'SQL_COLUMN_INTEGER'>;
+export type IntegerToken = ColumnTypeToken<'INTEGER'>;
 export const IntegerToken = SQLToken<IntegerToken>('SQL_COLUMN_INTEGER');
 
-export type BigIntegerToken = SQLToken<'SQL_COLUMN_BIGINT'>;
+export type BigIntegerToken = ColumnTypeToken<'BIGINT'>;
 export const BigIntegerToken = SQLToken<BigIntegerToken>('SQL_COLUMN_BIGINT');
 
-export type JSONBToken = SQLToken<'SQL_COLUMN_JSONB'>;
+export type JSONBToken = ColumnTypeToken<'JSONB'>;
 export const JSONBToken = SQLToken<JSONBToken>('SQL_COLUMN_JSONB');
 
-export type TimestampToken = SQLToken<'SQL_COLUMN_TIMESTAMP'>;
+export type TimestampToken = ColumnTypeToken<'TIMESTAMP'>;
 export const TimestampToken = SQLToken<TimestampToken>('SQL_COLUMN_TIMESTAMP');
 
-export type TimestamptzToken = SQLToken<'SQL_COLUMN_TIMESTAMPTZ'>;
+export type TimestamptzToken = ColumnTypeToken<'TIMESTAMPTZ'>;
 export const TimestamptzToken = SQLToken<TimestamptzToken>(
   'SQL_COLUMN_TIMESTAMPTZ',
 );
 
-export type VarcharToken = SQLToken<
-  'SQL_COLUMN_VARCHAR',
+export type VarcharToken = ColumnTypeToken<
+  'VARCHAR',
   { length: number | 'max' }
 >;
 export const VarcharToken = SQLToken<VarcharToken, number | 'max'>(
   'SQL_COLUMN_VARCHAR',
-  (length) => ({
-    length,
+  (length?: number | 'max') => ({
+    length: length ?? 'max',
   }),
 );
 
@@ -38,7 +49,7 @@ export type SQLColumnToken<ColumnType = string> = SQLToken<
   'SQL_COLUMN',
   {
     name: string;
-    type: ColumnType | AnySQLToken;
+    type: ColumnType | AnyColumnTypeToken;
     notNull?: boolean;
     unique?: boolean;
     primaryKey?: boolean;

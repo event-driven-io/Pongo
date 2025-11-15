@@ -39,6 +39,7 @@ export const SQLToken = <
       props = input as Omit<SQLTokenType, 'sqlTokenType'>;
     } else {
       throw new Error(
+        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
         `Cannot create SQLToken of type ${sqlTokenType} with input: ${input}`,
       );
     }
