@@ -20,41 +20,54 @@ export const TableURNType: TableURNType = 'sc:dumbo:table';
 export const TableURN = ({ name }: { name: string }): TableURN =>
   `${TableURNType}:${name}`;
 
-export type TableSchemaComponent = SchemaComponent<
-  TableURN,
-  Readonly<{
-    tableName: string;
-    columns: ReadonlyMap<string, ColumnSchemaComponent>;
-    indexes: ReadonlyMap<string, IndexSchemaComponent>;
-    addColumn: (column: ColumnSchemaComponent) => ColumnSchemaComponent;
-    addIndex: (index: IndexSchemaComponent) => IndexSchemaComponent;
-  }>
->;
+export type TableColumns = Record<string, ColumnSchemaComponent>;
 
-export const tableSchemaComponent = ({
+export type TableSchemaComponent<Columns extends TableColumns = TableColumns> =
+  SchemaComponent<
+    TableURN,
+    Readonly<{
+      tableName: string;
+      columns: ReadonlyMap<string, ColumnSchemaComponent> & Columns;
+      indexes: ReadonlyMap<string, IndexSchemaComponent>;
+      addColumn: (column: ColumnSchemaComponent) => ColumnSchemaComponent;
+      addIndex: (index: IndexSchemaComponent) => IndexSchemaComponent;
+    }>
+  >;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnyTableSchemaComponent = TableSchemaComponent<any>;
+
+export const tableSchemaComponent = <
+  Columns extends TableColumns = TableColumns,
+>({
   tableName,
   columns,
   ...migrationsOrComponents
 }: {
   tableName: string;
-  columns?: ColumnSchemaComponent[];
-} & SchemaComponentOptions): TableSchemaComponent => {
-  columns ??= [];
+  columns?: Columns;
+} & SchemaComponentOptions): TableSchemaComponent<Columns> => {
+  columns ??= {} as Columns;
 
   const base = schemaComponent(TableURN({ name: tableName }), {
     migrations: migrationsOrComponents.migrations ?? [],
-    components: [...(migrationsOrComponents.components ?? []), ...columns],
+    components: [
+      ...(migrationsOrComponents.components ?? []),
+      ...Object.values(columns),
+    ],
   });
 
   return {
     ...base,
     tableName,
     get columns() {
-      return mapSchemaComponentsOfType<ColumnSchemaComponent>(
+      const columnsMap = mapSchemaComponentsOfType<ColumnSchemaComponent>(
         base.components,
         ColumnURNType,
         (c) => c.columnName,
       );
+
+      return Object.assign(columnsMap, columns);
     },
     get indexes() {
       return mapSchemaComponentsOfType<IndexSchemaComponent>(

@@ -41,6 +41,8 @@ void describe('dumboSchema', () => {
     assert.ok(tbl.columns.has('id'));
     assert.ok(tbl.columns.has('email'));
     assert.ok(tbl.indexes.has('idx_email'));
+    assert.ok(tbl.columns.id !== undefined);
+    assert.ok(tbl.columns.email !== undefined);
   });
 
   void it('should create a named schema', () => {
@@ -55,6 +57,7 @@ void describe('dumboSchema', () => {
     assert.strictEqual(sch.schemaName, 'public');
     assert.strictEqual(sch.tables.size, 1);
     assert.ok(sch.tables.has('users'));
+    assert.ok(sch.tables.users.columns.id !== undefined);
   });
 
   void it('should create a default schema without name', () => {
@@ -100,6 +103,9 @@ void describe('dumboSchema', () => {
     assert.strictEqual(db.databaseName, 'myapp');
     assert.strictEqual(db.schemas.size, 1);
     assert.ok(db.schemas.has('public'));
+    assert.ok(db.schemas.public !== undefined);
+    assert.ok(db.schemas.public.tables.users !== undefined);
+    assert.ok(db.schemas.public.tables.users.columns.id !== undefined);
   });
 
   void it('should handle DEFAULT_SCHEMA', () => {
@@ -173,6 +179,6 @@ const multiSchemaDb = database('myapp', {
 });
 
 // Access using name-based maps
-const publicSchema = multiSchemaDb.schemas.get('public');
+const publicSchema = multiSchemaDb.schemas.public;
 const usersTable = publicSchema?.tables.get('users');
 export const emailColumn = usersTable?.columns.get('email');
