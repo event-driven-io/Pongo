@@ -7,6 +7,7 @@ import {
 import {
   TableURNType,
   tableSchemaComponent,
+  type AnyTableSchemaComponent,
   type TableSchemaComponent,
 } from './tableSchemaComponent';
 
@@ -21,40 +22,54 @@ export const DatabaseSchemaURN = ({
   name: string;
 }): DatabaseSchemaURN => `${DatabaseSchemaURNType}:${name}`;
 
-export type DatabaseSchemaSchemaComponent = SchemaComponent<
+export type DatabaseSchemaTables<
+  Tables extends AnyTableSchemaComponent = AnyTableSchemaComponent,
+> = Record<string, Tables>;
+
+export type DatabaseSchemaSchemaComponent<
+  Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
+> = SchemaComponent<
   DatabaseSchemaURN,
   Readonly<{
     schemaName: string;
-    tables: ReadonlyMap<string, TableSchemaComponent>;
+    tables: ReadonlyMap<string, TableSchemaComponent> & Tables;
     addTable: (table: string | TableSchemaComponent) => TableSchemaComponent;
   }>
 >;
 
-export const databaseSchemaSchemaComponent = ({
+export type AnyDatabaseSchemaSchemaComponent =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  DatabaseSchemaSchemaComponent<any>;
+
+export const databaseSchemaSchemaComponent = <
+  Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
+>({
   schemaName,
-  tableNames,
+  tables,
   ...migrationsOrComponents
 }: {
   schemaName: string;
-  tableNames?: string[];
-} & SchemaComponentOptions): DatabaseSchemaSchemaComponent => {
-  const tables =
-    tableNames?.map((tableName) => tableSchemaComponent({ tableName })) ?? [];
-
+  tables?: Tables;
+} & SchemaComponentOptions): DatabaseSchemaSchemaComponent<Tables> => {
   const base = schemaComponent(DatabaseSchemaURN({ name: schemaName }), {
     migrations: migrationsOrComponents.migrations ?? [],
-    components: [...(migrationsOrComponents.components ?? []), ...tables],
+    components: [
+      ...(migrationsOrComponents.components ?? []),
+      ...Object.values(tables ?? {}),
+    ],
   });
 
   return {
     ...base,
     schemaName,
     get tables() {
-      return mapSchemaComponentsOfType<TableSchemaComponent>(
+      const tablesMap = mapSchemaComponentsOfType<TableSchemaComponent>(
         base.components,
         TableURNType,
         (c) => c.tableName,
       );
+
+      return Object.assign(tablesMap, tables);
     },
     addTable: (table: string | TableSchemaComponent) =>
       base.addComponent(
