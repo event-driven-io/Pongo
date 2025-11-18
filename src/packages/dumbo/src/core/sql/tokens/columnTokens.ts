@@ -2,6 +2,8 @@ import { SQLToken } from './sqlToken';
 
 // TODO: Use URNs for sqltoken
 export type ColumnTypeToken<
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  ValueType,
   ColumnTypeName extends string = string,
   TProps extends Omit<Record<string, unknown>, 'sqlTokenType'> | undefined =
     | Omit<Record<string, unknown>, 'sqlTokenType'>
@@ -9,32 +11,48 @@ export type ColumnTypeToken<
 > = SQLToken<`SQL_COLUMN_${ColumnTypeName}`, TProps>;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyColumnTypeToken = ColumnTypeToken<string, any>;
+export type AnyColumnTypeToken = ColumnTypeToken<any, string, any>;
 
-export type SerialToken = ColumnTypeToken<'SERIAL'>;
+export type SerialToken = ColumnTypeToken<number, 'SERIAL'>;
 export const SerialToken = SQLToken<SerialToken>('SQL_COLUMN_SERIAL');
 
-export type BigSerialToken = ColumnTypeToken<'BIGSERIAL'>;
+export type BigSerialToken = ColumnTypeToken<bigint, 'BIGSERIAL'>;
 export const BigSerialToken = SQLToken<BigSerialToken>('SQL_COLUMN_BIGSERIAL');
 
-export type IntegerToken = ColumnTypeToken<'INTEGER'>;
+export type IntegerToken = ColumnTypeToken<number, 'INTEGER'>;
 export const IntegerToken = SQLToken<IntegerToken>('SQL_COLUMN_INTEGER');
 
-export type BigIntegerToken = ColumnTypeToken<'BIGINT'>;
+export type BigIntegerToken = ColumnTypeToken<bigint, 'BIGINT'>;
 export const BigIntegerToken = SQLToken<BigIntegerToken>('SQL_COLUMN_BIGINT');
 
-export type JSONBToken = ColumnTypeToken<'JSONB'>;
-export const JSONBToken = SQLToken<JSONBToken>('SQL_COLUMN_JSONB');
+export type JSONBToken<
+  ValueType extends Record<string, unknown> = Record<string, unknown>,
+> = ColumnTypeToken<ValueType, 'JSONB'>;
 
-export type TimestampToken = ColumnTypeToken<'TIMESTAMP'>;
+export const JSONBToken = {
+  type: 'SQL_COLUMN_JSONB',
+  from: <
+    ValueType extends Record<string, unknown> = Record<string, unknown>,
+  >(): JSONBToken<ValueType> => {
+    return {
+      sqlTokenType: 'SQL_COLUMN_JSONB',
+      ['SQL_COLUMN_JSONB']: true,
+    } as unknown as JSONBToken;
+  },
+  check: (token: unknown): token is JSONBToken =>
+    SQLToken.check(token) && token.sqlTokenType === 'SQL_COLUMN_JSONB',
+};
+
+export type TimestampToken = ColumnTypeToken<Date, 'TIMESTAMP'>;
 export const TimestampToken = SQLToken<TimestampToken>('SQL_COLUMN_TIMESTAMP');
 
-export type TimestamptzToken = ColumnTypeToken<'TIMESTAMPTZ'>;
+export type TimestamptzToken = ColumnTypeToken<Date, 'TIMESTAMPTZ'>;
 export const TimestamptzToken = SQLToken<TimestamptzToken>(
   'SQL_COLUMN_TIMESTAMPTZ',
 );
 
 export type VarcharToken = ColumnTypeToken<
+  string,
   'VARCHAR',
   { length: number | 'max' }
 >;
@@ -96,7 +114,7 @@ export const SQLColumnTypeTokensFactory = {
   BigInteger: BigIntegerToken.from(),
   BigSerial: BigSerialToken.from(),
   Integer: IntegerToken.from(),
-  JSONB: JSONBToken.from(),
+  JSONB: JSONBToken.from,
   Serial: SerialToken.from(),
   Timestamp: TimestampToken.from(),
   Timestamptz: TimestamptzToken.from(),
