@@ -24,13 +24,15 @@ import {
 const DEFAULT_DATABASE_NAME = '__default_database__';
 const DEFAULT_DATABASE_SCHEMA_NAME = '__default_database_schema__';
 
-const dumboColumn = (
+const dumboColumn = <
+  ColumnType extends AnyColumnTypeToken | string = AnyColumnTypeToken | string,
+>(
   name: string,
-  type: string | AnyColumnTypeToken,
+  type: ColumnType,
   options: SchemaComponentOptions &
-    Omit<SQLColumnToken, 'name' | 'type' | 'sqlTokenType'> = {},
-): ColumnSchemaComponent =>
-  columnSchemaComponent({
+    Omit<SQLColumnToken<ColumnType>, 'name' | 'type' | 'sqlTokenType'> = {},
+): ColumnSchemaComponent<ColumnType> =>
+  columnSchemaComponent<ColumnType>({
     columnName: name,
     type,
     ...options,

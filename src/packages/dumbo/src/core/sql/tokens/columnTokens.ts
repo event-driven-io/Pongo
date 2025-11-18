@@ -2,13 +2,12 @@ import { SQLToken } from './sqlToken';
 
 // TODO: Use URNs for sqltoken
 export type ColumnTypeToken<
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   ValueType,
   ColumnTypeName extends string = string,
   TProps extends Omit<Record<string, unknown>, 'sqlTokenType'> | undefined =
     | Omit<Record<string, unknown>, 'sqlTokenType'>
     | undefined,
-> = SQLToken<`SQL_COLUMN_${ColumnTypeName}`, TProps>;
+> = SQLToken<`SQL_COLUMN_${ColumnTypeName}`, TProps> & { __brand: ValueType };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyColumnTypeToken = ColumnTypeToken<any, string, any>;
@@ -63,11 +62,13 @@ export const VarcharToken = SQLToken<VarcharToken, number | 'max'>(
   }),
 );
 
-export type SQLColumnToken<ColumnType = string> = SQLToken<
+export type SQLColumnToken<
+  ColumnType extends AnyColumnTypeToken | string = AnyColumnTypeToken | string,
+> = SQLToken<
   'SQL_COLUMN',
   {
     name: string;
-    type: ColumnType | AnyColumnTypeToken;
+    type: ColumnType;
     notNull?: boolean;
     unique?: boolean;
     primaryKey?: boolean;

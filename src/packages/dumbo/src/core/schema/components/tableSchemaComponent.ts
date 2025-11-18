@@ -6,7 +6,7 @@ import {
 } from '../schemaComponent';
 import {
   ColumnURNType,
-  type ColumnSchemaComponent,
+  type AnyColumnSchemaComponent,
 } from './columnSchemaComponent';
 import {
   IndexURNType,
@@ -20,16 +20,16 @@ export const TableURNType: TableURNType = 'sc:dumbo:table';
 export const TableURN = ({ name }: { name: string }): TableURN =>
   `${TableURNType}:${name}`;
 
-export type TableColumns = Record<string, ColumnSchemaComponent>;
+export type TableColumns = Record<string, AnyColumnSchemaComponent>;
 
 export type TableSchemaComponent<Columns extends TableColumns = TableColumns> =
   SchemaComponent<
     TableURN,
     Readonly<{
       tableName: string;
-      columns: ReadonlyMap<string, ColumnSchemaComponent> & Columns;
+      columns: ReadonlyMap<string, AnyColumnSchemaComponent> & Columns;
       indexes: ReadonlyMap<string, IndexSchemaComponent>;
-      addColumn: (column: ColumnSchemaComponent) => ColumnSchemaComponent;
+      addColumn: (column: AnyColumnSchemaComponent) => AnyColumnSchemaComponent;
       addIndex: (index: IndexSchemaComponent) => IndexSchemaComponent;
     }>
   >;
@@ -61,7 +61,7 @@ export const tableSchemaComponent = <
     ...base,
     tableName,
     get columns() {
-      const columnsMap = mapSchemaComponentsOfType<ColumnSchemaComponent>(
+      const columnsMap = mapSchemaComponentsOfType<AnyColumnSchemaComponent>(
         base.components,
         ColumnURNType,
         (c) => c.columnName,
@@ -76,7 +76,7 @@ export const tableSchemaComponent = <
         (c) => c.indexName,
       );
     },
-    addColumn: (column: ColumnSchemaComponent) => base.addComponent(column),
+    addColumn: (column: AnyColumnSchemaComponent) => base.addComponent(column),
     addIndex: (index: IndexSchemaComponent) => base.addComponent(index),
   };
 };
