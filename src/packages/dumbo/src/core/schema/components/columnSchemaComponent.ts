@@ -1,4 +1,4 @@
-import type { SQLColumnToken } from '../../sql';
+import type { AnyColumnTypeToken, SQLColumnToken } from '../../sql';
 import {
   schemaComponent,
   type SchemaComponent,
@@ -12,22 +12,32 @@ export const ColumnURNType: ColumnURNType = 'sc:dumbo:column';
 export const ColumnURN = ({ name }: { name: string }): ColumnURN =>
   `${ColumnURNType}:${name}`;
 
-export type ColumnSchemaComponent = SchemaComponent<
+export type ColumnSchemaComponent<
+  ColumnType extends AnyColumnTypeToken | string = AnyColumnTypeToken | string,
+> = SchemaComponent<
   ColumnURN,
   Readonly<{
     columnName: string;
   }>
 > &
-  SQLColumnToken;
+  SQLColumnToken<ColumnType>;
 
-export const columnSchemaComponent = ({
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnyColumnSchemaComponent = ColumnSchemaComponent<any>;
+
+export const columnSchemaComponent = <
+  ColumnType extends AnyColumnTypeToken | string = AnyColumnTypeToken | string,
+>({
   columnName,
   type,
   ...migrationsOrComponents
 }: {
   columnName: string;
 } & SchemaComponentOptions &
-  Omit<SQLColumnToken, 'name' | 'sqlTokenType'>): ColumnSchemaComponent => {
+  Omit<
+    SQLColumnToken<ColumnType>,
+    'name' | 'sqlTokenType'
+  >): ColumnSchemaComponent<ColumnType> => {
   const sc = schemaComponent(
     ColumnURN({ name: columnName }),
     migrationsOrComponents,
