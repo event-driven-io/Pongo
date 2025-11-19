@@ -207,10 +207,9 @@ export const VarcharToken = ColumnTypeToken<VarcharToken, number | 'max'>(
     }) as Omit<VarcharToken, 'sqlTokenType'>,
 );
 
-export type SQLColumnToken<
+export type NotNullableSQLColumnTokenProps<
   ColumnType extends AnyColumnTypeToken | string = AnyColumnTypeToken | string,
-> = SQLToken<
-  'SQL_COLUMN',
+> =
   | {
       name: string;
       type: ColumnType;
@@ -224,8 +223,27 @@ export type SQLColumnToken<
       type: ColumnType;
       notNull?: false;
       unique?: boolean;
+      primaryKey: never;
       default?: ColumnType | SQLToken;
-    }
+    };
+
+export type NullableSQLColumnTokenProps<
+  ColumnType extends AnyColumnTypeToken | string = AnyColumnTypeToken | string,
+> = {
+  name: string;
+  type: ColumnType;
+  notNull?: false;
+  unique?: boolean;
+  primaryKey?: false;
+  default?: ColumnType | SQLToken;
+};
+
+export type SQLColumnToken<
+  ColumnType extends AnyColumnTypeToken | string = AnyColumnTypeToken | string,
+> = SQLToken<
+  'SQL_COLUMN',
+  | NotNullableSQLColumnTokenProps<ColumnType>
+  | NullableSQLColumnTokenProps<ColumnType>
 >;
 
 export type AutoIncrementSQLColumnToken = ColumnTypeToken<

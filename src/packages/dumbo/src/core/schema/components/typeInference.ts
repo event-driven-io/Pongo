@@ -1,13 +1,13 @@
-import type { ColumnTypeToken } from '../sql/tokens/columnTokens';
+import type { ColumnTypeToken } from '../../sql/tokens/columnTokens';
 import type {
   AnyColumnSchemaComponent,
   ColumnSchemaComponent,
-} from './components/columnSchemaComponent';
+} from './columnSchemaComponent';
 import type {
   AnyTableSchemaComponent,
   TableColumns,
   TableSchemaComponent,
-} from './components/tableSchemaComponent';
+} from './tableSchemaComponent';
 
 export type InferColumnValueType<ColumnType> =
   ColumnType extends ColumnTypeToken<
@@ -21,7 +21,7 @@ export type InferColumnValueType<ColumnType> =
 
 export type InferColumnType<T extends AnyColumnSchemaComponent> =
   T extends ColumnSchemaComponent<infer ColumnType>
-    ? T extends { notNull: true }
+    ? T extends { notNull: true } | { primaryKey: true }
       ? InferColumnValueType<ColumnType>
       : InferColumnValueType<ColumnType> | null
     : unknown;

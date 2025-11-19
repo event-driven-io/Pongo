@@ -2,7 +2,7 @@ import type { AnyColumnTypeToken, SQLColumnToken } from '../../sql';
 import {
   type AnyDatabaseSchemaSchemaComponent,
   columnSchemaComponent,
-  type ColumnSchemaComponent,
+  type ColumnSchemaComponentOptions,
   databaseSchemaComponent,
   type DatabaseSchemaComponent,
   type DatabaseSchemas,
@@ -26,17 +26,23 @@ const DEFAULT_DATABASE_SCHEMA_NAME = '__default_database_schema__';
 
 const dumboColumn = <
   ColumnType extends AnyColumnTypeToken | string = AnyColumnTypeToken | string,
+  TOptions extends SchemaComponentOptions &
+    Omit<SQLColumnToken<ColumnType>, 'name' | 'type' | 'sqlTokenType'> = Omit<
+    ColumnSchemaComponentOptions<ColumnType>,
+    'type'
+  >,
 >(
   name: string,
   type: ColumnType,
-  options: SchemaComponentOptions &
-    Omit<SQLColumnToken<ColumnType>, 'name' | 'type' | 'sqlTokenType'> = {},
-): ColumnSchemaComponent<ColumnType> =>
-  columnSchemaComponent<ColumnType>({
+  options?: TOptions,
+): ReturnType<
+  typeof columnSchemaComponent<ColumnType, TOptions & { type: ColumnType }>
+> =>
+  columnSchemaComponent<ColumnType, TOptions & { type: ColumnType }>({
     columnName: name,
     type,
     ...options,
-  });
+  } as { columnName: string } & TOptions & { type: ColumnType });
 
 const dumboIndex = (
   name: string,

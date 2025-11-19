@@ -1,7 +1,7 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
-import { SQL } from '../sql';
-import { dumboSchema } from './dumboSchema';
+import { SQL } from '../../sql';
+import { dumboSchema } from '../dumboSchema';
 import type { InferTableType } from './typeInference';
 
 const { table, column } = dumboSchema;
@@ -112,7 +112,9 @@ void describe('Type Inference Runtime Tests', () => {
     const _events = table('events', {
       columns: {
         id: column('id', Serial, { primaryKey: true }),
-        createdAt: column('createdAt', Timestamp, { default: 'NOW()' }),
+        createdAt: column('createdAt', Timestamp, {
+          default: SQL.plain(`NOW()`),
+        }),
       },
     });
 
@@ -152,7 +154,7 @@ void describe('Type Inference Runtime Tests', () => {
 
     const processedResults = mockQueryResults.map((user) => ({
       id: user.id,
-      email: (user.email as string).toUpperCase(),
+      email: user.email.toUpperCase(),
       displayName: user.nickname ?? 'Anonymous',
       isAdult: user.age !== null && user.age >= 18,
     }));

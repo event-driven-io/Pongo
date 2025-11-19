@@ -25,29 +25,49 @@ export type ColumnSchemaComponent<
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyColumnSchemaComponent = ColumnSchemaComponent<any>;
 
+export type ColumnSchemaComponentOptions<
+  ColumnType extends AnyColumnTypeToken | string = AnyColumnTypeToken | string,
+> = Omit<SQLColumnToken<ColumnType>, 'name' | 'sqlTokenType'> &
+  SchemaComponentOptions;
+
 export const columnSchemaComponent = <
   ColumnType extends AnyColumnTypeToken | string = AnyColumnTypeToken | string,
->({
-  columnName,
-  type,
-  ...migrationsOrComponents
-}: {
-  columnName: string;
-} & SchemaComponentOptions &
-  Omit<
-    SQLColumnToken<ColumnType>,
-    'name' | 'sqlTokenType'
-  >): ColumnSchemaComponent<ColumnType> => {
-  const sc = schemaComponent(
-    ColumnURN({ name: columnName }),
-    migrationsOrComponents,
-  );
+  TOptions extends
+    ColumnSchemaComponentOptions<ColumnType> = ColumnSchemaComponentOptions<ColumnType>,
+>(
+  params: {
+    columnName: string;
+  } & TOptions,
+): ColumnSchemaComponent<ColumnType> &
+  (TOptions extends { notNull: true } | { primaryKey: true }
+    ? { notNull: true }
+    : { notNull?: false }) => {
+  const {
+    columnName,
+    type,
+    notNull,
+    unique,
+    primaryKey,
+    default: defaultValue,
+    ...schemaOptions
+  } = params;
 
-  return {
+  const sc = schemaComponent(ColumnURN({ name: columnName }), schemaOptions);
+
+  const result: Record<string, unknown> = {
     ...sc,
     columnName,
+    notNull,
+    unique,
+    primaryKey,
+    defaultValue,
     sqlTokenType: 'SQL_COLUMN',
     name: columnName,
     type,
   };
+
+  return result as ColumnSchemaComponent<ColumnType> &
+    (TOptions extends { notNull: true } | { primaryKey: true }
+      ? { notNull: true }
+      : { notNull?: false });
 };

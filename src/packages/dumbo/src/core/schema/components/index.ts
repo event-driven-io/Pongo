@@ -9,7 +9,7 @@ export * from './databaseSchemaComponent';
 export * from './databaseSchemaSchemaComponent';
 export * from './indexSchemaComponent';
 export * from './tableSchemaComponent';
-export * from '../typeInference';
+export * from './typeInference';
 
 export const schemaComponentURN = {
   database: DatabaseURN,
