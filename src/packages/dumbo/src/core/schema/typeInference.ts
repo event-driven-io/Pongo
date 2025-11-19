@@ -1,5 +1,8 @@
 import type { ColumnTypeToken } from '../sql/tokens/columnTokens';
-import type { ColumnSchemaComponent } from './components/columnSchemaComponent';
+import type {
+  AnyColumnSchemaComponent,
+  ColumnSchemaComponent,
+} from './components/columnSchemaComponent';
 import type {
   AnyTableSchemaComponent,
   TableColumns,
@@ -8,14 +11,15 @@ import type {
 
 export type InferColumnValueType<ColumnType> =
   ColumnType extends ColumnTypeToken<
-    infer ValueType,
+    infer _JSType,
     infer _ColumnTypeName,
-    infer _TProps
+    infer _TProps,
+    infer ValueType
   >
     ? ValueType
     : ColumnType;
 
-export type InferColumnType<T extends ColumnSchemaComponent> =
+export type InferColumnType<T extends AnyColumnSchemaComponent> =
   T extends ColumnSchemaComponent<infer ColumnType>
     ? T extends { notNull: true }
       ? InferColumnValueType<ColumnType>
