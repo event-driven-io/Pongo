@@ -11,6 +11,7 @@ import {
   type DatabaseSchemaTables,
   indexSchemaComponent,
   type IndexSchemaComponent,
+  type TableColumnNames,
   type TableColumns,
   tableSchemaComponent,
   type TableSchemaComponent,
@@ -60,16 +61,18 @@ const dumboTable = <Columns extends TableColumns = TableColumns>(
   name: string,
   definition: {
     columns?: Columns;
+    primaryKey?: TableColumnNames<TableSchemaComponent<Columns>>[];
     indexes?: Record<string, IndexSchemaComponent>;
   } & SchemaComponentOptions,
 ): TableSchemaComponent<Columns> => {
-  const { columns, indexes, ...options } = definition;
+  const { columns, indexes, primaryKey, ...options } = definition;
 
   const components = [...(indexes ? Object.values(indexes) : [])];
 
   return tableSchemaComponent({
     tableName: name,
     columns: columns ?? ({} as Columns),
+    primaryKey: primaryKey ?? [],
     components,
     ...options,
   });

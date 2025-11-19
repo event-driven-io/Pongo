@@ -6,7 +6,7 @@ import type { TableColumnNames, TableRowType } from '../components';
 import { dumboSchema } from './index';
 
 const { database, schema, table, column, index } = dumboSchema;
-const { Varchar } = SQL.column.type;
+const { Varchar, JSONB } = SQL.column.type;
 
 void describe('dumboSchema', () => {
   void it('should create a column', () => {
@@ -164,16 +164,18 @@ const multiSchemaDb = database('myapp', {
   public: schema('public', {
     users: table('users', {
       columns: {
-        id: column('id', Varchar('max'), { primaryKey: true, notNull: true }),
+        id: column('id', Varchar('max'), { notNull: true }),
         email: column('email', Varchar('max'), { notNull: true }),
         name: column('name', Varchar('max')),
+        metadata: column('metadata', JSONB<{ preferences: string[] }>()),
       },
+      primaryKey: ['id'],
     }),
   }),
   analytics: schema('analytics', {
     events: table('events', {
       columns: {
-        id: column('id', Varchar('max')),
+        id: column('id', Varchar('max'), { notNull: true, primaryKey: true }),
         userId: column('user_id', Varchar('max')),
         timestamp: column('timestamp', Varchar('max')),
       },
@@ -190,7 +192,10 @@ type Users = TableRowType<typeof _usersTable>;
 type _IdColumnIsNonNullableString = Expect<Equal<Users['id'], string>>;
 type _EmailColumnIsNonNullableString = Expect<Equal<Users['email'], string>>;
 type _NameColumnIsNullableString = Expect<Equal<Users['name'], string | null>>;
+type _MetadataColumnIsNullableObject = Expect<
+  Equal<Users['metadata'], { preferences: string[] } | null>
+>;
 
 type UserColumns = TableColumnNames<typeof _usersTable>;
 
-const _userColumns: UserColumns[] = ['id', 'email', 'name'];
+const _userColumns: UserColumns[] = ['id', 'email', 'name', 'metadata'];
