@@ -12,6 +12,7 @@ import {
   IndexURNType,
   type IndexSchemaComponent,
 } from './indexSchemaComponent';
+import type { TableColumnNames } from './tableTypesInference';
 
 export type TableURNType = 'sc:dumbo:table';
 export type TableURN = `${TableURNType}:${string}`;
@@ -28,6 +29,7 @@ export type TableSchemaComponent<Columns extends TableColumns = TableColumns> =
     Readonly<{
       tableName: string;
       columns: ReadonlyMap<string, AnyColumnSchemaComponent> & Columns;
+      primaryKey: TableColumnNames<TableSchemaComponent<Columns>>[];
       indexes: ReadonlyMap<string, IndexSchemaComponent>;
       addColumn: (column: AnyColumnSchemaComponent) => AnyColumnSchemaComponent;
       addIndex: (index: IndexSchemaComponent) => IndexSchemaComponent;
@@ -42,10 +44,12 @@ export const tableSchemaComponent = <
 >({
   tableName,
   columns,
+  primaryKey,
   ...migrationsOrComponents
 }: {
   tableName: string;
   columns?: Columns;
+  primaryKey?: TableColumnNames<TableSchemaComponent<Columns>>[];
 } & SchemaComponentOptions): TableSchemaComponent<Columns> => {
   columns ??= {} as Columns;
 
@@ -60,6 +64,7 @@ export const tableSchemaComponent = <
   return {
     ...base,
     tableName,
+    primaryKey: primaryKey ?? [],
     get columns() {
       const columnsMap = mapSchemaComponentsOfType<AnyColumnSchemaComponent>(
         base.components,
