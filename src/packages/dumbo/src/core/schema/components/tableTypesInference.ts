@@ -26,6 +26,11 @@ export type TableColumnType<T extends AnyColumnSchemaComponent> =
       : InferColumnType<ColumnType> | null
     : unknown;
 
+export type TableColumnNames<T extends AnyTableSchemaComponent> = Exclude<
+  keyof T['columns'],
+  keyof ReadonlyMap<string, AnyColumnSchemaComponent>
+>;
+
 export type InferTableRow<Columns extends TableColumns> = {
   [K in keyof Columns]: TableColumnType<Columns[K]>;
 };
