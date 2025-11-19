@@ -1,4 +1,4 @@
-import { SQL } from '../sql';
+import { SQL } from '../../sql';
 import type {
   BigIntegerToken,
   BigSerialToken,
@@ -8,8 +8,8 @@ import type {
   TimestampToken,
   TimestamptzToken,
   VarcharToken,
-} from '../sql/tokens/columnTokens';
-import { dumboSchema } from './dumboSchema';
+} from '../../sql/tokens/columnTokens';
+import { dumboSchema } from '../dumboSchema';
 import type {
   InferColumnType,
   InferColumnValueType,
@@ -44,11 +44,10 @@ type _Test8 = Expect<
 
 // InferColumnType - primary key is non-nullable
 const _idColumn = column('id', Serial, { primaryKey: true });
-type _Test9 = Expect<Equal<InferColumnType<typeof _idColumn>, number | null>>;
+type _Test9 = Expect<Equal<InferColumnType<typeof _idColumn>, number>>;
 
 // InferColumnType - notNull is non-nullable
 const _emailColumn = column('email', Varchar(255), { notNull: true });
-type t = InferColumnType<typeof _emailColumn>;
 type _Test10 = Expect<Equal<InferColumnType<typeof _emailColumn>, string>>;
 
 // InferColumnType - default column is nullable
@@ -59,7 +58,7 @@ type _Test11 = Expect<
 
 // InferColumnType - column with default is still nullable
 const _createdAtColumn = column('createdAt', Timestamp, {
-  default: 'NOW()' as unknown as Date,
+  default: SQL.plain(`NOW()`),
 });
 type _Test12 = Expect<
   Equal<InferColumnType<typeof _createdAtColumn>, Date | null>
@@ -86,17 +85,18 @@ type _Test16 = Expect<
 >;
 
 // InferTableRow - complex table with mixed nullability
+const _usersColumns = {
+  id: column('id', Serial, { primaryKey: true }),
+  email: column('email', Varchar(255), { notNull: true }),
+  nickname: column('nickname', Varchar(100)),
+  age: column('age', Integer),
+  createdAt: column('createdAt', Timestamp, { default: SQL.plain(`NOW()`) }),
+  username: column('username', Varchar(50), { unique: true }),
+};
 const _usersTable = table('users', {
-  columns: {
-    id: column('id', Serial, { primaryKey: true }),
-    email: column('email', Varchar(255), { notNull: true }),
-    nickname: column('nickname', Varchar(100)),
-    age: column('age', Integer),
-    createdAt: column('createdAt', Timestamp, { default: 'NOW()' }),
-    username: column('username', Varchar(50), { unique: true }),
-  },
+  columns: _usersColumns,
 });
-type UserRow = InferTableRow<typeof _usersTable.columns>;
+type UserRow = InferTableRow<typeof _usersColumns>;
 type _Test17 = Expect<
   Equal<
     UserRow,
