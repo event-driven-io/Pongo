@@ -9,51 +9,46 @@ import type {
   TimestamptzToken,
   VarcharToken,
 } from '../../sql/tokens/columnTokens';
+import type { Expect, Equal } from '../../testing';
 import { dumboSchema } from '../dumboSchema';
 import type {
   InferColumnType,
-  InferColumnValueType,
   InferTableRow,
-  InferTableType,
+  TableColumnType,
+  TableRowType,
 } from './typeInference';
-
-type Expect<T extends true> = T;
-type Equal<X, Y> =
-  (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2
-    ? true
-    : false;
 
 const { table, column } = dumboSchema;
 const { Serial, BigSerial, Integer, BigInteger, Varchar, Timestamp, JSONB } =
   SQL.column.type;
 
 // InferColumnValueType - basic types
-type _Test1 = Expect<Equal<InferColumnValueType<SerialToken>, number>>;
-type _Test2 = Expect<Equal<InferColumnValueType<BigSerialToken>, bigint>>;
-type _Test3 = Expect<Equal<InferColumnValueType<IntegerToken>, number>>;
-type _Test4 = Expect<Equal<InferColumnValueType<BigIntegerToken>, bigint>>;
-type _Test5 = Expect<Equal<InferColumnValueType<VarcharToken>, string>>;
-type _Test6 = Expect<Equal<InferColumnValueType<TimestampToken>, Date>>;
-type _Test7 = Expect<Equal<InferColumnValueType<TimestamptzToken>, Date>>;
+type _Test1 = Expect<Equal<InferColumnType<SerialToken>, number>>;
+type _Test2 = Expect<Equal<InferColumnType<BigSerialToken>, bigint>>;
+type _Test3 = Expect<Equal<InferColumnType<IntegerToken>, number>>;
+type _Test4 = Expect<Equal<InferColumnType<BigIntegerToken>, bigint>>;
+type _Test5 = Expect<Equal<InferColumnType<VarcharToken>, string>>;
+type _Test6 = Expect<Equal<InferColumnType<TimestampToken>, Date>>;
+type _Test7 = Expect<Equal<InferColumnType<TimestamptzToken>, Date>>;
 
 // InferColumnValueType - JSONB with custom type
 type CustomType = { foo: string; bar: number };
 type _Test8 = Expect<
-  Equal<InferColumnValueType<JSONBToken<CustomType>>, CustomType>
+  Equal<InferColumnType<JSONBToken<CustomType>>, CustomType>
 >;
 
 // InferColumnType - primary key is non-nullable
 const _idColumn = column('id', Serial, { primaryKey: true });
-type _Test9 = Expect<Equal<InferColumnType<typeof _idColumn>, number>>;
+type _Test9 = Expect<Equal<TableColumnType<typeof _idColumn>, number>>;
 
 // InferColumnType - notNull is non-nullable
 const _emailColumn = column('email', Varchar(255), { notNull: true });
-type _Test10 = Expect<Equal<InferColumnType<typeof _emailColumn>, string>>;
+type _Test10 = Expect<Equal<TableColumnType<typeof _emailColumn>, string>>;
 
 // InferColumnType - default column is nullable
 const _nicknameColumn = column('nickname', Varchar(100));
 type _Test11 = Expect<
-  Equal<InferColumnType<typeof _nicknameColumn>, string | null>
+  Equal<TableColumnType<typeof _nicknameColumn>, string | null>
 >;
 
 // InferColumnType - column with default is still nullable
@@ -61,27 +56,27 @@ const _createdAtColumn = column('createdAt', Timestamp, {
   default: SQL.plain(`NOW()`),
 });
 type _Test12 = Expect<
-  Equal<InferColumnType<typeof _createdAtColumn>, Date | null>
+  Equal<TableColumnType<typeof _createdAtColumn>, Date | null>
 >;
 
 // InferColumnType - unique column is nullable
 const _usernameColumn = column('username', Varchar(50), { unique: true });
 type _Test13 = Expect<
-  Equal<InferColumnType<typeof _usernameColumn>, string | null>
+  Equal<TableColumnType<typeof _usernameColumn>, string | null>
 >;
 
 // InferColumnType - serial without primary key is nullable
 const _sortOrderColumn = column('sortOrder', Serial);
 type _Test14 = Expect<
-  Equal<InferColumnType<typeof _sortOrderColumn>, number | null>
+  Equal<TableColumnType<typeof _sortOrderColumn>, number | null>
 >;
 
 // InferColumnType - bigint types
 const _bigIdColumn = column('bigId', BigSerial, { primaryKey: true });
 const _nullableBigIntColumn = column('bigValue', BigInteger);
-type _Test15 = Expect<Equal<InferColumnType<typeof _bigIdColumn>, bigint>>;
+type _Test15 = Expect<Equal<TableColumnType<typeof _bigIdColumn>, bigint>>;
 type _Test16 = Expect<
-  Equal<InferColumnType<typeof _nullableBigIntColumn>, bigint | null>
+  Equal<TableColumnType<typeof _nullableBigIntColumn>, bigint | null>
 >;
 
 // InferTableRow - complex table with mixed nullability
@@ -121,7 +116,7 @@ const _productsTable = table('products', {
     metadata: column('metadata', JSONB<{ tags: string[] }>()),
   },
 });
-type ProductRow = InferTableType<typeof _productsTable>;
+type ProductRow = TableRowType<typeof _productsTable>;
 type _Test18 = Expect<
   Equal<
     ProductRow,
@@ -144,7 +139,7 @@ const _strictTable = table('strict', {
     field3: column('field3', Timestamp, { notNull: true }),
   },
 });
-type StrictRow = InferTableType<typeof _strictTable>;
+type StrictRow = TableRowType<typeof _strictTable>;
 type _Test19 = Expect<
   Equal<
     StrictRow,
@@ -166,7 +161,7 @@ const _nullableTable = table('nullable', {
     field3: column('field3', Timestamp),
   },
 });
-type NullableRow = InferTableType<typeof _nullableTable>;
+type NullableRow = TableRowType<typeof _nullableTable>;
 type _Test20 = Expect<
   Equal<
     NullableRow,

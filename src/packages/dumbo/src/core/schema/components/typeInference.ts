@@ -9,7 +9,7 @@ import type {
   TableSchemaComponent,
 } from './tableSchemaComponent';
 
-export type InferColumnValueType<ColumnType> =
+export type InferColumnType<ColumnType> =
   ColumnType extends ColumnTypeToken<
     infer _JSType,
     infer _ColumnTypeName,
@@ -19,18 +19,18 @@ export type InferColumnValueType<ColumnType> =
     ? ValueType
     : ColumnType;
 
-export type InferColumnType<T extends AnyColumnSchemaComponent> =
+export type TableColumnType<T extends AnyColumnSchemaComponent> =
   T extends ColumnSchemaComponent<infer ColumnType>
     ? T extends { notNull: true } | { primaryKey: true }
-      ? InferColumnValueType<ColumnType>
-      : InferColumnValueType<ColumnType> | null
+      ? InferColumnType<ColumnType>
+      : InferColumnType<ColumnType> | null
     : unknown;
 
 export type InferTableRow<Columns extends TableColumns> = {
-  [K in keyof Columns]: InferColumnType<Columns[K]>;
+  [K in keyof Columns]: TableColumnType<Columns[K]>;
 };
 
-export type InferTableType<T extends AnyTableSchemaComponent> =
+export type TableRowType<T extends AnyTableSchemaComponent> =
   T extends TableSchemaComponent<infer Columns>
     ? InferTableRow<Columns>
     : never;
