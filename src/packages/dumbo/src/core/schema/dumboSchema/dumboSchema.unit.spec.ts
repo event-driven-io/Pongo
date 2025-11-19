@@ -1,9 +1,9 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
 import { SQL } from '../../sql';
+import type { Equal, Expect } from '../../testing';
 import type { TableRowType } from '../components';
 import { dumboSchema } from './index';
-import type { Expect, Equal } from '../../testing';
 
 const { database, schema, table, column, index } = dumboSchema;
 const { Varchar } = SQL.column.type;
@@ -183,9 +183,9 @@ const multiSchemaDb = database('myapp', {
 
 // Access using name-based maps
 const publicSchema = multiSchemaDb.schemas.public;
-const usersTable = publicSchema.tables.users;
+const _usersTable = publicSchema.tables.users;
 
-type Users = TableRowType<typeof usersTable>;
+type Users = TableRowType<typeof _usersTable>;
 
 type _IdColumnIsNonNullableString = Expect<Equal<Users['id'], string>>;
 type _EmailColumnIsNonNullableString = Expect<Equal<Users['email'], string>>;

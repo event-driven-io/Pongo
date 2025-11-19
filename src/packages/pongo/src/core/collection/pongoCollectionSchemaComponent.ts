@@ -6,8 +6,11 @@ import {
 } from '@event-driven-io/dumbo';
 import type { PongoCollectionSchema, PongoCollectionSQLBuilder } from '..';
 
+export type PongoCollectionURNType = 'sc:pongo:collection';
+export type PongoCollectionURN = `${PongoCollectionURNType}:${string}`;
+
 export type PongoCollectionSchemaComponent =
-  SchemaComponent<'pongo:schema-component:collection'> & {
+  SchemaComponent<PongoCollectionURN> & {
     collectionName: string;
     definition: PongoCollectionSchema;
     sqlBuilder: PongoCollectionSQLBuilder;
@@ -31,7 +34,7 @@ export const PongoCollectionSchemaComponent = <
 }: PongoCollectionSchemaComponentOptions<DriverType>): PongoCollectionSchemaComponent =>
   ({
     ...schemaComponent(
-      'pongo:schema-component:collection',
+      `sc:pongo:collection:${definition.name}`,
       migrationsOrSchemaComponents,
     ),
     sqlBuilder,

@@ -14,6 +14,9 @@ import {
 } from '../schema';
 import type { PongoDocument } from '../typing';
 
+export type PongoDatabaseURNType = 'sc:dumbo:database';
+export type PongoDatabaseURN = `${PongoDatabaseURNType}:${string}`;
+
 export type PongoDatabaseSchemaComponent<
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   DriverType extends DatabaseDriverType = DatabaseDriverType,
@@ -21,7 +24,7 @@ export type PongoDatabaseSchemaComponent<
     string,
     PongoCollectionSchema
   >,
-> = SchemaComponent<'pongo:schema-component:database'> & {
+> = SchemaComponent<PongoDatabaseURN> & {
   definition: PongoDbSchema<T>;
   collections: ReadonlyArray<PongoCollectionSchemaComponent>;
 
@@ -54,7 +57,7 @@ export const PongoDatabaseSchemaComponent = <
     Object.values(definition.collections).map(collectionFactory) ?? [];
 
   return {
-    ...schemaComponent('pongo:schema-component:database', {
+    ...schemaComponent(`sc:dumbo:database:${definition.name}`, {
       components: collections,
     }),
     definition,
