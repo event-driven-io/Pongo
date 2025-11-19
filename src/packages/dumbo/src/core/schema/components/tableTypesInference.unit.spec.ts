@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import { describe, it } from 'node:test';
 import { SQL } from '../../sql';
 import { dumboSchema } from '../dumboSchema';
-import type { TableRowType } from './typeInference';
+import type { TableRowType } from './tableTypesInference';
 
 const { table, column } = dumboSchema;
 const { Serial, Varchar, Integer, Timestamp, JSONB } = SQL.column.type;

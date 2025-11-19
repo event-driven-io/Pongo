@@ -9,14 +9,14 @@ import type {
   TimestamptzToken,
   VarcharToken,
 } from '../../sql/tokens/columnTokens';
-import type { Expect, Equal } from '../../testing';
+import type { Equal, Expect } from '../../testing';
 import { dumboSchema } from '../dumboSchema';
 import type {
   InferColumnType,
   InferTableRow,
   TableColumnType,
   TableRowType,
-} from './typeInference';
+} from './tableTypesInference';
 
 const { table, column } = dumboSchema;
 const { Serial, BigSerial, Integer, BigInteger, Varchar, Timestamp, JSONB } =
