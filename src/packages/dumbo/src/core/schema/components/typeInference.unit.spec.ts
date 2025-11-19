@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import { describe, it } from 'node:test';
 import { SQL } from '../../sql';
 import { dumboSchema } from '../dumboSchema';
-import type { InferTableType } from './typeInference';
+import type { TableRowType } from './typeInference';
 
 const { table, column } = dumboSchema;
 const { Serial, Varchar, Integer, Timestamp, JSONB } = SQL.column.type;
@@ -17,7 +17,7 @@ void describe('Type Inference Runtime Tests', () => {
       },
     });
 
-    type UserRow = InferTableType<typeof _users>;
+    type UserRow = TableRowType<typeof _users>;
 
     const sampleUser: UserRow = {
       id: 1,
@@ -38,7 +38,7 @@ void describe('Type Inference Runtime Tests', () => {
       },
     });
 
-    type UserRow = InferTableType<typeof _users2>;
+    type UserRow = TableRowType<typeof _users2>;
 
     const user1: UserRow = {
       id: 1,
@@ -62,7 +62,7 @@ void describe('Type Inference Runtime Tests', () => {
       },
     });
 
-    type ProductRow = InferTableType<typeof _products>;
+    type ProductRow = TableRowType<typeof _products>;
 
     const product: ProductRow = {
       id: 1,
@@ -84,7 +84,7 @@ void describe('Type Inference Runtime Tests', () => {
       },
     });
 
-    type PostRow = InferTableType<typeof _posts>;
+    type PostRow = TableRowType<typeof _posts>;
 
     const draftPost: PostRow = {
       id: 1,
@@ -118,7 +118,7 @@ void describe('Type Inference Runtime Tests', () => {
       },
     });
 
-    type EventRow = InferTableType<typeof _events>;
+    type EventRow = TableRowType<typeof _events>;
 
     const event1: EventRow = {
       id: 1,
@@ -144,7 +144,7 @@ void describe('Type Inference Runtime Tests', () => {
       },
     });
 
-    type UserRow = InferTableType<typeof _users3>;
+    type UserRow = TableRowType<typeof _users3>;
 
     const mockQueryResults: UserRow[] = [
       { id: 1, email: 'alice@example.com', nickname: 'alice', age: 30 },

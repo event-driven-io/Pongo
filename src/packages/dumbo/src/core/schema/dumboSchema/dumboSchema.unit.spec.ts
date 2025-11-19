@@ -1,7 +1,9 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
 import { SQL } from '../../sql';
+import type { TableRowType } from '../components';
 import { dumboSchema } from './index';
+import type { Expect, Equal } from '../../testing';
 
 const { database, schema, table, column, index } = dumboSchema;
 const { Varchar } = SQL.column.type;
@@ -144,8 +146,8 @@ void describe('dumboSchema', () => {
 
 const users = table('users', {
   columns: {
-    id: column('id', Varchar('max')),
-    email: column('email', Varchar('max')),
+    id: column('id', Varchar('max'), { primaryKey: true, notNull: true }),
+    email: column('email', Varchar('max'), { notNull: true }),
     name: column('name', Varchar('max')),
   },
 });
@@ -162,8 +164,9 @@ const multiSchemaDb = database('myapp', {
   public: schema('public', {
     users: table('users', {
       columns: {
-        id: column('id', Varchar('max')),
-        email: column('email', Varchar('max')),
+        id: column('id', Varchar('max'), { primaryKey: true, notNull: true }),
+        email: column('email', Varchar('max'), { notNull: true }),
+        name: column('name', Varchar('max')),
       },
     }),
   }),
@@ -180,5 +183,10 @@ const multiSchemaDb = database('myapp', {
 
 // Access using name-based maps
 const publicSchema = multiSchemaDb.schemas.public;
-const usersTable = publicSchema?.tables.get('users');
-export const emailColumn = usersTable?.columns.get('email');
+const usersTable = publicSchema.tables.users;
+
+type Users = TableRowType<typeof usersTable>;
+
+type _IdColumnIsNonNullableString = Expect<Equal<Users['id'], string>>;
+type _EmailColumnIsNonNullableString = Expect<Equal<Users['email'], string>>;
+type _NameColumnIsNullableString = Expect<Equal<Users['name'], string | null>>;

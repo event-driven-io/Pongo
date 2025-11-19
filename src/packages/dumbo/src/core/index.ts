@@ -17,6 +17,7 @@ export * from './query';
 export * from './schema';
 export * from './serializer';
 export * from './sql';
+export * from './testing';
 export * from './tracing';
 
 export type Dumbo<
