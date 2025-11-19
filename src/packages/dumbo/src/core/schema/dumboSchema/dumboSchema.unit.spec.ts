@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import { describe, it } from 'node:test';
 import { SQL } from '../../sql';
 import type { Equal, Expect } from '../../testing';
-import type { TableRowType } from '../components';
+import type { TableColumnNames, TableRowType } from '../components';
 import { dumboSchema } from './index';
 
 const { database, schema, table, column, index } = dumboSchema;
@@ -190,3 +190,7 @@ type Users = TableRowType<typeof _usersTable>;
 type _IdColumnIsNonNullableString = Expect<Equal<Users['id'], string>>;
 type _EmailColumnIsNonNullableString = Expect<Equal<Users['email'], string>>;
 type _NameColumnIsNullableString = Expect<Equal<Users['name'], string | null>>;
+
+type UserColumns = TableColumnNames<typeof _usersTable>;
+
+const _userColumns: UserColumns[] = ['id', 'email', 'name'];
