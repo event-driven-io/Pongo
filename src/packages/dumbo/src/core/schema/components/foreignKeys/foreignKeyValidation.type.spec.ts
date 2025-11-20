@@ -1,0 +1,572 @@
+import type {
+  AnyColumnSchemaComponent,
+  AnyDatabaseSchemaComponent,
+  AnyDatabaseSchemaSchemaComponent,
+  AnyTableSchemaComponent,
+  DatabaseSchemaComponent,
+  DatabaseSchemaSchemaComponent,
+  TableSchemaComponent,
+} from '../';
+import { SQL } from '../../../sql';
+import type { Equal, Expect } from '../../../testing';
+import { dumboSchema } from '../../dumboSchema';
+import type {
+  AllColumnReferences,
+  ExtractColumnNames,
+  ExtractSchemaNames,
+  ExtractTableNames,
+  ForeignKeyDefinition,
+} from './foreignKeyTypes';
+
+const { database, schema, table, column } = dumboSchema;
+const { Varchar } = SQL.column.type;
+
+type _DB1 = DatabaseSchemaComponent<{
+  public: AnyDatabaseSchemaSchemaComponent;
+}>;
+type _Test1 = Expect<Equal<ExtractSchemaNames<_DB1>, 'public'>>;
+
+type _DB2 = DatabaseSchemaComponent<{
+  public: AnyDatabaseSchemaSchemaComponent;
+  analytics: AnyDatabaseSchemaSchemaComponent;
+}>;
+type _Test2 = Expect<Equal<ExtractSchemaNames<_DB2>, 'public' | 'analytics'>>;
+
+type _Schema1 = DatabaseSchemaSchemaComponent<{
+  users: AnyTableSchemaComponent;
+}>;
+type _Test3 = Expect<Equal<ExtractTableNames<_Schema1>, 'users'>>;
+
+type _Schema2 = DatabaseSchemaSchemaComponent<{
+  users: AnyTableSchemaComponent;
+  posts: AnyTableSchemaComponent;
+  comments: AnyTableSchemaComponent;
+}>;
+type _Test4 = Expect<
+  Equal<ExtractTableNames<_Schema2>, 'users' | 'posts' | 'comments'>
+>;
+
+type _Table1 = TableSchemaComponent<{
+  id: AnyColumnSchemaComponent;
+}>;
+type _Test5 = Expect<Equal<ExtractColumnNames<_Table1>, 'id'>>;
+
+type _Table2 = TableSchemaComponent<{
+  id: AnyColumnSchemaComponent;
+  email: AnyColumnSchemaComponent;
+  name: AnyColumnSchemaComponent;
+  created_at: AnyColumnSchemaComponent;
+}>;
+type _Test6 = Expect<
+  Equal<ExtractColumnNames<_Table2>, 'id' | 'email' | 'name' | 'created_at'>
+>;
+
+const _db1 = database('test', {
+  public: schema('public', {
+    users: table('users', {
+      columns: {
+        id: column('id', Varchar('max')),
+        email: column('email', Varchar('max')),
+      },
+    }),
+  }),
+});
+
+type _Result1 = AllColumnReferences<typeof _db1>;
+type _Test7 = Expect<Equal<_Result1, 'public.users.id' | 'public.users.email'>>;
+
+const _db2 = database('test', {
+  public: schema('public', {
+    users: table('users', {
+      columns: {
+        id: column('id', Varchar('max')),
+        email: column('email', Varchar('max')),
+      },
+    }),
+    posts: table('posts', {
+      columns: {
+        id: column('id', Varchar('max')),
+        title: column('title', Varchar('max')),
+        user_id: column('user_id', Varchar('max')),
+      },
+    }),
+  }),
+});
+
+type _Result2 = AllColumnReferences<typeof _db2>;
+type _Test8 = Expect<
+  Equal<
+    _Result2,
+    | 'public.users.id'
+    | 'public.users.email'
+    | 'public.posts.id'
+    | 'public.posts.title'
+    | 'public.posts.user_id'
+  >
+>;
+
+const _db3 = database('test', {
+  public: schema('public', {
+    users: table('users', {
+      columns: {
+        id: column('id', Varchar('max')),
+        email: column('email', Varchar('max')),
+      },
+    }),
+  }),
+  analytics: schema('analytics', {
+    events: table('events', {
+      columns: {
+        id: column('id', Varchar('max')),
+        user_id: column('user_id', Varchar('max')),
+        event_type: column('event_type', Varchar('max')),
+      },
+    }),
+  }),
+});
+
+type _Result3 = AllColumnReferences<typeof _db3>;
+type _Test9 = Expect<
+  Equal<
+    _Result3,
+    | 'public.users.id'
+    | 'public.users.email'
+    | 'analytics.events.id'
+    | 'analytics.events.user_id'
+    | 'analytics.events.event_type'
+  >
+>;
+
+const _validFK: ForeignKeyDefinition = {
+  columns: ['user_id'],
+  references: ['public.users.id'],
+};
+
+type _ColumnsType = typeof _validFK.columns;
+type _Test10 = Expect<Equal<_ColumnsType, readonly string[]>>;
+
+const _compositeFK: ForeignKeyDefinition = {
+  columns: ['user_id', 'tenant_id'],
+  references: ['public.users.id', 'public.users.tenant_id'],
+};
+
+type _CompositeColumnsType = typeof _compositeFK.columns;
+type _CompositeReferencesType = typeof _compositeFK.references;
+type _Test11 = Expect<Equal<_CompositeColumnsType, readonly string[]>>;
+type _Test12 = Expect<Equal<_CompositeReferencesType, readonly string[]>>;
+
+import type { IsError } from '../../../testing/typesTesting';
+import type {
+  ValidateDatabaseForeignKeys,
+  ValidateForeignKeyLength,
+} from './foreignKeyValidation';
+
+type _FK_LengthMismatch = {
+  columns: ['user_id', 'tenant_id'];
+  references: ['public.users.id'];
+};
+
+type _Result_LengthMismatch = ValidateForeignKeyLength<_FK_LengthMismatch>;
+type _Test13 = Expect<IsError<_Result_LengthMismatch>>;
+
+type _FK_SingleMatch = {
+  columns: ['user_id'];
+  references: ['public.users.id'];
+};
+
+type _FK_CompositeMatch = {
+  columns: ['user_id', 'tenant_id'];
+  references: ['public.users.id', 'public.users.tenant_id'];
+};
+
+type _Result_SingleMatch = ValidateForeignKeyLength<_FK_SingleMatch>;
+type _Result_CompositeMatch = ValidateForeignKeyLength<_FK_CompositeMatch>;
+type _Test14 = Expect<Equal<_Result_SingleMatch, { valid: true }>>;
+type _Test15 = Expect<Equal<_Result_CompositeMatch, { valid: true }>>;
+
+import type { ValidateForeignKeyColumns } from './foreignKeyValidation';
+
+type _FK_InvalidColumn = {
+  columns: ['user_id', 'invalid_col'];
+  references: ['public.users.id', 'public.users.tenant_id'];
+};
+
+type _Result_InvalidColumn = ValidateForeignKeyColumns<
+  _FK_InvalidColumn,
+  'id' | 'email' | 'user_id'
+>;
+type _Test16 = Expect<IsError<_Result_InvalidColumn>>;
+
+type _FK_ValidColumns = {
+  columns: ['user_id'];
+  references: ['public.users.id'];
+};
+
+type _FK_ValidCompositeColumns = {
+  columns: ['user_id', 'email'];
+  references: ['public.users.id', 'public.users.email'];
+};
+
+type _Result_ValidColumns = ValidateForeignKeyColumns<
+  _FK_ValidColumns,
+  'id' | 'email' | 'user_id'
+>;
+type _Result_ValidCompositeColumns = ValidateForeignKeyColumns<
+  _FK_ValidCompositeColumns,
+  'id' | 'email' | 'user_id'
+>;
+type _Test17 = Expect<Equal<_Result_ValidColumns, { valid: true }>>;
+type _Test18 = Expect<Equal<_Result_ValidCompositeColumns, { valid: true }>>;
+
+import type { ValidateForeignKeyReferences } from './foreignKeyValidation';
+
+type _FK_InvalidReference = {
+  columns: ['user_id'];
+  references: ['public.nonexistent.id'];
+};
+
+type _Result_InvalidReference = ValidateForeignKeyReferences<
+  _FK_InvalidReference,
+  'public.users.id' | 'public.users.email' | 'public.posts.id'
+>;
+type _Test19 = Expect<IsError<_Result_InvalidReference>>;
+
+type _FK_ValidReference = {
+  columns: ['user_id'];
+  references: ['public.users.id'];
+};
+
+type _FK_ValidCompositeReference = {
+  columns: ['user_id', 'post_id'];
+  references: ['public.users.id', 'public.posts.id'];
+};
+
+type _Result_ValidReference = ValidateForeignKeyReferences<
+  _FK_ValidReference,
+  'public.users.id' | 'public.users.email' | 'public.posts.id'
+>;
+type _Result_ValidCompositeReference = ValidateForeignKeyReferences<
+  _FK_ValidCompositeReference,
+  'public.users.id' | 'public.users.email' | 'public.posts.id'
+>;
+type _Test20 = Expect<Equal<_Result_ValidReference, { valid: true }>>;
+type _Test21 = Expect<Equal<_Result_ValidCompositeReference, { valid: true }>>;
+
+import type { ValidateSingleForeignKey } from './foreignKeyValidation';
+
+type _FK_Complete_Valid = {
+  columns: ['user_id'];
+  references: ['public.users.id'];
+};
+
+type _Result_Complete_Valid = ValidateSingleForeignKey<
+  _FK_Complete_Valid,
+  'id' | 'user_id',
+  'public.users.id' | 'public.users.email'
+>;
+type _Test22 = Expect<Equal<_Result_Complete_Valid, { valid: true }>>;
+
+type _FK_Complete_LengthError = {
+  columns: ['user_id', 'tenant_id'];
+  references: ['public.users.id'];
+};
+
+type _Result_Complete_LengthError = ValidateSingleForeignKey<
+  _FK_Complete_LengthError,
+  'id' | 'user_id' | 'tenant_id',
+  'public.users.id' | 'public.users.email'
+>;
+type _Test23 = Expect<IsError<_Result_Complete_LengthError>>;
+
+type _FK_Complete_ColumnError = {
+  columns: ['invalid_col'];
+  references: ['public.users.id'];
+};
+
+type _Result_Complete_ColumnError = ValidateSingleForeignKey<
+  _FK_Complete_ColumnError,
+  'id' | 'user_id',
+  'public.users.id' | 'public.users.email'
+>;
+type _Test24 = Expect<IsError<_Result_Complete_ColumnError>>;
+
+type _FK_Complete_ReferenceError = {
+  columns: ['user_id'];
+  references: ['public.invalid.id'];
+};
+
+type _Result_Complete_ReferenceError = ValidateSingleForeignKey<
+  _FK_Complete_ReferenceError,
+  'id' | 'user_id',
+  'public.users.id' | 'public.users.email'
+>;
+type _Test24A = Expect<
+  Equal<
+    _Result_Complete_ReferenceError,
+    {
+      valid: false;
+      error:
+        | 'Invalid foreign key references: public.invalid.id. Available references: public.users.id'
+        | 'Invalid foreign key references: public.invalid.id. Available references: public.users.email';
+    }
+  >
+>;
+
+import type { ValidateForeignKeyArray } from './foreignKeyValidation';
+
+type _FKArray_Mixed = readonly [
+  {
+    columns: ['user_id'];
+    references: ['public.users.id'];
+  },
+  {
+    columns: ['invalid_col'];
+    references: ['public.users.email'];
+  },
+];
+
+type _Result_FKArray_Mixed = ValidateForeignKeyArray<
+  _FKArray_Mixed,
+  'id' | 'user_id',
+  'public.users.id' | 'public.users.email'
+>;
+
+type _Test25A = Expect<
+  Equal<
+    _Result_FKArray_Mixed,
+    {
+      valid: false;
+      error:
+        | 'Invalid foreign key columns: invalid_col. Available columns: user_id'
+        | 'Invalid foreign key columns: invalid_col. Available columns: id';
+    }
+  >
+>;
+type _Test35 = Expect<IsError<_Result_FKArray_Mixed>>;
+
+type _FKArray_AllValid = readonly [
+  {
+    columns: ['user_id'];
+    references: ['public.users.id'];
+  },
+  {
+    columns: ['email'];
+    references: ['public.users.email'];
+  },
+];
+
+type _Result_FKArray_AllValid = ValidateForeignKeyArray<
+  _FKArray_AllValid,
+  'id' | 'user_id' | 'email',
+  'public.users.id' | 'public.users.email'
+>;
+type _ValidateForeignKeyArrayResult_InvalidFK = ValidateForeignKeyArray<
+  [{ columns: ['invalid']; references: ['public.users.id'] }],
+  'id' | 'user_id',
+  'public.users.id' | 'public.users.email'
+>;
+type _TestValidateForeignKeyArrayResult_InvalidFK = Expect<
+  IsError<_ValidateForeignKeyArrayResult_InvalidFK>
+>;
+
+import type { ValidateTableForeignKeys } from './foreignKeyValidation';
+
+type _Table_NoFKs = TableSchemaComponent<{
+  id: AnyColumnSchemaComponent;
+  email: AnyColumnSchemaComponent;
+}>;
+
+type _Result_NoFKs = ValidateTableForeignKeys<
+  _Table_NoFKs,
+  'public.users.id' | 'public.users.email'
+>;
+type _Test26 = Expect<Equal<_Result_NoFKs, { valid: true }>>;
+
+type _Table_SingleFK = TableSchemaComponent<
+  {
+    id: AnyColumnSchemaComponent;
+    user_id: AnyColumnSchemaComponent;
+  },
+  [{ columns: ['user_id']; references: ['public.users.id'] }]
+>;
+
+type _Result_SingleFK = ValidateTableForeignKeys<
+  _Table_SingleFK,
+  'public.users.id' | 'public.users.email'
+>;
+type _Test27 = Expect<Equal<_Result_SingleFK, { valid: true }>>;
+
+type _Table_MultipleFK = TableSchemaComponent<
+  {
+    id: AnyColumnSchemaComponent;
+    user_id: AnyColumnSchemaComponent;
+    author_id: AnyColumnSchemaComponent;
+  },
+  [
+    { columns: ['user_id']; references: ['public.users.id'] },
+    { columns: ['author_id']; references: ['public.users.id'] },
+  ]
+>;
+
+type _Result_MultipleFK = ValidateTableForeignKeys<
+  _Table_MultipleFK,
+  'public.users.id' | 'public.users.email'
+>;
+type _Test28 = Expect<Equal<_Result_MultipleFK, { valid: true }>>;
+
+type _Table_InvalidFK = TableSchemaComponent<
+  {
+    id: AnyColumnSchemaComponent;
+    user_id: AnyColumnSchemaComponent;
+  },
+  [{ readonly columns: ['id']; references: readonly ['public.users.id'] }]
+>;
+
+type _Result_InvalidFK = ValidateTableForeignKeys<
+  _Table_InvalidFK,
+  'public.posts.id' | 'public.users.email'
+>;
+type _Test29 = Expect<IsError<_Result_InvalidFK>>;
+
+import type { ValidateSchemaForeignKeys } from './foreignKeyValidation';
+
+type _Schema_MultiTable = DatabaseSchemaSchemaComponent<{
+  users: TableSchemaComponent<{
+    id: AnyColumnSchemaComponent;
+    email: AnyColumnSchemaComponent;
+  }>;
+  posts: TableSchemaComponent<
+    {
+      id: AnyColumnSchemaComponent;
+      user_id: AnyColumnSchemaComponent;
+    },
+    [{ columns: ['user_id']; references: ['public.users.id'] }]
+  >;
+}>;
+
+type _Result_Schema_Valid = ValidateSchemaForeignKeys<
+  _Schema_MultiTable,
+  'public.users.id' | 'public.users.email' | 'public.posts.id'
+>;
+type _Test30 = Expect<Equal<_Result_Schema_Valid, { valid: true }>>;
+
+type _Schema_WithError = DatabaseSchemaSchemaComponent<{
+  posts: TableSchemaComponent<
+    {
+      id: AnyColumnSchemaComponent;
+      user_id: AnyColumnSchemaComponent;
+    },
+    [{ columns: ['id']; references: ['public.users.id'] }]
+  >;
+}>;
+
+type _Result_Schema_Error = ValidateSchemaForeignKeys<
+  _Schema_WithError,
+  'public.posts.id' | 'public.users.email'
+>;
+type _Test31 = Expect<IsError<_Result_Schema_Error>>;
+
+const _dbWithErrorVSInDB = database('test', {
+  public: schema('public', {
+    posts: table('posts', {
+      columns: {
+        id: column('id', Varchar('max')),
+        user_id: column('user_id', Varchar('max')),
+      },
+      foreignKeys: [{ columns: ['id'], references: ['public.users.id'] }],
+    }),
+  }),
+});
+
+type _Test_ValidateSchemasInDatabaseResult_DbError = Expect<
+  IsError<typeof _dbWithErrorVSInDB>
+>;
+
+const _fullDb = database('test', {
+  public: schema('public', {
+    users: table('users', {
+      columns: {
+        id: column('id', Varchar('max')),
+        email: column('email', Varchar('max')),
+      },
+    }),
+    posts: table('posts', {
+      columns: {
+        id: column('id', Varchar('max')),
+        user_id: column('user_id', Varchar('max')),
+      },
+      foreignKeys: [{ columns: ['user_id'], references: ['public.users.id'] }],
+    }),
+  }),
+});
+
+type _Result_FullDb = ValidateDatabaseForeignKeys<typeof _fullDb>;
+type _Test32 = Expect<Equal<_Result_FullDb, { valid: true }>>;
+
+const _dbWithSelfRef = database('test', {
+  public: schema('public', {
+    users: table('users', {
+      columns: {
+        id: column('id', Varchar('max')),
+        manager_id: column('manager_id', Varchar('max')),
+      },
+      foreignKeys: [
+        { columns: ['manager_id'], references: ['public.users.id'] },
+      ],
+    }),
+  }),
+});
+
+type _Result_SelfRef = ValidateDatabaseForeignKeys<typeof _dbWithSelfRef>;
+type _Test33 = Expect<Equal<_Result_SelfRef, { valid: true }>>;
+
+const _dbWithError = database('test', {
+  public: schema('public', {
+    posts: table('posts', {
+      columns: {
+        id: column('id', Varchar('max')),
+        user_id: column('user_id', Varchar('max')),
+      },
+      foreignKeys: [{ columns: ['id'], references: ['public.users.id'] }],
+    }),
+  }),
+});
+
+type _Test34 = Expect<IsError<typeof _dbWithError>>;
+
+// TEST: Invalid column should cause type error at database() call
+const _dbInvalidColumn = database('test', {
+  public: schema('public', {
+    posts: table('posts', {
+      columns: {
+        id: column('id', Varchar('max')),
+        user_id: column('id', Varchar('max')),
+      },
+      foreignKeys: [{ columns: ['id'], references: ['public.users.id'] }],
+    }),
+  }),
+});
+
+type _InvalidColResult = typeof _dbInvalidColumn;
+type _Test_InvalidColumn = Expect<IsError<_InvalidColResult>>;
+
+// TEST: Valid FK should work
+const _dbValid = database('test', {
+  public: schema('public', {
+    users: table('users', {
+      columns: { id: column('id', Varchar('max')) },
+    }),
+    posts: table('posts', {
+      columns: {
+        id: column('id', Varchar('max')),
+        user_id: column('user_id', Varchar('max')),
+      },
+      foreignKeys: [{ columns: ['user_id'], references: ['public.users.id'] }],
+    }),
+  }),
+});
+
+type _ValidResult = typeof _dbValid;
+type _Test_Valid = Expect<
+  Equal<_ValidResult extends AnyDatabaseSchemaComponent ? true : false, true>
+>; // This should PASS
