@@ -4,6 +4,14 @@ import type {
   ColumnSchemaComponent,
 } from './columnSchemaComponent';
 import type {
+  AnyDatabaseSchemaComponent,
+  DatabaseSchemaComponent,
+} from './databaseSchemaComponent';
+import type {
+  AnyDatabaseSchemaSchemaComponent,
+  DatabaseSchemaSchemaComponent,
+} from './databaseSchemaSchemaComponent';
+import type {
   AnyTableSchemaComponent,
   TableColumns,
   TableSchemaComponent,
@@ -39,3 +47,9 @@ export type TableRowType<T extends AnyTableSchemaComponent> =
   T extends TableSchemaComponent<infer Columns>
     ? InferTableRow<Columns>
     : never;
+
+export type InferSchemaTables<T extends AnyDatabaseSchemaSchemaComponent> =
+  T extends DatabaseSchemaSchemaComponent<infer Tables> ? Tables : never;
+
+export type InferDatabaseSchemas<T extends AnyDatabaseSchemaComponent> =
+  T extends DatabaseSchemaComponent<infer Schemas> ? Schemas : never;

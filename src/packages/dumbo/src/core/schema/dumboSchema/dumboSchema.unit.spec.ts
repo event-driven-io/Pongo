@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 import { SQL } from '../../sql';
 import type { Equal, Expect } from '../../testing';
 import type { TableColumnNames, TableRowType } from '../components';
+import { foreignKey } from '../components';
 import { dumboSchema } from './index';
 
 const { database, schema, table, column, index } = dumboSchema;
@@ -150,6 +151,21 @@ const users = table('users', {
     email: column('email', Varchar('max'), { notNull: true }),
     name: column('name', Varchar('max')),
   },
+  foreignKeys: [foreignKey(['id'], ['public.profiles.user_id'])],
+});
+
+const _users2 = table('users', {
+  columns: {
+    id: column('id', Varchar('max'), { primaryKey: true, notNull: true }),
+    email: column('email', Varchar('max'), { notNull: true }),
+    name: column('name', Varchar('max')),
+  },
+  foreignKeys: [
+    {
+      columns: ['id'],
+      references: ['public.profiles.user_id'],
+    },
+  ],
 });
 
 export const simpleDb = database(
@@ -179,6 +195,12 @@ const multiSchemaDb = database('myapp', {
         userId: column('user_id', Varchar('max')),
         timestamp: column('timestamp', Varchar('max')),
       },
+      foreignKeys: [
+        {
+          columns: ['userId'],
+          references: ['public.users.id'],
+        },
+      ],
     }),
   }),
 });
@@ -199,3 +221,139 @@ type _MetadataColumnIsNullableObject = Expect<
 type UserColumns = TableColumnNames<typeof _usersTable>;
 
 const _userColumns: UserColumns[] = ['id', 'email', 'name', 'metadata'];
+
+void describe('Foreign Key Validation', () => {
+  void it('should accept valid single foreign key', () => {
+    const db = database('test', {
+      public: schema('public', {
+        users: table('users', {
+          columns: {
+            id: column('id', Varchar('max')),
+            email: column('email', Varchar('max')),
+          },
+        }),
+        posts: table('posts', {
+          columns: {
+            id: column('id', Varchar('max')),
+            user_id: column('user_id', Varchar('max')),
+          },
+          foreignKeys: [
+            { columns: ['user_id'], references: ['public.users.id'] },
+          ],
+        }),
+      }),
+    });
+
+    assert.ok(db.schemas.public.tables.posts.foreignKeys);
+    assert.deepStrictEqual(
+      db.schemas.public.tables.posts.foreignKeys[0].columns,
+      ['user_id'],
+    );
+  });
+
+  void it('should accept valid composite foreign key', () => {
+    const db = database('test', {
+      public: schema('public', {
+        users: table('users', {
+          columns: {
+            id: column('id', Varchar('max')),
+            tenant_id: column('tenant_id', Varchar('max')),
+          },
+        }),
+        posts: table('posts', {
+          columns: {
+            id: column('id', Varchar('max')),
+            user_id: column('user_id', Varchar('max')),
+            tenant_id: column('tenant_id', Varchar('max')),
+          },
+          foreignKeys: [
+            {
+              columns: ['user_id', 'tenant_id'],
+              references: ['public.users.id', 'public.users.tenant_id'],
+            },
+          ],
+        }),
+      }),
+    });
+
+    assert.deepStrictEqual(
+      db.schemas.public.tables.posts.foreignKeys[0].columns,
+      ['user_id', 'tenant_id'],
+    );
+  });
+
+  void it('should accept self-referential foreign key', () => {
+    const db = database('test', {
+      public: schema('public', {
+        users: table('users', {
+          columns: {
+            id: column('id', Varchar('max')),
+            manager_id: column('manager_id', Varchar('max')),
+          },
+          foreignKeys: [
+            { columns: ['manager_id'], references: ['public.users.id'] },
+          ] as const,
+        }),
+      }),
+    });
+
+    assert.ok(db.schemas.public.tables.users.foreignKeys);
+    assert.deepStrictEqual(
+      db.schemas.public.tables.users.foreignKeys[0].references,
+      ['public.users.id'],
+    );
+  });
+
+  void it('should accept multiple foreign keys in one table', () => {
+    const db = database('test', {
+      public: schema('public', {
+        users: table('users', {
+          columns: {
+            id: column('id', Varchar('max')),
+          },
+        }),
+        posts: table('posts', {
+          columns: {
+            id: column('id', Varchar('max')),
+            user_id: column('user_id', Varchar('max')),
+            author_id: column('author_id', Varchar('max')),
+          },
+          foreignKeys: [
+            { columns: ['user_id'], references: ['public.users.id'] },
+            { columns: ['author_id'], references: ['public.users.id'] },
+          ] as const,
+        }),
+      }),
+    });
+
+    assert.strictEqual(db.schemas.public.tables.posts.foreignKeys.length, 2);
+  });
+
+  void it('should accept cross-schema foreign key', () => {
+    const db = database('test', {
+      public: schema('public', {
+        users: table('users', {
+          columns: {
+            id: column('id', Varchar('max')),
+          },
+        }),
+      }),
+      analytics: schema('analytics', {
+        events: table('events', {
+          columns: {
+            id: column('id', Varchar('max')),
+            user_id: column('user_id', Varchar('max')),
+          },
+          foreignKeys: [
+            { columns: ['user_id'], references: ['public.users.id'] },
+          ],
+        }),
+      }),
+    });
+
+    assert.deepStrictEqual(
+      db.schemas.analytics.tables.events.foreignKeys[0].references,
+      ['public.users.id'],
+    );
+  });
+});

@@ -36,6 +36,10 @@ export type DatabaseSchemaComponent<
   }>
 >;
 
+export type AnyDatabaseSchemaComponent =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  DatabaseSchemaComponent<any>;
+
 export const databaseSchemaComponent = <
   Schemas extends DatabaseSchemas = DatabaseSchemas,
 >({

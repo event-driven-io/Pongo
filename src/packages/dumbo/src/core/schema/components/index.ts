@@ -7,6 +7,7 @@ import { TableURN } from './tableSchemaComponent';
 export * from './columnSchemaComponent';
 export * from './databaseSchemaComponent';
 export * from './databaseSchemaSchemaComponent';
+export * from './foreignKeys';
 export * from './indexSchemaComponent';
 export * from './tableSchemaComponent';
 export * from './tableTypesInference';
