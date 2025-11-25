@@ -1176,7 +1176,7 @@ Support foreign keys across sharded databases:
 
 ```typescript
 // Define relationship that spans databases
-const relationship = crossDatabaseForeignKey(
+const relationship = crossDatabaseRelationship(
   'read_models.reservations.guest_id',
   'read_models.guests.id',
   { onDelete: 'CASCADE' },

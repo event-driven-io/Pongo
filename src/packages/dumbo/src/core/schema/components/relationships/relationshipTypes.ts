@@ -8,7 +8,7 @@ import type {
   TableColumnNames,
   TableColumns,
   TableSchemaComponent,
-} from '../';
+} from '..';
 
 export type ExtractSchemaNames<DB> =
   DB extends DatabaseSchemaComponent<infer Schemas extends DatabaseSchemas>
@@ -47,12 +47,12 @@ export type AllColumnReferences<DB> =
       }[keyof Schemas]
     : never;
 
-export type ForeignKeyDefinition<Columns = string, References = string> = {
+export type RelationshipDefinition<Columns = string, References = string> = {
   readonly columns: readonly Columns[];
   readonly references: readonly References[];
 };
 
-export const foreignKey = <
+export const relationship = <
   const Columns extends readonly string[],
   const References extends readonly string[],
 >(
@@ -65,4 +65,4 @@ export const foreignKey = <
   } as const;
 };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyForeignKeyDefinition = ForeignKeyDefinition<any, any>;
+export type AnyRelationshipDefinition = RelationshipDefinition<any, any>;

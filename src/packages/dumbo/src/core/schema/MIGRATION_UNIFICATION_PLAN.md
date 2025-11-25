@@ -1098,7 +1098,7 @@ export class MigrationOrchestrator {
     await this.runMigrationGroup(dumbo, grouped.tables);
     await this.runMigrationGroup(dumbo, grouped.columns);
     await this.runMigrationGroup(dumbo, grouped.indexes);
-    // Future: grouped.foreignKeys, grouped.constraints
+    // Future: grouped.relationships, grouped.constraints
 
     // Update snapshot after successful migration
     await this.updateSnapshot();

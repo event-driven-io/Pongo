@@ -1,6 +1,7 @@
 # Foreign Key Type Validation - Implementation Checklist
 
 ## Phase 1: Foundation - Type Extraction Utilities
+
 - [x] Step 1: Add ExpectError Helper
 - [x] Step 2: Create Foreign Key Types File Structure
 - [ ] Step 3: Implement ExtractSchemaNames Type Utility
@@ -8,31 +9,37 @@
 - [ ] Step 5: Implement ExtractColumnNames Type Utility
 
 ## Phase 2: Column Reference Generation
+
 - [ ] Step 6: Implement AllColumnReferences Type Utility (Single Schema)
 - [ ] Step 7: Test AllColumnReferences with Multi-Schema Database
 
 ## Phase 3: Foreign Key Type Definition
-- [ ] Step 8: Define ForeignKeyDefinition Type
+
+- [ ] Step 8: Define RelationshipDefinition Type
 - [ ] Step 9: Update TableSchemaComponent to Include Foreign Keys
 - [ ] Step 10: Update dumboTable to Accept Foreign Keys
 
 ## Phase 4: Single Foreign Key Validation
-- [ ] Step 11: Implement ValidateForeignKeyLength
-- [ ] Step 12: Implement ValidateForeignKeyColumns
-- [ ] Step 13: Implement ValidateForeignKeyReferences
-- [ ] Step 14: Implement ValidateSingleForeignKey (Combine Validations)
+
+- [ ] Step 11: Implement ValidateRelationshipLength
+- [ ] Step 12: Implement ValidateRelationshipColumns
+- [ ] Step 13: Implement ValidateRelationshipReferences
+- [ ] Step 14: Implement ValidateSingleRelationship (Combine Validations)
 
 ## Phase 5: Full Database Validation
-- [ ] Step 15: Implement ValidateTableForeignKeys
-- [ ] Step 16: Implement ValidateSchemaForeignKeys
-- [ ] Step 17: Implement ValidateDatabaseForeignKeys
+
+- [ ] Step 15: Implement ValidateTableRelationships
+- [ ] Step 16: Implement ValidateSchemaRelationships
+- [ ] Step 17: Implement ValidateDatabaseRelationships
 
 ## Phase 6: Integration with dumboSchema
+
 - [ ] Step 18: Create Foreign Keys Barrel Export
 - [ ] Step 19: Wire Validation to database() Function
 - [ ] Step 20: Wire Validation to schema() Function
 
 ## Phase 7: Real-World Testing
+
 - [ ] Step 21: Add Real-World Test Cases
 - [ ] Step 22: Update Existing Example in Test File
 
