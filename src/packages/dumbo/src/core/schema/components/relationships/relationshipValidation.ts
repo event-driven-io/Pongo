@@ -111,14 +111,14 @@ export type ValidateSingleRelationship<
         ? ValidationResult<false, E>
         : ValidationResult<true>;
 
-export type ValidateRelationshipArray<
-  FKs extends readonly AnyRelationshipDefinition[],
+export type ValidateRelationship<
+  FKs extends Record<string, AnyRelationshipDefinition>,
   TableColumns extends string,
   ValidReferences extends string,
-> = FKs extends readonly []
+> = keyof FKs extends never
   ? ValidationResult<true>
   : ValidateSingleRelationship<
-        FKs[number],
+        FKs[keyof FKs],
         TableColumns,
         ValidReferences
       > extends {
@@ -133,7 +133,7 @@ export type ValidateTableRelationships<
   ValidReferences extends string,
 > =
   Table extends TableSchemaComponent<infer _Columns, infer FKs>
-    ? ValidateRelationshipArray<
+    ? ValidateRelationship<
         FKs,
         TableColumnNames<Table> & string,
         ValidReferences

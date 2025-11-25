@@ -47,10 +47,22 @@ export type AllColumnReferences<DB> =
       }[keyof Schemas]
     : never;
 
+export type RelationshipType =
+  | 'one-to-one'
+  | 'one-to-many'
+  | 'many-to-one'
+  | 'many-to-many';
+
 export type RelationshipDefinition<Columns = string, References = string> = {
   readonly columns: readonly Columns[];
   readonly references: readonly References[];
+  readonly type: RelationshipType;
 };
+
+export type TableRelationships<Columns extends string = string> = Record<
+  string,
+  RelationshipDefinition<Columns, string>
+>;
 
 export const relationship = <
   const Columns extends readonly string[],
@@ -58,10 +70,12 @@ export const relationship = <
 >(
   columns: Columns,
   references: References,
+  type: RelationshipType,
 ) => {
   return {
     columns,
     references,
+    type,
   } as const;
 };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
