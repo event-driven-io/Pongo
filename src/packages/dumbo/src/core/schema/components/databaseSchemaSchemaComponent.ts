@@ -12,15 +12,16 @@ import {
 } from './tableSchemaComponent';
 
 export type DatabaseSchemaURNType = 'sc:dumbo:database_schema';
-export type DatabaseSchemaURN = `${DatabaseSchemaURNType}:${string}`;
+export type DatabaseSchemaURN<SchemaName extends string = string> =
+  `${DatabaseSchemaURNType}:${SchemaName}`;
 
 export const DatabaseSchemaURNType: DatabaseSchemaURNType =
   'sc:dumbo:database_schema';
-export const DatabaseSchemaURN = ({
+export const DatabaseSchemaURN = <SchemaName extends string = string>({
   name,
 }: {
-  name: string;
-}): DatabaseSchemaURN => `${DatabaseSchemaURNType}:${name}`;
+  name: SchemaName;
+}): DatabaseSchemaURN<SchemaName> => `${DatabaseSchemaURNType}:${name}`;
 
 export type DatabaseSchemaTables<
   Tables extends AnyTableSchemaComponent = AnyTableSchemaComponent,
@@ -28,10 +29,11 @@ export type DatabaseSchemaTables<
 
 export type DatabaseSchemaSchemaComponent<
   Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
+  SchemaName extends string = string,
 > = SchemaComponent<
-  DatabaseSchemaURN,
+  DatabaseSchemaURN<SchemaName>,
   Readonly<{
-    schemaName: string;
+    schemaName: SchemaName;
     tables: ReadonlyMap<string, TableSchemaComponent> & Tables;
     addTable: (table: string | TableSchemaComponent) => TableSchemaComponent;
   }>
@@ -42,15 +44,19 @@ export type AnyDatabaseSchemaSchemaComponent =
   DatabaseSchemaSchemaComponent<any>;
 
 export const databaseSchemaSchemaComponent = <
-  Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
+  const Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
+  const SchemaName extends string = string,
 >({
   schemaName,
   tables,
   ...migrationsOrComponents
 }: {
-  schemaName: string;
+  schemaName: SchemaName;
   tables?: Tables;
-} & SchemaComponentOptions): DatabaseSchemaSchemaComponent<Tables> => {
+} & SchemaComponentOptions): DatabaseSchemaSchemaComponent<
+  Tables,
+  SchemaName
+> => {
   const base = schemaComponent(DatabaseSchemaURN({ name: schemaName }), {
     migrations: migrationsOrComponents.migrations ?? [],
     components: [

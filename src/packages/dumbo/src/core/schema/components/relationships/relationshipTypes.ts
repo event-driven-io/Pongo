@@ -8,7 +8,9 @@ import type {
   TableColumnNames,
   TableColumns,
   TableSchemaComponent,
+  Writable,
 } from '..';
+import type { ColumnTypeToken } from '../../../sql/tokens/columnTokens';
 
 export type ExtractSchemaNames<DB> =
   DB extends DatabaseSchemaComponent<infer Schemas extends DatabaseSchemas>
@@ -27,24 +29,124 @@ export type ExtractColumnNames<Table extends AnyTableSchemaComponent> =
     ? TableColumnNames<TableSchemaComponent<Columns>>
     : never;
 
-export type AllColumnReferences<DB> =
-  DB extends DatabaseSchemaComponent<infer Schemas extends DatabaseSchemas>
+export type ExtractColumnTypeName<T> =
+  T extends ColumnTypeToken<
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any,
+    infer TypeName,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any
+  >
+    ? Uppercase<TypeName & string>
+    : never;
+
+export type AllColumnTypes<Schemas extends DatabaseSchemas> = {
+  [SchemaName in keyof Schemas]: Schemas[SchemaName] extends DatabaseSchemaSchemaComponent<
+    infer Tables
+  >
+    ? Writable<{
+        [TableName in keyof Tables]: Tables[TableName] extends TableSchemaComponent<
+          infer Columns
+        >
+          ? Writable<{
+              [ColumnName in keyof Columns]: {
+                columnTypeName: ExtractColumnTypeName<
+                  Columns[ColumnName]['type']
+                >;
+              };
+            }>
+          : never;
+      }>
+    : never;
+};
+
+export type AllColumnReferences<Schemas extends DatabaseSchemas> = {
+  [SchemaName in keyof Schemas]: Schemas[SchemaName] extends DatabaseSchemaSchemaComponent<
+    infer Tables
+  >
     ? {
-        [SchemaName in keyof Schemas]: Schemas[SchemaName] extends DatabaseSchemaSchemaComponent<
-          infer Tables
+        [TableName in keyof Tables]: Tables[TableName] extends TableSchemaComponent<
+          infer Columns
         >
           ? {
-              [TableName in keyof Tables]: Tables[TableName] extends TableSchemaComponent<
-                infer Columns
-              >
-                ? {
-                    [ColumnName in keyof Columns]: `${SchemaName &
-                      string}.${TableName & string}.${ColumnName & string}`;
-                  }[keyof Columns]
-                : never;
-            }[keyof Tables]
+              [ColumnName in keyof Columns]: `${SchemaName &
+                string}.${TableName & string}.${ColumnName & string}`;
+            }[keyof Columns]
           : never;
-      }[keyof Schemas]
+      }[keyof Tables]
+    : never;
+}[keyof Schemas];
+
+export type AllColumnTypesInSchema<
+  Schema extends AnyDatabaseSchemaSchemaComponent,
+> =
+  Schema extends DatabaseSchemaSchemaComponent<infer Tables>
+    ? {
+        [TableName in keyof Tables]: Tables[TableName] extends TableSchemaComponent<
+          infer Columns
+        >
+          ? {
+              [ColumnName in keyof Columns]: {
+                columnTypeName: ExtractColumnTypeName<
+                  Columns[ColumnName]['type']
+                >;
+              };
+            }
+          : never;
+      }
+    : never;
+
+export type AllColumnReferencesInSchema<
+  Schema extends AnyDatabaseSchemaSchemaComponent,
+  SchemaName extends string,
+> =
+  Schema extends DatabaseSchemaSchemaComponent<infer Tables>
+    ? {
+        [TableName in keyof Tables]: Tables[TableName] extends TableSchemaComponent<
+          infer Columns
+        >
+          ? {
+              [ColumnName in keyof Columns]: `${SchemaName & string}.${TableName &
+                string}.${ColumnName & string}`;
+            }[keyof Columns]
+          : never;
+      }[keyof Tables]
+    : never;
+
+export type NormalizeReferencePath<
+  Path extends string,
+  CurrentSchema extends string,
+  CurrentTable extends string,
+> = Path extends `${infer Schema}.${infer Table}.${infer Column}`
+  ? `${Schema}.${Table}.${Column}`
+  : Path extends `${infer Table}.${infer Column}`
+    ? `${CurrentSchema}.${Table}.${Column}`
+    : Path extends string
+      ? `${CurrentSchema}.${CurrentTable}.${Path}`
+      : never;
+
+export type ParseReferencePath<Path extends string> =
+  Path extends `${infer Schema}.${infer Table}.${infer Column}`
+    ? { schema: Schema; table: Table; column: Column }
+    : never;
+
+export type LookupColumnType<AllTypes, Path extends string> =
+  ParseReferencePath<Path> extends {
+    schema: infer S;
+    table: infer T;
+    column: infer C;
+  }
+    ? S extends keyof AllTypes
+      ? T extends keyof AllTypes[S]
+        ? C extends keyof AllTypes[S][T]
+          ? AllTypes[S][T][C] extends { columnTypeName: infer TypeName }
+            ? TypeName
+            : never
+          : never
+        : never
+      : never
     : never;
 
 export type RelationshipType =

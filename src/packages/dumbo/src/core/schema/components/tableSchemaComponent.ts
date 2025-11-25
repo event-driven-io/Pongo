@@ -26,15 +26,16 @@ export type TableColumns = Record<string, AnyColumnSchemaComponent>;
 
 export type TableSchemaComponent<
   Columns extends TableColumns = TableColumns,
+  TableName extends string = string,
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   Relationships extends TableRelationships<keyof Columns & string> = {},
 > = SchemaComponent<
   TableURN,
   Readonly<{
-    tableName: string;
+    tableName: TableName;
     columns: ReadonlyMap<string, AnyColumnSchemaComponent> & Columns;
     primaryKey: TableColumnNames<
-      TableSchemaComponent<Columns, Relationships>
+      TableSchemaComponent<Columns, TableName, Relationships>
     >[];
     relationships: Relationships;
     indexes: ReadonlyMap<string, IndexSchemaComponent>;
@@ -44,10 +45,11 @@ export type TableSchemaComponent<
 >;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyTableSchemaComponent = TableSchemaComponent<any, any>;
+export type AnyTableSchemaComponent = TableSchemaComponent<any, any, any>;
 
 export const tableSchemaComponent = <
-  Columns extends TableColumns = TableColumns,
+  const Columns extends TableColumns = TableColumns,
+  const TableName extends string = string,
   // eslint-disable-next-line @typescript-eslint/no-empty-object-type
   const Relationships extends TableRelationships<keyof Columns & string> = {},
 >({
@@ -57,11 +59,17 @@ export const tableSchemaComponent = <
   relationships,
   ...migrationsOrComponents
 }: {
-  tableName: string;
+  tableName: TableName;
   columns?: Columns;
-  primaryKey?: TableColumnNames<TableSchemaComponent<Columns, Relationships>>[];
+  primaryKey?: TableColumnNames<
+    TableSchemaComponent<Columns, TableName, Relationships>
+  >[];
   relationships?: Relationships;
-} & SchemaComponentOptions): TableSchemaComponent<Columns, Relationships> & {
+} & SchemaComponentOptions): TableSchemaComponent<
+  Columns,
+  TableName,
+  Relationships
+> & {
   relationships: Relationships;
 } => {
   columns ??= {} as Columns;
@@ -98,7 +106,7 @@ export const tableSchemaComponent = <
     },
     addColumn: (column: AnyColumnSchemaComponent) => base.addComponent(column),
     addIndex: (index: IndexSchemaComponent) => base.addComponent(index),
-  } as TableSchemaComponent<Columns, Relationships> & {
+  } as TableSchemaComponent<Columns, TableName, Relationships> & {
     relationships: Relationships;
   };
 };

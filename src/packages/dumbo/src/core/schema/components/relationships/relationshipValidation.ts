@@ -1,23 +1,199 @@
 import type {
-  AnyDatabaseSchemaComponent,
   AnyDatabaseSchemaSchemaComponent,
-  DatabaseSchemaComponent,
+  DatabaseSchemas,
   DatabaseSchemaSchemaComponent,
+  DatabaseSchemaTables,
 } from '..';
 import type {
   AnyTableSchemaComponent,
   TableSchemaComponent,
 } from '../tableSchemaComponent';
-import type { TableColumnNames } from '../tableTypesInference';
 import type {
   AllColumnReferences,
+  AllColumnTypes,
   AnyRelationshipDefinition,
+  ExtractColumnTypeName,
+  LookupColumnType,
 } from './relationshipTypes';
 
 export type ValidationResult<
   Valid extends boolean,
   Error = never,
 > = Valid extends true ? { valid: true } : { valid: false; error: Error };
+
+export type TypeMismatchError = {
+  type: 'type_mismatch';
+  column: string;
+  expectedType: string;
+  actualType: string;
+  reference: string;
+};
+
+export type LengthMismatchError = {
+  type: 'length_mismatch';
+  columnsLength: number;
+  referencesLength: number;
+};
+
+export type InvalidColumnError = {
+  type: 'invalid_column';
+  column: string;
+  availableColumns: string;
+};
+
+export type InvalidReferenceError = {
+  type: 'invalid_reference';
+  reference: string;
+  availableReferences: string;
+};
+
+export type RelationshipValidationError =
+  | TypeMismatchError
+  | LengthMismatchError
+  | InvalidColumnError
+  | InvalidReferenceError;
+
+export type FormatTypeMismatchError<E extends TypeMismatchError> =
+  `Column ${E['column']} has type ${E['actualType']} but ${E['reference']} has type ${E['expectedType']}`;
+
+export type FormatError<E> = E extends string
+  ? E
+  : E extends TypeMismatchError
+    ? FormatTypeMismatchError<E>
+    : never;
+
+export type CompareTypes<LocalType extends string, RefType extends string> =
+  Uppercase<LocalType> extends Uppercase<RefType> ? true : false;
+
+export type ValidateColumnTypePair<
+  LocalColumn extends { type: unknown; name: string },
+  ColumnName extends string,
+  Reference extends string,
+  AllTypes,
+  CurrentSchema extends string,
+  CurrentTable extends string,
+> = import('./relationshipTypes').NormalizeReferencePath<
+  Reference,
+  CurrentSchema,
+  CurrentTable
+> extends infer NormalizedRef
+  ? NormalizedRef extends string
+    ? ExtractColumnTypeName<LocalColumn['type']> extends infer LocalType
+      ? LookupColumnType<AllTypes, NormalizedRef> extends infer RefType
+        ? RefType extends string
+          ? LocalType extends string
+            ? CompareTypes<LocalType, RefType> extends true
+              ? ValidationResult<true>
+              : ValidationResult<
+                  false,
+                  {
+                    type: 'type_mismatch';
+                    column: ColumnName;
+                    expectedType: RefType;
+                    actualType: LocalType;
+                    reference: NormalizedRef;
+                  }
+                >
+            : ValidationResult<true>
+          : ValidationResult<true>
+        : ValidationResult<true>
+      : ValidationResult<true>
+    : ValidationResult<true>
+  : ValidationResult<true>;
+
+type CollectTypePairErrors<
+  Columns extends readonly string[],
+  References extends readonly string[],
+  TableColumns extends Record<string, { type: unknown; name: string }>,
+  AllTypes,
+  CurrentSchema extends string,
+  CurrentTable extends string,
+  Errors extends TypeMismatchError[] = [],
+> = Columns extends readonly [infer FirstCol, ...infer RestCols]
+  ? References extends readonly [infer FirstRef, ...infer RestRefs]
+    ? FirstCol extends keyof TableColumns & string
+      ? FirstRef extends string
+        ? RestCols extends readonly string[]
+          ? RestRefs extends readonly string[]
+            ? ValidateColumnTypePair<
+                TableColumns[FirstCol],
+                FirstCol,
+                FirstRef,
+                AllTypes,
+                CurrentSchema,
+                CurrentTable
+              > extends {
+                valid: false;
+                error: infer E extends TypeMismatchError;
+              }
+              ? CollectTypePairErrors<
+                  RestCols,
+                  RestRefs,
+                  TableColumns,
+                  AllTypes,
+                  CurrentSchema,
+                  CurrentTable,
+                  [...Errors, E]
+                >
+              : CollectTypePairErrors<
+                  RestCols,
+                  RestRefs,
+                  TableColumns,
+                  AllTypes,
+                  CurrentSchema,
+                  CurrentTable,
+                  Errors
+                >
+            : Errors
+          : Errors
+        : Errors
+      : Errors
+    : Errors
+  : Errors;
+
+type FormatMultipleTypeMismatchErrors<
+  Errors extends readonly TypeMismatchError[],
+> = Errors extends readonly [infer First, ...infer Rest]
+  ? First extends TypeMismatchError
+    ? Rest extends readonly TypeMismatchError[]
+      ? Rest['length'] extends 0
+        ? FormatTypeMismatchError<First>
+        : `${FormatTypeMismatchError<First>}; ${FormatMultipleTypeMismatchErrors<Rest>}`
+      : FormatTypeMismatchError<First>
+    : never
+  : never;
+
+export type ValidateColumnTypePairs<
+  Columns extends readonly string[],
+  References extends readonly string[],
+  TableColumns extends Record<string, { type: unknown; name: string }>,
+  AllTypes,
+  CurrentSchema extends string,
+  CurrentTable extends string,
+  _Index extends number = 0,
+> =
+  CollectTypePairErrors<
+    Columns,
+    References,
+    TableColumns,
+    AllTypes,
+    CurrentSchema,
+    CurrentTable
+  > extends infer CollectedErrors
+    ? CollectedErrors extends readonly TypeMismatchError[]
+      ? CollectedErrors['length'] extends 0
+        ? ValidationResult<true>
+        : CollectedErrors extends readonly [
+              TypeMismatchError,
+              ...TypeMismatchError[],
+            ]
+          ? ValidationResult<
+              false,
+              FormatMultipleTypeMismatchErrors<CollectedErrors>
+            >
+          : ValidationResult<true>
+      : ValidationResult<true>
+    : ValidationResult<true>;
 
 type GetArrayLength<T extends readonly unknown[]> = T['length'];
 
@@ -81,46 +257,124 @@ type FindInvalidReferences<
     : Invalid
   : Invalid;
 
+type NormalizeReferences<
+  References extends readonly string[],
+  CurrentSchema extends string,
+  CurrentTable extends string,
+> = References extends readonly [infer First, ...infer Rest]
+  ? First extends string
+    ? Rest extends readonly string[]
+      ? readonly [
+          import('./relationshipTypes').NormalizeReferencePath<
+            First,
+            CurrentSchema,
+            CurrentTable
+          >,
+          ...NormalizeReferences<Rest, CurrentSchema, CurrentTable>,
+        ]
+      : readonly []
+    : readonly []
+  : readonly [];
+
+type FilterSameSchemaReferences<
+  References extends readonly string[],
+  CurrentSchema extends string,
+  Filtered extends string[] = [],
+> = References extends readonly [infer First, ...infer Rest]
+  ? First extends string
+    ? Rest extends readonly string[]
+      ? First extends `${CurrentSchema}.${string}.${string}`
+        ? FilterSameSchemaReferences<Rest, CurrentSchema, [...Filtered, First]>
+        : FilterSameSchemaReferences<Rest, CurrentSchema, Filtered>
+      : Filtered
+    : Filtered
+  : Filtered;
+
 export type ValidateRelationshipReferences<
   FK extends { references: readonly string[] },
   ValidReferences extends string,
+  CurrentSchema extends string,
+  CurrentTable extends string,
 > =
-  AllInTuple<FK['references'], ValidReferences> extends true
-    ? ValidationResult<true>
-    : ValidationResult<
-        false,
-        `Invalid foreign key references: ${FindInvalidReferences<FK['references'], ValidReferences> extends infer Invalid ? (Invalid extends string[] ? Invalid[number] : never) : never}. Available references: ${ValidReferences}`
-      >;
+  NormalizeReferences<
+    FK['references'],
+    CurrentSchema,
+    CurrentTable
+  > extends infer NormalizedRefs
+    ? NormalizedRefs extends readonly string[]
+      ? FilterSameSchemaReferences<
+          NormalizedRefs,
+          CurrentSchema
+        > extends infer SameSchemaRefs
+        ? SameSchemaRefs extends readonly string[]
+          ? SameSchemaRefs['length'] extends 0
+            ? ValidationResult<true>
+            : AllInTuple<SameSchemaRefs, ValidReferences> extends true
+              ? ValidationResult<true>
+              : ValidationResult<
+                  false,
+                  `Invalid foreign key references: ${FindInvalidReferences<SameSchemaRefs, ValidReferences> extends infer Invalid ? (Invalid extends string[] ? Invalid[number] : never) : never}. Available references: ${ValidReferences}`
+                >
+          : ValidationResult<true>
+        : ValidationResult<true>
+      : ValidationResult<true>
+    : ValidationResult<true>;
 
 export type ValidateSingleRelationship<
   FK extends { columns: readonly string[]; references: readonly string[] },
-  TableColumns extends string,
+  TableColumns extends Record<string, { type: unknown; name: string }>,
   ValidReferences extends string,
+  AllTypes,
+  CurrentSchema extends string,
+  CurrentTable extends string,
 > =
   ValidateRelationshipLength<FK> extends { valid: false; error: infer E }
     ? ValidationResult<false, E>
-    : ValidateRelationshipColumns<FK, TableColumns> extends {
+    : ValidateRelationshipColumns<FK, keyof TableColumns & string> extends {
           valid: false;
           error: infer E;
         }
       ? ValidationResult<false, E>
-      : ValidateRelationshipReferences<FK, ValidReferences> extends {
+      : ValidateRelationshipReferences<
+            FK,
+            ValidReferences,
+            CurrentSchema,
+            CurrentTable
+          > extends {
             valid: false;
             error: infer E;
           }
         ? ValidationResult<false, E>
-        : ValidationResult<true>;
+        : ValidateColumnTypePairs<
+              FK['columns'],
+              FK['references'],
+              TableColumns,
+              AllTypes,
+              CurrentSchema,
+              CurrentTable
+            > extends {
+              valid: false;
+              error: infer E;
+            }
+          ? ValidationResult<false, E>
+          : ValidationResult<true>;
 
 export type ValidateRelationship<
   FKs extends Record<string, AnyRelationshipDefinition>,
-  TableColumns extends string,
+  TableColumns extends Record<string, { type: unknown; name: string }>,
   ValidReferences extends string,
+  AllTypes,
+  CurrentSchema extends string,
+  CurrentTable extends string,
 > = keyof FKs extends never
   ? ValidationResult<true>
   : ValidateSingleRelationship<
         FKs[keyof FKs],
         TableColumns,
-        ValidReferences
+        ValidReferences,
+        AllTypes,
+        CurrentSchema,
+        CurrentTable
       > extends {
         valid: false;
         error: infer E;
@@ -131,58 +385,87 @@ export type ValidateRelationship<
 export type ValidateTableRelationships<
   Table extends AnyTableSchemaComponent,
   ValidReferences extends string,
+  AllTypes,
+  CurrentSchema extends string,
+  CurrentTable extends string,
 > =
-  Table extends TableSchemaComponent<infer _Columns, infer FKs>
+  Table extends TableSchemaComponent<infer Columns, infer _TableName, infer FKs>
     ? ValidateRelationship<
         FKs,
-        TableColumnNames<Table> & string,
-        ValidReferences
+        Columns,
+        ValidReferences,
+        AllTypes,
+        CurrentSchema,
+        CurrentTable
       >
     : ValidationResult<true>;
 
+type ExtractValidationErrors<T> = T extends { valid: false; error: infer E }
+  ? E
+  : never;
+
 export type ValidateTablesInSchema<
   Tables extends Record<string, AnyTableSchemaComponent>,
-  ValidReferences extends string,
+  Schema extends AnyDatabaseSchemaSchemaComponent,
+  Schemas extends DatabaseSchemas,
 > = {
   [TableName in keyof Tables]: ValidateTableRelationships<
     Tables[TableName],
-    ValidReferences
+    AllColumnReferences<Schemas>,
+    AllColumnTypes<Schemas>,
+    Schema['schemaName'],
+    TableName & string
   >;
 }[keyof Tables] extends infer Results
-  ? Results extends { valid: true }
+  ? ExtractValidationErrors<Results> extends never
     ? ValidationResult<true>
-    : Results extends { valid: false; error: infer E }
-      ? ValidationResult<false, E>
-      : ValidationResult<true>
+    : ValidationResult<false, ExtractValidationErrors<Results>>
   : ValidationResult<true>;
 
 export type ValidateSchemaRelationships<
   Schema extends AnyDatabaseSchemaSchemaComponent,
-  ValidReferences extends string,
+  Schemas extends DatabaseSchemas,
 > =
   Schema extends DatabaseSchemaSchemaComponent<infer Tables>
-    ? ValidateTablesInSchema<Tables, ValidReferences>
+    ? ValidateTablesInSchema<Tables, Schema, Schemas>
     : ValidationResult<true>;
 
-export type ValidateSchemasInDatabase<
-  Schemas extends Record<string, AnyDatabaseSchemaSchemaComponent>,
-  ValidReferences extends string,
-> = {
+export type ValidatedSchemaComponent<
+  Tables extends DatabaseSchemaTables,
+  SchemaName extends string,
+> =
+  ValidateSchemaRelationships<
+    DatabaseSchemaSchemaComponent<Tables, SchemaName>,
+    { schemaName: DatabaseSchemaSchemaComponent<Tables, SchemaName> }
+  > extends {
+    valid: true;
+  }
+    ? DatabaseSchemaSchemaComponent<Tables>
+    : ValidateSchemaRelationships<
+          DatabaseSchemaSchemaComponent<Tables, SchemaName>,
+          { schemaName: DatabaseSchemaSchemaComponent<Tables, SchemaName> }
+        > extends {
+          valid: false;
+          error: infer E;
+        }
+      ? { valid: false; error: FormatError<E> }
+      : DatabaseSchemaSchemaComponent<Tables>;
+
+export type ValidateSchemasInDatabase<Schemas extends DatabaseSchemas> = {
   [SchemaName in keyof Schemas]: ValidateSchemaRelationships<
     Schemas[SchemaName],
-    ValidReferences
+    Schemas
   >;
 }[keyof Schemas] extends infer Results
-  ? Results extends { valid: true }
+  ? ExtractValidationErrors<Results> extends never
     ? ValidationResult<true>
-    : Results extends { valid: false; error: infer E }
-      ? ValidationResult<false, E>
-      : ValidationResult<true>
+    : ValidationResult<false, ExtractValidationErrors<Results>>
   : ValidationResult<true>;
 
-export type ValidateDatabaseRelationships<
-  DB extends AnyDatabaseSchemaComponent,
-> =
-  DB extends DatabaseSchemaComponent<infer Schemas>
-    ? ValidateSchemasInDatabase<Schemas, AllColumnReferences<DB>>
-    : ValidationResult<true>;
+export type ValidateDatabaseSchemas<Schemas extends DatabaseSchemas> =
+  ValidateSchemasInDatabase<Schemas> extends {
+    valid: false;
+    error: infer E;
+  }
+    ? { valid: false; error: FormatError<E> }
+    : Schemas;

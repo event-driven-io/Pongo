@@ -17,6 +17,10 @@ import type {
   TableSchemaComponent,
 } from './tableSchemaComponent';
 
+export type Writable<T> = {
+  -readonly [P in keyof T]: T[P];
+};
+
 export type InferColumnType<ColumnType> =
   ColumnType extends ColumnTypeToken<
     infer _JSType,
@@ -39,9 +43,9 @@ export type TableColumnNames<T extends AnyTableSchemaComponent> = Exclude<
   keyof ReadonlyMap<string, AnyColumnSchemaComponent>
 >;
 
-export type InferTableRow<Columns extends TableColumns> = {
+export type InferTableRow<Columns extends TableColumns> = Writable<{
   [K in keyof Columns]: TableColumnType<Columns[K]>;
-};
+}>;
 
 export type TableRowType<T extends AnyTableSchemaComponent> =
   T extends TableSchemaComponent<infer Columns>

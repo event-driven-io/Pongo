@@ -1,5 +1,5 @@
 import type { AnyColumnTypeToken, SQLColumnToken } from '../../sql';
-import type { ValidateDatabaseRelationships } from '../components';
+import type { FormatError, ValidateDatabaseSchemas } from '../components';
 import {
   type AnyDatabaseSchemaSchemaComponent,
   columnSchemaComponent,
@@ -60,21 +60,22 @@ const dumboIndex = (
   });
 
 const dumboTable = <
-  Columns extends TableColumns = TableColumns,
+  const Columns extends TableColumns = TableColumns,
+  const TableName extends string = string,
   const Relationships extends TableRelationships<
     keyof Columns & string
   > = TableRelationships<keyof Columns & string>,
 >(
-  name: string,
+  name: TableName,
   definition: {
     columns?: Columns;
     primaryKey?: TableColumnNames<
-      TableSchemaComponent<Columns, Relationships>
+      TableSchemaComponent<Columns, TableName, Relationships>
     >[];
     relationships?: Relationships;
     indexes?: Record<string, IndexSchemaComponent>;
   } & SchemaComponentOptions,
-): TableSchemaComponent<Columns, Relationships> => {
+): TableSchemaComponent<Columns, TableName, Relationships> => {
   const { columns, indexes, primaryKey, relationships, ...options } =
     definition;
 
@@ -91,26 +92,30 @@ const dumboTable = <
 };
 
 function dumboDatabaseSchema<
-  Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
->(tables: Tables): DatabaseSchemaSchemaComponent<Tables>;
-function dumboDatabaseSchema<
-  Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
+  const Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
 >(
-  schemaName: string,
+  tables: Tables,
+): DatabaseSchemaSchemaComponent<Tables, typeof DEFAULT_DATABASE_SCHEMA_NAME>;
+function dumboDatabaseSchema<
+  const Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
+  const SchemaName extends string = string,
+>(
+  schemaName: SchemaName,
   tables: Tables,
   options?: SchemaComponentOptions,
-): DatabaseSchemaSchemaComponent<Tables>;
+): DatabaseSchemaSchemaComponent<Tables, SchemaName>;
 function dumboDatabaseSchema<
-  Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
+  const Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
+  const SchemaName extends string = string,
 >(
-  nameOrTables: string | Tables,
+  nameOrTables: SchemaName | Tables,
   tables?: Tables,
   options?: SchemaComponentOptions,
-): DatabaseSchemaSchemaComponent<Tables> {
+): DatabaseSchemaSchemaComponent<Tables, SchemaName> {
   const schemaName =
     typeof nameOrTables === 'string'
       ? nameOrTables
-      : DEFAULT_DATABASE_SCHEMA_NAME;
+      : (DEFAULT_DATABASE_SCHEMA_NAME as SchemaName);
   const tablesMap =
     (typeof nameOrTables === 'string' ? tables : nameOrTables) ??
     ({} as Tables);
@@ -141,11 +146,16 @@ dumboDatabaseSchema.from = (
 type ValidatedDatabaseSchemaComponent<
   Schemas extends DatabaseSchemas = DatabaseSchemas,
 > =
-  ValidateDatabaseRelationships<DatabaseSchemaComponent<Schemas>> extends {
+  ValidateDatabaseSchemas<Schemas> extends {
     valid: true;
   }
     ? DatabaseSchemaComponent<Schemas>
-    : ValidateDatabaseRelationships<DatabaseSchemaComponent<Schemas>>;
+    : ValidateDatabaseSchemas<Schemas> extends {
+          valid: false;
+          error: infer E;
+        }
+      ? { valid: false; error: FormatError<E> }
+      : DatabaseSchemaComponent<Schemas>;
 
 function dumboDatabase<Schemas extends DatabaseSchemas = DatabaseSchemas>(
   schemas: Schemas,
@@ -199,7 +209,7 @@ function dumboDatabase<Schemas extends DatabaseSchemas = DatabaseSchemas>(
     databaseName,
     schemas: schemaMap as Schemas,
     ...dbOptions,
-  });
+  }) as ValidatedDatabaseSchemaComponent<Schemas>;
 }
 
 dumboDatabase.from = <Schemas extends DatabaseSchemas = DatabaseSchemas>(
