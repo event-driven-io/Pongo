@@ -151,7 +151,9 @@ const users = table('users', {
     email: column('email', Varchar('max'), { notNull: true }),
     name: column('name', Varchar('max')),
   },
-  relationships: [relationship(['id'], ['public.profiles.user_id'])],
+  relationships: {
+    profile: relationship(['id'], ['public.profiles.user_id'], 'one-to-one'),
+  },
 });
 
 const _users2 = table('users', {
@@ -160,12 +162,13 @@ const _users2 = table('users', {
     email: column('email', Varchar('max'), { notNull: true }),
     name: column('name', Varchar('max')),
   },
-  relationships: [
-    {
+  relationships: {
+    profile: {
       columns: ['id'],
       references: ['public.profiles.user_id'],
+      type: 'one-to-one',
     },
-  ],
+  },
 });
 
 export const simpleDb = database(
@@ -195,12 +198,13 @@ const multiSchemaDb = database('myapp', {
         userId: column('user_id', Varchar('max')),
         timestamp: column('timestamp', Varchar('max')),
       },
-      relationships: [
-        {
+      relationships: {
+        user: {
           columns: ['userId'],
           references: ['public.users.id'],
+          type: 'many-to-one',
         },
-      ],
+      },
     }),
   }),
 });
@@ -237,16 +241,20 @@ void describe('Foreign Key Validation', () => {
             id: column('id', Varchar('max')),
             user_id: column('user_id', Varchar('max')),
           },
-          relationships: [
-            { columns: ['user_id'], references: ['public.users.id'] },
-          ],
+          relationships: {
+            user: {
+              columns: ['user_id'],
+              references: ['public.users.id'],
+              type: 'many-to-one',
+            },
+          },
         }),
       }),
     });
 
     assert.ok(db.schemas.public.tables.posts.relationships);
     assert.deepStrictEqual(
-      db.schemas.public.tables.posts.relationships[0].columns,
+      db.schemas.public.tables.posts.relationships.user.columns,
       ['user_id'],
     );
   });
@@ -266,18 +274,19 @@ void describe('Foreign Key Validation', () => {
             user_id: column('user_id', Varchar('max')),
             tenant_id: column('tenant_id', Varchar('max')),
           },
-          relationships: [
-            {
+          relationships: {
+            user: {
               columns: ['user_id', 'tenant_id'],
               references: ['public.users.id', 'public.users.tenant_id'],
+              type: 'many-to-one',
             },
-          ],
+          },
         }),
       }),
     });
 
     assert.deepStrictEqual(
-      db.schemas.public.tables.posts.relationships[0].columns,
+      db.schemas.public.tables.posts.relationships.user.columns,
       ['user_id', 'tenant_id'],
     );
   });
@@ -290,16 +299,20 @@ void describe('Foreign Key Validation', () => {
             id: column('id', Varchar('max')),
             manager_id: column('manager_id', Varchar('max')),
           },
-          relationships: [
-            { columns: ['manager_id'], references: ['public.users.id'] },
-          ] as const,
+          relationships: {
+            manager: {
+              columns: ['manager_id'],
+              references: ['public.users.id'],
+              type: 'many-to-one',
+            },
+          } as const,
         }),
       }),
     });
 
     assert.ok(db.schemas.public.tables.users.relationships);
     assert.deepStrictEqual(
-      db.schemas.public.tables.users.relationships[0].references,
+      db.schemas.public.tables.users.relationships.manager.references,
       ['public.users.id'],
     );
   });
@@ -318,15 +331,26 @@ void describe('Foreign Key Validation', () => {
             user_id: column('user_id', Varchar('max')),
             author_id: column('author_id', Varchar('max')),
           },
-          relationships: [
-            { columns: ['user_id'], references: ['public.users.id'] },
-            { columns: ['author_id'], references: ['public.users.id'] },
-          ] as const,
+          relationships: {
+            user: {
+              columns: ['user_id'],
+              references: ['public.users.id'],
+              type: 'many-to-one',
+            },
+            author: {
+              columns: ['author_id'],
+              references: ['public.users.id'],
+              type: 'many-to-one',
+            },
+          } as const,
         }),
       }),
     });
 
-    assert.strictEqual(db.schemas.public.tables.posts.relationships.length, 2);
+    assert.strictEqual(
+      Object.keys(db.schemas.public.tables.posts.relationships).length,
+      2,
+    );
   });
 
   void it('should accept cross-schema foreign key', () => {
@@ -344,15 +368,19 @@ void describe('Foreign Key Validation', () => {
             id: column('id', Varchar('max')),
             user_id: column('user_id', Varchar('max')),
           },
-          relationships: [
-            { columns: ['user_id'], references: ['public.users.id'] },
-          ],
+          relationships: {
+            user: {
+              columns: ['user_id'],
+              references: ['public.users.id'],
+              type: 'many-to-one',
+            },
+          },
         }),
       }),
     });
 
     assert.deepStrictEqual(
-      db.schemas.analytics.tables.events.relationships[0].references,
+      db.schemas.analytics.tables.events.relationships.user.references,
       ['public.users.id'],
     );
   });

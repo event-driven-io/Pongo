@@ -140,6 +140,7 @@ type _Test9 = Expect<
 const _validFK: RelationshipDefinition = {
   columns: ['user_id'],
   references: ['public.users.id'],
+  type: 'one-to-one',
 };
 
 type _ColumnsType = typeof _validFK.columns;
@@ -148,6 +149,7 @@ type _Test10 = Expect<Equal<_ColumnsType, readonly string[]>>;
 const _compositeFK: RelationshipDefinition = {
   columns: ['user_id', 'tenant_id'],
   references: ['public.users.id', 'public.users.tenant_id'],
+  type: 'one-to-one',
 };
 
 type _CompositeColumnsType = typeof _compositeFK.columns;
@@ -312,28 +314,30 @@ type _Test24A = Expect<
   >
 >;
 
-import type { ValidateRelationshipArray } from './relationshipValidation';
+import type { ValidateRelationship } from './relationshipValidation';
 
-type _FKArray_Mixed = readonly [
-  {
+type _FKRecord_Mixed = {
+  user_fk: {
     columns: ['user_id'];
     references: ['public.users.id'];
-  },
-  {
+    type: 'one-to-many';
+  };
+  invalid_fk: {
     columns: ['invalid_col'];
     references: ['public.users.email'];
-  },
-];
+    type: 'one-to-many';
+  };
+};
 
-type _Result_FKArray_Mixed = ValidateRelationshipArray<
-  _FKArray_Mixed,
+type _Result_FKRecord_Mixed = ValidateRelationship<
+  _FKRecord_Mixed,
   'id' | 'user_id',
   'public.users.id' | 'public.users.email'
 >;
 
 type _Test25A = Expect<
   Equal<
-    _Result_FKArray_Mixed,
+    _Result_FKRecord_Mixed,
     {
       valid: false;
       error:
@@ -342,31 +346,39 @@ type _Test25A = Expect<
     }
   >
 >;
-type _Test35 = Expect<IsError<_Result_FKArray_Mixed>>;
+type _Test35 = Expect<IsError<_Result_FKRecord_Mixed>>;
 
-type _FKArray_AllValid = readonly [
-  {
+type _FKRecord_AllValid = {
+  user_fk: {
     columns: ['user_id'];
     references: ['public.users.id'];
-  },
-  {
+    type: 'one-to-many';
+  };
+  email_fk: {
     columns: ['email'];
     references: ['public.users.email'];
-  },
-];
+    type: 'one-to-many';
+  };
+};
 
-type _Result_FKArray_AllValid = ValidateRelationshipArray<
-  _FKArray_AllValid,
+type _Result_FKRecord_AllValid = ValidateRelationship<
+  _FKRecord_AllValid,
   'id' | 'user_id' | 'email',
   'public.users.id' | 'public.users.email'
 >;
-type _ValidateRelationshipArrayResult_InvalidFK = ValidateRelationshipArray<
-  [{ columns: ['invalid']; references: ['public.users.id'] }],
+type _ValidateRelationshipRecordResult_InvalidFK = ValidateRelationship<
+  {
+    invalid_fk: {
+      columns: ['invalid'];
+      references: ['public.users.id'];
+      type: 'one-to-many';
+    };
+  },
   'id' | 'user_id',
   'public.users.id' | 'public.users.email'
 >;
-type _TestValidateRelationshipArrayResult_InvalidFK = Expect<
-  IsError<_ValidateRelationshipArrayResult_InvalidFK>
+type _TestValidateRelationshipRecordResult_InvalidFK = Expect<
+  IsError<_ValidateRelationshipRecordResult_InvalidFK>
 >;
 
 import type { ValidateTableRelationships } from './relationshipValidation';
@@ -387,7 +399,13 @@ type _Table_SingleFK = TableSchemaComponent<
     id: AnyColumnSchemaComponent;
     user_id: AnyColumnSchemaComponent;
   },
-  [{ columns: ['user_id']; references: ['public.users.id'] }]
+  {
+    author: {
+      columns: ['user_id'];
+      references: ['public.users.id'];
+      type: 'one-to-many';
+    };
+  }
 >;
 
 type _Result_SingleFK = ValidateTableRelationships<
@@ -402,10 +420,18 @@ type _Table_MultipleFK = TableSchemaComponent<
     user_id: AnyColumnSchemaComponent;
     author_id: AnyColumnSchemaComponent;
   },
-  [
-    { columns: ['user_id']; references: ['public.users.id'] },
-    { columns: ['author_id']; references: ['public.users.id'] },
-  ]
+  {
+    user: {
+      columns: ['user_id'];
+      references: ['public.users.id'];
+      type: 'one-to-many';
+    };
+    author: {
+      columns: ['author_id'];
+      references: ['public.users.id'];
+      type: 'one-to-many';
+    };
+  }
 >;
 
 type _Result_MultipleFK = ValidateTableRelationships<
@@ -419,7 +445,13 @@ type _Table_InvalidFK = TableSchemaComponent<
     id: AnyColumnSchemaComponent;
     user_id: AnyColumnSchemaComponent;
   },
-  [{ readonly columns: ['id']; references: readonly ['public.users.id'] }]
+  {
+    user: {
+      readonly columns: ['id'];
+      references: readonly ['public.users.id'];
+      type: 'one-to-many';
+    };
+  }
 >;
 
 type _Result_InvalidFK = ValidateTableRelationships<
@@ -440,7 +472,13 @@ type _Schema_MultiTable = DatabaseSchemaSchemaComponent<{
       id: AnyColumnSchemaComponent;
       user_id: AnyColumnSchemaComponent;
     },
-    [{ columns: ['user_id']; references: ['public.users.id'] }]
+    {
+      user: {
+        columns: ['user_id'];
+        references: ['public.users.id'];
+        type: 'one-to-many';
+      };
+    }
   >;
 }>;
 
@@ -456,7 +494,13 @@ type _Schema_WithError = DatabaseSchemaSchemaComponent<{
       id: AnyColumnSchemaComponent;
       user_id: AnyColumnSchemaComponent;
     },
-    [{ columns: ['id']; references: ['public.users.id'] }]
+    {
+      user: {
+        columns: ['user_id'];
+        references: ['public.users.id'];
+        type: 'one-to-many';
+      };
+    }
   >;
 }>;
 
@@ -473,7 +517,13 @@ const _dbWithErrorVSInDB = database('test', {
         id: column('id', Varchar('max')),
         user_id: column('user_id', Varchar('max')),
       },
-      relationships: [{ columns: ['id'], references: ['public.users.id'] }],
+      relationships: {
+        invalid: {
+          columns: ['id'],
+          references: ['public.users.id'],
+          type: 'one-to-many',
+        },
+      },
     }),
   }),
 });
@@ -495,9 +545,13 @@ const _fullDb = database('test', {
         id: column('id', Varchar('max')),
         user_id: column('user_id', Varchar('max')),
       },
-      relationships: [
-        { columns: ['user_id'], references: ['public.users.id'] },
-      ],
+      relationships: {
+        user: {
+          type: 'many-to-one',
+          columns: ['user_id'],
+          references: ['public.users.id'],
+        },
+      },
     }),
   }),
 });
@@ -512,9 +566,13 @@ const _dbWithSelfRef = database('test', {
         id: column('id', Varchar('max')),
         manager_id: column('manager_id', Varchar('max')),
       },
-      relationships: [
-        { columns: ['manager_id'], references: ['public.users.id'] },
-      ],
+      relationships: {
+        manager: {
+          columns: ['manager_id'],
+          references: ['public.users.id'],
+          type: 'many-to-one',
+        },
+      },
     }),
   }),
 });
@@ -529,7 +587,13 @@ const _dbWithError = database('test', {
         id: column('id', Varchar('max')),
         user_id: column('user_id', Varchar('max')),
       },
-      relationships: [{ columns: ['id'], references: ['public.users.id'] }],
+      relationships: {
+        invalid: {
+          columns: ['id'],
+          references: ['public.users.id'],
+          type: 'many-to-one',
+        },
+      },
     }),
   }),
 });
@@ -544,7 +608,13 @@ const _dbInvalidColumn = database('test', {
         id: column('id', Varchar('max')),
         user_id: column('id', Varchar('max')),
       },
-      relationships: [{ columns: ['id'], references: ['public.users.id'] }],
+      relationships: {
+        invalid: {
+          columns: ['id'],
+          references: ['public.users.id'],
+          type: 'many-to-one',
+        },
+      },
     }),
   }),
 });
@@ -563,9 +633,13 @@ const _dbValid = database('test', {
         id: column('id', Varchar('max')),
         user_id: column('user_id', Varchar('max')),
       },
-      relationships: [
-        { columns: ['user_id'], references: ['public.users.id'] },
-      ],
+      relationships: {
+        user: {
+          columns: ['user_id'],
+          references: ['public.users.id'],
+          type: 'many-to-one',
+        },
+      },
     }),
   }),
 });

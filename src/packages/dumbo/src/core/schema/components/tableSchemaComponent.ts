@@ -12,7 +12,7 @@ import {
   IndexURNType,
   type IndexSchemaComponent,
 } from './indexSchemaComponent';
-import type { RelationshipDefinition } from './relationships/relationshipTypes';
+import type { TableRelationships } from './relationships/relationshipTypes';
 import type { TableColumnNames } from './tableTypesInference';
 
 export type TableURNType = 'sc:dumbo:table';
@@ -23,24 +23,11 @@ export const TableURN = ({ name }: { name: string }): TableURN =>
   `${TableURNType}:${name}`;
 
 export type TableColumns = Record<string, AnyColumnSchemaComponent>;
-export type TableRelationships<
-  Columns extends string = string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  FKS extends RelationshipDefinition<Columns, any> = RelationshipDefinition<
-    Columns,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any
-  >,
-> =
-  FKS extends RelationshipDefinition<infer C, infer R>
-    ? readonly RelationshipDefinition<C, R>[]
-    : never;
 
 export type TableSchemaComponent<
   Columns extends TableColumns = TableColumns,
-  Relationships extends TableRelationships<
-    keyof Columns & string
-  > = TableRelationships<keyof Columns & string>,
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+  Relationships extends TableRelationships<keyof Columns & string> = {},
 > = SchemaComponent<
   TableURN,
   Readonly<{
@@ -61,7 +48,8 @@ export type AnyTableSchemaComponent = TableSchemaComponent<any, any>;
 
 export const tableSchemaComponent = <
   Columns extends TableColumns = TableColumns,
-  const Relationships extends TableRelationships = TableRelationships,
+  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
+  const Relationships extends TableRelationships<keyof Columns & string> = {},
 >({
   tableName,
   columns,
