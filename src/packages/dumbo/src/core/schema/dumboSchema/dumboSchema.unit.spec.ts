@@ -1,7 +1,7 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
 import { SQL } from '../../sql';
-import type { Equal, Expect } from '../../testing';
+import type { Equals, Expect } from '../../testing';
 import type { TableColumnNames, TableRowType } from '../components';
 import { relationship } from '../components';
 import { dumboSchema } from './index';
@@ -215,11 +215,11 @@ const _usersTable = publicSchema.tables.users;
 
 type Users = TableRowType<typeof _usersTable>;
 
-type _IdColumnIsNonNullableString = Expect<Equal<Users['id'], string>>;
-type _EmailColumnIsNonNullableString = Expect<Equal<Users['email'], string>>;
-type _NameColumnIsNullableString = Expect<Equal<Users['name'], string | null>>;
+type _IdColumnIsNonNullableString = Expect<Equals<Users['id'], string>>;
+type _EmailColumnIsNonNullableString = Expect<Equals<Users['email'], string>>;
+type _NameColumnIsNullableString = Expect<Equals<Users['name'], string | null>>;
 type _MetadataColumnIsNullableObject = Expect<
-  Equal<Users['metadata'], { preferences: string[] } | null>
+  Equals<Users['metadata'], { preferences: string[] } | null>
 >;
 
 type UserColumns = TableColumnNames<typeof _usersTable>;
