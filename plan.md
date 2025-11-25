@@ -32,7 +32,7 @@ database() called
     → Extract all tables from each schema
       → Extract all columns from each table
         → Build union of all valid column references: 'schema.table.column'
-          → For each table with foreignKeys:
+          → For each table with relationships:
             → Validate each FK's columns array against table's columns
             → Validate each FK's references array against all valid column references
             → Validate columns.length === references.length
@@ -94,8 +94,8 @@ Build the base type utilities to extract schema structure information.
 
 **Files to create/modify:**
 
-- `src/packages/dumbo/src/core/schema/foreignKeys/foreignKeyTypes.ts` (new)
-- `src/packages/dumbo/src/core/schema/foreignKeys/foreignKeyValidation.type.spec.ts` (new)
+- `src/packages/dumbo/src/core/schema/relationships/relationshipTypes.ts` (new)
+- `src/packages/dumbo/src/core/schema/relationships/relationshipValidation.type.spec.ts` (new)
 - `src/packages/dumbo/src/core/testing/typesTesting.ts` (modify - add ExpectError)
 
 **Deliverables:**
@@ -111,8 +111,8 @@ Build utilities to generate all valid column reference paths.
 
 **Files to create/modify:**
 
-- `src/packages/dumbo/src/core/schema/foreignKeys/foreignKeyTypes.ts` (modify)
-- `src/packages/dumbo/src/core/schema/foreignKeys/foreignKeyValidation.type.spec.ts` (modify)
+- `src/packages/dumbo/src/core/schema/relationships/relationshipTypes.ts` (modify)
+- `src/packages/dumbo/src/core/schema/relationships/relationshipValidation.type.spec.ts` (modify)
 
 **Deliverables:**
 
@@ -125,14 +125,14 @@ Define the foreign key structure and add it to table schema component.
 
 **Files to create/modify:**
 
-- `src/packages/dumbo/src/core/schema/foreignKeys/foreignKeyTypes.ts` (modify)
+- `src/packages/dumbo/src/core/schema/relationships/relationshipTypes.ts` (modify)
 - `src/packages/dumbo/src/core/schema/components/tableSchemaComponent.ts` (modify)
-- `src/packages/dumbo/src/core/schema/foreignKeys/foreignKeyValidation.type.spec.ts` (modify)
+- `src/packages/dumbo/src/core/schema/relationships/relationshipValidation.type.spec.ts` (modify)
 
 **Deliverables:**
 
-- `ForeignKeyDefinition` type
-- Updated `TableSchemaComponent<Columns, ForeignKeys>` with generic FK parameter
+- `RelationshipDefinition` type
+- Updated `TableSchemaComponent<Columns, Relationships>` with generic FK parameter
 - Type tests for FK structure
 
 ### Phase 4: Single Foreign Key Validation
@@ -141,15 +141,15 @@ Implement validation logic for a single foreign key definition.
 
 **Files to create/modify:**
 
-- `src/packages/dumbo/src/core/schema/foreignKeys/foreignKeyValidation.ts` (new)
-- `src/packages/dumbo/src/core/schema/foreignKeys/foreignKeyValidation.type.spec.ts` (modify)
+- `src/packages/dumbo/src/core/schema/relationships/relationshipValidation.ts` (new)
+- `src/packages/dumbo/src/core/schema/relationships/relationshipValidation.type.spec.ts` (modify)
 
 **Deliverables:**
 
-- `ValidateForeignKeyColumns<FK, TableColumns>` - validate columns array
-- `ValidateForeignKeyReferences<FK, ValidRefs>` - validate references array
-- `ValidateForeignKeyLength<FK>` - validate columns.length === references.length
-- `ValidateSingleForeignKey<FK, TableColumns, ValidRefs>` - combine all validations
+- `ValidateRelationshipColumns<FK, TableColumns>` - validate columns array
+- `ValidateRelationshipReferences<FK, ValidRefs>` - validate references array
+- `ValidateRelationshipLength<FK>` - validate columns.length === references.length
+- `ValidateSingleRelationship<FK, TableColumns, ValidRefs>` - combine all validations
 - Comprehensive error message types with helpful suggestions
 - Type tests for valid and invalid scenarios
 
@@ -159,14 +159,14 @@ Implement database-level validation that checks all foreign keys across all tabl
 
 **Files to create/modify:**
 
-- `src/packages/dumbo/src/core/schema/foreignKeys/foreignKeyValidation.ts` (modify)
-- `src/packages/dumbo/src/core/schema/foreignKeys/foreignKeyValidation.type.spec.ts` (modify)
+- `src/packages/dumbo/src/core/schema/relationships/relationshipValidation.ts` (modify)
+- `src/packages/dumbo/src/core/schema/relationships/relationshipValidation.type.spec.ts` (modify)
 
 **Deliverables:**
 
-- `ValidateTableForeignKeys<Table, ValidRefs>` - validate all FKs in a table
-- `ValidateSchemaForeignKeys<Schema, ValidRefs>` - validate all FKs in a schema
-- `ValidateDatabaseForeignKeys<DB>` - validate all FKs in entire database
+- `ValidateTableRelationships<Table, ValidRefs>` - validate all FKs in a table
+- `ValidateSchemaRelationships<Schema, ValidRefs>` - validate all FKs in a schema
+- `ValidateDatabaseRelationships<DB>` - validate all FKs in entire database
 - Type tests for multi-table, multi-schema validation
 
 ### Phase 6: Integration with dumboSchema
@@ -177,11 +177,11 @@ Wire up validation to the `database()` and `schema()` functions.
 
 - `src/packages/dumbo/src/core/schema/dumboSchema/dumboSchema.ts` (modify)
 - `src/packages/dumbo/src/core/schema/components/index.ts` (modify - re-export FK types)
-- `src/packages/dumbo/src/core/schema/foreignKeys/index.ts` (new - barrel export)
+- `src/packages/dumbo/src/core/schema/relationships/index.ts` (new - barrel export)
 
 **Deliverables:**
 
-- Updated `dumboTable` signature to accept and capture `foreignKeys` generic
+- Updated `dumboTable` signature to accept and capture `relationships` generic
 - Updated `dumboDatabase` signature with FK validation constraint
 - Updated `dumboDatabaseSchema` signature with FK validation constraint
 - Proper type exports
@@ -256,11 +256,11 @@ All must pass before proceeding.
 
 Create two new files:
 
-1. src/packages/dumbo/src/core/schema/foreignKeys/foreignKeyTypes.ts
+1. src/packages/dumbo/src/core/schema/relationships/relationshipTypes.ts
 
    - Add placeholder comment: `// Foreign key type definitions`
 
-2. src/packages/dumbo/src/core/schema/foreignKeys/foreignKeyValidation.type.spec.ts
+2. src/packages/dumbo/src/core/schema/relationships/relationshipValidation.type.spec.ts
    - Import Expect, Equal, ExpectError from '../../testing'
    - Add comment placeholders for test sections:
      - Schema Structure Extraction
@@ -300,7 +300,7 @@ All must pass before proceeding.
 
 Following TDD approach, add type tests then implement ExtractSchemaNames utility.
 
-In foreignKeyValidation.type.spec.ts, add under 'Schema Structure Extraction' comment section:
+In relationshipValidation.type.spec.ts, add under 'Schema Structure Extraction' comment section:
 
 ```typescript
 // Schema Structure Extraction
@@ -319,7 +319,7 @@ type _DB2 = DatabaseSchemaComponent<{
 type _Test2 = Expect<Equal<ExtractSchemaNames<_DB2>, "public" | "analytics">>;
 ```
 
-Then in foreignKeyTypes.ts, implement:
+Then in relationshipTypes.ts, implement:
 
 ```typescript
 import type { DatabaseSchemaComponent, DatabaseSchemas } from "../components";
@@ -356,7 +356,7 @@ All must pass before proceeding.
 
 Following TDD approach, add type tests then implement ExtractTableNames utility.
 
-In foreignKeyValidation.type.spec.ts, add to 'Schema Structure Extraction' describe block:
+In relationshipValidation.type.spec.ts, add to 'Schema Structure Extraction' describe block:
 
 ```typescript
 void it("should extract table names from single-table schema", () => {
@@ -380,7 +380,7 @@ void it("should extract table names from multi-table schema", () => {
 });
 ```
 
-Then in foreignKeyTypes.ts, implement:
+Then in relationshipTypes.ts, implement:
 
 ```typescript
 import type {
@@ -422,7 +422,7 @@ All must pass before proceeding.
 
 Following TDD approach, add type tests then implement ExtractColumnNames utility.
 
-In foreignKeyValidation.type.spec.ts, add to 'Schema Structure Extraction' describe block:
+In relationshipValidation.type.spec.ts, add to 'Schema Structure Extraction' describe block:
 
 ```typescript
 void it("should extract column names from single-column table", () => {
@@ -447,7 +447,7 @@ void it("should extract column names from multi-column table", () => {
 });
 ```
 
-Then in foreignKeyTypes.ts, implement:
+Then in relationshipTypes.ts, implement:
 
 ```typescript
 import type {
@@ -488,7 +488,7 @@ All must pass before proceeding.
 
 Following TDD approach, add type test then implement AllColumnReferences for single schema.
 
-In foreignKeyValidation.type.spec.ts, add to 'Column Reference Generation' describe block:
+In relationshipValidation.type.spec.ts, add to 'Column Reference Generation' describe block:
 
 ```typescript
 import { SQL } from "../../../sql";
@@ -546,7 +546,7 @@ void it("should generate column references for single schema with multiple table
 });
 ```
 
-Then in foreignKeyTypes.ts, implement:
+Then in relationshipTypes.ts, implement:
 
 ```typescript
 export type AllColumnReferences<DB extends DatabaseSchemaComponent> =
@@ -596,7 +596,7 @@ All must pass before proceeding.
 
 Add type test for multi-schema database to verify AllColumnReferences works correctly.
 
-In foreignKeyValidation.type.spec.ts, add to 'Column Reference Generation' describe block:
+In relationshipValidation.type.spec.ts, add to 'Column Reference Generation' describe block:
 
 ```typescript
 void it("should generate column references for multi-schema database", () => {
@@ -653,29 +653,29 @@ All must pass before proceeding.
 
 ---
 
-### Step 8: Define ForeignKeyDefinition Type
+### Step 8: Define RelationshipDefinition Type
 
 **Context:** Define the structure for foreign key definitions that tables will use.
 
 **Prompt:**
 ```
 
-Add the ForeignKeyDefinition type to foreignKeyTypes.ts and create a basic type test.
+Add the RelationshipDefinition type to relationshipTypes.ts and create a basic type test.
 
-In foreignKeyTypes.ts, add:
+In relationshipTypes.ts, add:
 
 ```typescript
-export type ForeignKeyDefinition = {
+export type RelationshipDefinition = {
   readonly columns: readonly string[];
   readonly references: readonly string[];
 };
 ```
 
-In foreignKeyValidation.type.spec.ts, add to 'Foreign Key Definition Structure' describe block:
+In relationshipValidation.type.spec.ts, add to 'Foreign Key Definition Structure' describe block:
 
 ```typescript
 void it("should accept valid foreign key definition", () => {
-  type FK = ForeignKeyDefinition;
+  type FK = RelationshipDefinition;
 
   const validFK: FK = {
     columns: ["user_id"],
@@ -687,7 +687,7 @@ void it("should accept valid foreign key definition", () => {
 });
 
 void it("should accept composite foreign key definition", () => {
-  type FK = ForeignKeyDefinition;
+  type FK = RelationshipDefinition;
 
   const compositeFK: FK = {
     columns: ["user_id", "tenant_id"],
@@ -712,7 +712,7 @@ All must pass before proceeding.
 ```
 
 **Acceptance Criteria:**
-- ForeignKeyDefinition type added
+- RelationshipDefinition type added
 - Basic structure tests pass
 - All quality gates pass
 
@@ -725,29 +725,31 @@ All must pass before proceeding.
 **Prompt:**
 ```
 
-Update TableSchemaComponent to support an optional foreignKeys property.
+Update TableSchemaComponent to support an optional relationships property.
 
 In src/packages/dumbo/src/core/schema/components/tableSchemaComponent.ts:
 
-1. Import ForeignKeyDefinition:
+1. Import RelationshipDefinition:
 
 ```typescript
-import type { ForeignKeyDefinition } from "../foreignKeys/foreignKeyTypes";
+import type { RelationshipDefinition } from "../relationships/relationshipTypes";
 ```
 
-2. Add generic parameter for foreign keys and foreignKeys property:
+2. Add generic parameter for foreign keys and relationships property:
 
 ```typescript
 export type TableSchemaComponent<
   Columns extends TableColumns = TableColumns,
-  ForeignKeys extends readonly ForeignKeyDefinition[] = readonly ForeignKeyDefinition[]
+  Relationships extends readonly RelationshipDefinition[] = readonly RelationshipDefinition[]
 > = SchemaComponent<
   TableURN,
   Readonly<{
     tableName: string;
     columns: ReadonlyMap<string, AnyColumnSchemaComponent> & Columns;
-    primaryKey: TableColumnNames<TableSchemaComponent<Columns, ForeignKeys>>[];
-    foreignKeys?: ForeignKeys;
+    primaryKey: TableColumnNames<
+      TableSchemaComponent<Columns, Relationships>
+    >[];
+    relationships?: Relationships;
     indexes: ReadonlyMap<string, IndexSchemaComponent>;
     addColumn: (column: AnyColumnSchemaComponent) => AnyColumnSchemaComponent;
     addIndex: (index: IndexSchemaComponent) => IndexSchemaComponent;
@@ -761,7 +763,7 @@ export type TableSchemaComponent<
 export type AnyTableSchemaComponent = TableSchemaComponent<any, any>;
 ```
 
-4. Update tableSchemaComponent function signature and implementation to accept and return foreignKeys.
+4. Update tableSchemaComponent function signature and implementation to accept and return relationships.
 
 After implementation, run quality gates as subagents:
 
@@ -774,7 +776,7 @@ All must pass before proceeding.
 ```
 
 **Acceptance Criteria:**
-- TableSchemaComponent updated with foreignKeys support
+- TableSchemaComponent updated with relationships support
 - Generic parameter added for type safety
 - No breaking changes to existing code
 - All quality gates pass
@@ -788,17 +790,17 @@ All must pass before proceeding.
 **Prompt:**
 ```
 
-Update dumboTable function in dumboSchema.ts to accept foreignKeys parameter.
+Update dumboTable function in dumboSchema.ts to accept relationships parameter.
 
 In src/packages/dumbo/src/core/schema/dumboSchema/dumboSchema.ts:
 
-1. Import ForeignKeyDefinition at the top:
+1. Import RelationshipDefinition at the top:
 
 ```typescript
-import type { ForeignKeyDefinition } from "../foreignKeys/foreignKeyTypes";
+import type { RelationshipDefinition } from "../relationships/relationshipTypes";
 ```
 
-2. Update dumboTable function to accept foreignKeys in definition parameter and pass it to tableSchemaComponent.
+2. Update dumboTable function to accept relationships in definition parameter and pass it to tableSchemaComponent.
 
 After implementation, run quality gates as subagents:
 
@@ -811,25 +813,25 @@ All must pass before proceeding.
 ```
 
 **Acceptance Criteria:**
-- dumboTable accepts foreignKeys parameter
+- dumboTable accepts relationships parameter
 - Generic inference captures exact FK types
 - No breaking changes
 - All quality gates pass
 
 ---
 
-### Step 11: Implement ValidateForeignKeyLength
+### Step 11: Implement ValidateRelationshipLength
 
 **Context:** Validate that foreign key columns and references arrays have matching lengths.
 
 **Prompt:**
 ```
 
-Following TDD, add type tests then implement ValidateForeignKeyLength.
+Following TDD, add type tests then implement ValidateRelationshipLength.
 
-Create new file src/packages/dumbo/src/core/schema/foreignKeys/foreignKeyValidation.ts with validation result types and ValidateForeignKeyLength.
+Create new file src/packages/dumbo/src/core/schema/relationships/relationshipValidation.ts with validation result types and ValidateRelationshipLength.
 
-In foreignKeyValidation.type.spec.ts, add to 'Foreign Key Validation - Invalid Cases' describe block:
+In relationshipValidation.type.spec.ts, add to 'Foreign Key Validation - Invalid Cases' describe block:
 
 ```typescript
 void it("should error when columns and references have different lengths", () => {
@@ -838,7 +840,7 @@ void it("should error when columns and references have different lengths", () =>
     references: ["public.users.id"];
   };
 
-  type Result = ValidateForeignKeyLength<FK>;
+  type Result = ValidateRelationshipLength<FK>;
   type Test = ExpectError<Result>;
 });
 
@@ -853,8 +855,8 @@ void it("should pass when columns and references have same length", () => {
     references: ["public.users.id", "public.users.tenant_id"];
   };
 
-  type Result1 = ValidateForeignKeyLength<FK1>;
-  type Result2 = ValidateForeignKeyLength<FK2>;
+  type Result1 = ValidateRelationshipLength<FK1>;
+  type Result2 = ValidateRelationshipLength<FK2>;
   type Test1 = Expect<Equal<Result1, { valid: true }>>;
   type Test2 = Expect<Equal<Result2, { valid: true }>>;
 });
@@ -872,23 +874,23 @@ All must pass before proceeding.
 
 **Acceptance Criteria:**
 - Type tests added and pass
-- ValidateForeignKeyLength correctly validates array lengths
+- ValidateRelationshipLength correctly validates array lengths
 - All quality gates pass
 
 ---
 
-### Step 12: Implement ValidateForeignKeyColumns
+### Step 12: Implement ValidateRelationshipColumns
 
 **Context:** Validate that all columns in a foreign key exist in the table.
 
 **Prompt:**
 ```
 
-Following TDD, add type tests then implement ValidateForeignKeyColumns.
+Following TDD, add type tests then implement ValidateRelationshipColumns.
 
-In foreignKeyValidation.type.spec.ts, add tests to both valid and invalid cases describe blocks.
+In relationshipValidation.type.spec.ts, add tests to both valid and invalid cases describe blocks.
 
-In foreignKeyValidation.ts, implement ValidateForeignKeyColumns with helper types to check if all elements of a tuple are in a union and to find invalid columns.
+In relationshipValidation.ts, implement ValidateRelationshipColumns with helper types to check if all elements of a tuple are in a union and to find invalid columns.
 
 After implementation, run quality gates as subagents:
 
@@ -902,24 +904,24 @@ All must pass before proceeding.
 
 **Acceptance Criteria:**
 - Type tests added and pass
-- ValidateForeignKeyColumns correctly validates column existence
+- ValidateRelationshipColumns correctly validates column existence
 - Helpful error messages show which columns are invalid
 - All quality gates pass
 
 ---
 
-### Step 13: Implement ValidateForeignKeyReferences
+### Step 13: Implement ValidateRelationshipReferences
 
 **Context:** Validate that all references in a foreign key point to valid schema.table.column paths.
 
 **Prompt:**
 ```
 
-Following TDD, add type tests then implement ValidateForeignKeyReferences.
+Following TDD, add type tests then implement ValidateRelationshipReferences.
 
-In foreignKeyValidation.type.spec.ts, add tests for valid and invalid reference scenarios.
+In relationshipValidation.type.spec.ts, add tests for valid and invalid reference scenarios.
 
-In foreignKeyValidation.ts, implement ValidateForeignKeyReferences with helper to find invalid references.
+In relationshipValidation.ts, implement ValidateRelationshipReferences with helper to find invalid references.
 
 After implementation, run quality gates as subagents:
 
@@ -933,24 +935,24 @@ All must pass before proceeding.
 
 **Acceptance Criteria:**
 - Type tests added and pass
-- ValidateForeignKeyReferences correctly validates reference paths
+- ValidateRelationshipReferences correctly validates reference paths
 - Helpful error messages show invalid references and available options
 - All quality gates pass
 
 ---
 
-### Step 14: Implement ValidateSingleForeignKey (Combine Validations)
+### Step 14: Implement ValidateSingleRelationship (Combine Validations)
 
 **Context:** Combine all FK validations into a single validation function.
 
 **Prompt:**
 ```
 
-Following TDD, add type tests then implement ValidateSingleForeignKey that combines all validations.
+Following TDD, add type tests then implement ValidateSingleRelationship that combines all validations.
 
-In foreignKeyValidation.type.spec.ts, add tests for complete FK validation covering valid cases and all error scenarios.
+In relationshipValidation.type.spec.ts, add tests for complete FK validation covering valid cases and all error scenarios.
 
-In foreignKeyValidation.ts, implement ValidateSingleForeignKey that chains length, columns, and references validation.
+In relationshipValidation.ts, implement ValidateSingleRelationship that chains length, columns, and references validation.
 
 After implementation, run quality gates as subagents:
 
@@ -964,24 +966,24 @@ All must pass before proceeding.
 
 **Acceptance Criteria:**
 - Type tests added and pass
-- ValidateSingleForeignKey checks all validation rules in order
+- ValidateSingleRelationship checks all validation rules in order
 - Returns first error encountered (fail fast)
 - All quality gates pass
 
 ---
 
-### Step 15: Implement ValidateTableForeignKeys
+### Step 15: Implement ValidateTableRelationships
 
 **Context:** Validate all foreign keys defined in a single table.
 
 **Prompt:**
 ```
 
-Following TDD, add type tests then implement ValidateTableForeignKeys.
+Following TDD, add type tests then implement ValidateTableRelationships.
 
-In foreignKeyValidation.type.spec.ts, add tests for tables with no FKs, single FK, and multiple FKs.
+In relationshipValidation.type.spec.ts, add tests for tables with no FKs, single FK, and multiple FKs.
 
-In foreignKeyValidation.ts, implement ValidateTableForeignKeys with helper to iterate through FK array.
+In relationshipValidation.ts, implement ValidateTableRelationships with helper to iterate through FK array.
 
 After implementation, run quality gates as subagents:
 
@@ -995,24 +997,24 @@ All must pass before proceeding.
 
 **Acceptance Criteria:**
 - Type tests added and pass
-- ValidateTableForeignKeys handles tables with 0, 1, or multiple FKs
+- ValidateTableRelationships handles tables with 0, 1, or multiple FKs
 - Returns first error encountered across all FKs
 - All quality gates pass
 
 ---
 
-### Step 16: Implement ValidateSchemaForeignKeys
+### Step 16: Implement ValidateSchemaRelationships
 
 **Context:** Validate all foreign keys across all tables in a schema.
 
 **Prompt:**
 ```
 
-Following TDD, add type tests then implement ValidateSchemaForeignKeys.
+Following TDD, add type tests then implement ValidateSchemaRelationships.
 
-In foreignKeyValidation.type.spec.ts, add tests for schemas with multiple tables and FKs.
+In relationshipValidation.type.spec.ts, add tests for schemas with multiple tables and FKs.
 
-In foreignKeyValidation.ts, implement ValidateSchemaForeignKeys with helper to iterate through tables.
+In relationshipValidation.ts, implement ValidateSchemaRelationships with helper to iterate through tables.
 
 After implementation, run quality gates as subagents:
 
@@ -1026,24 +1028,24 @@ All must pass before proceeding.
 
 **Acceptance Criteria:**
 - Type tests added and pass
-- ValidateSchemaForeignKeys iterates through all tables
+- ValidateSchemaRelationships iterates through all tables
 - Returns first error encountered
 - All quality gates pass
 
 ---
 
-### Step 17: Implement ValidateDatabaseForeignKeys
+### Step 17: Implement ValidateDatabaseRelationships
 
 **Context:** Validate all foreign keys across all schemas in the database - the top-level validation.
 
 **Prompt:**
 ```
 
-Following TDD, add type tests then implement ValidateDatabaseForeignKeys.
+Following TDD, add type tests then implement ValidateDatabaseRelationships.
 
-In foreignKeyValidation.type.spec.ts, add to 'Integration Tests' describe block tests for complete database validation including self-referential FKs.
+In relationshipValidation.type.spec.ts, add to 'Integration Tests' describe block tests for complete database validation including self-referential FKs.
 
-In foreignKeyValidation.ts, implement ValidateDatabaseForeignKeys that validates all schemas using AllColumnReferences.
+In relationshipValidation.ts, implement ValidateDatabaseRelationships that validates all schemas using AllColumnReferences.
 
 After implementation, run quality gates as subagents:
 
@@ -1057,7 +1059,7 @@ All must pass before proceeding.
 
 **Acceptance Criteria:**
 - Type tests added and pass
-- ValidateDatabaseForeignKeys validates entire database
+- ValidateDatabaseRelationships validates entire database
 - Handles self-referential FKs correctly
 - Returns first error encountered
 - All quality gates pass
@@ -1071,7 +1073,7 @@ All must pass before proceeding.
 **Prompt:**
 ```
 
-Create src/packages/dumbo/src/core/schema/foreignKeys/index.ts to export all foreign key types.
+Create src/packages/dumbo/src/core/schema/relationships/index.ts to export all foreign key types.
 
 Update src/packages/dumbo/src/core/schema/components/index.ts to re-export FK types.
 
@@ -1083,7 +1085,7 @@ After implementation, run quality gates as subagents:
 
 All must pass before proceeding.
 
-```
+````
 
 **Acceptance Criteria:**
 - Barrel export file created
@@ -1103,12 +1105,13 @@ Use conditional return types on `database()` function overloads:
 
 ```typescript
 function dumboDatabase<Schemas>(schemas: Schemas):
-  ValidateDatabaseForeignKeys<DatabaseSchemaComponent<Schemas>> extends { valid: true }
+  ValidateDatabaseRelationships<DatabaseSchemaComponent<Schemas>> extends { valid: true }
     ? DatabaseSchemaComponent<Schemas>
-    : ValidateDatabaseForeignKeys<DatabaseSchemaComponent<Schemas>>;
-```
+    : ValidateDatabaseRelationships<DatabaseSchemaComponent<Schemas>>;
+````
 
 **How it works:**
+
 1. User calls `const db = database({...})`
 2. TypeScript infers exact `Schemas` type from literal
 3. Return type is evaluated:
@@ -1121,13 +1124,14 @@ function dumboDatabase<Schemas>(schemas: Schemas):
 **No `as const` needed** - Generic inference on `table()` already captures exact tuple types from array literals.
 
 **Prompt:**
-```
+
+````
 
 IMPORTANT: Follow TDD - Write failing type tests FIRST, then implement.
 
 ## Part 1: Add Failing Type Tests
 
-Add to foreignKeyValidation.type.spec.ts:
+Add to relationshipValidation.type.spec.ts:
 
 ```typescript
 // TEST: Invalid column should cause type error at database() call
@@ -1138,7 +1142,7 @@ const _dbInvalidColumn = database('test', {
         id: column('id', Varchar('max')),
         user_id: column('id', Varchar('max')),
       },
-      foreignKeys: [
+      relationships: [
         { columns: ['invalid_col'], references: ['public.users.id'] },
       ],
     }),
@@ -1161,7 +1165,7 @@ const _dbValid = database('test', {
         id: column('id', Varchar('max')),
         user_id: column('user_id', Varchar('max')),
       },
-      foreignKeys: [{ columns: ['user_id'], references: ['public.users.id'] }],
+      relationships: [{ columns: ['user_id'], references: ['public.users.id'] }],
     }),
   }),
 });
@@ -1170,7 +1174,7 @@ type _ValidResult = typeof _dbValid;
 type _Test_Valid = Expect<
   Equal<_ValidResult, DatabaseSchemaComponent<any>>
 >; // This should PASS
-```
+````
 
 Run `npm run build:ts` - you should see errors because validation not wired yet.
 
@@ -1178,21 +1182,24 @@ Run `npm run build:ts` - you should see errors because validation not wired yet.
 
 Update dumboDatabase function in dumboSchema.ts to add FK validation via conditional return types.
 
-1. Import ValidateDatabaseForeignKeys from '../foreignKeys'
+1. Import ValidateDatabaseRelationships from '../relationships'
 
 2. Find the TWO overload signatures that accept `schemas: Schemas` parameter (around lines 137 and 147)
+
    - Do NOT modify overloads that accept single `schema` parameter
 
 3. Change their return type from:
+
    ```typescript
-   DatabaseSchemaComponent<Schemas>
+   DatabaseSchemaComponent<Schemas>;
    ```
 
    To:
+
    ```typescript
-   ValidateDatabaseForeignKeys<DatabaseSchemaComponent<Schemas>> extends { valid: true }
+   ValidateDatabaseRelationships<DatabaseSchemaComponent<Schemas>> extends { valid: true }
      ? DatabaseSchemaComponent<Schemas>
-     : ValidateDatabaseForeignKeys<DatabaseSchemaComponent<Schemas>>
+     : ValidateDatabaseRelationships<DatabaseSchemaComponent<Schemas>>
    ```
 
 4. Update the implementation function's return statement (around line 197) to cast the result:
@@ -1201,11 +1208,13 @@ Update dumboDatabase function in dumboSchema.ts to add FK validation via conditi
      databaseName,
      schemas: schemaMap as Schemas,
      ...dbOptions,
-   }) as ValidateDatabaseForeignKeys<
+   }) as ValidateDatabaseRelationships<
      DatabaseSchemaComponent<Schemas>
-   > extends { valid: true }
+   > extends {
+     valid: true;
+   }
      ? DatabaseSchemaComponent<Schemas>
-     : ValidateDatabaseForeignKeys<DatabaseSchemaComponent<Schemas>>;
+     : ValidateDatabaseRelationships<DatabaseSchemaComponent<Schemas>>;
    ```
 
 After implementation, run quality gates as subagents:
@@ -1245,18 +1254,18 @@ IMPORTANT: Follow TDD - Write failing type tests FIRST, then implement.
 
 ## Part 1: Add Failing Type Tests
 
-Add to foreignKeyValidation.type.spec.ts:
+Add to relationshipValidation.type.spec.ts:
 
 ```typescript
 // TEST: Invalid intra-schema FK at schema() level
-const _schemaInvalidFK = schema('public', {
-  posts: table('posts', {
+const _schemaInvalidFK = schema("public", {
+  posts: table("posts", {
     columns: {
-      id: column('id', Varchar('max')),
-      user_id: column('user_id', Varchar('max')),
+      id: column("id", Varchar("max")),
+      user_id: column("user_id", Varchar("max")),
     },
-    foreignKeys: [
-      { columns: ['invalid_col'], references: ['public.users.id'] },
+    relationships: [
+      { columns: ["invalid_col"], references: ["public.users.id"] },
     ],
   }),
 });
@@ -1267,16 +1276,16 @@ type _Test_SchemaInvalid = Expect<
 >; // Should FAIL
 
 // TEST: Valid intra-schema FK
-const _schemaValidFK = schema('public', {
-  users: table('users', {
-    columns: { id: column('id', Varchar('max')) },
+const _schemaValidFK = schema("public", {
+  users: table("users", {
+    columns: { id: column("id", Varchar("max")) },
   }),
-  posts: table('posts', {
+  posts: table("posts", {
     columns: {
-      id: column('id', Varchar('max')),
-      user_id: column('user_id', Varchar('max')),
+      id: column("id", Varchar("max")),
+      user_id: column("user_id", Varchar("max")),
     },
-    foreignKeys: [{ columns: ['user_id'], references: ['public.users.id'] }],
+    relationships: [{ columns: ["user_id"], references: ["public.users.id"] }],
   }),
 });
 
@@ -1292,23 +1301,25 @@ Run `npm run build:ts` - should see errors because schema validation not wired y
 
 Update dumboDatabaseSchema function in dumboSchema.ts to add FK validation for intra-schema references.
 
-1. Import ValidateSchemaForeignKeys from '../foreignKeys'
+1. Import ValidateSchemaRelationships from '../relationships'
 
 2. Find the TWO overload signatures that accept `tables: Tables` parameter
 
 3. Change their return type from:
+
    ```typescript
-   DatabaseSchemaSchemaComponent<Tables>
+   DatabaseSchemaSchemaComponent<Tables>;
    ```
 
    To:
+
    ```typescript
-   ValidateSchemaForeignKeys<
+   ValidateSchemaRelationships<
      DatabaseSchemaSchemaComponent<Tables>,
      AllColumnReferences<DatabaseSchemaSchemaComponent<Tables>>
    > extends { valid: true }
      ? DatabaseSchemaSchemaComponent<Tables>
-     : ValidateSchemaForeignKeys<
+     : ValidateSchemaRelationships<
          DatabaseSchemaSchemaComponent<Tables>,
          AllColumnReferences<DatabaseSchemaSchemaComponent<Tables>>
        >
@@ -1381,7 +1392,7 @@ All must pass before proceeding.
 **Prompt:**
 ```
 
-Add comprehensive type-level validation tests to foreignKeyValidation.type.spec.ts (after the basic type utility tests).
+Add comprehensive type-level validation tests to relationshipValidation.type.spec.ts (after the basic type utility tests).
 
 Add these test cases demonstrating compile-time FK validation:
 
@@ -1390,19 +1401,19 @@ Add these test cases demonstrating compile-time FK validation:
 // COMPILE-TIME FK VALIDATION TESTS
 // ============================================================================
 
-import { dumboSchema } from '../dumboSchema/dumboSchema';
+import { dumboSchema } from "../dumboSchema/dumboSchema";
 const { database, schema, table, column } = dumboSchema;
 
 // TEST 1: Invalid column name - should be error type
-const _dbInvalidColumn = database('test', {
-  public: schema('public', {
-    posts: table('posts', {
+const _dbInvalidColumn = database("test", {
+  public: schema("public", {
+    posts: table("posts", {
       columns: {
-        id: column('id', Varchar('max')),
-        user_id: column('user_id', Varchar('max')),
+        id: column("id", Varchar("max")),
+        user_id: column("user_id", Varchar("max")),
       },
-      foreignKeys: [
-        { columns: ['nonexistent_col'], references: ['public.users.id'] },
+      relationships: [
+        { columns: ["nonexistent_col"], references: ["public.users.id"] },
       ],
     }),
   }),
@@ -1417,18 +1428,18 @@ type _Test_InvalidColumn = Expect<
   : true; // Should be true (types don't match)
 
 // TEST 2: Invalid reference path - should be error type
-const _dbInvalidRef = database('test', {
-  public: schema('public', {
-    users: table('users', {
-      columns: { id: column('id', Varchar('max')) },
+const _dbInvalidRef = database("test", {
+  public: schema("public", {
+    users: table("users", {
+      columns: { id: column("id", Varchar("max")) },
     }),
-    posts: table('posts', {
+    posts: table("posts", {
       columns: {
-        id: column('id', Varchar('max')),
-        user_id: column('user_id', Varchar('max')),
+        id: column("id", Varchar("max")),
+        user_id: column("user_id", Varchar("max")),
       },
-      foreignKeys: [
-        { columns: ['user_id'], references: ['public.nonexistent.id'] },
+      relationships: [
+        { columns: ["user_id"], references: ["public.nonexistent.id"] },
       ],
     }),
   }),
@@ -1442,22 +1453,22 @@ type _Test_InvalidRef = Expect<
   : true; // Should be true
 
 // TEST 3: Length mismatch - should be error type
-const _dbLengthMismatch = database('test', {
-  public: schema('public', {
-    users: table('users', {
+const _dbLengthMismatch = database("test", {
+  public: schema("public", {
+    users: table("users", {
       columns: {
-        id: column('id', Varchar('max')),
-        tenant_id: column('tenant_id', Varchar('max')),
+        id: column("id", Varchar("max")),
+        tenant_id: column("tenant_id", Varchar("max")),
       },
     }),
-    posts: table('posts', {
+    posts: table("posts", {
       columns: {
-        id: column('id', Varchar('max')),
-        user_id: column('user_id', Varchar('max')),
-        tenant_id: column('tenant_id', Varchar('max')),
+        id: column("id", Varchar("max")),
+        user_id: column("user_id", Varchar("max")),
+        tenant_id: column("tenant_id", Varchar("max")),
       },
-      foreignKeys: [
-        { columns: ['user_id', 'tenant_id'], references: ['public.users.id'] },
+      relationships: [
+        { columns: ["user_id", "tenant_id"], references: ["public.users.id"] },
       ],
     }),
   }),
@@ -1471,45 +1482,45 @@ type _Test_LengthMismatch = Expect<
   : true; // Should be true
 
 // TEST 4: Valid FK - should work perfectly (type matches)
-const _dbValidFK = database('test', {
-  public: schema('public', {
-    users: table('users', {
-      columns: { id: column('id', Varchar('max')) },
+const _dbValidFK = database("test", {
+  public: schema("public", {
+    users: table("users", {
+      columns: { id: column("id", Varchar("max")) },
     }),
-    posts: table('posts', {
+    posts: table("posts", {
       columns: {
-        id: column('id', Varchar('max')),
-        user_id: column('user_id', Varchar('max')),
+        id: column("id", Varchar("max")),
+        user_id: column("user_id", Varchar("max")),
       },
-      foreignKeys: [{ columns: ['user_id'], references: ['public.users.id'] }],
+      relationships: [
+        { columns: ["user_id"], references: ["public.users.id"] },
+      ],
     }),
   }),
 });
 
 type _ValidFKType = typeof _dbValidFK;
-type _Test_ValidFK = Expect<
-  Equal<_ValidFKType, DatabaseSchemaComponent<any>>
->; // Should PASS (types match)
+type _Test_ValidFK = Expect<Equal<_ValidFKType, DatabaseSchemaComponent<any>>>; // Should PASS (types match)
 
 // TEST 5: Composite FK - should work
-const _dbCompositeFK = database('test', {
-  public: schema('public', {
-    users: table('users', {
+const _dbCompositeFK = database("test", {
+  public: schema("public", {
+    users: table("users", {
       columns: {
-        id: column('id', Varchar('max')),
-        tenant_id: column('tenant_id', Varchar('max')),
+        id: column("id", Varchar("max")),
+        tenant_id: column("tenant_id", Varchar("max")),
       },
     }),
-    posts: table('posts', {
+    posts: table("posts", {
       columns: {
-        id: column('id', Varchar('max')),
-        user_id: column('user_id', Varchar('max')),
-        tenant_id: column('tenant_id', Varchar('max')),
+        id: column("id", Varchar("max")),
+        user_id: column("user_id", Varchar("max")),
+        tenant_id: column("tenant_id", Varchar("max")),
       },
-      foreignKeys: [
+      relationships: [
         {
-          columns: ['user_id', 'tenant_id'],
-          references: ['public.users.id', 'public.users.tenant_id'],
+          columns: ["user_id", "tenant_id"],
+          references: ["public.users.id", "public.users.tenant_id"],
         },
       ],
     }),
@@ -1522,40 +1533,38 @@ type _Test_CompositeFK = Expect<
 >; // Should PASS
 
 // TEST 6: Self-referential FK - should work
-const _dbSelfRef = database('test', {
-  public: schema('public', {
-    users: table('users', {
+const _dbSelfRef = database("test", {
+  public: schema("public", {
+    users: table("users", {
       columns: {
-        id: column('id', Varchar('max')),
-        manager_id: column('manager_id', Varchar('max')),
+        id: column("id", Varchar("max")),
+        manager_id: column("manager_id", Varchar("max")),
       },
-      foreignKeys: [
-        { columns: ['manager_id'], references: ['public.users.id'] },
+      relationships: [
+        { columns: ["manager_id"], references: ["public.users.id"] },
       ],
     }),
   }),
 });
 
 type _SelfRefType = typeof _dbSelfRef;
-type _Test_SelfRef = Expect<
-  Equal<_SelfRefType, DatabaseSchemaComponent<any>>
->; // Should PASS
+type _Test_SelfRef = Expect<Equal<_SelfRefType, DatabaseSchemaComponent<any>>>; // Should PASS
 
 // TEST 7: Cross-schema FK - should work
-const _dbCrossSchema = database('test', {
-  public: schema('public', {
-    users: table('users', {
-      columns: { id: column('id', Varchar('max')) },
+const _dbCrossSchema = database("test", {
+  public: schema("public", {
+    users: table("users", {
+      columns: { id: column("id", Varchar("max")) },
     }),
   }),
-  analytics: schema('analytics', {
-    events: table('events', {
+  analytics: schema("analytics", {
+    events: table("events", {
       columns: {
-        id: column('id', Varchar('max')),
-        user_id: column('user_id', Varchar('max')),
+        id: column("id", Varchar("max")),
+        user_id: column("user_id", Varchar("max")),
       },
-      foreignKeys: [
-        { columns: ['user_id'], references: ['public.users.id'] },
+      relationships: [
+        { columns: ["user_id"], references: ["public.users.id"] },
       ],
     }),
   }),

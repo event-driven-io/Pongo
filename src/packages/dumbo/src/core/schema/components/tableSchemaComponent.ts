@@ -8,11 +8,11 @@ import {
   ColumnURNType,
   type AnyColumnSchemaComponent,
 } from './columnSchemaComponent';
-import type { ForeignKeyDefinition } from './foreignKeys/foreignKeyTypes';
 import {
   IndexURNType,
   type IndexSchemaComponent,
 } from './indexSchemaComponent';
+import type { RelationshipDefinition } from './relationships/relationshipTypes';
 import type { TableColumnNames } from './tableTypesInference';
 
 export type TableURNType = 'sc:dumbo:table';
@@ -23,31 +23,33 @@ export const TableURN = ({ name }: { name: string }): TableURN =>
   `${TableURNType}:${name}`;
 
 export type TableColumns = Record<string, AnyColumnSchemaComponent>;
-export type TableForeignKeys<
+export type TableRelationships<
   Columns extends string = string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  FKS extends ForeignKeyDefinition<Columns, any> = ForeignKeyDefinition<
+  FKS extends RelationshipDefinition<Columns, any> = RelationshipDefinition<
     Columns,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     any
   >,
 > =
-  FKS extends ForeignKeyDefinition<infer C, infer R>
-    ? readonly ForeignKeyDefinition<C, R>[]
+  FKS extends RelationshipDefinition<infer C, infer R>
+    ? readonly RelationshipDefinition<C, R>[]
     : never;
 
 export type TableSchemaComponent<
   Columns extends TableColumns = TableColumns,
-  ForeignKeys extends TableForeignKeys<
+  Relationships extends TableRelationships<
     keyof Columns & string
-  > = TableForeignKeys<keyof Columns & string>,
+  > = TableRelationships<keyof Columns & string>,
 > = SchemaComponent<
   TableURN,
   Readonly<{
     tableName: string;
     columns: ReadonlyMap<string, AnyColumnSchemaComponent> & Columns;
-    primaryKey: TableColumnNames<TableSchemaComponent<Columns, ForeignKeys>>[];
-    foreignKeys: ForeignKeys;
+    primaryKey: TableColumnNames<
+      TableSchemaComponent<Columns, Relationships>
+    >[];
+    relationships: Relationships;
     indexes: ReadonlyMap<string, IndexSchemaComponent>;
     addColumn: (column: AnyColumnSchemaComponent) => AnyColumnSchemaComponent;
     addIndex: (index: IndexSchemaComponent) => IndexSchemaComponent;
@@ -59,23 +61,23 @@ export type AnyTableSchemaComponent = TableSchemaComponent<any, any>;
 
 export const tableSchemaComponent = <
   Columns extends TableColumns = TableColumns,
-  const ForeignKeys extends TableForeignKeys = TableForeignKeys,
+  const Relationships extends TableRelationships = TableRelationships,
 >({
   tableName,
   columns,
   primaryKey,
-  foreignKeys,
+  relationships,
   ...migrationsOrComponents
 }: {
   tableName: string;
   columns?: Columns;
-  primaryKey?: TableColumnNames<TableSchemaComponent<Columns, ForeignKeys>>[];
-  foreignKeys?: ForeignKeys;
-} & SchemaComponentOptions): TableSchemaComponent<Columns, ForeignKeys> & {
-  foreignKeys: ForeignKeys;
+  primaryKey?: TableColumnNames<TableSchemaComponent<Columns, Relationships>>[];
+  relationships?: Relationships;
+} & SchemaComponentOptions): TableSchemaComponent<Columns, Relationships> & {
+  relationships: Relationships;
 } => {
   columns ??= {} as Columns;
-  foreignKeys ??= {} as ForeignKeys;
+  relationships ??= {} as Relationships;
 
   const base = schemaComponent(TableURN({ name: tableName }), {
     migrations: migrationsOrComponents.migrations ?? [],
@@ -89,7 +91,7 @@ export const tableSchemaComponent = <
     ...base,
     tableName,
     primaryKey: primaryKey ?? [],
-    foreignKeys,
+    relationships,
     get columns() {
       const columnsMap = mapSchemaComponentsOfType<AnyColumnSchemaComponent>(
         base.components,
@@ -108,7 +110,7 @@ export const tableSchemaComponent = <
     },
     addColumn: (column: AnyColumnSchemaComponent) => base.addComponent(column),
     addIndex: (index: IndexSchemaComponent) => base.addComponent(index),
-  } as TableSchemaComponent<Columns, ForeignKeys> & {
-    foreignKeys: ForeignKeys;
+  } as TableSchemaComponent<Columns, Relationships> & {
+    relationships: Relationships;
   };
 };

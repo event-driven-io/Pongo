@@ -3,7 +3,7 @@ import { describe, it } from 'node:test';
 import { SQL } from '../../sql';
 import type { Equal, Expect } from '../../testing';
 import type { TableColumnNames, TableRowType } from '../components';
-import { foreignKey } from '../components';
+import { relationship } from '../components';
 import { dumboSchema } from './index';
 
 const { database, schema, table, column, index } = dumboSchema;
@@ -151,7 +151,7 @@ const users = table('users', {
     email: column('email', Varchar('max'), { notNull: true }),
     name: column('name', Varchar('max')),
   },
-  foreignKeys: [foreignKey(['id'], ['public.profiles.user_id'])],
+  relationships: [relationship(['id'], ['public.profiles.user_id'])],
 });
 
 const _users2 = table('users', {
@@ -160,7 +160,7 @@ const _users2 = table('users', {
     email: column('email', Varchar('max'), { notNull: true }),
     name: column('name', Varchar('max')),
   },
-  foreignKeys: [
+  relationships: [
     {
       columns: ['id'],
       references: ['public.profiles.user_id'],
@@ -195,7 +195,7 @@ const multiSchemaDb = database('myapp', {
         userId: column('user_id', Varchar('max')),
         timestamp: column('timestamp', Varchar('max')),
       },
-      foreignKeys: [
+      relationships: [
         {
           columns: ['userId'],
           references: ['public.users.id'],
@@ -237,16 +237,16 @@ void describe('Foreign Key Validation', () => {
             id: column('id', Varchar('max')),
             user_id: column('user_id', Varchar('max')),
           },
-          foreignKeys: [
+          relationships: [
             { columns: ['user_id'], references: ['public.users.id'] },
           ],
         }),
       }),
     });
 
-    assert.ok(db.schemas.public.tables.posts.foreignKeys);
+    assert.ok(db.schemas.public.tables.posts.relationships);
     assert.deepStrictEqual(
-      db.schemas.public.tables.posts.foreignKeys[0].columns,
+      db.schemas.public.tables.posts.relationships[0].columns,
       ['user_id'],
     );
   });
@@ -266,7 +266,7 @@ void describe('Foreign Key Validation', () => {
             user_id: column('user_id', Varchar('max')),
             tenant_id: column('tenant_id', Varchar('max')),
           },
-          foreignKeys: [
+          relationships: [
             {
               columns: ['user_id', 'tenant_id'],
               references: ['public.users.id', 'public.users.tenant_id'],
@@ -277,7 +277,7 @@ void describe('Foreign Key Validation', () => {
     });
 
     assert.deepStrictEqual(
-      db.schemas.public.tables.posts.foreignKeys[0].columns,
+      db.schemas.public.tables.posts.relationships[0].columns,
       ['user_id', 'tenant_id'],
     );
   });
@@ -290,16 +290,16 @@ void describe('Foreign Key Validation', () => {
             id: column('id', Varchar('max')),
             manager_id: column('manager_id', Varchar('max')),
           },
-          foreignKeys: [
+          relationships: [
             { columns: ['manager_id'], references: ['public.users.id'] },
           ] as const,
         }),
       }),
     });
 
-    assert.ok(db.schemas.public.tables.users.foreignKeys);
+    assert.ok(db.schemas.public.tables.users.relationships);
     assert.deepStrictEqual(
-      db.schemas.public.tables.users.foreignKeys[0].references,
+      db.schemas.public.tables.users.relationships[0].references,
       ['public.users.id'],
     );
   });
@@ -318,7 +318,7 @@ void describe('Foreign Key Validation', () => {
             user_id: column('user_id', Varchar('max')),
             author_id: column('author_id', Varchar('max')),
           },
-          foreignKeys: [
+          relationships: [
             { columns: ['user_id'], references: ['public.users.id'] },
             { columns: ['author_id'], references: ['public.users.id'] },
           ] as const,
@@ -326,7 +326,7 @@ void describe('Foreign Key Validation', () => {
       }),
     });
 
-    assert.strictEqual(db.schemas.public.tables.posts.foreignKeys.length, 2);
+    assert.strictEqual(db.schemas.public.tables.posts.relationships.length, 2);
   });
 
   void it('should accept cross-schema foreign key', () => {
@@ -344,7 +344,7 @@ void describe('Foreign Key Validation', () => {
             id: column('id', Varchar('max')),
             user_id: column('user_id', Varchar('max')),
           },
-          foreignKeys: [
+          relationships: [
             { columns: ['user_id'], references: ['public.users.id'] },
           ],
         }),
@@ -352,7 +352,7 @@ void describe('Foreign Key Validation', () => {
     });
 
     assert.deepStrictEqual(
-      db.schemas.analytics.tables.events.foreignKeys[0].references,
+      db.schemas.analytics.tables.events.relationships[0].references,
       ['public.users.id'],
     );
   });

@@ -6,7 +6,7 @@ import type {
   DatabaseSchemaComponent,
   DatabaseSchemaSchemaComponent,
   TableSchemaComponent,
-} from '../';
+} from '..';
 import { SQL } from '../../../sql';
 import type { Equal, Expect } from '../../../testing';
 import { dumboSchema } from '../../dumboSchema';
@@ -15,8 +15,8 @@ import type {
   ExtractColumnNames,
   ExtractSchemaNames,
   ExtractTableNames,
-  ForeignKeyDefinition,
-} from './foreignKeyTypes';
+  RelationshipDefinition,
+} from './relationshipTypes';
 
 const { database, schema, table, column } = dumboSchema;
 const { Varchar } = SQL.column.type;
@@ -137,7 +137,7 @@ type _Test9 = Expect<
   >
 >;
 
-const _validFK: ForeignKeyDefinition = {
+const _validFK: RelationshipDefinition = {
   columns: ['user_id'],
   references: ['public.users.id'],
 };
@@ -145,7 +145,7 @@ const _validFK: ForeignKeyDefinition = {
 type _ColumnsType = typeof _validFK.columns;
 type _Test10 = Expect<Equal<_ColumnsType, readonly string[]>>;
 
-const _compositeFK: ForeignKeyDefinition = {
+const _compositeFK: RelationshipDefinition = {
   columns: ['user_id', 'tenant_id'],
   references: ['public.users.id', 'public.users.tenant_id'],
 };
@@ -157,16 +157,16 @@ type _Test12 = Expect<Equal<_CompositeReferencesType, readonly string[]>>;
 
 import type { IsError } from '../../../testing/typesTesting';
 import type {
-  ValidateDatabaseForeignKeys,
-  ValidateForeignKeyLength,
-} from './foreignKeyValidation';
+  ValidateDatabaseRelationships,
+  ValidateRelationshipLength,
+} from './relationshipValidation';
 
 type _FK_LengthMismatch = {
   columns: ['user_id', 'tenant_id'];
   references: ['public.users.id'];
 };
 
-type _Result_LengthMismatch = ValidateForeignKeyLength<_FK_LengthMismatch>;
+type _Result_LengthMismatch = ValidateRelationshipLength<_FK_LengthMismatch>;
 type _Test13 = Expect<IsError<_Result_LengthMismatch>>;
 
 type _FK_SingleMatch = {
@@ -179,19 +179,19 @@ type _FK_CompositeMatch = {
   references: ['public.users.id', 'public.users.tenant_id'];
 };
 
-type _Result_SingleMatch = ValidateForeignKeyLength<_FK_SingleMatch>;
-type _Result_CompositeMatch = ValidateForeignKeyLength<_FK_CompositeMatch>;
+type _Result_SingleMatch = ValidateRelationshipLength<_FK_SingleMatch>;
+type _Result_CompositeMatch = ValidateRelationshipLength<_FK_CompositeMatch>;
 type _Test14 = Expect<Equal<_Result_SingleMatch, { valid: true }>>;
 type _Test15 = Expect<Equal<_Result_CompositeMatch, { valid: true }>>;
 
-import type { ValidateForeignKeyColumns } from './foreignKeyValidation';
+import type { ValidateRelationshipColumns } from './relationshipValidation';
 
 type _FK_InvalidColumn = {
   columns: ['user_id', 'invalid_col'];
   references: ['public.users.id', 'public.users.tenant_id'];
 };
 
-type _Result_InvalidColumn = ValidateForeignKeyColumns<
+type _Result_InvalidColumn = ValidateRelationshipColumns<
   _FK_InvalidColumn,
   'id' | 'email' | 'user_id'
 >;
@@ -207,25 +207,25 @@ type _FK_ValidCompositeColumns = {
   references: ['public.users.id', 'public.users.email'];
 };
 
-type _Result_ValidColumns = ValidateForeignKeyColumns<
+type _Result_ValidColumns = ValidateRelationshipColumns<
   _FK_ValidColumns,
   'id' | 'email' | 'user_id'
 >;
-type _Result_ValidCompositeColumns = ValidateForeignKeyColumns<
+type _Result_ValidCompositeColumns = ValidateRelationshipColumns<
   _FK_ValidCompositeColumns,
   'id' | 'email' | 'user_id'
 >;
 type _Test17 = Expect<Equal<_Result_ValidColumns, { valid: true }>>;
 type _Test18 = Expect<Equal<_Result_ValidCompositeColumns, { valid: true }>>;
 
-import type { ValidateForeignKeyReferences } from './foreignKeyValidation';
+import type { ValidateRelationshipReferences } from './relationshipValidation';
 
 type _FK_InvalidReference = {
   columns: ['user_id'];
   references: ['public.nonexistent.id'];
 };
 
-type _Result_InvalidReference = ValidateForeignKeyReferences<
+type _Result_InvalidReference = ValidateRelationshipReferences<
   _FK_InvalidReference,
   'public.users.id' | 'public.users.email' | 'public.posts.id'
 >;
@@ -241,25 +241,25 @@ type _FK_ValidCompositeReference = {
   references: ['public.users.id', 'public.posts.id'];
 };
 
-type _Result_ValidReference = ValidateForeignKeyReferences<
+type _Result_ValidReference = ValidateRelationshipReferences<
   _FK_ValidReference,
   'public.users.id' | 'public.users.email' | 'public.posts.id'
 >;
-type _Result_ValidCompositeReference = ValidateForeignKeyReferences<
+type _Result_ValidCompositeReference = ValidateRelationshipReferences<
   _FK_ValidCompositeReference,
   'public.users.id' | 'public.users.email' | 'public.posts.id'
 >;
 type _Test20 = Expect<Equal<_Result_ValidReference, { valid: true }>>;
 type _Test21 = Expect<Equal<_Result_ValidCompositeReference, { valid: true }>>;
 
-import type { ValidateSingleForeignKey } from './foreignKeyValidation';
+import type { ValidateSingleRelationship } from './relationshipValidation';
 
 type _FK_Complete_Valid = {
   columns: ['user_id'];
   references: ['public.users.id'];
 };
 
-type _Result_Complete_Valid = ValidateSingleForeignKey<
+type _Result_Complete_Valid = ValidateSingleRelationship<
   _FK_Complete_Valid,
   'id' | 'user_id',
   'public.users.id' | 'public.users.email'
@@ -271,7 +271,7 @@ type _FK_Complete_LengthError = {
   references: ['public.users.id'];
 };
 
-type _Result_Complete_LengthError = ValidateSingleForeignKey<
+type _Result_Complete_LengthError = ValidateSingleRelationship<
   _FK_Complete_LengthError,
   'id' | 'user_id' | 'tenant_id',
   'public.users.id' | 'public.users.email'
@@ -283,7 +283,7 @@ type _FK_Complete_ColumnError = {
   references: ['public.users.id'];
 };
 
-type _Result_Complete_ColumnError = ValidateSingleForeignKey<
+type _Result_Complete_ColumnError = ValidateSingleRelationship<
   _FK_Complete_ColumnError,
   'id' | 'user_id',
   'public.users.id' | 'public.users.email'
@@ -295,7 +295,7 @@ type _FK_Complete_ReferenceError = {
   references: ['public.invalid.id'];
 };
 
-type _Result_Complete_ReferenceError = ValidateSingleForeignKey<
+type _Result_Complete_ReferenceError = ValidateSingleRelationship<
   _FK_Complete_ReferenceError,
   'id' | 'user_id',
   'public.users.id' | 'public.users.email'
@@ -312,7 +312,7 @@ type _Test24A = Expect<
   >
 >;
 
-import type { ValidateForeignKeyArray } from './foreignKeyValidation';
+import type { ValidateRelationshipArray } from './relationshipValidation';
 
 type _FKArray_Mixed = readonly [
   {
@@ -325,7 +325,7 @@ type _FKArray_Mixed = readonly [
   },
 ];
 
-type _Result_FKArray_Mixed = ValidateForeignKeyArray<
+type _Result_FKArray_Mixed = ValidateRelationshipArray<
   _FKArray_Mixed,
   'id' | 'user_id',
   'public.users.id' | 'public.users.email'
@@ -355,28 +355,28 @@ type _FKArray_AllValid = readonly [
   },
 ];
 
-type _Result_FKArray_AllValid = ValidateForeignKeyArray<
+type _Result_FKArray_AllValid = ValidateRelationshipArray<
   _FKArray_AllValid,
   'id' | 'user_id' | 'email',
   'public.users.id' | 'public.users.email'
 >;
-type _ValidateForeignKeyArrayResult_InvalidFK = ValidateForeignKeyArray<
+type _ValidateRelationshipArrayResult_InvalidFK = ValidateRelationshipArray<
   [{ columns: ['invalid']; references: ['public.users.id'] }],
   'id' | 'user_id',
   'public.users.id' | 'public.users.email'
 >;
-type _TestValidateForeignKeyArrayResult_InvalidFK = Expect<
-  IsError<_ValidateForeignKeyArrayResult_InvalidFK>
+type _TestValidateRelationshipArrayResult_InvalidFK = Expect<
+  IsError<_ValidateRelationshipArrayResult_InvalidFK>
 >;
 
-import type { ValidateTableForeignKeys } from './foreignKeyValidation';
+import type { ValidateTableRelationships } from './relationshipValidation';
 
 type _Table_NoFKs = TableSchemaComponent<{
   id: AnyColumnSchemaComponent;
   email: AnyColumnSchemaComponent;
 }>;
 
-type _Result_NoFKs = ValidateTableForeignKeys<
+type _Result_NoFKs = ValidateTableRelationships<
   _Table_NoFKs,
   'public.users.id' | 'public.users.email'
 >;
@@ -390,7 +390,7 @@ type _Table_SingleFK = TableSchemaComponent<
   [{ columns: ['user_id']; references: ['public.users.id'] }]
 >;
 
-type _Result_SingleFK = ValidateTableForeignKeys<
+type _Result_SingleFK = ValidateTableRelationships<
   _Table_SingleFK,
   'public.users.id' | 'public.users.email'
 >;
@@ -408,7 +408,7 @@ type _Table_MultipleFK = TableSchemaComponent<
   ]
 >;
 
-type _Result_MultipleFK = ValidateTableForeignKeys<
+type _Result_MultipleFK = ValidateTableRelationships<
   _Table_MultipleFK,
   'public.users.id' | 'public.users.email'
 >;
@@ -422,13 +422,13 @@ type _Table_InvalidFK = TableSchemaComponent<
   [{ readonly columns: ['id']; references: readonly ['public.users.id'] }]
 >;
 
-type _Result_InvalidFK = ValidateTableForeignKeys<
+type _Result_InvalidFK = ValidateTableRelationships<
   _Table_InvalidFK,
   'public.posts.id' | 'public.users.email'
 >;
 type _Test29 = Expect<IsError<_Result_InvalidFK>>;
 
-import type { ValidateSchemaForeignKeys } from './foreignKeyValidation';
+import type { ValidateSchemaRelationships } from './relationshipValidation';
 
 type _Schema_MultiTable = DatabaseSchemaSchemaComponent<{
   users: TableSchemaComponent<{
@@ -444,7 +444,7 @@ type _Schema_MultiTable = DatabaseSchemaSchemaComponent<{
   >;
 }>;
 
-type _Result_Schema_Valid = ValidateSchemaForeignKeys<
+type _Result_Schema_Valid = ValidateSchemaRelationships<
   _Schema_MultiTable,
   'public.users.id' | 'public.users.email' | 'public.posts.id'
 >;
@@ -460,7 +460,7 @@ type _Schema_WithError = DatabaseSchemaSchemaComponent<{
   >;
 }>;
 
-type _Result_Schema_Error = ValidateSchemaForeignKeys<
+type _Result_Schema_Error = ValidateSchemaRelationships<
   _Schema_WithError,
   'public.posts.id' | 'public.users.email'
 >;
@@ -473,7 +473,7 @@ const _dbWithErrorVSInDB = database('test', {
         id: column('id', Varchar('max')),
         user_id: column('user_id', Varchar('max')),
       },
-      foreignKeys: [{ columns: ['id'], references: ['public.users.id'] }],
+      relationships: [{ columns: ['id'], references: ['public.users.id'] }],
     }),
   }),
 });
@@ -495,12 +495,14 @@ const _fullDb = database('test', {
         id: column('id', Varchar('max')),
         user_id: column('user_id', Varchar('max')),
       },
-      foreignKeys: [{ columns: ['user_id'], references: ['public.users.id'] }],
+      relationships: [
+        { columns: ['user_id'], references: ['public.users.id'] },
+      ],
     }),
   }),
 });
 
-type _Result_FullDb = ValidateDatabaseForeignKeys<typeof _fullDb>;
+type _Result_FullDb = ValidateDatabaseRelationships<typeof _fullDb>;
 type _Test32 = Expect<Equal<_Result_FullDb, { valid: true }>>;
 
 const _dbWithSelfRef = database('test', {
@@ -510,14 +512,14 @@ const _dbWithSelfRef = database('test', {
         id: column('id', Varchar('max')),
         manager_id: column('manager_id', Varchar('max')),
       },
-      foreignKeys: [
+      relationships: [
         { columns: ['manager_id'], references: ['public.users.id'] },
       ],
     }),
   }),
 });
 
-type _Result_SelfRef = ValidateDatabaseForeignKeys<typeof _dbWithSelfRef>;
+type _Result_SelfRef = ValidateDatabaseRelationships<typeof _dbWithSelfRef>;
 type _Test33 = Expect<Equal<_Result_SelfRef, { valid: true }>>;
 
 const _dbWithError = database('test', {
@@ -527,7 +529,7 @@ const _dbWithError = database('test', {
         id: column('id', Varchar('max')),
         user_id: column('user_id', Varchar('max')),
       },
-      foreignKeys: [{ columns: ['id'], references: ['public.users.id'] }],
+      relationships: [{ columns: ['id'], references: ['public.users.id'] }],
     }),
   }),
 });
@@ -542,7 +544,7 @@ const _dbInvalidColumn = database('test', {
         id: column('id', Varchar('max')),
         user_id: column('id', Varchar('max')),
       },
-      foreignKeys: [{ columns: ['id'], references: ['public.users.id'] }],
+      relationships: [{ columns: ['id'], references: ['public.users.id'] }],
     }),
   }),
 });
@@ -561,7 +563,9 @@ const _dbValid = database('test', {
         id: column('id', Varchar('max')),
         user_id: column('user_id', Varchar('max')),
       },
-      foreignKeys: [{ columns: ['user_id'], references: ['public.users.id'] }],
+      relationships: [
+        { columns: ['user_id'], references: ['public.users.id'] },
+      ],
     }),
   }),
 });
