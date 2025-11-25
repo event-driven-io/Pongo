@@ -63,7 +63,7 @@ export type SchemaComponentType<Kind extends string = string> = `sc:${Kind}`;
 export type DumboSchemaComponentType<Kind extends string = string> =
   SchemaComponentType<`dumbo:${Kind}`>;
 
-export const schemaComponent = <ComponentKey extends string = string>(
+export const schemaComponent = <const ComponentKey extends string = string>(
   key: ComponentKey,
   options: SchemaComponentOptions,
 ): SchemaComponent<ComponentKey> => {
