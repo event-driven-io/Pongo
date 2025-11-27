@@ -430,6 +430,18 @@ export type ValidateSchemaRelationships<
     ? ValidateTablesInSchema<Tables, Schema, Schemas>
     : ValidationResult<true>;
 
+export type ValidateDatabaseSchemas<Schemas extends DatabaseSchemas> = {
+  [SchemaName in keyof Schemas]: ValidateSchemaRelationships<
+    Schemas[SchemaName],
+    Schemas
+  >;
+}[keyof Schemas] extends infer Results
+  ? ExtractValidationErrors<Results> extends never
+    ? ValidationResult<true>
+    : ValidationResult<false, ExtractValidationErrors<Results>>
+  : ValidationResult<true>;
+
+// TODO: Use in DatabaseSchema schema component validation
 export type ValidatedSchemaComponent<
   Tables extends DatabaseSchemaTables,
   SchemaName extends string,
@@ -450,22 +462,3 @@ export type ValidatedSchemaComponent<
         }
       ? { valid: false; error: FormatError<E> }
       : DatabaseSchemaSchemaComponent<Tables>;
-
-export type ValidateSchemasInDatabase<Schemas extends DatabaseSchemas> = {
-  [SchemaName in keyof Schemas]: ValidateSchemaRelationships<
-    Schemas[SchemaName],
-    Schemas
-  >;
-}[keyof Schemas] extends infer Results
-  ? ExtractValidationErrors<Results> extends never
-    ? ValidationResult<true>
-    : ValidationResult<false, ExtractValidationErrors<Results>>
-  : ValidationResult<true>;
-
-export type ValidateDatabaseSchemas<Schemas extends DatabaseSchemas> =
-  ValidateSchemasInDatabase<Schemas> extends {
-    valid: false;
-    error: infer E;
-  }
-    ? { valid: false; error: FormatError<E> }
-    : Schemas;
