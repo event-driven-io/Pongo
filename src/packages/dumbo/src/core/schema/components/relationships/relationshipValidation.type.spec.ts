@@ -1565,6 +1565,9 @@ const _dbSelfReferenceColumnOnlyTypeMismatchResult = database(
   _dbSelfReferenceColumnOnlyTypeMismatch,
 );
 
+// Debug: Check what the result type is
+type _Debug_SelfRefResult = typeof _dbSelfReferenceColumnOnlyTypeMismatchResult;
+
 type _Test_SelfReferenceColumnOnlyTypeMismatch = Expect<
   IsError<typeof _dbSelfReferenceColumnOnlyTypeMismatchResult>
 >;
@@ -1681,6 +1684,10 @@ const _dbSameSchemaTableColumnTypeMismatchResult = database(
   'test',
   _dbSameSchemaTableColumnTypeMismatch,
 );
+
+// Debug: Check what the result type is
+type _Debug_SameSchemaResult =
+  typeof _dbSameSchemaTableColumnTypeMismatchResult;
 
 type _Test_SameSchemaTableColumnTypeMismatch = Expect<
   IsError<typeof _dbSameSchemaTableColumnTypeMismatchResult>

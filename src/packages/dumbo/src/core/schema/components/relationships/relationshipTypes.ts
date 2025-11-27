@@ -167,7 +167,8 @@ export type RelationshipDefinition<
 
 export type TableRelationships<Columns extends string = string> = Record<
   string,
-  RelationshipDefinition<Columns, string>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  RelationshipDefinition<Columns, any, any>
 >;
 
 export const relationship = <
@@ -186,4 +187,4 @@ export const relationship = <
   } as const;
 };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyRelationshipDefinition = RelationshipDefinition<any, any>;
+export type AnyRelationshipDefinition = RelationshipDefinition<any, any, any>;

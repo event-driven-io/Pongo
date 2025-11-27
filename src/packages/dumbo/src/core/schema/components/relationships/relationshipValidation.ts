@@ -242,7 +242,8 @@ type AllInTuple<
 
 export type ValidateRelationshipColumns<
   ValidColumns extends TableColumns,
-  Relationship extends RelationshipDefinition<keyof ValidColumns, string>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  Relationship extends RelationshipDefinition<keyof ValidColumns, any, any>,
 > =
   AllInTuple<
     Relationship['columns'] & readonly string[],
@@ -333,7 +334,8 @@ export type ValidateRelationshipReferences<
 
 export type ValidateRelationship<
   Columns extends TableColumns,
-  Relationship extends RelationshipDefinition<keyof Columns, string>,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  Relationship extends RelationshipDefinition<keyof Columns, any, any>,
   CurrentTable extends string,
   Table extends AnyTableSchemaComponent = AnyTableSchemaComponent,
   Schema extends
@@ -390,7 +392,8 @@ export type ValidateTableRelationships<
       : ValidateRelationship<
             Columns,
             Relationships[keyof Relationships & string] &
-              RelationshipDefinition<Columns, string>,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              RelationshipDefinition<keyof Columns & string, any, any>,
             TableName,
             Table,
             Schema,
