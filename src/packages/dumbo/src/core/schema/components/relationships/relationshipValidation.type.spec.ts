@@ -191,14 +191,27 @@ type _Test15 = Expect<Equal<_Result_CompositeMatch, { valid: true }>>;
 
 import type { ValidateRelationshipColumns } from './relationshipValidation';
 
-type _FK_InvalidColumn = {
-  columns: ['user_id', 'invalid_col'];
-  references: ['public.users.id', 'public.users.tenant_id'];
+type _MockTableColumns = {
+  id: { type: typeof Integer; name: 'id' };
+  user_id: { type: typeof Integer; name: 'user_id' };
+  tenant_id: { type: typeof Integer; name: 'tenant_id' };
 };
 
+const _MockTableColumns2 = {
+  id: column('id', Integer),
+  user_id: column('user_id', Integer),
+  email: column('email', Varchar('max')),
+};
+
+type _FK_InvalidColumn = RelationshipDefinition<
+  ['user_id', 'invalid_col'],
+  ['public.users.id', 'public.users.tenant_id'],
+  'one-to-one'
+>;
+
 type _Result_InvalidColumn = ValidateRelationshipColumns<
-  _FK_InvalidColumn,
-  'id' | 'email' | 'user_id'
+  typeof _MockTableColumns2,
+  _FK_InvalidColumn
 >;
 type _Test16 = Expect<IsError<_Result_InvalidColumn>>;
 
@@ -264,12 +277,6 @@ type _Test20 = Expect<Equal<_Result_ValidReference, { valid: true }>>;
 type _Test21 = Expect<Equal<_Result_ValidCompositeReference, { valid: true }>>;
 
 import type { ValidateRelationship } from './relationshipValidation';
-
-type _MockTableColumns = {
-  id: { type: typeof Integer; name: 'id' };
-  user_id: { type: typeof Integer; name: 'user_id' };
-  tenant_id: { type: typeof Integer; name: 'tenant_id' };
-};
 
 type _FK_Complete_Valid = {
   columns: ['user_id'];
@@ -340,12 +347,6 @@ type _Test24A = Expect<
     }
   >
 >;
-
-const _MockTableColumns2 = {
-  id: column('id', Integer),
-  user_id: column('user_id', Integer),
-  email: column('email', Varchar('max')),
-};
 
 type _MockTableColumns2Type = typeof _MockTableColumns2;
 
@@ -1600,6 +1601,42 @@ type _Test_SameSchemaTableColumn_Valid = Expect<
   >
 >;
 
+const _postsTable = table('posts', {
+  columns: {
+    id: column('id', Integer),
+    user_id: column('user_id', Varchar('max')),
+  },
+  relationships: {
+    user: {
+      columns: ['user_id'],
+      references: ['users.id'],
+      type: 'many-to-one',
+    },
+  },
+});
+
+type postsTableNameType = typeof _postsTable.tableName;
+
+type postsTableColumnsType =
+  typeof _postsTable extends TableSchemaComponent<
+    infer Columns,
+    infer _TableName,
+    infer _Relationships
+  >
+    ? Columns
+    : never;
+
+type postsTableRelationshipsType =
+  typeof _postsTable extends TableSchemaComponent<
+    infer _Columns,
+    infer _TableName,
+    infer _Relationships
+  >
+    ? _Relationships
+    : never;
+
+type rel1 = postsTableRelationshipsType['user'];
+
 const _dbSameSchemaTableColumnTypeMismatch = {
   public: schema('public', {
     users: table('users', {
@@ -1622,6 +1659,23 @@ const _dbSameSchemaTableColumnTypeMismatch = {
     }),
   }),
 } as const;
+
+type _Type_DbSameSchemaTableColumnTypeMismatch =
+  typeof _dbSameSchemaTableColumnTypeMismatch;
+
+type _PublicType = _Type_DbSameSchemaTableColumnTypeMismatch['public'];
+
+type _PostsType =
+  _Type_DbSameSchemaTableColumnTypeMismatch['public']['tables']['posts'];
+
+type _ValidatioResult_Type_DbSameSchemaTableColumnTypeMismatch =
+  ValidateRelationship<
+    postsTableColumnsType,
+    rel1,
+    postsTableNameType,
+    _Type_DbSameSchemaTableColumnTypeMismatch['public'],
+    _Type_DbSameSchemaTableColumnTypeMismatch
+  >;
 
 const _dbSameSchemaTableColumnTypeMismatchResult = database(
   'test',

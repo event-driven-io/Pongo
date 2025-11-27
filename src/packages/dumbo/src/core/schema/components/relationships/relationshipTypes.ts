@@ -155,10 +155,14 @@ export type RelationshipType =
   | 'many-to-one'
   | 'many-to-many';
 
-export type RelationshipDefinition<Columns = string, References = string> = {
+export type RelationshipDefinition<
+  Columns = string,
+  References = string,
+  RelType extends RelationshipType = RelationshipType,
+> = {
   readonly columns: readonly Columns[];
   readonly references: readonly References[];
-  readonly type: RelationshipType;
+  readonly type: RelType;
 };
 
 export type TableRelationships<Columns extends string = string> = Record<
