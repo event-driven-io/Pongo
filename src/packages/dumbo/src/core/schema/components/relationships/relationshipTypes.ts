@@ -14,14 +14,14 @@ import type { ColumnTypeToken } from '../../../sql/tokens/columnTokens';
 
 export type ExtractSchemaNames<DB> =
   DB extends DatabaseSchemaComponent<infer Schemas extends DatabaseSchemas>
-    ? keyof Schemas & string
+    ? keyof Schemas
     : never;
 
 export type ExtractTableNames<Schema extends AnyDatabaseSchemaSchemaComponent> =
   Schema extends DatabaseSchemaSchemaComponent<
     infer Tables extends DatabaseSchemaTables
   >
-    ? keyof Tables & string
+    ? keyof Tables
     : never;
 
 export type ExtractColumnNames<Table extends AnyTableSchemaComponent> =
@@ -39,7 +39,7 @@ export type ExtractColumnTypeName<T> =
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     any
   >
-    ? Uppercase<TypeName & string>
+    ? Uppercase<TypeName>
     : never;
 
 export type AllColumnTypes<Schemas extends DatabaseSchemas> = {
@@ -156,8 +156,8 @@ export type RelationshipType =
   | 'many-to-many';
 
 export type RelationshipDefinition<
-  Columns = string,
-  References = string,
+  Columns extends string = string,
+  References extends string = string,
   RelType extends RelationshipType = RelationshipType,
 > = {
   readonly columns: readonly Columns[];
@@ -165,10 +165,28 @@ export type RelationshipDefinition<
   readonly type: RelType;
 };
 
+export type AnyTableRelationshipDefinition = RelationshipDefinition<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  any
+>;
+
+export type AnyTableRelationshipDefinitionWithColumns<
+  Columns extends string = string,
+> = RelationshipDefinition<
+  Columns,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  any,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  any
+>;
+
 export type TableRelationships<Columns extends string = string> = Record<
   string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  RelationshipDefinition<Columns, any, any>
+  AnyTableRelationshipDefinitionWithColumns<Columns>
 >;
 
 export const relationship = <

@@ -12,9 +12,11 @@ import type {
 import type {
   AllColumnReferences,
   AllColumnTypes,
+  AnyTableRelationshipDefinition,
+  AnyTableRelationshipDefinitionWithColumns,
   ExtractColumnTypeName,
   LookupColumnType,
-  RelationshipDefinition,
+  NormalizeReferencePath,
 } from './relationshipTypes';
 
 export type ValidationResult<
@@ -80,34 +82,35 @@ export type ValidateColumnTypePair<
   AllTypes,
   CurrentSchema extends string,
   CurrentTable extends string,
-> = import('./relationshipTypes').NormalizeReferencePath<
-  Reference,
-  CurrentSchema,
-  CurrentTable
-> extends infer NormalizedRef
-  ? NormalizedRef extends string
-    ? ExtractColumnTypeName<LocalColumn['type']> extends infer LocalType
-      ? LookupColumnType<AllTypes, NormalizedRef> extends infer RefType
-        ? RefType extends string
-          ? LocalType extends string
-            ? CompareTypes<LocalType, RefType> extends true
-              ? ValidationResult<true>
-              : ValidationResult<
-                  false,
-                  {
-                    type: 'type_mismatch';
-                    column: ColumnName;
-                    expectedType: RefType;
-                    actualType: LocalType;
-                    reference: NormalizedRef;
-                  }
-                >
+> =
+  NormalizeReferencePath<
+    Reference,
+    CurrentSchema,
+    CurrentTable
+  > extends infer NormalizedRef
+    ? NormalizedRef extends string
+      ? ExtractColumnTypeName<LocalColumn['type']> extends infer LocalType
+        ? LookupColumnType<AllTypes, NormalizedRef> extends infer RefType
+          ? RefType extends string
+            ? LocalType extends string
+              ? CompareTypes<LocalType, RefType> extends true
+                ? ValidationResult<true>
+                : ValidationResult<
+                    false,
+                    {
+                      type: 'type_mismatch';
+                      column: ColumnName;
+                      expectedType: RefType;
+                      actualType: LocalType;
+                      reference: NormalizedRef;
+                    }
+                  >
+              : ValidationResult<true>
             : ValidationResult<true>
           : ValidationResult<true>
         : ValidationResult<true>
       : ValidationResult<true>
-    : ValidationResult<true>
-  : ValidationResult<true>;
+    : ValidationResult<true>;
 
 type CollectTypePairErrors<
   Columns extends readonly string[],
@@ -119,7 +122,7 @@ type CollectTypePairErrors<
   Errors extends TypeMismatchError[] = [],
 > = Columns extends readonly [infer FirstCol, ...infer RestCols]
   ? References extends readonly [infer FirstRef, ...infer RestRefs]
-    ? FirstCol extends keyof TableColumns & string
+    ? FirstCol extends Extract<keyof TableColumns, string>
       ? FirstRef extends string
         ? RestCols extends readonly string[]
           ? RestRefs extends readonly string[]
@@ -215,7 +218,7 @@ export type ValidateRelationshipLength<
         `Foreign key columns and references must have the same length. Got ${GetArrayLength<FK['columns']>} columns and ${GetArrayLength<FK['references']>} references.`
       >;
 
-type FindInvalidColumns<
+export type FindInvalidColumns<
   Columns extends readonly string[],
   ValidColumns extends string,
   Invalid extends string[] = [],
@@ -229,7 +232,7 @@ type FindInvalidColumns<
     : Invalid
   : Invalid;
 
-type AllInTuple<
+export type AllInTuple<
   Tuple extends readonly string[],
   Union extends string,
 > = Tuple extends readonly [infer First, ...infer Rest]
@@ -242,17 +245,16 @@ type AllInTuple<
 
 export type ValidateRelationshipColumns<
   ValidColumns extends TableColumns,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  Relationship extends RelationshipDefinition<keyof ValidColumns, any, any>,
+  Relationship extends AnyTableRelationshipDefinition,
 > =
   AllInTuple<
-    Relationship['columns'] & readonly string[],
-    keyof ValidColumns & string
+    Relationship['columns'],
+    Extract<keyof ValidColumns, string>
   > extends true
     ? ValidationResult<true>
     : ValidationResult<
         false,
-        `Invalid foreign key columns: ${FindInvalidColumns<Relationship['columns'] & readonly string[], keyof ValidColumns & string> extends infer Invalid ? (Invalid extends string[] ? Invalid[number] : never) : never}. Available columns: ${keyof ValidColumns & string}`
+        `Invalid foreign key columns: ${FindInvalidColumns<Relationship['columns'] & readonly string[], Extract<keyof ValidColumns, string>> extends infer Invalid ? (Invalid extends string[] ? Invalid[number] : never) : never}. Available columns: ${keyof ValidColumns & string}`
       >;
 
 type FindInvalidReferences<
@@ -269,7 +271,7 @@ type FindInvalidReferences<
     : Invalid
   : Invalid;
 
-type NormalizeReferences<
+export type NormalizeReferences<
   References extends readonly string[],
   CurrentSchema extends string,
   CurrentTable extends string,
@@ -277,11 +279,7 @@ type NormalizeReferences<
   ? First extends string
     ? Rest extends readonly string[]
       ? readonly [
-          import('./relationshipTypes').NormalizeReferencePath<
-            First,
-            CurrentSchema,
-            CurrentTable
-          >,
+          NormalizeReferencePath<First, CurrentSchema, CurrentTable>,
           ...NormalizeReferences<Rest, CurrentSchema, CurrentTable>,
         ]
       : readonly []
@@ -334,8 +332,9 @@ export type ValidateRelationshipReferences<
 
 export type ValidateRelationship<
   Columns extends TableColumns,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  Relationship extends RelationshipDefinition<keyof Columns, any, any>,
+  Relationship extends AnyTableRelationshipDefinitionWithColumns<
+    Extract<keyof Columns, string>
+  >,
   CurrentTable extends string,
   Table extends AnyTableSchemaComponent = AnyTableSchemaComponent,
   Schema extends
@@ -387,23 +386,44 @@ export type ValidateTableRelationships<
     infer TableName,
     infer Relationships
   >
-    ? keyof Relationships extends never
-      ? ValidationResult<true>
-      : ValidateRelationship<
-            Columns,
-            Relationships[keyof Relationships & string] &
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              RelationshipDefinition<keyof Columns & string, any, any>,
-            TableName,
-            Table,
-            Schema,
-            Schemas
-          > extends {
-            valid: false;
-            error: infer E;
-          }
+    ? keyof Relationships extends Extract<keyof Relationships, string>
+      ? ValidateRelationshipLength<Relationships[keyof Relationships]> extends {
+          valid: false;
+          error: infer E;
+        }
         ? ValidationResult<false, E>
-        : ValidationResult<true>
+        : ValidateRelationshipColumns<
+              Columns,
+              Relationships[keyof Relationships]
+            > extends {
+              valid: false;
+              error: infer E;
+            }
+          ? ValidationResult<false, E>
+          : ValidateRelationshipReferences<
+                Relationships[keyof Relationships],
+                AllColumnReferences<Schemas>,
+                Schema['schemaName'],
+                TableName
+              > extends {
+                valid: false;
+                error: infer E;
+              }
+            ? ValidationResult<false, E>
+            : ValidateColumnTypePairs<
+                  Relationships[keyof Relationships]['columns'],
+                  Relationships[keyof Relationships]['references'],
+                  Columns,
+                  AllColumnTypes<Schemas>,
+                  Schema['schemaName'],
+                  TableName
+                > extends {
+                  valid: false;
+                  error: infer E;
+                }
+              ? ValidationResult<false, E>
+              : ValidationResult<true>
+      : ValidationResult<true>
     : ValidationResult<true>;
 
 export type SchemaTablesWithSingle<Table extends AnyTableSchemaComponent> =
