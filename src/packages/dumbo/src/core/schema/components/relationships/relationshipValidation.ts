@@ -381,10 +381,8 @@ export type ValidateTableRelationships<
         : ValidationResult<true>
     : ValidationResult<true>;
 
-export type ValidateTable<
-  Table extends AnyTableSchemaComponent,
-  Schema extends
-    AnyDatabaseSchemaSchemaComponent = Table extends TableSchemaComponent<
+export type SchemaTablesWithSingle<Table extends AnyTableSchemaComponent> =
+  Table extends TableSchemaComponent<
     infer _Columns,
     infer TableName,
     infer _FKs
@@ -392,16 +390,22 @@ export type ValidateTable<
     ? DatabaseSchemaSchemaComponent<{
         [K in TableName]: Table;
       }>
-    : never,
-  Schemas extends
-    DatabaseSchemas = Schema extends DatabaseSchemaSchemaComponent<
-    infer _Tables,
-    infer _SchemaName
-  >
+    : never;
+
+export type DatabaseSchemasWithSingle<
+  Schema extends AnyDatabaseSchemaSchemaComponent,
+> =
+  Schema extends DatabaseSchemaSchemaComponent<infer _Tables, infer _SchemaName>
     ? {
         [K in _SchemaName]: Schema;
       }
-    : never,
+    : never;
+
+export type ValidateTable<
+  Table extends AnyTableSchemaComponent,
+  Schema extends
+    AnyDatabaseSchemaSchemaComponent = SchemaTablesWithSingle<Table>,
+  Schemas extends DatabaseSchemas = DatabaseSchemasWithSingle<Schema>,
 > = ValidateTableRelationships<Table, Schema, Schemas>;
 
 export type ExtractValidationErrors<T> = T extends {
