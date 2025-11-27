@@ -382,7 +382,7 @@ export type ValidateRelationship<
     ? ValidationResult<false, E>
     : ValidationResult<true>;
 
-export type ValidateTableRelationships<
+export type ValidateTable<
   Table extends AnyTableSchemaComponent,
   ValidReferences extends string,
   AllTypes,
@@ -404,12 +404,12 @@ type ExtractValidationErrors<T> = T extends { valid: false; error: infer E }
   ? E
   : never;
 
-export type ValidateTablesInSchema<
+export type ValidateSchemaTables<
   Tables extends Record<string, AnyTableSchemaComponent>,
   Schema extends AnyDatabaseSchemaSchemaComponent,
   Schemas extends DatabaseSchemas,
 > = {
-  [TableName in keyof Tables]: ValidateTableRelationships<
+  [TableName in keyof Tables]: ValidateTable<
     Tables[TableName],
     AllColumnReferences<Schemas>,
     AllColumnTypes<Schemas>,
@@ -422,16 +422,16 @@ export type ValidateTablesInSchema<
     : ValidationResult<false, ExtractValidationErrors<Results>>
   : ValidationResult<true>;
 
-export type ValidateSchemaRelationships<
+export type ValidateDatabaseSchema<
   Schema extends AnyDatabaseSchemaSchemaComponent,
   Schemas extends DatabaseSchemas,
 > =
   Schema extends DatabaseSchemaSchemaComponent<infer Tables>
-    ? ValidateTablesInSchema<Tables, Schema, Schemas>
+    ? ValidateSchemaTables<Tables, Schema, Schemas>
     : ValidationResult<true>;
 
 export type ValidateDatabaseSchemas<Schemas extends DatabaseSchemas> = {
-  [SchemaName in keyof Schemas]: ValidateSchemaRelationships<
+  [SchemaName in keyof Schemas]: ValidateDatabaseSchema<
     Schemas[SchemaName],
     Schemas
   >;
@@ -446,14 +446,14 @@ export type ValidatedSchemaComponent<
   Tables extends DatabaseSchemaTables,
   SchemaName extends string,
 > =
-  ValidateSchemaRelationships<
+  ValidateDatabaseSchema<
     DatabaseSchemaSchemaComponent<Tables, SchemaName>,
     { schemaName: DatabaseSchemaSchemaComponent<Tables, SchemaName> }
   > extends {
     valid: true;
   }
     ? DatabaseSchemaSchemaComponent<Tables>
-    : ValidateSchemaRelationships<
+    : ValidateDatabaseSchema<
           DatabaseSchemaSchemaComponent<Tables, SchemaName>,
           { schemaName: DatabaseSchemaSchemaComponent<Tables, SchemaName> }
         > extends {

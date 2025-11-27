@@ -411,14 +411,14 @@ type _TestValidateRelationshipRecordResult_InvalidFK = Expect<
   IsError<_ValidateRelationshipRecordResult_InvalidFK>
 >;
 
-import type { ValidateTableRelationships } from './relationshipValidation';
+import type { ValidateTable } from './relationshipValidation';
 
 type _Table_NoFKs = TableSchemaComponent<{
   id: AnyColumnSchemaComponent;
   email: AnyColumnSchemaComponent;
 }>;
 
-type _Result_NoFKs = ValidateTableRelationships<
+type _Result_NoFKs = ValidateTable<
   _Table_NoFKs,
   'public.users.id' | 'public.users.email',
   _AllColumnTypes2,
@@ -442,7 +442,7 @@ type _Table_SingleFK = TableSchemaComponent<
   }
 >;
 
-type _Result_SingleFK = ValidateTableRelationships<
+type _Result_SingleFK = ValidateTable<
   _Table_SingleFK,
   'public.users.id' | 'public.users.email',
   _AllColumnTypes2,
@@ -471,7 +471,7 @@ type _Table_MultipleFK = TableSchemaComponent<
   }
 >;
 
-type _Result_MultipleFK = ValidateTableRelationships<
+type _Result_MultipleFK = ValidateTable<
   _Table_MultipleFK,
   'public.users.id' | 'public.users.email',
   _AllColumnTypes2,
@@ -494,7 +494,7 @@ type _Table_InvalidFK = TableSchemaComponent<
   }
 >;
 
-type _Result_InvalidFK = ValidateTableRelationships<
+type _Result_InvalidFK = ValidateTable<
   _Table_InvalidFK,
   'public.posts.id' | 'public.users.email',
   _AllColumnTypes2,
@@ -503,7 +503,7 @@ type _Result_InvalidFK = ValidateTableRelationships<
 >;
 type _Test29 = Expect<IsError<_Result_InvalidFK>>;
 
-import type { ValidateSchemaRelationships } from './relationshipValidation';
+import type { ValidateDatabaseSchema } from './relationshipValidation';
 
 type _Schema_MultiTable = DatabaseSchemaSchemaComponent<
   {
@@ -532,7 +532,7 @@ type _Schema_MultiTable = DatabaseSchemaSchemaComponent<
   'public'
 >;
 
-type _Result_Schema_Valid = ValidateSchemaRelationships<
+type _Result_Schema_Valid = ValidateDatabaseSchema<
   _Schema_MultiTable,
   { readonly public: _Schema_MultiTable }
 >;
@@ -559,7 +559,7 @@ type _Schema_WithError = DatabaseSchemaSchemaComponent<
   'public'
 >;
 
-type _Result_Schema_Error = ValidateSchemaRelationships<
+type _Result_Schema_Error = ValidateDatabaseSchema<
   _Schema_WithError,
   { public: _Schema_WithError }
 >;
