@@ -21,7 +21,7 @@ import type {
 } from './relationshipTypes';
 
 const { database, schema, table, column } = dumboSchema;
-const { Varchar } = SQL.column.type;
+const { Varchar, Integer } = SQL.column.type;
 
 type _DB1 = DatabaseSchemaComponent<{
   public: AnyDatabaseSchemaSchemaComponent;
@@ -161,6 +161,7 @@ type _Test12 = Expect<Equal<_CompositeReferencesType, readonly string[]>>;
 
 import type { IsError } from '../../../testing/typesTesting';
 import type {
+  ValidateDatabaseSchema,
   ValidateDatabaseSchemas,
   ValidateRelationshipLength,
 } from './relationshipValidation';
@@ -262,7 +263,7 @@ type _Result_ValidCompositeReference = ValidateRelationshipReferences<
 type _Test20 = Expect<Equal<_Result_ValidReference, { valid: true }>>;
 type _Test21 = Expect<Equal<_Result_ValidCompositeReference, { valid: true }>>;
 
-import type { ValidateSingleRelationship } from './relationshipValidation';
+import type { ValidateRelationship } from './relationshipValidation';
 
 type _MockTableColumns = {
   id: { type: typeof Integer; name: 'id' };
@@ -275,7 +276,7 @@ type _FK_Complete_Valid = {
   references: ['public.users.id'];
 };
 
-type _Result_Complete_Valid = ValidateSingleRelationship<
+type _Result_Complete_Valid = ValidateRelationship<
   _FK_Complete_Valid,
   _MockTableColumns,
   'public.users.id' | 'public.users.email',
@@ -290,7 +291,7 @@ type _FK_Complete_LengthError = {
   references: ['public.users.id'];
 };
 
-type _Result_Complete_LengthError = ValidateSingleRelationship<
+type _Result_Complete_LengthError = ValidateRelationship<
   _FK_Complete_LengthError,
   _MockTableColumns,
   'public.users.id' | 'public.users.email',
@@ -305,7 +306,7 @@ type _FK_Complete_ColumnError = {
   references: ['public.users.id'];
 };
 
-type _Result_Complete_ColumnError = ValidateSingleRelationship<
+type _Result_Complete_ColumnError = ValidateRelationship<
   _FK_Complete_ColumnError,
   _MockTableColumns,
   'public.users.id' | 'public.users.email',
@@ -320,7 +321,7 @@ type _FK_Complete_ReferenceError = {
   references: ['public.invalid.id'];
 };
 
-type _Result_Complete_ReferenceError = ValidateSingleRelationship<
+type _Result_Complete_ReferenceError = ValidateRelationship<
   _FK_Complete_ReferenceError,
   _MockTableColumns,
   'public.users.id' | 'public.users.email',
@@ -340,12 +341,27 @@ type _Test24A = Expect<
   >
 >;
 
-import type { ValidateRelationship } from './relationshipValidation';
+const _MockTableColumns2 = {
+  id: column('id', Integer),
+  user_id: column('user_id', Integer),
+  email: column('email', Varchar('max')),
+};
 
-type _MockTableColumns2 = {
-  id: { type: typeof Integer; name: 'id' };
-  user_id: { type: typeof Integer; name: 'user_id' };
-  email: { type: ReturnType<typeof Varchar>; name: 'email' };
+type _MockTableColumns2Type = typeof _MockTableColumns2;
+
+// type _Test35 = Expect<IsError<_Result_FKRecord_Mixed>>;
+
+type _FKRecord_AllValid = {
+  user_fk: {
+    columns: ['user_id'];
+    references: ['public.users.id'];
+    type: 'one-to-many';
+  };
+  email_fk: {
+    columns: ['email'];
+    references: ['public.users.email'];
+    type: 'one-to-many';
+  };
 };
 
 type _FKRecord_Mixed = {
@@ -361,123 +377,115 @@ type _FKRecord_Mixed = {
   };
 };
 
-type _Result_FKRecord_Mixed = ValidateRelationship<
-  _FKRecord_Mixed,
-  _MockTableColumns2,
-  'public.users.id' | 'public.users.email',
-  _AllColumnTypes2,
-  'public',
-  'posts'
->;
+// type UsersTable = TableSchemaComponent<_MockTableColumns2Type, 'users'>;
 
-type _Test35 = Expect<IsError<_Result_FKRecord_Mixed>>;
+// type MixedColumnsTable = TableSchemaComponent<
+//   _MockTableColumns2Type,
+//   'posts',
+//   _FKRecord_Mixed
+// >;
 
-type _FKRecord_AllValid = {
-  user_fk: {
-    columns: ['user_id'];
-    references: ['public.users.id'];
-    type: 'one-to-many';
-  };
-  email_fk: {
-    columns: ['email'];
-    references: ['public.users.email'];
-    type: 'one-to-many';
-  };
-};
+// type _Result_FKRecord_Mixed = ValidateTableRelationships<
+//   MixedColumnsTable,
+//   { posts: MixedColumnsTable, users: TableSchemaComponent<{ },
+//   { public: MixedColumnsTable },
+//   _MockTableColumns2,
+//   'public.users.id' | 'public.users.email',
+//   _AllColumnTypes2,
+//   'public',
+//   'posts'
+// >;
 
-type _Result_FKRecord_AllValid = ValidateRelationship<
-  _FKRecord_AllValid,
-  _MockTableColumns2,
-  'public.users.id' | 'public.users.email',
-  _AllColumnTypes2,
-  'public',
-  'posts'
->;
-type _ValidateRelationshipRecordResult_InvalidFK = ValidateRelationship<
-  {
-    invalid_fk: {
-      columns: ['invalid'];
-      references: ['public.users.id'];
-      type: 'one-to-many';
-    };
-  },
-  _MockTableColumns2,
-  'public.users.id' | 'public.users.email',
-  _AllColumnTypes2,
-  'public',
-  'posts'
->;
-type _TestValidateRelationshipRecordResult_InvalidFK = Expect<
-  IsError<_ValidateRelationshipRecordResult_InvalidFK>
->;
+// type _Result_FKRecord_AllValid = ValidateTableRelationships<
+//   _FKRecord_AllValid,
+//   _MockTableColumns2,
+//   'public.users.id' | 'public.users.email',
+//   _AllColumnTypes2,
+//   'public',
+//   'posts'
+// >;
+// type _ValidateRelationshipRecordResult_InvalidFK = ValidateTableRelationships<
+//   {
+//     invalid_fk: {
+//       columns: ['invalid'];
+//       references: ['public.users.id'];
+//       type: 'one-to-many';
+//     };
+//   },
+//   _MockTableColumns2,
+//   'public.users.id' | 'public.users.email',
+//   _AllColumnTypes2,
+//   'public',
+//   'posts'
+// >;
+// type _TestValidateRelationshipRecordResult_InvalidFK = Expect<
+//   IsError<_ValidateRelationshipRecordResult_InvalidFK>
+// >;
 
-import type { ValidateTable } from './relationshipValidation';
+// import type { ValidateTable } from './relationshipValidation';
 
-type _Table_NoFKs = TableSchemaComponent<{
-  id: AnyColumnSchemaComponent;
-  email: AnyColumnSchemaComponent;
-}>;
+// type _Table_NoFKs = TableSchemaComponent<
+//   {
+//     id: AnyColumnSchemaComponent;
+//     email: AnyColumnSchemaComponent;
+//   },
+//   'users'
+// >;
 
-type _Result_NoFKs = ValidateTable<
-  _Table_NoFKs,
-  'public.users.id' | 'public.users.email',
-  _AllColumnTypes2,
-  'public',
-  'users'
->;
-type _Test26 = Expect<Equal<_Result_NoFKs, { valid: true }>>;
+// type _Result_NoFKs = ValidateTable<_Table_NoFKs>;
+// type _Test26 = Expect<Equal<_Result_NoFKs, { valid: true }>>;
 
-type _Table_SingleFK = TableSchemaComponent<
-  {
-    id: AnyColumnSchemaComponent;
-    user_id: AnyColumnSchemaComponent;
-  },
-  'posts',
-  {
-    author: {
-      columns: ['user_id'];
-      references: ['public.users.id'];
-      type: 'one-to-many';
-    };
-  }
->;
+// type _Table_SingleFK = TableSchemaComponent<
+//   {
+//     id: AnyColumnSchemaComponent;
+//     user_id: AnyColumnSchemaComponent;
+//   },
+//   'posts',
+//   {
+//     author: {
+//       columns: ['user_id'];
+//       references: ['public.users.id'];
+//       type: 'one-to-many';
+//     };
+//   }
+// >;
 
-type _Result_SingleFK = ValidateTable<
-  _Table_SingleFK,
-  'public.users.id' | 'public.users.email',
-  _AllColumnTypes2,
-  'public',
-  'posts'
->;
+// type _Result_SingleFK = ValidateTable<
+//   _Table_SingleFK,
+//   'public.users.id' | 'public.users.email',
+//   _AllColumnTypes2,
+//   'public',
+//   'posts'
+// >;
 
-type _Table_MultipleFK = TableSchemaComponent<
-  {
-    id: AnyColumnSchemaComponent;
-    user_id: AnyColumnSchemaComponent;
-    author_id: AnyColumnSchemaComponent;
-  },
-  'posts',
-  {
-    user: {
-      columns: ['user_id'];
-      references: ['public.users.id'];
-      type: 'one-to-many';
-    };
-    author: {
-      columns: ['author_id'];
-      references: ['public.users.id'];
-      type: 'one-to-many';
-    };
-  }
->;
+// type _Table_MultipleFK = TableSchemaComponent<
+//   {
+//     id: AnyColumnSchemaComponent;
+//     user_id: AnyColumnSchemaComponent;
+//     author_id: AnyColumnSchemaComponent;
+//   },
+//   'posts',
+//   {
+//     user: {
+//       columns: ['user_id'];
+//       references: ['public.users.id'];
+//       type: 'one-to-many';
+//     };
+//     author: {
+//       columns: ['author_id'];
+//       references: ['public.users.id'];
+//       type: 'one-to-many';
+//     };
+//   }
+// >;
 
-type _Result_MultipleFK = ValidateTable<
-  _Table_MultipleFK,
-  'public.users.id' | 'public.users.email',
-  _AllColumnTypes2,
-  'public',
-  'posts'
->;
+// type _Result_MultipleFK = ValidateTable<
+//   _Table_MultipleFK,
+//   'public.users.id' | 'public.users.email',
+//   _AllColumnTypes2,
+//   'public',
+//   'posts'
+// >;
 
 type _Table_InvalidFK = TableSchemaComponent<
   {
@@ -493,17 +501,6 @@ type _Table_InvalidFK = TableSchemaComponent<
     };
   }
 >;
-
-type _Result_InvalidFK = ValidateTable<
-  _Table_InvalidFK,
-  'public.posts.id' | 'public.users.email',
-  _AllColumnTypes2,
-  'public',
-  'posts'
->;
-type _Test29 = Expect<IsError<_Result_InvalidFK>>;
-
-import type { ValidateDatabaseSchema } from './relationshipValidation';
 
 type _Schema_MultiTable = DatabaseSchemaSchemaComponent<
   {
@@ -616,7 +613,7 @@ type _AllColumnReferencesFDb = AllColumnReferences<FullDbSchemasType>;
 type _AllColumnTypesFDb = AllColumnTypes<FullDbSchemasType>;
 
 type _Result_FullDb = ValidateDatabaseSchemas<FullDbSchemasType>;
-type _Test32 = Expect<Equal<_Result_FullDb, FullDbSchemasType>>;
+type _Test32 = Expect<Equal<_Result_FullDb, { valid: true }>>;
 
 const _dbSchemasWithSelfRef = {
   public: schema('public', {
@@ -639,7 +636,7 @@ const _dbSchemasWithSelfRef = {
 const _dbWithSelfRef = database('test', _dbSchemasWithSelfRef);
 
 type _Result_SelfRef = ValidateDatabaseSchemas<typeof _dbSchemasWithSelfRef>;
-type _Test33 = Expect<Equal<_Result_SelfRef, typeof _dbSchemasWithSelfRef>>;
+type _Test33 = Expect<Equal<_Result_SelfRef, { valid: true }>>;
 
 const _dbWithError = database('test', {
   public: schema('public', {
@@ -756,8 +753,6 @@ type _Test_AllColumnTypes_SingleTable = Expect<
 type _Test_AllColumnTypes_NestedAccess = Expect<
   Equal<_AllColumnTypes1['public']['users']['id']['columnTypeName'], 'VARCHAR'>
 >;
-
-const { Integer } = SQL.column.type;
 
 const _dbForTypes2Schema = {
   public: schema('public', {

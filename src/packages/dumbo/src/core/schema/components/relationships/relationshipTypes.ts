@@ -169,10 +169,11 @@ export type TableRelationships<Columns extends string = string> = Record<
 export const relationship = <
   const Columns extends readonly string[],
   const References extends readonly string[],
+  const RelType extends RelationshipType = RelationshipType,
 >(
   columns: Columns,
   references: References,
-  type: RelationshipType,
+  type: RelType,
 ) => {
   return {
     columns,

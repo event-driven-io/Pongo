@@ -11,7 +11,6 @@ import type {
 import type {
   AllColumnReferences,
   AllColumnTypes,
-  AnyRelationshipDefinition,
   ExtractColumnTypeName,
   LookupColumnType,
 } from './relationshipTypes';
@@ -320,7 +319,7 @@ export type ValidateRelationshipReferences<
       : ValidationResult<true>
     : ValidationResult<true>;
 
-export type ValidateSingleRelationship<
+export type ValidateRelationship<
   FK extends { columns: readonly string[]; references: readonly string[] },
   TableColumns extends Record<string, { type: unknown; name: string }>,
   ValidReferences extends string,
@@ -359,48 +358,56 @@ export type ValidateSingleRelationship<
           ? ValidationResult<false, E>
           : ValidationResult<true>;
 
-export type ValidateRelationship<
-  FKs extends Record<string, AnyRelationshipDefinition>,
-  TableColumns extends Record<string, { type: unknown; name: string }>,
-  ValidReferences extends string,
-  AllTypes,
-  CurrentSchema extends string,
-  CurrentTable extends string,
-> = keyof FKs extends never
-  ? ValidationResult<true>
-  : ValidateSingleRelationship<
-        FKs[keyof FKs],
-        TableColumns,
-        ValidReferences,
-        AllTypes,
-        CurrentSchema,
-        CurrentTable
-      > extends {
-        valid: false;
-        error: infer E;
-      }
-    ? ValidationResult<false, E>
+export type ValidateTableRelationships<
+  Table extends AnyTableSchemaComponent,
+  Schema extends AnyDatabaseSchemaSchemaComponent,
+  Schemas extends DatabaseSchemas,
+> =
+  Table extends TableSchemaComponent<infer Columns, infer _TableName, infer FKs>
+    ? keyof FKs extends never
+      ? ValidationResult<true>
+      : ValidateRelationship<
+            FKs[keyof FKs],
+            Columns,
+            AllColumnReferences<Schemas>,
+            AllColumnTypes<Schemas>,
+            Schema['schemaName'],
+            Table['tableName']
+          > extends {
+            valid: false;
+            error: infer E;
+          }
+        ? ValidationResult<false, E>
+        : ValidationResult<true>
     : ValidationResult<true>;
 
 export type ValidateTable<
   Table extends AnyTableSchemaComponent,
-  ValidReferences extends string,
-  AllTypes,
-  CurrentSchema extends string,
-  CurrentTable extends string,
-> =
-  Table extends TableSchemaComponent<infer Columns, infer _TableName, infer FKs>
-    ? ValidateRelationship<
-        FKs,
-        Columns,
-        ValidReferences,
-        AllTypes,
-        CurrentSchema,
-        CurrentTable
-      >
-    : ValidationResult<true>;
+  Schema extends
+    AnyDatabaseSchemaSchemaComponent = Table extends TableSchemaComponent<
+    infer _Columns,
+    infer TableName,
+    infer _FKs
+  >
+    ? DatabaseSchemaSchemaComponent<{
+        [K in TableName]: Table;
+      }>
+    : never,
+  Schemas extends
+    DatabaseSchemas = Schema extends DatabaseSchemaSchemaComponent<
+    infer _Tables,
+    infer _SchemaName
+  >
+    ? {
+        [K in _SchemaName]: Schema;
+      }
+    : never,
+> = ValidateTableRelationships<Table, Schema, Schemas>;
 
-type ExtractValidationErrors<T> = T extends { valid: false; error: infer E }
+export type ExtractValidationErrors<T> = T extends {
+  valid: false;
+  error: infer E;
+}
   ? E
   : never;
 
@@ -411,10 +418,8 @@ export type ValidateSchemaTables<
 > = {
   [TableName in keyof Tables]: ValidateTable<
     Tables[TableName],
-    AllColumnReferences<Schemas>,
-    AllColumnTypes<Schemas>,
-    Schema['schemaName'],
-    TableName & string
+    Schema,
+    Schemas
   >;
 }[keyof Tables] extends infer Results
   ? ExtractValidationErrors<Results> extends never
