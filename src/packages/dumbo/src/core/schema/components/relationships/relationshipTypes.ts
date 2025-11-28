@@ -115,7 +115,7 @@ export type AllColumnReferencesInSchema<
       }[keyof Tables]
     : never;
 
-export type NormalizeReferencePath<
+export type NormalizeReference<
   Path extends string,
   CurrentSchema extends string,
   CurrentTable extends string,
@@ -126,6 +126,60 @@ export type NormalizeReferencePath<
     : Path extends string
       ? `${CurrentSchema}.${CurrentTable}.${Path}`
       : never;
+
+export type NormalizeReferences<
+  References extends readonly string[],
+  CurrentSchema extends string,
+  CurrentTable extends string,
+> = References extends readonly [infer First, ...infer Rest]
+  ? First extends string
+    ? Rest extends readonly string[]
+      ? readonly [
+          NormalizeReference<First, CurrentSchema, CurrentTable>,
+          ...NormalizeReferences<Rest, CurrentSchema, CurrentTable>,
+        ]
+      : readonly []
+    : readonly []
+  : readonly [];
+
+export type ColumnName<ColName extends string = string> = `${ColName}`;
+export type TableColumnName<
+  TableName extends string = string,
+  ColName extends string = string,
+> = `${TableName}.${ColName}`;
+export type SchemaColumnName<
+  SchemaName extends string,
+  TableName extends string,
+  ColumnName extends string,
+> = `${SchemaName}.${TableName}.${ColumnName}`;
+
+export type ColumnPath<
+  SchemaName extends string = string,
+  TableName extends string = string,
+  ColName extends string = string,
+> =
+  | SchemaColumnName<SchemaName, TableName, ColName>
+  | TableColumnName<TableName, ColName>
+  | ColumnName<ColName>;
+
+export type ColumnReference<
+  SchemaName extends string = string,
+  TableName extends string = string,
+  ColumnName extends string = string,
+> = { schemaName: SchemaName; tableName: TableName; columnName: ColumnName };
+
+export type ReferenceToRecord<
+  Reference extends ColumnPath = ColumnPath,
+  CurrentSchema extends string = string,
+  CurrentTable extends string = string,
+> =
+  NormalizeReference<
+    Reference,
+    CurrentSchema,
+    CurrentTable
+  > extends `${infer S}.${infer T}.${infer C}`
+    ? { schemaName: S; tableName: T; columnName: C }
+    : never;
 
 export type ParseReferencePath<Path extends string> =
   Path extends `${infer Schema}.${infer Table}.${infer Column}`
@@ -157,11 +211,11 @@ export type RelationshipType =
 
 export type RelationshipDefinition<
   Columns extends string = string,
-  References extends string = string,
+  Reference extends string = string,
   RelType extends RelationshipType = RelationshipType,
 > = {
   readonly columns: readonly Columns[];
-  readonly references: readonly References[];
+  readonly references: readonly Reference[];
   readonly type: RelType;
 };
 

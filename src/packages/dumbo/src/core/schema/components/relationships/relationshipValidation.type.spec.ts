@@ -17,6 +17,8 @@ import type {
   ExtractColumnTypeName,
   ExtractSchemaNames,
   ExtractTableNames,
+  NormalizeReferences,
+  ReferenceToRecord,
   RelationshipDefinition,
 } from './relationshipTypes';
 
@@ -161,9 +163,9 @@ type _Test12 = Expect<Equal<_CompositeReferencesType, readonly string[]>>;
 
 import type { IsError } from '../../../testing/typesTesting';
 import type {
-  NormalizeReferences,
   ValidateDatabaseSchema,
   ValidateDatabaseSchemas,
+  ValidateReference,
   ValidateRelationship,
   ValidateRelationshipLength,
 } from './relationshipValidation';
@@ -1665,31 +1667,11 @@ type rel1 = postsTableRelationshipsType['user'];
 
 type schType = typeof schefff;
 
-type rel2tabs = NormalizeReferences<
-  rel1['references'],
-  'public',
-  'posts'
->[0] extends `${infer S}.${infer T}.${infer C}`
-  ? { schema: S; table: T; column: C }
-  : never;
+type rel2norm = NormalizeReferences<rel1['references'], 'public', 'posts'>[0];
 
-type rel2norm = NormalizeReferences<
-  rel1['references'],
-  'public',
-  'posts'
->[0] extends `${infer S}.${infer T}.${infer C}`
-  ? S extends keyof schType
-    ? T extends keyof schType[S]['tables']
-      ? schType[S]['tables'][T] extends TableSchemaComponent<
-          infer Columns,
-          infer _TableName,
-          infer _Relationships
-        >
-        ? Columns[C]
-        : never
-      : never
-    : never
-  : never;
+type rel2tabs = ReferenceToRecord<rel1['references'][0], 'public', 'posts'>;
+
+type rel2col = ValidateReference<rel2tabs, schType>;
 
 type djdjd = schType['public']['tables']['users'];
 

@@ -14,9 +14,11 @@ import type {
   AllColumnTypes,
   AnyTableRelationshipDefinition,
   AnyTableRelationshipDefinitionWithColumns,
+  ColumnReference,
   ExtractColumnTypeName,
   LookupColumnType,
-  NormalizeReferencePath,
+  NormalizeReference,
+  NormalizeReferences,
 } from './relationshipTypes';
 
 export type ValidationResult<
@@ -83,7 +85,7 @@ export type ValidateColumnTypePair<
   CurrentSchema extends string,
   CurrentTable extends string,
 > =
-  NormalizeReferencePath<
+  NormalizeReference<
     Reference,
     CurrentSchema,
     CurrentTable
@@ -271,21 +273,6 @@ type FindInvalidReferences<
     : Invalid
   : Invalid;
 
-export type NormalizeReferences<
-  References extends readonly string[],
-  CurrentSchema extends string,
-  CurrentTable extends string,
-> = References extends readonly [infer First, ...infer Rest]
-  ? First extends string
-    ? Rest extends readonly string[]
-      ? readonly [
-          NormalizeReferencePath<First, CurrentSchema, CurrentTable>,
-          ...NormalizeReferences<Rest, CurrentSchema, CurrentTable>,
-        ]
-      : readonly []
-    : readonly []
-  : readonly [];
-
 type FilterSameSchemaReferences<
   References extends readonly string[],
   CurrentSchema extends string,
@@ -329,6 +316,28 @@ export type ValidateRelationshipReferences<
         : ValidationResult<true>
       : ValidationResult<true>
     : ValidationResult<true>;
+
+export type ValidateReference<
+  ColReference extends ColumnReference,
+  Schemas extends DatabaseSchemas,
+> =
+  ColReference extends ColumnReference<
+    infer SchemaName,
+    infer TableName,
+    infer ColumnName
+  >
+    ? SchemaName extends keyof Schemas
+      ? TableName extends keyof Schemas[SchemaName]['tables']
+        ? Schemas[SchemaName]['tables'][TableName] extends TableSchemaComponent<
+            infer Columns,
+            infer _TableName,
+            infer _Relationships
+          >
+          ? Columns[ColumnName]
+          : never
+        : never
+      : never
+    : never;
 
 export type ValidateRelationship<
   Columns extends TableColumns,
