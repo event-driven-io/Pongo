@@ -24,6 +24,13 @@ import type {
   SchemaColumnName,
 } from './relationshipTypes';
 
+export type GetTupleLength<T extends readonly unknown[]> = T['length'];
+
+export type HaveTuplesTheSameLength<
+  T extends readonly unknown[],
+  U extends readonly unknown[],
+> = GetTupleLength<T> extends GetTupleLength<U> ? true : false;
+
 export type ValidationResult<
   Valid extends boolean,
   Error = never,
@@ -210,18 +217,6 @@ export type ValidateColumnTypePairs<
           : ValidationResult<true>
       : ValidationResult<true>
     : ValidationResult<true>;
-
-type GetArrayLength<T extends readonly unknown[]> = T['length'];
-
-export type ValidateRelationshipLength<
-  FK extends { columns: readonly unknown[]; references: readonly unknown[] },
-> =
-  GetArrayLength<FK['columns']> extends GetArrayLength<FK['references']>
-    ? ValidationResult<true>
-    : ValidationResult<
-        false,
-        `Foreign key columns and references must have the same length. Got ${GetArrayLength<FK['columns']>} columns and ${GetArrayLength<FK['references']>} references.`
-      >;
 
 export type FindInvalidColumns<
   Columns extends readonly string[],
@@ -474,12 +469,78 @@ export type ValidateReference<
       : never
     : never;
 
+export type ValidateReferences<
+  RefPath extends SchemaColumnName = SchemaColumnName,
+  ColPath extends SchemaColumnName = SchemaColumnName,
+  Schemas extends DatabaseSchemas = DatabaseSchemas,
+> =
+  ColPath extends SchemaColumnName<
+    infer SchemaName,
+    infer TableName,
+    infer Column
+  >
+    ? ValidateColumnReference<RefPath, Schemas> extends infer RefColumn
+      ? RefColumn extends AnyColumnSchemaComponent
+        ? ValidateColumnsMatch<
+            RefColumn,
+            Schemas[SchemaName]['tables'][TableName]['columns'][Column],
+            RefPath
+          >
+        : RefColumn extends {
+              valid: false;
+              error: infer E;
+            }
+          ? ValidationResult<false, E>
+          : never
+      : never
+    : never;
+
+export type CollectReferencesErrors<
+  Columns extends readonly SchemaColumnName[],
+  References extends readonly SchemaColumnName[],
+  CurrentSchema extends string,
+  CurrentTable extends string,
+  Schemas extends DatabaseSchemas = DatabaseSchemas,
+  Errors extends TypeMismatchError[] = [],
+> = Columns extends readonly [infer FirstCol, ...infer RestCols]
+  ? References extends readonly [infer FirstRef, ...infer RestRefs]
+    ? FirstCol extends SchemaColumnName
+      ? FirstRef extends SchemaColumnName
+        ? RestCols extends readonly SchemaColumnName[]
+          ? RestRefs extends readonly SchemaColumnName[]
+            ? ValidateReference<FirstRef, FirstCol, Schemas> extends {
+                valid: false;
+                error: infer E extends TypeMismatchError;
+              }
+              ? CollectReferencesErrors<
+                  RestCols,
+                  RestRefs,
+                  CurrentSchema,
+                  CurrentTable,
+                  Schemas,
+                  [...Errors, E]
+                >
+              : CollectReferencesErrors<
+                  RestCols,
+                  RestRefs,
+                  CurrentSchema,
+                  CurrentTable,
+                  Schemas,
+                  Errors
+                >
+            : Errors
+          : Errors
+        : Errors
+      : Errors
+    : Errors
+  : Errors;
+
 export type ValidateRelationship<
   Columns extends TableColumns,
   Relationship extends AnyTableRelationshipDefinitionWithColumns<
     Extract<keyof Columns, string>
   >,
-  CurrentTable extends string,
+  CurrentTableName extends string,
   Table extends AnyTableSchemaComponent = AnyTableSchemaComponent,
   Schema extends
     AnyDatabaseSchemaSchemaComponent = SchemaTablesWithSingle<Table>,
@@ -495,29 +556,36 @@ export type ValidateRelationship<
           error: infer E;
         }
       ? ValidationResult<false, E>
-      : ValidateRelationshipReferences<
-            Relationship,
-            AllColumnReferences<Schemas>,
+      : CollectReferencesErrors<
+            NormalizeColumnPath<
+              Relationship['columns'],
+              Schema['schemaName'],
+              CurrentTableName
+            >,
+            NormalizeColumnPath<
+              Relationship['references'],
+              Schema['schemaName'],
+              CurrentTableName
+            >,
             Schema['schemaName'],
-            CurrentTable
+            CurrentTableName,
+            Schemas
           > extends {
             valid: false;
             error: infer E;
           }
         ? ValidationResult<false, E>
-        : ValidateColumnTypePairs<
-              Relationship['columns'] & readonly string[],
-              Relationship['references'],
-              Columns,
-              AllColumnTypes<Schemas>,
-              Schema['schemaName'],
-              CurrentTable
-            > extends {
-              valid: false;
-              error: infer E;
-            }
-          ? ValidationResult<false, E>
-          : ValidationResult<true>;
+        : ValidationResult<true>;
+
+export type ValidateRelationshipLength<
+  FK extends { columns: readonly unknown[]; references: readonly unknown[] },
+> =
+  HaveTuplesTheSameLength<FK['columns'], FK['references']> extends true
+    ? ValidationResult<true>
+    : ValidationResult<
+        false,
+        `Foreign key columns and references must have the same length. Got ${GetTupleLength<FK['columns']>} columns and ${GetTupleLength<FK['references']>} references.`
+      >;
 
 export type ValidateTableRelationships<
   Table extends AnyTableSchemaComponent,

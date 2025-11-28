@@ -1581,7 +1581,7 @@ const schefff = {
   public: schema('public', {
     users: table('users', {
       columns: {
-        id: column('id', Integer),
+        id: column('id', Varchar('max')),
       },
     }),
     posts: table('posts', {
@@ -1685,22 +1685,22 @@ type typematch = ValidateColumnTypeMatch<
 >;
 type colMatch = ValidateColumnsMatch<rel2col, colcol, rel2norm>;
 
-// export type ValidateColumnsMatch<
-//   ReferenceColumn extends AnyColumnSchemaComponent,
-//   Column extends AnyColumnSchemaComponent,
-//   ReferencePath extends SchemaColumnName = SchemaColumnName,
-// > =
-//   Column extends ColumnSchemaComponent<infer ColumnType>
-//     ? ReferenceColumn extends ColumnSchemaComponent<infer RefColumnType>
-//       ? ValidateColumnTypeMatch<RefColumnType, ColumnType, ReferencePath>
-//       : never
-//     : never;
-
 type valm = ValidateReference<
   rel2norm,
   NormalizeColumnPath<rel1['columns'], 'public', 'posts'>[0],
   schType
 >;
+// HERE
+type valRels = ValidateRelationship<
+  postsTableColumnsType,
+  rel1,
+  postsTableNameType,
+  typeof _postsTable,
+  schType['public'],
+  schType
+>;
+
+type _Test_SameSchemaTableColumnTypeMismatch = Expect<IsError<valRels>>;
 
 type djdjd = schType['public']['tables']['users'];
 
