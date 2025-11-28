@@ -6,18 +6,23 @@ import {
 } from '../schemaComponent';
 
 export type ColumnURNType = 'sc:dumbo:column';
-export type ColumnURN = `${ColumnURNType}:${string}`;
+export type ColumnURN<ColumnName extends string = string> =
+  `${ColumnURNType}:${ColumnName}`;
 
 export const ColumnURNType: ColumnURNType = 'sc:dumbo:column';
-export const ColumnURN = ({ name }: { name: string }): ColumnURN =>
-  `${ColumnURNType}:${name}`;
+export const ColumnURN = <ColumnName extends string = string>({
+  name,
+}: {
+  name: ColumnName;
+}): ColumnURN<ColumnName> => `${ColumnURNType}:${name}`;
 
 export type ColumnSchemaComponent<
   ColumnType extends AnyColumnTypeToken | string = AnyColumnTypeToken | string,
+  ColumnName extends string = string,
 > = SchemaComponent<
-  ColumnURN,
+  ColumnURN<ColumnName>,
   Readonly<{
-    columnName: string;
+    columnName: ColumnName;
   }>
 > &
   SQLColumnToken<ColumnType>;
@@ -31,14 +36,17 @@ export type ColumnSchemaComponentOptions<
   SchemaComponentOptions;
 
 export const columnSchemaComponent = <
-  ColumnType extends AnyColumnTypeToken | string = AnyColumnTypeToken | string,
-  TOptions extends
+  const ColumnType extends AnyColumnTypeToken | string =
+    | AnyColumnTypeToken
+    | string,
+  const TOptions extends
     ColumnSchemaComponentOptions<ColumnType> = ColumnSchemaComponentOptions<ColumnType>,
+  const ColumnName extends string = string,
 >(
   params: {
-    columnName: string;
+    columnName: ColumnName;
   } & TOptions,
-): ColumnSchemaComponent<ColumnType> &
+): ColumnSchemaComponent<ColumnType, ColumnName> &
   (TOptions extends { notNull: true } | { primaryKey: true }
     ? { notNull: true }
     : { notNull?: false }) => {
@@ -66,7 +74,7 @@ export const columnSchemaComponent = <
     type,
   };
 
-  return result as ColumnSchemaComponent<ColumnType> &
+  return result as ColumnSchemaComponent<ColumnType, ColumnName> &
     (TOptions extends { notNull: true } | { primaryKey: true }
       ? { notNull: true }
       : { notNull?: false });

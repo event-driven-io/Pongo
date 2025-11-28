@@ -28,24 +28,29 @@ const DEFAULT_DATABASE_NAME = '__default_database__';
 const DEFAULT_DATABASE_SCHEMA_NAME = '__default_database_schema__';
 
 const dumboColumn = <
-  ColumnType extends AnyColumnTypeToken | string = AnyColumnTypeToken | string,
-  TOptions extends SchemaComponentOptions &
+  const ColumnType extends AnyColumnTypeToken | string =
+    | AnyColumnTypeToken
+    | string,
+  const TOptions extends SchemaComponentOptions &
     Omit<SQLColumnToken<ColumnType>, 'name' | 'type' | 'sqlTokenType'> = Omit<
     ColumnSchemaComponentOptions<ColumnType>,
     'type'
   >,
+  const ColumnName extends string = string,
 >(
-  name: string,
+  name: ColumnName,
   type: ColumnType,
   options?: TOptions,
-): ReturnType<
-  typeof columnSchemaComponent<ColumnType, TOptions & { type: ColumnType }>
-> =>
-  columnSchemaComponent<ColumnType, TOptions & { type: ColumnType }>({
+) =>
+  columnSchemaComponent<
+    ColumnType,
+    TOptions & { type: ColumnType },
+    ColumnName
+  >({
     columnName: name,
     type,
     ...options,
-  } as { columnName: string } & TOptions & { type: ColumnType });
+  } as { columnName: ColumnName } & TOptions & { type: ColumnType });
 
 const dumboIndex = (
   name: string,
