@@ -13,12 +13,12 @@ import { dumboSchema } from '../../dumboSchema';
 import type {
   AllColumnReferences,
   AllColumnTypes,
+  ColumnPathToReference,
   ExtractColumnNames,
   ExtractColumnTypeName,
   ExtractSchemaNames,
   ExtractTableNames,
   NormalizeReferences,
-  ReferenceToRecord,
   RelationshipDefinition,
 } from './relationshipTypes';
 
@@ -1669,7 +1669,7 @@ type schType = typeof schefff;
 
 type rel2norm = NormalizeReferences<rel1['references'], 'public', 'posts'>[0];
 
-type rel2tabs = ReferenceToRecord<rel1['references'][0], 'public', 'posts'>;
+type rel2tabs = ColumnPathToReference<rel1['references'][0], 'public', 'posts'>;
 
 type rel2col = ValidateReference<rel2tabs, schType>;
 

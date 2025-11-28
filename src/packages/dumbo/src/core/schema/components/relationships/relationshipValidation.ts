@@ -19,6 +19,7 @@ import type {
   LookupColumnType,
   NormalizeReference,
   NormalizeReferences,
+  SchemaColumnName,
 } from './relationshipTypes';
 
 export type ValidationResult<
@@ -317,6 +318,13 @@ export type ValidateRelationshipReferences<
       : ValidationResult<true>
     : ValidationResult<true>;
 
+export type ReferenceError<
+  ColumnPath extends SchemaColumnName = SchemaColumnName,
+> = {
+  columnPath: ColumnPath;
+  errorCode: 'missing_schema' | 'missing_table' | 'missing_column';
+};
+
 export type ValidateReference<
   ColReference extends ColumnReference,
   Schemas extends DatabaseSchemas,
@@ -334,9 +342,18 @@ export type ValidateReference<
             infer _Relationships
           >
           ? Columns[ColumnName]
-          : never
-        : never
-      : never
+          : {
+              columnPath: `${SchemaName}.${TableName}.${ColumnName}`;
+              errorCode: 'missing_column';
+            }
+        : {
+            columnPath: `${SchemaName}.${TableName}.${ColumnName}`;
+            errorCode: 'missing_table';
+          }
+      : {
+          columnPath: `${SchemaName}.${TableName}.${ColumnName}`;
+          errorCode: 'missing_schema';
+        }
     : never;
 
 export type ValidateRelationship<

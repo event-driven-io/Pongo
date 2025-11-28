@@ -143,14 +143,16 @@ export type NormalizeReferences<
   : readonly [];
 
 export type ColumnName<ColName extends string = string> = `${ColName}`;
+
 export type TableColumnName<
   TableName extends string = string,
   ColName extends string = string,
 > = `${TableName}.${ColName}`;
+
 export type SchemaColumnName<
-  SchemaName extends string,
-  TableName extends string,
-  ColumnName extends string,
+  SchemaName extends string = string,
+  TableName extends string = string,
+  ColumnName extends string = string,
 > = `${SchemaName}.${TableName}.${ColumnName}`;
 
 export type ColumnPath<
@@ -168,7 +170,7 @@ export type ColumnReference<
   ColumnName extends string = string,
 > = { schemaName: SchemaName; tableName: TableName; columnName: ColumnName };
 
-export type ReferenceToRecord<
+export type ColumnPathToReference<
   Reference extends ColumnPath = ColumnPath,
   CurrentSchema extends string = string,
   CurrentTable extends string = string,
