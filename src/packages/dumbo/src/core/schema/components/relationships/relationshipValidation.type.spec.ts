@@ -18,7 +18,7 @@ import type {
   ExtractColumnTypeName,
   ExtractSchemaNames,
   ExtractTableNames,
-  NormalizeReferences,
+  NormalizeColumnPath,
   RelationshipDefinition,
 } from './relationshipTypes';
 
@@ -163,6 +163,9 @@ type _Test12 = Expect<Equal<_CompositeReferencesType, readonly string[]>>;
 
 import type { IsError } from '../../../testing/typesTesting';
 import type {
+  ValidateColumnReference,
+  ValidateColumnsMatch,
+  ValidateColumnTypeMatch,
   ValidateDatabaseSchema,
   ValidateDatabaseSchemas,
   ValidateReference,
@@ -1667,11 +1670,37 @@ type rel1 = postsTableRelationshipsType['user'];
 
 type schType = typeof schefff;
 
-type rel2norm = NormalizeReferences<rel1['references'], 'public', 'posts'>[0];
+type rel2norm = NormalizeColumnPath<rel1['references'], 'public', 'posts'>[0];
+type relcolNorm = NormalizeColumnPath<rel1['columns'], 'public', 'posts'>[0];
 
 type rel2tabs = ColumnPathToReference<rel1['references'][0], 'public', 'posts'>;
 
-type rel2col = ValidateReference<rel2tabs, schType>;
+type rel2col = ValidateColumnReference<relcolNorm, schType>;
+type colcol = ValidateColumnReference<relcolNorm, schType>;
+
+type typematch = ValidateColumnTypeMatch<
+  rel2col['type'],
+  colcol['type'],
+  rel2norm
+>;
+type colMatch = ValidateColumnsMatch<rel2col, colcol, rel2norm>;
+
+// export type ValidateColumnsMatch<
+//   ReferenceColumn extends AnyColumnSchemaComponent,
+//   Column extends AnyColumnSchemaComponent,
+//   ReferencePath extends SchemaColumnName = SchemaColumnName,
+// > =
+//   Column extends ColumnSchemaComponent<infer ColumnType>
+//     ? ReferenceColumn extends ColumnSchemaComponent<infer RefColumnType>
+//       ? ValidateColumnTypeMatch<RefColumnType, ColumnType, ReferencePath>
+//       : never
+//     : never;
+
+type valm = ValidateReference<
+  rel2norm,
+  NormalizeColumnPath<rel1['columns'], 'public', 'posts'>[0],
+  schType
+>;
 
 type djdjd = schType['public']['tables']['users'];
 

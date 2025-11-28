@@ -1,9 +1,12 @@
 import type {
+  AnyColumnSchemaComponent,
   AnyDatabaseSchemaSchemaComponent,
+  ColumnSchemaComponent,
   DatabaseSchemas,
   DatabaseSchemaSchemaComponent,
   DatabaseSchemaTables,
 } from '..';
+import type { AnyColumnTypeToken, ColumnTypeToken } from '../../../sql';
 import type {
   AnyTableSchemaComponent,
   TableColumns,
@@ -14,11 +17,10 @@ import type {
   AllColumnTypes,
   AnyTableRelationshipDefinition,
   AnyTableRelationshipDefinitionWithColumns,
-  ColumnReference,
   ExtractColumnTypeName,
   LookupColumnType,
+  NormalizeColumnPath,
   NormalizeReference,
-  NormalizeReferences,
   SchemaColumnName,
 } from './relationshipTypes';
 
@@ -294,7 +296,7 @@ export type ValidateRelationshipReferences<
   CurrentSchema extends string,
   CurrentTable extends string,
 > =
-  NormalizeReferences<
+  NormalizeColumnPath<
     FK['references'],
     CurrentSchema,
     CurrentTable
@@ -318,18 +320,37 @@ export type ValidateRelationshipReferences<
       : ValidationResult<true>
     : ValidationResult<true>;
 
-export type ReferenceError<
+export type ColumnReferenceExistanceError<
   ColumnPath extends SchemaColumnName = SchemaColumnName,
 > = {
-  columnPath: ColumnPath;
+  valid: false;
   errorCode: 'missing_schema' | 'missing_table' | 'missing_column';
+  referencePath: ColumnPath;
 };
 
-export type ValidateReference<
-  ColReference extends ColumnReference,
+export type ColumnReferenceTypeMismatchError<
+  ReferencePath extends SchemaColumnName = SchemaColumnName,
+  ReferenceTypeName extends string = string,
+  ColumnTypeName extends string = string,
+> = {
+  valid: false;
+  errorCode: 'type_mismatch';
+  referencePath: ReferencePath;
+  referenceType: ReferenceTypeName;
+  columnTypeName: ColumnTypeName;
+};
+
+export type NoError = { valid: true };
+
+export type ColumnReferenceError =
+  | ColumnReferenceExistanceError
+  | ColumnReferenceTypeMismatchError;
+
+export type ValidateColumnReference<
+  ColReference extends SchemaColumnName,
   Schemas extends DatabaseSchemas,
 > =
-  ColReference extends ColumnReference<
+  ColReference extends SchemaColumnName<
     infer SchemaName,
     infer TableName,
     infer ColumnName
@@ -341,19 +362,116 @@ export type ValidateReference<
             infer _TableName,
             infer _Relationships
           >
-          ? Columns[ColumnName]
-          : {
-              columnPath: `${SchemaName}.${TableName}.${ColumnName}`;
-              errorCode: 'missing_column';
-            }
+          ? ColumnName extends keyof Columns
+            ? Columns[ColumnName]
+            : {
+                valid: false;
+                referencePath: `${SchemaName}.${TableName}.${ColumnName}`;
+                errorCode: 'missing_column';
+              }
+          : never
         : {
-            columnPath: `${SchemaName}.${TableName}.${ColumnName}`;
+            valid: false;
+            referencePath: `${SchemaName}.${TableName}.${ColumnName}`;
             errorCode: 'missing_table';
           }
       : {
-          columnPath: `${SchemaName}.${TableName}.${ColumnName}`;
+          valid: false;
+          referencePath: `${SchemaName}.${TableName}.${ColumnName}`;
           errorCode: 'missing_schema';
         }
+    : never;
+
+export type ValidateColumnTypeMatch<
+  RefColumnType extends AnyColumnTypeToken | string =
+    | AnyColumnTypeToken
+    | string,
+  ColumnType extends AnyColumnTypeToken | string = AnyColumnTypeToken | string,
+  ReferencePath extends SchemaColumnName = SchemaColumnName,
+> =
+  ColumnType extends ColumnTypeToken<
+    infer _JsType,
+    infer ColumnTypeName,
+    infer _TProps
+  >
+    ? RefColumnType extends ColumnTypeToken<
+        infer _JsType,
+        infer RefColumnTypeName,
+        infer _TProps
+      >
+      ? RefColumnTypeName extends ColumnTypeName
+        ? { valid: true; r: RefColumnTypeName; c: ColumnTypeName }
+        : {
+            errorCode: 'type_mismatch';
+            referencePath: ReferencePath;
+            referenceType: RefColumnTypeName;
+            columnTypeName: ColumnTypeName;
+          }
+      : RefColumnType extends ColumnTypeName
+        ? { valid: true }
+        : {
+            errorCode: 'type_mismatch';
+            referencePath: ReferencePath;
+            referenceType: RefColumnType;
+            columnTypeName: ColumnTypeName;
+          }
+    : RefColumnType extends ColumnTypeToken<
+          infer _JsType,
+          infer RefColumnTypeName,
+          infer _TProps
+        >
+      ? RefColumnTypeName extends ColumnType
+        ? { valid: true }
+        : {
+            errorCode: 'type_mismatch';
+            referencePath: ReferencePath;
+            referenceType: RefColumnTypeName;
+            columnTypeName: ColumnType;
+          }
+      : RefColumnType extends ColumnType
+        ? { valid: true }
+        : {
+            errorCode: 'type_mismatch';
+            referencePath: ReferencePath;
+            referenceType: RefColumnType;
+            columnTypeName: ColumnType;
+          };
+
+export type ValidateColumnsMatch<
+  ReferenceColumn extends AnyColumnSchemaComponent,
+  Column extends AnyColumnSchemaComponent,
+  ReferencePath extends SchemaColumnName = SchemaColumnName,
+> =
+  Column extends ColumnSchemaComponent<infer ColumnType>
+    ? ReferenceColumn extends ColumnSchemaComponent<infer RefColumnType>
+      ? ValidateColumnTypeMatch<RefColumnType, ColumnType, ReferencePath>
+      : never
+    : never;
+
+export type ValidateReference<
+  RefPath extends SchemaColumnName = SchemaColumnName,
+  ColPath extends SchemaColumnName = SchemaColumnName,
+  Schemas extends DatabaseSchemas = DatabaseSchemas,
+> =
+  ColPath extends SchemaColumnName<
+    infer SchemaName,
+    infer TableName,
+    infer Column
+  >
+    ? ValidateColumnReference<RefPath, Schemas> extends infer RefColumn
+      ? RefColumn extends AnyColumnSchemaComponent
+        ? ValidateColumnsMatch<
+            RefColumn,
+            Schemas[SchemaName]['tables'][TableName]['columns'][Column],
+            RefPath
+          >
+        : RefColumn extends {
+              valid: false;
+              error: infer E;
+            }
+          ? ValidationResult<false, E>
+          : never
+      : never
     : never;
 
 export type ValidateRelationship<

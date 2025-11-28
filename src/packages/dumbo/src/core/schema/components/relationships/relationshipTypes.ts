@@ -127,16 +127,16 @@ export type NormalizeReference<
       ? `${CurrentSchema}.${CurrentTable}.${Path}`
       : never;
 
-export type NormalizeReferences<
+export type NormalizeColumnPath<
   References extends readonly string[],
-  CurrentSchema extends string,
-  CurrentTable extends string,
+  SchemaName extends string,
+  TableName extends string,
 > = References extends readonly [infer First, ...infer Rest]
   ? First extends string
     ? Rest extends readonly string[]
       ? readonly [
-          NormalizeReference<First, CurrentSchema, CurrentTable>,
-          ...NormalizeReferences<Rest, CurrentSchema, CurrentTable>,
+          NormalizeReference<First, SchemaName, TableName>,
+          ...NormalizeColumnPath<Rest, SchemaName, TableName>,
         ]
       : readonly []
     : readonly []
