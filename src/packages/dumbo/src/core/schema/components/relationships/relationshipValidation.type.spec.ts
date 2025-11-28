@@ -1675,7 +1675,7 @@ type relcolNorm = NormalizeColumnPath<rel1['columns'], 'public', 'posts'>[0];
 
 type rel2tabs = ColumnPathToReference<rel1['references'][0], 'public', 'posts'>;
 
-type rel2col = ValidateColumnReference<relcolNorm, schType>;
+type rel2col = ValidateColumnReference<rel2norm, schType>;
 type colcol = ValidateColumnReference<relcolNorm, schType>;
 
 type typematch = ValidateColumnTypeMatch<
