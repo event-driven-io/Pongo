@@ -170,6 +170,7 @@ import type {
   CollectRelationshipErrors,
   EnsureTuple,
   EntriesToTuple,
+  ExtractValidationErrors,
   GetTupleLength,
   ValidateColumnReference,
   ValidateColumnsMatch,
@@ -179,6 +180,9 @@ import type {
   ValidateReference,
   ValidateRelationship,
   ValidateRelationshipLength,
+  ValidateSchemaTables,
+  ValidateTable,
+  ValidateTableRelationships,
 } from './relationshipValidation';
 
 type _FK_LengthMismatch = {
@@ -1612,7 +1616,7 @@ const schefff = {
   public: schema('public', {
     users: table('users', {
       columns: {
-        id: column('id', Varchar('max')),
+        id: column('id', Integer),
         idInt: column('idInt', Integer),
       },
     }),
@@ -1728,6 +1732,27 @@ type valAll = CollectRelationshipErrors<
   schType
 >;
 
+type vtr = ValidateTableRelationships<
+  typeof _postsTable,
+  schType['public'],
+  schType
+>;
+
+type vst = ValidateSchemaTables<
+  schType['public'] extends DatabaseSchemaSchemaComponent<infer Tables>
+    ? Tables
+    : never,
+  schType['public'],
+  schType
+>;
+
+type vds = ValidateDatabaseSchema<schType['public'], schType>;
+
+type jjjjvtr = ExtractValidationErrors<vtr>;
+
+type jjjj = ExtractValidationErrors<
+  ValidateTable<typeof _postsTable, schType['public'], schType>
+>;
 type fjfjf =
   EntriesToTuple<postsTableRelationshipsType> extends readonly [
     infer First,

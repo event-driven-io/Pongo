@@ -5,7 +5,6 @@ import type {
   DatabaseSchemas,
   DatabaseSchemaSchemaComponent,
   DatabaseSchemaTables,
-  ValidationResult,
 } from '..';
 import type { AnyColumnTypeToken, ColumnTypeToken } from '../../../sql';
 import type {
@@ -526,7 +525,7 @@ export type CollectReferencesErrors<
   CurrentSchema extends string,
   CurrentTable extends string,
   Schemas extends DatabaseSchemas = DatabaseSchemas,
-  Errors extends AnyValidationError[] = AnyValidationError[],
+  Errors extends AnyValidationError[] = [],
 > = Columns extends readonly [infer FirstCol, ...infer RestCols]
   ? References extends readonly [infer FirstRef, ...infer RestRefs]
     ? FirstCol extends SchemaColumnName
@@ -673,7 +672,7 @@ export type CollectRelationshipErrors<
   Schema extends
     AnyDatabaseSchemaSchemaComponent = SchemaTablesWithSingle<Table>,
   Schemas extends DatabaseSchemas = DatabaseSchemasWithSingle<Schema>,
-  Errors extends AnyValidationError[] = AnyValidationError[],
+  Errors extends AnyValidationError[] = [],
 > =
   EntriesToTuple<Relationships> extends readonly [infer First, ...infer Rest]
     ? ValidateRelationship<
@@ -727,9 +726,7 @@ export type CollectRelationshipErrors<
           Schemas,
           Errors
         >
-    : // ?Result extends AnyValidationError
-      //   ? Results extends AnyValidationError[] ? [...Results, Result] :[Result]  :never
-      Errors;
+    : Errors;
 
 export type ValidateTableRelationships<
   Table extends AnyTableSchemaComponent,
@@ -748,8 +745,7 @@ export type ValidateTableRelationships<
           error: infer E;
         }
         ? ValidationResult<false, E>
-        : // TODO: Aggregate From multiple relationships
-          CollectRelationshipErrors<
+        : CollectRelationshipErrors<
               Columns,
               Relationships,
               Table,
@@ -758,7 +754,7 @@ export type ValidateTableRelationships<
             > extends infer Results
           ? AnyValidationFailed<Results> extends true
             ? ValidationResult<false, Results>
-            : ValidationResult<true>
+            : Results
           : ValidationResult<true>
       : ValidationResult<true>
     : ValidationResult<true>;
