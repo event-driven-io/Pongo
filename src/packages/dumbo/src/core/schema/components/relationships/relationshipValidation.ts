@@ -13,8 +13,6 @@ import type {
   TableSchemaComponent,
 } from '../tableSchemaComponent';
 import type {
-  AllColumnReferences,
-  AllColumnTypes,
   AnyTableRelationshipDefinition,
   AnyTableRelationshipDefinitionWithColumns,
   ExtractColumnTypeName,
@@ -22,6 +20,7 @@ import type {
   NormalizeColumnPath,
   NormalizeReference,
   SchemaColumnName,
+  TableRelationships,
 } from './relationshipTypes';
 
 export type GetTupleLength<T extends readonly unknown[]> = T['length'];
@@ -32,9 +31,12 @@ export type HaveTuplesTheSameLength<
 > = GetTupleLength<T> extends GetTupleLength<U> ? true : false;
 
 export type ValidationResult<
-  Valid extends boolean,
+  Valid extends boolean = boolean,
   Error = never,
 > = Valid extends true ? { valid: true } : { valid: false; error: Error };
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnyValidationError = ValidationResult<false, any>;
 
 export type TypeMismatchError = {
   type: 'type_mismatch';
@@ -319,8 +321,10 @@ export type ColumnReferenceExistanceError<
   ColumnPath extends SchemaColumnName = SchemaColumnName,
 > = {
   valid: false;
-  errorCode: 'missing_schema' | 'missing_table' | 'missing_column';
-  referencePath: ColumnPath;
+  error: {
+    errorCode: 'missing_schema' | 'missing_table' | 'missing_column';
+    referencePath: ColumnPath;
+  };
 };
 
 export type ColumnReferenceTypeMismatchError<
@@ -329,10 +333,12 @@ export type ColumnReferenceTypeMismatchError<
   ColumnTypeName extends string = string,
 > = {
   valid: false;
-  errorCode: 'type_mismatch';
-  referencePath: ReferencePath;
-  referenceType: ReferenceTypeName;
-  columnTypeName: ColumnTypeName;
+  error: {
+    errorCode: 'type_mismatch';
+    referencePath: ReferencePath;
+    referenceType: ReferenceTypeName;
+    columnTypeName: ColumnTypeName;
+  };
 };
 
 export type NoError = { valid: true };
@@ -361,19 +367,25 @@ export type ValidateColumnReference<
             ? Columns[ColumnName]
             : {
                 valid: false;
-                referencePath: `${SchemaName}.${TableName}.${ColumnName}`;
-                errorCode: 'missing_column';
+                error: {
+                  errorCode: 'missing_column';
+                  referencePath: `${SchemaName}.${TableName}.${ColumnName}`;
+                };
               }
           : never
         : {
             valid: false;
-            referencePath: `${SchemaName}.${TableName}.${ColumnName}`;
-            errorCode: 'missing_table';
+            error: {
+              errorCode: 'missing_table';
+              referencePath: `${SchemaName}.${TableName}.${ColumnName}`;
+            };
           }
       : {
           valid: false;
-          referencePath: `${SchemaName}.${TableName}.${ColumnName}`;
-          errorCode: 'missing_schema';
+          error: {
+            errorCode: 'missing_schema';
+            referencePath: `${SchemaName}.${TableName}.${ColumnName}`;
+          };
         }
     : never;
 
@@ -397,18 +409,24 @@ export type ValidateColumnTypeMatch<
       ? RefColumnTypeName extends ColumnTypeName
         ? { valid: true; r: RefColumnTypeName; c: ColumnTypeName }
         : {
-            errorCode: 'type_mismatch';
-            referencePath: ReferencePath;
-            referenceType: RefColumnTypeName;
-            columnTypeName: ColumnTypeName;
+            valid: false;
+            error: {
+              errorCode: 'type_mismatch';
+              referencePath: ReferencePath;
+              referenceType: RefColumnTypeName;
+              columnTypeName: ColumnTypeName;
+            };
           }
       : RefColumnType extends ColumnTypeName
         ? { valid: true }
         : {
-            errorCode: 'type_mismatch';
-            referencePath: ReferencePath;
-            referenceType: RefColumnType;
-            columnTypeName: ColumnTypeName;
+            valid: false;
+            error: {
+              errorCode: 'type_mismatch';
+              referencePath: ReferencePath;
+              referenceType: RefColumnType;
+              columnTypeName: ColumnTypeName;
+            };
           }
     : RefColumnType extends ColumnTypeToken<
           infer _JsType,
@@ -418,18 +436,24 @@ export type ValidateColumnTypeMatch<
       ? RefColumnTypeName extends ColumnType
         ? { valid: true }
         : {
-            errorCode: 'type_mismatch';
-            referencePath: ReferencePath;
-            referenceType: RefColumnTypeName;
-            columnTypeName: ColumnType;
+            valid: false;
+            error: {
+              errorCode: 'type_mismatch';
+              referencePath: ReferencePath;
+              referenceType: RefColumnTypeName;
+              columnTypeName: ColumnType;
+            };
           }
       : RefColumnType extends ColumnType
         ? { valid: true }
         : {
-            errorCode: 'type_mismatch';
-            referencePath: ReferencePath;
-            referenceType: RefColumnType;
-            columnTypeName: ColumnType;
+            valid: false;
+            error: {
+              errorCode: 'type_mismatch';
+              referencePath: ReferencePath;
+              referenceType: RefColumnType;
+              columnTypeName: ColumnType;
+            };
           };
 
 export type ValidateColumnsMatch<
@@ -501,25 +525,31 @@ export type CollectReferencesErrors<
   CurrentSchema extends string,
   CurrentTable extends string,
   Schemas extends DatabaseSchemas = DatabaseSchemas,
-  Errors extends TypeMismatchError[] = [],
+  Errors extends AnyValidationError[] = AnyValidationError[],
 > = Columns extends readonly [infer FirstCol, ...infer RestCols]
   ? References extends readonly [infer FirstRef, ...infer RestRefs]
     ? FirstCol extends SchemaColumnName
       ? FirstRef extends SchemaColumnName
         ? RestCols extends readonly SchemaColumnName[]
           ? RestRefs extends readonly SchemaColumnName[]
-            ? ValidateReference<FirstRef, FirstCol, Schemas> extends {
-                valid: false;
-                error: infer E extends TypeMismatchError;
-              }
-              ? CollectReferencesErrors<
-                  RestCols,
-                  RestRefs,
-                  CurrentSchema,
-                  CurrentTable,
-                  Schemas,
-                  [...Errors, E]
-                >
+            ? ValidateReference<FirstRef, FirstCol, Schemas> extends infer E
+              ? E extends AnyValidationError
+                ? CollectReferencesErrors<
+                    RestCols,
+                    RestRefs,
+                    CurrentSchema,
+                    CurrentTable,
+                    Schemas,
+                    Errors extends AnyValidationError[] ? [E] : [...Errors, E]
+                  >
+                : CollectReferencesErrors<
+                    RestCols,
+                    RestRefs,
+                    CurrentSchema,
+                    CurrentTable,
+                    Schemas,
+                    Errors
+                  >
               : CollectReferencesErrors<
                   RestCols,
                   RestRefs,
@@ -534,6 +564,17 @@ export type CollectReferencesErrors<
       : Errors
     : Errors
   : Errors;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnyValidationFailed<Results = ValidationResult<boolean, any>[]> =
+  Results extends readonly [infer First, ...infer Rest]
+    ? First extends { valid: false }
+      ? true
+      : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        Rest extends ValidationResult<boolean, any>[]
+        ? AnyValidationFailed<Rest>
+        : false
+    : false;
 
 export type ValidateRelationship<
   Columns extends TableColumns,
@@ -570,11 +611,10 @@ export type ValidateRelationship<
             Schema['schemaName'],
             CurrentTableName,
             Schemas
-          > extends {
-            valid: false;
-            error: infer E;
-          }
-        ? ValidationResult<false, E>
+          > extends infer Results
+        ? AnyValidationFailed<Results> extends true
+          ? ValidationResult<false, Results>
+          : ValidationResult<true>
         : ValidationResult<true>;
 
 export type ValidateRelationshipLength<
@@ -586,6 +626,109 @@ export type ValidateRelationshipLength<
         false,
         `Foreign key columns and references must have the same length. Got ${GetTupleLength<FK['columns']>} columns and ${GetTupleLength<FK['references']>} references.`
       >;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type EnsureTuple<T> = T extends any[] ? T : [T];
+
+type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (
+  k: infer I,
+) => void
+  ? I
+  : never;
+
+type LastOfUnion<T> =
+  UnionToIntersection<T extends any ? () => T : never> extends () => infer R
+    ? R
+    : never;
+
+type UnionToTuple<T, L = LastOfUnion<T>> = [T] extends [never]
+  ? []
+  : [...UnionToTuple<Exclude<T, L>>, L];
+
+type TaggedUnion<T> = { [K in keyof T]: [K, T[K]] }[keyof T];
+
+// Transform [Key, Value] pairs into { key: Key, value: Value }
+type ToKeyValue<T extends [any, any][]> = {
+  [I in keyof T]: { key: T[I][0]; value: T[I][1] };
+};
+
+export type EntriesToTuple<T> = ToKeyValue<
+  UnionToTuple<TaggedUnion<T>> extends [any, any][]
+    ? UnionToTuple<TaggedUnion<T>>
+    : never
+>;
+
+// export type EntriesToTuple<T> = EnsureTuple<
+//   {
+//     [K in keyof T]: { key: K; val: T[K] };
+//   }[keyof T]
+// >;
+
+export type CollectRelationshipErrors<
+  Columns extends TableColumns = TableColumns,
+  Relationships extends TableRelationships<
+    keyof Columns & string
+  > = {} & TableRelationships<keyof Columns & string>,
+  Table extends AnyTableSchemaComponent = AnyTableSchemaComponent,
+  Schema extends
+    AnyDatabaseSchemaSchemaComponent = SchemaTablesWithSingle<Table>,
+  Schemas extends DatabaseSchemas = DatabaseSchemasWithSingle<Schema>,
+  Errors extends AnyValidationError[] = AnyValidationError[],
+> =
+  EntriesToTuple<Relationships> extends readonly [infer First, ...infer Rest]
+    ? ValidateRelationship<
+        Columns,
+        First extends { value: infer Rel }
+          ? Rel extends AnyTableRelationshipDefinitionWithColumns<
+              Extract<keyof Columns, string>
+            >
+            ? Rel
+            : never
+          : never,
+        Table['tableName'],
+        Table,
+        Schema,
+        Schemas
+      > extends infer Error
+      ? GetTupleLength<Rest> extends 0
+        ? Error extends AnyValidationError
+          ? GetTupleLength<Errors> extends 0
+            ? [Error]
+            : [...Errors, Error]
+          : Errors
+        : CollectRelationshipErrors<
+            Columns,
+            Omit<
+              Relationships,
+              First extends { key: infer FirstKey }
+                ? Extract<FirstKey, string>
+                : never
+            >,
+            Table,
+            Schema,
+            Schemas,
+            Error extends AnyValidationError
+              ? GetTupleLength<Errors> extends 0
+                ? [Error]
+                : [...Errors, Error]
+              : Errors
+          >
+      : // Error
+        CollectRelationshipErrors<
+          Columns,
+          Omit<
+            Relationships,
+            First extends { key: infer FirstKey }
+              ? Extract<FirstKey, string>
+              : never
+          >,
+          Table,
+          Schema,
+          Schemas,
+          Errors
+        >
+    : // ?Result extends AnyValidationError
+      //   ? Results extends AnyValidationError[] ? [...Results, Result] :[Result]  :never
+      Errors;
 
 export type ValidateTableRelationships<
   Table extends AnyTableSchemaComponent,
@@ -604,37 +747,20 @@ export type ValidateTableRelationships<
           error: infer E;
         }
         ? ValidationResult<false, E>
-        : ValidateRelationshipColumns<
+        : // TODO: Aggregate From multiple relationships
+          ValidateRelationship<
               Columns,
-              Relationships[keyof Relationships]
+              Relationships,
+              TableName,
+              Table,
+              Schema,
+              Schemas
             > extends {
               valid: false;
               error: infer E;
             }
           ? ValidationResult<false, E>
-          : ValidateRelationshipReferences<
-                Relationships[keyof Relationships],
-                AllColumnReferences<Schemas>,
-                Schema['schemaName'],
-                TableName
-              > extends {
-                valid: false;
-                error: infer E;
-              }
-            ? ValidationResult<false, E>
-            : ValidateColumnTypePairs<
-                  Relationships[keyof Relationships]['columns'],
-                  Relationships[keyof Relationships]['references'],
-                  Columns,
-                  AllColumnTypes<Schemas>,
-                  Schema['schemaName'],
-                  TableName
-                > extends {
-                  valid: false;
-                  error: infer E;
-                }
-              ? ValidationResult<false, E>
-              : ValidationResult<true>
+          : ValidationResult<true>
       : ValidationResult<true>
     : ValidationResult<true>;
 

@@ -13,6 +13,7 @@ import { dumboSchema } from '../../dumboSchema';
 import type {
   AllColumnReferences,
   AllColumnTypes,
+  AnyTableRelationshipDefinitionWithColumns,
   ColumnPathToReference,
   ExtractColumnNames,
   ExtractColumnTypeName,
@@ -20,6 +21,7 @@ import type {
   ExtractTableNames,
   NormalizeColumnPath,
   RelationshipDefinition,
+  SchemaColumnName,
 } from './relationshipTypes';
 
 const { database, schema, table, column } = dumboSchema;
@@ -163,6 +165,12 @@ type _Test12 = Expect<Equal<_CompositeReferencesType, readonly string[]>>;
 
 import type { IsError } from '../../../testing/typesTesting';
 import type {
+  AnyValidationFailed,
+  CollectReferencesErrors,
+  CollectRelationshipErrors,
+  EnsureTuple,
+  EntriesToTuple,
+  GetTupleLength,
   ValidateColumnReference,
   ValidateColumnsMatch,
   ValidateColumnTypeMatch,
@@ -1577,29 +1585,6 @@ type _Test_SelfReferenceColumnOnlyTypeMismatch = Expect<
   IsError<typeof _dbSelfReferenceColumnOnlyTypeMismatchResult>
 >;
 
-const schefff = {
-  public: schema('public', {
-    users: table('users', {
-      columns: {
-        id: column('id', Varchar('max')),
-      },
-    }),
-    posts: table('posts', {
-      columns: {
-        id: column('id', Integer),
-        user_id: column('user_id', Integer),
-      },
-      relationships: {
-        user: {
-          columns: ['user_id'],
-          references: ['users.id'],
-          type: 'many-to-one',
-        },
-      },
-    }),
-  }),
-};
-
 const _dbSameSchemaTableColumn = database('test', {
   public: schema('public', {
     users: table('users', {
@@ -1623,6 +1608,35 @@ const _dbSameSchemaTableColumn = database('test', {
   }),
 });
 
+const schefff = {
+  public: schema('public', {
+    users: table('users', {
+      columns: {
+        id: column('id', Varchar('max')),
+        idInt: column('idInt', Integer),
+      },
+    }),
+    posts: table('posts', {
+      columns: {
+        id: column('id', Integer),
+        user_id: column('user_id', Varchar('max')),
+      },
+      relationships: {
+        user: {
+          columns: ['user_id'],
+          references: ['users.id'],
+          type: 'many-to-one',
+        },
+        userelse: {
+          columns: ['user_id'],
+          references: ['users.id'],
+          type: 'many-to-one',
+        },
+      },
+    }),
+  }),
+};
+
 type _Test_SameSchemaTableColumn_Valid = Expect<
   Equal<
     typeof _dbSameSchemaTableColumn extends AnyDatabaseSchemaComponent
@@ -1639,6 +1653,11 @@ const _postsTable = table('posts', {
   },
   relationships: {
     user: {
+      columns: ['user_id'],
+      references: ['users.id'],
+      type: 'many-to-one',
+    },
+    userelse: {
       columns: ['user_id'],
       references: ['users.id'],
       type: 'many-to-one',
@@ -1691,6 +1710,100 @@ type valm = ValidateReference<
   schType
 >;
 // HERE
+
+type jfjf = postsTableRelationshipsType;
+
+// Usage
+type MyRecord = { a: string; b: number; c: boolean };
+
+type ValuesTuple = EntriesToTuple<postsTableRelationshipsType>;
+
+type jdjdd = GetTupleLength<[]>;
+
+type valAll = CollectRelationshipErrors<
+  postsTableColumnsType,
+  postsTableRelationshipsType,
+  typeof _postsTable,
+  schType['public'],
+  schType
+>;
+
+type fjfjf =
+  EntriesToTuple<postsTableRelationshipsType> extends readonly [
+    infer First,
+    ...infer Rest,
+  ]
+    ? ValidateRelationship<
+        postsTableColumnsType,
+        First extends { value: infer Rel }
+          ? Rel extends AnyTableRelationshipDefinitionWithColumns<
+              Extract<keyof postsTableColumnsType, string>
+            >
+            ? Rel
+            : never
+          : never,
+        (typeof _postsTable)['tableName'],
+        typeof _postsTable,
+        schType['public'],
+        schType
+      >
+    : never;
+
+type eodjdj = EnsureTuple<
+  postsTableRelationshipsType extends {
+    [K in keyof postsTableRelationshipsType]: postsTableRelationshipsType[K];
+  }
+    ? {
+        [K in keyof postsTableRelationshipsType]: ValidateRelationship<
+          postsTableColumnsType,
+          postsTableRelationshipsType[K] extends infer Rel
+            ? Rel extends AnyTableRelationshipDefinitionWithColumns<
+                Extract<keyof postsTableColumnsType, string>
+              >
+              ? postsTableRelationshipsType[K]
+              : never
+            : never,
+          postsTableNameType,
+          typeof _postsTable,
+          schType['public'],
+          schType
+        >;
+      }
+    : never
+>;
+
+type RelsTuple =
+  EntriesToTuple<postsTableRelationshipsType> extends readonly [
+    infer First,
+    ...infer Rest,
+  ]
+    ? GetTupleLength<Rest> extends 0
+      ? true
+      : false
+    : never;
+
+type jdjdjd = RelsTuple extends readonly [infer First, ...infer Rest]
+  ? ValidateRelationship<
+      postsTableColumnsType,
+      First extends { val: infer Rel }
+        ? Rel extends AnyTableRelationshipDefinitionWithColumns<
+            Extract<keyof postsTableColumnsType, string>
+          >
+          ? Rel
+          : never
+        : never,
+      postsTableNameType,
+      typeof _postsTable,
+      schType['public'],
+      schType
+    >
+  : never;
+
+type djddj = eodjdj['user'];
+type jfjf = djddj extends { valid: false; error: infer E } ? E : true;
+
+type f99d = Expect<IsError<djddj>>;
+
 type valRels = ValidateRelationship<
   postsTableColumnsType,
   rel1,
@@ -1700,7 +1813,63 @@ type valRels = ValidateRelationship<
   schType
 >;
 
-type _Test_SameSchemaTableColumnTypeMismatch = Expect<IsError<valRels>>;
+type relcolnorm = NormalizeColumnPath<
+  rel1['columns'],
+  schType['public']['schemaName'],
+  postsTableNameType
+>;
+
+type relrefnorm = NormalizeColumnPath<
+  rel1['references'],
+  schType['public']['schemaName'],
+  postsTableNameType
+>;
+
+type vlref = ValidateReference<relrefnorm[0], relcolnorm[0], schType>;
+
+type infrrelcolnorm = relcolnorm extends readonly [
+  infer FirstCol,
+  ...infer RestCols,
+]
+  ? relrefnorm extends readonly [infer FirstRef, ...infer RestRefs]
+    ? FirstCol extends SchemaColumnName
+      ? FirstRef extends SchemaColumnName
+        ? ValidateReference<FirstRef, FirstCol, schType> extends {
+            valid: false;
+            error: infer E;
+          }
+          ? false
+          : true
+        : false
+      : false
+    : false
+  : false;
+
+type schn = schType['public']['schemaName'];
+
+type coll = CollectReferencesErrors<
+  NormalizeColumnPath<
+    rel1['columns'],
+    schType['public']['schemaName'],
+    postsTableNameType
+  >,
+  NormalizeColumnPath<
+    rel1['references'],
+    schType['public']['schemaName'],
+    postsTableNameType
+  >,
+  schType['public']['schemaName'],
+  postsTableNameType,
+  schType
+>;
+
+type resss = AnyValidationFailed<coll>;
+
+type colf = coll extends readonly [infer Firsst, ...infer Rest]
+  ? Firsst
+  : false;
+
+type _Test_SameSchemaTableColumnTypeMismatchValRel = Expect<IsError<valRels>>;
 
 type djdjd = schType['public']['tables']['users'];
 
