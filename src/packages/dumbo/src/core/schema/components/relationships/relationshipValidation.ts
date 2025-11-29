@@ -5,6 +5,7 @@ import type {
   DatabaseSchemas,
   DatabaseSchemaSchemaComponent,
   DatabaseSchemaTables,
+  ValidationResult,
 } from '..';
 import type { AnyColumnTypeToken, ColumnTypeToken } from '../../../sql';
 import type {
@@ -748,18 +749,16 @@ export type ValidateTableRelationships<
         }
         ? ValidationResult<false, E>
         : // TODO: Aggregate From multiple relationships
-          ValidateRelationship<
+          CollectRelationshipErrors<
               Columns,
               Relationships,
-              TableName,
               Table,
               Schema,
               Schemas
-            > extends {
-              valid: false;
-              error: infer E;
-            }
-          ? ValidationResult<false, E>
+            > extends infer Results
+          ? AnyValidationFailed<Results> extends true
+            ? ValidationResult<false, Results>
+            : ValidationResult<true>
           : ValidationResult<true>
       : ValidationResult<true>
     : ValidationResult<true>;
