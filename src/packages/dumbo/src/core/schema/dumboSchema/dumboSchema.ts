@@ -1,5 +1,5 @@
 import type { AnyColumnTypeToken, SQLColumnToken } from '../../sql';
-import type { ValidateDatabaseSchemas } from '../components';
+import type { ValidateDatabaseSchemasWithMessages } from '../components';
 import {
   type AnyDatabaseSchemaSchemaComponent,
   columnSchemaComponent,
@@ -131,36 +131,12 @@ function dumboDatabaseSchema<
   });
 }
 
-dumboDatabaseSchema.from = (
-  schemaName: string | undefined,
-  tableNames: string[],
-): DatabaseSchemaSchemaComponent => {
-  const tables = tableNames.reduce(
-    (acc, tableName) => {
-      acc[tableName] = dumboTable(tableName, {});
-      return acc;
-    },
-    {} as Record<string, TableSchemaComponent>,
-  );
-
-  return schemaName
-    ? dumboDatabaseSchema(schemaName, tables)
-    : dumboDatabaseSchema(tables);
-};
-
 type ValidatedDatabaseSchemaComponent<
   Schemas extends DatabaseSchemas = DatabaseSchemas,
 > =
-  ValidateDatabaseSchemas<Schemas> extends {
-    valid: true;
-  }
-    ? DatabaseSchemaComponent<Schemas>
-    : ValidateDatabaseSchemas<Schemas> extends {
-          valid: false;
-          error: infer E;
-        }
-      ? { valid: false; error: E }
-      : DatabaseSchemaComponent<Schemas>;
+  ValidateDatabaseSchemasWithMessages<Schemas> extends string
+    ? ValidateDatabaseSchemasWithMessages<Schemas>
+    : DatabaseSchemaComponent<Schemas>;
 
 function dumboDatabase<Schemas extends DatabaseSchemas = DatabaseSchemas>(
   schemas: Schemas,
@@ -193,6 +169,7 @@ function dumboDatabase<Schemas extends DatabaseSchemas = DatabaseSchemas>(
     typeof nameOrSchemas === 'string'
       ? (schemasOrOptions ?? {})
       : nameOrSchemas;
+
   const schemaMap: Record<string, DatabaseSchemaSchemaComponent> =
     'schemaComponentKey' in schemasOrSchema &&
     isSchemaComponentOfType<DatabaseSchemaSchemaComponent>(
@@ -216,26 +193,6 @@ function dumboDatabase<Schemas extends DatabaseSchemas = DatabaseSchemas>(
     ...dbOptions,
   }) as ValidatedDatabaseSchemaComponent<Schemas>;
 }
-
-dumboDatabase.from = <Schemas extends DatabaseSchemas = DatabaseSchemas>(
-  databaseName: string | undefined,
-  schemaNames: string[],
-): ValidatedDatabaseSchemaComponent<Schemas> => {
-  const schemas = schemaNames.reduce(
-    (acc, schemaName) => {
-      acc[schemaName] = dumboDatabaseSchema(
-        schemaName,
-        {} as DatabaseSchemaTables,
-      );
-      return acc;
-    },
-    {} as Record<string, DatabaseSchemaSchemaComponent>,
-  ) as Schemas;
-
-  return databaseName
-    ? dumboDatabase(databaseName, schemas)
-    : dumboDatabase(schemas);
-};
 
 dumboDatabase.defaultName = DEFAULT_DATABASE_NAME;
 dumboDatabaseSchema.defaultName = DEFAULT_DATABASE_SCHEMA_NAME;

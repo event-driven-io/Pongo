@@ -5,7 +5,6 @@ import type {
   DatabaseSchemas,
   DatabaseSchemaSchemaComponent,
 } from '..';
-import type { FormatValidationErrors } from './formatRelationshipErrors';
 import type { AnyColumnTypeToken, ColumnTypeToken } from '../../../sql';
 import type {
   ALL,
@@ -32,6 +31,7 @@ import type {
   TableColumns,
   TableSchemaComponent,
 } from '../tableSchemaComponent';
+import type { FormatValidationErrors } from './formatRelationshipErrors';
 import type {
   AnyTableRelationshipDefinition,
   AnyTableRelationshipDefinitionWithColumns,
@@ -506,7 +506,11 @@ export type ValidateDatabaseSchemas<Schemas extends DatabaseSchemas> =
 
 export type ValidateDatabaseSchemasWithMessages<
   Schemas extends DatabaseSchemas,
-> = FormatValidationErrors<ValidateDatabaseSchemas<Schemas>>;
+> =
+  ValidateDatabaseSchemas<Schemas> extends infer Result extends
+    AnyTypeValidationError
+    ? FormatValidationErrors<Result>
+    : Schemas;
 
 // TODO: Use in DatabaseSchema schema component validation
 // export type ValidatedSchemaComponent<

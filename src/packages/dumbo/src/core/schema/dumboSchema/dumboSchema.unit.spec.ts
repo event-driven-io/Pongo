@@ -127,18 +127,6 @@ void describe('dumboSchema', () => {
     assert.strictEqual(db.schemas.size, 1);
     assert.ok(db.schemas.has(dumboSchema.schema.defaultName));
   });
-
-  void it('should create schema from table names', () => {
-    const sch = schema.from('public', ['users', 'posts']);
-    assert.strictEqual(sch.schemaName, 'public');
-    assert.strictEqual(sch.tables.size, 2);
-  });
-
-  void it('should create database from schema names', () => {
-    const db = database.from('myapp', ['public', 'analytics']);
-    assert.strictEqual(db.databaseName, 'myapp');
-    assert.strictEqual(db.schemas.size, 2);
-  });
 });
 
 // Samples
