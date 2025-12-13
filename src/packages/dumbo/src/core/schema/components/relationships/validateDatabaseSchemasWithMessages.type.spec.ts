@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import { SQL } from '../../../sql';
 import type { Equals, Expect } from '../../../testing';
+import type { TypeValidationError } from '../../../typing';
 import { dumboSchema } from '../../dumboSchema';
 import { relationship } from './relationshipTypes';
 import type { ValidateDatabaseSchemasWithMessages } from './relationshipValidation';
@@ -67,12 +68,24 @@ void describe('ValidateDatabaseSchemasWithMessages', () => {
 
     type Result = ValidateDatabaseSchemasWithMessages<TestSchemas>;
 
-    type Expected = `Relationship validation errors:
-
-Schema "public":
-  Table "invalid":
-    Relationship "bad_rel":
-      - Column count mismatch: 2 columns ([col1, col2]) but 1 references ([public.users.id])`;
+    type Expected = TypeValidationError<{
+      _error: 'RELATIONSHIP_VALIDATION_FAILED';
+      schemas: {
+        public: {
+          tables: {
+            invalid: {
+              relationships: {
+                bad_rel: {
+                  errors: [
+                    'Column count mismatch: 2 columns ([col1, col2]) but 1 references ([public.users.id])',
+                  ];
+                };
+              };
+            };
+          };
+        };
+      };
+    }>;
 
     type _Then = Expect<Equals<Result, Expected>>;
   });
@@ -97,12 +110,24 @@ Schema "public":
 
     type Result = ValidateDatabaseSchemasWithMessages<TestSchemas>;
 
-    type Expected = `Relationship validation errors:
-
-Schema "public":
-  Table "posts":
-    Relationship "user":
-      - Schema "nonexistent" does not exist (nonexistent.users.id)`;
+    type Expected = TypeValidationError<{
+      _error: 'RELATIONSHIP_VALIDATION_FAILED';
+      schemas: {
+        public: {
+          tables: {
+            posts: {
+              relationships: {
+                user: {
+                  errors: [
+                    'Schema "nonexistent" does not exist (nonexistent.users.id)',
+                  ];
+                };
+              };
+            };
+          };
+        };
+      };
+    }>;
 
     type _Then = Expect<Equals<Result, Expected>>;
   });
@@ -131,12 +156,24 @@ Schema "public":
 
     type Result = ValidateDatabaseSchemasWithMessages<TestSchemas>;
 
-    type Expected = `Relationship validation errors:
-
-Schema "public":
-  Table "posts":
-    Relationship "user":
-      - Table "nonexistent" does not exist in schema "public" (public.nonexistent.id)`;
+    type Expected = TypeValidationError<{
+      _error: 'RELATIONSHIP_VALIDATION_FAILED';
+      schemas: {
+        public: {
+          tables: {
+            posts: {
+              relationships: {
+                user: {
+                  errors: [
+                    'Table "nonexistent" does not exist in schema "public" (public.nonexistent.id)',
+                  ];
+                };
+              };
+            };
+          };
+        };
+      };
+    }>;
 
     type _Then = Expect<Equals<Result, Expected>>;
   });
@@ -166,12 +203,24 @@ Schema "public":
 
     type Result = ValidateDatabaseSchemasWithMessages<TestSchemas>;
 
-    type Expected = `Relationship validation errors:
-
-Schema "public":
-  Table "posts":
-    Relationship "user":
-      - Column "nonexistent" does not exist in table "public.users" (public.users.nonexistent)`;
+    type Expected = TypeValidationError<{
+      _error: 'RELATIONSHIP_VALIDATION_FAILED';
+      schemas: {
+        public: {
+          tables: {
+            posts: {
+              relationships: {
+                user: {
+                  errors: [
+                    'Column "nonexistent" does not exist in table "public.users" (public.users.nonexistent)',
+                  ];
+                };
+              };
+            };
+          };
+        };
+      };
+    }>;
 
     type _Then = Expect<Equals<Result, Expected>>;
   });
@@ -203,12 +252,24 @@ Schema "public":
 
     type Result = ValidateDatabaseSchemasWithMessages<TestSchemas>;
 
-    type Expected = `Relationship validation errors:
-
-Schema "public":
-  Table "posts":
-    Relationship "user":
-      - Type mismatch: column type "INTEGER" does not match referenced column type "BIGINT" (public.users.id)`;
+    type Expected = TypeValidationError<{
+      _error: 'RELATIONSHIP_VALIDATION_FAILED';
+      schemas: {
+        public: {
+          tables: {
+            posts: {
+              relationships: {
+                user: {
+                  errors: [
+                    'Type mismatch: column type "INTEGER" does not match referenced column type "BIGINT" (public.users.id)',
+                  ];
+                };
+              };
+            };
+          };
+        };
+      };
+    }>;
 
     type _Then = Expect<Equals<Result, Expected>>;
   });
@@ -239,12 +300,24 @@ Schema "public":
 
     type Result = ValidateDatabaseSchemasWithMessages<TestSchemas>;
 
-    type Expected = `Relationship validation errors:
-
-Schema "public":
-  Table "posts":
-    Relationship "bad_rel":
-      - Column count mismatch: 2 columns ([col1, col2]) but 1 references ([public.users.id])`;
+    type Expected = TypeValidationError<{
+      _error: 'RELATIONSHIP_VALIDATION_FAILED';
+      schemas: {
+        public: {
+          tables: {
+            posts: {
+              relationships: {
+                bad_rel: {
+                  errors: [
+                    'Column count mismatch: 2 columns ([col1, col2]) but 1 references ([public.users.id])',
+                  ];
+                };
+              };
+            };
+          };
+        };
+      };
+    }>;
 
     type _Then = Expect<Equals<Result, Expected>>;
   });
@@ -272,14 +345,29 @@ Schema "public":
 
     type Result = ValidateDatabaseSchemasWithMessages<TestSchemas>;
 
-    type Expected = `Relationship validation errors:
-
-Schema "public":
-  Table "posts":
-    Relationship "user":
-      - Schema "nonexistent" does not exist (nonexistent.users.id)
-    Relationship "author":
-      - Type mismatch: column type "BIGINT" does not match referenced column type "INTEGER" (public.users.id)`;
+    type Expected = TypeValidationError<{
+      _error: 'RELATIONSHIP_VALIDATION_FAILED';
+      schemas: {
+        public: {
+          tables: {
+            posts: {
+              relationships: {
+                user: {
+                  errors: [
+                    'Schema "nonexistent" does not exist (nonexistent.users.id)',
+                  ];
+                };
+                author: {
+                  errors: [
+                    'Type mismatch: column type "BIGINT" does not match referenced column type "INTEGER" (public.users.id)',
+                  ];
+                };
+              };
+            };
+          };
+        };
+      };
+    }>;
 
     type _Then = Expect<Equals<Result, Expected>>;
   });
@@ -322,15 +410,33 @@ Schema "public":
 
     type Result = ValidateDatabaseSchemasWithMessages<TestSchemas>;
 
-    type Expected = `Relationship validation errors:
-
-Schema "public":
-  Table "posts":
-    Relationship "user":
-      - Table "nonexistent" does not exist in schema "public" (public.nonexistent.id)
-  Table "comments":
-    Relationship "post":
-      - Column "nonexistent" does not exist in table "public.posts" (public.posts.nonexistent)`;
+    type Expected = TypeValidationError<{
+      _error: 'RELATIONSHIP_VALIDATION_FAILED';
+      schemas: {
+        public: {
+          tables: {
+            posts: {
+              relationships: {
+                user: {
+                  errors: [
+                    'Table "nonexistent" does not exist in schema "public" (public.nonexistent.id)',
+                  ];
+                };
+              };
+            };
+            comments: {
+              relationships: {
+                post: {
+                  errors: [
+                    'Column "nonexistent" does not exist in table "public.posts" (public.posts.nonexistent)',
+                  ];
+                };
+              };
+            };
+          };
+        };
+      };
+    }>;
 
     type _Then = Expect<Equals<Result, Expected>>;
   });
@@ -370,16 +476,37 @@ Schema "public":
 
     type Result = ValidateDatabaseSchemasWithMessages<TestSchemas>;
 
-    type Expected = `Relationship validation errors:
-
-Schema "public":
-  Table "posts":
-    Relationship "user":
-      - Type mismatch: column type "BIGINT" does not match referenced column type "INTEGER" (public.users.id)
-Schema "auth":
-  Table "sessions":
-    Relationship "user":
-      - Table "users" does not exist in schema "auth" (auth.users.id)`;
+    type Expected = TypeValidationError<{
+      _error: 'RELATIONSHIP_VALIDATION_FAILED';
+      schemas: {
+        public: {
+          tables: {
+            posts: {
+              relationships: {
+                user: {
+                  errors: [
+                    'Type mismatch: column type "BIGINT" does not match referenced column type "INTEGER" (public.users.id)',
+                  ];
+                };
+              };
+            };
+          };
+        };
+        auth: {
+          tables: {
+            sessions: {
+              relationships: {
+                user: {
+                  errors: [
+                    'Table "users" does not exist in schema "auth" (auth.users.id)',
+                  ];
+                };
+              };
+            };
+          };
+        };
+      };
+    }>;
 
     type _Then = Expect<Equals<Result, Expected>>;
   });

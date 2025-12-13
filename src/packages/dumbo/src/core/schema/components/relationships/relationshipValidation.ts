@@ -31,7 +31,6 @@ import type {
   TableColumns,
   TableSchemaComponent,
 } from '../tableSchemaComponent';
-import type { FormatValidationErrors } from './formatRelationshipErrors';
 import type {
   AnyTableRelationshipDefinition,
   AnyTableRelationshipDefinitionWithColumns,
@@ -39,6 +38,7 @@ import type {
   SchemaColumnName,
   TableRelationships,
 } from './relationshipTypes';
+import type { StructureValidationErrors } from './structureRelationshipErrors';
 
 export type RelationshipColumnsMismatchError<
   ColumnPath extends SchemaColumnName = SchemaColumnName,
@@ -509,7 +509,7 @@ export type ValidateDatabaseSchemasWithMessages<
 > =
   ValidateDatabaseSchemas<Schemas> extends infer Result extends
     AnyTypeValidationError
-    ? FormatValidationErrors<Result>
+    ? StructureValidationErrors<Result>
     : Schemas;
 
 // TODO: Use in DatabaseSchema schema component validation
