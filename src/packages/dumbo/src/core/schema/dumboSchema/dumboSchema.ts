@@ -134,7 +134,7 @@ function dumboDatabaseSchema<
 type ValidatedDatabaseSchemaComponent<
   Schemas extends DatabaseSchemas = DatabaseSchemas,
 > =
-  ValidateDatabaseSchemasWithMessages<Schemas> extends string
+  ValidateDatabaseSchemasWithMessages<Schemas> extends { _error: string }
     ? ValidateDatabaseSchemasWithMessages<Schemas>
     : DatabaseSchemaComponent<Schemas>;
 

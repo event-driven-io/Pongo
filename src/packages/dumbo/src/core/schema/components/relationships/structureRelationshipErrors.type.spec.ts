@@ -31,24 +31,21 @@ void describe('StructureValidationErrors', () => {
 
     type Result = StructureValidationErrors<Input>;
 
-    type Expected = TypeValidationError<{
-      _error: 'RELATIONSHIP_VALIDATION_FAILED';
-      schemas: {
+    type Expected = TypeValidationError<
+      {
+        _error: 'SCHEMA_VALIDATION_FAILED';
+      } & {
         public: {
-          tables: {
-            posts: {
-              relationships: {
-                user: {
-                  errors: [
-                    'Schema "nonexistent" does not exist (nonexistent.users.id)',
-                  ];
-                };
-              };
+          posts: {
+            relationships: {
+              user: [
+                "relationship public.posts.user: schema 'nonexistent' not found",
+              ];
             };
           };
         };
-      };
-    }>;
+      }
+    >;
 
     type _Then = Expect<Equals<Result, Expected>>;
   });
