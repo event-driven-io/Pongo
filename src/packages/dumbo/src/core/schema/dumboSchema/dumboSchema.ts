@@ -1,7 +1,6 @@
 import type { AnyColumnTypeToken, SQLColumnToken } from '../../sql';
 import type { ValidateDatabaseSchemasWithMessages } from '../components';
 import {
-  type AnyDatabaseSchemaSchemaComponent,
   columnSchemaComponent,
   type ColumnSchemaComponentOptions,
   databaseSchemaComponent,
@@ -18,11 +17,7 @@ import {
   tableSchemaComponent,
   type TableSchemaComponent,
 } from '../components';
-import {
-  type AnySchemaComponent,
-  isSchemaComponentOfType,
-  type SchemaComponentOptions,
-} from '../schemaComponent';
+import { type SchemaComponentOptions } from '../schemaComponent';
 
 const DEFAULT_DATABASE_NAME = '__default_database__';
 const DEFAULT_DATABASE_SCHEMA_NAME = '__default_database_schema__';
@@ -134,63 +129,24 @@ function dumboDatabaseSchema<
 type ValidatedDatabaseSchemaComponent<
   Schemas extends DatabaseSchemas = DatabaseSchemas,
 > =
-  ValidateDatabaseSchemasWithMessages<Schemas> extends { _error: string }
-    ? ValidateDatabaseSchemasWithMessages<Schemas>
-    : DatabaseSchemaComponent<Schemas>;
+  ValidateDatabaseSchemasWithMessages<Schemas> extends { valid: true }
+    ? DatabaseSchemaComponent<Schemas>
+    : ValidateDatabaseSchemasWithMessages<Schemas> extends {
+          valid: false;
+          error: infer E;
+        }
+      ? { valid: false; error: E }
+      : DatabaseSchemaComponent<Schemas>;
 
 function dumboDatabase<Schemas extends DatabaseSchemas = DatabaseSchemas>(
-  schemas: Schemas,
-): ValidatedDatabaseSchemaComponent<Schemas>;
-function dumboDatabase<Schemas extends DatabaseSchemas = DatabaseSchemas>(
-  schema: DatabaseSchemaSchemaComponent,
-): ValidatedDatabaseSchemaComponent<Schemas>;
-function dumboDatabase<Schemas extends DatabaseSchemas = DatabaseSchemas>(
   databaseName: string,
-  schemas: Schemas,
-  options?: SchemaComponentOptions,
-): ValidatedDatabaseSchemaComponent<Schemas>;
-function dumboDatabase<Schemas extends DatabaseSchemas = DatabaseSchemas>(
-  databaseName: string,
-  schema: AnyDatabaseSchemaSchemaComponent,
-  options?: SchemaComponentOptions,
-): ValidatedDatabaseSchemaComponent<Schemas>;
-function dumboDatabase<Schemas extends DatabaseSchemas = DatabaseSchemas>(
-  nameOrSchemas: string | DatabaseSchemaSchemaComponent | Schemas,
-  schemasOrOptions?:
-    | DatabaseSchemaSchemaComponent
-    | Schemas
-    | SchemaComponentOptions,
+  schemas: ValidateDatabaseSchemasWithMessages<Schemas>,
   options?: SchemaComponentOptions,
 ): ValidatedDatabaseSchemaComponent<Schemas> {
-  const databaseName =
-    typeof nameOrSchemas === 'string' ? nameOrSchemas : DEFAULT_DATABASE_NAME;
-
-  const schemasOrSchema =
-    typeof nameOrSchemas === 'string'
-      ? (schemasOrOptions ?? {})
-      : nameOrSchemas;
-
-  const schemaMap: Record<string, DatabaseSchemaSchemaComponent> =
-    'schemaComponentKey' in schemasOrSchema &&
-    isSchemaComponentOfType<DatabaseSchemaSchemaComponent>(
-      schemasOrSchema as AnySchemaComponent,
-      'sc:dumbo:database_schema',
-    )
-      ? {
-          [DEFAULT_DATABASE_SCHEMA_NAME]:
-            schemasOrSchema as DatabaseSchemaSchemaComponent,
-        }
-      : (schemasOrSchema as Record<string, DatabaseSchemaSchemaComponent>);
-
-  const dbOptions: typeof options =
-    typeof nameOrSchemas === 'string'
-      ? options
-      : (schemasOrOptions as typeof options);
-
   return databaseSchemaComponent({
     databaseName,
-    schemas: schemaMap as Schemas,
-    ...dbOptions,
+    schemas: schemas as Schemas,
+    ...(options ?? {}),
   }) as ValidatedDatabaseSchemaComponent<Schemas>;
 }
 

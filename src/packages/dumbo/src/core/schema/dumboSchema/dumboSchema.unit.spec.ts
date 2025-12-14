@@ -76,22 +76,6 @@ void describe('dumboSchema', () => {
     assert.strictEqual(sch.tables.size, 1);
   });
 
-  void it('should create a default database', () => {
-    const db = database({
-      public: schema('public', {
-        users: table('users', {
-          columns: {
-            id: column('id', Varchar('max')),
-          },
-        }),
-      }),
-    });
-
-    assert.strictEqual(db.databaseName, dumboSchema.database.defaultName);
-    assert.strictEqual(db.schemas.size, 1);
-    assert.ok(db.schemas.has('public'));
-  });
-
   void it('should create a named database', () => {
     const db = database('myapp', {
       public: schema('public', {
@@ -110,30 +94,11 @@ void describe('dumboSchema', () => {
     assert.ok(db.schemas.public.tables.users !== undefined);
     assert.ok(db.schemas.public.tables.users.columns.id !== undefined);
   });
-
-  void it('should handle DEFAULT_SCHEMA', () => {
-    const db = database(
-      'myapp',
-      schema({
-        users: table('users', {
-          columns: {
-            id: column('id', Varchar('max')),
-          },
-        }),
-      }),
-    );
-
-    assert.strictEqual(db.databaseName, 'myapp');
-    assert.strictEqual(db.schemas.size, 1);
-    assert.ok(db.schemas.has(dumboSchema.schema.defaultName));
-  });
 });
 
 // Samples
 
-// Simple database with tables in default schema
-
-const users = table('users', {
+const _users = table('users', {
   columns: {
     id: column('id', Varchar('max'), { primaryKey: true, notNull: true }),
     email: column('email', Varchar('max'), { notNull: true }),
@@ -158,13 +123,6 @@ const _users2 = table('users', {
     },
   },
 });
-
-export const simpleDb = database(
-  'myapp',
-  schema({
-    users,
-  }),
-);
 
 // Database with multiple schemas
 const multiSchemaDb = database('myapp', {
@@ -371,5 +329,123 @@ void describe('Foreign Key Validation', () => {
       db.schemas.analytics.tables.events.relationships.user.references,
       ['public.users.id'],
     );
+  });
+
+  void it('should reject invalid schema at compile time - missing schema', () => {
+    const _db = database('test', {
+      // @ts-expect-error - Should reject schema with type mismatch in foreign key
+      public: schema('public', {
+        posts: table('posts', {
+          columns: {
+            user_id: column('user_id', Varchar('max')),
+          },
+          relationships: {
+            user: {
+              columns: ['user_id'],
+              references: ['nonexistent.users.id'],
+              type: 'many-to-one',
+            },
+          },
+        }),
+      }),
+    });
+  });
+
+  void it('should reject invalid schema at compile time - missing table', () => {
+    const _db = database('test', {
+      // @ts-expect-error - Should reject schema with type mismatch in foreign key
+      public: schema('public', {
+        posts: table('posts', {
+          columns: {
+            user_id: column('user_id', Varchar('max')),
+          },
+          relationships: {
+            user: {
+              columns: ['user_id'],
+              references: ['public.nonexistent.id'],
+              type: 'many-to-one',
+            },
+          },
+        }),
+      }),
+    });
+  });
+
+  void it('should reject invalid schema at compile time - missing column', () => {
+    const _db = database('test', {
+      // @ts-expect-error - Should reject schema with type mismatch in foreign key
+      public: schema('public', {
+        users: table('users', {
+          columns: {
+            id: column('id', Varchar('max')),
+          },
+        }),
+        posts: table('posts', {
+          columns: {
+            user_id: column('user_id', Varchar('max')),
+          },
+          relationships: {
+            user: {
+              columns: ['user_id'],
+              references: ['public.users.nonexistent'],
+              type: 'many-to-one',
+            },
+          },
+        }),
+      }),
+    });
+  });
+
+  void it('should reject invalid schema at compile time - type mismatch', () => {
+    const { Integer, BigInteger } = SQL.column.type;
+
+    const _db = database('test', {
+      // @ts-expect-error - Should reject schema with type mismatch in foreign key
+      public: schema('public', {
+        users: table('users', {
+          columns: {
+            id: column('id', BigInteger),
+          },
+        }),
+        posts: table('posts', {
+          columns: {
+            user_id: column('user_id', Integer),
+          },
+          relationships: {
+            user: {
+              columns: ['user_id'],
+              references: ['public.users.id'],
+              type: 'many-to-one',
+            },
+          },
+        }),
+      }),
+    });
+  });
+
+  void it('should reject invalid schema at compile time - column count mismatch', () => {
+    const _db = database('test', {
+      // @ts-expect-error - Should reject schema with type mismatch in foreign key
+      public: schema('public', {
+        users: table('users', {
+          columns: {
+            id: column('id', Varchar('max')),
+          },
+        }),
+        posts: table('posts', {
+          columns: {
+            user_id: column('user_id', Varchar('max')),
+            tenant_id: column('tenant_id', Varchar('max')),
+          },
+          relationships: {
+            user: {
+              columns: ['user_id', 'tenant_id'],
+              references: ['public.users.id'],
+              type: 'many-to-one',
+            },
+          },
+        }),
+      }),
+    });
   });
 });
