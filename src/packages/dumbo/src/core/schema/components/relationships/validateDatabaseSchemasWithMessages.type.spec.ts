@@ -68,21 +68,17 @@ void describe('ValidateDatabaseSchemasWithMessages', () => {
 
     type Result = ValidateDatabaseSchemasWithMessages<TestSchemas>;
 
-    type Expected = TypeValidationError<
-      {
-        _error: 'SCHEMA_VALIDATION_FAILED';
-      } & {
-        public: {
-          invalid: {
-            relationships: {
-              bad_rel: [
-                'relationship public.invalid.bad_rel: column count mismatch: 2 local [col1, col2], 1 reference [public.users.id]',
-              ];
-            };
+    type Expected = TypeValidationError<{
+      public: {
+        invalid: {
+          relationships: {
+            bad_rel: [
+              'relationship public.invalid.bad_rel: column count mismatch: 2 local [col1, col2], 1 reference [public.users.id]',
+            ];
           };
         };
-      }
-    >;
+      };
+    }>;
 
     type _Then = Expect<Equals<Result, Expected>>;
   });
@@ -107,21 +103,17 @@ void describe('ValidateDatabaseSchemasWithMessages', () => {
 
     type Result = ValidateDatabaseSchemasWithMessages<TestSchemas>;
 
-    type Expected = TypeValidationError<
-      {
-        _error: 'SCHEMA_VALIDATION_FAILED';
-      } & {
-        public: {
-          posts: {
-            relationships: {
-              user: [
-                "relationship public.posts.user: schema 'nonexistent' not found",
-              ];
-            };
+    type Expected = TypeValidationError<{
+      public: {
+        posts: {
+          relationships: {
+            user: [
+              "relationship public.posts.user: schema 'nonexistent' not found",
+            ];
           };
         };
-      }
-    >;
+      };
+    }>;
 
     type _Then = Expect<Equals<Result, Expected>>;
   });
@@ -150,21 +142,17 @@ void describe('ValidateDatabaseSchemasWithMessages', () => {
 
     type Result = ValidateDatabaseSchemasWithMessages<TestSchemas>;
 
-    type Expected = TypeValidationError<
-      {
-        _error: 'SCHEMA_VALIDATION_FAILED';
-      } & {
-        public: {
-          posts: {
-            relationships: {
-              user: [
-                "relationship public.posts.user: table 'public.nonexistent' not found",
-              ];
-            };
+    type Expected = TypeValidationError<{
+      public: {
+        posts: {
+          relationships: {
+            user: [
+              "relationship public.posts.user: table 'public.nonexistent' not found",
+            ];
           };
         };
-      }
-    >;
+      };
+    }>;
 
     type _Then = Expect<Equals<Result, Expected>>;
   });
@@ -194,21 +182,17 @@ void describe('ValidateDatabaseSchemasWithMessages', () => {
 
     type Result = ValidateDatabaseSchemasWithMessages<TestSchemas>;
 
-    type Expected = TypeValidationError<
-      {
-        _error: 'SCHEMA_VALIDATION_FAILED';
-      } & {
-        public: {
-          posts: {
-            relationships: {
-              user: [
-                "relationship public.posts.user: column 'public.users.nonexistent' not found",
-              ];
-            };
+    type Expected = TypeValidationError<{
+      public: {
+        posts: {
+          relationships: {
+            user: [
+              "relationship public.posts.user: column 'public.users.nonexistent' not found",
+            ];
           };
         };
-      }
-    >;
+      };
+    }>;
 
     type _Then = Expect<Equals<Result, Expected>>;
   });
@@ -240,21 +224,17 @@ void describe('ValidateDatabaseSchemasWithMessages', () => {
 
     type Result = ValidateDatabaseSchemasWithMessages<TestSchemas>;
 
-    type Expected = TypeValidationError<
-      {
-        _error: 'SCHEMA_VALIDATION_FAILED';
-      } & {
-        public: {
-          posts: {
-            relationships: {
-              user: [
-                'relationship public.posts.user: type mismatch INTEGER → BIGINT at public.users.id',
-              ];
-            };
+    type Expected = TypeValidationError<{
+      public: {
+        posts: {
+          relationships: {
+            user: [
+              'relationship public.posts.user: type mismatch INTEGER → BIGINT at public.users.id',
+            ];
           };
         };
-      }
-    >;
+      };
+    }>;
 
     type _Then = Expect<Equals<Result, Expected>>;
   });
@@ -285,21 +265,17 @@ void describe('ValidateDatabaseSchemasWithMessages', () => {
 
     type Result = ValidateDatabaseSchemasWithMessages<TestSchemas>;
 
-    type Expected = TypeValidationError<
-      {
-        _error: 'SCHEMA_VALIDATION_FAILED';
-      } & {
-        public: {
-          posts: {
-            relationships: {
-              bad_rel: [
-                'relationship public.posts.bad_rel: column count mismatch: 2 local [col1, col2], 1 reference [public.users.id]',
-              ];
-            };
+    type Expected = TypeValidationError<{
+      public: {
+        posts: {
+          relationships: {
+            bad_rel: [
+              'relationship public.posts.bad_rel: column count mismatch: 2 local [col1, col2], 1 reference [public.users.id]',
+            ];
           };
         };
-      }
-    >;
+      };
+    }>;
 
     type _Then = Expect<Equals<Result, Expected>>;
   });
@@ -327,24 +303,20 @@ void describe('ValidateDatabaseSchemasWithMessages', () => {
 
     type Result = ValidateDatabaseSchemasWithMessages<TestSchemas>;
 
-    type Expected = TypeValidationError<
-      {
-        _error: 'SCHEMA_VALIDATION_FAILED';
-      } & {
-        public: {
-          posts: {
-            relationships: {
-              user: [
-                "relationship public.posts.user: schema 'nonexistent' not found",
-              ];
-              author: [
-                'relationship public.posts.author: type mismatch BIGINT → INTEGER at public.users.id',
-              ];
-            };
+    type Expected = TypeValidationError<{
+      public: {
+        posts: {
+          relationships: {
+            user: [
+              "relationship public.posts.user: schema 'nonexistent' not found",
+            ];
+            author: [
+              'relationship public.posts.author: type mismatch BIGINT → INTEGER at public.users.id',
+            ];
           };
         };
-      }
-    >;
+      };
+    }>;
 
     type _Then = Expect<Equals<Result, Expected>>;
   });
@@ -387,28 +359,24 @@ void describe('ValidateDatabaseSchemasWithMessages', () => {
 
     type Result = ValidateDatabaseSchemasWithMessages<TestSchemas>;
 
-    type Expected = TypeValidationError<
-      {
-        _error: 'SCHEMA_VALIDATION_FAILED';
-      } & {
-        public: {
-          posts: {
-            relationships: {
-              user: [
-                "relationship public.posts.user: table 'public.nonexistent' not found",
-              ];
-            };
-          };
-          comments: {
-            relationships: {
-              post: [
-                "relationship public.comments.post: column 'public.posts.nonexistent' not found",
-              ];
-            };
+    type Expected = TypeValidationError<{
+      public: {
+        posts: {
+          relationships: {
+            user: [
+              "relationship public.posts.user: table 'public.nonexistent' not found",
+            ];
           };
         };
-      }
-    >;
+        comments: {
+          relationships: {
+            post: [
+              "relationship public.comments.post: column 'public.posts.nonexistent' not found",
+            ];
+          };
+        };
+      };
+    }>;
 
     type _Then = Expect<Equals<Result, Expected>>;
   });
@@ -448,30 +416,26 @@ void describe('ValidateDatabaseSchemasWithMessages', () => {
 
     type Result = ValidateDatabaseSchemasWithMessages<TestSchemas>;
 
-    type Expected = TypeValidationError<
-      {
-        _error: 'SCHEMA_VALIDATION_FAILED';
-      } & {
-        public: {
-          posts: {
-            relationships: {
-              user: [
-                'relationship public.posts.user: type mismatch BIGINT → INTEGER at public.users.id',
-              ];
-            };
+    type Expected = TypeValidationError<{
+      public: {
+        posts: {
+          relationships: {
+            user: [
+              'relationship public.posts.user: type mismatch BIGINT → INTEGER at public.users.id',
+            ];
           };
         };
-        auth: {
-          sessions: {
-            relationships: {
-              user: [
-                "relationship auth.sessions.user: table 'auth.users' not found",
-              ];
-            };
+      };
+      auth: {
+        sessions: {
+          relationships: {
+            user: [
+              "relationship auth.sessions.user: table 'auth.users' not found",
+            ];
           };
         };
-      }
-    >;
+      };
+    }>;
 
     type _Then = Expect<Equals<Result, Expected>>;
   });

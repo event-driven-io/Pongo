@@ -148,7 +148,5 @@ type StructureSchemaErrors<SchemaErrors extends readonly unknown[]> =
 
 export type StructureValidationErrors<E extends AnyTypeValidationError> =
   E extends TypeValidationError<infer Errors extends readonly unknown[]>
-    ? TypeValidationError<{
-        _error: 'SCHEMA_VALIDATION_FAILED';
-      } & StructureSchemaErrors<Errors>>
+    ? TypeValidationError<StructureSchemaErrors<Errors>>
     : never;
