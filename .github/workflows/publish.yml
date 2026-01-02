@@ -10,15 +10,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check Out Repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Use Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           registry-url: "https://registry.npmjs.org"
           node-version-file: ./src/.nvmrc
-          cache: "npm"
-          cache-dependency-path: "./src/package-lock.json"
 
       - name: Install dependencies
         run: npm ci
@@ -35,14 +33,36 @@ jobs:
         run: npm config set access public
 
       - name: Publish Dumbo package on NPM 📦
-        run: npm publish --w @event-driven-io/dumbo
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ $VERSION == *"beta"* ]]; then
+            TAG="beta"
+          elif [[ $VERSION == *"alpha"* ]]; then
+            TAG="alpha"
+          elif [[ $VERSION == *"rc"* ]]; then
+            TAG="rc"
+          else
+            TAG="latest"
+          fi
+          npm publish --w @event-driven-io/dumbo --tag $TAG
         continue-on-error: true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_ENV: production
 
       - name: Publish Pongo package on NPM 📦
-        run: npm publish --w @event-driven-io/pongo
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [[ $VERSION == *"beta"* ]]; then
+            TAG="beta"
+          elif [[ $VERSION == *"alpha"* ]]; then
+            TAG="alpha"
+          elif [[ $VERSION == *"rc"* ]]; then
+            TAG="rc"
+          else
+            TAG="latest"
+          fi
+          npm publish --w @event-driven-io/pongo --tag $TAG
         continue-on-error: true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
