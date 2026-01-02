@@ -1,67 +1,68 @@
-# Sample workflow for building and deploying a VitePress site to GitHub Pages
-#
-name: Deploy VitePress site to Pages
+# Workflow for building and deploying a VitePress site to GitHub Pages
+name: VitePress CI/CD
 
 on:
-  # Runs on pushes targeting the `main` branch. Change this to `master` if you're
-  # using the `master` branch as the default branch.
+  # Run on all pushes to any branch
   push:
-    branches: [main]
-
-  # Allows you to run this workflow manually from the Actions tab
+  # Also allow manual trigger
   workflow_dispatch:
 
 defaults:
   run:
     working-directory: src
 
-# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+# Sets permissions of the GITHUB_TOKEN
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
-# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+# Allow only one concurrent deployment
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  # Build job
+  # Build job - runs on all branches
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
-          fetch-depth: 0 # Not needed if lastUpdated is not enabled
-      # - uses: pnpm/action-setup@v2 # Uncomment this if you're using pnpm
-      # - uses: oven-sh/setup-bun@v1 # Uncomment this if you're using Bun
+          fetch-depth: 0
+
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version-file: ./src/.nvmrc
-          cache: "npm"
-          cache-dependency-path: "./src/package-lock.json"
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
 
       - name: Install dependencies
-        run: npm ci # or pnpm install / yarn install / bun install
+        run: npm ci
+
+      - name: Build TS
+        run: npm run build:ts
+
+      - name: Run linting (ESlint and Prettier)
+        run: npm run lint
 
       - name: Build with VitePress
         run: |
-          npm run docs:build # or pnpm docs:build / yarn docs:build / bun run docs:build
+          npm run docs:build
           touch docs/.vitepress/dist/.nojekyll
 
+      # Upload artifact only if on main branch
+      - name: Setup Pages
+        if: github.ref == 'refs/heads/main'
+        uses: actions/configure-pages@v4
+
       - name: Upload artifact
+        if: github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./src/docs/.vitepress/dist
 
-  # Deployment job
+  # Deployment job - only runs if build job completes and we're on main branch
   deploy:
     environment:
       name: github-pages
@@ -69,6 +70,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     name: Deploy
+    # Only run this job if we're on the main branch
+    if: github.ref == 'refs/heads/main'
     steps:
       - name: Deploy to GitHub Pages
         id: deployment

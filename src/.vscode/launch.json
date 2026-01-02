@@ -30,6 +30,18 @@
       "internalConsoleOptions": "neverOpen",
       "cwd": "${workspaceFolder}/",
       "sourceMaps": true
+    },
+    {
+      "name": "Debug Current Test File (Vitest)",
+      "type": "node",
+      "request": "launch",
+      "autoAttachChildProcesses": true,
+      "skipFiles": ["<node_internals>/**", "**/node_modules/**"],
+      "program": "${workspaceRoot}/node_modules/vitest/vitest.mjs",
+      "args": ["run", "${file}", "--no-file-parallelism"],
+      "smartStep": true,
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}/"
     }
   ]
 }
