@@ -2,7 +2,6 @@ import {
   SQLiteConnectionString,
   sqliteSQLExecutor,
   type SQLiteDriverType,
-  type SQLiteFileNameOrConnectionString,
 } from '..';
 import {
   createConnection,
@@ -28,9 +27,10 @@ export type SQLitePoolClient = {
   querySingle: <T>(sql: string, values?: Parameters[]) => Promise<T | null>;
 };
 
-export type SQLiteClientFactory<ClientOptions = SQLiteClientOptions> = (
-  options: ClientOptions,
-) => SQLiteClient;
+export type SQLiteClientFactory<
+  SQLiteClientType extends SQLiteClient = SQLiteClient,
+  ClientOptions = SQLiteClientOptions,
+> = (options: ClientOptions) => SQLiteClientType;
 
 export type SQLiteClientOrPoolClient = SQLitePoolClient | SQLiteClient;
 
@@ -189,11 +189,17 @@ export const sqlitePoolClientConnection = <
 
 export function sqliteConnection<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
->(options: SQLitePoolConnectionOptions<DriverType>): SQLitePoolClientConnection;
+  SQLitePoolClientType extends SQLitePoolClient = SQLitePoolClient,
+>(
+  options: SQLitePoolConnectionOptions<DriverType, SQLitePoolClientType>,
+): SQLitePoolClientConnection<DriverType, SQLitePoolClientType>;
 
 export function sqliteConnection<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
->(options: SQLiteClientConnectionOptions<DriverType>): SQLiteClientConnection;
+  SQLiteClientType extends SQLiteClient = SQLiteClient,
+>(
+  options: SQLiteClientConnectionOptions<DriverType, SQLiteClientType>,
+): SQLiteClientConnection<DriverType, SQLiteClientType>;
 
 export function sqliteConnection<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
@@ -210,6 +216,7 @@ export function sqliteConnection<
 export type InMemorySQLiteDatabase = ':memory:';
 export const InMemorySQLiteDatabase = SQLiteConnectionString(':memory:');
 
-export type SQLiteClientOptions = SQLiteFileNameOrConnectionString;
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export type SQLiteClientOptions = {};
 
 export * from './connectionString';
