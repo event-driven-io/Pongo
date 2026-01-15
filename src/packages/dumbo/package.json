@@ -89,6 +89,7 @@
     "dist"
   ],
   "dependencies": {
+    "@cloudflare/workers-types": "^4.20260115.0",
     "sqlite3": "^5.1.7"
   },
   "peerDependencies": {

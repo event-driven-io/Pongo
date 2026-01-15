@@ -74,6 +74,7 @@
     "dist"
   ],
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260115.0",
     "@faker-js/faker": "^10.0.0",
     "@types/benchmark": "^2.1.5",
     "@testcontainers/mongodb": "^11.6.0",
