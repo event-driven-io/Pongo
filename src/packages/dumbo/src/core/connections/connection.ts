@@ -32,6 +32,20 @@ export interface ConnectionFactory<
   ) => Promise<Result>;
 }
 
+export type InitTransaction<
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
+  DbClient = unknown,
+  ConnectionType extends Connection<DriverType, DbClient> = Connection<
+    DriverType,
+    DbClient
+  >,
+> = (
+  connection: () => ConnectionType,
+) => (
+  client: Promise<DbClient>,
+  options?: { close: (client: DbClient, error?: unknown) => Promise<void> },
+) => DatabaseTransaction<DriverType, DbClient>;
+
 export type CreateConnectionOptions<
   DriverType extends DatabaseDriverType = DatabaseDriverType,
   DbClient = unknown,
@@ -44,12 +58,7 @@ export type CreateConnectionOptions<
   driverType: DriverType;
   connect: () => Promise<DbClient>;
   close: (client: DbClient) => Promise<void>;
-  initTransaction: (
-    connection: () => ConnectionType,
-  ) => (
-    client: Promise<DbClient>,
-    options?: { close: (client: DbClient, error?: unknown) => Promise<void> },
-  ) => DatabaseTransaction<DriverType, DbClient>;
+  initTransaction: InitTransaction<DriverType, DbClient, ConnectionType>;
   executor: () => Executor;
 };
 
