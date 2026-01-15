@@ -5,6 +5,7 @@ import {
   type SQLiteClient,
   type SQLiteClientConnection,
   type SQLiteClientFactory,
+  type SQLiteClientOptions,
   type SQLiteDriverType,
   type SQLitePoolClientConnection,
 } from '..';
@@ -50,16 +51,20 @@ export const sqliteAmbientConnectionPool = <
 
 export const sqliteSingletonClientPool = <
   DriverType extends SQLiteDriverType = SQLiteDriverType,
+  SQLiteClientType extends SQLiteClient = SQLiteClient,
+  ClientOptions = SQLiteClientOptions,
 >(
   options: {
     driverType: DriverType;
     database?: string | undefined;
     allowNestedTransactions?: boolean;
-  } & SQLiteFileNameOrConnectionString &
-    SQLitePoolConfig,
+  } & SQLiteClientFactoryOptions<SQLiteClientType, ClientOptions> &
+    ClientOptions,
 ): SQLiteAmbientClientPool<DriverType> => {
   const { driverType, sqliteClient } = options;
-  let connection: SQLiteClientConnection | undefined = undefined;
+  let connection:
+    | SQLiteClientConnection<DriverType, SQLiteClientType>
+    | undefined = undefined;
 
   const getConnection = () => {
     if (connection) return connection;
@@ -98,13 +103,15 @@ export const sqliteSingletonClientPool = <
 
 export const sqliteAlwaysNewClientPool = <
   DriverType extends SQLiteDriverType = SQLiteDriverType,
+  SQLiteClientType extends SQLiteClient = SQLiteClient,
+  ClientOptions = SQLiteClientOptions,
 >(
   options: {
     driverType: DriverType;
     database?: string | undefined;
     allowNestedTransactions?: boolean;
-  } & SQLiteFileNameOrConnectionString &
-    SQLitePoolConfig,
+  } & SQLiteClientFactoryOptions<SQLiteClientType, ClientOptions> &
+    ClientOptions,
 ): SQLiteAmbientClientPool<DriverType> => {
   const { driverType, allowNestedTransactions, sqliteClient } = options;
 
@@ -222,22 +229,32 @@ export type SQLiteDumboConnectionOptions<
   | SQLitePoolNotPooledOptions<DriverType>
 ) & {
   serializer?: JSONSerializer;
-} & SQLiteFileNameOrConnectionString;
+};
 
-export type SQLitePoolConfig = { sqliteClient: SQLiteClientFactory };
+export type SQLiteClientFactoryOptions<
+  SQLiteClientType extends SQLiteClient = SQLiteClient,
+  ClientOptions = SQLiteClientOptions,
+> = {
+  sqliteClient: SQLiteClientFactory<SQLiteClientType, ClientOptions>;
+};
 
 export function sqlitePool<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
+  SQLiteClientType extends SQLiteClient = SQLiteClient,
+  ClientOptions = SQLiteClientOptions,
 >(
   options: SQLitePoolNotPooledOptions<DriverType> &
-    SQLiteFileNameOrConnectionString &
-    SQLitePoolConfig,
+    SQLiteClientFactoryOptions<SQLiteClientType, ClientOptions>,
 ): SQLiteAmbientClientPool<DriverType>;
 
 export function sqlitePool<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
+  SQLiteClientType extends SQLiteClient = SQLiteClient,
+  ClientOptions = SQLiteClientOptions,
 >(
-  options: SQLiteDumboConnectionOptions<DriverType> & SQLitePoolConfig,
+  options: SQLiteDumboConnectionOptions<DriverType> &
+    SQLiteClientFactoryOptions<SQLiteClientType, ClientOptions> &
+    ClientOptions,
 ):
   | SQLiteAmbientClientPool<DriverType>
   | SQLiteAmbientConnectionPool<DriverType> {
@@ -261,8 +278,9 @@ export function sqlitePool<
 
   if (
     options.singleton === true ||
-    options.fileName === InMemorySQLiteDatabase ||
-    options.connectionString === InMemorySQLiteDatabase
+    ('fileName' in options && options.fileName === InMemorySQLiteDatabase) ||
+    ('connectionString' in options &&
+      options.connectionString === InMemorySQLiteDatabase)
   )
     return sqliteSingletonClientPool(options);
 

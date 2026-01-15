@@ -1,5 +1,8 @@
 import sqlite3 from 'sqlite3';
-import type { SQLiteDriverType } from '../../core';
+import type {
+  SQLiteDriverType,
+  SQLiteFileNameOrConnectionString,
+} from '../../core';
 import {
   InMemorySQLiteDatabase,
   type Parameters,
@@ -19,7 +22,10 @@ export type ConnectionCheckResult =
       error: unknown;
     };
 
-export const sqlite3Client = (options: SQLiteClientOptions): SQLiteClient => {
+export type SQLite3ClientOptions = SQLiteClientOptions &
+  SQLiteFileNameOrConnectionString;
+
+export const sqlite3Client = (options: SQLite3ClientOptions): SQLiteClient => {
   let db: sqlite3.Database;
 
   let isClosed = false;
