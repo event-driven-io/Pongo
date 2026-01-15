@@ -4,7 +4,11 @@ import {
   type SQLiteDriverType,
   type SQLiteFileNameOrConnectionString,
 } from '..';
-import { createConnection, type Connection } from '../../../../core';
+import {
+  createConnection,
+  type Connection,
+  type InitTransaction,
+} from '../../../../core';
 import { sqliteTransaction } from '../transactions';
 
 export type Parameters = object | string | bigint | number | boolean | null;
@@ -24,8 +28,8 @@ export type SQLitePoolClient = {
   querySingle: <T>(sql: string, values?: Parameters[]) => Promise<T | null>;
 };
 
-export type SQLiteClientFactory = (
-  options: SQLiteClientOptions,
+export type SQLiteClientFactory<ClientOptions = SQLiteClientOptions> = (
+  options: ClientOptions,
 ) => SQLiteClient;
 
 export type SQLiteClientOrPoolClient = SQLitePoolClient | SQLiteClient;
@@ -44,42 +48,74 @@ export const isSQLiteError = (error: unknown): error is SQLiteError => {
 
 export type SQLitePoolConnectionOptions<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
+  SQLitePoolClientType extends SQLitePoolClient = SQLitePoolClient,
 > = {
   driverType: DriverType;
   type: 'PoolClient';
-  connect: () => Promise<SQLitePoolClient>;
-  close: (client: SQLitePoolClient) => Promise<void>;
-  allowNestedTransactions: boolean;
+  connect: () => Promise<SQLitePoolClientType>;
+  close: (client: SQLitePoolClientType) => Promise<void>;
+  transaction: {
+    allowNestedTransactions: boolean;
+    initTransaction?: InitTransaction<
+      DriverType,
+      SQLitePoolClientType,
+      SQLitePoolClientConnection<DriverType, SQLitePoolClientType>
+    >;
+  };
 };
 
 export type SQLiteClientConnectionOptions<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
+  SQLiteClientType extends SQLiteClient = SQLiteClient,
 > = {
   driverType: DriverType;
   type: 'Client';
-  connect: () => Promise<SQLiteClient>;
-  close: (client: SQLiteClient) => Promise<void>;
-  allowNestedTransactions: boolean;
+  connect: () => Promise<SQLiteClientType>;
+  close: (client: SQLiteClientType) => Promise<void>;
+  transaction: {
+    allowNestedTransactions: boolean;
+    initTransaction?: InitTransaction<
+      DriverType,
+      SQLiteClientType,
+      SQLiteClientConnection<DriverType, SQLiteClientType>
+    >;
+  };
 };
 
 export type SQLiteClientConnection<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
-> = Connection<DriverType, SQLiteClient>;
+  SQLiteClientType extends SQLiteClient = SQLiteClient,
+> = Connection<DriverType, SQLiteClientType>;
 
 export type SQLitePoolClientConnection<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
-> = Connection<DriverType, SQLitePoolClient>;
+  SQLitePoolClientType extends SQLitePoolClient = SQLitePoolClient,
+> = Connection<DriverType, SQLitePoolClientType>;
 
 export type SQLiteConnection<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
-> = SQLiteClientConnection<DriverType> | SQLitePoolClientConnection<DriverType>;
+  SQLiteClientType extends SQLiteClientOrPoolClient =
+    | SQLiteClient
+    | SQLitePoolClient,
+> =
+  | (SQLiteClientType extends SQLiteClient
+      ? SQLiteClientConnection<DriverType, SQLiteClientType>
+      : never)
+  | (SQLiteClientType extends SQLitePoolClient
+      ? SQLitePoolClientConnection<DriverType, SQLiteClientType>
+      : never);
 
 export const sqliteClientConnection = <
   DriverType extends SQLiteDriverType = SQLiteDriverType,
+  SQLiteClientType extends SQLiteClient = SQLiteClient,
 >(
-  options: SQLiteClientConnectionOptions<DriverType>,
-): SQLiteClientConnection<DriverType> => {
-  const { connect, close, allowNestedTransactions } = options;
+  options: SQLiteClientConnectionOptions<DriverType, SQLiteClientType>,
+): SQLiteClientConnection<DriverType, SQLiteClientType> => {
+  const {
+    connect,
+    close,
+    transaction: { allowNestedTransactions },
+  } = options;
 
   return createConnection({
     driverType: options.driverType,
@@ -127,10 +163,15 @@ export const transactionNestingCounter = (): TransactionNestingCounter => {
 
 export const sqlitePoolClientConnection = <
   DriverType extends SQLiteDriverType = SQLiteDriverType,
+  SQLitePoolClientType extends SQLitePoolClient = SQLitePoolClient,
 >(
-  options: SQLitePoolConnectionOptions<DriverType>,
-): SQLitePoolClientConnection<DriverType> => {
-  const { connect, close, allowNestedTransactions } = options;
+  options: SQLitePoolConnectionOptions<DriverType, SQLitePoolClientType>,
+): SQLitePoolClientConnection<DriverType, SQLitePoolClientType> => {
+  const {
+    connect,
+    close,
+    transaction: { allowNestedTransactions },
+  } = options;
 
   return createConnection({
     driverType: options.driverType,

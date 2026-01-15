@@ -76,7 +76,9 @@ export const sqliteSingletonClientPool = <
       driverType,
       type: 'Client',
       connect,
-      allowNestedTransactions: options.allowNestedTransactions ?? false,
+      transaction: {
+        allowNestedTransactions: options.allowNestedTransactions ?? false,
+      },
       close: () => Promise.resolve(),
     }));
   };
@@ -121,7 +123,9 @@ export const sqliteAlwaysNewClientPool = <
         driverType,
         type: 'Client',
         connect,
-        allowNestedTransactions: allowNestedTransactions ?? false,
+        transaction: {
+          allowNestedTransactions: allowNestedTransactions ?? false,
+        },
         close: (client) => client.close(),
       });
     },
@@ -144,7 +148,9 @@ export const sqliteAmbientClientPool = <
       driverType,
       type: 'Client',
       connect,
-      allowNestedTransactions,
+      transaction: {
+        allowNestedTransactions,
+      },
       close: () => Promise.resolve(),
     });
   };
