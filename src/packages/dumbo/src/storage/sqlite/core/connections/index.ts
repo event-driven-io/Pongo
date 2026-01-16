@@ -6,6 +6,7 @@ import {
 import {
   createConnection,
   type Connection,
+  type DatabaseTransaction,
   type InferDbClientFromConnection,
   type InferDriverTypeFromConnection,
 } from '../../../../core';
@@ -53,7 +54,8 @@ export type SQLiteClientConnection<
 > = Connection<
   SQLiteClientConnection<DriverType, SQLiteClientType>,
   DriverType,
-  SQLiteClientType
+  SQLiteClientType,
+  DatabaseTransaction<SQLiteClientConnection<DriverType, SQLiteClientType>>
 >;
 
 export type SQLitePoolClientConnection<
@@ -62,7 +64,10 @@ export type SQLitePoolClientConnection<
 > = Connection<
   SQLitePoolClientConnection<DriverType, SQLitePoolClientType>,
   DriverType,
-  SQLitePoolClientType
+  SQLitePoolClientType,
+  DatabaseTransaction<
+    SQLitePoolClientConnection<DriverType, SQLitePoolClientType>
+  >
 >;
 
 export type SQLiteConnection<
