@@ -5,6 +5,7 @@ import {
   type AnySQLiteConnection,
   type SQLiteClient,
   type SQLiteClientConnection,
+  type SQLiteClientConnectionOptions,
   type SQLiteClientFactory,
   type SQLiteClientOptions,
   type SQLiteConnectionFactory,
@@ -242,7 +243,8 @@ export type SQLiteClientFactoryOptions<
 
 export type SQLiteConnectionFactoryOptions<
   SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
-  ConnectionOptions = SQLiteClientOptions,
+  ConnectionOptions extends
+    SQLiteClientConnectionOptions<SQLiteConnectionType> = SQLiteClientConnectionOptions<SQLiteConnectionType>,
 > = {
   sqliteConnection?: SQLiteConnectionFactory<
     SQLiteConnectionType,
@@ -255,7 +257,8 @@ export function sqlitePool<
   SQLiteClientType extends SQLiteClient = SQLiteClient,
   SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
   ClientOptions = SQLiteClientOptions,
-  ConnectionOptions = SQLiteClientOptions,
+  ConnectionOptions extends
+    SQLiteClientConnectionOptions<SQLiteConnectionType> = SQLiteClientConnectionOptions<SQLiteConnectionType>,
 >(
   options: SQLitePoolNotPooledOptions<DriverType> &
     SQLiteClientFactoryOptions<SQLiteClientType, ClientOptions> &
@@ -267,7 +270,8 @@ export function sqlitePool<
   SQLiteClientType extends SQLiteClient = SQLiteClient,
   SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
   ClientOptions = SQLiteClientOptions,
-  ConnectionOptions = SQLiteClientOptions,
+  ConnectionOptions extends
+    SQLiteClientConnectionOptions<SQLiteConnectionType> = SQLiteClientConnectionOptions<SQLiteConnectionType>,
 >(
   options: SQLiteDumboConnectionOptions<DriverType> &
     SQLiteClientFactoryOptions<SQLiteClientType, ClientOptions> &

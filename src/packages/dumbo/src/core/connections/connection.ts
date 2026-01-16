@@ -22,6 +22,12 @@ export interface Connection<
 
 export type AnyConnection = Connection<DatabaseDriverType, unknown>;
 
+export type InferConnectionDriverType<C extends AnyConnection> =
+  C extends Connection<infer DT, unknown> ? DT : never;
+
+export type InferConnectionDbClient<C extends AnyConnection> =
+  C extends Connection<DatabaseDriverType, infer DC> ? DC : never;
+
 export interface ConnectionFactory<
   ConnectionType extends Connection = Connection,
 > {
