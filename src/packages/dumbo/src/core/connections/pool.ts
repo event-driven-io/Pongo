@@ -3,16 +3,17 @@ import {
   sqlExecutorInNewConnection,
   type WithSQLExecutor,
 } from '../execute';
-import { type Connection, type ConnectionFactory } from './connection';
+import { type AnyConnection, type ConnectionFactory } from './connection';
 import {
   transactionFactoryWithNewConnection,
   type DatabaseTransactionFactory,
 } from './transaction';
 
-export interface ConnectionPool<ConnectionType extends Connection = Connection>
-  extends WithSQLExecutor,
+export interface ConnectionPool<
+  ConnectionType extends AnyConnection = AnyConnection,
+> extends WithSQLExecutor,
     ConnectionFactory<ConnectionType>,
-    DatabaseTransactionFactory<ConnectionType['driverType']> {
+    DatabaseTransactionFactory<ConnectionType> {
   driverType: ConnectionType['driverType'];
   close: () => Promise<void>;
 }
@@ -23,7 +24,7 @@ export type ConnectionPoolFactory<
 > = (options: ConnectionPoolOptions) => ConnectionPoolType;
 
 export const createConnectionPool = <
-  ConnectionType extends Connection,
+  ConnectionType extends AnyConnection,
   ConnectionPoolType extends ConnectionPool<ConnectionType>,
 >(
   pool: Pick<ConnectionPool<ConnectionType>, 'driverType'> &
