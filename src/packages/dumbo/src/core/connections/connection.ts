@@ -22,10 +22,10 @@ export interface Connection<
 
 export type AnyConnection = Connection<DatabaseDriverType, unknown>;
 
-export type InferConnectionDriverType<C extends AnyConnection> =
+export type InferDriverTypeFromConnection<C extends AnyConnection> =
   C extends Connection<infer DT, unknown> ? DT : never;
 
-export type InferConnectionDbClient<C extends AnyConnection> =
+export type InferDbClientFromConnection<C extends AnyConnection> =
   C extends Connection<DatabaseDriverType, infer DC> ? DC : never;
 
 export interface ConnectionFactory<
@@ -39,55 +39,43 @@ export interface ConnectionFactory<
 }
 
 export type InitTransaction<
-  DriverType extends DatabaseDriverType = DatabaseDriverType,
-  DbClient = unknown,
-  ConnectionType extends Connection<DriverType, DbClient> = Connection<
-    DriverType,
-    DbClient
-  >,
-> = (
-  connection: () => ConnectionType,
-) => (
-  client: Promise<DbClient>,
-  options?: { close: (client: DbClient, error?: unknown) => Promise<void> },
-) => DatabaseTransaction<DriverType, DbClient>;
+  ConnectionType extends AnyConnection = AnyConnection,
+> = (connection: () => ConnectionType) => (
+  client: Promise<InferDbClientFromConnection<ConnectionType>>,
+  options?: {
+    close: (
+      client: InferDbClientFromConnection<ConnectionType>,
+      error?: unknown,
+    ) => Promise<void>;
+  },
+) => DatabaseTransaction<
+  InferDriverTypeFromConnection<ConnectionType>,
+  InferDbClientFromConnection<ConnectionType>
+>;
 
 export type CreateConnectionOptions<
-  DriverType extends DatabaseDriverType = DatabaseDriverType,
-  DbClient = unknown,
-  ConnectionType extends Connection<DriverType, DbClient> = Connection<
-    DriverType,
-    DbClient
-  >,
+  ConnectionType extends AnyConnection = AnyConnection,
   Executor extends DbSQLExecutor = DbSQLExecutor,
 > = {
-  driverType: DriverType;
-  connect: () => Promise<DbClient>;
-  close: (client: DbClient) => Promise<void>;
-  initTransaction: InitTransaction<DriverType, DbClient, ConnectionType>;
+  driverType: InferDriverTypeFromConnection<ConnectionType>;
+  connect: () => Promise<InferDbClientFromConnection<ConnectionType>>;
+  close: (client: InferDbClientFromConnection<ConnectionType>) => Promise<void>;
+  initTransaction: InitTransaction<ConnectionType>;
   executor: () => Executor;
 };
 
 export const createConnection = <
-  DriverType extends DatabaseDriverType = DatabaseDriverType,
-  DbClient = unknown,
-  ConnectionType extends Connection<DriverType, DbClient> = Connection<
-    DriverType,
-    DbClient
-  >,
+  ConnectionType extends AnyConnection = AnyConnection,
   Executor extends DbSQLExecutor = DbSQLExecutor,
 >(
-  options: CreateConnectionOptions<
-    DriverType,
-    DbClient,
-    ConnectionType,
-    Executor
-  >,
+  options: CreateConnectionOptions<ConnectionType, Executor>,
 ): ConnectionType => {
   const { driverType, connect, close, initTransaction, executor } = options;
 
-  let client: DbClient | null = null;
-  let connectPromise: Promise<DbClient> | null = null;
+  let client: InferDbClientFromConnection<ConnectionType> | null = null;
+  let connectPromise: Promise<
+    InferDbClientFromConnection<ConnectionType>
+  > | null = null;
 
   const getClient = async () => {
     if (client) return client;
@@ -100,7 +88,10 @@ export const createConnection = <
     return connectPromise;
   };
 
-  const connection: Connection<DriverType, DbClient> = {
+  const connection: Connection<
+    InferDriverTypeFromConnection<ConnectionType>,
+    InferDbClientFromConnection<ConnectionType>
+  > = {
     driverType,
     open: getClient,
     close: () => (client ? close(client) : Promise.resolve()),
@@ -111,7 +102,7 @@ export const createConnection = <
     execute: sqlExecutor(executor(), { connect: getClient }),
   };
 
-  const typedConnection = connection as ConnectionType;
+  const typedConnection = connection as unknown as ConnectionType;
 
   return typedConnection;
 };

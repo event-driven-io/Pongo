@@ -8,7 +8,7 @@ import {
   type SQLiteClientConnectionOptions,
   type SQLiteClientFactory,
   type SQLiteClientOptions,
-  type SQLiteConnectionFactory,
+  type SQLiteConnectionDefinition,
   type SQLiteDriverType,
   type SQLitePoolClientConnection,
 } from '..';
@@ -246,7 +246,7 @@ export type SQLiteConnectionFactoryOptions<
   ConnectionOptions extends
     SQLiteClientConnectionOptions<SQLiteConnectionType> = SQLiteClientConnectionOptions<SQLiteConnectionType>,
 > = {
-  sqliteConnection?: SQLiteConnectionFactory<
+  sqliteConnection?: SQLiteConnectionDefinition<
     SQLiteConnectionType,
     ConnectionOptions
   >;
