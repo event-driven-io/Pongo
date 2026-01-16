@@ -6,8 +6,8 @@ import {
 import {
   createConnection,
   type Connection,
-  type InferConnectionDbClient,
-  type InferConnectionDriverType,
+  type InferDbClientFromConnection,
+  type InferDriverTypeFromConnection,
 } from '../../../../core';
 import { sqliteTransaction } from '../transactions';
 
@@ -86,11 +86,11 @@ export type SQLiteClientConnectionOptions<
   SQLiteConnectionType extends
     AnySQLiteClientConnection = AnySQLiteClientConnection,
 > = {
-  driverType: InferConnectionDriverType<SQLiteConnectionType>;
+  driverType: InferDriverTypeFromConnection<SQLiteConnectionType>;
   type: 'Client';
-  connect: () => Promise<InferConnectionDbClient<SQLiteConnectionType>>;
+  connect: () => Promise<InferDbClientFromConnection<SQLiteConnectionType>>;
   close: (
-    client: InferConnectionDbClient<SQLiteConnectionType>,
+    client: InferDbClientFromConnection<SQLiteConnectionType>,
   ) => Promise<void>;
   transaction: {
     allowNestedTransactions: boolean;
@@ -101,18 +101,18 @@ export type SQLitePoolConnectionOptions<
   SQLiteConnectionType extends
     AnySQLitePoolClientConnection = AnySQLitePoolClientConnection,
 > = {
-  driverType: InferConnectionDriverType<SQLiteConnectionType>;
+  driverType: InferDriverTypeFromConnection<SQLiteConnectionType>;
   type: 'PoolClient';
-  connect: () => Promise<InferConnectionDbClient<SQLiteConnectionType>>;
+  connect: () => Promise<InferDbClientFromConnection<SQLiteConnectionType>>;
   close: (
-    client: InferConnectionDbClient<SQLiteConnectionType>,
+    client: InferDbClientFromConnection<SQLiteConnectionType>,
   ) => Promise<void>;
   transaction: {
     allowNestedTransactions: boolean;
   };
 };
 
-export type SQLiteConnectionFactory<
+export type SQLiteConnectionDefinition<
   SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
   ConnectionOptions extends
     SQLiteClientConnectionOptions<SQLiteConnectionType> = SQLiteClientConnectionOptions<SQLiteConnectionType>,
