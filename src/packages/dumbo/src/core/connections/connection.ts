@@ -6,12 +6,10 @@ import {
 } from '../execute';
 import {
   transactionFactoryWithDbClient,
+  type AnyDatabaseTransaction,
   type DatabaseTransaction,
   type DatabaseTransactionFactory,
 } from './transaction';
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyConnection = Connection<any, any, any, any>;
 
 export interface Connection<
   Self extends AnyConnection = AnyConnection,
@@ -24,6 +22,13 @@ export interface Connection<
   open: () => Promise<DbClient>;
   close: () => Promise<void>;
 }
+
+export type AnyConnection = Connection<
+  AnyConnection,
+  DatabaseDriverType,
+  unknown,
+  AnyDatabaseTransaction
+>;
 
 export type InferDriverTypeFromConnection<C extends AnyConnection> =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

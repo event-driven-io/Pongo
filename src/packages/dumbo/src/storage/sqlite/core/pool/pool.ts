@@ -136,7 +136,7 @@ export const sqliteAlwaysNewClientPool = <
         transaction: {
           allowNestedTransactions: allowNestedTransactions ?? false,
         },
-        close: (client) => client.close(),
+        close: (client) => (client as SQLiteClientType).close(),
       });
     },
   });

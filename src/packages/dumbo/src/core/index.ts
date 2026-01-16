@@ -1,9 +1,5 @@
 import type { DatabaseConnectionString } from '../storage/all';
-import {
-  type AnyConnection,
-  type Connection,
-  type ConnectionPool,
-} from './connections';
+import { type AnyConnection, type ConnectionPool } from './connections';
 import type {
   AnyDumboDatabaseDriver,
   DatabaseDriverType,
@@ -25,6 +21,7 @@ export * from './testing';
 export * from './tracing';
 
 export type Dumbo<
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   DriverType extends DatabaseDriverType = DatabaseDriverType,
   ConnectionType extends AnyConnection = AnyConnection,
 > = ConnectionPool<ConnectionType>;

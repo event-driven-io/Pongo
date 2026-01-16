@@ -93,7 +93,7 @@ export const sqliteTransaction =
             );
         }
       },
-      execute: sqlExecutor(sqliteSQLExecutor(driverType as any), {
+      execute: sqlExecutor(sqliteSQLExecutor(driverType), {
         connect: () => getClient,
       }),
     };
