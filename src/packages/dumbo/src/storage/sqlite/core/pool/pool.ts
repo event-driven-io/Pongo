@@ -2,10 +2,12 @@ import {
   InMemorySQLiteDatabase,
   sqliteConnection,
   SQLiteConnectionString,
+  type AnySQLiteConnection,
   type SQLiteClient,
   type SQLiteClientConnection,
   type SQLiteClientFactory,
   type SQLiteClientOptions,
+  type SQLiteConnectionFactory,
   type SQLiteDriverType,
   type SQLitePoolClientConnection,
 } from '..';
@@ -238,22 +240,38 @@ export type SQLiteClientFactoryOptions<
   sqliteClient: SQLiteClientFactory<SQLiteClientType, ClientOptions>;
 };
 
+export type SQLiteConnectionFactoryOptions<
+  SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
+  ConnectionOptions = SQLiteClientOptions,
+> = {
+  sqliteConnection?: SQLiteConnectionFactory<
+    SQLiteConnectionType,
+    ConnectionOptions
+  >;
+};
+
 export function sqlitePool<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
   SQLiteClientType extends SQLiteClient = SQLiteClient,
+  SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
   ClientOptions = SQLiteClientOptions,
+  ConnectionOptions = SQLiteClientOptions,
 >(
   options: SQLitePoolNotPooledOptions<DriverType> &
-    SQLiteClientFactoryOptions<SQLiteClientType, ClientOptions>,
+    SQLiteClientFactoryOptions<SQLiteClientType, ClientOptions> &
+    SQLiteConnectionFactoryOptions<SQLiteConnectionType, ConnectionOptions>,
 ): SQLiteAmbientClientPool<DriverType>;
 
 export function sqlitePool<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
   SQLiteClientType extends SQLiteClient = SQLiteClient,
+  SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
   ClientOptions = SQLiteClientOptions,
+  ConnectionOptions = SQLiteClientOptions,
 >(
   options: SQLiteDumboConnectionOptions<DriverType> &
     SQLiteClientFactoryOptions<SQLiteClientType, ClientOptions> &
+    SQLiteConnectionFactoryOptions<SQLiteConnectionType, ConnectionOptions> &
     ClientOptions,
 ):
   | SQLiteAmbientClientPool<DriverType>

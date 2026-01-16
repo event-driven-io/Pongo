@@ -105,6 +105,17 @@ export type SQLiteConnection<
       ? SQLitePoolClientConnection<DriverType, SQLiteClientType>
       : never);
 
+export type AnySQLiteConnection =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  | SQLiteClientConnection<any, any>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  | SQLitePoolClientConnection<any, any>;
+
+export type SQLiteConnectionFactory<
+  SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
+  ConnectionOptions = SQLiteClientOptions,
+> = (options: ConnectionOptions) => SQLiteConnectionType;
+
 export const sqliteClientConnection = <
   DriverType extends SQLiteDriverType = SQLiteDriverType,
   SQLiteClientType extends SQLiteClient = SQLiteClient,
