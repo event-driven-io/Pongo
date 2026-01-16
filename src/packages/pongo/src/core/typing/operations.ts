@@ -1,4 +1,5 @@
 import {
+  type AnyConnection,
   type DatabaseConnectionString,
   type DatabaseDriverType,
   type DatabaseTransaction,
@@ -75,7 +76,7 @@ export interface PongoDbTransaction<
   options: PongoTransactionOptions;
   enlistDatabase: (
     database: Database,
-  ) => Promise<DatabaseTransaction<DriverType>>;
+  ) => Promise<DatabaseTransaction<AnyConnection>>;
   commit: () => Promise<void>;
   rollback: (error?: unknown) => Promise<void>;
   get sqlExecutor(): SQLExecutor;
@@ -107,7 +108,7 @@ export interface PongoSession<
 
 export interface PongoDb<
   DriverType extends DatabaseDriverType = DatabaseDriverType,
-> extends DatabaseTransactionFactory<DriverType> {
+> extends DatabaseTransactionFactory<AnyConnection> {
   driverType: DriverType;
   databaseName: string;
   connect(): Promise<void>;

@@ -1,5 +1,9 @@
 import type { DatabaseConnectionString } from '../storage/all';
-import { type Connection, type ConnectionPool } from './connections';
+import {
+  type AnyConnection,
+  type Connection,
+  type ConnectionPool,
+} from './connections';
 import type {
   AnyDumboDatabaseDriver,
   DatabaseDriverType,
@@ -22,7 +26,7 @@ export * from './tracing';
 
 export type Dumbo<
   DriverType extends DatabaseDriverType = DatabaseDriverType,
-  ConnectionType extends Connection<DriverType> = Connection<DriverType>,
+  ConnectionType extends AnyConnection = AnyConnection,
 > = ConnectionPool<ConnectionType>;
 
 export type DumboConnectionOptions<

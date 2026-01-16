@@ -1,38 +1,40 @@
-import type { SQLiteDriverType } from '..';
 import {
   sqlExecutor,
-  type Connection,
   type DatabaseTransaction,
+  type InferDbClientFromConnection,
 } from '../../../../core';
 import { sqliteSQLExecutor } from '../../core/execute';
 import {
   transactionNestingCounter,
+  type AnySQLiteConnection,
   type SQLiteClientOrPoolClient,
 } from '../connections';
 
 export type SQLiteTransaction<
-  DriverType extends SQLiteDriverType = SQLiteDriverType,
-> = DatabaseTransaction<DriverType>;
+  ConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
+> = DatabaseTransaction<ConnectionType>;
 
 export const sqliteTransaction =
-  <
-    DriverType extends SQLiteDriverType = SQLiteDriverType,
-    DbClient extends SQLiteClientOrPoolClient = SQLiteClientOrPoolClient,
-  >(
-    driverType: DriverType,
-    connection: () => Connection<DriverType, DbClient>,
+  <ConnectionType extends AnySQLiteConnection = AnySQLiteConnection>(
+    driverType: ConnectionType['driverType'],
+    connection: () => ConnectionType,
     allowNestedTransactions: boolean,
   ) =>
   (
-    getClient: Promise<DbClient>,
-    options?: { close: (client: DbClient, error?: unknown) => Promise<void> },
-  ): DatabaseTransaction<DriverType, DbClient> => {
+    getClient: Promise<InferDbClientFromConnection<ConnectionType>>,
+    options?: {
+      close: (
+        client: InferDbClientFromConnection<ConnectionType>,
+        error?: unknown,
+      ) => Promise<void>;
+    },
+  ): DatabaseTransaction<ConnectionType> => {
     const transactionCounter = transactionNestingCounter();
     return {
       connection: connection(),
       driverType,
       begin: async function () {
-        const client = await getClient;
+        const client = (await getClient) as SQLiteClientOrPoolClient;
 
         if (allowNestedTransactions) {
           if (transactionCounter.level >= 1) {
@@ -49,7 +51,7 @@ export const sqliteTransaction =
         await client.query('BEGIN TRANSACTION');
       },
       commit: async function () {
-        const client = await getClient;
+        const client = (await getClient) as SQLiteClientOrPoolClient;
 
         try {
           if (allowNestedTransactions) {
@@ -66,11 +68,14 @@ export const sqliteTransaction =
           }
           await client.query('COMMIT');
         } finally {
-          if (options?.close) await options?.close(client);
+          if (options?.close)
+            await options?.close(
+              client as InferDbClientFromConnection<ConnectionType>,
+            );
         }
       },
       rollback: async function (error?: unknown) {
-        const client = await getClient;
+        const client = (await getClient) as SQLiteClientOrPoolClient;
         try {
           if (allowNestedTransactions) {
             if (transactionCounter.level > 1) {
@@ -81,10 +86,14 @@ export const sqliteTransaction =
 
           await client.query('ROLLBACK');
         } finally {
-          if (options?.close) await options?.close(client, error);
+          if (options?.close)
+            await options?.close(
+              client as InferDbClientFromConnection<ConnectionType>,
+              error,
+            );
         }
       },
-      execute: sqlExecutor(sqliteSQLExecutor(driverType), {
+      execute: sqlExecutor(sqliteSQLExecutor(driverType as any), {
         connect: () => getClient,
       }),
     };

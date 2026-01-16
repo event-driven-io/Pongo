@@ -1,27 +1,32 @@
-import type { DatabaseDriverType } from '../drivers';
 import type { WithSQLExecutor } from '../execute';
-import { type Connection } from './connection';
+import {
+  type AnyConnection,
+  type InferDbClientFromConnection,
+} from './connection';
 
 export interface DatabaseTransaction<
-  DriverType extends DatabaseDriverType = DatabaseDriverType,
-  DbClient = unknown,
+  ConnectionType extends AnyConnection = AnyConnection,
 > extends WithSQLExecutor {
-  driverType: DriverType;
-  connection: Connection<DriverType, DbClient>;
+  driverType: ConnectionType['driverType'];
+  connection: ConnectionType;
   begin: () => Promise<void>;
   commit: () => Promise<void>;
   rollback: (error?: unknown) => Promise<void>;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnyDatabaseTransaction = DatabaseTransaction<any>;
+
 export interface DatabaseTransactionFactory<
-  DriverType extends DatabaseDriverType = DatabaseDriverType,
-  DbClient = unknown,
+  ConnectionType extends AnyConnection = AnyConnection,
+  TransactionType extends
+    DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
 > {
-  transaction: () => DatabaseTransaction<DriverType, DbClient>;
+  transaction: () => TransactionType;
 
   withTransaction: <Result = never>(
     handle: (
-      transaction: DatabaseTransaction<DriverType, DbClient>,
+      transaction: TransactionType,
     ) => Promise<TransactionResult<Result> | Result>,
   ) => Promise<Result>;
 }
@@ -39,13 +44,13 @@ const toTransactionResult = <Result>(
     : { success: true, result: transactionResult };
 
 export const executeInTransaction = async <
-  DriverType extends DatabaseDriverType = DatabaseDriverType,
-  DbClient = unknown,
+  DatabaseTransactionType extends
+    AnyDatabaseTransaction = AnyDatabaseTransaction,
   Result = void,
 >(
-  transaction: DatabaseTransaction<DriverType, DbClient>,
+  transaction: DatabaseTransactionType,
   handle: (
-    transaction: DatabaseTransaction<DriverType, DbClient>,
+    transaction: DatabaseTransactionType,
   ) => Promise<TransactionResult<Result> | Result>,
 ): Promise<Result> => {
   await transaction.begin();
@@ -64,18 +69,22 @@ export const executeInTransaction = async <
 };
 
 export const transactionFactoryWithDbClient = <
-  DriverType extends DatabaseDriverType = DatabaseDriverType,
-  DbClient = unknown,
+  ConnectionType extends AnyConnection = AnyConnection,
+  TransactionType extends
+    DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
 >(
-  connect: () => Promise<DbClient>,
+  connect: () => Promise<InferDbClientFromConnection<ConnectionType>>,
   initTransaction: (
-    client: Promise<DbClient>,
-    options?: { close: (client: DbClient, error?: unknown) => Promise<void> },
-  ) => DatabaseTransaction<DriverType, DbClient>,
-): DatabaseTransactionFactory<DriverType, DbClient> => {
-  let currentTransaction:
-    | DatabaseTransaction<DriverType, DbClient>
-    | undefined = undefined;
+    client: Promise<InferDbClientFromConnection<ConnectionType>>,
+    options?: {
+      close: (
+        client: InferDbClientFromConnection<ConnectionType>,
+        error?: unknown,
+      ) => Promise<void>;
+    },
+  ) => TransactionType,
+): DatabaseTransactionFactory<ConnectionType, TransactionType> => {
+  let currentTransaction: TransactionType | undefined = undefined;
 
   const getOrInitCurrentTransaction = () =>
     currentTransaction ??
@@ -94,7 +103,7 @@ export const transactionFactoryWithDbClient = <
 };
 
 const wrapInConnectionClosure = async <
-  ConnectionType extends Connection = Connection,
+  ConnectionType extends AnyConnection = AnyConnection,
   Result = unknown,
 >(
   connection: ConnectionType,
@@ -108,10 +117,10 @@ const wrapInConnectionClosure = async <
 };
 
 export const transactionFactoryWithNewConnection = <
-  ConnectionType extends Connection = Connection,
+  ConnectionType extends AnyConnection = AnyConnection,
 >(
   connect: () => ConnectionType,
-): DatabaseTransactionFactory<ConnectionType['driverType']> => ({
+): DatabaseTransactionFactory<ConnectionType> => ({
   transaction: () => {
     const connection = connect();
     const transaction = connection.transaction();

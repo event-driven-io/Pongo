@@ -1,25 +1,28 @@
 import {
   sqlExecutor,
-  type Connection,
+  type AnyConnection,
   type DatabaseTransaction,
 } from '../../../../core';
 import { nodePostgresSQLExecutor } from '../execute';
 import {
   NodePostgresDriverType,
+  type NodePostgresConnection,
   type NodePostgresPoolOrClient,
 } from './connection';
 
 export type NodePostgresTransaction =
-  DatabaseTransaction<NodePostgresDriverType>;
+  DatabaseTransaction<NodePostgresConnection>;
 
 export const nodePostgresTransaction =
-  <DbClient extends NodePostgresPoolOrClient = NodePostgresPoolOrClient>(
-    connection: () => Connection<NodePostgresDriverType, DbClient>,
+  <ConnectionType extends AnyConnection = AnyConnection>(
+    connection: () => ConnectionType,
   ) =>
-  (
+  <DbClient extends NodePostgresPoolOrClient = NodePostgresPoolOrClient>(
     getClient: Promise<DbClient>,
-    options?: { close: (client: DbClient, error?: unknown) => Promise<void> },
-  ): DatabaseTransaction<NodePostgresDriverType, DbClient> => ({
+    options?: {
+      close: (client: DbClient, error?: unknown) => Promise<void>;
+    },
+  ): DatabaseTransaction<ConnectionType> => ({
     connection: connection(),
     driverType: NodePostgresDriverType,
     begin: async () => {

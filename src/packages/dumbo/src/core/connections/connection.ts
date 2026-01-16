@@ -10,26 +10,31 @@ import {
   type DatabaseTransactionFactory,
 } from './transaction';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnyConnection = Connection<any, any, any, any>;
+
 export interface Connection<
+  Self extends AnyConnection = AnyConnection,
   DriverType extends DatabaseDriverType = DatabaseDriverType,
   DbClient = unknown,
+  TransactionType extends DatabaseTransaction<Self> = DatabaseTransaction<Self>,
 > extends WithSQLExecutor,
-    DatabaseTransactionFactory<DriverType, DbClient> {
+    DatabaseTransactionFactory<Self, TransactionType> {
   driverType: DriverType;
   open: () => Promise<DbClient>;
   close: () => Promise<void>;
 }
 
-export type AnyConnection = Connection<DatabaseDriverType, unknown>;
-
 export type InferDriverTypeFromConnection<C extends AnyConnection> =
-  C extends Connection<infer DT, unknown> ? DT : never;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  C extends Connection<any, infer DT, any, any> ? DT : never;
 
 export type InferDbClientFromConnection<C extends AnyConnection> =
-  C extends Connection<DatabaseDriverType, infer DC> ? DC : never;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  C extends Connection<any, any, infer DC, any> ? DC : never;
 
 export interface ConnectionFactory<
-  ConnectionType extends Connection = Connection,
+  ConnectionType extends AnyConnection = AnyConnection,
 > {
   connection: () => Promise<ConnectionType>;
 
@@ -48,10 +53,7 @@ export type InitTransaction<
       error?: unknown,
     ) => Promise<void>;
   },
-) => DatabaseTransaction<
-  InferDriverTypeFromConnection<ConnectionType>,
-  InferDbClientFromConnection<ConnectionType>
->;
+) => DatabaseTransaction<ConnectionType>;
 
 export type CreateConnectionOptions<
   ConnectionType extends AnyConnection = AnyConnection,
@@ -89,13 +91,15 @@ export const createConnection = <
   };
 
   const connection: Connection<
+    ConnectionType,
     InferDriverTypeFromConnection<ConnectionType>,
-    InferDbClientFromConnection<ConnectionType>
+    InferDbClientFromConnection<ConnectionType>,
+    DatabaseTransaction<ConnectionType>
   > = {
     driverType,
     open: getClient,
     close: () => (client ? close(client) : Promise.resolve()),
-    ...transactionFactoryWithDbClient(
+    ...transactionFactoryWithDbClient<ConnectionType>(
       getClient,
       initTransaction(() => typedConnection),
     ),

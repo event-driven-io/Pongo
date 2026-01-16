@@ -20,11 +20,13 @@ export type NodePostgresPoolOrClient =
   | NodePostgresClient;
 
 export type NodePostgresClientConnection = Connection<
+  NodePostgresClientConnection,
   NodePostgresDriverType,
   NodePostgresClient
 >;
 
 export type NodePostgresPoolClientConnection = Connection<
+  NodePostgresPoolClientConnection,
   NodePostgresDriverType,
   NodePostgresPoolClient
 >;

@@ -50,12 +50,20 @@ export const isSQLiteError = (error: unknown): error is SQLiteError => {
 export type SQLiteClientConnection<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
   SQLiteClientType extends SQLiteClient = SQLiteClient,
-> = Connection<DriverType, SQLiteClientType>;
+> = Connection<
+  SQLiteClientConnection<DriverType, SQLiteClientType>,
+  DriverType,
+  SQLiteClientType
+>;
 
 export type SQLitePoolClientConnection<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
   SQLitePoolClientType extends SQLitePoolClient = SQLitePoolClient,
-> = Connection<DriverType, SQLitePoolClientType>;
+> = Connection<
+  SQLitePoolClientConnection<DriverType, SQLitePoolClientType>,
+  DriverType,
+  SQLitePoolClientType
+>;
 
 export type SQLiteConnection<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
