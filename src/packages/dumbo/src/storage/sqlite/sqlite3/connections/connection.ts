@@ -1,5 +1,7 @@
 import sqlite3 from 'sqlite3';
 import type {
+  SQLiteClientOrPoolClient,
+  SQLiteConnection,
   SQLiteDriverType,
   SQLiteFileNameOrConnectionString,
 } from '../../core';
@@ -24,6 +26,13 @@ export type ConnectionCheckResult =
 
 export type SQLite3ClientOptions = SQLiteClientOptions &
   SQLiteFileNameOrConnectionString;
+
+export type SQLite3Client = SQLiteClientOrPoolClient;
+
+export type SQLite3Connection = SQLiteConnection<
+  SQLite3DriverType,
+  SQLite3Client
+>;
 
 export const sqlite3Client = (options: SQLite3ClientOptions): SQLiteClient => {
   let db: sqlite3.Database;
