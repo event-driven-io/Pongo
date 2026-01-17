@@ -23,20 +23,22 @@ import {
 } from './connections';
 
 export const sqlite3Pool = (
-  options: SQLiteDumboConnectionOptions<SQLite3DriverType> &
+  options: SQLiteDumboConnectionOptions<SQLiteConnection<SQLite3DriverType>> &
     SQLiteFileNameOrConnectionString,
 ) =>
   sqlitePool({
     ...options,
     sqliteClient: sqlite3Client,
-  } as SQLiteDumboConnectionOptions<SQLite3DriverType> &
+  } as SQLiteDumboConnectionOptions<SQLiteConnection<SQLite3DriverType>> &
     SQLiteClientFactoryOptions<SQLiteClient, SQLite3ClientOptions>);
 
 export const sqlite3DatabaseDriver = {
   driverType: 'SQLite:sqlite3' as const,
   createPool: (options) =>
     sqlite3Pool(
-      options as SQLiteDumboConnectionOptions<SQLite3DriverType> &
+      options as SQLiteDumboConnectionOptions<
+        SQLiteConnection<SQLite3DriverType>
+      > &
         SQLiteFileNameOrConnectionString,
     ),
   sqlFormatter: sqliteFormatter,
@@ -52,7 +54,7 @@ export const sqlite3DatabaseDriver = {
   },
 } satisfies DumboDatabaseDriver<
   SQLiteConnection<SQLite3DriverType>,
-  SQLiteDumboConnectionOptions<SQLite3DriverType>,
+  SQLiteDumboConnectionOptions<SQLiteConnection<SQLite3DriverType>>,
   SQLiteConnectionString
 >;
 

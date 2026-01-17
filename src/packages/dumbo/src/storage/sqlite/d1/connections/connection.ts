@@ -1,5 +1,5 @@
 import { type D1Database } from '@cloudflare/workers-types';
-import type { SQLiteDriverType } from '../../core';
+import type { SQLiteConnection, SQLiteDriverType } from '../../core';
 import { type Parameters, type SQLiteClient } from '../../core/connections';
 
 export type D1DriverType = SQLiteDriverType<'d1'>;
@@ -12,6 +12,8 @@ export type D1ClientOptions = {
 export type D1Client = SQLiteClient & {
   database: D1Database;
 };
+
+export type D1Connection = SQLiteConnection<D1DriverType, D1Client>;
 
 export const d1Client = (options: D1ClientOptions): D1Client => {
   const { database } = options;

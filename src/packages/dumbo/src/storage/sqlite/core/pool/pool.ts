@@ -16,6 +16,7 @@ import {
   createConnectionPool,
   JSONSerializer,
   type ConnectionPool,
+  type InferDbClientFromConnection,
 } from '../../../../core';
 
 export type SQLiteAmbientClientPool<
@@ -196,18 +197,18 @@ export type SQLitePoolPooledOptions<
 };
 
 export type SQLitePoolNotPooledOptions<
-  DriverType extends SQLiteDriverType = SQLiteDriverType,
+  SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
 > =
   | {
-      driverType: DriverType;
+      driverType: SQLiteConnectionType['driverType'];
       connection?: never;
-      client: SQLiteClient;
+      client: InferDbClientFromConnection<SQLiteConnectionType>;
       pooled?: false;
       singleton?: true;
       allowNestedTransactions?: boolean;
     }
   | {
-      driverType: DriverType;
+      driverType: SQLiteConnectionType['driverType'];
       connection?: never;
       client?: never;
       pooled?: boolean;
@@ -215,10 +216,8 @@ export type SQLitePoolNotPooledOptions<
       allowNestedTransactions?: boolean;
     }
   | {
-      driverType: DriverType;
-      connection:
-        | SQLitePoolClientConnection<DriverType>
-        | SQLiteClientConnection<DriverType>;
+      driverType: SQLiteConnectionType['driverType'];
+      connection: SQLiteConnectionType;
       client?: never;
       pooled?: false;
       singleton?: true;
@@ -226,10 +225,10 @@ export type SQLitePoolNotPooledOptions<
     };
 
 export type SQLiteDumboConnectionOptions<
-  DriverType extends SQLiteDriverType = SQLiteDriverType,
+  SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
 > = (
-  | SQLitePoolPooledOptions<DriverType>
-  | SQLitePoolNotPooledOptions<DriverType>
+  | SQLitePoolPooledOptions<SQLiteConnectionType['driverType']>
+  | SQLitePoolNotPooledOptions<SQLiteConnectionType>
 ) & {
   serializer?: JSONSerializer;
 };
@@ -253,33 +252,31 @@ export type SQLiteConnectionFactoryOptions<
 };
 
 export function sqlitePool<
-  DriverType extends SQLiteDriverType = SQLiteDriverType,
   SQLiteClientType extends SQLiteClient = SQLiteClient,
   SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
   ClientOptions = SQLiteClientOptions,
   ConnectionOptions extends
     SQLiteClientConnectionOptions<SQLiteConnectionType> = SQLiteClientConnectionOptions<SQLiteConnectionType>,
 >(
-  options: SQLitePoolNotPooledOptions<DriverType> &
+  options: SQLitePoolNotPooledOptions<SQLiteConnectionType> &
     SQLiteClientFactoryOptions<SQLiteClientType, ClientOptions> &
     SQLiteConnectionFactoryOptions<SQLiteConnectionType, ConnectionOptions>,
-): SQLiteAmbientClientPool<DriverType>;
+): SQLiteAmbientClientPool<SQLiteConnectionType['driverType']>;
 
 export function sqlitePool<
-  DriverType extends SQLiteDriverType = SQLiteDriverType,
   SQLiteClientType extends SQLiteClient = SQLiteClient,
   SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
   ClientOptions = SQLiteClientOptions,
   ConnectionOptions extends
     SQLiteClientConnectionOptions<SQLiteConnectionType> = SQLiteClientConnectionOptions<SQLiteConnectionType>,
 >(
-  options: SQLiteDumboConnectionOptions<DriverType> &
+  options: SQLiteDumboConnectionOptions<SQLiteConnectionType> &
     SQLiteClientFactoryOptions<SQLiteClientType, ClientOptions> &
     SQLiteConnectionFactoryOptions<SQLiteConnectionType, ConnectionOptions> &
     ClientOptions,
 ):
-  | SQLiteAmbientClientPool<DriverType>
-  | SQLiteAmbientConnectionPool<DriverType> {
+  | SQLiteAmbientClientPool<SQLiteConnectionType['driverType']>
+  | SQLiteAmbientConnectionPool<SQLiteConnectionType['driverType']> {
   const { driverType } = options;
 
   // TODO: Handle dates and bigints
