@@ -8,7 +8,7 @@ import {
   transactionFactoryWithDbClient,
   type AnyDatabaseTransaction,
   type DatabaseTransaction,
-  type DatabaseTransactionFactory,
+  type WithDatabaseTransactionFactory,
 } from './transaction';
 
 export interface Connection<
@@ -17,7 +17,7 @@ export interface Connection<
   DbClient = unknown,
   TransactionType extends DatabaseTransaction<Self> = DatabaseTransaction<Self>,
 > extends WithSQLExecutor,
-    DatabaseTransactionFactory<Self, TransactionType> {
+    WithDatabaseTransactionFactory<Self, TransactionType> {
   driverType: DriverType;
   open: () => Promise<DbClient>;
   close: () => Promise<void>;
@@ -38,7 +38,20 @@ export type InferDbClientFromConnection<C extends AnyConnection> =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   C extends Connection<any, any, infer DC, any> ? DC : never;
 
-export interface ConnectionFactory<
+export type ConnectionOptions<
+  ConnectionType extends AnyConnection = AnyConnection,
+> = {
+  driverType: ConnectionType['driverType'];
+  allowNestedTransactions?: boolean;
+};
+
+export type ConnectionFactory<
+  ConnectionType extends AnyConnection = AnyConnection,
+  ConnectionOptionsType extends
+    ConnectionOptions<ConnectionType> = ConnectionOptions<ConnectionType>,
+> = (options: ConnectionOptionsType) => ConnectionType;
+
+export interface WithConnectionFactory<
   ConnectionType extends AnyConnection = AnyConnection,
 > {
   connection: () => Promise<ConnectionType>;
@@ -69,6 +82,146 @@ export type CreateConnectionOptions<
   close: (client: InferDbClientFromConnection<ConnectionType>) => Promise<void>;
   initTransaction: InitTransaction<ConnectionType>;
   executor: () => Executor;
+};
+
+export type CreateAmbientConnectionOptions<
+  ConnectionType extends AnyConnection = AnyConnection,
+  Executor extends DbSQLExecutor = DbSQLExecutor,
+> = {
+  driverType: InferDriverTypeFromConnection<ConnectionType>;
+  client: InferDbClientFromConnection<ConnectionType>;
+  initTransaction: InitTransaction<ConnectionType>;
+  executor: () => Executor;
+};
+
+export const createAmbientConnection = <
+  ConnectionType extends AnyConnection = AnyConnection,
+  Executor extends DbSQLExecutor = DbSQLExecutor,
+>(
+  options: CreateAmbientConnectionOptions<ConnectionType, Executor>,
+): ConnectionType => {
+  const { driverType, client, executor, initTransaction } = options;
+
+  const clientPromise = Promise.resolve(client);
+  const closePromise = Promise.resolve();
+  const open = () => clientPromise;
+  const close = () => closePromise;
+
+  const connection: Connection<
+    ConnectionType,
+    InferDriverTypeFromConnection<ConnectionType>,
+    InferDbClientFromConnection<ConnectionType>,
+    DatabaseTransaction<ConnectionType>
+  > = {
+    driverType,
+    open,
+    close,
+    ...transactionFactoryWithDbClient<ConnectionType>(
+      open,
+      initTransaction(() => typedConnection),
+    ),
+    execute: sqlExecutor(executor(), { connect: open }),
+  };
+
+  const typedConnection = connection as unknown as ConnectionType;
+
+  return typedConnection;
+};
+
+export type CreateSingletonConnectionOptions<
+  ConnectionType extends AnyConnection = AnyConnection,
+  Executor extends DbSQLExecutor = DbSQLExecutor,
+> = {
+  driverType: InferDriverTypeFromConnection<ConnectionType>;
+  connect: () => Promise<InferDbClientFromConnection<ConnectionType>>;
+  close: (client: InferDbClientFromConnection<ConnectionType>) => Promise<void>;
+  initTransaction: InitTransaction<ConnectionType>;
+  executor: () => Executor;
+};
+
+export const createSingletonConnection = <
+  ConnectionType extends AnyConnection = AnyConnection,
+  Executor extends DbSQLExecutor = DbSQLExecutor,
+>(
+  options: CreateSingletonConnectionOptions<ConnectionType, Executor>,
+): ConnectionType => {
+  const { driverType, connect, close, initTransaction, executor } = options;
+
+  let client: InferDbClientFromConnection<ConnectionType> | null = null;
+  let connectPromise: Promise<
+    InferDbClientFromConnection<ConnectionType>
+  > | null = null;
+
+  const getClient = async () => {
+    if (client) return client;
+    if (!connectPromise) {
+      connectPromise = connect().then((c) => {
+        client = c;
+        return c;
+      });
+    }
+    return connectPromise;
+  };
+
+  const connection: Connection<
+    ConnectionType,
+    InferDriverTypeFromConnection<ConnectionType>,
+    InferDbClientFromConnection<ConnectionType>,
+    DatabaseTransaction<ConnectionType>
+  > = {
+    driverType,
+    open: getClient,
+    close: () => (client ? close(client) : Promise.resolve()),
+    ...transactionFactoryWithDbClient<ConnectionType>(
+      getClient,
+      initTransaction(() => typedConnection),
+    ),
+    execute: sqlExecutor(executor(), { connect: getClient }),
+  };
+
+  const typedConnection = connection as unknown as ConnectionType;
+
+  return typedConnection;
+};
+
+export type CreateTransientConnectionOptions<
+  ConnectionType extends AnyConnection = AnyConnection,
+  Executor extends DbSQLExecutor = DbSQLExecutor,
+> = {
+  driverType: InferDriverTypeFromConnection<ConnectionType>;
+  open: () => Promise<InferDbClientFromConnection<ConnectionType>>;
+  close: () => Promise<void>;
+  initTransaction: InitTransaction<ConnectionType>;
+  executor: () => Executor;
+};
+
+export const createTransientConnection = <
+  ConnectionType extends AnyConnection = AnyConnection,
+  Executor extends DbSQLExecutor = DbSQLExecutor,
+>(
+  options: CreateTransientConnectionOptions<ConnectionType, Executor>,
+): ConnectionType => {
+  const { driverType, open, close, initTransaction, executor } = options;
+
+  const connection: Connection<
+    ConnectionType,
+    InferDriverTypeFromConnection<ConnectionType>,
+    InferDbClientFromConnection<ConnectionType>,
+    DatabaseTransaction<ConnectionType>
+  > = {
+    driverType,
+    open,
+    close,
+    ...transactionFactoryWithDbClient<ConnectionType>(
+      open,
+      initTransaction(() => typedConnection),
+    ),
+    execute: sqlExecutor(executor(), { connect: open }),
+  };
+
+  const typedConnection = connection as unknown as ConnectionType;
+
+  return typedConnection;
 };
 
 export const createConnection = <

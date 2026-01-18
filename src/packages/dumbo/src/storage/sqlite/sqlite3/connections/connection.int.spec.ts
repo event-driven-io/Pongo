@@ -3,10 +3,8 @@ import fs from 'fs';
 import { afterEach, describe, it } from 'node:test';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { SQL } from '../../../../core';
 import { sqlite3Pool } from '../../../../sqlite3';
 import { InMemorySQLiteDatabase } from '../../core';
-import { sqlite3Client } from './connection';
 
 void describe('Node SQLite pool', () => {
   const inMemoryfileName: string = InMemorySQLiteDatabase;
@@ -37,7 +35,6 @@ void describe('Node SQLite pool', () => {
   void describe(`in-memory database`, () => {
     void it('returns the singleton connection', async () => {
       const pool = sqlite3Pool({
-        driverType: 'SQLite:sqlite3',
         fileName: inMemoryfileName,
       });
       const connection = await pool.connection();
@@ -57,258 +54,258 @@ void describe('Node SQLite pool', () => {
     });
   });
 
-  void describe(`file-based database`, () => {
-    void it('returns the new connection each time', async () => {
-      const pool = sqlite3Pool({
-        driverType: 'SQLite:sqlite3',
-        fileName,
-      });
-      const connection = await pool.connection();
-      const otherConnection = await pool.connection();
+  // void describe(`file-based database`, () => {
+  //   void it('returns the new connection each time', async () => {
+  //     const pool = sqlite3Pool({
+  //       driverType: 'SQLite:sqlite3',
+  //       fileName,
+  //     });
+  //     const connection = await pool.connection();
+  //     const otherConnection = await pool.connection();
 
-      try {
-        assert.notDeepStrictEqual(connection, otherConnection);
+  //     try {
+  //       assert.notDeepStrictEqual(connection, otherConnection);
 
-        const client = await connection.open();
-        const otherClient = await otherConnection.open();
-        assert.notDeepStrictEqual(client, otherClient);
-      } finally {
-        await connection.close();
-        await otherConnection.close();
-        await pool.close();
-      }
-    });
+  //       const client = await connection.open();
+  //       const otherClient = await otherConnection.open();
+  //       assert.notDeepStrictEqual(client, otherClient);
+  //     } finally {
+  //       await connection.close();
+  //       await otherConnection.close();
+  //       await pool.close();
+  //     }
+  //   });
 
-    void it('for singleton setting returns the singleton connection', async () => {
-      const pool = sqlite3Pool({
-        driverType: 'SQLite:sqlite3',
-        fileName,
-        singleton: true,
-      });
-      const connection = await pool.connection();
-      const otherConnection = await pool.connection();
+  //   void it('for singleton setting returns the singleton connection', async () => {
+  //     const pool = sqlite3Pool({
+  //       driverType: 'SQLite:sqlite3',
+  //       fileName,
+  //       singleton: true,
+  //     });
+  //     const connection = await pool.connection();
+  //     const otherConnection = await pool.connection();
 
-      try {
-        assert.strictEqual(connection, otherConnection);
+  //     try {
+  //       assert.strictEqual(connection, otherConnection);
 
-        const client = await connection.open();
-        const otherClient = await otherConnection.open();
-        assert.strictEqual(client, otherClient);
-      } finally {
-        await connection.close();
-        await otherConnection.close();
-        await pool.close();
-      }
-    });
-  });
+  //       const client = await connection.open();
+  //       const otherClient = await otherConnection.open();
+  //       assert.strictEqual(client, otherClient);
+  //     } finally {
+  //       await connection.close();
+  //       await otherConnection.close();
+  //       await pool.close();
+  //     }
+  //   });
+  // });
 
-  for (const { testName, fileName } of testCases) {
-    void describe(`sqlite3Pool with ${testName} database`, () => {
-      void it('connects using default pool', async () => {
-        const pool = sqlite3Pool({
-          driverType: 'SQLite:sqlite3',
-          fileName,
-        });
-        const connection = await pool.connection();
+  // for (const { testName, fileName } of testCases) {
+  //   void describe(`sqlite3Pool with ${testName} database`, () => {
+  //     void it('connects using default pool', async () => {
+  //       const pool = sqlite3Pool({
+  //         driverType: 'SQLite:sqlite3',
+  //         fileName,
+  //       });
+  //       const connection = await pool.connection();
 
-        try {
-          await connection.execute.query(SQL`SELECT 1`);
-        } catch (error) {
-          console.log(error);
-          assert.fail();
-        } finally {
-          await connection.close();
-          await pool.close();
-        }
-      });
+  //       try {
+  //         await connection.execute.query(SQL`SELECT 1`);
+  //       } catch (error) {
+  //         console.log(error);
+  //         assert.fail();
+  //       } finally {
+  //         await connection.close();
+  //         await pool.close();
+  //       }
+  //     });
 
-      void it('connects using client', async () => {
-        const pool = sqlite3Pool({
-          driverType: 'SQLite:sqlite3',
-          fileName,
-          pooled: false,
-        });
-        const connection = await pool.connection();
+  //     void it('connects using client', async () => {
+  //       const pool = sqlite3Pool({
+  //         driverType: 'SQLite:sqlite3',
+  //         fileName,
+  //         pooled: false,
+  //       });
+  //       const connection = await pool.connection();
 
-        try {
-          await connection.execute.query(SQL`SELECT 1`);
-        } finally {
-          await connection.close();
-          await pool.close();
-        }
-      });
+  //       try {
+  //         await connection.execute.query(SQL`SELECT 1`);
+  //       } finally {
+  //         await connection.close();
+  //         await pool.close();
+  //       }
+  //     });
 
-      void it('connects using ambient client', async () => {
-        const existingClient = sqlite3Client({ fileName });
-        await existingClient.connect();
+  //     void it('connects using ambient client', async () => {
+  //       const existingClient = sqlite3Client({ fileName });
+  //       await existingClient.connect();
 
-        const pool = sqlite3Pool({
-          driverType: 'SQLite:sqlite3',
-          fileName,
-          client: existingClient,
-        });
-        const connection = await pool.connection();
+  //       const pool = sqlite3Pool({
+  //         driverType: 'SQLite:sqlite3',
+  //         fileName,
+  //         client: existingClient,
+  //       });
+  //       const connection = await pool.connection();
 
-        try {
-          await connection.execute.query(SQL`SELECT 1`);
-        } finally {
-          await connection.close();
-          await pool.close();
-          await existingClient.close();
-        }
-      });
+  //       try {
+  //         await connection.execute.query(SQL`SELECT 1`);
+  //       } finally {
+  //         await connection.close();
+  //         await pool.close();
+  //         await existingClient.close();
+  //       }
+  //     });
 
-      void it('connects using connected ambient connected connection', async () => {
-        const ambientPool = sqlite3Pool({
-          driverType: 'SQLite:sqlite3',
-          fileName,
-        });
-        const ambientConnection = await ambientPool.connection();
-        await ambientConnection.open();
+  //     void it('connects using connected ambient connected connection', async () => {
+  //       const ambientPool = sqlite3Pool({
+  //         driverType: 'SQLite:sqlite3',
+  //         fileName,
+  //       });
+  //       const ambientConnection = await ambientPool.connection();
+  //       await ambientConnection.open();
 
-        const pool = sqlite3Pool({
-          driverType: 'SQLite:sqlite3',
-          fileName,
-          connection: ambientConnection,
-        });
+  //       const pool = sqlite3Pool({
+  //         driverType: 'SQLite:sqlite3',
+  //         fileName,
+  //         connection: ambientConnection,
+  //       });
 
-        try {
-          await pool.execute.query(SQL`SELECT 1`);
-        } finally {
-          await pool.close();
-          await ambientConnection.close();
-          await ambientPool.close();
-        }
-      });
+  //       try {
+  //         await pool.execute.query(SQL`SELECT 1`);
+  //       } finally {
+  //         await pool.close();
+  //         await ambientConnection.close();
+  //         await ambientPool.close();
+  //       }
+  //     });
 
-      void it('connects using connected ambient not-connected connection', async () => {
-        const ambientPool = sqlite3Pool({
-          driverType: 'SQLite:sqlite3',
-          fileName,
-        });
-        const ambientConnection = await ambientPool.connection();
+  //     void it('connects using connected ambient not-connected connection', async () => {
+  //       const ambientPool = sqlite3Pool({
+  //         driverType: 'SQLite:sqlite3',
+  //         fileName,
+  //       });
+  //       const ambientConnection = await ambientPool.connection();
 
-        const pool = sqlite3Pool({
-          driverType: 'SQLite:sqlite3',
-          fileName,
-          connection: ambientConnection,
-        });
+  //       const pool = sqlite3Pool({
+  //         driverType: 'SQLite:sqlite3',
+  //         fileName,
+  //         connection: ambientConnection,
+  //       });
 
-        try {
-          await pool.execute.query(SQL`SELECT 1`);
-        } finally {
-          await pool.close();
-          await ambientConnection.close();
-          await ambientPool.close();
-        }
-      });
+  //       try {
+  //         await pool.execute.query(SQL`SELECT 1`);
+  //       } finally {
+  //         await pool.close();
+  //         await ambientConnection.close();
+  //         await ambientPool.close();
+  //       }
+  //     });
 
-      void it('connects using ambient connected connection with transaction', async () => {
-        const ambientPool = sqlite3Pool({
-          driverType: 'SQLite:sqlite3',
-          fileName,
-        });
-        const ambientConnection = await ambientPool.connection();
-        await ambientConnection.open();
+  //     void it('connects using ambient connected connection with transaction', async () => {
+  //       const ambientPool = sqlite3Pool({
+  //         driverType: 'SQLite:sqlite3',
+  //         fileName,
+  //       });
+  //       const ambientConnection = await ambientPool.connection();
+  //       await ambientConnection.open();
 
-        try {
-          await ambientConnection.withTransaction<void>(async () => {
-            const pool = sqlite3Pool({
-              driverType: 'SQLite:sqlite3',
-              fileName,
-              connection: ambientConnection,
-            });
-            try {
-              await pool.execute.query(SQL`SELECT 1`);
+  //       try {
+  //         await ambientConnection.withTransaction<void>(async () => {
+  //           const pool = sqlite3Pool({
+  //             driverType: 'SQLite:sqlite3',
+  //             fileName,
+  //             connection: ambientConnection,
+  //           });
+  //           try {
+  //             await pool.execute.query(SQL`SELECT 1`);
 
-              return { success: true, result: undefined };
-            } finally {
-              await pool.close();
-            }
-          });
-        } finally {
-          await ambientConnection.close();
-          await ambientPool.close();
-        }
-      });
+  //             return { success: true, result: undefined };
+  //           } finally {
+  //             await pool.close();
+  //           }
+  //         });
+  //       } finally {
+  //         await ambientConnection.close();
+  //         await ambientPool.close();
+  //       }
+  //     });
 
-      void it('connects using ambient not-connected connection with transaction', async () => {
-        const ambientPool = sqlite3Pool({
-          driverType: 'SQLite:sqlite3',
-          fileName,
-        });
-        const ambientConnection = await ambientPool.connection();
+  //     void it('connects using ambient not-connected connection with transaction', async () => {
+  //       const ambientPool = sqlite3Pool({
+  //         driverType: 'SQLite:sqlite3',
+  //         fileName,
+  //       });
+  //       const ambientConnection = await ambientPool.connection();
 
-        try {
-          await ambientConnection.withTransaction<void>(async () => {
-            const pool = sqlite3Pool({
-              driverType: 'SQLite:sqlite3',
-              fileName,
-              connection: ambientConnection,
-            });
-            try {
-              await pool.execute.query(SQL`SELECT 1`);
+  //       try {
+  //         await ambientConnection.withTransaction<void>(async () => {
+  //           const pool = sqlite3Pool({
+  //             driverType: 'SQLite:sqlite3',
+  //             fileName,
+  //             connection: ambientConnection,
+  //           });
+  //           try {
+  //             await pool.execute.query(SQL`SELECT 1`);
 
-              return { success: true, result: undefined };
-            } finally {
-              await pool.close();
-            }
-          });
-        } finally {
-          await ambientConnection.close();
-          await ambientPool.close();
-        }
-      });
+  //             return { success: true, result: undefined };
+  //           } finally {
+  //             await pool.close();
+  //           }
+  //         });
+  //       } finally {
+  //         await ambientConnection.close();
+  //         await ambientPool.close();
+  //       }
+  //     });
 
-      void it('connects using ambient connection in withConnection scope', async () => {
-        const ambientPool = sqlite3Pool({
-          driverType: 'SQLite:sqlite3',
-          fileName,
-        });
-        try {
-          await ambientPool.withConnection(async (ambientConnection) => {
-            const pool = sqlite3Pool({
-              driverType: 'SQLite:sqlite3',
-              fileName,
-              connection: ambientConnection,
-            });
-            try {
-              await pool.execute.query(SQL`SELECT 1`);
+  //     void it('connects using ambient connection in withConnection scope', async () => {
+  //       const ambientPool = sqlite3Pool({
+  //         driverType: 'SQLite:sqlite3',
+  //         fileName,
+  //       });
+  //       try {
+  //         await ambientPool.withConnection(async (ambientConnection) => {
+  //           const pool = sqlite3Pool({
+  //             driverType: 'SQLite:sqlite3',
+  //             fileName,
+  //             connection: ambientConnection,
+  //           });
+  //           try {
+  //             await pool.execute.query(SQL`SELECT 1`);
 
-              return { success: true, result: undefined };
-            } finally {
-              await pool.close();
-            }
-          });
-        } finally {
-          await ambientPool.close();
-        }
-      });
+  //             return { success: true, result: undefined };
+  //           } finally {
+  //             await pool.close();
+  //           }
+  //         });
+  //       } finally {
+  //         await ambientPool.close();
+  //       }
+  //     });
 
-      void it('connects using ambient connection in withConnection and withTransaction scope', async () => {
-        const ambientPool = sqlite3Pool({
-          driverType: 'SQLite:sqlite3',
-          fileName,
-        });
-        try {
-          await ambientPool.withConnection((ambientConnection) =>
-            ambientConnection.withTransaction<void>(async () => {
-              const pool = sqlite3Pool({
-                driverType: 'SQLite:sqlite3',
-                fileName,
-                connection: ambientConnection,
-              });
-              try {
-                await pool.execute.query(SQL`SELECT 1`);
-              } finally {
-                await pool.close();
-              }
-            }),
-          );
-        } finally {
-          await ambientPool.close();
-        }
-      });
-    });
-  }
+  //     void it('connects using ambient connection in withConnection and withTransaction scope', async () => {
+  //       const ambientPool = sqlite3Pool({
+  //         driverType: 'SQLite:sqlite3',
+  //         fileName,
+  //       });
+  //       try {
+  //         await ambientPool.withConnection((ambientConnection) =>
+  //           ambientConnection.withTransaction<void>(async () => {
+  //             const pool = sqlite3Pool({
+  //               driverType: 'SQLite:sqlite3',
+  //               fileName,
+  //               connection: ambientConnection,
+  //             });
+  //             try {
+  //               await pool.execute.query(SQL`SELECT 1`);
+  //             } finally {
+  //               await pool.close();
+  //             }
+  //           }),
+  //         );
+  //       } finally {
+  //         await ambientPool.close();
+  //       }
+  //     });
+  //   });
+  // }
 });

@@ -10,37 +10,42 @@ import {
   SQLiteConnectionString,
   sqliteFormatter,
   sqlitePool,
-  type SQLiteClient,
+  toSqlitePoolOptions,
   type SQLiteConnection,
-  type SQLiteConnectionFactoryOptions,
-  type SQLiteDumboConnectionOptions,
-  type SQLiteFileNameOrConnectionString,
+  type SQLitePoolOptions,
 } from '../core';
 import {
   sqlite3Client,
+  sqlite3Connection,
   SQLite3DriverType,
-  type SQLite3ClientOptions,
+  type SQLite3Connection,
+  type SQLite3ConnectionOptions,
 } from './connections';
 
-export const sqlite3Pool = (
-  options: SQLiteDumboConnectionOptions<SQLiteConnection<SQLite3DriverType>> &
-    SQLiteFileNameOrConnectionString,
-) =>
-  sqlitePool({
-    ...options,
-    sqliteClient: sqlite3Client,
-  } as SQLiteDumboConnectionOptions<SQLiteConnection<SQLite3DriverType>> &
-    SQLiteConnectionFactoryOptions<SQLiteClient, SQLite3ClientOptions>);
+export type SQLite3DumboOptions = Omit<
+  SQLitePoolOptions<SQLite3Connection, SQLite3ConnectionOptions>,
+  'driverType'
+> &
+  SQLite3ConnectionOptions;
+
+export const sqlite3Pool = (options: SQLite3DumboOptions) =>
+  sqlitePool(
+    toSqlitePoolOptions({
+      ...options,
+      driverType: SQLite3DriverType,
+      ...('connection' in options
+        ? {}
+        : {
+            connectionOptions: options as SQLite3ConnectionOptions,
+            sqliteConnectionFactory: (opts: SQLite3ConnectionOptions) =>
+              sqlite3Connection(opts),
+          }),
+    }),
+  );
 
 export const sqlite3DatabaseDriver = {
   driverType: 'SQLite:sqlite3' as const,
-  createPool: (options) =>
-    sqlite3Pool(
-      options as SQLiteDumboConnectionOptions<
-        SQLiteConnection<SQLite3DriverType>
-      > &
-        SQLiteFileNameOrConnectionString,
-    ),
+  createPool: (options) => sqlite3Pool(options as SQLite3DumboOptions),
   sqlFormatter: sqliteFormatter,
   defaultMigratorOptions: DefaultSQLiteMigratorOptions,
   getDatabaseNameOrDefault: () => InMemorySQLiteDatabase,
@@ -54,7 +59,7 @@ export const sqlite3DatabaseDriver = {
   },
 } satisfies DumboDatabaseDriver<
   SQLiteConnection<SQLite3DriverType>,
-  SQLiteDumboConnectionOptions<SQLiteConnection<SQLite3DriverType>>,
+  SQLite3DumboOptions,
   SQLiteConnectionString
 >;
 
