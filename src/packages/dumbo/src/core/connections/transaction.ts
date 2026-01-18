@@ -17,7 +17,7 @@ export interface DatabaseTransaction<
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyDatabaseTransaction = DatabaseTransaction<any>;
 
-export interface DatabaseTransactionFactory<
+export interface WithDatabaseTransactionFactory<
   ConnectionType extends AnyConnection = AnyConnection,
   TransactionType extends
     DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
@@ -83,7 +83,7 @@ export const transactionFactoryWithDbClient = <
       ) => Promise<void>;
     },
   ) => TransactionType,
-): DatabaseTransactionFactory<ConnectionType, TransactionType> => {
+): WithDatabaseTransactionFactory<ConnectionType, TransactionType> => {
   let currentTransaction: TransactionType | undefined = undefined;
 
   const getOrInitCurrentTransaction = () =>
@@ -120,7 +120,7 @@ export const transactionFactoryWithNewConnection = <
   ConnectionType extends AnyConnection = AnyConnection,
 >(
   connect: () => ConnectionType,
-): DatabaseTransactionFactory<ConnectionType> => ({
+): WithDatabaseTransactionFactory<ConnectionType> => ({
   transaction: () => {
     const connection = connect();
     const transaction = connection.transaction();
@@ -138,5 +138,26 @@ export const transactionFactoryWithNewConnection = <
     return wrapInConnectionClosure(connection, () =>
       connection.withTransaction(handle),
     );
+  },
+});
+
+export const transactionFactoryWithAmbientConnection = <
+  ConnectionType extends AnyConnection = AnyConnection,
+>(
+  connect: () => ConnectionType,
+): WithDatabaseTransactionFactory<ConnectionType> => ({
+  transaction: () => {
+    const connection = connect();
+    const transaction = connection.transaction();
+
+    return {
+      ...transaction,
+      commit: () => transaction.commit(),
+      rollback: () => transaction.rollback(),
+    };
+  },
+  withTransaction: (handle) => {
+    const connection = connect();
+    return connection.withTransaction(handle);
   },
 });

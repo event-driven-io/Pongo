@@ -1,5 +1,6 @@
 import pg from 'pg';
 import {
+  createAmbientConnectionPool,
   createConnectionPool,
   JSONSerializer,
   tracer,
@@ -78,12 +79,9 @@ export const nodePostgresAmbientConnectionPool = (options: {
 }): NodePostgresAmbientConnectionPool => {
   const { connection } = options;
 
-  return createConnectionPool({
+  return createAmbientConnectionPool({
     driverType: NodePostgresDriverType,
-    getConnection: () => connection,
-    execute: connection.execute,
-    transaction: () => connection.transaction(),
-    withTransaction: (handle) => connection.withTransaction(handle),
+    connection,
   });
 };
 

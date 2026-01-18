@@ -1,5 +1,6 @@
 export * from './connections';
 import {
+  createSingletonConnectionPool,
   dumboDatabaseDriverRegistry,
   type DumboConnectionOptions,
   type DumboDatabaseDriver,
@@ -10,28 +11,31 @@ import {
   sqliteFormatter,
   sqlitePool,
   type SQLiteConnection,
-  type SQLiteConnectionFactoryOptions,
-  type SQLiteDumboConnectionOptions,
+  type SQLitePoolOptions,
 } from '../core';
 import {
   D1DriverType,
   d1Client,
-  type D1Client,
+  d1Connection,
   type D1ClientOptions,
   type D1Connection,
 } from './connections';
 
-export const d1Pool = (options: SQLiteDumboConnectionOptions<D1Connection>) =>
-  sqlitePool({
-    ...options,
-    sqliteClient: d1Client,
-  } as SQLiteDumboConnectionOptions<D1Connection> &
-    SQLiteConnectionFactoryOptions<D1Client, D1ClientOptions>);
+export type D1DumboOptions = Omit<
+  SQLitePoolOptions<D1Connection>,
+  'driverType'
+> &
+  D1ClientOptions;
+
+export const d1Pool = (options: D1DumboOptions) =>
+  createSingletonConnectionPool<D1Connection>({
+    driverType: D1DriverType,
+    getConnection: () => d1Connection(options),
+  });
 
 export const d1DatabaseDriver = {
-  driverType: 'SQLite:d1' as const,
-  createPool: (options) =>
-    d1Pool(options as SQLiteDumboConnectionOptions<D1Connection>),
+  driverType: D1DriverType,
+  createPool: (options) => d1Pool(options),
   sqlFormatter: sqliteFormatter,
   defaultMigratorOptions: DefaultSQLiteMigratorOptions,
   getDatabaseNameOrDefault: () => ':d1:', // TODO: make default database name not required
@@ -39,7 +43,7 @@ export const d1DatabaseDriver = {
   tryParseConnectionString: () => null, // TODO: make connection string not required
 } satisfies DumboDatabaseDriver<
   SQLiteConnection<D1DriverType>,
-  SQLiteDumboConnectionOptions<D1Connection>,
+  D1DumboOptions,
   SQLiteConnectionString
 >;
 

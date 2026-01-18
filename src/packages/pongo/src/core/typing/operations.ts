@@ -3,7 +3,6 @@ import {
   type DatabaseConnectionString,
   type DatabaseDriverType,
   type DatabaseTransaction,
-  type DatabaseTransactionFactory,
   type InferDriverDatabaseType,
   JSONSerializer,
   type MigrationStyle,
@@ -11,6 +10,7 @@ import {
   type QueryResultRow,
   type SQL,
   type SQLExecutor,
+  type WithDatabaseTransactionFactory,
 } from '@event-driven-io/dumbo';
 import { v7 as uuid } from 'uuid';
 import type { PongoCollectionSchemaComponent } from '../collection';
@@ -108,7 +108,7 @@ export interface PongoSession<
 
 export interface PongoDb<
   DriverType extends DatabaseDriverType = DatabaseDriverType,
-> extends DatabaseTransactionFactory<AnyConnection> {
+> extends WithDatabaseTransactionFactory<AnyConnection> {
   driverType: DriverType;
   databaseName: string;
   connect(): Promise<void>;

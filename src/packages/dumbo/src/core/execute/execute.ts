@@ -176,6 +176,34 @@ export const sqlExecutorInNewConnection = <
     ),
 });
 
+export const sqlExecutorInAmbientConnection = <
+  ConnectionType extends Connection,
+>(options: {
+  driverType: ConnectionType['driverType'];
+  connection: () => Promise<ConnectionType>;
+}): SQLExecutor => ({
+  query: (sql, queryOptions) =>
+    executeInAmbientConnection(
+      (connection) => connection.execute.query(sql, queryOptions),
+      options,
+    ),
+  batchQuery: (sqls, queryOptions) =>
+    executeInAmbientConnection(
+      (connection) => connection.execute.batchQuery(sqls, queryOptions),
+      options,
+    ),
+  command: (sql, commandOptions) =>
+    executeInAmbientConnection(
+      (connection) => connection.execute.command(sql, commandOptions),
+      options,
+    ),
+  batchCommand: (sqls, commandOptions) =>
+    executeInAmbientConnection(
+      (connection) => connection.execute.batchCommand(sqls, commandOptions),
+      options,
+    ),
+});
+
 export const executeInNewDbClient = async <
   DbClient = unknown,
   Result = unknown,
@@ -212,5 +240,23 @@ export const executeInNewConnection = async <
     return await handle(connection);
   } finally {
     await connection.close();
+  }
+};
+
+export const executeInAmbientConnection = async <
+  ConnectionType extends Connection,
+  Result,
+>(
+  handle: (connection: ConnectionType) => Promise<Result>,
+  options: {
+    connection: () => Promise<ConnectionType>;
+  },
+) => {
+  const connection = await options.connection();
+
+  try {
+    return await handle(connection);
+  } finally {
+    // Do not close the connection in ambient connection context
   }
 };

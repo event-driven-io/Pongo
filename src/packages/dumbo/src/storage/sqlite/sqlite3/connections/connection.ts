@@ -1,14 +1,16 @@
 import sqlite3 from 'sqlite3';
 import type {
+  SQLiteClient,
   SQLiteClientOrPoolClient,
   SQLiteConnection,
+  SQLiteConnectionOptions,
   SQLiteDriverType,
   SQLiteFileNameOrConnectionString,
 } from '../../core';
 import {
   InMemorySQLiteDatabase,
+  sqliteConnection,
   type Parameters,
-  type SQLiteClient,
   type SQLiteClientOptions,
 } from '../../core/connections';
 
@@ -28,6 +30,9 @@ export type SQLite3ClientOptions = SQLiteClientOptions &
   SQLiteFileNameOrConnectionString;
 
 export type SQLite3Client = SQLiteClientOrPoolClient;
+
+export type SQLite3ConnectionOptions = SQLiteConnectionOptions &
+  ((SQLite3ClientOptions & { client?: never }) | { client: SQLite3Client });
 
 export type SQLite3Connection = SQLiteConnection<
   SQLite3DriverType,
@@ -162,3 +167,16 @@ export const checkConnection = async (
     await client.close();
   }
 };
+
+export const sqlite3Connection = (options: SQLite3ConnectionOptions) =>
+  sqliteConnection<SQLite3Connection, SQLite3ConnectionOptions>({
+    type: 'Client',
+    driverType: SQLite3DriverType,
+    sqliteClientFactory: (connectionOptions) => {
+      if ('client' in connectionOptions && connectionOptions.client) {
+        return connectionOptions.client;
+      }
+      return sqlite3Client(connectionOptions);
+    },
+    connectionOptions: options,
+  });
