@@ -11,8 +11,8 @@ import {
   sqliteFormatter,
   sqlitePool,
   type SQLiteClient,
-  type SQLiteClientFactoryOptions,
   type SQLiteConnection,
+  type SQLiteConnectionFactoryOptions,
   type SQLiteDumboConnectionOptions,
   type SQLiteFileNameOrConnectionString,
 } from '../core';
@@ -30,7 +30,7 @@ export const sqlite3Pool = (
     ...options,
     sqliteClient: sqlite3Client,
   } as SQLiteDumboConnectionOptions<SQLiteConnection<SQLite3DriverType>> &
-    SQLiteClientFactoryOptions<SQLiteClient, SQLite3ClientOptions>);
+    SQLiteConnectionFactoryOptions<SQLiteClient, SQLite3ClientOptions>);
 
 export const sqlite3DatabaseDriver = {
   driverType: 'SQLite:sqlite3' as const,
