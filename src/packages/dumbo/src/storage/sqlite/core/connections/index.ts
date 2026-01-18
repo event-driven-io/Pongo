@@ -1,6 +1,7 @@
 import {
   SQLiteConnectionString,
   sqliteSQLExecutor,
+  type SQLiteConnectionFactoryOptions,
   type SQLiteDriverType,
 } from '..';
 import {
@@ -95,12 +96,25 @@ export type AnySQLiteConnection =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   SQLiteConnection<any, any>;
 
-export type SQLiteClientConnectionOptions<
+export type SQLiteConnectionOptions<
   SQLiteConnectionType extends
     AnySQLiteClientConnection = AnySQLiteClientConnection,
 > = {
+  driverType: SQLiteConnectionType['driverType'];
+  allowNestedTransactions?: boolean;
+};
+
+export type SQLiteClientConnectionDefinitionOptions<
+  SQLiteConnectionType extends
+    AnySQLiteClientConnection = AnySQLiteClientConnection,
+  ClientOptions = SQLiteClientOptions,
+> = {
   driverType: InferDriverTypeFromConnection<SQLiteConnectionType>;
   type: 'Client';
+  sqliteClient: SQLiteClientFactory<
+    InferDbClientFromConnection<SQLiteConnectionType>,
+    ClientOptions
+  >;
   connect: () => Promise<InferDbClientFromConnection<SQLiteConnectionType>>;
   close: (
     client: InferDbClientFromConnection<SQLiteConnectionType>,
@@ -110,12 +124,17 @@ export type SQLiteClientConnectionOptions<
   };
 };
 
-export type SQLitePoolConnectionOptions<
+export type SQLitePoolConnectionDefinitionOptions<
   SQLiteConnectionType extends
     AnySQLitePoolClientConnection = AnySQLitePoolClientConnection,
+  ClientOptions = SQLiteClientOptions,
 > = {
   driverType: InferDriverTypeFromConnection<SQLiteConnectionType>;
   type: 'PoolClient';
+  sqliteClient: SQLiteClientFactory<
+    InferDbClientFromConnection<SQLiteConnectionType>,
+    ClientOptions
+  >;
   connect: () => Promise<InferDbClientFromConnection<SQLiteConnectionType>>;
   close: (
     client: InferDbClientFromConnection<SQLiteConnectionType>,
@@ -124,12 +143,23 @@ export type SQLitePoolConnectionOptions<
     allowNestedTransactions: boolean;
   };
 };
+
+export type SQLiteConnectionFactory<
+  SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
+  ConnectionOptions extends
+    SQLiteClientConnectionDefinitionOptions<SQLiteConnectionType> = SQLiteClientConnectionDefinitionOptions<SQLiteConnectionType>,
+> = (options: ConnectionOptions) => SQLiteConnectionType;
 
 export type SQLiteConnectionDefinition<
   SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
   ConnectionOptions extends
-    SQLiteClientConnectionOptions<SQLiteConnectionType> = SQLiteClientConnectionOptions<SQLiteConnectionType>,
-> = (options: ConnectionOptions) => SQLiteConnectionType;
+    SQLiteClientConnectionDefinitionOptions<SQLiteConnectionType> = SQLiteClientConnectionDefinitionOptions<SQLiteConnectionType>,
+> = (
+  options: SQLiteConnectionFactoryOptions<
+    SQLiteConnectionType,
+    ConnectionOptions
+  >,
+) => SQLiteConnectionFactory<SQLiteConnectionType, ConnectionOptions>;
 
 export type TransactionNestingCounter = {
   increment: () => void;
@@ -165,7 +195,7 @@ export const sqliteClientConnection = <
   SQLiteConnectionType extends
     AnySQLiteClientConnection = AnySQLiteClientConnection,
 >(
-  options: SQLiteClientConnectionOptions<SQLiteConnectionType>,
+  options: SQLiteClientConnectionDefinitionOptions<SQLiteConnectionType>,
 ): SQLiteConnectionType => {
   const {
     connect,
@@ -191,7 +221,7 @@ export const sqlitePoolClientConnection = <
   SQLiteConnectionType extends
     AnySQLiteClientConnection = AnySQLiteClientConnection,
 >(
-  options: SQLitePoolConnectionOptions<SQLiteConnectionType>,
+  options: SQLitePoolConnectionDefinitionOptions<SQLiteConnectionType>,
 ): SQLiteConnectionType => {
   const {
     connect,
@@ -217,22 +247,22 @@ export function sqliteConnection<
   SQLiteConnectionType extends
     AnySQLiteClientConnection = AnySQLiteClientConnection,
 >(
-  options: SQLitePoolConnectionOptions<SQLiteConnectionType>,
+  options: SQLitePoolConnectionDefinitionOptions<SQLiteConnectionType>,
 ): SQLiteConnectionType;
 
 export function sqliteConnection<
   SQLiteConnectionType extends
     AnySQLiteClientConnection = AnySQLiteClientConnection,
 >(
-  options: SQLiteClientConnectionOptions<SQLiteConnectionType>,
+  options: SQLiteClientConnectionDefinitionOptions<SQLiteConnectionType>,
 ): SQLiteConnectionType;
 
 export function sqliteConnection<
   SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
 >(
   options:
-    | SQLitePoolConnectionOptions<SQLiteConnectionType>
-    | SQLiteClientConnectionOptions<SQLiteConnectionType>,
+    | SQLitePoolConnectionDefinitionOptions<SQLiteConnectionType>
+    | SQLiteClientConnectionDefinitionOptions<SQLiteConnectionType>,
 ): SQLiteConnectionType {
   return options.type === 'Client'
     ? sqliteClientConnection<SQLiteConnectionType>(options)

@@ -9,8 +9,8 @@ import {
   SQLiteConnectionString,
   sqliteFormatter,
   sqlitePool,
-  type SQLiteClientFactoryOptions,
   type SQLiteConnection,
+  type SQLiteConnectionFactoryOptions,
   type SQLiteDumboConnectionOptions,
 } from '../core';
 import {
@@ -26,7 +26,7 @@ export const d1Pool = (options: SQLiteDumboConnectionOptions<D1Connection>) =>
     ...options,
     sqliteClient: d1Client,
   } as SQLiteDumboConnectionOptions<D1Connection> &
-    SQLiteClientFactoryOptions<D1Client, D1ClientOptions>);
+    SQLiteConnectionFactoryOptions<D1Client, D1ClientOptions>);
 
 export const d1DatabaseDriver = {
   driverType: 'SQLite:d1' as const,
