@@ -76,9 +76,9 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260115.0",
     "@faker-js/faker": "^10.0.0",
-    "@types/benchmark": "^2.1.5",
     "@testcontainers/mongodb": "^11.6.0",
     "@testcontainers/postgresql": "^11.6.0",
+    "@types/benchmark": "^2.1.5",
     "@types/mongodb": "^4.0.7",
     "@types/node": "^24.5.2",
     "@types/pg": "^8.15.5",
@@ -91,6 +91,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.4",
     "glob": "^11.0.3",
+    "miniflare": "^4.20260114.0",
     "npm-run-all2": "^8.0.4",
     "prettier": "^3.6.2",
     "testcontainers": "^11.6.0",
@@ -103,11 +104,11 @@
     "vitepress": "^1.6.4"
   },
   "peerDependencies": {
+    "ansis": "^4.1.0",
     "cli-table3": "^0.6.5",
     "commander": "^14.0.1",
     "pg": "^8.16.3",
-    "pg-connection-string": "^2.9.1",
-    "ansis": "^4.1.0"
+    "pg-connection-string": "^2.9.1"
   },
   "dependencies": {
     "sqlite3": "^5.1.7"
