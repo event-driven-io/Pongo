@@ -13,21 +13,33 @@ import {
 } from '../../../../core';
 import { sqliteTransaction } from '../transactions';
 
-export type Parameters = object | string | bigint | number | boolean | null;
+export type SQLiteParameters =
+  | object
+  | string
+  | bigint
+  | number
+  | boolean
+  | null;
 
 export type SQLiteClient = {
   connect: () => Promise<void>;
   close: () => Promise<void>;
-  command: (sql: string, values?: Parameters[]) => Promise<void>;
-  query: <T>(sql: string, values?: Parameters[]) => Promise<T[]>;
-  querySingle: <T>(sql: string, values?: Parameters[]) => Promise<T | null>;
+  command: (sql: string, values?: SQLiteParameters[]) => Promise<void>;
+  query: <T>(sql: string, values?: SQLiteParameters[]) => Promise<T[]>;
+  querySingle: <T>(
+    sql: string,
+    values?: SQLiteParameters[],
+  ) => Promise<T | null>;
 };
 
 export type SQLitePoolClient = {
   release: () => void;
-  command: (sql: string, values?: Parameters[]) => Promise<void>;
-  query: <T>(sql: string, values?: Parameters[]) => Promise<T[]>;
-  querySingle: <T>(sql: string, values?: Parameters[]) => Promise<T | null>;
+  command: (sql: string, values?: SQLiteParameters[]) => Promise<void>;
+  query: <T>(sql: string, values?: SQLiteParameters[]) => Promise<T[]>;
+  querySingle: <T>(
+    sql: string,
+    values?: SQLiteParameters[],
+  ) => Promise<T | null>;
 };
 
 export type SQLiteClientFactory<
