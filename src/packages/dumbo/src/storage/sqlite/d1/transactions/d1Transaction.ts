@@ -29,6 +29,7 @@ export const d1Transaction =
     },
   ): DatabaseTransaction<D1Connection> => {
     const transactionCounter = transactionNestingCounter();
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     let session: D1DatabaseSession | null = null;
     return {
       connection: connection(),

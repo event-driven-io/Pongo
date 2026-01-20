@@ -1,4 +1,10 @@
 import sqlite3 from 'sqlite3';
+import {
+  SQL,
+  type QueryResult,
+  type QueryResultRow,
+  type SQLQueryOptions,
+} from '../../../../core';
 import type {
   SQLiteClient,
   SQLiteClientOrPoolClient,
@@ -11,8 +17,10 @@ import {
   InMemorySQLiteDatabase,
   sqliteConnection,
   type SQLiteClientOptions,
+  type SQLiteCommandOptions,
   type SQLiteParameters,
 } from '../../core/connections';
+import { sqliteFormatter } from '../../core/sql/formatter';
 
 export type SQLite3DriverType = SQLiteDriverType<'sqlite3'>;
 export const SQLite3DriverType: SQLite3DriverType = 'SQLite:sqlite3';
@@ -74,6 +82,81 @@ export const sqlite3Client = (options: SQLite3ClientOptions): SQLiteClient => {
           }
         });
 
+  const executeQuery = <T>(
+    sql: string,
+    params?: SQLiteParameters[],
+  ): Promise<T[]> =>
+    new Promise((resolve, reject) => {
+      try {
+        db.all(sql, params ?? [], (err: Error | null, result: T[]) => {
+          if (err) {
+            reject(err);
+            return;
+          }
+
+          resolve(result);
+        });
+      } catch (error) {
+        reject(error as Error);
+      }
+    });
+
+  const executeCommand = <Result extends QueryResultRow = QueryResultRow>(
+    sql: string,
+    params?: SQLiteParameters[],
+    options?: SQLiteCommandOptions,
+  ): Promise<QueryResult<Result>> =>
+    new Promise((resolve, reject) => {
+      try {
+        if (options?.ignoreChangesCount === true) {
+          db.run(
+            sql,
+            params ?? [],
+            function (err: Error | null, rows: Result[]) {
+              if (err) {
+                reject(err);
+                return;
+              }
+              resolve({
+                rowCount: 0,
+                rows: rows ?? [],
+              });
+            },
+          );
+        }
+        // OD: 2026-01-21
+        // This is needed as SQLite does not return changes count properly
+        // We need to query it separately with SELECT changes()
+        // This may be fixed eventually in sqlite3 library as Node.js team did here:
+        // https://github.com/nodejs/node/issues/57344
+        // But for now, we do it manually, as a workaround
+        // We also serialize it to avoid race conditions
+        db.serialize(() => {
+          db.all(sql, params ?? [], (err: Error | null, rows: Result[]) => {
+            if (err) {
+              reject(err);
+              return;
+            }
+            db.get(
+              'SELECT changes() as changes',
+              (changesErr: Error | null, row: { changes: number } | null) => {
+                if (changesErr) {
+                  reject(changesErr);
+                  return;
+                }
+                resolve({
+                  rowCount: row?.changes ?? 0,
+                  rows: rows ?? [],
+                });
+              },
+            );
+          });
+        });
+      } catch (error) {
+        reject(error as Error);
+      }
+    });
+
   return {
     connect,
     close: (): Promise<void> => {
@@ -94,46 +177,61 @@ export const sqlite3Client = (options: SQLite3ClientOptions): SQLiteClient => {
         });
       return Promise.resolve();
     },
-    command: (sql: string, params?: SQLiteParameters[]) =>
-      new Promise((resolve, reject) => {
-        db.run(sql, params ?? [], (err: Error | null) => {
-          if (err) {
-            reject(err);
-            return;
-          }
+    query: async <Result extends QueryResultRow = QueryResultRow>(
+      sql: SQL,
+      _options?: SQLQueryOptions,
+    ): Promise<QueryResult<Result>> => {
+      const { query, params } = sqliteFormatter.format(sql);
+      const result = await executeQuery<Result>(
+        query,
+        params as SQLiteParameters[],
+      );
+      return { rowCount: result.length, rows: result };
+    },
+    batchQuery: async <Result extends QueryResultRow = QueryResultRow>(
+      sqls: SQL[],
+      _options?: SQLQueryOptions,
+    ): Promise<QueryResult<Result>[]> => {
+      const results: QueryResult<Result>[] = [];
+      for (const sql of sqls) {
+        const { query, params } = sqliteFormatter.format(sql);
+        const result = await executeQuery<Result>(
+          query,
+          params as SQLiteParameters[],
+        );
+        results.push({ rowCount: result.length, rows: result });
+      }
+      return results;
+    },
+    command: async <Result extends QueryResultRow = QueryResultRow>(
+      sql: SQL,
+      options?: SQLiteCommandOptions,
+    ): Promise<QueryResult<Result>> => {
+      const { query, params } = sqliteFormatter.format(sql);
 
-          resolve();
-        });
-      }),
-    query: <T>(sql: string, params?: SQLiteParameters[]): Promise<T[]> =>
-      new Promise((resolve, reject) => {
-        try {
-          db.all(sql, params ?? [], (err: Error | null, result: T[]) => {
-            if (err) {
-              reject(err);
-              return;
-            }
+      return executeCommand<Result>(
+        query,
+        params as SQLiteParameters[],
+        options,
+      );
+    },
+    batchCommand: async <Result extends QueryResultRow = QueryResultRow>(
+      sqls: SQL[],
+      options?: SQLiteCommandOptions,
+    ): Promise<QueryResult<Result>[]> => {
+      const results: QueryResult<Result>[] = [];
 
-            resolve(result);
-          });
-        } catch (error) {
-          reject(error as Error);
-        }
-      }),
-    querySingle: <T>(
-      sql: string,
-      params?: SQLiteParameters[],
-    ): Promise<T | null> =>
-      new Promise((resolve, reject) => {
-        db.get(sql, params ?? [], (err: Error | null, result: T | null) => {
-          if (err) {
-            reject(err);
-            return;
-          }
-
-          resolve(result);
-        });
-      }),
+      for (const sql of sqls) {
+        const { query, params } = sqliteFormatter.format(sql);
+        const result = await executeCommand<Result>(
+          query,
+          params as SQLiteParameters[],
+          options,
+        );
+        results.push(result);
+      }
+      return results;
+    },
   };
 };
 
@@ -145,7 +243,7 @@ export const checkConnection = async (
   });
 
   try {
-    await client.querySingle('SELECT 1');
+    await client.query(SQL`SELECT 1`);
     return { successful: true };
   } catch (error) {
     const code =

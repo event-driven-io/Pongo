@@ -1,4 +1,5 @@
 import {
+  SQL,
   sqlExecutor,
   type DatabaseTransaction,
   type InferDbClientFromConnection,
@@ -40,7 +41,7 @@ export const sqliteTransaction =
           if (transactionCounter.level >= 1) {
             transactionCounter.increment();
             await client.query(
-              `SAVEPOINT transaction${transactionCounter.level}`,
+              SQL`SAVEPOINT transaction${SQL.plain(transactionCounter.level.toString())}`,
             );
             return;
           }
@@ -48,7 +49,7 @@ export const sqliteTransaction =
           transactionCounter.increment();
         }
 
-        await client.query('BEGIN TRANSACTION');
+        await client.query(SQL`BEGIN TRANSACTION`);
       },
       commit: async function () {
         const client = (await getClient) as SQLiteClientOrPoolClient;
@@ -57,7 +58,7 @@ export const sqliteTransaction =
           if (allowNestedTransactions) {
             if (transactionCounter.level > 1) {
               await client.query(
-                `RELEASE transaction${transactionCounter.level}`,
+                SQL`RELEASE transaction${SQL.plain(transactionCounter.level.toString())}`,
               );
               transactionCounter.decrement();
 
@@ -66,7 +67,7 @@ export const sqliteTransaction =
 
             transactionCounter.reset();
           }
-          await client.query('COMMIT');
+          await client.query(SQL`COMMIT`);
         } finally {
           if (options?.close)
             await options?.close(
@@ -84,7 +85,7 @@ export const sqliteTransaction =
             }
           }
 
-          await client.query('ROLLBACK');
+          await client.query(SQL`ROLLBACK`);
         } finally {
           if (options?.close)
             await options?.close(
