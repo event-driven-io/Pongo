@@ -1,10 +1,10 @@
 import { type D1Database } from '@cloudflare/workers-types';
 import {
-  type Parameters,
   type SQLiteClient,
   type SQLiteConnection,
   type SQLiteConnectionOptions,
   type SQLiteDriverType,
+  type SQLiteParameters,
   sqliteAmbientClientConnection,
 } from '../../core';
 
@@ -29,13 +29,16 @@ export const d1Client = (options: D1ClientOptions): D1Client => {
     connect: () => Promise.resolve(),
     close: () => Promise.resolve(),
 
-    command: async (sql: string, params?: Parameters[]) => {
+    command: async (sql: string, params?: SQLiteParameters[]) => {
       const stmt = database.prepare(sql);
       const bound = params?.length ? stmt.bind(...params) : stmt;
       await bound.run();
     },
 
-    query: async <T>(sql: string, params?: Parameters[]): Promise<T[]> => {
+    query: async <T>(
+      sql: string,
+      params?: SQLiteParameters[],
+    ): Promise<T[]> => {
       const stmt = database.prepare(sql);
       const bound = params?.length ? stmt.bind(...params) : stmt;
       const { results } = await bound.all<T>();
@@ -44,7 +47,7 @@ export const d1Client = (options: D1ClientOptions): D1Client => {
 
     querySingle: async <T>(
       sql: string,
-      params?: Parameters[],
+      params?: SQLiteParameters[],
     ): Promise<T | null> => {
       const stmt = database.prepare(sql);
       const bound = params?.length ? stmt.bind(...params) : stmt;

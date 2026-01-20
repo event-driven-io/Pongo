@@ -10,8 +10,8 @@ import type {
 import {
   InMemorySQLiteDatabase,
   sqliteConnection,
-  type Parameters,
   type SQLiteClientOptions,
+  type SQLiteParameters,
 } from '../../core/connections';
 
 export type SQLite3DriverType = SQLiteDriverType<'sqlite3'>;
@@ -94,7 +94,7 @@ export const sqlite3Client = (options: SQLite3ClientOptions): SQLiteClient => {
         });
       return Promise.resolve();
     },
-    command: (sql: string, params?: Parameters[]) =>
+    command: (sql: string, params?: SQLiteParameters[]) =>
       new Promise((resolve, reject) => {
         db.run(sql, params ?? [], (err: Error | null) => {
           if (err) {
@@ -105,7 +105,7 @@ export const sqlite3Client = (options: SQLite3ClientOptions): SQLiteClient => {
           resolve();
         });
       }),
-    query: <T>(sql: string, params?: Parameters[]): Promise<T[]> =>
+    query: <T>(sql: string, params?: SQLiteParameters[]): Promise<T[]> =>
       new Promise((resolve, reject) => {
         try {
           db.all(sql, params ?? [], (err: Error | null, result: T[]) => {
@@ -120,7 +120,10 @@ export const sqlite3Client = (options: SQLite3ClientOptions): SQLiteClient => {
           reject(error as Error);
         }
       }),
-    querySingle: <T>(sql: string, params?: Parameters[]): Promise<T | null> =>
+    querySingle: <T>(
+      sql: string,
+      params?: SQLiteParameters[],
+    ): Promise<T | null> =>
       new Promise((resolve, reject) => {
         db.get(sql, params ?? [], (err: Error | null, result: T | null) => {
           if (err) {

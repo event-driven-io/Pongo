@@ -10,7 +10,7 @@ import {
   type SQLCommandOptions,
   type SQLQueryOptions,
 } from '../../../../core';
-import type { Parameters, SQLiteClient } from '../connections';
+import type { SQLiteClient, SQLiteParameters } from '../connections';
 import { sqliteFormatter } from '../sql/formatter';
 
 export const sqliteExecute = async <Result = void>(
@@ -79,7 +79,10 @@ async function batch<Result extends QueryResultRow = QueryResultRow>(
       debugSQL: sqliteFormatter.describe(sqls[i]!),
     });
 
-    let result = await client.query<Result>(query, params as Parameters[]);
+    let result = await client.query<Result>(
+      query,
+      params as SQLiteParameters[],
+    );
 
     if (options?.mapping) {
       result = result.map((row) => mapSQLQueryResult(row, options.mapping!));
