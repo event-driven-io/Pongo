@@ -4,9 +4,16 @@ import {
   type SQLiteConnection,
   type SQLiteConnectionOptions,
   type SQLiteDriverType,
-  type SQLiteParameters,
   sqliteAmbientClientConnection,
 } from '../../core';
+import {
+  SQL,
+  type QueryResult,
+  type QueryResultRow,
+  type SQLCommandOptions,
+  type SQLQueryOptions,
+} from '../../../../core';
+import { sqliteFormatter } from '../../core/sql/formatter';
 
 export type D1DriverType = SQLiteDriverType<'d1'>;
 export const D1DriverType: D1DriverType = 'SQLite:d1';
@@ -29,29 +36,58 @@ export const d1Client = (options: D1ClientOptions): D1Client => {
     connect: () => Promise.resolve(),
     close: () => Promise.resolve(),
 
-    command: async (sql: string, params?: SQLiteParameters[]) => {
-      const stmt = database.prepare(sql);
+    query: async <Result extends QueryResultRow = QueryResultRow>(
+      sql: SQL,
+      _options?: SQLQueryOptions,
+    ): Promise<QueryResult<Result>> => {
+      const { query, params } = sqliteFormatter.format(sql);
+      const stmt = database.prepare(query);
       const bound = params?.length ? stmt.bind(...params) : stmt;
-      await bound.run();
+      const { results } = await bound.all<Result>();
+      return { rowCount: results?.length ?? 0, rows: results ?? [] };
     },
 
-    query: async <T>(
-      sql: string,
-      params?: SQLiteParameters[],
-    ): Promise<T[]> => {
-      const stmt = database.prepare(sql);
-      const bound = params?.length ? stmt.bind(...params) : stmt;
-      const { results } = await bound.all<T>();
-      return results;
+    batchQuery: async <Result extends QueryResultRow = QueryResultRow>(
+      sqls: SQL[],
+      _options?: SQLQueryOptions,
+    ): Promise<QueryResult<Result>[]> => {
+      const statements = sqls.map((sql) => {
+        const { query, params } = sqliteFormatter.format(sql);
+        const stmt = database.prepare(query);
+        return params?.length ? stmt.bind(...params) : stmt;
+      });
+      const results = await database.batch<Result>(statements);
+      return results.map((result) => ({
+        rowCount: result.results?.length ?? 0,
+        rows: result.results ?? [],
+      }));
     },
 
-    querySingle: async <T>(
-      sql: string,
-      params?: SQLiteParameters[],
-    ): Promise<T | null> => {
-      const stmt = database.prepare(sql);
+    command: async <Result extends QueryResultRow = QueryResultRow>(
+      sql: SQL,
+      _options?: SQLCommandOptions,
+    ): Promise<QueryResult<Result>> => {
+      const { query, params } = sqliteFormatter.format(sql);
+      const stmt = database.prepare(query);
       const bound = params?.length ? stmt.bind(...params) : stmt;
-      return await bound.first<T>();
+      const result = await bound.run();
+      return { rowCount: result.meta?.changes ?? 0, rows: [] };
+    },
+
+    batchCommand: async <Result extends QueryResultRow = QueryResultRow>(
+      sqls: SQL[],
+      _options?: SQLCommandOptions,
+    ): Promise<QueryResult<Result>[]> => {
+      const statements = sqls.map((sql) => {
+        const { query, params } = sqliteFormatter.format(sql);
+        const stmt = database.prepare(query);
+        return params?.length ? stmt.bind(...params) : stmt;
+      });
+      const results = await database.batch(statements);
+      return results.map((result) => ({
+        rowCount: result.meta?.changes ?? 0,
+        rows: [],
+      }));
     },
   };
 };

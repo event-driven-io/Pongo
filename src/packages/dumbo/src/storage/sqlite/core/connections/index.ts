@@ -10,8 +10,14 @@ import {
   type DatabaseTransaction,
   type InferDbClientFromConnection,
   type InferDriverTypeFromConnection,
+  type SQLCommandOptions,
+  type SQLExecutor,
 } from '../../../../core';
 import { sqliteTransaction } from '../transactions';
+
+export type SQLiteCommandOptions = SQLCommandOptions & {
+  ignoreChangesCount?: boolean;
+};
 
 export type SQLiteParameters =
   | object
@@ -24,23 +30,11 @@ export type SQLiteParameters =
 export type SQLiteClient = {
   connect: () => Promise<void>;
   close: () => Promise<void>;
-  command: (sql: string, values?: SQLiteParameters[]) => Promise<void>;
-  query: <T>(sql: string, values?: SQLiteParameters[]) => Promise<T[]>;
-  querySingle: <T>(
-    sql: string,
-    values?: SQLiteParameters[],
-  ) => Promise<T | null>;
-};
+} & SQLExecutor;
 
 export type SQLitePoolClient = {
   release: () => void;
-  command: (sql: string, values?: SQLiteParameters[]) => Promise<void>;
-  query: <T>(sql: string, values?: SQLiteParameters[]) => Promise<T[]>;
-  querySingle: <T>(
-    sql: string,
-    values?: SQLiteParameters[],
-  ) => Promise<T | null>;
-};
+} & SQLExecutor;
 
 export type SQLiteClientFactory<
   SQLiteClientType extends SQLiteClient = SQLiteClient,
@@ -220,9 +214,7 @@ export const sqliteClientConnection = <
 ): SQLiteConnectionType => {
   const { connectionOptions, sqliteClientFactory } = options;
 
-  let client:
-    | (InferDbClientFromConnection<SQLiteConnectionType> & SQLiteClient)
-    | null = null;
+  let client: InferDbClientFromConnection<SQLiteConnectionType> | null = null;
 
   const connect = async (): Promise<
     InferDbClientFromConnection<SQLiteConnectionType>
@@ -231,7 +223,9 @@ export const sqliteClientConnection = <
 
     client = sqliteClientFactory(connectionOptions as ClientOptions);
 
-    await (client as SQLiteClient).connect();
+    if (client && 'connect' in client && typeof client.connect === 'function')
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+      await client.connect();
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return client!;
@@ -240,8 +234,18 @@ export const sqliteClientConnection = <
   return createConnection({
     driverType: options.driverType,
     connect,
-    close: () =>
-      client !== null ? (client as SQLiteClient).close() : Promise.resolve(),
+    close: async () => {
+      if (client && 'close' in client && typeof client.close === 'function')
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+        await client.close();
+      else if (
+        client &&
+        'release' in client &&
+        typeof client.release === 'function'
+      )
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+        client.release();
+    },
     initTransaction: (connection) =>
       sqliteTransaction(
         options.driverType,
@@ -264,9 +268,7 @@ export const sqlitePoolClientConnection = <
 ): SQLiteConnectionType => {
   const { connectionOptions, sqliteClientFactory } = options;
 
-  let client:
-    | (InferDbClientFromConnection<SQLiteConnectionType> & SQLiteClient)
-    | null = null;
+  let client: InferDbClientFromConnection<SQLiteConnectionType> | null = null;
 
   const connect = async (): Promise<
     InferDbClientFromConnection<SQLiteConnectionType>
@@ -275,7 +277,8 @@ export const sqlitePoolClientConnection = <
 
     client = sqliteClientFactory(connectionOptions as ClientOptions);
 
-    await (client as SQLiteClient).connect();
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+    await client!.connect();
 
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return client!;
@@ -286,7 +289,7 @@ export const sqlitePoolClientConnection = <
     connect,
     close: () =>
       client !== null
-        ? Promise.resolve((client as SQLitePoolClient).release())
+        ? Promise.resolve((client as unknown as SQLitePoolClient).release())
         : Promise.resolve(),
     initTransaction: (connection) =>
       sqliteTransaction(

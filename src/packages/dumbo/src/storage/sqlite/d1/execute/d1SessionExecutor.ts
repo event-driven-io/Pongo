@@ -6,7 +6,7 @@ import type {
   SQLCommandOptions,
   SQLQueryOptions,
 } from '../../../../core';
-import { sqliteFormatter, type SQLiteParameters } from '../../core';
+import { sqliteFormatter } from '../../core';
 import type { D1Client, D1DriverType } from '../connections';
 
 export const d1SQLExecutor = (
@@ -18,64 +18,32 @@ export const d1SQLExecutor = (
   query: async <Result extends QueryResultRow>(
     client: D1Client,
     sql: SQL,
-    _options?: SQLQueryOptions,
+    options?: SQLQueryOptions,
   ): Promise<QueryResult<Result>> => {
-    const { query, params } = sqliteFormatter.format(sql);
-    const result = await client.query<Result>(
-      query,
-      params as SQLiteParameters[],
-    );
-    return { rowCount: result.length, rows: result };
+    return await client.query<Result>(sql, options);
   },
 
   batchQuery: async <Result extends QueryResultRow>(
     client: D1Client,
     sqls: SQL[],
-    _options?: SQLQueryOptions,
+    options?: SQLQueryOptions,
   ): Promise<QueryResult<Result>[]> => {
-    // Use D1's native batch for true atomic execution
-    const statements = sqls.map((sql) => {
-      const { query, params } = sqliteFormatter.format(sql);
-      const stmt = client.database.prepare(query);
-      return params.length ? stmt.bind(...params) : stmt;
-    });
-
-    const batchResults = await client.database.batch(statements);
-
-    return batchResults.map((r) => ({
-      rowCount: r.results?.length ?? 0,
-      rows: (r.results ?? []) as Result[],
-    }));
+    return await client.batchQuery<Result>(sqls, options);
   },
 
   command: async <Result extends QueryResultRow>(
     client: D1Client,
     sql: SQL,
-    _options?: SQLCommandOptions,
+    options?: SQLCommandOptions,
   ): Promise<QueryResult<Result>> => {
-    const { query, params } = sqliteFormatter.format(sql);
-    await client.command(query, params as SQLiteParameters[]);
-    return { rowCount: 0, rows: [] };
+    return await client.command<Result>(sql, options);
   },
 
   batchCommand: async <Result extends QueryResultRow>(
     client: D1Client,
     sqls: SQL[],
-    _options?: SQLCommandOptions,
+    options?: SQLCommandOptions,
   ): Promise<QueryResult<Result>[]> => {
-    const statements = sqls.map((sql) => {
-      const { query, params } = sqliteFormatter.format(sql);
-      const stmt = client.database.prepare(query);
-      return params.length
-        ? stmt.bind(...(params as SQLiteParameters[]))
-        : stmt;
-    });
-
-    const batchResults = await client.database.batch(statements);
-
-    return batchResults.map((r) => ({
-      rowCount: r.meta?.changes ?? 0,
-      rows: [],
-    }));
+    return await client.batchCommand<Result>(sqls, options);
   },
 });
