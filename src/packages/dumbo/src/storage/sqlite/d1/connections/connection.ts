@@ -1,4 +1,4 @@
-import { type D1Database } from '@cloudflare/workers-types';
+import { D1DatabaseSession, type D1Database } from '@cloudflare/workers-types';
 import {
   SQL,
   type QueryResult,
@@ -18,21 +18,28 @@ import { sqliteFormatter } from '../../core/sql/formatter';
 export type D1DriverType = SQLiteDriverType<'d1'>;
 export const D1DriverType: D1DriverType = 'SQLite:d1';
 
+export type D1DatabaseOrSession = D1Database | D1DatabaseSession;
+
 export type D1ClientOptions = {
   database: D1Database;
+  session?: D1DatabaseSession | undefined;
 };
 
 export type D1Client = SQLiteClient & {
   database: D1Database;
+  session?: D1DatabaseSession | undefined;
 };
 
 export type D1Connection = SQLiteConnection<D1DriverType, D1Client>;
 
 export const d1Client = (options: D1ClientOptions): D1Client => {
-  const { database } = options;
+  const { database, session } = options;
+
+  const execute = session ?? database;
 
   return {
     database,
+    session,
     connect: () => Promise.resolve(),
     close: () => Promise.resolve(),
 
@@ -41,7 +48,7 @@ export const d1Client = (options: D1ClientOptions): D1Client => {
       _options?: SQLQueryOptions,
     ): Promise<QueryResult<Result>> => {
       const { query, params } = sqliteFormatter.format(sql);
-      const stmt = database.prepare(query);
+      const stmt = execute.prepare(query);
       const bound = params?.length ? stmt.bind(...params) : stmt;
       const { results } = await bound.all<Result>();
       return { rowCount: results?.length ?? 0, rows: results ?? [] };
@@ -53,10 +60,10 @@ export const d1Client = (options: D1ClientOptions): D1Client => {
     ): Promise<QueryResult<Result>[]> => {
       const statements = sqls.map((sql) => {
         const { query, params } = sqliteFormatter.format(sql);
-        const stmt = database.prepare(query);
+        const stmt = execute.prepare(query);
         return params?.length ? stmt.bind(...params) : stmt;
       });
-      const results = await database.batch<Result>(statements);
+      const results = await execute.batch<Result>(statements);
       return results.map((result) => ({
         rowCount: result.results?.length ?? 0,
         rows: result.results ?? [],
@@ -68,7 +75,7 @@ export const d1Client = (options: D1ClientOptions): D1Client => {
       _options?: SQLCommandOptions,
     ): Promise<QueryResult<Result>> => {
       const { query, params } = sqliteFormatter.format(sql);
-      const stmt = database.prepare(query);
+      const stmt = execute.prepare(query);
       const bound = params?.length ? stmt.bind(...params) : stmt;
       const result = await bound.run<Result>();
       return {
@@ -83,10 +90,10 @@ export const d1Client = (options: D1ClientOptions): D1Client => {
     ): Promise<QueryResult<Result>[]> => {
       const statements = sqls.map((sql) => {
         const { query, params } = sqliteFormatter.format(sql);
-        const stmt = database.prepare(query);
+        const stmt = execute.prepare(query);
         return params?.length ? stmt.bind(...params) : stmt;
       });
-      const results = await database.batch<Result>(statements);
+      const results = await execute.batch<Result>(statements);
       return results.map((result) => ({
         rowCount: result.meta?.changes ?? 0,
         rows: result.results ?? [],
