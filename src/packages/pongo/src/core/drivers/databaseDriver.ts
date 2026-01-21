@@ -21,7 +21,6 @@ export type PongoDatabaseFactoryOptions<
     AnyPongoDatabaseDriverOptions = AnyPongoDatabaseDriverOptions,
 > = {
   databaseName?: string | undefined;
-  connectionString: string;
   schema?:
     | {
         autoMigration?: MigrationStyle;
@@ -30,6 +29,14 @@ export type PongoDatabaseFactoryOptions<
     | undefined;
   errors?: { throwOnOperationFailures?: boolean } | undefined;
 } & DriverOptions;
+
+export type DatabaseDriverOptionsWithDatabaseName = {
+  databaseName?: string | undefined;
+};
+
+export type DatabaseDriverOptionsWithConnectionString = {
+  connectionString?: string | undefined;
+};
 
 export interface PongoDatabaseDriver<
   Database extends AnyPongoDb = AnyPongoDb,
@@ -45,7 +52,14 @@ export interface PongoDatabaseDriver<
   >(
     options: PongoDatabaseFactoryOptions<CollectionsSchema, DriverOptions>,
   ): Database & PongoDb<Database['driverType']>;
-  getDatabaseNameOrDefault(connectionString: string): string;
+  getDatabaseNameOrDefault?<
+    CollectionsSchema extends Record<string, PongoCollectionSchema> = Record<
+      string,
+      PongoCollectionSchema
+    >,
+  >(
+    options: PongoDatabaseFactoryOptions<CollectionsSchema, DriverOptions>,
+  ): string;
   defaultConnectionString: string;
 }
 

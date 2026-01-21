@@ -16,6 +16,7 @@ import {
   pongoDatabaseDriverRegistry,
   pongoSchema,
   type PongoClient,
+  type PongoClientOptions,
   type PongoCollectionSchema,
   type PongoDb,
 } from '../core';
@@ -205,27 +206,47 @@ const startRepl = async (options: {
       database: pongoSchema.db(options.schema.database, collectionsSchema),
     });
 
-    const typedClient = pongoClient({
+    const driverOptions: PongoClientOptions = {
       driver,
-      connectionString,
       schema: {
         definition: schema,
         autoMigration: options.schema.autoMigration,
       },
+    };
+
+    // TODO: Find a better way to pass custom driver settings
+    const customOptions = {
+      connectionString,
+    };
+
+    const typedClient = pongoClient({
+      ...driverOptions,
+      ...customOptions,
     });
 
-    db = typedClient.database;
+    db = typedClient.database!;
 
     for (const collectionName of options.schema.collections) {
-      shell.context[collectionName] = typedClient.database[collectionName];
+      shell.context[collectionName] = typedClient.database![collectionName];
     }
 
     pongo = typedClient;
   } else {
-    pongo = pongoClient({
+    const driverOptions: PongoClientOptions = {
       driver,
+      schema: {
+        autoMigration: options.schema.autoMigration,
+      },
+    };
+
+    // TODO: Find a better way to pass custom driver settings
+    const customOptions = {
       connectionString,
-      schema: { autoMigration: options.schema.autoMigration },
+    };
+
+    pongo = pongoClient({
+      ...driverOptions,
+      ...customOptions,
     });
 
     db = pongo.db(options.schema.database);

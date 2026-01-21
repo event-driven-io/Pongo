@@ -13,8 +13,8 @@ import {
   type PongoClient,
   type PongoCollection,
   type PongoDb,
-} from '../';
-import { databaseDriver } from '../pg';
+} from '../../../';
+import { databaseDriver } from '../../../pg';
 
 type History = { street: string };
 type Address = {

@@ -32,6 +32,13 @@ export const parseConnectionString = (
     };
   }
 
+  if (connectionString.startsWith('d1:')) {
+    return {
+      databaseType: 'SQLite',
+      driverName: 'd1',
+    };
+  }
+
   throw new Error(
     `Unsupported database connection string: ${connectionString}`,
   );

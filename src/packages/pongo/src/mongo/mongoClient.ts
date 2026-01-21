@@ -1,48 +1,25 @@
-import {
-  parseConnectionString,
-  toDatabaseDriverType,
-} from '@event-driven-io/dumbo';
 import { type ClientSessionOptions } from 'http2';
 import type { ClientSession, WithSessionCallback } from 'mongodb';
 import {
   pongoClient,
-  pongoDatabaseDriverRegistry,
   pongoSession,
   type AnyPongoDatabaseDriver,
   type PongoClient,
   type PongoClientOptions,
+  type PongoClientSchema,
 } from '../core';
 import { Db } from './mongoDb';
 
-export class MongoClient {
+export class MongoClient<
+  DatabaseDriverType extends AnyPongoDatabaseDriver = AnyPongoDatabaseDriver,
+  TypedClientSchema extends PongoClientSchema = PongoClientSchema,
+> {
   private pongoClient: PongoClient;
 
   constructor(
-    connectionString: string,
-    options?: Omit<PongoClientOptions, 'connectionString' | 'driver'> & {
-      driver?: AnyPongoDatabaseDriver;
-    },
+    options: PongoClientOptions<DatabaseDriverType, TypedClientSchema>,
   ) {
-    const { databaseType, driverName } =
-      parseConnectionString(connectionString);
-
-    const driver =
-      options?.driver ??
-      pongoDatabaseDriverRegistry.tryGet(
-        toDatabaseDriverType(databaseType, driverName),
-      );
-
-    if (driver === null) {
-      throw new Error(
-        `No database driver registered for ${databaseType} with name ${driverName}`,
-      );
-    }
-
-    this.pongoClient = pongoClient({
-      ...(options ?? {}),
-      driver,
-      connectionString,
-    });
+    this.pongoClient = pongoClient(options);
   }
 
   async connect() {

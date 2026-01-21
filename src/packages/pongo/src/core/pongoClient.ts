@@ -1,7 +1,3 @@
-import {
-  type DatabaseConnectionString,
-  type InferDriverDatabaseType,
-} from '@event-driven-io/dumbo';
 import { PongoDatabaseCache } from './database';
 import type {
   AnyPongoDatabaseDriver,
@@ -22,23 +18,15 @@ import type {
 
 export const pongoClient = <
   DatabaseDriver extends AnyPongoDatabaseDriver,
-  ConnectionString extends DatabaseConnectionString<
-    InferDriverDatabaseType<DatabaseDriver['driverType']>
-  >,
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
 >(
-  options: PongoClientOptions<
-    DatabaseDriver,
-    ConnectionString,
-    TypedClientSchema
-  >,
+  options: PongoClientOptions<DatabaseDriver, TypedClientSchema>,
 ): PongoClient<
   DatabaseDriver['driverType'],
   ExtractPongoDatabaseTypeFromDriver<DatabaseDriver>
 > &
   PongoClientWithSchema<TypedClientSchema> => {
-  const { driver, connectionString, schema, errors, ...connectionOptions } =
-    options;
+  const { driver, schema, errors, ...connectionOptions } = options;
 
   const dbClients = PongoDatabaseCache<PongoDb, TypedClientSchema>({
     driver,
@@ -62,7 +50,6 @@ export const pongoClient = <
     ): ExtractPongoDatabaseTypeFromDriver<DatabaseDriver> => {
       const db = dbClients.getOrCreate({
         ...connectionOptions,
-        connectionString,
         databaseName: dbName,
         errors,
       });

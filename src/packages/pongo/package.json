@@ -90,6 +90,16 @@
         "types": "./dist/sqlite3.d.cts",
         "default": "./dist/sqlite3.cjs"
       }
+    },
+    "./d1": {
+      "import": {
+        "types": "./dist/d1.d.ts",
+        "default": "./dist/d1.js"
+      },
+      "require": {
+        "types": "./dist/d1.d.cts",
+        "default": "./dist/d1.cjs"
+      }
     }
   },
   "typesVersions": {
@@ -108,6 +118,9 @@
       ],
       "sqlite3": [
         "./dist/sqlite3.d.ts"
+      ],
+      "d1": [
+        "./dist/d1.d.ts"
       ]
     }
   },
@@ -121,6 +134,7 @@
     "pongo": "./dist/cli.js"
   },
   "dependencies": {
+    "@cloudflare/workers-types": "^4.20260115.0",
     "sqlite3": "^5.1.7"
   },
   "peerDependencies": {

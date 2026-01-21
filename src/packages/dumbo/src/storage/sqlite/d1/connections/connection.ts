@@ -1,18 +1,18 @@
 import { type D1Database } from '@cloudflare/workers-types';
 import {
-  type SQLiteClient,
-  type SQLiteConnection,
-  type SQLiteConnectionOptions,
-  type SQLiteDriverType,
-  sqliteAmbientClientConnection,
-} from '../../core';
-import {
   SQL,
   type QueryResult,
   type QueryResultRow,
   type SQLCommandOptions,
   type SQLQueryOptions,
 } from '../../../../core';
+import {
+  sqliteAmbientClientConnection,
+  type SQLiteClient,
+  type SQLiteConnection,
+  type SQLiteConnectionOptions,
+  type SQLiteDriverType,
+} from '../../core';
 import { sqliteFormatter } from '../../core/sql/formatter';
 
 export type D1DriverType = SQLiteDriverType<'d1'>;
@@ -70,8 +70,11 @@ export const d1Client = (options: D1ClientOptions): D1Client => {
       const { query, params } = sqliteFormatter.format(sql);
       const stmt = database.prepare(query);
       const bound = params?.length ? stmt.bind(...params) : stmt;
-      const result = await bound.run();
-      return { rowCount: result.meta?.changes ?? 0, rows: [] };
+      const result = await bound.run<Result>();
+      return {
+        rowCount: result.meta?.changes ?? 0,
+        rows: result.results ?? [],
+      };
     },
 
     batchCommand: async <Result extends QueryResultRow = QueryResultRow>(
@@ -83,10 +86,10 @@ export const d1Client = (options: D1ClientOptions): D1Client => {
         const stmt = database.prepare(query);
         return params?.length ? stmt.bind(...params) : stmt;
       });
-      const results = await database.batch(statements);
+      const results = await database.batch<Result>(statements);
       return results.map((result) => ({
         rowCount: result.meta?.changes ?? 0,
-        rows: [],
+        rows: result.results ?? [],
       }));
     },
   };
