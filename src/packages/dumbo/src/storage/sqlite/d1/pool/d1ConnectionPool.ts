@@ -1,21 +1,15 @@
-import { type D1ClientOptions } from '../connections/connection';
+import type { D1ConnectionOptions } from '..';
+import { createSingletonConnectionPool } from '../../../../core';
+import {
+  d1Connection,
+  D1DriverType,
+  type D1Connection,
+} from '../connections/connection';
 
-export type D1DumboConnectionOptions = D1ClientOptions;
+export type D1PoolOptions = D1ConnectionOptions;
 
-// export const d1AmbientClientPool = (
-//   options: D1DumboConnectionOptions,
-// ): SQLiteAmbientClientPool<typeof D1DriverType> => {
-//   const client = d1Client(options);
-
-//   // D1 uses ambient pool - single binding instance
-//   return createConnectionPool({
-//     driverType: D1DriverType,
-//     getConnection: () =>
-//       d1ClientConnection({
-//         driverType: D1DriverType,
-//         client,
-//       }),
-//     connection: () => Promise.resolve(/* connection */),
-//     close: () => Promise.resolve(),
-//   });
-// };
+export const d1Pool = (options: D1PoolOptions) =>
+  createSingletonConnectionPool<D1Connection>({
+    driverType: D1DriverType,
+    getConnection: () => d1Connection(options),
+  });

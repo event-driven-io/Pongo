@@ -10,6 +10,7 @@ import {
   type DatabaseTransaction,
   type InferDbClientFromConnection,
   type InferDriverTypeFromConnection,
+  type InitTransaction,
   type SQLCommandOptions,
   type SQLExecutor,
 } from '../../../../core';
@@ -183,6 +184,8 @@ export type SqliteAmbientClientConnectionOptions<
 > = {
   driverType: SQLiteConnectionType['driverType'];
   client: InferDbClientFromConnection<SQLiteConnectionType>;
+  initTransaction?: InitTransaction<SQLiteConnectionType>;
+  allowNestedTransactions?: boolean;
 };
 
 export const sqliteAmbientClientConnection = <
@@ -191,13 +194,20 @@ export const sqliteAmbientClientConnection = <
 >(
   options: SqliteAmbientClientConnectionOptions<SQLiteConnectionType>,
 ) => {
-  const { client, driverType } = options;
+  const { client, driverType, initTransaction, allowNestedTransactions } =
+    options;
 
   return createAmbientConnection<SQLiteConnectionType>({
     driverType,
     client,
-    initTransaction: (connection) =>
-      sqliteTransaction(driverType, connection, false),
+    initTransaction:
+      initTransaction ??
+      ((connection) =>
+        sqliteTransaction(
+          driverType,
+          connection,
+          allowNestedTransactions ?? false,
+        )),
     executor: () => sqliteSQLExecutor(driverType),
   });
 };

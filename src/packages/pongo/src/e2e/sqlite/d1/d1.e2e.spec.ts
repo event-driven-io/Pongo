@@ -609,7 +609,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
     });
 
     // TODO: Enable when transactions are supported in D1
-    void it.skip('should delete documents in transaction', async () => {
+    void it('should delete documents in transaction', async () => {
       const docs = [
         { name: 'David', age: 40 },
         { name: 'Eve', age: 45 },

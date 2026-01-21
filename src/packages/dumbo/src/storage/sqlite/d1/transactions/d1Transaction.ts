@@ -1,7 +1,14 @@
 import type { D1DatabaseSession } from '@cloudflare/workers-types';
 import { sqlExecutor, type DatabaseTransaction } from '../../../../core';
 import { sqliteSQLExecutor, transactionNestingCounter } from '../../core';
-import { D1DriverType, type D1Client, type D1Connection } from '../connections';
+import {
+  d1Client,
+  D1DriverType,
+  type D1Client,
+  type D1Connection,
+} from '../connections';
+
+export type D1Transaction = DatabaseTransaction<D1Connection>;
 
 export type D1TransactionMode = 'strict' | 'compatible';
 
@@ -27,15 +34,25 @@ export const d1Transaction =
     options?: {
       close: (client: D1Client, error?: unknown) => Promise<void>;
     },
-  ): DatabaseTransaction<D1Connection> => {
+  ): D1Transaction => {
     const transactionCounter = transactionNestingCounter();
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+
     let session: D1DatabaseSession | null = null;
+    let client: D1Client | null = null;
+    let sessionClient: D1Client | null = null;
+
+    const getDatabaseClient = async () => {
+      if (client) return Promise.resolve(client);
+
+      client = await getClient;
+      return client;
+    };
+
     return {
       connection: connection(),
       driverType: D1DriverType,
       begin: async function () {
-        const client = await getClient;
+        const client = await getDatabaseClient();
 
         if (allowNestedTransactions) {
           if (transactionCounter.level >= 1) {
@@ -47,9 +64,10 @@ export const d1Transaction =
         }
 
         session = client.database.withSession();
+        sessionClient = d1Client({ database: client.database, session });
       },
       commit: async function () {
-        const client = await getClient;
+        const client = await getDatabaseClient();
 
         try {
           if (allowNestedTransactions) {
@@ -62,12 +80,13 @@ export const d1Transaction =
             transactionCounter.reset();
           }
           session = null;
+          sessionClient = null;
         } finally {
           if (options?.close) await options?.close(client);
         }
       },
       rollback: async function (error?: unknown) {
-        const client = await getClient;
+        const client = await getDatabaseClient();
         try {
           if (allowNestedTransactions) {
             if (transactionCounter.level > 1) {
@@ -77,12 +96,20 @@ export const d1Transaction =
           }
 
           session = null;
+          sessionClient = null;
         } finally {
           if (options?.close) await options?.close(client, error);
         }
       },
       execute: sqlExecutor(sqliteSQLExecutor(D1DriverType), {
-        connect: () => getClient,
+        connect: () => {
+          if (!sessionClient) {
+            throw new Error(
+              'Transaction has not been started. Call begin() first.',
+            );
+          }
+          return Promise.resolve(sessionClient);
+        },
       }),
     };
   };
