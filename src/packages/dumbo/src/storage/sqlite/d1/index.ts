@@ -1,6 +1,5 @@
 export * from './connections';
 import {
-  createSingletonConnectionPool,
   dumboDatabaseDriverRegistry,
   type DumboConnectionOptions,
   type DumboDatabaseDriver,
@@ -11,27 +10,11 @@ import {
   sqliteFormatter,
   sqlitePool,
   type SQLiteConnection,
-  type SQLitePoolOptions,
 } from '../core';
-import {
-  D1DriverType,
-  d1Client,
-  d1Connection,
-  type D1ClientOptions,
-  type D1Connection,
-} from './connections';
+import { D1DriverType, d1Client } from './connections';
+import { d1Pool, type D1PoolOptions } from './pool';
 
-export type D1DumboOptions = Omit<
-  SQLitePoolOptions<D1Connection>,
-  'driverType'
-> &
-  D1ClientOptions;
-
-export const d1Pool = (options: D1DumboOptions) =>
-  createSingletonConnectionPool<D1Connection>({
-    driverType: D1DriverType,
-    getConnection: () => d1Connection(options),
-  });
+export type D1DumboOptions = D1PoolOptions;
 
 export const d1DatabaseDriver = {
   driverType: D1DriverType,
@@ -57,6 +40,6 @@ export type D1DumboConnectionOptions = DumboConnectionOptions<
 
 useD1DatabaseDriver();
 
-export { d1DatabaseDriver as databaseDriver, d1Client as sqliteClient };
+export { d1Pool, d1DatabaseDriver as databaseDriver, d1Client as sqliteClient };
 
 export const connectionPool = sqlitePool;

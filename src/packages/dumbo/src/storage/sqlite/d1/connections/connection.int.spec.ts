@@ -2,8 +2,9 @@ import type { D1Database } from '@cloudflare/workers-types';
 import assert from 'assert';
 import { Miniflare } from 'miniflare';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-import { d1Pool } from '..';
 import { SQL } from '../../../../core';
+import { d1Pool } from '../pool';
+import { d1Client } from './d1Client';
 
 void describe('Cloudflare d1 pool', () => {
   let mf: Miniflare;
@@ -61,7 +62,6 @@ void describe('Cloudflare d1 pool', () => {
   void it('connects using client', async () => {
     const pool = d1Pool({
       database,
-      pooled: false,
     });
     const connection = await pool.connection();
 
@@ -73,25 +73,24 @@ void describe('Cloudflare d1 pool', () => {
     }
   });
 
-  // TODO: ADD passing client
-  // void it('connects using ambient client', async () => {
-  //   const existingClient = d1Client({ database });
-  //   await existingClient.connect();
+  void it('connects using ambient client', async () => {
+    const existingClient = d1Client({ database });
+    await existingClient.connect();
 
-  //   const pool = d1Pool({
-  //     database,
-  //     client: existingClient,
-  //   });
-  //   const connection = await pool.connection();
+    const pool = d1Pool({
+      database,
+      client: existingClient,
+    });
+    const connection = await pool.connection();
 
-  //   try {
-  //     await connection.execute.query(SQL`SELECT 1`);
-  //   } finally {
-  //     await connection.close();
-  //     await pool.close();
-  //     await existingClient.close();
-  //   }
-  // });
+    try {
+      await connection.execute.query(SQL`SELECT 1`);
+    } finally {
+      await connection.close();
+      await pool.close();
+      await existingClient.close();
+    }
+  });
 
   void it('connects using connected ambient connected connection', async () => {
     const ambientPool = d1Pool({
@@ -134,7 +133,7 @@ void describe('Cloudflare d1 pool', () => {
     }
   });
 
-  void it.skip('connects using ambient connected connection with transaction', async () => {
+  void it('connects using ambient connected connection with transaction', async () => {
     const ambientPool = d1Pool({
       database,
     });
@@ -161,7 +160,7 @@ void describe('Cloudflare d1 pool', () => {
     }
   });
 
-  void it.skip('connects using ambient not-connected connection with transaction', async () => {
+  void it('connects using ambient not-connected connection with transaction', async () => {
     const ambientPool = d1Pool({
       database,
     });
@@ -210,7 +209,7 @@ void describe('Cloudflare d1 pool', () => {
     }
   });
 
-  void it.skip('connects using ambient connection in withConnection and withTransaction scope', async () => {
+  void it('connects using ambient connection in withConnection and withTransaction scope', async () => {
     const ambientPool = d1Pool({
       database,
     });
