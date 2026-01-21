@@ -1,9 +1,7 @@
 import {
   type AnyConnection,
-  type DatabaseConnectionString,
   type DatabaseDriverType,
   type DatabaseTransaction,
-  type InferDriverDatabaseType,
   JSONSerializer,
   type MigrationStyle,
   type QueryResult,
@@ -43,18 +41,12 @@ export interface PongoClient<
 
 export type PongoClientOptions<
   DatabaseDriver extends AnyPongoDatabaseDriver = AnyPongoDatabaseDriver,
-  ConnectionString extends DatabaseConnectionString<
-    InferDriverDatabaseType<DatabaseDriver['driverType']>
-  > = DatabaseConnectionString<
-    InferDriverDatabaseType<DatabaseDriver['driverType']>
-  >,
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
 > =
   ExtractPongoDatabaseDriverOptions<DatabaseDriver> extends infer Options
     ? Options extends unknown
       ? {
           driver: DatabaseDriver;
-          connectionString: ConnectionString | string;
           schema?:
             | { autoMigration?: MigrationStyle; definition?: TypedClientSchema }
             | undefined;

@@ -55,7 +55,10 @@ export type NotPooledPongoOptions =
     };
 
 type NodePostgresDatabaseDriverOptions =
-  PongoDatabaseDriverOptions<NodePostgresPongoClientOptions>;
+  PongoDatabaseDriverOptions<NodePostgresPongoClientOptions> & {
+    databaseName?: string | undefined;
+    connectionString: string;
+  };
 
 const pgDatabaseDriver: PongoDatabaseDriver<
   PongoDb<NodePostgresDriverType>,
@@ -91,7 +94,11 @@ const pgDatabaseDriver: PongoDatabaseDriver<
       databaseName,
     });
   },
-  getDatabaseNameOrDefault,
+  getDatabaseNameOrDefault: (options) => {
+    return (
+      options.databaseName ?? getDatabaseNameOrDefault(options.connectionString)
+    );
+  },
   defaultConnectionString: 'postgresql://localhost:5432/postgres',
 };
 

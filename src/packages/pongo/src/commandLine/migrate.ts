@@ -6,7 +6,14 @@ import {
   type DatabaseDriverType,
 } from '@event-driven-io/dumbo';
 import { Command } from 'commander';
-import { pongoDatabaseDriverRegistry, pongoSchema } from '../core';
+import {
+  pongoDatabaseDriverRegistry,
+  pongoSchema,
+  type AnyPongoDatabaseDriverOptions,
+  type PongoCollectionSchema,
+  type PongoDatabaseFactoryOptions,
+  type PongoDocument,
+} from '../core';
 import { loadConfigFile } from './configFile';
 
 interface MigrateRunOptions {
@@ -194,11 +201,19 @@ const getMigrations = ({
 
   const dbDefinition = pongoSchema.db.from(databaseName, collectionNames);
 
-  const db = driver.databaseFactory({
+  const driverOptions: PongoDatabaseFactoryOptions<
+    Record<string, PongoCollectionSchema<PongoDocument>>,
+    AnyPongoDatabaseDriverOptions
+  > = {
+    schema: { definition: dbDefinition },
+  };
+
+  const customOptions = {
     connectionString: connectionString ?? driver.defaultConnectionString,
     databaseName,
-    schema: { definition: dbDefinition },
-  });
+  };
+
+  const db = driver.databaseFactory({ ...driverOptions, ...customOptions });
 
   return db.schema.component.migrations;
 };

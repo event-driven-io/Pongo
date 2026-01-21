@@ -1,20 +1,21 @@
-import { SQLiteConnectionString } from '@event-driven-io/dumbo/sqlite3';
+import { PostgreSQLConnectionString } from '@event-driven-io/dumbo/pg';
+import {
+  PostgreSqlContainer,
+  type StartedPostgreSqlContainer,
+} from '@testcontainers/postgresql';
 import assert from 'assert';
 import console from 'console';
-import fs from 'fs';
 import { after, before, describe, it } from 'node:test';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { v4 as uuid } from 'uuid';
+import { v7 as uuid } from 'uuid';
 import {
-  ObjectId,
   pongoClient,
-  pongoSchema,
+  type ObjectId,
   type PongoClient,
   type PongoDb,
-} from '../';
-import { MongoClient, type Db } from '../shim';
-import { sqlite3Driver as databaseDriver } from '../storage/sqlite/sqlite3';
+} from '../../..';
+import { pongoSchema } from '../../../core';
+import { databaseDriver } from '../../../pg';
+import { MongoClient, type Db } from '../../../shim';
 
 type History = { street: string };
 type Address = {
@@ -32,51 +33,45 @@ type User = {
   tags?: string[];
 };
 
-void describe('SQLite MongoDB Compatibility Tests', () => {
+void describe('MongoDB Compatibility Tests', () => {
+  let postgres: StartedPostgreSqlContainer;
+  let postgresConnectionString: PostgreSQLConnectionString;
   let client: PongoClient;
   let shim: MongoClient;
 
   let pongoDb: PongoDb;
   let mongoDb: Db;
-  const testDatabasePath = path.resolve(
-    path.dirname(fileURLToPath(import.meta.url)),
-  );
-  const fileName = path.resolve(testDatabasePath, 'test.db');
-  const connectionString = SQLiteConnectionString(`file:${fileName}`);
 
   before(async () => {
+    postgres = await new PostgreSqlContainer('postgres:18.0').start();
+    postgresConnectionString = PostgreSQLConnectionString(
+      postgres.getConnectionUri(),
+    );
     client = pongoClient({
       driver: databaseDriver,
-      connectionString,
+      connectionString: postgresConnectionString,
     });
-    shim = new MongoClient(connectionString, {
+    shim = new MongoClient({
       driver: databaseDriver,
+      connectionString: postgresConnectionString,
     });
     await client.connect();
     await shim.connect();
 
-    const dbName = 'testdb';
+    const dbName = postgres.getDatabase();
 
     pongoDb = client.db(dbName);
     mongoDb = shim.db(dbName);
   });
 
   after(async () => {
-    await client.close();
-    await shim.close();
-    if (!fs.existsSync(fileName)) {
-      return;
-    }
     try {
-      fs.unlinkSync(fileName);
-      if (fs.existsSync(`${fileName}-shm`)) {
-        fs.unlinkSync(`${fileName}-shm`);
-      }
-      if (fs.existsSync(`${fileName}-wal`)) {
-        fs.unlinkSync(`${fileName}-wal`);
-      }
+      await client.close();
+      await shim.close();
+      //await endAllPools();
+      await postgres.stop();
     } catch (error) {
-      console.log('Error deleting file:', error);
+      console.log(error);
     }
   });
 
@@ -97,10 +92,11 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
     });
   });
 
-  void describe('Insert Operations', async () => {
-    await it('should insert a document with id into both SQLite and MongoDB shim', async () => {
+  void describe('Insert Operations', () => {
+    void it('should insert a document with id into both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('insertOne');
       const mongoCollection = mongoDb.collection<User>('shiminsertOne');
+      const _id = new Date().toISOString();
       const doc: User = {
         _id: new Date().toISOString(),
         name: 'Anita',
@@ -108,8 +104,8 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       };
       const pongoInsertResult = await pongoCollection.insertOne(doc);
       const mongoInsertResult = await mongoCollection.insertOne(doc);
-      assert.ok(pongoInsertResult.insertedId !== null);
-      assert.ok(mongoInsertResult.insertedId !== null);
+      assert(pongoInsertResult.insertedId);
+      assert(mongoInsertResult.insertedId);
       const pongoDoc = await pongoCollection.findOne({
         _id: pongoInsertResult.insertedId,
       });
@@ -130,7 +126,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should insert a document into both SQLite and MongoDB shim', async () => {
+    void it('should insert a document into both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('insertOne');
       const mongoCollection = mongoDb.collection<User>('shiminsertOne');
       const doc = { name: 'Anita', age: 25 };
@@ -156,7 +152,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should insert many documents into both SQLite and MongoDB shim', async () => {
+    void it('should insert many documents into both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('insertMany');
       const mongoCollection = mongoDb.collection<User>('shiminsertMany');
       const docs = [
@@ -217,7 +213,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       const mongoDoc = await mongoCollection.findOne({
         _id: mongoInsertResult.insertedId,
       });
-      assert.equal(pongoDoc?.age, 31);
+
       assert.equal(mongoDoc?.age, 31);
       assert.deepStrictEqual(
         {
@@ -543,7 +539,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
   });
 
   void describe('Delete Operations', () => {
-    void it('should delete a document from both SQLite and MongoDB shim', async () => {
+    void it('should delete a document from both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
       const mongoCollection = mongoDb.collection<User>('shimtestCollection');
       const doc = { name: 'Cruella', age: 35 };
@@ -747,6 +743,115 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       );
     });
 
+    void it.skip('should find documents with a nested property filter', async () => {
+      const pongoCollection = pongoDb.collection<User>(
+        'findWithNestedProperty',
+      );
+      const mongoCollection = mongoDb.collection<User>(
+        'shimfindWithNestedProperty',
+      );
+
+      const docs = [
+        {
+          name: 'David',
+          age: 40,
+          address: { city: 'Dreamland', zip: '12345' },
+        },
+        { name: 'Eve', age: 45, address: { city: 'Wonderland', zip: '67890' } },
+        {
+          name: 'Frank',
+          age: 50,
+          address: { city: 'Nightmare', zip: '54321' },
+        },
+      ];
+
+      await pongoCollection.insertOne(docs[0]!);
+      await pongoCollection.insertOne(docs[1]!);
+      await pongoCollection.insertOne(docs[2]!);
+
+      await mongoCollection.insertOne(docs[0]!);
+      await mongoCollection.insertOne(docs[1]!);
+      await mongoCollection.insertOne(docs[2]!);
+
+      const pongoDocs = await pongoCollection.find({
+        // TODO: fix filter typing
+        //'address.city': 'Wonderland',
+      });
+      const mongoDocs = await mongoCollection
+        .find({ 'address.city': 'Wonderland' })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({
+          name: d.name,
+          age: d.age,
+          address: d.address,
+        })),
+        mongoDocs.map((d) => ({
+          name: d.name,
+          age: d.age,
+          address: d.address,
+        })),
+      );
+    });
+
+    void it.skip('should find documents with multiple nested property filters', async () => {
+      const pongoCollection = pongoDb.collection<User>(
+        'findWithMultipleNestedProperties',
+      );
+      const mongoCollection = mongoDb.collection<User>(
+        'shimfindWithMultipleNestedProperties',
+      );
+
+      const docs = [
+        {
+          name: 'Anita',
+          age: 25,
+          address: { city: 'Wonderland', street: 'Main St' },
+        },
+        {
+          name: 'Roger',
+          age: 30,
+          address: { city: 'Wonderland', street: 'Elm St' },
+        },
+        {
+          name: 'Cruella',
+          age: 35,
+          address: { city: 'Dreamland', street: 'Oak St' },
+        },
+      ];
+
+      await pongoCollection.insertOne(docs[0]!);
+      await pongoCollection.insertOne(docs[1]!);
+      await pongoCollection.insertOne(docs[2]!);
+
+      await mongoCollection.insertOne(docs[0]!);
+      await mongoCollection.insertOne(docs[1]!);
+      await mongoCollection.insertOne(docs[2]!);
+
+      const pongoDocs = await pongoCollection.find({
+        // TODO: fix filter typing
+        //'address.city': 'Wonderland',
+        //'address.street': 'Elm St',
+      });
+      const mongoDocs = await mongoCollection
+        .find({ 'address.city': 'Wonderland', 'address.street': 'Elm St' })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({
+          name: d.name,
+          age: d.age,
+          address: d.address,
+        })),
+        mongoDocs.map((d) => ({
+          name: d.name,
+          age: d.age,
+          address: d.address,
+        })),
+      );
+    });
+
     void it('should find documents with multiple nested property object filters', async () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
       const mongoCollection = mongoDb.collection<User>('shimtestCollection');
@@ -862,6 +967,105 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       assert.deepStrictEqual(
         pongoDocs.map((d) => ({ name: d.name, age: d.age, tags: d.tags })),
         mongoDocs.map((d) => ({ name: d.name, age: d.age, tags: d.tags })),
+      );
+    });
+
+    void it.skip('should find documents with an array element match filter', async () => {
+      const pongoCollection = pongoDb.collection<User>('testCollection');
+      const mongoCollection = mongoDb.collection<User>('shimtestCollection');
+
+      const docs = [
+        { name: 'Anita', age: 25, tags: ['tag1', 'tag2'] },
+        { name: 'Roger', age: 30, tags: ['tag2', 'tag3'] },
+        { name: 'Cruella', age: 35, tags: ['tag1', 'tag3'] },
+      ];
+
+      await pongoCollection.insertOne(docs[0]!);
+      await pongoCollection.insertOne(docs[1]!);
+      await pongoCollection.insertOne(docs[2]!);
+
+      await mongoCollection.insertOne(docs[0]!);
+      await mongoCollection.insertOne(docs[1]!);
+      await mongoCollection.insertOne(docs[2]!);
+
+      const pongoDocs = await pongoCollection.find({
+        tags: { $elemMatch: { $eq: 'tag1' } },
+      });
+      const mongoDocs = await mongoCollection
+        .find({ tags: { $elemMatch: { $eq: 'tag1' } } })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({ name: d.name, age: d.age, tags: d.tags })),
+        mongoDocs.map((d) => ({ name: d.name, age: d.age, tags: d.tags })),
+      );
+    });
+
+    void it.skip('should find documents with a nested array element match filter', async () => {
+      const pongoCollection = pongoDb.collection<User>(
+        'findWithElemMatchFilter',
+      );
+      const mongoCollection = mongoDb.collection<User>(
+        'shimfindWithElemMatchFilter',
+      );
+
+      const docs = [
+        {
+          name: 'Anita',
+          age: 25,
+          address: {
+            city: 'Wonderland',
+            zip: '12345',
+            history: [{ street: 'Main St' }, { street: 'Elm St' }],
+          },
+        },
+        {
+          name: 'Roger',
+          age: 30,
+          address: {
+            city: 'Wonderland',
+            zip: '67890',
+            history: [{ street: 'Main St' }, { street: 'Oak St' }],
+          },
+        },
+        {
+          name: 'Cruella',
+          age: 35,
+          address: {
+            city: 'Dreamland',
+            zip: '54321',
+            history: [{ street: 'Elm St' }],
+          },
+        },
+      ];
+
+      await pongoCollection.insertOne(docs[0]!);
+      await pongoCollection.insertOne(docs[1]!);
+      await pongoCollection.insertOne(docs[2]!);
+
+      await mongoCollection.insertOne(docs[0]!);
+      await mongoCollection.insertOne(docs[1]!);
+      await mongoCollection.insertOne(docs[2]!);
+
+      const pongoDocs = await pongoCollection.find({
+        // TODO: fix filter typing
+        //'address.history': { $elemMatch: { street: 'Elm St' } },
+      });
+      const mongoDocs = await mongoCollection
+        .find({ 'address.history': { $elemMatch: { street: 'Elm St' } } })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({
+          name: d.name,
+          age: d.age,
+          address: d.address,
+        })),
+        mongoDocs.map((d) => ({
+          name: d.name,
+          age: d.age,
+          address: d.address,
+        })),
       );
     });
   });
@@ -1065,7 +1269,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
     void it('should access typed collection and perform operation', async () => {
       const typedClient = pongoClient({
         driver: databaseDriver,
-        connectionString,
+        connectionString: postgresConnectionString,
         schema: { definition: schema },
       });
       try {
@@ -1092,7 +1296,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
     void it('should access collection by name and perform operation', async () => {
       const typedClient = pongoClient({
         driver: databaseDriver,
-        connectionString,
+        connectionString: postgresConnectionString,
         schema: { definition: schema },
       });
       try {

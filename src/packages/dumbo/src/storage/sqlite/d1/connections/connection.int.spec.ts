@@ -21,6 +21,7 @@ void describe('Cloudflare d1 pool', () => {
   afterEach(async () => {
     await mf.dispose();
   });
+
   void it('returns the singleton connection', async () => {
     const pool = d1Pool({
       database,

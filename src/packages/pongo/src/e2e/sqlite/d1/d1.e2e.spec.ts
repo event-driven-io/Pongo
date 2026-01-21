@@ -1,0 +1,1110 @@
+import type { D1Database } from '@cloudflare/workers-types';
+import assert from 'assert';
+import { Miniflare } from 'miniflare';
+import { after, before, describe, it } from 'node:test';
+import { v4 as uuid } from 'uuid';
+import {
+  ObjectId,
+  pongoClient,
+  pongoSchema,
+  type PongoClient,
+  type PongoDb,
+} from '../../..';
+import { MongoClient, type Db } from '../../../shim';
+import { d1Driver as databaseDriver } from '../../../storage/sqlite/d1';
+
+type History = { street: string };
+type Address = {
+  city: string;
+  street?: string;
+  zip?: string;
+  history?: History[];
+};
+
+type User = {
+  _id?: string;
+  name: string;
+  age: number;
+  address?: Address;
+  tags?: string[];
+};
+
+void describe('SQLite MongoDB Compatibility Tests', () => {
+  let mf: Miniflare;
+
+  let client: PongoClient;
+  let shim: MongoClient;
+
+  let database: D1Database;
+  let pongoDb: PongoDb;
+  let mongoDb: Db;
+
+  before(async () => {
+    mf = new Miniflare({
+      modules: true,
+      script: 'export default { fetch() { return new Response("ok"); } }',
+      d1Databases: { DB: 'test-db-id' },
+    });
+    database = await mf.getD1Database('DB');
+
+    client = pongoClient({
+      driver: databaseDriver,
+      database,
+    });
+    shim = new MongoClient({
+      driver: databaseDriver,
+      database,
+    });
+    await client.connect();
+    await shim.connect();
+
+    const dbName = 'testdb';
+
+    pongoDb = client.db(dbName);
+    mongoDb = shim.db(dbName);
+  });
+
+  after(async () => {
+    await client.close();
+    await shim.close();
+    await mf.dispose();
+  });
+
+  void describe('FindOne', () => {
+    void it('should return null when does not exist', async () => {
+      const pongoCollection = pongoDb.collection<User>('findOne');
+      const mongoCollection = mongoDb.collection<User>('shimFindOne');
+      const nonExistingId = uuid() as unknown as ObjectId;
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: nonExistingId,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: nonExistingId,
+      });
+      assert.equal(pongoDoc, null);
+      assert.equal(mongoDoc, null);
+    });
+  });
+
+  void describe('Insert Operations', async () => {
+    await it('should insert a document with id into both SQLite and MongoDB shim', async () => {
+      const pongoCollection = pongoDb.collection<User>('insertOne');
+      const mongoCollection = mongoDb.collection<User>('shiminsertOne');
+      const doc: User = {
+        _id: new Date().toISOString(),
+        name: 'Anita',
+        age: 25,
+      };
+      const pongoInsertResult = await pongoCollection.insertOne(doc);
+      const mongoInsertResult = await mongoCollection.insertOne(doc);
+      assert.ok(pongoInsertResult.insertedId !== null);
+      assert.ok(mongoInsertResult.insertedId !== null);
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: mongoInsertResult.insertedId,
+      });
+      assert.ok(pongoDoc);
+      assert.ok(mongoDoc);
+      assert.deepStrictEqual(
+        {
+          name: pongoDoc.name,
+          age: pongoDoc.age,
+        },
+        {
+          name: mongoDoc.name,
+          age: mongoDoc.age,
+        },
+      );
+    });
+
+    void it('should insert a document into both SQLite and MongoDB shim', async () => {
+      const pongoCollection = pongoDb.collection<User>('insertOne');
+      const mongoCollection = mongoDb.collection<User>('shiminsertOne');
+      const doc = { name: 'Anita', age: 25 };
+      const pongoInsertResult = await pongoCollection.insertOne(doc);
+      const mongoInsertResult = await mongoCollection.insertOne(doc);
+      assert(pongoInsertResult.insertedId);
+      assert(mongoInsertResult.insertedId);
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: mongoInsertResult.insertedId,
+      });
+      assert.deepStrictEqual(
+        {
+          name: pongoDoc!.name,
+          age: pongoDoc!.age,
+        },
+        {
+          name: mongoDoc!.name,
+          age: mongoDoc!.age,
+        },
+      );
+    });
+
+    void it('should insert many documents into both SQLite and MongoDB shim', async () => {
+      const pongoCollection = pongoDb.collection<User>('insertMany');
+      const mongoCollection = mongoDb.collection<User>('shiminsertMany');
+      const docs = [
+        { name: 'David', age: 40 },
+        { name: 'Eve', age: 45 },
+        { name: 'Frank', age: 50 },
+      ];
+      const pongoInsertResult = await pongoCollection.insertMany(docs);
+      const mongoInsertResult = await mongoCollection.insertMany(docs);
+      const pongoIds = Object.values(pongoInsertResult.insertedIds);
+      const mongoIds = Object.values(mongoInsertResult.insertedIds);
+      assert.equal(pongoInsertResult.insertedCount, docs.length);
+      assert.equal(mongoInsertResult.insertedCount, docs.length);
+      const pongoDocs = await pongoCollection.find({
+        _id: { $in: pongoIds },
+      });
+      const mongoDocs = await mongoCollection
+        .find({
+          _id: { $in: mongoIds },
+        })
+        .toArray();
+      assert.deepStrictEqual(
+        pongoDocs.map((doc) => ({
+          name: doc.name,
+          age: doc.age,
+        })),
+        mongoDocs.map((doc) => ({
+          name: doc.name,
+          age: doc.age,
+        })),
+      );
+    });
+  });
+
+  void describe('Update Operations', () => {
+    void it('should update a document', async () => {
+      const pongoCollection = pongoDb.collection<User>('updateOne');
+      const mongoCollection = mongoDb.collection<User>('shimupdateOne');
+      const doc = { name: 'Roger', age: 30 };
+
+      const pongoInsertResult = await pongoCollection.insertOne(doc);
+      const mongoInsertResult = await mongoCollection.insertOne(doc);
+
+      const update = { $set: { age: 31 } };
+
+      await pongoCollection.updateOne(
+        { _id: pongoInsertResult.insertedId! },
+        update,
+      );
+      await mongoCollection.updateOne(
+        { _id: mongoInsertResult.insertedId },
+        update,
+      );
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId!,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: mongoInsertResult.insertedId,
+      });
+      assert.equal(pongoDoc?.age, 31);
+      assert.equal(mongoDoc?.age, 31);
+      assert.deepStrictEqual(
+        {
+          name: pongoDoc!.name,
+          age: pongoDoc!.age,
+        },
+        {
+          name: mongoDoc!.name,
+          age: mongoDoc!.age,
+        },
+      );
+    });
+
+    void it('should NOT update a non-existing document', async () => {
+      const pongoCollection = pongoDb.collection<User>('updateOne');
+      const mongoCollection = mongoDb.collection<User>('shimupdateOne');
+      const nonExistingId = 'non-existing';
+
+      const update = { $set: { age: 31 } };
+
+      const updateResult = await pongoCollection.updateOne(
+        { _id: nonExistingId },
+        update,
+      );
+      const shimUpdateResult = await mongoCollection.updateOne(
+        { _id: nonExistingId },
+        update,
+      );
+
+      assert(updateResult);
+      assert(updateResult.successful === false);
+      assert(updateResult.matchedCount === 0);
+      assert(updateResult.modifiedCount === 0);
+      assert(updateResult.nextExpectedVersion === 0n);
+
+      assert(shimUpdateResult);
+      assert(updateResult.matchedCount === 0);
+      assert(updateResult.modifiedCount === 0);
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: nonExistingId,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: nonExistingId,
+      });
+
+      assert(pongoDoc === null);
+      assert(mongoDoc === null);
+    });
+
+    void it('should update a multiple properties in document', async () => {
+      const pongoCollection = pongoDb.collection<User>('updateOneMultiple');
+      const mongoCollection = mongoDb.collection<User>('shimupdateOneMultiple');
+      const doc = { name: 'Roger', age: 30 };
+
+      const pongoInsertResult = await pongoCollection.insertOne(doc);
+      const mongoInsertResult = await mongoCollection.insertOne(doc);
+
+      const update = { $set: { age: 31, tags: ['t', 'a', 'g'] } };
+
+      await pongoCollection.updateOne(
+        { _id: pongoInsertResult.insertedId! },
+        update,
+      );
+      await mongoCollection.updateOne(
+        { _id: mongoInsertResult.insertedId },
+        update,
+      );
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId!,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: mongoInsertResult.insertedId,
+      });
+
+      assert.equal(mongoDoc?.age, 31);
+      assert.deepEqual(mongoDoc?.tags, ['t', 'a', 'g']);
+      assert.deepStrictEqual(
+        {
+          name: pongoDoc!.name,
+          age: pongoDoc!.age,
+          tags: pongoDoc!.tags,
+        },
+        {
+          name: mongoDoc!.name,
+          age: mongoDoc!.age,
+          tags: mongoDoc!.tags,
+        },
+      );
+    });
+
+    void it('should update documents', async () => {
+      const pongoCollection = pongoDb.collection<User>('updateMany');
+      const mongoCollection = mongoDb.collection<User>('shimupdateMany');
+
+      const docs = [
+        { name: 'David', age: 40 },
+        { name: 'Eve', age: 45 },
+        { name: 'Frank', age: 50 },
+      ];
+
+      const pongoInsertResult = await pongoCollection.insertMany(docs);
+      const mongoInsertResult = await mongoCollection.insertMany(docs);
+
+      const pongoIds = Object.values(pongoInsertResult.insertedIds);
+      const mongoIds = Object.values(mongoInsertResult.insertedIds);
+
+      const update = { $set: { age: 31 } };
+
+      const pongoUpdateResult = await pongoCollection.updateMany(
+        { _id: { $in: pongoIds } },
+        update,
+      );
+      const mongoUpdateResult = await mongoCollection.updateMany(
+        { _id: { $in: mongoIds } },
+        update,
+      );
+
+      assert.equal(3, pongoUpdateResult.modifiedCount);
+      assert.equal(3, mongoUpdateResult.modifiedCount);
+
+      const pongoDocs = await pongoCollection.find({
+        _id: { $in: pongoIds },
+      });
+      const mongoDocs = await mongoCollection
+        .find({
+          _id: { $in: mongoIds },
+        })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((doc) => ({
+          name: doc.name,
+          age: doc.age,
+        })),
+        mongoDocs.map((doc) => ({
+          name: doc.name,
+          age: doc.age,
+        })),
+      );
+    });
+
+    void it('should update a document using $unset', async () => {
+      const pongoCollection = pongoDb.collection<User>('testCollection');
+      const mongoCollection = mongoDb.collection<User>('shimtestCollection');
+      const doc = { name: 'Roger', age: 30, address: { city: 'Wonderland' } };
+
+      const pongoInsertResult = await pongoCollection.insertOne(doc);
+      const mongoInsertResult = await mongoCollection.insertOne(doc);
+
+      const { modifiedCount } = await pongoCollection.updateOne(
+        { _id: pongoInsertResult.insertedId! },
+        { $unset: { address: '' } },
+      );
+      assert.equal(modifiedCount, 1);
+      await mongoCollection.updateOne(
+        { _id: mongoInsertResult.insertedId },
+        { $unset: { address: '' } },
+      );
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId!,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: mongoInsertResult.insertedId,
+      });
+
+      assert.deepStrictEqual(
+        {
+          name: pongoDoc!.name,
+          age: pongoDoc!.age,
+          address: undefined,
+        },
+        {
+          name: mongoDoc!.name,
+          age: mongoDoc!.age,
+          address: undefined,
+        },
+      );
+    });
+
+    void it('should update a document using $inc', async () => {
+      const pongoCollection = pongoDb.collection<User>('testCollection');
+      const mongoCollection = mongoDb.collection<User>('shimtestCollection');
+      const doc = { name: 'Roger', age: 30 };
+
+      const pongoInsertResult = await pongoCollection.insertOne(doc);
+      const mongoInsertResult = await mongoCollection.insertOne(doc);
+
+      const update = { $inc: { age: 1 } };
+
+      const { modifiedCount } = await pongoCollection.updateOne(
+        { _id: pongoInsertResult.insertedId! },
+        update,
+      );
+      assert.equal(modifiedCount, 1);
+      await mongoCollection.updateOne(
+        { _id: mongoInsertResult.insertedId },
+        update,
+      );
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId!,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: mongoInsertResult.insertedId,
+      });
+
+      assert.deepStrictEqual(
+        {
+          name: pongoDoc!.name,
+          age: 31,
+        },
+        {
+          name: mongoDoc!.name,
+          age: 31,
+        },
+      );
+    });
+
+    void it('should update a document using $push', async () => {
+      const pongoCollection = pongoDb.collection<User>('testCollection');
+      const mongoCollection = mongoDb.collection<User>('shimtestCollection');
+      const doc = { name: 'Roger', age: 30 };
+
+      const pongoInsertResult = await pongoCollection.insertOne(doc);
+      const mongoInsertResult = await mongoCollection.insertOne(doc);
+      let pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId!,
+      });
+      // Push to non existing
+      let updateResult = await pongoCollection.updateOne(
+        { _id: pongoInsertResult.insertedId! },
+        //TODO: fix $push type definition to allow non-array
+        { $push: { tags: 'tag1' as unknown as string[] } },
+      );
+      assert.equal(updateResult.modifiedCount, 1);
+      await mongoCollection.updateOne(
+        { _id: mongoInsertResult.insertedId },
+        { $push: { tags: 'tag1' } },
+      );
+      pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId!,
+      });
+
+      // Push to existing
+      updateResult = await pongoCollection.updateOne(
+        { _id: pongoInsertResult.insertedId! },
+        { $push: { tags: 'tag2' as unknown as string[] } },
+      );
+      assert.equal(updateResult.modifiedCount, 1);
+      await mongoCollection.updateOne(
+        { _id: mongoInsertResult.insertedId },
+        { $push: { tags: 'tag2' } },
+      );
+
+      pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId!,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: mongoInsertResult.insertedId,
+      });
+
+      assert.deepStrictEqual(
+        {
+          name: pongoDoc!.name,
+          age: pongoDoc!.age,
+          tags: ['tag1', 'tag2'],
+        },
+        {
+          name: mongoDoc!.name,
+          age: mongoDoc!.age,
+          tags: ['tag1', 'tag2'],
+        },
+      );
+    });
+  });
+
+  void describe('Replace Operations', () => {
+    void it('should replace a document', async () => {
+      const pongoCollection = pongoDb.collection<User>('updateOne');
+      const mongoCollection = mongoDb.collection<User>('shimupdateOne');
+      const doc = { name: 'Roger', age: 30 };
+
+      const pongoInsertResult = await pongoCollection.insertOne(doc);
+      const mongoInsertResult = await mongoCollection.insertOne(doc);
+
+      const replacement = { name: 'Not Roger', age: 100, tags: ['tag2'] };
+
+      await pongoCollection.replaceOne(
+        { _id: pongoInsertResult.insertedId! },
+        replacement,
+      );
+      await mongoCollection.replaceOne(
+        { _id: mongoInsertResult.insertedId },
+        replacement,
+      );
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId!,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: mongoInsertResult.insertedId,
+      });
+
+      assert.strictEqual(mongoDoc?.name, replacement.name);
+      assert.deepEqual(mongoDoc?.age, replacement.age);
+      assert.deepEqual(mongoDoc?.tags, replacement.tags);
+      assert.deepStrictEqual(
+        {
+          name: pongoDoc!.name,
+          age: pongoDoc!.age,
+          tags: pongoDoc!.tags,
+        },
+        {
+          name: mongoDoc.name,
+          age: mongoDoc.age,
+          tags: mongoDoc.tags,
+        },
+      );
+    });
+  });
+
+  void describe('Delete Operations', () => {
+    void it('should delete a document from both SQLite and MongoDB shim', async () => {
+      const pongoCollection = pongoDb.collection<User>('testCollection');
+      const mongoCollection = mongoDb.collection<User>('shimtestCollection');
+      const doc = { name: 'Cruella', age: 35 };
+
+      const pongoInsertResult = await pongoCollection.insertOne(doc);
+      const mongoInsertResult = await mongoCollection.insertOne(doc);
+
+      const { deletedCount } = await pongoCollection.deleteOne({
+        _id: pongoInsertResult.insertedId!,
+      });
+      assert.equal(deletedCount, 1);
+      await mongoCollection.deleteOne({ _id: mongoInsertResult.insertedId });
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId!,
+      });
+      const mongoDoc = await mongoCollection.findOne({
+        _id: mongoInsertResult.insertedId,
+      });
+
+      assert.strictEqual(pongoDoc, null);
+      assert.strictEqual(mongoDoc, null);
+    });
+
+    void it('should delete documents', async () => {
+      const pongoCollection = pongoDb.collection<User>('updateMany');
+      const mongoCollection = mongoDb.collection<User>('shimupdateMany');
+
+      const docs = [
+        { name: 'David', age: 40 },
+        { name: 'Eve', age: 45 },
+        { name: 'Frank', age: 50 },
+      ];
+
+      const pongoInsertResult = await pongoCollection.insertMany(docs);
+      const mongoInsertResult = await mongoCollection.insertMany(docs);
+
+      const pongoIds = Object.values(pongoInsertResult.insertedIds);
+      const mongoIds = Object.values(mongoInsertResult.insertedIds);
+
+      const pongoDeleteResult = await pongoCollection.deleteMany({
+        _id: { $in: pongoIds },
+      });
+      const mongoUpdateResult = await mongoCollection.deleteMany({
+        _id: { $in: mongoIds },
+      });
+
+      assert.equal(3, pongoDeleteResult.deletedCount);
+      assert.equal(3, mongoUpdateResult.deletedCount);
+
+      const pongoDocs = await pongoCollection.find({
+        _id: { $in: pongoIds },
+      });
+      const mongoDocs = await mongoCollection
+        .find({
+          _id: { $in: mongoIds },
+        })
+        .toArray();
+
+      assert.equal(0, pongoDocs.length);
+      assert.equal(0, mongoDocs.length);
+
+      assert.deepStrictEqual(
+        pongoDocs.map((doc) => ({
+          name: doc.name,
+          age: 31,
+        })),
+        mongoDocs.map((doc) => ({
+          name: doc.name,
+          age: 31,
+        })),
+      );
+    });
+
+    // TODO: Enable when transactions are supported in D1
+    void it.skip('should delete documents in transaction', async () => {
+      const docs = [
+        { name: 'David', age: 40 },
+        { name: 'Eve', age: 45 },
+        { name: 'Frank', age: 50 },
+      ];
+
+      await client.withSession((session) =>
+        session.withTransaction(async () => {
+          const pongoCollection = pongoDb.collection<User>('updateMany');
+
+          const pongoInsertResult = await pongoCollection.insertMany(docs, {
+            session,
+          });
+          const pongoIds = Object.values(pongoInsertResult.insertedIds);
+
+          const pongoDeleteResult = await pongoCollection.deleteMany(
+            {
+              _id: { $in: pongoIds },
+            },
+            {
+              session,
+            },
+          );
+
+          assert.equal(3, pongoDeleteResult.deletedCount);
+
+          const pongoDocs = await pongoCollection.find(
+            {
+              _id: { $in: pongoIds },
+            },
+            {
+              session,
+            },
+          );
+          assert.equal(0, pongoDocs.length);
+        }),
+      );
+      await shim.withSession((session) =>
+        session.withTransaction(async () => {
+          const mongoCollection = mongoDb.collection<User>('updateMany');
+
+          const mongoInsertResult = await mongoCollection.insertMany(docs, {
+            session,
+          });
+          const mongoIds = Object.values(mongoInsertResult.insertedIds);
+
+          const mongoUpdateResult = await mongoCollection.deleteMany(
+            {
+              _id: { $in: mongoIds },
+            },
+            {
+              session,
+            },
+          );
+
+          assert.equal(3, mongoUpdateResult.deletedCount);
+
+          const mongoDocs = await mongoCollection
+            .find(
+              {
+                _id: { $in: mongoIds },
+              },
+              {
+                session,
+              },
+            )
+            .toArray();
+
+          assert.equal(0, mongoDocs.length);
+        }),
+      );
+    });
+  });
+
+  void describe('Find Operations', () => {
+    void it('should find documents with a filter', async () => {
+      const pongoCollection = pongoDb.collection<User>('findWithFilter');
+      const mongoCollection = mongoDb.collection<User>('shimfindWithFilter');
+      const docs = [
+        { name: 'David', age: 40 },
+        { name: 'Eve', age: 45 },
+        { name: 'Frank', age: 50 },
+      ];
+
+      await pongoCollection.insertOne(docs[0]!);
+      await pongoCollection.insertOne(docs[1]!);
+      await pongoCollection.insertOne(docs[2]!);
+
+      await mongoCollection.insertOne(docs[0]!);
+      await mongoCollection.insertOne(docs[1]!);
+      await mongoCollection.insertOne(docs[2]!);
+
+      const pongoDocs = await pongoCollection.find({ age: { $gte: 45 } });
+      const mongoDocs = await mongoCollection
+        .find({ age: { $gte: 45 } })
+        .toArray();
+
+      assert.strictEqual(pongoDocs.length, 2);
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({ name: d.name, age: d.age })),
+        mongoDocs.map((d) => ({ name: d.name, age: d.age })),
+      );
+    });
+
+    void it('should find one document with a filter', async () => {
+      const pongoCollection = pongoDb.collection<User>('testCollection');
+      const mongoCollection = mongoDb.collection<User>('shimtestCollection');
+      const doc = { name: 'Grace', age: 55 };
+
+      await pongoCollection.insertOne(doc);
+      await mongoCollection.insertOne(doc);
+
+      const pongoDoc = await pongoCollection.findOne({ name: 'Grace' });
+      const mongoDoc = await mongoCollection.findOne({ name: 'Grace' });
+
+      assert.deepStrictEqual(
+        {
+          name: pongoDoc!.name,
+          age: pongoDoc!.age,
+        },
+        {
+          name: mongoDoc!.name,
+          age: mongoDoc!.age,
+        },
+      );
+    });
+
+    void it('should find documents with multiple nested property object filters', async () => {
+      const pongoCollection = pongoDb.collection<User>('testCollection');
+      const mongoCollection = mongoDb.collection<User>('shimtestCollection');
+
+      const docs = [
+        {
+          name: 'Anita',
+          age: 25,
+          address: { city: 'Wonderland', street: 'Main St' },
+        },
+        {
+          name: 'Roger',
+          age: 30,
+          address: { city: 'Wonderland', street: 'Elm St' },
+        },
+        {
+          name: 'Cruella',
+          age: 35,
+          address: { city: 'Dreamland', street: 'Oak St' },
+        },
+      ];
+
+      await pongoCollection.insertOne(docs[0]!);
+      await pongoCollection.insertOne(docs[1]!);
+      await pongoCollection.insertOne(docs[2]!);
+
+      await mongoCollection.insertOne(docs[0]!);
+      await mongoCollection.insertOne(docs[1]!);
+      await mongoCollection.insertOne(docs[2]!);
+
+      //const pongoDocs: User[] = [];
+      const pongoDocs = await pongoCollection.find({
+        address: { city: 'Wonderland', street: 'Elm St' },
+      });
+      const mongoDocs = await mongoCollection
+        .find({ address: { city: 'Wonderland', street: 'Elm St' } })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({
+          name: d.name,
+          age: d.age,
+          address: d.address,
+        })),
+        mongoDocs.map((d) => ({
+          name: d.name,
+          age: d.age,
+          address: d.address,
+        })),
+      );
+    });
+
+    void it('should find documents with an array filter', async () => {
+      const pongoCollection = pongoDb.collection<User>('findWithArrayFilter');
+      const mongoCollection = mongoDb.collection<User>(
+        'shimfindWithArrayFilter',
+      );
+
+      const docs = [
+        { name: 'Anita', age: 25, tags: ['tag1', 'tag2'] },
+        { name: 'Roger', age: 30, tags: ['tag2', 'tag3'] },
+        { name: 'Cruella', age: 35, tags: ['tag1', 'tag3'] },
+      ];
+
+      await pongoCollection.insertOne(docs[0]!);
+      await pongoCollection.insertOne(docs[1]!);
+      await pongoCollection.insertOne(docs[2]!);
+
+      await mongoCollection.insertOne(docs[0]!);
+      await mongoCollection.insertOne(docs[1]!);
+      await mongoCollection.insertOne(docs[2]!);
+
+      const pongoDocs = await pongoCollection.find({
+        tags: 'tag1',
+      });
+      const mongoDocs = await mongoCollection.find({ tags: 'tag1' }).toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({ name: d.name, age: d.age, tags: d.tags })),
+        mongoDocs.map((d) => ({ name: d.name, age: d.age, tags: d.tags })),
+      );
+    });
+
+    void it('should find documents with multiple array filters', async () => {
+      const pongoCollection = pongoDb.collection<User>(
+        'findWithMultipleArrayFilters',
+      );
+      const mongoCollection = mongoDb.collection<User>(
+        'shimfindWithMultipleArrayFilters',
+      );
+
+      const docs = [
+        { name: 'Anita', age: 25, tags: ['tag1', 'tag2'] },
+        { name: 'Roger', age: 30, tags: ['tag2', 'tag3'] },
+        { name: 'Cruella', age: 35, tags: ['tag1', 'tag3'] },
+      ];
+
+      await pongoCollection.insertOne(docs[0]!);
+      await pongoCollection.insertOne(docs[1]!);
+      await pongoCollection.insertOne(docs[2]!);
+
+      await mongoCollection.insertOne(docs[0]!);
+      await mongoCollection.insertOne(docs[1]!);
+      await mongoCollection.insertOne(docs[2]!);
+
+      const pongoDocs = await pongoCollection.find({
+        tags: { $all: ['tag1', 'tag2'] },
+      });
+      const mongoDocs = await mongoCollection
+        .find({ tags: { $all: ['tag1', 'tag2'] } })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({ name: d.name, age: d.age, tags: d.tags })),
+        mongoDocs.map((d) => ({ name: d.name, age: d.age, tags: d.tags })),
+      );
+    });
+  });
+
+  void describe('Handle Operations', () => {
+    void it(`should pass null to handle if document doesn't exist`, async () => {
+      const pongoCollection = pongoDb.collection<User>('handleCollection');
+      const nonExistingId = uuid() as unknown as ObjectId;
+
+      const newDoc: User = { name: 'John', age: 25 };
+
+      let wasHandled = false;
+
+      const handle = (existing: User | null) => {
+        wasHandled = true;
+        assert.equal(existing, null);
+        return newDoc;
+      };
+
+      await pongoCollection.handle(nonExistingId, handle);
+
+      assert.ok(wasHandled);
+    });
+
+    void it('should insert a new document if it does not exist', async () => {
+      const pongoCollection = pongoDb.collection<User>('handleCollection');
+      const nonExistingId = uuid() as unknown as ObjectId;
+
+      const newDoc: User = { name: 'John', age: 25 };
+
+      const handle = (_existing: User | null) => newDoc;
+
+      const resultPongo = await pongoCollection.handle(nonExistingId, handle);
+      assert(resultPongo.successful);
+      assert.deepStrictEqual(resultPongo.document, {
+        ...newDoc,
+        _id: nonExistingId,
+        _version: 1n,
+      });
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: nonExistingId,
+      });
+
+      assert.deepStrictEqual(pongoDoc, {
+        ...newDoc,
+        _id: nonExistingId,
+        _version: 1n,
+      });
+    });
+
+    void it('should replace an existing document', async () => {
+      const pongoCollection = pongoDb.collection<User>('handleCollection');
+
+      const existingDoc: User = { name: 'John', age: 25 };
+      const updatedDoc: User = { name: 'John', age: 30 };
+
+      const pongoInsertResult = await pongoCollection.insertOne(existingDoc);
+
+      const handle = (_existing: User | null) => updatedDoc;
+
+      const resultPongo = await pongoCollection.handle(
+        pongoInsertResult.insertedId!,
+        handle,
+      );
+
+      assert(resultPongo.successful);
+      assert.deepStrictEqual(resultPongo.document, {
+        ...updatedDoc,
+        _version: 2n,
+      });
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId!,
+      });
+
+      assert.deepStrictEqual(pongoDoc, {
+        ...updatedDoc,
+        _id: pongoInsertResult.insertedId,
+        _version: 2n,
+      });
+    });
+
+    void it('should delete an existing document if the handler returns null', async () => {
+      const pongoCollection = pongoDb.collection<User>('handleCollection');
+
+      const existingDoc: User = { name: 'John', age: 25 };
+
+      const pongoInsertResult = await pongoCollection.insertOne(existingDoc);
+
+      const handle = (_existing: User | null) => null;
+
+      const resultPongo = await pongoCollection.handle(
+        pongoInsertResult.insertedId!,
+        handle,
+      );
+      assert(resultPongo.successful);
+
+      assert.strictEqual(resultPongo.document, null);
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId!,
+      });
+
+      assert.strictEqual(pongoDoc, null);
+    });
+
+    void it('should do nothing if the handler returns the existing document unchanged', async () => {
+      const pongoCollection = pongoDb.collection<User>('handleCollection');
+
+      const existingDoc: User = { name: 'John', age: 25 };
+
+      const pongoInsertResult = await pongoCollection.insertOne(existingDoc);
+
+      const handle = (existing: User | null) => existing;
+
+      const resultPongo = await pongoCollection.handle(
+        pongoInsertResult.insertedId!,
+        handle,
+      );
+
+      assert(resultPongo.successful);
+      assert.deepStrictEqual(resultPongo.document, {
+        ...existingDoc,
+        _id: pongoInsertResult.insertedId,
+        _version: 1n,
+      });
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId!,
+      });
+
+      assert.deepStrictEqual(pongoDoc, {
+        ...existingDoc,
+        _id: pongoInsertResult.insertedId,
+        _version: 1n,
+      });
+    });
+  });
+
+  void it('should make the change if the handler returns the existing document changed', async () => {
+    const pongoCollection = pongoDb.collection<User>('handleCollection');
+
+    const existingDoc: User = { name: 'John', age: 25 };
+
+    const pongoInsertResult = await pongoCollection.insertOne(existingDoc);
+
+    const handle = (existing: User | null) => {
+      if (existing) existing.name = 'New';
+      return existing;
+    };
+
+    const resultPongo = await pongoCollection.handle(
+      pongoInsertResult.insertedId!,
+      handle,
+    );
+
+    assert(resultPongo.successful);
+    assert.deepStrictEqual(resultPongo.document, {
+      ...existingDoc,
+      _id: pongoInsertResult.insertedId,
+      name: 'New',
+      _version: 2n,
+    });
+
+    const pongoDoc = await pongoCollection.findOne({
+      _id: pongoInsertResult.insertedId!,
+    });
+
+    assert.deepStrictEqual(pongoDoc, {
+      ...existingDoc,
+      _id: pongoInsertResult.insertedId,
+      name: 'New',
+      _version: 2n,
+    });
+  });
+
+  void describe('No filter', () => {
+    void it('should filter and count without filter specified', async () => {
+      const pongoCollection = pongoDb.collection<User>('nofilter');
+
+      const newDoc: User = { name: 'John', age: 25 };
+      await pongoCollection.insertOne(newDoc);
+
+      const user = await pongoCollection.findOne();
+
+      assert.ok(user);
+
+      const count = await pongoCollection.countDocuments();
+      assert.ok(count >= 1);
+    });
+  });
+
+  void describe('Pongo Schema', () => {
+    const schema = pongoSchema.client({
+      database: pongoSchema.db({
+        users: pongoSchema.collection<User>('users'),
+      }),
+    });
+
+    void it('should access typed collection and perform operation', async () => {
+      const typedClient = pongoClient({
+        driver: databaseDriver,
+        database,
+        schema: { definition: schema },
+      });
+      try {
+        const users = typedClient.database.users;
+
+        const _id = new Date().toISOString();
+        const doc: User = {
+          _id,
+          name: 'Anita',
+          age: 25,
+        };
+        const pongoInsertResult = await users.insertOne(doc);
+        assert(pongoInsertResult.insertedId);
+
+        const pongoDoc = await users.findOne({
+          _id: pongoInsertResult.insertedId,
+        });
+        assert.ok(pongoDoc);
+      } finally {
+        await typedClient.close();
+      }
+    });
+
+    void it('should access collection by name and perform operation', async () => {
+      const typedClient = pongoClient({
+        driver: databaseDriver,
+        database,
+        schema: { definition: schema },
+      });
+      try {
+        const users = typedClient.database.collection<User>('users');
+
+        const _id = new Date().toISOString();
+        const doc: User = {
+          _id,
+          name: 'Anita',
+          age: 25,
+        };
+        const pongoInsertResult = await users.insertOne(doc);
+        assert(pongoInsertResult.insertedId);
+
+        const pongoDoc = await users.findOne({
+          _id: pongoInsertResult.insertedId,
+        });
+        assert.ok(pongoDoc);
+      } finally {
+        await typedClient.close();
+      }
+    });
+  });
+});

@@ -18,7 +18,10 @@ import { pongoCollectionSQLiteMigrations, sqliteSQLBuilder } from '../core';
 export type SQLitePongoClientOptions = object;
 
 type SQLiteDatabaseDriverOptions =
-  PongoDatabaseDriverOptions<SQLitePongoClientOptions>;
+  PongoDatabaseDriverOptions<SQLitePongoClientOptions> & {
+    databaseName?: string | undefined;
+    connectionString: string;
+  };
 
 const getDatabaseNameOrDefault = (connectionString?: string) =>
   connectionString || ':memory:';
@@ -57,7 +60,11 @@ const sqlite3DatabaseDriver: PongoDatabaseDriver<
       databaseName,
     });
   },
-  getDatabaseNameOrDefault,
+  getDatabaseNameOrDefault: (options) => {
+    return (
+      options.databaseName ?? getDatabaseNameOrDefault(options.connectionString)
+    );
+  },
   defaultConnectionString: ':memory:',
 };
 
