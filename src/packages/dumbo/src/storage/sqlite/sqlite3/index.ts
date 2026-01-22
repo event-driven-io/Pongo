@@ -64,8 +64,7 @@ export const sqlite3DatabaseDriver = {
   ),
 } satisfies DumboDatabaseDriver<
   SQLiteConnection<SQLite3DriverType>,
-  SQLite3DumboOptions,
-  SQLiteConnectionString
+  SQLite3DumboOptions
 >;
 
 export const useSqlite3DatabaseDriver = () => {

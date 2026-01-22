@@ -22,7 +22,9 @@ export function dumbo<
 >(options: ConnectionOptions): ExtractDumboTypeFromDriver<DatabaseDriver> {
   const { driverType } = options;
 
-  const driver = dumboDatabaseDriverRegistry.tryGet<DatabaseDriver>(options);
+  const driver =
+    options.driver ??
+    dumboDatabaseDriverRegistry.tryGet<DatabaseDriver>(options);
 
   if (driver === null) {
     throw new Error(`No plugin found for driver type: ${driverType}`);
