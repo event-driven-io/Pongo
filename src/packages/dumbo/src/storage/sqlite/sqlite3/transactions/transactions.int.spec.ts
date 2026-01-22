@@ -38,7 +38,7 @@ void describe('SQLite3 Transactions', () => {
       void it('commits a nested transaction with pool', async () => {
         const pool = sqlite3Pool({
           fileName,
-          allowNestedTransactions: true,
+          transactionOptions: { allowNestedTransactions: true },
         });
         const connection = await pool.connection();
 
@@ -79,7 +79,7 @@ void describe('SQLite3 Transactions', () => {
       void it('should fail with an error if transaction nested is false', async () => {
         const pool = sqlite3Pool({
           fileName,
-          allowNestedTransactions: false,
+          transactionOptions: { allowNestedTransactions: false },
         });
         const connection = await pool.connection();
 
@@ -118,7 +118,8 @@ void describe('SQLite3 Transactions', () => {
       void it('should try catch and roll back everything when the inner transaction errors for a pooled connection', async () => {
         const pool = sqlite3Pool({
           fileName,
-          allowNestedTransactions: true,
+
+          transactionOptions: { allowNestedTransactions: true },
         });
         const connection = await pool.connection();
         const connection2 = await pool.connection();
@@ -159,7 +160,8 @@ void describe('SQLite3 Transactions', () => {
         const pool = sqlite3Pool({
           fileName,
           singleton: true,
-          allowNestedTransactions: true,
+
+          transactionOptions: { allowNestedTransactions: true },
         });
         const connection = await pool.connection();
         const connection2 = await pool.connection();
@@ -212,7 +214,8 @@ void describe('SQLite3 Transactions', () => {
         const pool = sqlite3Pool({
           fileName,
           singleton: true,
-          allowNestedTransactions: true,
+
+          transactionOptions: { allowNestedTransactions: true },
         });
         const connection = await pool.connection();
         const connection2 = await pool.connection();
@@ -257,7 +260,8 @@ void describe('SQLite3 Transactions', () => {
       void it('transactions errors inside the nested inner transaction for a singleton should try catch and roll back everything', async () => {
         const pool = sqlite3Pool({
           fileName,
-          allowNestedTransactions: true,
+
+          transactionOptions: { allowNestedTransactions: true },
         });
         const connection = await pool.connection();
         const connection2 = await pool.connection();
@@ -305,7 +309,7 @@ void describe('SQLite3 Transactions', () => {
         const pool = sqlite3Pool({
           fileName,
           singleton: true,
-          allowNestedTransactions: true,
+          transactionOptions: { allowNestedTransactions: true },
         });
         const connection = await pool.connection();
         const connection2 = await pool.connection();

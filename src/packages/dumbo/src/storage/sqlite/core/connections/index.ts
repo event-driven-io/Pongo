@@ -8,6 +8,7 @@ import {
   createConnection,
   type AnyConnection,
   type Connection,
+  type ConnectionOptions,
   type DatabaseTransaction,
   type DatabaseTransactionOptions,
   type InferDbClientFromConnection,
@@ -129,9 +130,9 @@ export type AnySQLiteConnection =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   SQLiteConnection<any, any, any, any, any>;
 
-export type SQLiteConnectionOptions = {
-  allowNestedTransactions?: boolean;
-} & SQLiteClientOptions;
+export type SQLiteConnectionOptions<
+  ConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
+> = ConnectionOptions<ConnectionType> & SQLiteClientOptions;
 
 export type SQLiteClientConnectionDefinitionOptions<
   SQLiteConnectionType extends
@@ -144,7 +145,7 @@ export type SQLiteClientConnectionDefinitionOptions<
     InferDbClientFromConnection<SQLiteConnectionType>,
     ConnectionOptions
   >;
-  connectionOptions: SQLiteConnectionOptions;
+  connectionOptions: SQLiteConnectionOptions<SQLiteConnectionType>;
 };
 
 export type SQLitePoolConnectionDefinitionOptions<
@@ -158,7 +159,7 @@ export type SQLitePoolConnectionDefinitionOptions<
     InferDbClientFromConnection<SQLiteConnectionType>,
     ConnectionOptions
   >;
-  connectionOptions: SQLiteConnectionOptions;
+  connectionOptions: SQLiteConnectionOptions<SQLiteConnectionType>;
 };
 
 export type SQLiteConnectionDefinitionOptions<
@@ -291,7 +292,7 @@ export const sqliteClientConnection = <
       sqliteTransaction(
         options.driverType,
         connection,
-        connectionOptions.allowNestedTransactions ?? false,
+        connectionOptions.transactionOptions?.allowNestedTransactions ?? false,
       ),
     executor: () => sqliteSQLExecutor(options.driverType),
   });
@@ -334,7 +335,7 @@ export const sqlitePoolClientConnection = <
       sqliteTransaction(
         options.driverType,
         connection,
-        connectionOptions.allowNestedTransactions ?? false,
+        connectionOptions.transactionOptions?.allowNestedTransactions ?? false,
       ),
     executor: () => sqliteSQLExecutor(options.driverType),
   });

@@ -5,11 +5,7 @@ import {
   type DumboConnectionOptions,
   type DumboDatabaseDriver,
 } from '../../../core';
-import {
-  DefaultSQLiteMigratorOptions,
-  sqliteFormatter,
-  sqlitePool,
-} from '../core';
+import { DefaultSQLiteMigratorOptions, sqliteFormatter } from '../core';
 import { D1DriverType, d1Client, type D1Connection } from './connections';
 import { d1Pool, type D1PoolOptions } from './pool';
 
@@ -36,6 +32,14 @@ export type D1DumboConnectionOptions = DumboConnectionOptions<
 
 useD1DatabaseDriver();
 
-export { d1Pool, d1DatabaseDriver as databaseDriver, d1Client as sqliteClient };
+export {
+  d1Pool as connectionPool,
+  d1DatabaseDriver as databaseDriver,
+  d1Client as sqliteClient,
+};
 
-export const connectionPool = sqlitePool;
+export * from './connections';
+export * from './execute';
+export * from './formatter';
+export * from './pool';
+export * from './transactions';

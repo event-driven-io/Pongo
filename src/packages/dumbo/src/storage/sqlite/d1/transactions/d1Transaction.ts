@@ -18,13 +18,13 @@ export type D1TransactionOptions = DatabaseTransactionOptions & {
   mode?: D1TransactionMode;
 };
 
-export type D1TransactionMode = 'compatible' | 'strict';
+export type D1TransactionMode = 'session_based' | 'strict';
 
 export class D1TransactionNotSupportedError extends Error {
   constructor() {
     super(
       'D1 does not support SQL transactions (BEGIN/COMMIT/ROLLBACK/SAVEPOINT). ' +
-        'Use { mode: "compatible" } to opt-in to session+batch semantics, or use ' +
+        'Use { mode: "session_based" } to opt-in to session+batch semantics, or use ' +
         'connection.execute.batchCommand() for atomic multi-statement execution.',
     );
     this.name = 'D1TransactionNotSupportedError';
@@ -32,7 +32,7 @@ export class D1TransactionNotSupportedError extends Error {
 }
 
 export const d1Transaction =
-  (connection: () => D1Connection, allowNestedTransactions: boolean) =>
+  (connection: () => D1Connection, defaultOptions?: D1TransactionOptions) =>
   (
     getClient: Promise<D1Client>,
     options?: {
@@ -41,8 +41,11 @@ export const d1Transaction =
   ): D1Transaction => {
     const transactionCounter = transactionNestingCounter();
 
-    allowNestedTransactions =
-      options?.allowNestedTransactions ?? allowNestedTransactions;
+    const allowNestedTransactions =
+      options?.allowNestedTransactions ??
+      defaultOptions?.allowNestedTransactions;
+
+    const mode = options?.mode ?? defaultOptions?.mode;
 
     let client: D1Client | null = null;
     let sessionClient: D1Client | null = null;
@@ -58,9 +61,7 @@ export const d1Transaction =
       connection: connection(),
       driverType: D1DriverType,
       begin: async function () {
-        const mode = options?.mode;
-
-        if (mode !== 'compatible') {
+        if (mode !== 'session_based') {
           throw new D1TransactionNotSupportedError();
         }
 

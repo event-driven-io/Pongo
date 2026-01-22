@@ -133,15 +133,16 @@ void describe('Cloudflare d1 pool', () => {
     }
   });
 
-  void it('connects using ambient connected connection with transaction', async () => {
+  void it('connects using ambient connected connection with transaction and session_based mode', async () => {
     const ambientPool = d1Pool({
       database,
+      transactionOptions: { mode: 'session_based' },
     });
     const ambientConnection = await ambientPool.connection();
     await ambientConnection.open();
 
     try {
-      await ambientConnection.withTransaction<void>(async () => {
+      await ambientConnection.withTransaction(async () => {
         const pool = d1Pool({
           database,
           connection: ambientConnection,
@@ -160,17 +161,19 @@ void describe('Cloudflare d1 pool', () => {
     }
   });
 
-  void it('connects using ambient not-connected connection with transaction', async () => {
+  void it('connects using ambient not-connected connection with transaction and session_based mode', async () => {
     const ambientPool = d1Pool({
       database,
+      transactionOptions: { mode: 'session_based' },
     });
     const ambientConnection = await ambientPool.connection();
 
     try {
-      await ambientConnection.withTransaction<void>(async () => {
+      await ambientConnection.withTransaction(async () => {
         const pool = d1Pool({
           database,
           connection: ambientConnection,
+          transactionOptions: { mode: 'session_based' },
         });
         try {
           await pool.execute.query(SQL`SELECT 1`);
@@ -209,23 +212,27 @@ void describe('Cloudflare d1 pool', () => {
     }
   });
 
-  void it('connects using ambient connection in withConnection and withTransaction scope', async () => {
+  void it('connects using ambient connection in withConnection and withTransaction scope and session_based mode', async () => {
     const ambientPool = d1Pool({
       database,
+      transactionOptions: { mode: 'session_based' },
     });
     try {
       await ambientPool.withConnection((ambientConnection) =>
-        ambientConnection.withTransaction<void>(async () => {
-          const pool = d1Pool({
-            database,
-            connection: ambientConnection,
-          });
-          try {
-            await pool.execute.query(SQL`SELECT 1`);
-          } finally {
-            await pool.close();
-          }
-        }),
+        ambientConnection.withTransaction(
+          async () => {
+            const pool = d1Pool({
+              database,
+              connection: ambientConnection,
+            });
+            try {
+              await pool.execute.query(SQL`SELECT 1`);
+            } finally {
+              await pool.close();
+            }
+          },
+          { mode: 'session_based' },
+        ),
       );
     } finally {
       await ambientPool.close();

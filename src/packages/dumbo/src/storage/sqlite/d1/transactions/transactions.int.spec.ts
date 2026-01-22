@@ -26,7 +26,9 @@ void describe('D1 Transactions', () => {
     void it('throws D1TransactionNotSupportedError when mode is not specified', async () => {
       const pool = d1Pool({
         database,
-        allowNestedTransactions: true,
+        transactionOptions: {
+          allowNestedTransactions: true,
+        },
       });
       const connection = await pool.connection();
 
@@ -37,7 +39,7 @@ void describe('D1 Transactions', () => {
 
         await assert.rejects(
           () =>
-            connection.withTransaction<void>(async () => {
+            connection.withTransaction(async () => {
               await connection.execute.query(
                 SQL`INSERT INTO test_table (id, value) VALUES (1, "test")`,
               );
@@ -55,7 +57,10 @@ void describe('D1 Transactions', () => {
     void it('throws D1TransactionNotSupportedError when mode is strict', async () => {
       const pool = d1Pool({
         database,
-        allowNestedTransactions: true,
+        transactionOptions: {
+          allowNestedTransactions: true,
+          mode: 'strict',
+        },
       });
       const connection = await pool.connection();
 
@@ -66,7 +71,7 @@ void describe('D1 Transactions', () => {
 
         await assert.rejects(
           () =>
-            connection.withTransaction<void>(
+            connection.withTransaction(
               async () => {
                 await connection.execute.query(
                   SQL`INSERT INTO test_table (id, value) VALUES (1, "test")`,
@@ -84,10 +89,13 @@ void describe('D1 Transactions', () => {
       }
     });
 
-    void it('allows transaction when mode is compatible', async () => {
+    void it('allows transaction when mode is session_based', async () => {
       const pool = d1Pool({
         database,
-        allowNestedTransactions: true,
+        transactionOptions: {
+          allowNestedTransactions: true,
+          mode: 'session_based',
+        },
       });
       const connection = await pool.connection();
 
@@ -103,7 +111,7 @@ void describe('D1 Transactions', () => {
             );
             return (result.rows[0]?.id as number) ?? null;
           },
-          { mode: 'compatible' },
+          { mode: 'session_based' },
         );
 
         assert.strictEqual(result, 1);
@@ -116,7 +124,10 @@ void describe('D1 Transactions', () => {
     void it('commits a nested transaction with pool', async () => {
       const pool = d1Pool({
         database,
-        allowNestedTransactions: true,
+        transactionOptions: {
+          allowNestedTransactions: true,
+          mode: 'session_based',
+        },
       });
       const connection = await pool.connection();
 
@@ -142,7 +153,7 @@ void describe('D1 Transactions', () => {
 
             return result;
           },
-          { mode: 'compatible' },
+          { mode: 'session_based' },
         );
 
         assert.strictEqual(result, 1);
@@ -160,7 +171,10 @@ void describe('D1 Transactions', () => {
     void it('should fail with an error if transaction nested is false', async () => {
       const pool = d1Pool({
         database,
-        allowNestedTransactions: false,
+        transactionOptions: {
+          allowNestedTransactions: false,
+          mode: 'session_based',
+        },
       });
       const connection = await pool.connection();
 
@@ -186,7 +200,7 @@ void describe('D1 Transactions', () => {
 
             return result;
           },
-          { mode: 'compatible' },
+          { mode: 'session_based' },
         );
       } catch (error) {
         assert.strictEqual(
@@ -202,7 +216,10 @@ void describe('D1 Transactions', () => {
     void it('should try catch and NOT roll back everything when the inner transaction errors for a pooled connection', async () => {
       const pool = d1Pool({
         database,
-        allowNestedTransactions: true,
+        transactionOptions: {
+          allowNestedTransactions: true,
+          mode: 'session_based',
+        },
       });
       const connection = await pool.connection();
       const connection2 = await pool.connection();
@@ -213,7 +230,7 @@ void describe('D1 Transactions', () => {
         );
 
         try {
-          await connection.withTransaction<void>(
+          await connection.withTransaction(
             async () => {
               await connection.execute.query(
                 SQL`INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id`,
@@ -223,10 +240,10 @@ void describe('D1 Transactions', () => {
                 () => {
                   throw new Error('Intentionally throwing');
                 },
-                { mode: 'compatible' },
+                { mode: 'session_based' },
               );
             },
-            { mode: 'compatible' },
+            { mode: 'session_based' },
           );
         } catch (error) {
           assert.strictEqual(
@@ -251,7 +268,10 @@ void describe('D1 Transactions', () => {
     void it('should try catch and NOT roll back everything when the outer transactions errors for a pooled connection', async () => {
       const pool = d1Pool({
         database,
-        allowNestedTransactions: true,
+        transactionOptions: {
+          allowNestedTransactions: true,
+          mode: 'session_based',
+        },
       });
       const connection = await pool.connection();
       const connection2 = await pool.connection();
@@ -280,12 +300,12 @@ void describe('D1 Transactions', () => {
                   );
                   return (result.rows[0]?.id as number) ?? null;
                 },
-                { mode: 'compatible' },
+                { mode: 'session_based' },
               );
 
               throw new Error('Intentionally throwing');
             },
-            { mode: 'compatible' },
+            { mode: 'session_based' },
           );
         } catch (error) {
           // make sure the error is the correct one. catch but let it continue so it doesn't trigger
@@ -312,7 +332,10 @@ void describe('D1 Transactions', () => {
     void it('commits a nested transaction with singleton pool', async () => {
       const pool = d1Pool({
         database,
-        allowNestedTransactions: true,
+        transactionOptions: {
+          allowNestedTransactions: true,
+          mode: 'session_based',
+        },
       });
       const connection = await pool.connection();
       const connection2 = await pool.connection();
@@ -335,12 +358,12 @@ void describe('D1 Transactions', () => {
                 );
                 return (result.rows[0]?.id as number) ?? null;
               },
-              { mode: 'compatible' },
+              { mode: 'session_based' },
             );
 
             return result;
           },
-          { mode: 'compatible' },
+          { mode: 'session_based' },
         );
 
         assert.strictEqual(result, 1);
@@ -359,7 +382,10 @@ void describe('D1 Transactions', () => {
     void it('transactions errors inside the nested inner transaction for a singleton should try catch and NOT roll back everything', async () => {
       const pool = d1Pool({
         database,
-        allowNestedTransactions: true,
+        transactionOptions: {
+          allowNestedTransactions: true,
+          mode: 'session_based',
+        },
       });
       const connection = await pool.connection();
       const connection2 = await pool.connection();
@@ -384,12 +410,12 @@ void describe('D1 Transactions', () => {
                 () => {
                   throw new Error('Intentionally throwing');
                 },
-                { mode: 'compatible' },
+                { mode: 'session_based' },
               );
 
               return { success: true, result: result };
             },
-            { mode: 'compatible' },
+            { mode: 'session_based' },
           );
         } catch (error) {
           assert.strictEqual(
@@ -415,7 +441,10 @@ void describe('D1 Transactions', () => {
     void it('transactions errors inside the outer transaction for a singleton should try catch and NOT roll back everything', async () => {
       const pool = d1Pool({
         database,
-        allowNestedTransactions: true,
+        transactionOptions: {
+          allowNestedTransactions: true,
+          mode: 'session_based',
+        },
       });
       const connection = await pool.connection();
       const connection2 = await pool.connection();
@@ -441,12 +470,12 @@ void describe('D1 Transactions', () => {
                   );
                   return (result.rows[0]?.id as number) ?? null;
                 },
-                { mode: 'compatible' },
+                { mode: 'session_based' },
               );
 
               throw new Error('Intentionally throwing');
             },
-            { mode: 'compatible' },
+            { mode: 'session_based' },
           );
         } catch (error) {
           // make sure the error is the correct one. catch but let it continue so it doesn't trigger

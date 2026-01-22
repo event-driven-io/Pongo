@@ -33,7 +33,7 @@ export type D1Connection = Connection<
   ) => Promise<Result>;
 };
 
-export type D1ConnectionOptions = SQLiteConnectionOptions & {
+export type D1ConnectionOptions = SQLiteConnectionOptions<D1Connection> & {
   client?: D1Client;
   connection?: D1Connection;
   transaction?: D1Transaction;
@@ -46,7 +46,7 @@ export const d1Connection = (options: D1ConnectionOptions) => {
         driverType: D1DriverType,
         client: options.client ?? d1Client(options),
         initTransaction: (connection) =>
-          d1Transaction(connection, options.allowNestedTransactions ?? false),
+          d1Transaction(connection, options.transactionOptions),
       }),
     };
 
