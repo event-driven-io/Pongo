@@ -24,7 +24,7 @@ export const LogStyle = {
 
 const shouldLog = (logLevel: LogLevel): boolean => {
   const definedLogLevel =
-    (typeof process !== 'undefined'
+    (process && typeof process !== 'undefined'
       ? process.env?.DUMBO_LOG_LEVEL
       : undefined) ?? LogLevel.DISABLED;
 
@@ -108,7 +108,7 @@ const recordTraceEvent = (
 
   const record = getTraceEventRecorder(
     logLevel,
-    ((typeof process !== 'undefined'
+    ((process && typeof process !== 'undefined'
       ? process.env?.DUMBO_LOG_STYLE
       : undefined) as LogStyle | undefined) ?? 'RAW',
   );
