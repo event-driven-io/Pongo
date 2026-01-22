@@ -2,6 +2,7 @@ import {
   SQL,
   sqlExecutor,
   type DatabaseTransaction,
+  type DatabaseTransactionOptions,
   type InferDbClientFromConnection,
 } from '../../../../core';
 import { sqliteSQLExecutor } from '../../core/execute';
@@ -28,9 +29,12 @@ export const sqliteTransaction =
         client: InferDbClientFromConnection<ConnectionType>,
         error?: unknown,
       ) => Promise<void>;
-    },
+    } & DatabaseTransactionOptions,
   ): DatabaseTransaction<ConnectionType> => {
     const transactionCounter = transactionNestingCounter();
+    allowNestedTransactions =
+      options?.allowNestedTransactions ?? allowNestedTransactions;
+
     return {
       connection: connection(),
       driverType,

@@ -1,6 +1,8 @@
 import sqlite3 from 'sqlite3';
 import {
   SQL,
+  type Connection,
+  type DatabaseTransactionOptions,
   type QueryResult,
   type QueryResultRow,
   type SQLQueryOptions,
@@ -8,10 +10,10 @@ import {
 import type {
   SQLiteClient,
   SQLiteClientOrPoolClient,
-  SQLiteConnection,
   SQLiteConnectionOptions,
   SQLiteDriverType,
   SQLiteFileNameOrConnectionString,
+  SQLiteTransaction,
 } from '../../core';
 import {
   InMemorySQLiteDatabase,
@@ -42,9 +44,14 @@ export type SQLite3Client = SQLiteClientOrPoolClient;
 export type SQLite3ConnectionOptions = SQLiteConnectionOptions &
   ((SQLite3ClientOptions & { client?: never }) | { client: SQLite3Client });
 
-export type SQLite3Connection = SQLiteConnection<
+export type SQLite3Connection<
+  ClientType extends SQLiteClientOrPoolClient = SQLiteClientOrPoolClient,
+> = Connection<
+  SQLite3Connection,
   SQLite3DriverType,
-  SQLite3Client
+  ClientType,
+  SQLiteTransaction<SQLite3Connection>,
+  DatabaseTransactionOptions
 >;
 
 export const sqlite3Client = (options: SQLite3ClientOptions): SQLiteClient => {

@@ -13,14 +13,24 @@ import {
 import {
   transactionFactoryWithAmbientConnection,
   transactionFactoryWithNewConnection,
+  type DatabaseTransaction,
+  type DatabaseTransactionOptions,
   type WithDatabaseTransactionFactory,
 } from './transaction';
 
 export interface ConnectionPool<
   ConnectionType extends AnyConnection = AnyConnection,
+  TransactionType extends
+    DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
+  TransactionOptionsType extends
+    DatabaseTransactionOptions = DatabaseTransactionOptions,
 > extends WithSQLExecutor,
     WithConnectionFactory<ConnectionType>,
-    WithDatabaseTransactionFactory<ConnectionType> {
+    WithDatabaseTransactionFactory<
+      ConnectionType,
+      TransactionType,
+      TransactionOptionsType
+    > {
   driverType: ConnectionType['driverType'];
   close: () => Promise<void>;
 }
@@ -42,8 +52,9 @@ export const createAmbientConnectionPool = <
     driverType,
     getConnection: () => connection,
     execute: connection.execute,
-    transaction: () => connection.transaction(),
-    withTransaction: (handle) => connection.withTransaction(handle),
+    transaction: (options) => connection.transaction(options),
+    withTransaction: (handle, options) =>
+      connection.withTransaction(handle, options),
   });
 };
 
