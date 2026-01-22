@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/dumbo",
-  "version": "0.13.0-beta.2",
+  "version": "0.13.0-beta.3",
   "description": "Dumbo - tools for dealing with Relational Databases",
   "type": "module",
   "scripts": {
@@ -101,17 +101,35 @@
   "files": [
     "dist"
   ],
-  "dependencies": {
-    "@cloudflare/workers-types": "^4.20260115.0",
-    "sqlite3": "^5.1.7"
-  },
   "peerDependencies": {
     "@types/pg": "^8.15.5",
     "pg": "^8.16.3",
     "pg-connection-string": "^2.9.1",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "@cloudflare/workers-types": "^4.20260115.0",
+    "sqlite3": "^5.1.7"
+  },
+  "peerDependenciesMeta": {
+    "@types/pg": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    },
+    "pg-connection-string": {
+      "optional": true
+    },
+    "sqlite3": {
+      "optional": true
+    },
+    "@cloudflare/workers-types": {
+      "optional": true
+    }
   },
   "devDependencies": {
-    "@types/node": "^24.5.2"
+    "@types/node": "^24.5.2",
+    "pg": "^8.16.3",
+    "pg-connection-string": "^2.9.1",
+    "sqlite3": "^5.1.7"
   }
 }

@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/pongo-core",
-  "version": "0.17.0-beta.2",
+  "version": "0.17.0-beta.3",
   "description": "Pongo - Mongo with strong consistency on top of Postgres",
   "type": "module",
   "engines": {
@@ -108,10 +108,25 @@
     "cli-table3": "^0.6.5",
     "commander": "^14.0.1",
     "pg": "^8.16.3",
-    "pg-connection-string": "^2.9.1"
-  },
-  "dependencies": {
+    "pg-connection-string": "^2.9.1",
     "sqlite3": "^5.1.7"
+  },
+  "peerDependenciesMeta": {
+    "@types/pg": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    },
+    "pg-connection-string": {
+      "optional": true
+    },
+    "sqlite3": {
+      "optional": true
+    },
+    "@cloudflare/workers-types": {
+      "optional": true
+    }
   },
   "workspaces": [
     "packages/dumbo",
