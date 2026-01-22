@@ -58,6 +58,12 @@ export const d1Transaction =
       connection: connection(),
       driverType: D1DriverType,
       begin: async function () {
+        const mode = options?.mode;
+
+        if (mode !== 'compatible') {
+          throw new D1TransactionNotSupportedError();
+        }
+
         const client = await getDatabaseClient();
 
         if (allowNestedTransactions) {
