@@ -58,8 +58,6 @@ export const sqlite3DatabaseDriver = {
   sqlFormatter: sqliteFormatter,
   defaultMigratorOptions: DefaultSQLiteMigratorOptions,
   getDatabaseNameOrDefault: () => InMemorySQLiteDatabase,
-  defaultConnectionString: InMemorySQLiteDatabase,
-  tryParseConnectionString: tryParseConnectionString,
   canHandle: canHandleDriverWithConnectionString(
     SQLite3DriverType,
     tryParseConnectionString,

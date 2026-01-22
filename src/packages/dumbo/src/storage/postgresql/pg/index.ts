@@ -4,7 +4,6 @@ import {
   dumboDatabaseDriverRegistry,
 } from '../../../core';
 import {
-  defaultPostgreSQLConnectionString,
   DefaultPostgreSQLMigratorOptions,
   getDatabaseNameOrDefault,
   pgFormatter,
@@ -35,9 +34,7 @@ export const pgDatabaseDriver: DumboDatabaseDriver<
   createPool: (options) => nodePostgresPool(options as NodePostgresPoolOptions),
   sqlFormatter: pgFormatter,
   defaultMigratorOptions: DefaultPostgreSQLMigratorOptions,
-  defaultConnectionString: defaultPostgreSQLConnectionString,
   getDatabaseNameOrDefault,
-  tryParseConnectionString: tryParseConnectionString,
   canHandle: canHandleDriverWithConnectionString(
     NodePostgresDriverType,
     tryParseConnectionString,
