@@ -12,7 +12,6 @@ import {
   sqliteFormatter,
   sqlitePool,
   toSqlitePoolOptions,
-  type SQLiteConnection,
   type SQLitePoolOptions,
 } from '../core';
 import {
@@ -62,10 +61,7 @@ export const sqlite3DatabaseDriver = {
     SQLite3DriverType,
     tryParseConnectionString,
   ),
-} satisfies DumboDatabaseDriver<
-  SQLiteConnection<SQLite3DriverType>,
-  SQLite3DumboOptions
->;
+} satisfies DumboDatabaseDriver<SQLite3Connection, SQLite3DumboOptions>;
 
 export const useSqlite3DatabaseDriver = () => {
   dumboDatabaseDriverRegistry.register(

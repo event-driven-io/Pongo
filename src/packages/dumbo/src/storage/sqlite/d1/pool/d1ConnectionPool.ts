@@ -4,7 +4,7 @@ import {
   d1Connection,
   D1DriverType,
   type D1Connection,
-} from '../connections/connection';
+} from '../connections/d1Connection';
 
 export type D1PoolOptions = D1ConnectionOptions;
 

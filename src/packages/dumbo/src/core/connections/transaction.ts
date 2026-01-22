@@ -1,6 +1,7 @@
 import type { WithSQLExecutor } from '../execute';
 import {
   type AnyConnection,
+  type Connection,
   type InferDbClientFromConnection,
 } from './connection';
 
@@ -17,17 +18,24 @@ export interface DatabaseTransaction<
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyDatabaseTransaction = DatabaseTransaction<any>;
 
+export type DatabaseTransactionOptions = {
+  allowNestedTransactions?: boolean;
+};
+
 export interface WithDatabaseTransactionFactory<
   ConnectionType extends AnyConnection = AnyConnection,
   TransactionType extends
     DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
+  TransactionOptionsType extends
+    DatabaseTransactionOptions = DatabaseTransactionOptions,
 > {
-  transaction: () => TransactionType;
+  transaction: (options?: TransactionOptionsType) => TransactionType;
 
   withTransaction: <Result = never>(
     handle: (
       transaction: TransactionType,
     ) => Promise<TransactionResult<Result> | Result>,
+    options?: TransactionOptionsType,
   ) => Promise<Result>;
 }
 
@@ -72,33 +80,40 @@ export const transactionFactoryWithDbClient = <
   ConnectionType extends AnyConnection = AnyConnection,
   TransactionType extends
     DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
+  TransactionOptionsType extends
+    DatabaseTransactionOptions = DatabaseTransactionOptions,
 >(
   connect: () => Promise<InferDbClientFromConnection<ConnectionType>>,
   initTransaction: (
     client: Promise<InferDbClientFromConnection<ConnectionType>>,
-    options?: {
+    options?: TransactionOptionsType & {
       close: (
         client: InferDbClientFromConnection<ConnectionType>,
         error?: unknown,
       ) => Promise<void>;
     },
   ) => TransactionType,
-): WithDatabaseTransactionFactory<ConnectionType, TransactionType> => {
+): WithDatabaseTransactionFactory<
+  ConnectionType,
+  TransactionType,
+  TransactionOptionsType
+> => {
   let currentTransaction: TransactionType | undefined = undefined;
 
-  const getOrInitCurrentTransaction = () =>
+  const getOrInitCurrentTransaction = (options?: TransactionOptionsType) =>
     currentTransaction ??
     (currentTransaction = initTransaction(connect(), {
       close: () => {
         currentTransaction = undefined;
         return Promise.resolve();
       },
+      ...(options ?? ({} as TransactionOptionsType)),
     }));
 
   return {
     transaction: getOrInitCurrentTransaction,
-    withTransaction: (handle) =>
-      executeInTransaction(getOrInitCurrentTransaction(), handle),
+    withTransaction: (handle, options) =>
+      executeInTransaction(getOrInitCurrentTransaction(options), handle),
   };
 };
 
@@ -118,12 +133,20 @@ const wrapInConnectionClosure = async <
 
 export const transactionFactoryWithNewConnection = <
   ConnectionType extends AnyConnection = AnyConnection,
+  TransactionType extends
+    DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
+  TransactionOptionsType extends
+    DatabaseTransactionOptions = DatabaseTransactionOptions,
 >(
   connect: () => ConnectionType,
-): WithDatabaseTransactionFactory<ConnectionType> => ({
-  transaction: () => {
+): WithDatabaseTransactionFactory<
+  ConnectionType,
+  TransactionType,
+  TransactionOptionsType
+> => ({
+  transaction: (options) => {
     const connection = connect();
-    const transaction = connection.transaction();
+    const transaction = connection.transaction(options) as TransactionType;
 
     return {
       ...transaction,
@@ -133,10 +156,17 @@ export const transactionFactoryWithNewConnection = <
         wrapInConnectionClosure(connection, () => transaction.rollback()),
     };
   },
-  withTransaction: (handle) => {
-    const connection = connect();
-    return wrapInConnectionClosure(connection, () =>
-      connection.withTransaction(handle),
+  withTransaction: (handle, options) => {
+    const connection = connect() as unknown as Connection<
+      ConnectionType,
+      ConnectionType['driverType'],
+      InferDbClientFromConnection<ConnectionType>,
+      TransactionType,
+      TransactionOptionsType
+    >;
+    return wrapInConnectionClosure(
+      connection as unknown as ConnectionType,
+      () => connection.withTransaction(handle, options),
     );
   },
 });
@@ -146,9 +176,9 @@ export const transactionFactoryWithAmbientConnection = <
 >(
   connect: () => ConnectionType,
 ): WithDatabaseTransactionFactory<ConnectionType> => ({
-  transaction: () => {
+  transaction: (options) => {
     const connection = connect();
-    const transaction = connection.transaction();
+    const transaction = connection.transaction(options);
 
     return {
       ...transaction,
@@ -156,8 +186,8 @@ export const transactionFactoryWithAmbientConnection = <
       rollback: () => transaction.rollback(),
     };
   },
-  withTransaction: (handle) => {
+  withTransaction: (handle, options) => {
     const connection = connect();
-    return connection.withTransaction(handle);
+    return connection.withTransaction(handle, options);
   },
 });

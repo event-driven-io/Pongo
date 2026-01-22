@@ -8,6 +8,7 @@ import {
   transactionFactoryWithDbClient,
   type AnyDatabaseTransaction,
   type DatabaseTransaction,
+  type DatabaseTransactionOptions,
   type WithDatabaseTransactionFactory,
 } from './transaction';
 
@@ -16,8 +17,14 @@ export interface Connection<
   DriverType extends DatabaseDriverType = DatabaseDriverType,
   DbClient = unknown,
   TransactionType extends DatabaseTransaction<Self> = DatabaseTransaction<Self>,
+  TransactionOptionsType extends
+    DatabaseTransactionOptions = DatabaseTransactionOptions,
 > extends WithSQLExecutor,
-    WithDatabaseTransactionFactory<Self, TransactionType> {
+    WithDatabaseTransactionFactory<
+      Self,
+      TransactionType,
+      TransactionOptionsType
+    > {
   driverType: DriverType;
   open: () => Promise<DbClient>;
   close: () => Promise<void>;
@@ -65,9 +72,11 @@ export type InitTransaction<
   ConnectionType extends AnyConnection = AnyConnection,
   TreansactionType extends
     DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
+  TransactionOptionsType extends
+    DatabaseTransactionOptions = DatabaseTransactionOptions,
 > = (connection: () => ConnectionType) => (
   client: Promise<InferDbClientFromConnection<ConnectionType>>,
-  options?: {
+  options?: TransactionOptionsType & {
     close: (
       client: InferDbClientFromConnection<ConnectionType>,
       error?: unknown,
@@ -80,11 +89,17 @@ export type CreateConnectionOptions<
   Executor extends DbSQLExecutor = DbSQLExecutor,
   TransactionType extends
     DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
+  TransactionOptionsType extends
+    DatabaseTransactionOptions = DatabaseTransactionOptions,
 > = {
   driverType: InferDriverTypeFromConnection<ConnectionType>;
   connect: () => Promise<InferDbClientFromConnection<ConnectionType>>;
   close: (client: InferDbClientFromConnection<ConnectionType>) => Promise<void>;
-  initTransaction: InitTransaction<ConnectionType, TransactionType>;
+  initTransaction: InitTransaction<
+    ConnectionType,
+    TransactionType,
+    TransactionOptionsType
+  >;
   executor: () => Executor;
 };
 
@@ -93,10 +108,16 @@ export type CreateAmbientConnectionOptions<
   Executor extends DbSQLExecutor = DbSQLExecutor,
   TransactionType extends
     DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
+  TransactionOptionsType extends
+    DatabaseTransactionOptions = DatabaseTransactionOptions,
 > = {
   driverType: InferDriverTypeFromConnection<ConnectionType>;
   client: InferDbClientFromConnection<ConnectionType>;
-  initTransaction: InitTransaction<ConnectionType, TransactionType>;
+  initTransaction: InitTransaction<
+    ConnectionType,
+    TransactionType,
+    TransactionOptionsType
+  >;
   executor: () => Executor;
 };
 
@@ -145,11 +166,17 @@ export type CreateSingletonConnectionOptions<
   Executor extends DbSQLExecutor = DbSQLExecutor,
   TransactionType extends
     DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
+  TransactionOptionsType extends
+    DatabaseTransactionOptions = DatabaseTransactionOptions,
 > = {
   driverType: InferDriverTypeFromConnection<ConnectionType>;
   connect: () => Promise<InferDbClientFromConnection<ConnectionType>>;
   close: (client: InferDbClientFromConnection<ConnectionType>) => Promise<void>;
-  initTransaction: InitTransaction<ConnectionType, TransactionType>;
+  initTransaction: InitTransaction<
+    ConnectionType,
+    TransactionType,
+    TransactionOptionsType
+  >;
   executor: () => Executor;
 };
 
@@ -209,11 +236,17 @@ export type CreateTransientConnectionOptions<
   Executor extends DbSQLExecutor = DbSQLExecutor,
   TransactionType extends
     DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
+  TransactionOptionsType extends
+    DatabaseTransactionOptions = DatabaseTransactionOptions,
 > = {
   driverType: InferDriverTypeFromConnection<ConnectionType>;
   open: () => Promise<InferDbClientFromConnection<ConnectionType>>;
   close: () => Promise<void>;
-  initTransaction: InitTransaction<ConnectionType, TransactionType>;
+  initTransaction: InitTransaction<
+    ConnectionType,
+    TransactionType,
+    TransactionOptionsType
+  >;
   executor: () => Executor;
 };
 

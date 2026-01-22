@@ -19,6 +19,7 @@ export * from './testing';
 export * from './tracing';
 
 export type Dumbo<
+  // TODO: Get Rid of DumboType generic parameter if possible
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   DriverType extends DatabaseDriverType = DatabaseDriverType,
   ConnectionType extends AnyConnection = AnyConnection,
