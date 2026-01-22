@@ -26,13 +26,10 @@ export interface DumboDatabaseDriver<
   readonly driverType: ConnectionType['driverType'];
   readonly sqlFormatter: SQLFormatter;
   readonly defaultMigratorOptions: MigratorOptions;
-  readonly defaultConnectionString: string;
 
   getDatabaseNameOrDefault(connectionString: string): string;
 
   createPool(options: DumboConnectionOptions<this>): DumboType;
-
-  tryParseConnectionString(connectionString: string): ConnectionString | null;
 
   canHandle(options: DumboConnectionOptions<this>): boolean;
 }

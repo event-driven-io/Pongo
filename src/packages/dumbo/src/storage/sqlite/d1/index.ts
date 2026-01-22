@@ -22,9 +22,7 @@ export const d1DatabaseDriver = {
   createPool: (options) => d1Pool(options),
   sqlFormatter: sqliteFormatter,
   defaultMigratorOptions: DefaultSQLiteMigratorOptions,
-  getDatabaseNameOrDefault: () => ':d1:', // TODO: make default database name not required
-  defaultConnectionString: ':d1:', // TODO: make connection string not required
-  tryParseConnectionString: () => null, // TODO: make connection string not required
+  getDatabaseNameOrDefault: () => 'd1:default', // TODO: make default database name not required
   canHandle: (options) => {
     return options.driverType === D1DriverType && 'database' in options;
   }, // TODO: make connection string not required
