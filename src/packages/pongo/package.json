@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/pongo",
-  "version": "0.17.0-beta.2",
+  "version": "0.17.0-beta.3",
   "description": "Pongo - Mongo with strong consistency on top of Postgres",
   "type": "module",
   "scripts": {
@@ -133,12 +133,9 @@
   "bin": {
     "pongo": "./dist/cli.js"
   },
-  "dependencies": {
-    "@cloudflare/workers-types": "^4.20260115.0",
-    "sqlite3": "^5.1.7"
-  },
   "peerDependencies": {
-    "@event-driven-io/dumbo": "0.13.0-beta.2",
+    "@event-driven-io/dumbo": "0.13.0-beta.3",
+    "@cloudflare/workers-types": "^4.20260115.0",
     "@types/mongodb": "^4.0.7",
     "@types/pg": "^8.15.5",
     "pg": "^8.16.3",
@@ -146,9 +143,30 @@
     "ansis": "^4.1.0",
     "cli-table3": "^0.6.5",
     "commander": "^14.0.1",
-    "pg-connection-string": "^2.9.1"
+    "pg-connection-string": "^2.9.1",
+    "sqlite3": "^5.1.7"
+  },
+  "peerDependenciesMeta": {
+    "@types/pg": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    },
+    "pg-connection-string": {
+      "optional": true
+    },
+    "sqlite3": {
+      "optional": true
+    },
+    "@cloudflare/workers-types": {
+      "optional": true
+    }
   },
   "devDependencies": {
-    "@types/node": "^24.5.2"
+    "@types/node": "^24.5.2",
+    "pg": "^8.16.3",
+    "pg-connection-string": "^2.9.1",
+    "sqlite3": "^5.1.7"
   }
 }
