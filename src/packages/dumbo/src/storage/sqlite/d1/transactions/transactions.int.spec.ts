@@ -23,6 +23,96 @@ void describe('D1 Transactions', () => {
   });
 
   void describe(`transactions with database`, () => {
+    void it('throws D1TransactionNotSupportedError when mode is not specified', async () => {
+      const pool = d1Pool({
+        database,
+        allowNestedTransactions: true,
+      });
+      const connection = await pool.connection();
+
+      try {
+        await connection.execute.query(
+          SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
+        );
+
+        await assert.rejects(
+          () =>
+            connection.withTransaction<void>(async () => {
+              await connection.execute.query(
+                SQL`INSERT INTO test_table (id, value) VALUES (1, "test")`,
+              );
+            }),
+          {
+            name: 'D1TransactionNotSupportedError',
+          },
+        );
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+    });
+
+    void it('throws D1TransactionNotSupportedError when mode is strict', async () => {
+      const pool = d1Pool({
+        database,
+        allowNestedTransactions: true,
+      });
+      const connection = await pool.connection();
+
+      try {
+        await connection.execute.query(
+          SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
+        );
+
+        await assert.rejects(
+          () =>
+            connection.withTransaction<void>(
+              async () => {
+                await connection.execute.query(
+                  SQL`INSERT INTO test_table (id, value) VALUES (1, "test")`,
+                );
+              },
+              { mode: 'strict' },
+            ),
+          {
+            name: 'D1TransactionNotSupportedError',
+          },
+        );
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+    });
+
+    void it('allows transaction when mode is compatible', async () => {
+      const pool = d1Pool({
+        database,
+        allowNestedTransactions: true,
+      });
+      const connection = await pool.connection();
+
+      try {
+        await connection.execute.query(
+          SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
+        );
+
+        const result = await connection.withTransaction<number>(
+          async () => {
+            const result = await connection.execute.query(
+              SQL`INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id`,
+            );
+            return (result.rows[0]?.id as number) ?? null;
+          },
+          { mode: 'compatible' },
+        );
+
+        assert.strictEqual(result, 1);
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+    });
+
     void it('commits a nested transaction with pool', async () => {
       const pool = d1Pool({
         database,
@@ -79,20 +169,25 @@ void describe('D1 Transactions', () => {
           SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
         );
 
-        await connection.withTransaction<number>(async () => {
-          await connection.execute.query(
-            SQL`INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id`,
-          );
-
-          const result = await connection.withTransaction<number>(async () => {
-            const result = await connection.execute.query(
-              SQL`INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id`,
+        await connection.withTransaction<number>(
+          async () => {
+            await connection.execute.query(
+              SQL`INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id`,
             );
-            return (result.rows[0]?.id as number) ?? null;
-          });
 
-          return result;
-        });
+            const result = await connection.withTransaction<number>(
+              async () => {
+                const result = await connection.execute.query(
+                  SQL`INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id`,
+                );
+                return (result.rows[0]?.id as number) ?? null;
+              },
+            );
+
+            return result;
+          },
+          { mode: 'compatible' },
+        );
       } catch (error) {
         assert.strictEqual(
           (error as Error).message,
@@ -118,15 +213,21 @@ void describe('D1 Transactions', () => {
         );
 
         try {
-          await connection.withTransaction<void>(async () => {
-            await connection.execute.query(
-              SQL`INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id`,
-            );
+          await connection.withTransaction<void>(
+            async () => {
+              await connection.execute.query(
+                SQL`INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id`,
+              );
 
-            await connection2.withTransaction<number>(() => {
-              throw new Error('Intentionally throwing');
-            });
-          });
+              await connection2.withTransaction<number>(
+                () => {
+                  throw new Error('Intentionally throwing');
+                },
+                { mode: 'compatible' },
+              );
+            },
+            { mode: 'compatible' },
+          );
         } catch (error) {
           assert.strictEqual(
             (error as Error).message,
@@ -166,20 +267,26 @@ void describe('D1 Transactions', () => {
         try {
           await connection.withTransaction<{
             id: null | string;
-          }>(async () => {
-            await connection.execute.query(
-              SQL`INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id`,
-            );
-
-            await connection2.withTransaction<number>(async () => {
-              const result = await connection2.execute.query(
-                SQL`INSERT INTO test_table_s (id, value) VALUES (2, "test") RETURNING id`,
+          }>(
+            async () => {
+              await connection.execute.query(
+                SQL`INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id`,
               );
-              return (result.rows[0]?.id as number) ?? null;
-            });
 
-            throw new Error('Intentionally throwing');
-          });
+              await connection2.withTransaction<number>(
+                async () => {
+                  const result = await connection2.execute.query(
+                    SQL`INSERT INTO test_table_s (id, value) VALUES (2, "test") RETURNING id`,
+                  );
+                  return (result.rows[0]?.id as number) ?? null;
+                },
+                { mode: 'compatible' },
+              );
+
+              throw new Error('Intentionally throwing');
+            },
+            { mode: 'compatible' },
+          );
         } catch (error) {
           // make sure the error is the correct one. catch but let it continue so it doesn't trigger
           // the outer errors
@@ -228,10 +335,12 @@ void describe('D1 Transactions', () => {
                 );
                 return (result.rows[0]?.id as number) ?? null;
               },
+              { mode: 'compatible' },
             );
 
             return result;
           },
+          { mode: 'compatible' },
         );
 
         assert.strictEqual(result, 1);
@@ -263,19 +372,25 @@ void describe('D1 Transactions', () => {
         try {
           await connection.withTransaction<{
             id: null | string;
-          }>(async () => {
-            await connection.execute.query(
-              SQL`INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id`,
-            );
+          }>(
+            async () => {
+              await connection.execute.query(
+                SQL`INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id`,
+              );
 
-            const result = await connection2.withTransaction<{
-              id: null | string;
-            }>(() => {
-              throw new Error('Intentionally throwing');
-            });
+              const result = await connection2.withTransaction<{
+                id: null | string;
+              }>(
+                () => {
+                  throw new Error('Intentionally throwing');
+                },
+                { mode: 'compatible' },
+              );
 
-            return { success: true, result: result };
-          });
+              return { success: true, result: result };
+            },
+            { mode: 'compatible' },
+          );
         } catch (error) {
           assert.strictEqual(
             (error as Error).message,
@@ -313,20 +428,26 @@ void describe('D1 Transactions', () => {
         try {
           await connection.withTransaction<{
             id: null | string;
-          }>(async () => {
-            await connection.execute.query(
-              SQL`INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id`,
-            );
-
-            await connection2.withTransaction<number>(async () => {
-              const result = await connection2.execute.query(
-                SQL`INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id`,
+          }>(
+            async () => {
+              await connection.execute.query(
+                SQL`INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id`,
               );
-              return (result.rows[0]?.id as number) ?? null;
-            });
 
-            throw new Error('Intentionally throwing');
-          });
+              await connection2.withTransaction<number>(
+                async () => {
+                  const result = await connection2.execute.query(
+                    SQL`INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id`,
+                  );
+                  return (result.rows[0]?.id as number) ?? null;
+                },
+                { mode: 'compatible' },
+              );
+
+              throw new Error('Intentionally throwing');
+            },
+            { mode: 'compatible' },
+          );
         } catch (error) {
           // make sure the error is the correct one. catch but let it continue so it doesn't trigger
           // the outer errors
