@@ -1,4 +1,5 @@
 import {
+  canHandleDriverWithConnectionString,
   type DumboDatabaseDriver,
   dumboDatabaseDriverRegistry,
 } from '../../../core';
@@ -17,24 +18,30 @@ import {
   type NodePostgresPoolOptions,
 } from './connections';
 
+const tryParseConnectionString = (connectionString: string) => {
+  try {
+    return PostgreSQLConnectionString(connectionString);
+  } catch {
+    return null;
+  }
+};
+
 export const pgDatabaseDriver: DumboDatabaseDriver<
   NodePostgresConnection,
   NodePostgresPoolOptions,
   PostgreSQLConnectionString
 > = {
   driverType: NodePostgresDriverType,
-  createPool: (options) => nodePostgresPool(options),
+  createPool: (options) => nodePostgresPool(options as NodePostgresPoolOptions),
   sqlFormatter: pgFormatter,
   defaultMigratorOptions: DefaultPostgreSQLMigratorOptions,
   defaultConnectionString: defaultPostgreSQLConnectionString,
   getDatabaseNameOrDefault,
-  tryParseConnectionString: (connectionString) => {
-    try {
-      return PostgreSQLConnectionString(connectionString);
-    } catch {
-      return null;
-    }
-  },
+  tryParseConnectionString: tryParseConnectionString,
+  canHandle: canHandleDriverWithConnectionString(
+    NodePostgresDriverType,
+    tryParseConnectionString,
+  ),
 };
 
 export const usePgDatabaseDriver = () => {

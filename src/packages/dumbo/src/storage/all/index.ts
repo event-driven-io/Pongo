@@ -17,20 +17,15 @@ dumboDatabaseDriverRegistry.register('SQLite:sqlite3', () =>
 
 export function dumbo<
   DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
->(
-  options: DumboConnectionOptions<DatabaseDriver>,
-): ExtractDumboTypeFromDriver<DatabaseDriver> {
-  const { connectionString, driverType } = options;
+  ConnectionOptions extends
+    DumboConnectionOptions<DatabaseDriver> = DumboConnectionOptions<DatabaseDriver>,
+>(options: ConnectionOptions): ExtractDumboTypeFromDriver<DatabaseDriver> {
+  const { driverType } = options;
 
-  const driver = dumboDatabaseDriverRegistry.tryGet<DatabaseDriver>({
-    driverType,
-    connectionString,
-  });
+  const driver = dumboDatabaseDriverRegistry.tryGet<DatabaseDriver>(options);
 
   if (driver === null) {
-    throw new Error(
-      `No plugin found for connection string: ${connectionString} and driver type: ${driverType}`,
-    );
+    throw new Error(`No plugin found for driver type: ${driverType}`);
   }
 
   return driver.createPool({
