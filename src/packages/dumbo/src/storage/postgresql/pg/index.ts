@@ -27,8 +27,7 @@ const tryParseConnectionString = (connectionString: string) => {
 
 export const pgDatabaseDriver: DumboDatabaseDriver<
   NodePostgresConnection,
-  NodePostgresPoolOptions,
-  PostgreSQLConnectionString
+  NodePostgresPoolOptions
 > = {
   driverType: NodePostgresDriverType,
   createPool: (options) => nodePostgresPool(options as NodePostgresPoolOptions),

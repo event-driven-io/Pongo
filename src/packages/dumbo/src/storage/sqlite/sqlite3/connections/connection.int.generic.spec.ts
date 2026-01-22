@@ -12,7 +12,7 @@ import { dumbo } from '../../../all';
 import { InMemorySQLiteDatabase, SQLiteConnectionString } from '../../core';
 import { sqlite3Client } from './connection';
 
-void describe('Node SQLite pool', () => {
+void describe('Node SQLite3 pool', () => {
   useSqlite3DatabaseDriver();
 
   const inMemoryfileName = InMemorySQLiteDatabase;

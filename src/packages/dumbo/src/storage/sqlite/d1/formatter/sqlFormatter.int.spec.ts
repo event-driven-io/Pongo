@@ -1,25 +1,25 @@
 import assert from 'assert';
+import { Miniflare } from 'miniflare';
 import { after, before, describe, it } from 'node:test';
-import { sqlite3DatabaseDriver } from '..';
+import { d1DatabaseDriver } from '..';
 import { dumbo, type Dumbo } from '../../../..';
 import { count, SQL } from '../../../../core';
-import { InMemorySQLiteDatabase } from '../../core/connections';
 
-void describe('SQLite3 SQL Formatter Integration Tests', () => {
+void describe('D1 SQL Formatter Integration Tests', () => {
+  let mf: Miniflare;
   let pool: Dumbo;
 
-  before(() => {
-    pool = dumbo({
-      connectionString: InMemorySQLiteDatabase,
-      driver: sqlite3DatabaseDriver,
-    });
-  });
-
-  after(async () => {
-    await pool.close();
-  });
-
   before(async () => {
+    mf = new Miniflare({
+      modules: true,
+      script: 'export default { fetch() { return new Response("ok"); } }',
+      d1Databases: { DB: 'test-db-id' },
+    });
+    const database = await mf.getD1Database('DB');
+    pool = dumbo({
+      driver: d1DatabaseDriver,
+      database,
+    });
     // Create test table for all tests
     await pool.execute.query(
       SQL`CREATE TABLE test_users (id INTEGER PRIMARY KEY, name TEXT)`,
@@ -29,6 +29,11 @@ void describe('SQLite3 SQL Formatter Integration Tests', () => {
     await pool.execute.query(
       SQL`INSERT INTO test_users (name) VALUES ('Alice'), ('Bob')`,
     );
+  });
+
+  after(async () => {
+    await pool.close();
+    await mf.dispose();
   });
 
   void describe('Direct Array Handling', () => {

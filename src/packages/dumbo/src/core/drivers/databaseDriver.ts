@@ -1,10 +1,5 @@
 import type { DatabaseDriverType } from '.';
-import {
-  type Dumbo,
-  type DumboConnectionOptions,
-  type InferDriverDatabaseType,
-} from '..';
-import type { DatabaseConnectionString } from '../../storage/all';
+import { type Dumbo, type DumboConnectionOptions } from '..';
 import type { AnyConnection } from '../connections';
 import type { MigratorOptions } from '../schema';
 import type { SQLFormatter } from '../sql';
@@ -13,11 +8,6 @@ export interface DumboDatabaseDriver<
   ConnectionType extends AnyConnection = AnyConnection,
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-constraint, @typescript-eslint/no-unused-vars
   DriverOptions extends unknown = unknown,
-  ConnectionString extends DatabaseConnectionString<
-    InferDriverDatabaseType<ConnectionType['driverType']>
-  > = DatabaseConnectionString<
-    InferDriverDatabaseType<ConnectionType['driverType']>
-  >,
   DumboType extends Dumbo<ConnectionType['driverType'], ConnectionType> = Dumbo<
     ConnectionType['driverType'],
     ConnectionType
@@ -39,21 +29,11 @@ export type AnyDumboDatabaseDriver = DumboDatabaseDriver<AnyConnection, any>;
 
 export type ExtractDumboDatabaseDriverOptions<DatabaseDriver> =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  DatabaseDriver extends DumboDatabaseDriver<any, infer O, any, any>
-    ? O
-    : never;
-
-export type ExtractDumboConnectionFromDriver<DatabaseDriver> =
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  DatabaseDriver extends DumboDatabaseDriver<infer D, any, any, any>
-    ? D
-    : never;
+  DatabaseDriver extends DumboDatabaseDriver<any, infer O, any> ? O : never;
 
 export type ExtractDumboTypeFromDriver<DatabaseDriver> =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  DatabaseDriver extends DumboDatabaseDriver<any, any, any, infer D>
-    ? D
-    : never;
+  DatabaseDriver extends DumboDatabaseDriver<any, any, infer D> ? D : never;
 
 export const canHandleDriverWithConnectionString =
   <

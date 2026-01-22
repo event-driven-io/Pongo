@@ -7,7 +7,7 @@ import { SQL } from '../../../../core';
 import { sqlite3Client, sqlite3Pool } from '../../../../sqlite3';
 import { InMemorySQLiteDatabase } from '../../core';
 
-void describe('Node SQLite pool', () => {
+void describe('Node SQLite3 pool', () => {
   const inMemoryfileName: string = InMemorySQLiteDatabase;
 
   const testDatabasePath = path.resolve(

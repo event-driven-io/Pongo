@@ -7,7 +7,6 @@ import {
 } from '../../../core';
 import {
   DefaultSQLiteMigratorOptions,
-  SQLiteConnectionString,
   sqliteFormatter,
   sqlitePool,
   type SQLiteConnection,
@@ -26,11 +25,7 @@ export const d1DatabaseDriver = {
   canHandle: (options) => {
     return options.driverType === D1DriverType && 'database' in options;
   }, // TODO: make connection string not required
-} satisfies DumboDatabaseDriver<
-  SQLiteConnection<D1DriverType>,
-  D1DumboOptions,
-  SQLiteConnectionString
->;
+} satisfies DumboDatabaseDriver<SQLiteConnection<D1DriverType>, D1DumboOptions>;
 
 export const useD1DatabaseDriver = () => {
   dumboDatabaseDriverRegistry.register(D1DriverType, d1DatabaseDriver);
