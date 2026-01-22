@@ -49,10 +49,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       driver: databaseDriver,
       connectionString,
     });
-    shim = new MongoClient({
-      connectionString,
-      driver: databaseDriver,
-    });
+    shim = new MongoClient(connectionString);
     await client.connect();
     await shim.connect();
 
