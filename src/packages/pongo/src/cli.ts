@@ -2,8 +2,6 @@
 import { Command } from 'commander';
 import { configCommand, migrateCommand, shellCommand } from './commandLine';
 
-export * from './storage/all';
-
 const program = new Command();
 
 program.name('pongo').description('CLI tool for Pongo');
