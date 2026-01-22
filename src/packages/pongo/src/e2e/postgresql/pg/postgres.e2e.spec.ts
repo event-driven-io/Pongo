@@ -51,10 +51,7 @@ void describe('MongoDB Compatibility Tests', () => {
       driver: databaseDriver,
       connectionString: postgresConnectionString,
     });
-    shim = new MongoClient({
-      driver: databaseDriver,
-      connectionString: postgresConnectionString,
-    });
+    shim = new MongoClient(postgresConnectionString);
     await client.connect();
     await shim.connect();
 
