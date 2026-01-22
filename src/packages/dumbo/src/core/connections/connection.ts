@@ -34,29 +34,36 @@ export type AnyConnection = Connection<
   AnyConnection,
   DatabaseDriverType,
   unknown,
-  AnyDatabaseTransaction
+  AnyDatabaseTransaction,
+  DatabaseTransactionOptions
 >;
 
 export type InferDriverTypeFromConnection<C extends AnyConnection> =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  C extends Connection<any, infer DT, any, any> ? DT : never;
+  C extends Connection<any, infer DT, any, any, any> ? DT : never;
 
 export type InferDbClientFromConnection<C extends AnyConnection> =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  C extends Connection<any, any, infer DC, any> ? DC : never;
+  C extends Connection<any, any, infer DC, any, any> ? DC : never;
+
+export type InferTransactionFromConnection<C extends AnyConnection> =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  C extends Connection<any, any, any, infer DT, any> ? DT : never;
+
+export type InferTransactionOptionsFromConnection<C extends AnyConnection> =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  C extends Connection<any, any, any, any, infer TO> ? TO : never;
 
 export type ConnectionOptions<
   ConnectionType extends AnyConnection = AnyConnection,
 > = {
-  driverType: ConnectionType['driverType'];
-  allowNestedTransactions?: boolean;
+  driverType?: ConnectionType['driverType'];
+  transactionOptions?: InferTransactionOptionsFromConnection<ConnectionType>;
 };
 
 export type ConnectionFactory<
   ConnectionType extends AnyConnection = AnyConnection,
-  ConnectionOptionsType extends
-    ConnectionOptions<ConnectionType> = ConnectionOptions<ConnectionType>,
-> = (options: ConnectionOptionsType) => ConnectionType;
+> = (options: ConnectionOptions<ConnectionType>) => ConnectionType;
 
 export interface WithConnectionFactory<
   ConnectionType extends AnyConnection = AnyConnection,

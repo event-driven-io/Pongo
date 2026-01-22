@@ -50,10 +50,12 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
     client = pongoClient({
       driver: databaseDriver,
       database,
+      transactionOptions: { mode: 'session_based' },
     });
     shim = new MongoClient({
       driver: databaseDriver,
       database,
+      transactionOptions: { mode: 'session_based' },
     });
     await client.connect();
     await shim.connect();

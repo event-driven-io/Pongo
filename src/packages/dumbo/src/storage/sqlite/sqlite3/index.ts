@@ -77,8 +77,11 @@ export type SQLite3DumboConnectionOptions = DumboConnectionOptions<
 useSqlite3DatabaseDriver();
 
 export {
+  sqlite3Pool as connectionPool,
   sqlite3DatabaseDriver as databaseDriver,
   sqlite3Client as sqliteClient,
 };
 
-export const connectionPool = sqlitePool;
+export * from './connections';
+export * from './formatter';
+export * from './transactions';

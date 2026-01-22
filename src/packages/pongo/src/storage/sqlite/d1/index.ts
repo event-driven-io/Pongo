@@ -1,5 +1,5 @@
-import type { D1Database } from '@cloudflare/workers-types';
 import { D1DriverType, d1Pool } from '@event-driven-io/dumbo/d1';
+import type { D1PoolOptions } from '@event-driven-io/dumbo/d1';
 import {
   PongoCollectionSchemaComponent,
   PongoDatabase,
@@ -14,9 +14,8 @@ import { pongoCollectionSQLiteMigrations, sqliteSQLBuilder } from '../core';
 
 export type SQLitePongoClientOptions = object;
 
-type D1DatabaseDriverOptions = PongoDatabaseDriverOptions<never> & {
-  database: D1Database;
-};
+type D1DatabaseDriverOptions = PongoDatabaseDriverOptions<never> &
+  D1PoolOptions;
 
 const d1DatabaseDriver: PongoDatabaseDriver<
   PongoDb<D1DriverType>,
@@ -28,7 +27,7 @@ const d1DatabaseDriver: PongoDatabaseDriver<
 
     return PongoDatabase({
       ...options,
-      pool: d1Pool({ database: options.database }),
+      pool: d1Pool(options),
       schemaComponent: PongoDatabaseSchemaComponent({
         driverType: D1DriverType,
         collectionFactory: (schema) =>
