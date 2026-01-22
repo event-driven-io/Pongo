@@ -1,8 +1,3 @@
-import type {
-  D1DatabaseSession,
-  D1SessionBookmark,
-  D1SessionConstraint,
-} from '@cloudflare/workers-types';
 import {
   sqlExecutor,
   type DatabaseTransaction,
@@ -10,19 +5,16 @@ import {
 } from '../../../../core';
 import { sqliteSQLExecutor, transactionNestingCounter } from '../../core';
 import {
-  d1Client,
   D1DriverType,
   type D1Client,
   type D1Connection,
+  type D1SessionOptions,
 } from '../connections';
 
 export type D1Transaction = DatabaseTransaction<D1Connection>;
 
 export type D1TransactionOptions = DatabaseTransactionOptions & {
-  d1Session?: {
-    // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
-    constraintOrBookmark?: D1SessionBookmark | D1SessionConstraint;
-  };
+  d1Session?: D1SessionOptions;
   mode?: D1TransactionMode;
 };
 
@@ -52,7 +44,6 @@ export const d1Transaction =
     allowNestedTransactions =
       options?.allowNestedTransactions ?? allowNestedTransactions;
 
-    let session: D1DatabaseSession | null = null;
     let client: D1Client | null = null;
     let sessionClient: D1Client | null = null;
 
@@ -78,10 +69,7 @@ export const d1Transaction =
           transactionCounter.increment();
         }
 
-        session = client.database.withSession(
-          options?.d1Session?.constraintOrBookmark,
-        );
-        sessionClient = d1Client({ database: client.database, session });
+        sessionClient = await client.withSession(options?.d1Session);
       },
       commit: async function () {
         const client = await getDatabaseClient();
@@ -96,7 +84,6 @@ export const d1Transaction =
 
             transactionCounter.reset();
           }
-          session = null;
           sessionClient = null;
         } finally {
           if (options?.close) await options?.close(client);
@@ -112,7 +99,6 @@ export const d1Transaction =
             }
           }
 
-          session = null;
           sessionClient = null;
         } finally {
           if (options?.close) await options?.close(client, error);
