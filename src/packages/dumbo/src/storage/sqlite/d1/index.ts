@@ -1,4 +1,5 @@
 export * from './connections';
+import type { D1Database } from '@cloudflare/workers-types';
 import {
   dumboDatabaseDriverRegistry,
   type DumboConnectionOptions,
@@ -24,6 +25,9 @@ export const d1DatabaseDriver = {
   getDatabaseNameOrDefault: () => ':d1:', // TODO: make default database name not required
   defaultConnectionString: ':d1:', // TODO: make connection string not required
   tryParseConnectionString: () => null, // TODO: make connection string not required
+  canHandle: (options) => {
+    return options.driverType === D1DriverType && 'database' in options;
+  }, // TODO: make connection string not required
 } satisfies DumboDatabaseDriver<
   SQLiteConnection<D1DriverType>,
   D1DumboOptions,
@@ -36,7 +40,7 @@ export const useD1DatabaseDriver = () => {
 
 export type D1DumboConnectionOptions = DumboConnectionOptions<
   typeof d1DatabaseDriver
->;
+> & { database: D1Database };
 
 useD1DatabaseDriver();
 

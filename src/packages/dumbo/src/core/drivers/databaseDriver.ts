@@ -30,11 +30,11 @@ export interface DumboDatabaseDriver<
 
   getDatabaseNameOrDefault(connectionString: string): string;
 
-  createPool(
-    options: DumboConnectionOptions<this, ConnectionString>,
-  ): DumboType;
+  createPool(options: DumboConnectionOptions<this>): DumboType;
 
   tryParseConnectionString(connectionString: string): ConnectionString | null;
+
+  canHandle(options: DumboConnectionOptions<this>): boolean;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -58,10 +58,26 @@ export type ExtractDumboTypeFromDriver<DatabaseDriver> =
     ? D
     : never;
 
-type DatabaseDriverResolutionOptions = {
-  driverType?: DatabaseDriverType | undefined;
-  connectionString: string;
-};
+export const canHandleDriverWithConnectionString =
+  <
+    DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
+    ConnectionOptions extends
+      DumboConnectionOptions<DatabaseDriver> = DumboConnectionOptions<DatabaseDriver>,
+  >(
+    driver: DatabaseDriver['driverType'],
+    tryParseConnectionString: (connectionString: string) => string | null,
+  ) =>
+  (options: ConnectionOptions): boolean => {
+    if ('driverType' in options) return options.driverType === driver;
+
+    if (
+      'connectionString' in options &&
+      typeof options.connectionString === 'string'
+    )
+      return tryParseConnectionString(options.connectionString) !== null;
+
+    return false;
+  };
 
 export const DumboDatabaseDriverRegistry = () => {
   const drivers = new Map<
@@ -83,22 +99,25 @@ export const DumboDatabaseDriverRegistry = () => {
     drivers.set(driverType, plugin);
   };
 
-  const getDriver = ({
-    driverType,
-    connectionString,
-  }: DatabaseDriverResolutionOptions) =>
-    driverType
-      ? drivers.get(driverType)
+  const getDriver = <
+    Driver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
+    ConnectionOptions extends
+      DumboConnectionOptions<Driver> = DumboConnectionOptions<Driver>,
+  >(
+    options: ConnectionOptions,
+  ) =>
+    options.driverType
+      ? drivers.get(options.driverType)
       : [...drivers.values()].find(
-          (d) =>
-            typeof d !== 'function' &&
-            d.tryParseConnectionString(connectionString),
+          (d) => typeof d !== 'function' && d.canHandle(options),
         );
 
   const tryResolve = async <
     Driver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
+    ConnectionOptions extends
+      DumboConnectionOptions<Driver> = DumboConnectionOptions<Driver>,
   >(
-    options: DatabaseDriverResolutionOptions,
+    options: ConnectionOptions,
   ): Promise<Driver | null> => {
     const driver = getDriver(options);
 
@@ -114,8 +133,10 @@ export const DumboDatabaseDriverRegistry = () => {
 
   const tryGet = <
     Driver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
+    ConnectionOptions extends
+      DumboConnectionOptions<Driver> = DumboConnectionOptions<Driver>,
   >(
-    options: DatabaseDriverResolutionOptions,
+    options: ConnectionOptions,
   ): Driver | null => {
     const driver = getDriver(options);
 

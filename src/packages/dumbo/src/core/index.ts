@@ -1,10 +1,8 @@
-import type { DatabaseConnectionString } from '../storage/all';
 import { type AnyConnection, type ConnectionPool } from './connections';
 import type {
   AnyDumboDatabaseDriver,
   DatabaseDriverType,
   ExtractDumboDatabaseDriverOptions,
-  InferDriverDatabaseType,
 } from './drivers';
 import { dumboSchema } from './schema';
 import { SQL, SQLColumnTypeTokensFactory } from './sql';
@@ -28,18 +26,12 @@ export type Dumbo<
 
 export type DumboConnectionOptions<
   DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
-  ConnectionString extends DatabaseConnectionString<
-    InferDriverDatabaseType<DatabaseDriver['driverType']>
-  > = DatabaseConnectionString<
-    InferDriverDatabaseType<DatabaseDriver['driverType']>
-  >,
 > =
   ExtractDumboDatabaseDriverOptions<DatabaseDriver> extends infer Options
     ? Options extends unknown
       ? {
           driver?: DatabaseDriver;
           driverType?: DatabaseDriver['driverType'];
-          connectionString: string | ConnectionString;
         } & Omit<Options, 'driver' | 'driverType' | 'connectionString'>
       : never
     : never;
