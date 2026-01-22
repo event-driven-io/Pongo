@@ -2,6 +2,7 @@ import {
   sqlExecutor,
   type AnyConnection,
   type DatabaseTransaction,
+  type DatabaseTransactionOptions,
 } from '../../../../core';
 import { nodePostgresSQLExecutor } from '../execute';
 import {
@@ -21,7 +22,7 @@ export const nodePostgresTransaction =
     getClient: Promise<DbClient>,
     options?: {
       close: (client: DbClient, error?: unknown) => Promise<void>;
-    },
+    } & DatabaseTransactionOptions,
   ): DatabaseTransaction<ConnectionType> => ({
     connection: connection(),
     driverType: NodePostgresDriverType,

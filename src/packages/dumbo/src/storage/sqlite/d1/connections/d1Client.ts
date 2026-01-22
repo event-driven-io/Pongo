@@ -1,6 +1,8 @@
 import {
   type D1Database,
   type D1DatabaseSession,
+  type D1SessionBookmark,
+  type D1SessionConstraint,
 } from '@cloudflare/workers-types';
 import {
   SQL,
@@ -18,9 +20,16 @@ export type D1ClientOptions = {
   session?: D1DatabaseSession | undefined;
 };
 
+export type D1SessionOptions = {
+  // eslint-disable-next-line @typescript-eslint/no-redundant-type-constituents
+  constraintOrBookmark?: D1SessionBookmark | D1SessionConstraint;
+};
+
 export type D1Client = SQLiteClient & {
   database: D1Database;
   session?: D1DatabaseSession | undefined;
+
+  withSession: (constraintOrBookmark?: D1SessionOptions) => Promise<D1Client>;
 };
 
 export const d1Client = (options: D1ClientOptions): D1Client => {
@@ -30,9 +39,16 @@ export const d1Client = (options: D1ClientOptions): D1Client => {
 
   return {
     database,
-    session,
+    session: session,
     connect: () => Promise.resolve(),
     close: () => Promise.resolve(),
+    withSession: async (constraintOrBookmark?: D1SessionOptions) => {
+      const newSession = constraintOrBookmark
+        ? database.withSession(constraintOrBookmark as string)
+        : database.withSession();
+
+      return Promise.resolve(d1Client({ database, session: newSession }));
+    },
 
     query: async <Result extends QueryResultRow = QueryResultRow>(
       sql: SQL,
