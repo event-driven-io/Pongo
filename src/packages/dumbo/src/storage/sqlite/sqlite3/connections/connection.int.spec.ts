@@ -4,7 +4,7 @@ import { afterEach, describe, it } from 'node:test';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { SQL } from '../../../../core';
-import { sqlite3Pool } from '../../../../sqlite3';
+import { sqlite3Client, sqlite3Pool } from '../../../../sqlite3';
 import { InMemorySQLiteDatabase } from '../../core';
 
 void describe('Node SQLite pool', () => {
@@ -132,24 +132,23 @@ void describe('Node SQLite pool', () => {
         }
       });
 
-      // void it('connects using ambient client', async () => {
-      //   const existingClient = sqlite3Client({ fileName });
-      //   await existingClient.connect();
+      void it('connects using ambient client', async () => {
+        const existingClient = sqlite3Client({ fileName });
+        await existingClient.connect();
 
-      //   const pool = sqlite3Pool({
-      //     fileName,
-      //     client: existingClient,
-      //   });
-      //   const connection = await pool.connection();
+        const pool = sqlite3Pool({
+          client: existingClient,
+        });
+        const connection = await pool.connection();
 
-      //   try {
-      //     await connection.execute.query(SQL`SELECT 1`);
-      //   } finally {
-      //     await connection.close();
-      //     await pool.close();
-      //     await existingClient.close();
-      //   }
-      // });
+        try {
+          await connection.execute.query(SQL`SELECT 1`);
+        } finally {
+          await connection.close();
+          await pool.close();
+          await existingClient.close();
+        }
+      });
 
       void it('connects using connected ambient connected connection', async () => {
         const ambientPool = sqlite3Pool({
