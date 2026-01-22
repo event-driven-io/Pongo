@@ -49,36 +49,22 @@ export const createAmbientConnectionPool = <
 
 export type CreateSingletonConnectionPoolOptions<
   ConnectionType extends AnyConnection,
-  ConnectionOptions extends Record<string, unknown> | undefined = undefined,
-> = ConnectionOptions extends undefined
-  ? {
-      driverType: ConnectionType['driverType'];
-      getConnection: () => ConnectionType;
-      connectionOptions?: never;
-    }
-  : {
-      driverType: ConnectionType['driverType'];
-      getConnection: (options: ConnectionOptions) => ConnectionType;
-      connectionOptions: ConnectionOptions;
-    };
+> = {
+  driverType: ConnectionType['driverType'];
+  getConnection: () => ConnectionType;
+  connectionOptions?: never;
+};
 
 export const createSingletonConnectionPool = <
   ConnectionType extends AnyConnection,
-  ConnectionOptions extends Record<string, unknown> | undefined = undefined,
 >(
-  options: CreateSingletonConnectionPoolOptions<
-    ConnectionType,
-    ConnectionOptions
-  >,
+  options: CreateSingletonConnectionPoolOptions<ConnectionType>,
 ): ConnectionPool<ConnectionType> => {
-  const { driverType, getConnection, connectionOptions } = options;
+  const { driverType, getConnection } = options;
   let connection: ConnectionType | null = null;
 
   const getExistingOrNewConnection = () =>
-    connection ??
-    (connection = connectionOptions
-      ? getConnection(connectionOptions)
-      : getConnection());
+    connection ?? (connection = getConnection());
 
   const getExistingOrNewConnectionAsync = () =>
     Promise.resolve(getExistingOrNewConnection());
