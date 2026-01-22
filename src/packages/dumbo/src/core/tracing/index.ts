@@ -22,11 +22,20 @@ export const LogStyle = {
   PRETTY: 'PRETTY' as LogStyle,
 };
 
+const getEnvVariable = (name: string): string | undefined => {
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env[name];
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+};
+
 const shouldLog = (logLevel: LogLevel): boolean => {
   const definedLogLevel =
-    (process && typeof process !== 'undefined'
-      ? process.env?.DUMBO_LOG_LEVEL
-      : undefined) ?? LogLevel.DISABLED;
+    getEnvVariable('DUMBO_LOG_LEVEL') ?? LogLevel.DISABLED;
 
   if (definedLogLevel === LogLevel.ERROR && logLevel === LogLevel.ERROR)
     return true;
@@ -108,9 +117,7 @@ const recordTraceEvent = (
 
   const record = getTraceEventRecorder(
     logLevel,
-    ((process && typeof process !== 'undefined'
-      ? process.env?.DUMBO_LOG_STYLE
-      : undefined) as LogStyle | undefined) ?? 'RAW',
+    (getEnvVariable('DUMBO_LOG_STYLE') as LogStyle | undefined) ?? 'RAW',
   );
 
   record(event);
