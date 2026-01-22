@@ -23,7 +23,10 @@ export const LogStyle = {
 };
 
 const shouldLog = (logLevel: LogLevel): boolean => {
-  const definedLogLevel = process.env.DUMBO_LOG_LEVEL ?? LogLevel.DISABLED;
+  const definedLogLevel =
+    (typeof process !== 'undefined'
+      ? process.env?.DUMBO_LOG_LEVEL
+      : undefined) ?? LogLevel.DISABLED;
 
   if (definedLogLevel === LogLevel.ERROR && logLevel === LogLevel.ERROR)
     return true;
@@ -105,7 +108,9 @@ const recordTraceEvent = (
 
   const record = getTraceEventRecorder(
     logLevel,
-    (process.env.DUMBO_LOG_STYLE as LogStyle | undefined) ?? 'RAW',
+    ((typeof process !== 'undefined'
+      ? process.env?.DUMBO_LOG_STYLE
+      : undefined) as LogStyle | undefined) ?? 'RAW',
   );
 
   record(event);
