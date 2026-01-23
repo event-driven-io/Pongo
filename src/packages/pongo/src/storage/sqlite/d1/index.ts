@@ -1,5 +1,5 @@
-import { D1DriverType, d1Pool } from '@event-driven-io/dumbo/d1';
-import type { D1PoolOptions } from '@event-driven-io/dumbo/d1';
+import type { D1PoolOptions } from '@event-driven-io/dumbo/cloudflare';
+import { D1DriverType, d1Pool } from '@event-driven-io/dumbo/cloudflare';
 import {
   PongoCollectionSchemaComponent,
   PongoDatabase,
