@@ -13,7 +13,7 @@ export default defineConfig({
   watch: env === 'development',
   target: 'esnext',
   outDir: 'dist', //env === 'production' ? 'dist' : 'lib',
-  entry: ['src/index.ts', 'src/pg.ts', 'src/sqlite3.ts', 'src/d1.ts'],
+  entry: ['src/index.ts', 'src/pg.ts', 'src/sqlite3.ts', 'src/cloudflare.ts'],
   //entry: ['src/**/*.ts', '!src/**/*.spec.ts', '!src/**/*.internal.ts'], //include all files under src but not specs
   sourcemap: true,
   external: [

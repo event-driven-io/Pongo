@@ -91,14 +91,14 @@
         "default": "./dist/sqlite3.cjs"
       }
     },
-    "./d1": {
+    "./cloudflare": {
       "import": {
-        "types": "./dist/d1.d.ts",
-        "default": "./dist/d1.js"
+        "types": "./dist/cloudflare.d.ts",
+        "default": "./dist/cloudflare.js"
       },
       "require": {
-        "types": "./dist/d1.d.cts",
-        "default": "./dist/d1.cjs"
+        "types": "./dist/cloudflare.d.cts",
+        "default": "./dist/cloudflare.cjs"
       }
     }
   },
@@ -119,8 +119,8 @@
       "sqlite3": [
         "./dist/sqlite3.d.ts"
       ],
-      "d1": [
-        "./dist/d1.d.ts"
+      "cloudflare": [
+        "./dist/cloudflare.d.ts"
       ]
     }
   },

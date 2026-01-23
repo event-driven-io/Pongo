@@ -19,7 +19,7 @@ export default defineConfig({
     'src/cli.ts',
     'src/pg.ts',
     'src/sqlite3.ts',
-    'src/d1.ts',
+    'src/cloudflare.ts',
   ],
   //entry: ['src/**/*.ts', '!src/**/*.spec.ts', '!src/**/*.internal.ts'], //include all files under src but not specs
   sourcemap: true,
