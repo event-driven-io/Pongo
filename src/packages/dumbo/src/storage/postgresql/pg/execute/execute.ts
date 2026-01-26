@@ -9,31 +9,28 @@ import {
   type SQLQueryOptions,
 } from '../../../../core';
 import { pgFormatter } from '../../core';
-import {
-  NodePostgresDriverType,
-  type NodePostgresClientOrPoolClient,
-} from '../connections';
+import { PgDriverType, type PgClientOrPoolClient } from '../connections';
 
-export const isNodePostgresNativePool = (
+export const isPgNativePool = (
   poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
 ): poolOrClient is pg.Pool => {
   return poolOrClient instanceof pg.Pool;
 };
 
-export const isNodePostgresClient = (
+export const isPgClient = (
   poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
 ): poolOrClient is pg.Client => poolOrClient instanceof pg.Client;
 
-export const isNodePostgresPoolClient = (
+export const isPgPoolClient = (
   poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
 ): poolOrClient is pg.PoolClient =>
   'release' in poolOrClient && typeof poolOrClient.release === 'function';
 
-export const nodePostgresExecute = async <Result = void>(
+export const pgExecute = async <Result = void>(
   poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
   handle: (client: pg.PoolClient | pg.Client) => Promise<Result>,
 ) => {
-  const client = isNodePostgresNativePool(poolOrClient)
+  const client = isPgNativePool(poolOrClient)
     ? await poolOrClient.connect()
     : poolOrClient;
 
@@ -41,21 +38,15 @@ export const nodePostgresExecute = async <Result = void>(
     return await handle(client);
   } finally {
     // release only if client wasn't injected externally
-    if (
-      isNodePostgresNativePool(poolOrClient) &&
-      isNodePostgresPoolClient(client)
-    )
+    if (isPgNativePool(poolOrClient) && isPgPoolClient(client))
       client.release();
   }
 };
 
-export type NodePostgresSQLExecutor = DbSQLExecutor<
-  NodePostgresDriverType,
-  NodePostgresClientOrPoolClient
->;
+export type PgSQLExecutor = DbSQLExecutor<PgDriverType, PgClientOrPoolClient>;
 
-export const nodePostgresSQLExecutor = (): NodePostgresSQLExecutor => ({
-  driverType: NodePostgresDriverType,
+export const pgSQLExecutor = (): PgSQLExecutor => ({
+  driverType: PgDriverType,
   query: batch,
   batchQuery: batch,
   command: batch,
@@ -64,17 +55,17 @@ export const nodePostgresSQLExecutor = (): NodePostgresSQLExecutor => ({
 });
 
 function batch<Result extends QueryResultRow = QueryResultRow>(
-  client: NodePostgresClientOrPoolClient,
+  client: PgClientOrPoolClient,
   sqlOrSqls: SQL,
   options?: SQLQueryOptions | SQLCommandOptions,
 ): Promise<QueryResult<Result>>;
 function batch<Result extends QueryResultRow = QueryResultRow>(
-  client: NodePostgresClientOrPoolClient,
+  client: PgClientOrPoolClient,
   sqlOrSqls: SQL[],
   options?: SQLQueryOptions | SQLCommandOptions,
 ): Promise<QueryResult<Result>[]>;
 async function batch<Result extends QueryResultRow = QueryResultRow>(
-  client: NodePostgresClientOrPoolClient,
+  client: PgClientOrPoolClient,
   sqlOrSqls: SQL | SQL[],
   options?: SQLQueryOptions | SQLCommandOptions,
 ): Promise<QueryResult<Result> | QueryResult<Result>[]> {

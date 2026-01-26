@@ -4,7 +4,7 @@ layout: home
 
 hero:
   name: 'Pongo'
-  text: 'Like Mongo<br/>But on Postgres<br/>And With<br/>Strong Consistency'
+  text: 'Like Mongo<br/>But on PostgreSQL<br/>And With<br/>Strong Consistency'
   tagline: 'Flexibility or Consistency? Why not both!'
   image:
     src: /logo.png

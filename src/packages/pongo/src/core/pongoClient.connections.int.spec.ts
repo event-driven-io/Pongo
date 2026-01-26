@@ -1,6 +1,6 @@
 import { dumbo } from '@event-driven-io/dumbo';
 import {
-  isNodePostgresNativePool,
+  isPgNativePool,
   PostgreSQLConnectionString,
 } from '@event-driven-io/dumbo/pg';
 import {
@@ -37,7 +37,7 @@ void describe('Pongo collection', () => {
     const pongo = pongoClient({
       driver: databaseDriver,
       connectionString,
-      connectionOptions: isNodePostgresNativePool(poolOrClient)
+      connectionOptions: isPgNativePool(poolOrClient)
         ? undefined
         : {
             client: poolOrClient,

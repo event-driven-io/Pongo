@@ -4,28 +4,27 @@ import {
   type DatabaseTransaction,
   type DatabaseTransactionOptions,
 } from '../../../../core';
-import { nodePostgresSQLExecutor } from '../execute';
+import { pgSQLExecutor } from '../execute';
 import {
-  NodePostgresDriverType,
-  type NodePostgresConnection,
-  type NodePostgresPoolOrClient,
+  PgDriverType,
+  type PgConnection,
+  type PgPoolOrClient,
 } from './connection';
 
-export type NodePostgresTransaction =
-  DatabaseTransaction<NodePostgresConnection>;
+export type PgTransaction = DatabaseTransaction<PgConnection>;
 
-export const nodePostgresTransaction =
+export const pgTransaction =
   <ConnectionType extends AnyConnection = AnyConnection>(
     connection: () => ConnectionType,
   ) =>
-  <DbClient extends NodePostgresPoolOrClient = NodePostgresPoolOrClient>(
+  <DbClient extends PgPoolOrClient = PgPoolOrClient>(
     getClient: Promise<DbClient>,
     options?: {
       close: (client: DbClient, error?: unknown) => Promise<void>;
     } & DatabaseTransactionOptions,
   ): DatabaseTransaction<ConnectionType> => ({
     connection: connection(),
-    driverType: NodePostgresDriverType,
+    driverType: PgDriverType,
     begin: async () => {
       const client = await getClient;
       await client.query('BEGIN');
@@ -47,7 +46,7 @@ export const nodePostgresTransaction =
         if (options?.close) await options?.close(client, error);
       }
     },
-    execute: sqlExecutor(nodePostgresSQLExecutor(), {
+    execute: sqlExecutor(pgSQLExecutor(), {
       connect: () => getClient,
     }),
   });

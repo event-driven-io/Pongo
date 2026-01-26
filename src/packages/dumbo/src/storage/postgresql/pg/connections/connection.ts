@@ -1,92 +1,83 @@
 import pg from 'pg';
 import { createConnection, type Connection } from '../../../../core';
 import type { PostgreSQLDriverType } from '../../core';
-import { nodePostgresSQLExecutor } from '../execute';
-import { nodePostgresTransaction } from './transaction';
+import { pgSQLExecutor } from '../execute';
+import { pgTransaction } from './transaction';
 
-export type NodePostgresDriverType = PostgreSQLDriverType<'pg'>;
-export const NodePostgresDriverType: NodePostgresDriverType = 'PostgreSQL:pg';
+export type PgDriverType = PostgreSQLDriverType<'pg'>;
+export const PgDriverType: PgDriverType = 'PostgreSQL:pg';
 
-export type NodePostgresPoolClient = pg.PoolClient;
-export type NodePostgresClient = pg.Client;
+export type PgPoolClient = pg.PoolClient;
+export type PgClient = pg.Client;
 
-export type NodePostgresClientOrPoolClient =
-  | NodePostgresPoolClient
-  | NodePostgresClient;
+export type PgClientOrPoolClient = PgPoolClient | PgClient;
 
-export type NodePostgresPoolOrClient =
-  | pg.Pool
-  | NodePostgresPoolClient
-  | NodePostgresClient;
+export type PgPoolOrClient = pg.Pool | PgPoolClient | PgClient;
 
-export type NodePostgresClientConnection = Connection<
-  NodePostgresClientConnection,
-  NodePostgresDriverType,
-  NodePostgresClient
+export type PgClientConnection = Connection<
+  PgClientConnection,
+  PgDriverType,
+  PgClient
 >;
 
-export type NodePostgresPoolClientConnection = Connection<
-  NodePostgresPoolClientConnection,
-  NodePostgresDriverType,
-  NodePostgresPoolClient
+export type PgPoolClientConnection = Connection<
+  PgPoolClientConnection,
+  PgDriverType,
+  PgPoolClient
 >;
 
-export type NodePostgresConnection =
-  | NodePostgresPoolClientConnection
-  | NodePostgresClientConnection;
+export type PgConnection = PgPoolClientConnection | PgClientConnection;
 
-export type NodePostgresPoolClientOptions = {
+export type PgPoolClientOptions = {
   type: 'PoolClient';
-  connect: () => Promise<NodePostgresPoolClient>;
-  close: (client: NodePostgresPoolClient) => Promise<void>;
+  connect: () => Promise<PgPoolClient>;
+  close: (client: PgPoolClient) => Promise<void>;
 };
 
-export type NodePostgresClientOptions = {
+export type PgClientOptions = {
   type: 'Client';
-  connect: () => Promise<NodePostgresClient>;
-  close: (client: NodePostgresClient) => Promise<void>;
+  connect: () => Promise<PgClient>;
+  close: (client: PgClient) => Promise<void>;
 };
 
-export const nodePostgresClientConnection = (
-  options: NodePostgresClientOptions,
-): NodePostgresClientConnection => {
+export const pgClientConnection = (
+  options: PgClientOptions,
+): PgClientConnection => {
   const { connect, close } = options;
 
   return createConnection({
-    driverType: NodePostgresDriverType,
+    driverType: PgDriverType,
     connect,
     close,
-    initTransaction: (connection) => nodePostgresTransaction(connection),
-    executor: nodePostgresSQLExecutor,
+    initTransaction: (connection) => pgTransaction(connection),
+    executor: pgSQLExecutor,
   });
 };
 
-export const nodePostgresPoolClientConnection = (
-  options: NodePostgresPoolClientOptions,
-): NodePostgresPoolClientConnection => {
+export const pgPoolClientConnection = (
+  options: PgPoolClientOptions,
+): PgPoolClientConnection => {
   const { connect, close } = options;
 
   return createConnection({
-    driverType: NodePostgresDriverType,
+    driverType: PgDriverType,
     connect,
     close,
-    initTransaction: (connection) => nodePostgresTransaction(connection),
-    executor: nodePostgresSQLExecutor,
+    initTransaction: (connection) => pgTransaction(connection),
+    executor: pgSQLExecutor,
   });
 };
 
-export function nodePostgresConnection(
-  options: NodePostgresPoolClientOptions,
-): NodePostgresPoolClientConnection;
-export function nodePostgresConnection(
-  options: NodePostgresClientOptions,
-): NodePostgresClientConnection;
-export function nodePostgresConnection(
-  options: NodePostgresPoolClientOptions | NodePostgresClientOptions,
-): NodePostgresPoolClientConnection | NodePostgresClientConnection {
+export function pgConnection(
+  options: PgPoolClientOptions,
+): PgPoolClientConnection;
+export function pgConnection(options: PgClientOptions): PgClientConnection;
+export function pgConnection(
+  options: PgPoolClientOptions | PgClientOptions,
+): PgPoolClientConnection | PgClientConnection {
   return options.type === 'Client'
-    ? nodePostgresClientConnection(options)
-    : nodePostgresPoolClientConnection(options);
+    ? pgClientConnection(options)
+    : pgPoolClientConnection(options);
 }
 
 export type ConnectionCheckResult =

@@ -4,7 +4,7 @@
 
 # Pongo
 
-Pongo - Mongo but on Postgres and with strong consistency benefits.
+Pongo - Mongo but on PostgreSQL and with strong consistency benefits.
 
 ## Getting Started
 
