@@ -4,13 +4,13 @@ import {
 } from '@testcontainers/postgresql';
 import { after, before, describe, it } from 'node:test';
 import pg from 'pg';
-import { nodePostgresPool } from '.';
+import { pgPool } from '.';
 import { pgDatabaseDriver } from '..';
 import { SQL } from '../../../../core';
 import { dumbo } from '../../../all';
 import { endPool, getPool } from './pool';
 
-void describe('Node Postgresql', () => {
+void describe('pg', () => {
   let postgres: StartedPostgreSqlContainer;
   let connectionString: string;
 
@@ -23,7 +23,7 @@ void describe('Node Postgresql', () => {
     await postgres.stop();
   });
 
-  void describe('nodePostgresPool', () => {
+  void describe('pgPool', () => {
     void it('connects using default pool', async () => {
       const pool = dumbo({ connectionString, driver: pgDatabaseDriver });
       const connection = await pool.connection();
@@ -40,7 +40,7 @@ void describe('Node Postgresql', () => {
 
     void it('connects using ambient pool', async () => {
       const nativePool = getPool(connectionString);
-      const pool = nodePostgresPool({ connectionString, pool: nativePool });
+      const pool = pgPool({ connectionString, pool: nativePool });
       const connection = await pool.connection();
 
       try {
@@ -53,7 +53,7 @@ void describe('Node Postgresql', () => {
     });
 
     void it('connects using client', async () => {
-      const pool = nodePostgresPool({
+      const pool = pgPool({
         connectionString,
         pooled: false,
       });
@@ -71,7 +71,7 @@ void describe('Node Postgresql', () => {
       const existingClient = new pg.Client({ connectionString });
       await existingClient.connect();
 
-      const pool = nodePostgresPool({
+      const pool = pgPool({
         connectionString,
         client: existingClient,
       });
@@ -87,11 +87,11 @@ void describe('Node Postgresql', () => {
     });
 
     void it('connects using connected ambient connected connection', async () => {
-      const ambientPool = nodePostgresPool({ connectionString });
+      const ambientPool = pgPool({ connectionString });
       const ambientConnection = await ambientPool.connection();
       await ambientConnection.open();
 
-      const pool = nodePostgresPool({
+      const pool = pgPool({
         connectionString,
         connection: ambientConnection,
       });
@@ -106,10 +106,10 @@ void describe('Node Postgresql', () => {
     });
 
     void it('connects using connected ambient not-connected connection', async () => {
-      const ambientPool = nodePostgresPool({ connectionString });
+      const ambientPool = pgPool({ connectionString });
       const ambientConnection = await ambientPool.connection();
 
-      const pool = nodePostgresPool({
+      const pool = pgPool({
         connectionString,
         connection: ambientConnection,
       });
@@ -124,13 +124,13 @@ void describe('Node Postgresql', () => {
     });
 
     void it('connects using ambient connected connection with transaction', async () => {
-      const ambientPool = nodePostgresPool({ connectionString });
+      const ambientPool = pgPool({ connectionString });
       const ambientConnection = await ambientPool.connection();
       await ambientConnection.open();
 
       try {
         await ambientConnection.withTransaction<void>(async () => {
-          const pool = nodePostgresPool({
+          const pool = pgPool({
             connectionString,
             connection: ambientConnection,
           });
@@ -149,12 +149,12 @@ void describe('Node Postgresql', () => {
     });
 
     void it('connects using ambient not-connected connection with transaction', async () => {
-      const ambientPool = nodePostgresPool({ connectionString });
+      const ambientPool = pgPool({ connectionString });
       const ambientConnection = await ambientPool.connection();
 
       try {
         await ambientConnection.withTransaction<void>(async () => {
-          const pool = nodePostgresPool({
+          const pool = pgPool({
             connectionString,
             connection: ambientConnection,
           });
@@ -173,10 +173,10 @@ void describe('Node Postgresql', () => {
     });
 
     void it('connects using ambient connection in withConnection scope', async () => {
-      const ambientPool = nodePostgresPool({ connectionString });
+      const ambientPool = pgPool({ connectionString });
       try {
         await ambientPool.withConnection(async (ambientConnection) => {
-          const pool = nodePostgresPool({
+          const pool = pgPool({
             connectionString,
             connection: ambientConnection,
           });
@@ -194,11 +194,11 @@ void describe('Node Postgresql', () => {
     });
 
     void it('connects using ambient connection in withConnection and withTransaction scope', async () => {
-      const ambientPool = nodePostgresPool({ connectionString });
+      const ambientPool = pgPool({ connectionString });
       try {
         await ambientPool.withConnection((ambientConnection) =>
           ambientConnection.withTransaction<void>(async () => {
-            const pool = nodePostgresPool({
+            const pool = pgPool({
               connectionString,
               connection: ambientConnection,
             });

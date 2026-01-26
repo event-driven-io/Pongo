@@ -1,7 +1,7 @@
 {
   "name": "@event-driven-io/pongo",
   "version": "0.17.0-beta.8",
-  "description": "Pongo - Mongo with strong consistency on top of Postgres",
+  "description": "Pongo - Mongo with strong consistency on top of PostgreSQL",
   "type": "module",
   "scripts": {
     "build": "tsup",

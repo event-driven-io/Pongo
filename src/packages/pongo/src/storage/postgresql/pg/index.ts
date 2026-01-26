@@ -2,8 +2,8 @@ import { dumbo } from '@event-driven-io/dumbo';
 import {
   pgDatabaseDriver as dumboDriver,
   getDatabaseNameOrDefault,
-  NodePostgresDriverType,
-  type NodePostgresConnection,
+  PgDriverType,
+  type PgConnection,
 } from '@event-driven-io/dumbo/pg';
 import pg from 'pg';
 import {
@@ -21,7 +21,7 @@ import {
   postgresSQLBuilder,
 } from '../core';
 
-export type NodePostgresPongoClientOptions =
+export type PgPongoClientOptions =
   | PooledPongoClientOptions
   | NotPooledPongoOptions;
 
@@ -50,21 +50,21 @@ export type NotPooledPongoOptions =
       pooled: false;
     }
   | {
-      connection: NodePostgresConnection;
+      connection: PgConnection;
       pooled?: false;
     };
 
-type NodePostgresDatabaseDriverOptions =
-  PongoDatabaseDriverOptions<NodePostgresPongoClientOptions> & {
+type PgDatabaseDriverOptions =
+  PongoDatabaseDriverOptions<PgPongoClientOptions> & {
     databaseName?: string | undefined;
     connectionString: string;
   };
 
 const pgDatabaseDriver: PongoDatabaseDriver<
-  PongoDb<NodePostgresDriverType>,
-  NodePostgresDatabaseDriverOptions
+  PongoDb<PgDriverType>,
+  PgDatabaseDriverOptions
 > = {
-  driverType: NodePostgresDriverType,
+  driverType: PgDriverType,
   databaseFactory: (options) => {
     const databaseName =
       options.databaseName ??
@@ -78,10 +78,10 @@ const pgDatabaseDriver: PongoDatabaseDriver<
         ...options.connectionOptions,
       }),
       schemaComponent: PongoDatabaseSchemaComponent({
-        driverType: NodePostgresDriverType,
+        driverType: PgDriverType,
         collectionFactory: (schema) =>
           PongoCollectionSchemaComponent({
-            driverType: NodePostgresDriverType,
+            driverType: PgDriverType,
             definition: schema,
             migrationsOrSchemaComponents: {
               migrations: pongoCollectionPostgreSQLMigrations(schema.name),
@@ -103,10 +103,7 @@ const pgDatabaseDriver: PongoDatabaseDriver<
 };
 
 export const usePgDatabaseDriver = () => {
-  pongoDatabaseDriverRegistry.register(
-    NodePostgresDriverType,
-    pgDatabaseDriver,
-  );
+  pongoDatabaseDriverRegistry.register(PgDriverType, pgDatabaseDriver);
 };
 
 usePgDatabaseDriver();

@@ -10,11 +10,11 @@ import {
   PostgreSQLConnectionString,
 } from '../core';
 import {
-  type NodePostgresConnection,
-  NodePostgresDriverType,
-  type NodePostgresPool,
-  nodePostgresPool,
-  type NodePostgresPoolOptions,
+  type PgConnection,
+  PgDriverType,
+  pgPool,
+  type PgPool,
+  type PgPoolOptions,
 } from './connections';
 
 const tryParseConnectionString = (connectionString: string) => {
@@ -26,25 +26,22 @@ const tryParseConnectionString = (connectionString: string) => {
 };
 
 export const pgDatabaseDriver: DumboDatabaseDriver<
-  NodePostgresConnection,
-  NodePostgresPoolOptions
+  PgConnection,
+  PgPoolOptions
 > = {
-  driverType: NodePostgresDriverType,
-  createPool: (options) => nodePostgresPool(options as NodePostgresPoolOptions),
+  driverType: PgDriverType,
+  createPool: (options) => pgPool(options as PgPoolOptions),
   sqlFormatter: pgFormatter,
   defaultMigratorOptions: DefaultPostgreSQLMigratorOptions,
   getDatabaseNameOrDefault,
   canHandle: canHandleDriverWithConnectionString(
-    NodePostgresDriverType,
+    PgDriverType,
     tryParseConnectionString,
   ),
 };
 
 export const usePgDatabaseDriver = () => {
-  dumboDatabaseDriverRegistry.register(
-    NodePostgresDriverType,
-    pgDatabaseDriver,
-  );
+  dumboDatabaseDriverRegistry.register(PgDriverType, pgDatabaseDriver);
 };
 
 usePgDatabaseDriver();
@@ -55,13 +52,10 @@ export * from './serialization';
 
 export { pgDatabaseDriver as databaseDriver };
 
-// TODO: Remove stuff below
+export type PostgreSQLPool = PgPool;
+export type PostgreSQLConnection = PgConnection;
 
-export type PostgresDriverType = NodePostgresDriverType;
-export type PostgresPool = NodePostgresPool;
-export type PostgresConnection = NodePostgresConnection;
-
-export type PostgresPoolOptions = NodePostgresPoolOptions;
-export const postgresPool = nodePostgresPool;
+export type PostgreSQLPoolOptions = PgPoolOptions;
+export const postgresPool = pgPool;
 
 export const connectionPool = postgresPool;

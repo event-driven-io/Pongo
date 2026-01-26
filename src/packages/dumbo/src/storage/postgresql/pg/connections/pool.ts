@@ -10,38 +10,36 @@ import {
   defaultPostgreSqlDatabase,
   getDatabaseNameOrDefault,
 } from '../../core';
-import { setNodePostgresTypeParser } from '../serialization';
+import { setPgTypeParser } from '../serialization';
 import {
-  nodePostgresConnection,
-  NodePostgresDriverType,
-  type NodePostgresClientConnection,
-  type NodePostgresPoolClientConnection,
+  pgConnection,
+  PgDriverType,
+  type PgClientConnection,
+  type PgPoolClientConnection,
 } from './connection';
 
-export type NodePostgresNativePool =
-  ConnectionPool<NodePostgresPoolClientConnection>;
+export type PgNativePool = ConnectionPool<PgPoolClientConnection>;
 
-export type NodePostgresAmbientClientPool =
-  ConnectionPool<NodePostgresClientConnection>;
+export type PgAmbientClientPool = ConnectionPool<PgClientConnection>;
 
-export type NodePostgresAmbientConnectionPool = ConnectionPool<
-  NodePostgresPoolClientConnection | NodePostgresClientConnection
+export type PgAmbientConnectionPool = ConnectionPool<
+  PgPoolClientConnection | PgClientConnection
 >;
 
-export type NodePostgresPool =
-  | NodePostgresNativePool
-  | NodePostgresAmbientClientPool
-  | NodePostgresAmbientConnectionPool;
+export type PgPool =
+  | PgNativePool
+  | PgAmbientClientPool
+  | PgAmbientConnectionPool;
 
-export const nodePostgresNativePool = (options: {
+export const pgNativePool = (options: {
   connectionString: string;
   database?: string | undefined;
-}): NodePostgresNativePool => {
+}): PgNativePool => {
   const { connectionString, database } = options;
   const pool = getPool({ connectionString, database });
 
   const getConnection = () =>
-    nodePostgresConnection({
+    pgConnection({
       type: 'PoolClient',
       connect: () => pool.connect(),
       close: (client) => Promise.resolve(client.release()),
@@ -51,22 +49,22 @@ export const nodePostgresNativePool = (options: {
   const close = () => endPool({ connectionString, database });
 
   return createConnectionPool({
-    driverType: NodePostgresDriverType,
+    driverType: PgDriverType,
     connection: open,
     close,
     getConnection,
   });
 };
 
-export const nodePostgresAmbientNativePool = (options: {
+export const pgAmbientNativePool = (options: {
   pool: pg.Pool;
-}): NodePostgresNativePool => {
+}): PgNativePool => {
   const { pool } = options;
 
   return createConnectionPool({
-    driverType: NodePostgresDriverType,
+    driverType: PgDriverType,
     getConnection: () =>
-      nodePostgresConnection({
+      pgConnection({
         type: 'PoolClient',
         connect: () => pool.connect(),
         close: (client) => Promise.resolve(client.release()),
@@ -74,25 +72,25 @@ export const nodePostgresAmbientNativePool = (options: {
   });
 };
 
-export const nodePostgresAmbientConnectionPool = (options: {
-  connection: NodePostgresPoolClientConnection | NodePostgresClientConnection;
-}): NodePostgresAmbientConnectionPool => {
+export const pgAmbientConnectionPool = (options: {
+  connection: PgPoolClientConnection | PgClientConnection;
+}): PgAmbientConnectionPool => {
   const { connection } = options;
 
   return createAmbientConnectionPool({
-    driverType: NodePostgresDriverType,
+    driverType: PgDriverType,
     connection,
   });
 };
 
-export const nodePostgresClientPool = (options: {
+export const pgClientPool = (options: {
   connectionString: string;
   database?: string | undefined;
-}): NodePostgresAmbientClientPool => {
+}): PgAmbientClientPool => {
   const { connectionString, database } = options;
 
   return createConnectionPool({
-    driverType: NodePostgresDriverType,
+    driverType: PgDriverType,
     getConnection: () => {
       const connect = async () => {
         const client = new pg.Client({ connectionString, database });
@@ -100,7 +98,7 @@ export const nodePostgresClientPool = (options: {
         return client;
       };
 
-      return nodePostgresConnection({
+      return pgConnection({
         type: 'Client',
         connect,
         close: (client) => client.end(),
@@ -109,15 +107,15 @@ export const nodePostgresClientPool = (options: {
   });
 };
 
-export const nodePostgresAmbientClientPool = (options: {
+export const pgAmbientClientPool = (options: {
   client: pg.Client;
-}): NodePostgresAmbientClientPool => {
+}): PgAmbientClientPool => {
   const { client } = options;
 
   const getConnection = () => {
     const connect = () => Promise.resolve(client);
 
-    return nodePostgresConnection({
+    return pgConnection({
       type: 'Client',
       connect,
       close: () => Promise.resolve(),
@@ -128,14 +126,14 @@ export const nodePostgresAmbientClientPool = (options: {
   const close = () => Promise.resolve();
 
   return createConnectionPool({
-    driverType: NodePostgresDriverType,
+    driverType: PgDriverType,
     connection: open,
     close,
     getConnection,
   });
 };
 
-export type NodePostgresPoolPooledOptions =
+export type PgPoolPooledOptions =
   | {
       connectionString: string;
       database?: string;
@@ -157,7 +155,7 @@ export type NodePostgresPoolPooledOptions =
       database?: string;
     };
 
-export type NodePostgresPoolNotPooledOptions =
+export type PgPoolNotPooledOptions =
   | {
       connectionString: string;
       database?: string;
@@ -177,50 +175,38 @@ export type NodePostgresPoolNotPooledOptions =
   | {
       connectionString: string;
       database?: string;
-      connection:
-        | NodePostgresPoolClientConnection
-        | NodePostgresClientConnection;
+      connection: PgPoolClientConnection | PgClientConnection;
       pooled?: false;
     };
 
-export type NodePostgresPoolOptions = (
-  | NodePostgresPoolPooledOptions
-  | NodePostgresPoolNotPooledOptions
-) & {
+export type PgPoolOptions = (PgPoolPooledOptions | PgPoolNotPooledOptions) & {
   serializer?: JSONSerializer;
 };
 
-export function nodePostgresPool(
-  options: NodePostgresPoolPooledOptions,
-): NodePostgresNativePool;
-export function nodePostgresPool(
-  options: NodePostgresPoolNotPooledOptions,
-): NodePostgresAmbientClientPool;
-export function nodePostgresPool(
-  options: NodePostgresPoolOptions,
-):
-  | NodePostgresNativePool
-  | NodePostgresAmbientClientPool
-  | NodePostgresAmbientConnectionPool {
+export function pgPool(options: PgPoolPooledOptions): PgNativePool;
+export function pgPool(options: PgPoolNotPooledOptions): PgAmbientClientPool;
+export function pgPool(
+  options: PgPoolOptions,
+): PgNativePool | PgAmbientClientPool | PgAmbientConnectionPool {
   const { connectionString, database, serializer } = options;
 
-  setNodePostgresTypeParser(serializer ?? JSONSerializer);
+  setPgTypeParser(serializer ?? JSONSerializer);
 
   if ('client' in options && options.client)
-    return nodePostgresAmbientClientPool({ client: options.client });
+    return pgAmbientClientPool({ client: options.client });
 
   if ('connection' in options && options.connection)
-    return nodePostgresAmbientConnectionPool({
+    return pgAmbientConnectionPool({
       connection: options.connection,
     });
 
   if ('pooled' in options && options.pooled === false)
-    return nodePostgresClientPool({ connectionString, database });
+    return pgClientPool({ connectionString, database });
 
   if ('pool' in options && options.pool)
-    return nodePostgresAmbientNativePool({ pool: options.pool });
+    return pgAmbientNativePool({ pool: options.pool });
 
-  return nodePostgresNativePool({
+  return pgNativePool({
     connectionString,
     database,
   });

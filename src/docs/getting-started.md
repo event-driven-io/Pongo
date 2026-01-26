@@ -2,7 +2,7 @@
 
 ![](/logo.png)
 
-Pongo is a MongoDB on Postgres and with strong consistency benefits.
+Pongo is a MongoDB on PostgreSQL and with strong consistency benefits.
 
 ## Getting Started
 
