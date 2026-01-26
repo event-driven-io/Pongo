@@ -1,13 +1,13 @@
 import assert from 'assert';
 import { Miniflare } from 'miniflare';
 import { after, before, describe, it } from 'node:test';
-import { d1DatabaseDriver } from '..';
-import { dumbo, type Dumbo } from '../../../..';
+import { d1DatabaseDriver, type D1ConnectionPool } from '..';
+import { dumbo } from '../../../..';
 import { count, SQL } from '../../../../core';
 
 void describe('D1 SQL Formatter Integration Tests', () => {
   let mf: Miniflare;
-  let pool: Dumbo;
+  let pool: D1ConnectionPool;
 
   before(async () => {
     mf = new Miniflare({

@@ -27,7 +27,8 @@ const tryParseConnectionString = (connectionString: string) => {
 
 export const pgDatabaseDriver: DumboDatabaseDriver<
   PgConnection,
-  PgPoolOptions
+  PgPoolOptions,
+  PgPool
 > = {
   driverType: PgDriverType,
   createPool: (options) => pgPool(options as PgPoolOptions),

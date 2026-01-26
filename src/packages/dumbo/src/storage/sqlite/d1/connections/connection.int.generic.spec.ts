@@ -2,11 +2,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import assert from 'assert';
 import { Miniflare } from 'miniflare';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-import {
-  d1Client,
-  useD1DatabaseDriver,
-  type D1DumboConnectionOptions,
-} from '..';
+import { d1Client, useD1DatabaseDriver, type D1DumboOptions } from '..';
 import { SQL } from '../../../../core';
 import { dumbo } from '../../../all';
 
@@ -92,7 +88,7 @@ void describe('D1 SQLite pool', () => {
   });
 
   void it('connects using client', async () => {
-    const options: D1DumboConnectionOptions = {
+    const options: D1DumboOptions = {
       driverType: `SQLite:d1`,
       database,
     };
