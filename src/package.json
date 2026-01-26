@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/pongo-core",
-  "version": "0.17.0-beta.8",
+  "version": "0.17.0-beta.9",
   "description": "Pongo - Mongo with strong consistency on top of PostgreSQL",
   "type": "module",
   "engines": {

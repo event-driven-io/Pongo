@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/dumbo",
-  "version": "0.13.0-beta.8",
+  "version": "0.13.0-beta.9",
   "description": "Dumbo - tools for dealing with Relational Databases",
   "type": "module",
   "scripts": {
