@@ -1,5 +1,6 @@
 export * from './connections';
 import type { D1Database } from '@cloudflare/workers-types';
+import type { D1ConnectionPool } from '../../../cloudflare';
 import {
   dumboDatabaseDriverRegistry,
   type DumboConnectionOptions,
@@ -11,7 +12,11 @@ import { d1Pool, type D1PoolOptions } from './pool';
 
 export type D1DumboOptions = D1PoolOptions;
 
-export const d1DatabaseDriver = {
+export const d1DatabaseDriver: DumboDatabaseDriver<
+  D1Connection,
+  D1DumboOptions,
+  D1ConnectionPool
+> = {
   driverType: D1DriverType,
   createPool: (options) => d1Pool(options),
   sqlFormatter: sqliteFormatter,
@@ -20,7 +25,7 @@ export const d1DatabaseDriver = {
   canHandle: (options) => {
     return options.driverType === D1DriverType && 'database' in options;
   }, // TODO: make connection string not required
-} satisfies DumboDatabaseDriver<D1Connection, D1DumboOptions>;
+};
 
 export const useD1DatabaseDriver = () => {
   dumboDatabaseDriverRegistry.register(D1DriverType, d1DatabaseDriver);

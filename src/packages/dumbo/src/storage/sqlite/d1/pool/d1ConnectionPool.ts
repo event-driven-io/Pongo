@@ -1,5 +1,8 @@
 import type { D1ConnectionOptions } from '..';
-import { createSingletonConnectionPool } from '../../../../core';
+import {
+  createSingletonConnectionPool,
+  type ConnectionPool,
+} from '../../../../core';
 import {
   d1Connection,
   D1DriverType,
@@ -7,8 +10,9 @@ import {
 } from '../connections/d1Connection';
 
 export type D1PoolOptions = D1ConnectionOptions;
+export type D1ConnectionPool = ConnectionPool<D1Connection>;
 
-export const d1Pool = (options: D1PoolOptions) =>
+export const d1Pool = (options: D1PoolOptions): D1ConnectionPool =>
   createSingletonConnectionPool<D1Connection>({
     driverType: D1DriverType,
     getConnection: () => d1Connection(options),

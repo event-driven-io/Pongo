@@ -2,16 +2,29 @@ import {
   dumboDatabaseDriverRegistry,
   type AnyDumboDatabaseDriver,
   type DumboConnectionOptions,
+  type ExtractDumboDatabaseDriverOptions,
   type ExtractDumboTypeFromDriver,
 } from '../../core';
 
 export * from './connections';
 
+export function dumbo<Driver extends AnyDumboDatabaseDriver>(
+  options: ExtractDumboDatabaseDriverOptions<Driver> & { driver: Driver },
+): ExtractDumboTypeFromDriver<Driver>;
+
 export function dumbo<
   DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
   ConnectionOptions extends
     DumboConnectionOptions<DatabaseDriver> = DumboConnectionOptions<DatabaseDriver>,
->(options: ConnectionOptions): ExtractDumboTypeFromDriver<DatabaseDriver> {
+>(
+  options: ConnectionOptions & { driver?: never },
+): ExtractDumboTypeFromDriver<DatabaseDriver>;
+
+export function dumbo<
+  DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
+>(
+  options: DumboConnectionOptions<DatabaseDriver>,
+): ExtractDumboTypeFromDriver<DatabaseDriver> {
   const { driverType } = options;
 
   const driver =
