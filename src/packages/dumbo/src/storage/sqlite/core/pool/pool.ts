@@ -84,8 +84,8 @@ export type SQLiteSingletonConnectionPool<
 
 export const sqliteSingletonConnectionPool = <
   SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
-  ConnectionOptions extends SQLiteConnectionOptions &
-    Record<string, unknown> = SQLiteConnectionOptions & Record<string, unknown>,
+  ConnectionOptions extends SQLiteConnectionOptions & Record<string, unknown> =
+    SQLiteConnectionOptions & Record<string, unknown>,
 >(
   options: {
     driverType: SQLiteConnectionType['driverType'];
@@ -122,8 +122,8 @@ export type SQLiteAlwaysNewConnectionPool<
 
 export const sqliteAlwaysNewConnectionPool = <
   SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
-  ConnectionOptions extends SQLiteConnectionOptions &
-    Record<string, unknown> = SQLiteConnectionOptions & Record<string, unknown>,
+  ConnectionOptions extends SQLiteConnectionOptions & Record<string, unknown> =
+    SQLiteConnectionOptions & Record<string, unknown>,
 >(
   options: {
     driverType: SQLiteConnectionType['driverType'];

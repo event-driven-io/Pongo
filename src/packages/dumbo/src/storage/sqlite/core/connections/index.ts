@@ -64,8 +64,8 @@ export type SQLiteClientConnection<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
   SQLiteClientType extends SQLiteClient = SQLiteClient,
   TransactionType extends DatabaseTransaction<Self> = DatabaseTransaction<Self>,
-  TransactionOptionsType extends
-    DatabaseTransactionOptions = DatabaseTransactionOptions,
+  TransactionOptionsType extends DatabaseTransactionOptions =
+    DatabaseTransactionOptions,
 > = Connection<
   Self,
   DriverType,
@@ -79,8 +79,8 @@ export type SQLitePoolClientConnection<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
   SQLitePoolClientType extends SQLitePoolClient = SQLitePoolClient,
   TransactionType extends DatabaseTransaction<Self> = DatabaseTransaction<Self>,
-  TransactionOptionsType extends
-    DatabaseTransactionOptions = DatabaseTransactionOptions,
+  TransactionOptionsType extends DatabaseTransactionOptions =
+    DatabaseTransactionOptions,
 > = Connection<
   Self,
   DriverType,
@@ -96,8 +96,8 @@ export type SQLiteConnection<
     | SQLiteClient
     | SQLitePoolClient,
   TransactionType extends DatabaseTransaction<Self> = DatabaseTransaction<Self>,
-  TransactionOptionsType extends
-    DatabaseTransactionOptions = DatabaseTransactionOptions,
+  TransactionOptionsType extends DatabaseTransactionOptions =
+    DatabaseTransactionOptions,
 > =
   | (SQLiteClientType extends SQLiteClient
       ? SQLiteClientConnection<
@@ -135,8 +135,8 @@ export type SQLiteConnectionOptions<
 > = ConnectionOptions<ConnectionType> & SQLiteClientOptions;
 
 export type SQLiteClientConnectionDefinitionOptions<
-  SQLiteConnectionType extends
-    AnySQLiteClientConnection = AnySQLiteClientConnection,
+  SQLiteConnectionType extends AnySQLiteClientConnection =
+    AnySQLiteClientConnection,
   ConnectionOptions = SQLiteConnectionOptions,
 > = {
   driverType: InferDriverTypeFromConnection<SQLiteConnectionType>;
@@ -149,8 +149,8 @@ export type SQLiteClientConnectionDefinitionOptions<
 };
 
 export type SQLitePoolConnectionDefinitionOptions<
-  SQLiteConnectionType extends
-    AnySQLitePoolClientConnection = AnySQLitePoolClientConnection,
+  SQLiteConnectionType extends AnySQLitePoolClientConnection =
+    AnySQLitePoolClientConnection,
   ConnectionOptions = SQLiteConnectionOptions,
 > = {
   driverType: InferDriverTypeFromConnection<SQLiteConnectionType>;
@@ -163,8 +163,8 @@ export type SQLitePoolConnectionDefinitionOptions<
 };
 
 export type SQLiteConnectionDefinitionOptions<
-  SQLiteConnectionType extends
-    AnySQLitePoolClientConnection = AnySQLitePoolClientConnection,
+  SQLiteConnectionType extends AnySQLitePoolClientConnection =
+    AnySQLitePoolClientConnection,
   ClientOptions = SQLiteClientOptions,
 > =
   | SQLiteClientConnectionDefinitionOptions<SQLiteConnectionType, ClientOptions>
@@ -206,12 +206,12 @@ export const transactionNestingCounter = (): TransactionNestingCounter => {
 };
 
 export type SqliteAmbientClientConnectionOptions<
-  SQLiteConnectionType extends
-    AnySQLiteClientConnection = AnySQLiteClientConnection,
-  TransactionType extends
-    DatabaseTransaction<SQLiteConnectionType> = DatabaseTransaction<SQLiteConnectionType>,
-  TransactionOptionsType extends
-    DatabaseTransactionOptions = DatabaseTransactionOptions,
+  SQLiteConnectionType extends AnySQLiteClientConnection =
+    AnySQLiteClientConnection,
+  TransactionType extends DatabaseTransaction<SQLiteConnectionType> =
+    DatabaseTransaction<SQLiteConnectionType>,
+  TransactionOptionsType extends DatabaseTransactionOptions =
+    DatabaseTransactionOptions,
 > = {
   driverType: SQLiteConnectionType['driverType'];
   client: InferDbClientFromConnection<SQLiteConnectionType>;
@@ -224,8 +224,8 @@ export type SqliteAmbientClientConnectionOptions<
 };
 
 export const sqliteAmbientClientConnection = <
-  SQLiteConnectionType extends
-    AnySQLiteClientConnection = AnySQLiteClientConnection,
+  SQLiteConnectionType extends AnySQLiteClientConnection =
+    AnySQLiteClientConnection,
 >(
   options: SqliteAmbientClientConnectionOptions<SQLiteConnectionType>,
 ) => {
@@ -248,8 +248,8 @@ export const sqliteAmbientClientConnection = <
 };
 
 export const sqliteClientConnection = <
-  SQLiteConnectionType extends
-    AnySQLiteClientConnection = AnySQLiteClientConnection,
+  SQLiteConnectionType extends AnySQLiteClientConnection =
+    AnySQLiteClientConnection,
   ClientOptions = SQLiteClientOptions,
 >(
   options: SQLiteClientConnectionDefinitionOptions<
@@ -299,8 +299,8 @@ export const sqliteClientConnection = <
 };
 
 export const sqlitePoolClientConnection = <
-  SQLiteConnectionType extends
-    AnySQLiteClientConnection = AnySQLiteClientConnection,
+  SQLiteConnectionType extends AnySQLiteClientConnection =
+    AnySQLiteClientConnection,
   ClientOptions = SQLiteClientOptions,
 >(
   options: SQLitePoolConnectionDefinitionOptions<

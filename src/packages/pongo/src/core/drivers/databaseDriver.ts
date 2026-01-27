@@ -17,8 +17,8 @@ export type PongoDatabaseFactoryOptions<
     string,
     PongoCollectionSchema
   >,
-  DriverOptions extends
-    AnyPongoDatabaseDriverOptions = AnyPongoDatabaseDriverOptions,
+  DriverOptions extends AnyPongoDatabaseDriverOptions =
+    AnyPongoDatabaseDriverOptions,
 > = {
   databaseName?: string | undefined;
   schema?:
@@ -40,8 +40,8 @@ export type DatabaseDriverOptionsWithConnectionString = {
 
 export interface PongoDatabaseDriver<
   Database extends AnyPongoDb = AnyPongoDb,
-  DriverOptions extends
-    AnyPongoDatabaseDriverOptions = AnyPongoDatabaseDriverOptions,
+  DriverOptions extends AnyPongoDatabaseDriverOptions =
+    AnyPongoDatabaseDriverOptions,
 > {
   driverType: Database['driverType'];
   databaseFactory<

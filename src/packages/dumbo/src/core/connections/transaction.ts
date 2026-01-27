@@ -24,10 +24,10 @@ export type DatabaseTransactionOptions = {
 
 export interface WithDatabaseTransactionFactory<
   ConnectionType extends AnyConnection = AnyConnection,
-  TransactionType extends
-    DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
-  TransactionOptionsType extends
-    DatabaseTransactionOptions = DatabaseTransactionOptions,
+  TransactionType extends DatabaseTransaction<ConnectionType> =
+    DatabaseTransaction<ConnectionType>,
+  TransactionOptionsType extends DatabaseTransactionOptions =
+    DatabaseTransactionOptions,
 > {
   transaction: (options?: TransactionOptionsType) => TransactionType;
 
@@ -52,8 +52,8 @@ const toTransactionResult = <Result>(
     : { success: true, result: transactionResult };
 
 export const executeInTransaction = async <
-  DatabaseTransactionType extends
-    AnyDatabaseTransaction = AnyDatabaseTransaction,
+  DatabaseTransactionType extends AnyDatabaseTransaction =
+    AnyDatabaseTransaction,
   Result = void,
 >(
   transaction: DatabaseTransactionType,
@@ -78,10 +78,10 @@ export const executeInTransaction = async <
 
 export const transactionFactoryWithDbClient = <
   ConnectionType extends AnyConnection = AnyConnection,
-  TransactionType extends
-    DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
-  TransactionOptionsType extends
-    DatabaseTransactionOptions = DatabaseTransactionOptions,
+  TransactionType extends DatabaseTransaction<ConnectionType> =
+    DatabaseTransaction<ConnectionType>,
+  TransactionOptionsType extends DatabaseTransactionOptions =
+    DatabaseTransactionOptions,
 >(
   connect: () => Promise<InferDbClientFromConnection<ConnectionType>>,
   initTransaction: (
@@ -133,10 +133,10 @@ const wrapInConnectionClosure = async <
 
 export const transactionFactoryWithNewConnection = <
   ConnectionType extends AnyConnection = AnyConnection,
-  TransactionType extends
-    DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
-  TransactionOptionsType extends
-    DatabaseTransactionOptions = DatabaseTransactionOptions,
+  TransactionType extends DatabaseTransaction<ConnectionType> =
+    DatabaseTransaction<ConnectionType>,
+  TransactionOptionsType extends DatabaseTransactionOptions =
+    DatabaseTransactionOptions,
 >(
   connect: () => ConnectionType,
 ): WithDatabaseTransactionFactory<

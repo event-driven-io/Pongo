@@ -375,8 +375,9 @@ export declare interface RootFilterOperators<TSchema> extends Document {
   $comment?: string | Document;
 }
 
-export declare interface PongoFilterOperator<TValue>
-  extends NonObjectIdLikeDocument {
+export declare interface PongoFilterOperator<
+  TValue,
+> extends NonObjectIdLikeDocument {
   $eq?: TValue;
   $gt?: TValue;
   $gte?: TValue;

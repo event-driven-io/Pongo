@@ -14,8 +14,8 @@ export function dumbo<Driver extends AnyDumboDatabaseDriver>(
 
 export function dumbo<
   DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
-  ConnectionOptions extends
-    DumboConnectionOptions<DatabaseDriver> = DumboConnectionOptions<DatabaseDriver>,
+  ConnectionOptions extends DumboConnectionOptions<DatabaseDriver> =
+    DumboConnectionOptions<DatabaseDriver>,
 >(
   options: ConnectionOptions & { driver?: never },
 ): ExtractDumboTypeFromDriver<DatabaseDriver>;

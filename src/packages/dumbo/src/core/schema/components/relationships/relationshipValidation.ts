@@ -340,8 +340,8 @@ export type ValidateRelationship<
   RelationshipName extends string,
   CurrentTableName extends string,
   Table extends AnyTableSchemaComponent = AnyTableSchemaComponent,
-  Schema extends
-    AnyDatabaseSchemaSchemaComponent = SchemaTablesWithSingle<Table>,
+  Schema extends AnyDatabaseSchemaSchemaComponent =
+    SchemaTablesWithSingle<Table>,
   Schemas extends DatabaseSchemas = DatabaseSchemasWithSingle<Schema>,
 > =
   FailOnFirstTypeValidationError<
@@ -383,12 +383,11 @@ export type ValidateRelationship<
 
 export type CollectRelationshipErrors<
   Columns extends TableColumns = TableColumns,
-  Relationships extends TableRelationships<
-    keyof Columns & string
-  > = {} & TableRelationships<keyof Columns & string>,
+  Relationships extends TableRelationships<keyof Columns & string> =
+    {} & TableRelationships<keyof Columns & string>,
   Table extends AnyTableSchemaComponent = AnyTableSchemaComponent,
-  Schema extends
-    AnyDatabaseSchemaSchemaComponent = SchemaTablesWithSingle<Table>,
+  Schema extends AnyDatabaseSchemaSchemaComponent =
+    SchemaTablesWithSingle<Table>,
   Schemas extends DatabaseSchemas = DatabaseSchemasWithSingle<Schema>,
   Errors extends AnyTypeValidationError[] = [],
 > = MapRecordCollectErrors<
@@ -413,8 +412,8 @@ export type CollectRelationshipErrors<
 
 export type ValidateTableRelationships<
   Table extends AnyTableSchemaComponent,
-  Schema extends
-    AnyDatabaseSchemaSchemaComponent = SchemaTablesWithSingle<Table>,
+  Schema extends AnyDatabaseSchemaSchemaComponent =
+    SchemaTablesWithSingle<Table>,
   Schemas extends DatabaseSchemas = DatabaseSchemasWithSingle<Schema>,
 > =
   Table extends TableSchemaComponent<
@@ -446,8 +445,8 @@ export type ValidateTableRelationships<
 
 export type ValidateTable<
   Table extends AnyTableSchemaComponent,
-  Schema extends
-    AnyDatabaseSchemaSchemaComponent = SchemaTablesWithSingle<Table>,
+  Schema extends AnyDatabaseSchemaSchemaComponent =
+    SchemaTablesWithSingle<Table>,
   Schemas extends DatabaseSchemas = DatabaseSchemasWithSingle<Schema>,
 > = ValidateTableRelationships<Table, Schema, Schemas>;
 
