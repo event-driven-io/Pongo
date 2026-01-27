@@ -27,9 +27,8 @@ export type TableColumns = Record<string, AnyColumnSchemaComponent>;
 export type TableSchemaComponent<
   Columns extends TableColumns = TableColumns,
   TableName extends string = string,
-  Relationships extends TableRelationships<
-    keyof Columns & string
-  > = {} & TableRelationships<keyof Columns & string>,
+  Relationships extends TableRelationships<keyof Columns & string> =
+    {} & TableRelationships<keyof Columns & string>,
 > = SchemaComponent<
   TableURN,
   Readonly<{

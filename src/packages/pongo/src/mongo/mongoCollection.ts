@@ -407,7 +407,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     _filter?: unknown,
     _options?: unknown,
   ): // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  | Promise<any[]>
+    | Promise<any[]>
     | Promise<import('mongodb').Flatten<import('mongodb').WithId<T>[Key]>[]> {
     throw new Error('Method not implemented.');
   }

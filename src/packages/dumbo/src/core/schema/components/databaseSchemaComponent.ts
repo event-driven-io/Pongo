@@ -19,8 +19,8 @@ export const DatabaseURN = ({ name }: { name: string }): DatabaseURN =>
   `${DatabaseURNType}:${name}`;
 
 export type DatabaseSchemas<
-  Schemas extends
-    AnyDatabaseSchemaSchemaComponent = AnyDatabaseSchemaSchemaComponent,
+  Schemas extends AnyDatabaseSchemaSchemaComponent =
+    AnyDatabaseSchemaSchemaComponent,
 > = Record<string, Schemas>;
 
 export type DatabaseSchemaComponent<

@@ -20,11 +20,13 @@ import {
 
 export interface ConnectionPool<
   ConnectionType extends AnyConnection = AnyConnection,
-  TransactionType extends
-    DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
-  TransactionOptionsType extends
-    DatabaseTransactionOptions = DatabaseTransactionOptions,
-> extends WithSQLExecutor,
+  TransactionType extends DatabaseTransaction<ConnectionType> =
+    DatabaseTransaction<ConnectionType>,
+  TransactionOptionsType extends DatabaseTransactionOptions =
+    DatabaseTransactionOptions,
+>
+  extends
+    WithSQLExecutor,
     WithConnectionFactory<ConnectionType>,
     WithDatabaseTransactionFactory<
       ConnectionType,

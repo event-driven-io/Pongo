@@ -38,8 +38,8 @@ export type ExtractDumboTypeFromDriver<DatabaseDriver> =
 export const canHandleDriverWithConnectionString =
   <
     DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
-    ConnectionOptions extends
-      DumboConnectionOptions<DatabaseDriver> = DumboConnectionOptions<DatabaseDriver>,
+    ConnectionOptions extends DumboConnectionOptions<DatabaseDriver> =
+      DumboConnectionOptions<DatabaseDriver>,
   >(
     driver: DatabaseDriver['driverType'],
     tryParseConnectionString: (connectionString: string) => string | null,
@@ -78,8 +78,8 @@ export const DumboDatabaseDriverRegistry = () => {
 
   const getDriver = <
     Driver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
-    ConnectionOptions extends
-      DumboConnectionOptions<Driver> = DumboConnectionOptions<Driver>,
+    ConnectionOptions extends DumboConnectionOptions<Driver> =
+      DumboConnectionOptions<Driver>,
   >(
     options: ConnectionOptions,
   ) =>
@@ -91,8 +91,8 @@ export const DumboDatabaseDriverRegistry = () => {
 
   const tryResolve = async <
     Driver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
-    ConnectionOptions extends
-      DumboConnectionOptions<Driver> = DumboConnectionOptions<Driver>,
+    ConnectionOptions extends DumboConnectionOptions<Driver> =
+      DumboConnectionOptions<Driver>,
   >(
     options: ConnectionOptions,
   ): Promise<Driver | null> => {
@@ -110,8 +110,8 @@ export const DumboDatabaseDriverRegistry = () => {
 
   const tryGet = <
     Driver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
-    ConnectionOptions extends
-      DumboConnectionOptions<Driver> = DumboConnectionOptions<Driver>,
+    ConnectionOptions extends DumboConnectionOptions<Driver> =
+      DumboConnectionOptions<Driver>,
   >(
     options: ConnectionOptions,
   ): Driver | null => {

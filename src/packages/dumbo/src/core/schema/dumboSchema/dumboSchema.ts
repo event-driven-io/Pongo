@@ -67,9 +67,8 @@ const dumboIndex = (
 const dumboTable = <
   const Columns extends TableColumns = TableColumns,
   const TableName extends string = string,
-  const Relationships extends TableRelationships<
-    keyof Columns & string
-  > = TableRelationships<keyof Columns & string>,
+  const Relationships extends TableRelationships<keyof Columns & string> =
+    TableRelationships<keyof Columns & string>,
 >(
   name: TableName,
   definition: {
