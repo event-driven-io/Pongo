@@ -102,11 +102,11 @@
     "dist"
   ],
   "peerDependencies": {
-    "@types/pg": "^8.15.5",
-    "pg": "^8.16.3",
-    "pg-connection-string": "^2.9.1",
+    "@types/pg": "^8.16.0",
+    "pg": "^8.17.2",
+    "pg-connection-string": "^2.10.1",
     "uuid": "^13.0.0",
-    "@cloudflare/workers-types": "^4.20260115.0",
+    "@cloudflare/workers-types": "^4.20260127.0",
     "sqlite3": "^5.1.7"
   },
   "peerDependenciesMeta": {
@@ -127,9 +127,9 @@
     }
   },
   "devDependencies": {
-    "@types/node": "^24.5.2",
-    "pg": "^8.16.3",
-    "pg-connection-string": "^2.9.1",
+    "@types/node": "^25.0.10",
+    "pg": "^8.17.2",
+    "pg-connection-string": "^2.10.1",
     "sqlite3": "^5.1.7"
   }
 }
