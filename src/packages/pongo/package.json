@@ -131,7 +131,7 @@
     "dist"
   ],
   "bin": {
-    "pongo": "./dist/cli.js"
+    "pongo": "dist/cli.js"
   },
   "peerDependencies": {
     "@event-driven-io/dumbo": "0.13.0-beta.9",
