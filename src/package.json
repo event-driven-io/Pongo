@@ -108,7 +108,6 @@
     "cli-table3": "^0.6.5",
     "commander": "^14.0.2",
     "pg": "^8.17.2",
-    "pg-connection-string": "^2.10.1",
     "sqlite3": "^5.1.7"
   },
   "peerDependenciesMeta": {
@@ -116,9 +115,6 @@
       "optional": true
     },
     "pg": {
-      "optional": true
-    },
-    "pg-connection-string": {
       "optional": true
     },
     "sqlite3": {

@@ -104,7 +104,6 @@
   "peerDependencies": {
     "@types/pg": "^8.16.0",
     "pg": "^8.17.2",
-    "pg-connection-string": "^2.10.1",
     "uuid": "^13.0.0",
     "@cloudflare/workers-types": "^4.20260127.0",
     "sqlite3": "^5.1.7"
@@ -114,9 +113,6 @@
       "optional": true
     },
     "pg": {
-      "optional": true
-    },
-    "pg-connection-string": {
       "optional": true
     },
     "sqlite3": {
@@ -129,7 +125,6 @@
   "devDependencies": {
     "@types/node": "^25.0.10",
     "pg": "^8.17.2",
-    "pg-connection-string": "^2.10.1",
     "sqlite3": "^5.1.7"
   }
 }
