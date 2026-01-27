@@ -143,7 +143,6 @@
     "ansis": "^4.2.0",
     "cli-table3": "^0.6.5",
     "commander": "^14.0.2",
-    "pg-connection-string": "^2.10.1",
     "sqlite3": "^5.1.7"
   },
   "peerDependenciesMeta": {
@@ -151,9 +150,6 @@
       "optional": true
     },
     "pg": {
-      "optional": true
-    },
-    "pg-connection-string": {
       "optional": true
     },
     "sqlite3": {
@@ -166,7 +162,6 @@
   "devDependencies": {
     "@types/node": "^24.5.2",
     "pg": "^8.17.2",
-    "pg-connection-string": "^2.10.1",
     "sqlite3": "^5.1.7"
   }
 }

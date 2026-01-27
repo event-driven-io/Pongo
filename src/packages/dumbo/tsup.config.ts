@@ -16,11 +16,6 @@ export default defineConfig({
   entry: ['src/index.ts', 'src/pg.ts', 'src/sqlite3.ts', 'src/cloudflare.ts'],
   //entry: ['src/**/*.ts', '!src/**/*.spec.ts', '!src/**/*.internal.ts'], //include all files under src but not specs
   sourcemap: true,
-  external: [
-    'sqlite3',
-    'pg',
-    'pg-connection-string',
-    '@cloudflare/workers-types',
-  ],
+  external: ['sqlite3', 'pg', '@cloudflare/workers-types'],
   tsconfig: 'tsconfig.build.json', // workaround for https://github.com/egoist/tsup/issues/571#issuecomment-1760052931
 });
