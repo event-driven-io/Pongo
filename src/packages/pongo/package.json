@@ -135,15 +135,15 @@
   },
   "peerDependencies": {
     "@event-driven-io/dumbo": "0.13.0-beta.9",
-    "@cloudflare/workers-types": "^4.20260115.0",
+    "@cloudflare/workers-types": "^4.20260127.0",
     "@types/mongodb": "^4.0.7",
-    "@types/pg": "^8.15.5",
-    "pg": "^8.16.3",
+    "@types/pg": "^8.16.0",
+    "pg": "^8.17.2",
     "uuid": "^13.0.0",
-    "ansis": "^4.1.0",
+    "ansis": "^4.2.0",
     "cli-table3": "^0.6.5",
-    "commander": "^14.0.1",
-    "pg-connection-string": "^2.9.1",
+    "commander": "^14.0.2",
+    "pg-connection-string": "^2.10.1",
     "sqlite3": "^5.1.7"
   },
   "peerDependenciesMeta": {
@@ -165,8 +165,8 @@
   },
   "devDependencies": {
     "@types/node": "^24.5.2",
-    "pg": "^8.16.3",
-    "pg-connection-string": "^2.9.1",
+    "pg": "^8.17.2",
+    "pg-connection-string": "^2.10.1",
     "sqlite3": "^5.1.7"
   }
 }
