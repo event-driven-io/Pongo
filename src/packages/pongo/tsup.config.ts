@@ -23,6 +23,17 @@ export default defineConfig({
   ],
   //entry: ['src/**/*.ts', '!src/**/*.spec.ts', '!src/**/*.internal.ts'], //include all files under src but not specs
   sourcemap: true,
-  external: ['sqlite3', 'pg', '@cloudflare/workers-types'],
+  external: [
+    '@cloudflare/workers-types',
+    '@types/mongodb',
+    '@types/pg',
+    'pg',
+    'sqlite3',
+    'ansis',
+    'cli-table3',
+    'commander',
+    'uuid',
+    '@event-driven-io/dumbo',
+  ],
   tsconfig: 'tsconfig.build.json', // workaround for https://github.com/egoist/tsup/issues/571#issuecomment-1760052931
 });

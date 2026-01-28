@@ -15,5 +15,16 @@ export default defineConfig({
   outDir: 'dist', //env === 'production' ? 'dist' : 'lib',
   entry: ['src/index.ts'],
   sourcemap: true,
-  external: ['sqlite3'],
+  external: [
+    '@cloudflare/workers-types',
+    '@types/mongodb',
+    '@types/pg',
+    'pg',
+    'sqlite3',
+    'ansis',
+    'cli-table3',
+    'commander',
+    'uuid',
+    '@event-driven-io/dumbo',
+  ],
 });
