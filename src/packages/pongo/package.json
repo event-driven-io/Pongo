@@ -133,16 +133,18 @@
   "bin": {
     "pongo": "dist/cli.js"
   },
-  "peerDependencies": {
+  "dependencies": {
     "@event-driven-io/dumbo": "0.13.0-beta.11",
-    "@cloudflare/workers-types": "^4.20260127.0",
     "@types/mongodb": "^4.0.7",
-    "@types/pg": "^8.16.0",
-    "pg": "^8.17.2",
     "uuid": "^13.0.0",
     "ansis": "^4.2.0",
     "cli-table3": "^0.6.5",
-    "commander": "^14.0.2",
+    "commander": "^14.0.2"
+  },
+  "peerDependencies": {
+    "@cloudflare/workers-types": "^4.20260127.0",
+    "@types/pg": "^8.16.0",
+    "pg": "^8.17.2",
     "sqlite3": "^5.1.7"
   },
   "peerDependenciesMeta": {
@@ -160,6 +162,8 @@
     }
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260127.0",
+    "@types/pg": "^8.16.0",
     "@types/node": "^24.5.2",
     "pg": "^8.17.2",
     "sqlite3": "^5.1.7"

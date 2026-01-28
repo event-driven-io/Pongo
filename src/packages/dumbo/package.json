@@ -101,11 +101,13 @@
   "files": [
     "dist"
   ],
+  "dependencies": {
+    "uuid": "^13.0.0"
+  },
   "peerDependencies": {
+    "@cloudflare/workers-types": "^4.20260127.0",
     "@types/pg": "^8.16.0",
     "pg": "^8.17.2",
-    "uuid": "^13.0.0",
-    "@cloudflare/workers-types": "^4.20260127.0",
     "sqlite3": "^5.1.7"
   },
   "peerDependenciesMeta": {
@@ -123,7 +125,9 @@
     }
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260127.0",
     "@types/node": "^25.0.10",
+    "@types/pg": "^8.16.0",
     "pg": "^8.17.2",
     "sqlite3": "^5.1.7"
   }
