@@ -47,7 +47,7 @@ void describe('PostgreSQL Parametrized Formatter', () => {
 
     void it('handles arrays by expanding to individual parameters', () => {
       const ids = ['id1', 'id2', 'id3'];
-      const sql = SQL`SELECT * FROM users WHERE _id IN ${ids}`;
+      const sql = SQL`SELECT * FROM users WHERE _id IN (${ids})`;
       const result = pgFormatter.format(sql);
 
       assert.deepStrictEqual(result, {

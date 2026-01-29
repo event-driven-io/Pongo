@@ -153,7 +153,7 @@ void describe('SQLite SQL Tagged Template Literal', () => {
 
   void it('should correctly format arrays as comma-separated values', () => {
     const ids = [1, 2, 3];
-    const query = SQL`SELECT * FROM users WHERE id IN ${ids};`;
+    const query = SQL`SELECT * FROM users WHERE id IN (${ids});`;
     assert.deepStrictEqual(SQL.format(query, pgFormatter), {
       query: 'SELECT * FROM users WHERE id IN ($1, $2, $3);',
       params: [1, 2, 3],

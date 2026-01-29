@@ -49,7 +49,7 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
       const ids = [1];
       const result = await count(
         pool.execute.query(
-          SQL`SELECT COUNT(*) as count FROM test_users WHERE id IN ${ids}`,
+          SQL`SELECT COUNT(*) as count FROM test_users WHERE id IN (${ids})`,
         ),
       );
 
