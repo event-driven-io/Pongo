@@ -31,12 +31,12 @@ export const handleOperator = (
     case '$in': {
       const jsonPath = `{${path.split('.').join(',')}}`;
 
-      return SQL`data #>> ${jsonPath} IN ${value as unknown[]}`;
+      return SQL`data #>> ${jsonPath} = ANY (${value as unknown[]})`;
     }
     case '$nin': {
       const jsonPath = `{${path.split('.').join(',')}}`;
 
-      return SQL`data #>> ${jsonPath} NOT IN ${value as unknown[]}`;
+      return SQL`data #>> ${jsonPath} != ALL (${value as unknown[]})`;
     }
     case '$elemMatch': {
       const subQuery = objectEntries(value as Record<string, unknown>)
@@ -78,9 +78,9 @@ const handleMetadataOperator = (
     case '$ne':
       return SQL`${SQL.plain(fieldName)} ${SQL.plain(OperatorMap[operator])} ${value}`;
     case '$in':
-      return SQL`${SQL.plain(fieldName)} IN ${value as unknown[]}`;
+      return SQL`${SQL.plain(fieldName)} = ANY (${value as unknown[]})`;
     case '$nin':
-      return SQL`${SQL.plain(fieldName)} NOT IN ${value as unknown[]}`;
+      return SQL`${SQL.plain(fieldName)} != ALL (${value as unknown[]})`;
     default:
       throw new Error(`Unsupported operator: ${operator}`);
   }

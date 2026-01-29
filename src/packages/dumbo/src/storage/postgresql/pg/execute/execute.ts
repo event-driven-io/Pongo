@@ -86,7 +86,10 @@ async function batch<Result extends QueryResultRow = QueryResultRow>(
       params,
       debugSQL: pgFormatter.describe(sqls[i]!),
     });
-    const result = await client.query<Result>(query, params);
+    const result =
+      params.length > 0
+        ? await client.query<Result>(query, params)
+        : await client.query<Result>(query);
     results[i] = { rowCount: result.rowCount, rows: result.rows };
   }
   return Array.isArray(sqlOrSqls) ? results : results[0]!;

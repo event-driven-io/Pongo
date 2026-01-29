@@ -47,12 +47,23 @@ void describe('PostgreSQL Parametrized Formatter', () => {
 
     void it('handles arrays by expanding to individual parameters', () => {
       const ids = ['id1', 'id2', 'id3'];
-      const sql = SQL`SELECT * FROM users WHERE _id IN (${ids})`;
+      const sql = SQL`SELECT * FROM users WHERE _id = ANY (${ids})`;
       const result = pgFormatter.format(sql);
 
       assert.deepStrictEqual(result, {
-        query: `SELECT * FROM users WHERE _id IN ($1, $2, $3)`,
-        params: ['id1', 'id2', 'id3'],
+        query: `SELECT * FROM users WHERE _id = ANY ($1)`,
+        params: [['id1', 'id2', 'id3']],
+      });
+    });
+
+    void it('handles arrays by expanding to individual parameters', () => {
+      const ids = ['id1', 'id2', 'id3'];
+      const sql = SQL`SELECT * FROM users WHERE ${SQL.in('_id', ids)}`;
+      const result = pgFormatter.format(sql);
+
+      assert.deepStrictEqual(result, {
+        query: `SELECT * FROM users WHERE _id = ANY ($1)`,
+        params: [['id1', 'id2', 'id3']],
       });
     });
 

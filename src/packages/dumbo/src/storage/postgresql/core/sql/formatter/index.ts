@@ -1,16 +1,22 @@
 import {
-  SQLFormatter,
-  SQLProcessorsRegistry,
   defaultProcessorsRegistry,
   mapSQLIdentifier,
   registerFormatter,
+  SQLFormatter,
+  SQLProcessorsRegistry,
 } from '../../../../../core';
-import { postgreSQLColumnProcessors } from '../processors';
+import {
+  PostgreSQLArrayProcessor,
+  postgreSQLColumnProcessors,
+  PostgreSQLExpandSQLInProcessor,
+} from '../processors';
 import reservedMap from './reserved';
 
 const postgreSQLProcessorsRegistry = SQLProcessorsRegistry({
   from: defaultProcessorsRegistry,
-}).register(postgreSQLColumnProcessors);
+})
+  .register(postgreSQLColumnProcessors)
+  .register(PostgreSQLArrayProcessor, PostgreSQLExpandSQLInProcessor);
 
 const pgFormatter: SQLFormatter = SQLFormatter({
   processorsRegistry: postgreSQLProcessorsRegistry,
@@ -20,6 +26,7 @@ const pgFormatter: SQLFormatter = SQLFormatter({
     mapPlaceholder: (index: number): string => `$${index + 1}`,
     mapIdentifier: (value: string): string =>
       mapSQLIdentifier(value, { reservedWords: reservedMap }),
+    mapArray: (values: unknown[]): unknown[] => values,
   },
 });
 
