@@ -21,6 +21,25 @@ export function SQL(strings: TemplateStringsArray, ...values: unknown[]): SQL {
   return parametrized as unknown as SQL;
 }
 
+export function RawSQL(
+  strings: TemplateStringsArray,
+  ...values: unknown[]
+): SQL {
+  let result = '';
+  for (let i = 0; i < strings.length; i++) {
+    result += strings[i];
+    if (i < values.length) {
+      result += String(values[i]);
+    }
+  }
+
+  return {
+    __brand: 'tokenized-sql',
+    sqlChunks: [result],
+    sqlTokens: [],
+  } as unknown as SQL;
+}
+
 export const isSQL = (value: unknown): value is SQL => {
   if (value === undefined || value === null) {
     return false;
