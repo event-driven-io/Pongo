@@ -56,7 +56,7 @@ void describe('D1 SQL Formatter Integration Tests', () => {
       const names = ['Alice'];
       const result = await count(
         pool.execute.query(
-          SQL`SELECT COUNT(*) as count FROM test_users WHERE name IN ${names}`,
+          SQL`SELECT COUNT(*) as count FROM test_users WHERE name IN (${names})`,
         ),
       );
 

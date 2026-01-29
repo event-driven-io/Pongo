@@ -32,7 +32,7 @@ export const ParametrizedSQLBuilder = ({
       const placeholders = values.map((value, i) =>
         mapParamPlaceholder(params.length + i, value),
       );
-      this.addSQL(`(${placeholders.join(', ')})`);
+      this.addSQL(`${placeholders.join(', ')}`);
       params.push(...values);
       return this;
     },

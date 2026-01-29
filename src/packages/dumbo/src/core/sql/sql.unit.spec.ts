@@ -164,7 +164,7 @@ void describe('SQL template', () => {
           ${true}, 
           ${null},
           ${date},
-          ${[1, '2', 3, date]},
+          (${[1, '2', 3, date]}),
           ${{ key: 'value', num: 3 }},
           ${SQL.identifier('column_name')}
         )
