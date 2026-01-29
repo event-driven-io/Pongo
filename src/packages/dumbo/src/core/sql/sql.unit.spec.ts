@@ -1,7 +1,7 @@
 import assert from 'assert';
 import { before, describe, it } from 'node:test';
 import { registerFormatter, SQLFormatter } from './formatters';
-import { isSQL, SQL } from './sql';
+import { isSQL, RawSQL, SQL } from './sql';
 import { isTokenizedSQL, type TokenizedSQL } from './tokenizedSQL';
 import { SQLValueMapper } from './valueMappers';
 
@@ -215,6 +215,59 @@ void describe('SQL template', () => {
         query: 'SELECT * FROM users WHERE active = $1 ORDER BY "name"',
         params: [true],
       });
+    });
+  });
+
+  void describe('RawSQL template', () => {
+    void it('should create SQL from template literals without parameterization', () => {
+      const query = RawSQL`SELECT * FROM users`;
+      assert.strictEqual(isSQL(query), true);
+      assert.strictEqual(isTokenizedSQL(query), true);
+
+      const tokenized = query as unknown as TokenizedSQL;
+      assert.deepStrictEqual(tokenized.sqlChunks, ['SELECT * FROM users']);
+      assert.deepStrictEqual(tokenized.sqlTokens, []);
+    });
+
+    void it('should interpolate values directly into the SQL string', () => {
+      const tableName = 'users';
+      const columnName = 'active';
+      const query = RawSQL`SELECT * FROM ${tableName} WHERE ${columnName} = true`;
+
+      const tokenized = query as unknown as TokenizedSQL;
+      assert.deepStrictEqual(tokenized.sqlChunks, [
+        'SELECT * FROM users WHERE active = true',
+      ]);
+      assert.deepStrictEqual(tokenized.sqlTokens, []);
+    });
+
+    void it('should format without parameters', () => {
+      const tableName = 'users';
+      const query = RawSQL`SELECT * FROM ${tableName}`;
+      const formatted = SQL.format(query, mockFormatter);
+
+      assert.deepStrictEqual(formatted, {
+        query: 'SELECT * FROM users',
+        params: [],
+      });
+    });
+
+    void it('should work with SQL.merge', () => {
+      const base = RawSQL`SELECT * FROM users`;
+      const where = SQL`WHERE id = ${123}`;
+      const result = SQL.merge([base, where]);
+
+      const formatted = SQL.format(result, mockFormatter);
+      assert.deepStrictEqual(formatted, {
+        query: 'SELECT * FROM users WHERE id = $1',
+        params: [123],
+      });
+    });
+
+    void it('should handle empty template', () => {
+      const query = RawSQL``;
+      assert.strictEqual(isSQL(query), true);
+      assert.strictEqual(SQL.check.isEmpty(query), true);
     });
   });
 });
