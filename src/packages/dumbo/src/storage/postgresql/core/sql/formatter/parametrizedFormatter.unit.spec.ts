@@ -133,6 +133,61 @@ void describe('PostgreSQL Parametrized Formatter', () => {
         pgFormatter.format('SELECT * FROM users' as SQL);
       }, /Expected TokenizedSQL, got string-based SQL/);
     });
+
+    void it('handles SQL.in with mode: params using IN syntax', () => {
+      const ids = ['id1', 'id2', 'id3'];
+      const sql = SQL`SELECT * FROM users WHERE ${SQL.in('_id', ids, { mode: 'params' })}`;
+      const result = pgFormatter.format(sql);
+
+      assert.deepStrictEqual(result, {
+        query: `SELECT * FROM users WHERE _id IN ($1, $2, $3)`,
+        params: ['id1', 'id2', 'id3'],
+      });
+    });
+
+    void it('handles SQL.in with mode: native using = ANY syntax (default)', () => {
+      const ids = ['id1', 'id2', 'id3'];
+      const sql = SQL`SELECT * FROM users WHERE ${SQL.in('_id', ids, { mode: 'native' })}`;
+      const result = pgFormatter.format(sql);
+
+      assert.deepStrictEqual(result, {
+        query: `SELECT * FROM users WHERE _id = ANY ($1)`,
+        params: [['id1', 'id2', 'id3']],
+      });
+    });
+
+    void it('handles SQL.array with mode: params expanding to individual params', () => {
+      const ids = ['id1', 'id2', 'id3'];
+      const sql = SQL`SELECT * FROM users WHERE _id IN (${SQL.array(ids, { mode: 'params' })})`;
+      const result = pgFormatter.format(sql);
+
+      assert.deepStrictEqual(result, {
+        query: `SELECT * FROM users WHERE _id IN ($1, $2, $3)`,
+        params: ['id1', 'id2', 'id3'],
+      });
+    });
+
+    void it('handles SQL.array with mode: native as single param (default)', () => {
+      const ids = ['id1', 'id2', 'id3'];
+      const sql = SQL`SELECT * FROM users WHERE _id = ANY (${SQL.array(ids, { mode: 'native' })})`;
+      const result = pgFormatter.format(sql);
+
+      assert.deepStrictEqual(result, {
+        query: `SELECT * FROM users WHERE _id = ANY ($1)`,
+        params: [['id1', 'id2', 'id3']],
+      });
+    });
+
+    void it('handles SQL.array without mode option (defaults to native)', () => {
+      const ids = ['id1', 'id2', 'id3'];
+      const sql = SQL`SELECT * FROM users WHERE _id = ANY (${SQL.array(ids)})`;
+      const result = pgFormatter.format(sql);
+
+      assert.deepStrictEqual(result, {
+        query: `SELECT * FROM users WHERE _id = ANY ($1)`,
+        params: [['id1', 'id2', 'id3']],
+      });
+    });
   });
 
   void describe('formatRaw method', () => {

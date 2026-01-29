@@ -113,4 +113,74 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 0);
     });
   });
+
+  void describe('SQL.in with mode option', () => {
+    void it('handles mode: native (default) using = ANY syntax', async () => {
+      const ids = [1, 2];
+      const result = await count(
+        pool.execute.query(
+          SQL`SELECT COUNT(*) as count FROM test_users WHERE ${SQL.in('id', ids, { mode: 'native' })}`,
+        ),
+      );
+
+      assert.strictEqual(result, 2);
+    });
+
+    void it('handles mode: params using IN syntax with expanded params', async () => {
+      const ids = [1, 2];
+      const result = await count(
+        pool.execute.query(
+          SQL`SELECT COUNT(*) as count FROM test_users WHERE ${SQL.in('id', ids, { mode: 'params' })}`,
+        ),
+      );
+
+      assert.strictEqual(result, 2);
+    });
+
+    void it('handles mode: params with string array', async () => {
+      const names = ['Alice', 'Bob'];
+      const result = await count(
+        pool.execute.query(
+          SQL`SELECT COUNT(*) as count FROM test_users WHERE ${SQL.in('name', names, { mode: 'params' })}`,
+        ),
+      );
+
+      assert.strictEqual(result, 2);
+    });
+  });
+
+  void describe('SQL.array helper', () => {
+    void it('handles mode: native (default) with = ANY', async () => {
+      const ids = [1, 2];
+      const result = await count(
+        pool.execute.query(
+          SQL`SELECT COUNT(*) as count FROM test_users WHERE id = ANY(${SQL.array(ids, { mode: 'native' })})`,
+        ),
+      );
+
+      assert.strictEqual(result, 2);
+    });
+
+    void it('handles mode: params with IN syntax', async () => {
+      const ids = [1, 2];
+      const result = await count(
+        pool.execute.query(
+          SQL`SELECT COUNT(*) as count FROM test_users WHERE id IN (${SQL.array(ids, { mode: 'params' })})`,
+        ),
+      );
+
+      assert.strictEqual(result, 2);
+    });
+
+    void it('handles array without mode option (defaults to native)', async () => {
+      const names = ['Alice'];
+      const result = await count(
+        pool.execute.query(
+          SQL`SELECT COUNT(*) as count FROM test_users WHERE name = ANY(${SQL.array(names)})`,
+        ),
+      );
+
+      assert.strictEqual(result, 1);
+    });
+  });
 });

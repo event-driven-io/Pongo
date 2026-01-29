@@ -13,7 +13,13 @@ export const PostgreSQLArrayProcessor: SQLProcessor<SQLArray> = SQLProcessor({
         "Empty arrays are not supported. If you're using it with SELECT IN statement Use SQL.in(column, array) helper instead.",
       );
     }
-    builder.addParam(mapper.mapValue(token.value) as unknown[]);
+    const mappedValue = mapper.mapValue(token.value) as unknown[];
+
+    if (token.mode === 'params') {
+      builder.addParams(mappedValue);
+    } else {
+      builder.addParam(mappedValue);
+    }
   },
 });
 
@@ -22,16 +28,14 @@ export const PostgreSQLExpandSQLInProcessor: SQLProcessor<SQLIn> = SQLProcessor(
     canHandle: 'SQL_IN',
     handle: (token: SQLIn, context: SQLProcessorContext) => {
       const { builder, mapper, processorsRegistry } = context;
-      const { values: inValues, column } = token;
+      const { values: inValues, column, mode } = token;
 
       if (inValues.value.length === 0) {
         builder.addParam(mapper.mapValue(false));
         return;
       }
 
-      // NOTE: this may not always be faster than IN: https://pganalyze.com/blog/5mins-postgres-performance-in-vs-any
       builder.addSQL(mapper.mapValue(column.value) as string);
-      builder.addSQL(` = ANY (`);
 
       const arrayProcessor = processorsRegistry.get(SQLArray.type);
 
@@ -41,8 +45,16 @@ export const PostgreSQLExpandSQLInProcessor: SQLProcessor<SQLIn> = SQLProcessor(
         );
       }
 
-      arrayProcessor.handle(inValues, { builder, mapper, processorsRegistry });
-      builder.addSQL(`)`);
+      if (mode === 'params') {
+        builder.addSQL(` IN (`);
+        const expandedArray = { ...inValues, mode: 'params' as const };
+        arrayProcessor.handle(expandedArray, context);
+        builder.addSQL(`)`);
+      } else {
+        builder.addSQL(` = ANY (`);
+        arrayProcessor.handle(inValues, context);
+        builder.addSQL(`)`);
+      }
     },
   },
 );
