@@ -83,22 +83,44 @@ export const SQLLiteral = SQLToken<SQLLiteral, unknown>(
   }),
 );
 
-export type SQLArray = SQLToken<'SQL_ARRAY', { value: unknown[] }>;
-export const SQLArray = SQLToken<SQLArray, unknown[]>('SQL_ARRAY', (value) => ({
-  value,
-}));
+export type SQLArrayMode = 'params' | 'native';
+
+export type SQLArray = SQLToken<
+  'SQL_ARRAY',
+  { value: unknown[]; mode?: SQLArrayMode }
+>;
+
+export const SQLArray = SQLToken<
+  SQLArray,
+  unknown[] | { value: unknown[]; mode?: SQLArrayMode }
+>('SQL_ARRAY', (input) => {
+  if (Array.isArray(input)) {
+    return { value: input };
+  }
+  return input.mode !== undefined
+    ? { value: input.value, mode: input.mode }
+    : { value: input.value };
+});
 
 export type SQLIn = SQLToken<
   'SQL_IN',
-  { column: SQLIdentifier; values: SQLArray }
+  { column: SQLIdentifier; values: SQLArray; mode?: SQLArrayMode }
 >;
 
-export const SQLIn = SQLToken<SQLIn, { column: string; values: unknown[] }>(
-  'SQL_IN',
-  ({ column, values }) => ({
-    column: SQLIdentifier.from(column),
-    values: SQLArray.from(values),
-  }),
+export const SQLIn = SQLToken<
+  SQLIn,
+  { column: string; values: unknown[]; mode?: SQLArrayMode }
+>('SQL_IN', ({ column, values, mode }) =>
+  mode !== undefined
+    ? {
+        column: SQLIdentifier.from(column),
+        values: SQLArray.from(values),
+        mode,
+      }
+    : {
+        column: SQLIdentifier.from(column),
+        values: SQLArray.from(values),
+      },
 );
 
 export type SQLDefaultTokens = SQLIdentifier | SQLPlain | SQLLiteral | SQLArray;

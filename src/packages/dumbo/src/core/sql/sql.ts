@@ -7,6 +7,8 @@ import {
 import type { ParametrizedSQL } from './parametrizedSQL';
 import { isTokenizedSQL, TokenizedSQL } from './tokenizedSQL';
 import {
+  SQLArray,
+  type SQLArrayMode,
   SQLColumnToken,
   SQLColumnTypeTokensFactory,
   SQLIdentifier,
@@ -105,7 +107,16 @@ SQL.describe = (
   formatter: SQLFormatter,
   options?: FormatSQLOptions,
 ): string => describeSQL(sql, formatter, options);
-SQL.in = (column: string, values: unknown[]) => SQLIn.from({ column, values });
+SQL.in = (
+  column: string,
+  values: unknown[],
+  options?: { mode?: SQLArrayMode },
+) =>
+  options?.mode
+    ? SQLIn.from({ column, values, mode: options.mode })
+    : SQLIn.from({ column, values });
+SQL.array = (values: unknown[], options?: { mode?: SQLArrayMode }) =>
+  SQLArray.from(options?.mode ? { value: values, mode: options.mode } : values);
 SQL.identifier = SQLIdentifier.from;
 SQL.plain = SQLPlain.from;
 
