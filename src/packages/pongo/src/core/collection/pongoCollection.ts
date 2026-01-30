@@ -56,7 +56,7 @@ export type PongoCollectionOptions<
   schemaComponent: PongoCollectionSchemaComponent;
   schema?: {
     autoMigration?: MigrationStyle;
-    mapDocument?: (document: Record<string, unknown>) => T;
+    upcast?: (document: Record<string, unknown>) => T;
   };
   errors?: { throwOnOperationFailures?: boolean };
 };
@@ -140,7 +140,7 @@ export const pongoCollection = <
     return createCollection(options);
   };
 
-  const mapDocument = schema?.mapDocument ?? ((doc) => doc as T);
+  const upcast = schema?.upcast ?? ((doc) => doc as T);
 
   const collection = {
     dbName: db.databaseName,
@@ -316,7 +316,7 @@ export const pongoCollection = <
       const row = result.rows[0];
       if (row === undefined || row === null) return null;
 
-      return mapDocument({
+      return upcast({
         ...row.data,
         _version: row._version,
       }) as WithIdAndVersion<T>;
@@ -470,7 +470,7 @@ export const pongoCollection = <
       );
       return result.rows.map(
         (row) =>
-          mapDocument({
+          upcast({
             ...row.data,
             _version: row._version,
           }) as WithIdAndVersion<T>,
