@@ -68,14 +68,14 @@ export const postgresDb = (
     close: () => pool.close(),
 
     collections: () => [...collections.values()],
-    collection: (collectionName) =>
+    collection: (collectionName, collectionOptions) =>
       pongoCollection({
         collectionName,
         db,
         pool,
         sqlBuilder: postgresSQLBuilder(collectionName),
-        schema: options.schema ? options.schema : {},
-        errors: options.errors ? options.errors : {},
+        schema: { ...options.schema, ...collectionOptions?.schema },
+        errors: { ...options.errors, ...collectionOptions?.errors },
       }),
     transaction: () => pool.transaction(),
     withTransaction: (handle) => pool.withTransaction(handle),
