@@ -194,13 +194,15 @@ export const postgresSQLBuilder = (
   findOne: <T>(filter: PongoFilter<T> | SQL): SQL => {
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
 
-    return SQL`SELECT data FROM ${SQL.identifier(collectionName)} ${where(filterQuery)} LIMIT 1;`;
+    return SQL`SELECT data, _version FROM ${SQL.identifier(collectionName)} ${where(filterQuery)} LIMIT 1;`;
   },
   find: <T>(filter: PongoFilter<T> | SQL, options?: FindOptions): SQL => {
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
     const query: SQL[] = [];
 
-    query.push(SQL`SELECT data FROM ${SQL.identifier(collectionName)}`);
+    query.push(
+      SQL`SELECT data, _version FROM ${SQL.identifier(collectionName)}`,
+    );
 
     query.push(where(filterQuery));
 
