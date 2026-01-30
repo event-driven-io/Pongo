@@ -47,13 +47,17 @@ import {
 } from '..';
 
 export type PongoCollectionOptions<
+  T extends PongoDocument = PongoDocument,
   DriverType extends DatabaseDriverType = DatabaseDriverType,
 > = {
   db: PongoDb<DriverType>;
   collectionName: string;
   pool: Dumbo<DatabaseDriverType>;
   schemaComponent: PongoCollectionSchemaComponent;
-  schema?: { autoMigration?: MigrationStyle };
+  schema?: {
+    autoMigration?: MigrationStyle;
+    mapDocument?: (document: Record<string, unknown>) => T;
+  };
   errors?: { throwOnOperationFailures?: boolean };
 };
 
@@ -99,7 +103,7 @@ export const pongoCollection = <
   schemaComponent,
   schema,
   errors,
-}: PongoCollectionOptions<DriverType>): PongoCollection<T> => {
+}: PongoCollectionOptions<T, DriverType>): PongoCollection<T> => {
   const SqlFor = schemaComponent.sqlBuilder;
   const sqlExecutor = pool.execute;
   const command = async <Result extends QueryResultRow = QueryResultRow>(
@@ -135,6 +139,8 @@ export const pongoCollection = <
 
     return createCollection(options);
   };
+
+  const mapDocument = schema?.mapDocument ?? ((doc) => doc as T);
 
   const collection = {
     dbName: db.databaseName,
@@ -302,8 +308,18 @@ export const pongoCollection = <
     ): Promise<WithIdAndVersion<T> | null> => {
       await ensureCollectionCreated(options);
 
-      const result = await query(SqlFor.findOne(filter ?? {}), options);
-      return (result.rows[0]?.data ?? null) as WithIdAndVersion<T> | null;
+      const result = await query<{ data: T; _version: bigint }>(
+        SqlFor.findOne(filter ?? {}),
+        options,
+      );
+
+      const row = result.rows[0];
+      if (row === undefined || row === null) return null;
+
+      return mapDocument({
+        ...row.data,
+        _version: row._version,
+      }) as WithIdAndVersion<T>;
     },
     findOneAndDelete: async (
       filter: PongoFilter<T>,
@@ -449,8 +465,16 @@ export const pongoCollection = <
     ): Promise<WithIdAndVersion<T>[]> => {
       await ensureCollectionCreated(options);
 
-      const result = await query(SqlFor.find(filter ?? {}, options));
-      return result.rows.map((row) => row.data as WithIdAndVersion<T>);
+      const result = await query<{ data: T; _version: bigint }>(
+        SqlFor.find(filter ?? {}, options),
+      );
+      return result.rows.map(
+        (row) =>
+          mapDocument({
+            ...row.data,
+            _version: row._version,
+          }) as WithIdAndVersion<T>,
+      );
     },
     countDocuments: async (
       filter?: PongoFilter<T>,
