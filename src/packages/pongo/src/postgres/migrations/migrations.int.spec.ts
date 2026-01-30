@@ -1,4 +1,10 @@
-import { type Dumbo, dumbo, rawSql, tableExists } from '@event-driven-io/dumbo';
+import {
+  type Dumbo,
+  dumbo,
+  endAllPools,
+  rawSql,
+  tableExists,
+} from '@event-driven-io/dumbo';
 import {
   PostgreSqlContainer,
   StartedPostgreSqlContainer,
@@ -31,6 +37,7 @@ void describe('Migration Integration Tests', () => {
 
   after(async () => {
     await pool.close();
+    await endAllPools();
     await postgres.stop();
   });
 

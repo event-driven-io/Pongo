@@ -214,9 +214,9 @@ export function nodePostgresPool(
   | NodePostgresNativePool
   | NodePostgresAmbientClientPool
   | NodePostgresAmbientConnectionPool {
-  const { connectionString, database, serializer } = options;
+  const { connectionString, database } = options;
 
-  setNodePostgresTypeParser(serializer ?? JSONSerializer);
+  setNodePostgresTypeParser();
 
   if ('client' in options && options.client)
     return nodePostgresAmbientClientPool({ client: options.client });
