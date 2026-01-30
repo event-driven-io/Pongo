@@ -20,6 +20,7 @@ import {
   type Document,
   type PongoCollection,
   type PongoDb,
+  type PongoDBCollectionOptions,
 } from '../typing';
 import { type PongoDatabaseSchemaComponent } from './pongoDatabaseSchemaComponent';
 
@@ -87,7 +88,10 @@ export const PongoDatabase = <
     close: () => pool.close(),
 
     collections: () => [...collections.values()],
-    collection: <T extends Document>(collectionName: string) =>
+    collection: <T extends Document>(
+      collectionName: string,
+      collectionOptions?: PongoDBCollectionOptions<T>,
+    ) =>
       (collections.get(collectionName) as PongoCollection<T> | undefined) ??
       pongoCollection({
         collectionName,
@@ -96,8 +100,8 @@ export const PongoDatabase = <
         schemaComponent: schemaComponent.collection(
           pongoSchema.collection<T>(collectionName),
         ),
-        schema: options.schema ? options.schema : {},
-        errors: options.errors ? options.errors : {},
+        schema: { ...options.schema, ...collectionOptions?.schema },
+        errors: { ...options.errors, ...collectionOptions?.errors },
       }),
     transaction: () => pool.transaction(),
     withTransaction: (handle) => pool.withTransaction(handle),

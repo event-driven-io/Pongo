@@ -1,15 +1,36 @@
 import pg from 'pg';
-import { JSONSerializer } from '../../../../core/serializer';
+import { JSONSerializer, RawJSONSerializer } from '../../../../core/serializer';
 
-export const setPgTypeParser = (jsonSerializer: JSONSerializer) => {
+let arePgTypesSet = false;
+
+export const setPgTypeParser = () => {
+  if (arePgTypesSet) return;
+
+  arePgTypesSet = true;
+
   // BigInt
   pg.types.setTypeParser(20, (val) => BigInt(val));
 
   // JSONB
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-  pg.types.setTypeParser(3802, (val) => jsonSerializer.deserialize(val));
+  pg.types.setTypeParser(3802, (val) => RawJSONSerializer.deserialize(val));
 
   // JSON
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-  pg.types.setTypeParser(114, (val) => jsonSerializer.deserialize(val));
+  pg.types.setTypeParser(114, (val) => RawJSONSerializer.deserialize(val));
+};
+
+export const setPgTypeParserWithBigInt = () => {
+  arePgTypesSet = true;
+
+  // BigInt
+  pg.types.setTypeParser(20, (val) => BigInt(val));
+
+  // JSONB
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+  pg.types.setTypeParser(3802, (val) => JSONSerializer.deserialize(val));
+
+  // JSON
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+  pg.types.setTypeParser(114, (val) => JSONSerializer.deserialize(val));
 };
