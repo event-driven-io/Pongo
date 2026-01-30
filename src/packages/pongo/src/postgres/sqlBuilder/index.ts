@@ -237,14 +237,18 @@ export const postgresSQLBuilder = (
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
 
     return sql(
-      'SELECT data FROM %I %s LIMIT 1;',
+      'SELECT data, _version FROM %I %s LIMIT 1;',
       collectionName,
       where(filterQuery),
     );
   },
   find: <T>(filter: PongoFilter<T> | SQL): SQL => {
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
-    return sql('SELECT data FROM %I %s;', collectionName, where(filterQuery));
+    return sql(
+      'SELECT data, _version FROM %I %s;',
+      collectionName,
+      where(filterQuery),
+    );
   },
   countDocuments: <T>(filter: PongoFilter<T> | SQL): SQL => {
     const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
