@@ -188,9 +188,9 @@ export function pgPool(options: PgPoolNotPooledOptions): PgAmbientClientPool;
 export function pgPool(
   options: PgPoolOptions,
 ): PgNativePool | PgAmbientClientPool | PgAmbientConnectionPool {
-  const { connectionString, database, serializer } = options;
+  const { connectionString, database } = options;
 
-  setPgTypeParser(serializer ?? JSONSerializer);
+  setPgTypeParser();
 
   if ('client' in options && options.client)
     return pgAmbientClientPool({ client: options.client });
