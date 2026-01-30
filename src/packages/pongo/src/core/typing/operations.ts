@@ -61,13 +61,24 @@ export interface PongoSession {
   ): Promise<T>;
 }
 
-export interface PongoDb<ConnectorType extends string = string>
-  extends DatabaseTransactionFactory<ConnectorType> {
+export type PongoDBCollectionOptions<T extends PongoDocument> = {
+  schema?: {
+    upcast?: <FromDB extends PongoDocument = T>(document: FromDB) => T;
+  };
+  errors?: { throwOnOperationFailures?: boolean };
+};
+
+export interface PongoDb<
+  ConnectorType extends string = string,
+> extends DatabaseTransactionFactory<ConnectorType> {
   get connectorType(): ConnectorType;
   get databaseName(): string;
   connect(): Promise<void>;
   close(): Promise<void>;
-  collection<T extends PongoDocument>(name: string): PongoCollection<T>;
+  collection<T extends PongoDocument>(
+    name: string,
+    options?: PongoDBCollectionOptions<T>,
+  ): PongoCollection<T>;
   collections(): ReadonlyArray<PongoCollection<PongoDocument>>;
   readonly schema: Readonly<{
     component: SchemaComponent;
@@ -330,8 +341,9 @@ export declare interface RootFilterOperators<TSchema> extends Document {
   $comment?: string | Document;
 }
 
-export declare interface PongoFilterOperator<TValue>
-  extends NonObjectIdLikeDocument {
+export declare interface PongoFilterOperator<
+  TValue,
+> extends NonObjectIdLikeDocument {
   $eq?: TValue;
   $gt?: TValue;
   $gte?: TValue;

@@ -55,7 +55,7 @@ export type PongoCollectionOptions<
   sqlBuilder: PongoCollectionSQLBuilder;
   schema?: {
     autoMigration?: MigrationStyle;
-    upcast?: (document: Record<string, unknown>) => T;
+    upcast?: <FromDB extends PongoDocument = T>(document: FromDB) => T;
   };
   errors?: { throwOnOperationFailures?: boolean };
 };
@@ -129,7 +129,7 @@ export const pongoCollection = <
     return createCollection(options);
   };
 
-  const upcast = schema?.upcast ?? ((doc) => doc as T);
+  const upcast = schema?.upcast ?? ((doc) => doc as unknown as T);
 
   const collection = {
     dbName: db.databaseName,
