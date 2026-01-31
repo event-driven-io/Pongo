@@ -1,15 +1,16 @@
 import type { ObjectCodec, Serializer } from '..';
 
 interface JSONSerializer<
-  SerializeOptions = JSONSerializeOptions,
-  DeserializeOptions = JSONDeserializeOptions,
+  SerializeOptions extends JSONSerializeOptions = JSONSerializeOptions,
+  DeserializeOptions extends JSONDeserializeOptions = JSONDeserializeOptions,
 > extends Serializer<string, SerializeOptions, DeserializeOptions> {
   serialize<T>(object: T, options?: SerializeOptions): string;
   deserialize<T>(payload: string, options?: DeserializeOptions): T;
 }
 
 type JSONSerializerOptions = {
-  disableBigIntSerialization?: boolean;
+  parseDates?: boolean;
+  parseBigInts?: boolean;
 };
 
 type JSONSerializeOptions = {
@@ -20,102 +21,184 @@ type JSONDeserializeOptions = {
   reviver?: JSONReviver;
 } & JSONSerializerOptions;
 
-interface JSONObjectCodec<
+interface JSONCodec<
   T,
-  SerializeOptions = JSONSerializeOptions,
-  DeserializeOptions = JSONDeserializeOptions,
-> extends ObjectCodec<T, string> {
+  SerializeOptions extends JSONSerializeOptions = JSONSerializeOptions,
+  DeserializeOptions extends JSONDeserializeOptions = JSONDeserializeOptions,
+> extends ObjectCodec<T, string, SerializeOptions, DeserializeOptions> {
   encode(object: T, options?: SerializeOptions): string;
   decode(payload: string, options?: DeserializeOptions): T;
 }
 
-type JSONObjectCodecOptions<
-  SerializeOptions = JSONSerializeOptions,
-  DeserializeOptions = JSONDeserializeOptions,
+type JSONCodecOptions<
+  T,
+  SerializeOptions extends JSONSerializeOptions = JSONSerializeOptions,
+  DeserializeOptions extends JSONDeserializeOptions = JSONDeserializeOptions,
+  Payload = T,
 > =
-  | { serializer?: JSONSerializer<SerializeOptions, DeserializeOptions> }
-  | { serializerOptions?: JSONSerializerOptions };
+  | {
+      serializer?: JSONSerializer<SerializeOptions, DeserializeOptions>;
+      serializerOptions?: never;
+      upcast?: (document: Payload) => T;
+      downcast?: (document: T) => Payload;
+    }
+  | {
+      serializer?: never;
+      serializerOptions?: JSONSerializerOptions;
+      upcast?: (document: Payload) => T;
+      downcast?: (document: T) => Payload;
+    };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type JSONReplacer = (this: any, key: string, value: any) => any;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type JSONReviver = (this: any, key: string, value: any) => any;
+type JSONReviver = (
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  this: any,
+  key: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  value: any,
+  context: JSONReviverContext,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+) => any;
+
+// See more in: https://tc39.es/proposal-json-parse-with-source/
+export type JSONReviverContext = {
+  source: string;
+};
 
 const bigIntReplacer: JSONReplacer = (_key, value) => {
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   return typeof value === 'bigint' ? value.toString() : value;
 };
 
-const bigIntReviver: JSONReviver = (_key, value) => {
-  if (typeof value === 'string' && /^[+-]?\d+n?$/.test(value)) {
-    return BigInt(value);
+const dateReplacer: JSONReplacer = (_key, value) => {
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+  return value instanceof Date ? value.toISOString() : value;
+};
+
+const bigIntReviver: JSONReviver = (_key, value, { source }) => {
+  if (typeof value === 'number' && !Number.isSafeInteger(value)) {
+    return BigInt(source);
   }
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   return value;
 };
 
-const composeJSONReplacers =
-  (...replacers: JSONReplacer[]): JSONReplacer =>
-  (key, value) =>
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-    replacers.reduce((accValue, replacer) => replacer(key, accValue), value);
+const dateReviver: JSONReviver = (_key, value) => {
+  if (
+    typeof value === 'string' &&
+    value.length === 24 &&
+    value[10] === 'T' &&
+    value[23] === 'Z'
+  ) {
+    const date = new Date(value);
+    if (!isNaN(date.getTime())) {
+      return date;
+    }
+  }
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+  return value;
+};
 
-const composeJSONRevivers =
-  (...revivers: JSONReviver[]): JSONReviver =>
-  (key, value) =>
+const composeJSONReplacers = (
+  ...replacers: (JSONReplacer | undefined)[]
+): JSONReplacer | undefined => {
+  const filteredReplacers = replacers.filter((r) => r !== undefined);
+
+  if (filteredReplacers.length === 0) return undefined;
+
+  return (key, value) =>
     // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-    revivers.reduce((accValue, reviver) => reviver(key, accValue), value);
+    filteredReplacers.reduce(
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      (accValue, replacer) => replacer(key, accValue),
+      value,
+    );
+};
+
+const composeJSONRevivers = (
+  ...revivers: (JSONReviver | undefined)[]
+): JSONReviver | undefined => {
+  const filteredRevivers = revivers.filter((r) => r !== undefined);
+
+  if (filteredRevivers.length === 0) return undefined;
+
+  return (key, value, context) =>
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    filteredRevivers.reduce(
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      (accValue, reviver) => reviver(key, accValue, context),
+      value,
+    );
+};
 
 const JSONReplacer = (opts?: JSONSerializeOptions) =>
-  opts?.disableBigIntSerialization == true
-    ? opts.replacer
-      ? opts.replacer
-      : undefined
-    : opts?.replacer
-      ? composeJSONReplacers(JSONReplacers.bigInt, opts.replacer)
-      : JSONReplacers.bigInt;
+  composeJSONReplacers(
+    opts?.parseBigInts === true ? JSONReplacers.bigInt : undefined,
+    opts?.parseDates === true ? JSONReplacers.date : undefined,
+    opts?.replacer,
+  );
 
 const JSONReviver = (opts?: JSONDeserializeOptions) =>
-  opts?.disableBigIntSerialization == true
-    ? opts.reviver
-      ? opts.reviver
-      : undefined
-    : opts?.reviver
-      ? composeJSONRevivers(JSONRevivers.bigInt, opts.reviver)
-      : JSONRevivers.bigInt;
+  composeJSONRevivers(
+    opts?.parseBigInts === true ? JSONRevivers.bigInt : undefined,
+    opts?.parseDates === true ? JSONRevivers.date : undefined,
+    opts?.reviver,
+  );
 
 const JSONReplacers = {
   bigInt: bigIntReplacer,
+  date: dateReplacer,
 };
 
 const JSONRevivers = {
   bigInt: bigIntReviver,
+  date: dateReviver,
 };
+
+type ClassicJsonReviver =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  (this: any, key: string, value: any) => any;
 
 const jsonSerializer = (options?: JSONSerializerOptions): JSONSerializer => {
   const defaultReplacer = JSONReplacer(options);
   const defaultReviver = JSONReviver(options);
 
   return {
-    serialize: <T>(object: T, options?: JSONSerializeOptions): string =>
-      JSON.stringify(object, options ? JSONReplacer(options) : defaultReplacer),
-    deserialize: <T>(payload: string, options?: JSONDeserializeOptions): T =>
-      JSON.parse(payload, options ? JSONReviver(options) : defaultReviver) as T,
+    serialize: <T>(
+      object: T,
+      serializerOptions?: JSONSerializeOptions,
+    ): string =>
+      JSON.stringify(
+        object,
+        serializerOptions ? JSONReplacer(serializerOptions) : defaultReplacer,
+      ),
+    deserialize: <T>(
+      payload: string,
+      deserializerOptions?: JSONDeserializeOptions,
+    ): T =>
+      JSON.parse(
+        payload,
+        (deserializerOptions
+          ? JSONReviver(deserializerOptions)
+          : defaultReviver) as ClassicJsonReviver,
+      ) as T,
   };
 };
 
-const JSONSerializer = jsonSerializer({ disableBigIntSerialization: false });
+const JSONSerializer = jsonSerializer({ parseBigInts: true });
 
-const RawJSONSerializer = jsonSerializer({ disableBigIntSerialization: true });
+const RawJSONSerializer = jsonSerializer();
 
-const JSONObjectCodec = <
+const JSONCodec = <
   T,
-  SerializeOptions = JSONSerializeOptions,
-  DeserializeOptions = JSONDeserializeOptions,
+  SerializeOptions extends JSONSerializeOptions = JSONSerializeOptions,
+  DeserializeOptions extends JSONDeserializeOptions = JSONDeserializeOptions,
+  Payload = T,
 >(
-  options: JSONObjectCodecOptions<SerializeOptions, DeserializeOptions>,
-): JSONObjectCodec<T, SerializeOptions, DeserializeOptions> => {
+  options: JSONCodecOptions<T, SerializeOptions, DeserializeOptions, Payload>,
+): JSONCodec<T, SerializeOptions, DeserializeOptions> => {
   const serializer =
     'serializer' in options
       ? options.serializer
@@ -125,21 +208,29 @@ const JSONObjectCodec = <
             : undefined,
         );
 
+  const upcast = options.upcast ?? ((doc: Payload) => doc as unknown as T);
+  const downcast = options.downcast ?? ((doc: T) => doc as unknown as Payload);
+
   return {
-    decode: <T>(payload: string, options?: DeserializeOptions) =>
-      options
-        ? serializer.deserialize<T>(payload, options)
-        : serializer.deserialize(payload),
-    encode: <T>(object: T, options?: SerializeOptions) =>
-      options
-        ? serializer.serialize<T>(object, options)
-        : serializer.serialize(object),
+    decode: (payload: string, decodeOptions?: DeserializeOptions) => {
+      const deserialized = decodeOptions
+        ? serializer.deserialize<Payload>(payload, decodeOptions)
+        : serializer.deserialize<Payload>(payload);
+      return upcast(deserialized);
+    },
+    encode: (object: T, encodeOptions?: SerializeOptions) => {
+      const downcasted = downcast(object);
+      return encodeOptions
+        ? serializer.serialize(downcasted, encodeOptions)
+        : serializer.serialize(downcasted);
+    },
   };
 };
 
 export {
   composeJSONReplacers,
   composeJSONRevivers,
+  JSONCodec,
   JSONReplacer,
   JSONReplacers,
   JSONReviver,
@@ -147,6 +238,6 @@ export {
   JSONSerializer,
   jsonSerializer,
   RawJSONSerializer,
-  type JSONObjectCodec,
-  type JSONObjectCodecOptions,
+  type JSONCodec as JSONObjectCodec,
+  type JSONCodecOptions as JSONObjectCodecOptions,
 };
