@@ -69,7 +69,7 @@ function pongoDbSchema<T extends Record<string, PongoCollectionSchema>>(
 ): PongoDbSchema<T>;
 function pongoDbSchema<T extends Record<string, PongoCollectionSchema>>(
   nameOrCollections: string | T,
-  collections?: T | undefined,
+  collections?: T,
 ): PongoDbSchema<T> {
   if (collections === undefined) {
     if (typeof nameOrCollections === 'string') {

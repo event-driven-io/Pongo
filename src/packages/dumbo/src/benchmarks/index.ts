@@ -93,6 +93,7 @@ async function runBenchmark() {
       },
     })
     .on('cycle', function (event: Benchmark.Event) {
+      // eslint-disable-next-line @typescript-eslint/no-base-to-string
       console.log(String(event.target));
     })
     .on('complete', async function (this: Benchmark.Suite) {
