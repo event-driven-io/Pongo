@@ -1,15 +1,20 @@
 export interface Serializer<
   Payload,
-  SerializeOptions = never,
-  DeserializeOptions = SerializeOptions,
+  SerializeOptions extends Record<string, unknown> = Record<string, unknown>,
+  DeserializeOptions extends Record<string, unknown> = SerializeOptions,
 > {
   serialize<T>(object: T, options?: SerializeOptions): Payload;
   deserialize<T>(payload: Payload, options?: DeserializeOptions): T;
 }
 
-export interface ObjectCodec<T, Payload> {
-  encode(object: T): Payload;
-  decode(payload: Payload): T;
+export interface ObjectCodec<
+  T,
+  Payload,
+  SerializeOptions extends Record<string, unknown> = Record<string, unknown>,
+  DeserializeOptions extends Record<string, unknown> = SerializeOptions,
+> {
+  encode(object: T, options?: SerializeOptions): Payload;
+  decode(payload: Payload, options?: DeserializeOptions): T;
 }
 
 export * from './json';
