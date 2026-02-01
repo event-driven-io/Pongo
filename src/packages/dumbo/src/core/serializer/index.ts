@@ -7,7 +7,7 @@ export interface Serializer<
   deserialize<T>(payload: Payload, options?: DeserializeOptions): T;
 }
 
-export interface ObjectCodec<
+export interface SerializationCodec<
   T,
   Payload,
   SerializeOptions extends Record<string, unknown> = Record<string, unknown>,
