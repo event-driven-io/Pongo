@@ -528,7 +528,7 @@ void describe('JSON Serializer', () => {
       });
 
       void it('upcasts flat document to grouped structure on decode', () => {
-        const codec = JSONCodec<UserDocV2, never, never, UserDocV1>({
+        const codec = JSONCodec<UserDocV2, UserDocV1>({
           upcast,
           downcast,
         });
@@ -557,7 +557,7 @@ void describe('JSON Serializer', () => {
       });
 
       void it('downcasts grouped document to flat structure on encode', () => {
-        const codec = JSONCodec<UserDocV2, never, never, UserDocV1>({
+        const codec = JSONCodec<UserDocV2, UserDocV1>({
           upcast,
           downcast,
         });
@@ -581,7 +581,7 @@ void describe('JSON Serializer', () => {
       });
 
       void it('roundtrips document through encode/decode with upcast/downcast', () => {
-        const codec = JSONCodec<UserDocV2, never, never, UserDocV1>({
+        const codec = JSONCodec<UserDocV2, UserDocV1>({
           upcast,
           downcast,
         });
