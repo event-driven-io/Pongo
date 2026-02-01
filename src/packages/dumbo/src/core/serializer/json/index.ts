@@ -30,24 +30,28 @@ interface JSONCodec<
   decode(payload: string, options?: DeserializeOptions): T;
 }
 
+type JSONSerializationOptions<
+  SerializeOptions extends JSONSerializeOptions = JSONSerializeOptions,
+  DeserializeOptions extends JSONDeserializeOptions = JSONDeserializeOptions,
+> =
+  | {
+      serializer?: JSONSerializer<SerializeOptions, DeserializeOptions>;
+      serializerOptions?: never;
+    }
+  | {
+      serializer?: never;
+      serializerOptions?: JSONSerializerOptions;
+    };
+
 type JSONCodecOptions<
   T,
   SerializeOptions extends JSONSerializeOptions = JSONSerializeOptions,
   DeserializeOptions extends JSONDeserializeOptions = JSONDeserializeOptions,
   Payload = T,
-> =
-  | {
-      serializer?: JSONSerializer<SerializeOptions, DeserializeOptions>;
-      serializerOptions?: never;
-      upcast?: (document: Payload) => T;
-      downcast?: (document: T) => Payload;
-    }
-  | {
-      serializer?: never;
-      serializerOptions?: JSONSerializerOptions;
-      upcast?: (document: Payload) => T;
-      downcast?: (document: T) => Payload;
-    };
+> = JSONSerializationOptions<SerializeOptions, DeserializeOptions> & {
+  upcast?: (document: Payload) => T;
+  downcast?: (document: T) => Payload;
+};
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type JSONReplacer = (this: any, key: string, value: any) => any;
@@ -77,9 +81,9 @@ const dateReplacer: JSONReplacer = (_key, value) => {
   return value instanceof Date ? value.toISOString() : value;
 };
 
-const bigIntReviver: JSONReviver = (_key, value, { source }) => {
+const bigIntReviver: JSONReviver = (_key, value, context) => {
   if (typeof value === 'number' && !Number.isSafeInteger(value)) {
-    return BigInt(source);
+    return BigInt(context?.source ?? value.toString());
   }
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   return value;
@@ -238,6 +242,8 @@ export {
   JSONSerializer,
   jsonSerializer,
   RawJSONSerializer,
-  type JSONCodec as JSONObjectCodec,
-  type JSONCodecOptions as JSONObjectCodecOptions,
+  type JSONCodecOptions,
+  type JSONDeserializeOptions,
+  type JSONSerializationOptions,
+  type JSONSerializeOptions,
 };

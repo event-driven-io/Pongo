@@ -12,21 +12,21 @@ export const setNodePostgresTypeParser = () => {
   pg.types.setTypeParser(20, (val) => BigInt(val));
 
   // JSONB
-  pg.types.setTypeParser(3802, (val) => RawJSONSerializer.deserialize(val));
+  pg.types.setTypeParser(3802, (val) => JSONSerializer.deserialize(val));
 
   // JSON
-  pg.types.setTypeParser(114, (val) => RawJSONSerializer.deserialize(val));
+  pg.types.setTypeParser(114, (val) => JSONSerializer.deserialize(val));
 };
 
-export const setNodePostgresTypeParserWithBigInt = () => {
+export const setNodePostgresTypeRawParser = () => {
   arePgTypesSet = true;
 
   // BigInt
   pg.types.setTypeParser(20, (val) => BigInt(val));
 
   // JSONB
-  pg.types.setTypeParser(3802, (val) => JSONSerializer.deserialize(val));
+  pg.types.setTypeParser(3802, (val) => RawJSONSerializer.deserialize(val));
 
   // JSON
-  pg.types.setTypeParser(114, (val) => JSONSerializer.deserialize(val));
+  pg.types.setTypeParser(114, (val) => RawJSONSerializer.deserialize(val));
 };

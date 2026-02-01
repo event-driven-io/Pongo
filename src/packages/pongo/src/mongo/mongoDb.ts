@@ -7,6 +7,7 @@ import type {
   DocumentHandler,
   HandleOptions,
   PongoDb,
+  PongoDBCollectionOptions,
   PongoHandleResult,
 } from '../core';
 import { Collection } from './mongoCollection';
@@ -20,6 +21,7 @@ export class Db {
 
   collection<T extends Document>(
     collectionName: string,
+    options?: PongoDBCollectionOptions<T>,
   ): MongoCollection<T> & {
     handle(
       id: ObjectId,
@@ -27,6 +29,8 @@ export class Db {
       options?: HandleOptions,
     ): Promise<PongoHandleResult<T>>;
   } {
-    return new Collection<T>(this.pongoDb.collection<T>(collectionName));
+    return new Collection<T>(
+      this.pongoDb.collection<T>(collectionName, options),
+    );
   }
 }
