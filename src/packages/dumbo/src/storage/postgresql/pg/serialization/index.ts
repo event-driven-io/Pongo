@@ -13,14 +13,14 @@ export const setPgTypeParser = () => {
 
   // JSONB
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-  pg.types.setTypeParser(3802, (val) => RawJSONSerializer.deserialize(val));
+  pg.types.setTypeParser(3802, (val) => JSONSerializer.deserialize(val));
 
   // JSON
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-  pg.types.setTypeParser(114, (val) => RawJSONSerializer.deserialize(val));
+  pg.types.setTypeParser(114, (val) => JSONSerializer.deserialize(val));
 };
 
-export const setPgTypeParserWithBigInt = () => {
+export const setNodePostgresTypeRawParser = () => {
   arePgTypesSet = true;
 
   // BigInt
@@ -28,9 +28,9 @@ export const setPgTypeParserWithBigInt = () => {
 
   // JSONB
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-  pg.types.setTypeParser(3802, (val) => JSONSerializer.deserialize(val));
+  pg.types.setTypeParser(3802, (val) => RawJSONSerializer.deserialize(val));
 
   // JSON
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return
-  pg.types.setTypeParser(114, (val) => JSONSerializer.deserialize(val));
+  pg.types.setTypeParser(114, (val) => RawJSONSerializer.deserialize(val));
 };
