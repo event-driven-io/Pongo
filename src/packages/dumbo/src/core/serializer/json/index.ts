@@ -81,13 +81,22 @@ const dateReplacer: JSONReplacer = (_key, value) => {
   return value instanceof Date ? value.toISOString() : value;
 };
 
+const isFirstLetterNumeric = (str: string): boolean => {
+  const c = str.charCodeAt(0);
+  return c >= 48 && c <= 57;
+};
+
+const isFirstLetterNumericOrMinus = (str: string): boolean => {
+  const c = str.charCodeAt(0);
+  return (c >= 48 && c <= 57) || c === 45;
+};
+
 const bigIntReviver: JSONReviver = (_key, value, context) => {
   if (typeof value === 'number' && !Number.isSafeInteger(value)) {
     return BigInt(context?.source ?? value.toString());
   }
   if (typeof value === 'string' && value.length > 15) {
-    const c = value.charCodeAt(0);
-    if ((c >= 48 && c <= 57) || c === 45) {
+    if (isFirstLetterNumericOrMinus(value)) {
       const num = Number(value);
       if (Number.isFinite(num) && !Number.isSafeInteger(num)) {
         try {
@@ -106,6 +115,7 @@ const dateReviver: JSONReviver = (_key, value) => {
   if (
     typeof value === 'string' &&
     value.length === 24 &&
+    isFirstLetterNumeric(value) &&
     value[10] === 'T' &&
     value[23] === 'Z'
   ) {
