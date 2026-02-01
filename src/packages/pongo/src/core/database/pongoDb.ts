@@ -88,9 +88,9 @@ export const PongoDatabase = <
     close: () => pool.close(),
 
     collections: () => [...collections.values()],
-    collection: <T extends Document>(
+    collection: <T extends Document, Payload extends Document = T>(
       collectionName: string,
-      collectionOptions?: PongoDBCollectionOptions<T>,
+      collectionOptions?: PongoDBCollectionOptions<T, Payload>,
     ) =>
       (collections.get(collectionName) as PongoCollection<T> | undefined) ??
       pongoCollection({
