@@ -3,8 +3,8 @@ import { JSONSerializer, RawJSONSerializer } from '../../../../core/serializer';
 
 let arePgTypesSet = false;
 
-export const setPgTypeParser = () => {
-  if (arePgTypesSet) return;
+export const setPgTypeParser = (options?: { force?: boolean }) => {
+  if (arePgTypesSet && !options?.force) return;
 
   arePgTypesSet = true;
 
@@ -20,7 +20,9 @@ export const setPgTypeParser = () => {
   pg.types.setTypeParser(114, (val) => JSONSerializer.deserialize(val));
 };
 
-export const setNodePostgresTypeRawParser = () => {
+export const setPgTypeRawParser = (options?: { force?: boolean }) => {
+  if (arePgTypesSet && !options?.force) return;
+
   arePgTypesSet = true;
 
   // BigInt

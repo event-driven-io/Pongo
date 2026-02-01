@@ -1376,27 +1376,29 @@ void describe('MongoDB Compatibility Tests', () => {
       const rawRows = await pongoDb.sql.query<{ data: UserDocV1 }>(
         SQL`SELECT data FROM "versioning_downcast_upcast" WHERE _id = ${insertResult.insertedId}`,
       );
-      const storedData = rawRows[0]?.data;
+      const { _id, _version, ...storedData } = rawRows[0]!
+        .data as StoredPayload & { _id: string; _version: string };
 
-      assert.deepEqual(
-        {
-          name: storedData?.name,
-          createdAt: storedData?.createdAt,
-          lastLogin: storedData?.lastLogin,
-        },
-        {
-          name: 'Alice',
+      assert.deepEqual(storedData, {
+        name: 'Alice',
+        createdAt: '2024-01-15T10:30:00.000Z',
+        lastLogin: '2024-06-20T14:45:00.000Z',
+        profile: { name: 'Alice' },
+        timestamps: {
           createdAt: '2024-01-15T10:30:00.000Z',
           lastLogin: '2024-06-20T14:45:00.000Z',
         },
-      );
+      });
 
-      const doc = await collection.findOne({ _id: insertResult.insertedId! });
+      const {
+        _id: _ignored,
+        _version: _ignored2,
+        ...doc
+      } = (await collection.findOne({
+        _id: insertResult.insertedId!,
+      })) as UserDocV2 & { _id: string; _version: bigint };
 
-      assert.deepEqual(
-        { profile: doc?.profile, timestamps: doc?.timestamps },
-        v2Doc,
-      );
+      assert.deepEqual(doc, v2Doc);
     });
 
     void it('should handle insertMany with downcast', async () => {
