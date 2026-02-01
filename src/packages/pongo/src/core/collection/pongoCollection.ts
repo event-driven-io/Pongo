@@ -49,6 +49,7 @@ import {
 export type PongoCollectionOptions<
   T extends PongoDocument = PongoDocument,
   DriverType extends DatabaseDriverType = DatabaseDriverType,
+  Payload extends PongoDocument = T,
 > = {
   db: PongoDb<DriverType>;
   collectionName: string;
@@ -56,7 +57,7 @@ export type PongoCollectionOptions<
   schemaComponent: PongoCollectionSchemaComponent;
   schema?: {
     autoMigration?: MigrationStyle;
-    upcast?: <FromDB extends PongoDocument = T>(document: FromDB) => T;
+    versioning?: { upcast?: (doc: Payload) => T };
   };
   errors?: { throwOnOperationFailures?: boolean };
 };
@@ -96,6 +97,7 @@ const columnMapping = {
 export const pongoCollection = <
   T extends PongoDocument,
   DriverType extends DatabaseDriverType = DatabaseDriverType,
+  Payload extends PongoDocument = T,
 >({
   db,
   collectionName,
@@ -103,7 +105,7 @@ export const pongoCollection = <
   schemaComponent,
   schema,
   errors,
-}: PongoCollectionOptions<T, DriverType>): PongoCollection<T> => {
+}: PongoCollectionOptions<T, DriverType, Payload>): PongoCollection<T> => {
   const SqlFor = schemaComponent.sqlBuilder;
   const sqlExecutor = pool.execute;
   const command = async <Result extends QueryResultRow = QueryResultRow>(
@@ -140,7 +142,8 @@ export const pongoCollection = <
     return createCollection(options);
   };
 
-  const upcast = schema?.upcast ?? ((doc) => doc as unknown as T);
+  const upcast =
+    schema?.versioning?.upcast ?? ((doc: Payload) => doc as unknown as T);
 
   const collection = {
     dbName: db.databaseName,
@@ -319,7 +322,7 @@ export const pongoCollection = <
       return upcast({
         ...row.data,
         _version: row._version,
-      }) as WithIdAndVersion<T>;
+      } as unknown as Payload) as WithIdAndVersion<T>;
     },
     findOneAndDelete: async (
       filter: PongoFilter<T>,
@@ -473,7 +476,7 @@ export const pongoCollection = <
           upcast({
             ...row.data,
             _version: row._version,
-          }) as WithIdAndVersion<T>,
+          } as unknown as Payload) as WithIdAndVersion<T>,
       );
     },
     countDocuments: async (
