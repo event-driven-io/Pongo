@@ -85,6 +85,19 @@ const bigIntReviver: JSONReviver = (_key, value, context) => {
   if (typeof value === 'number' && !Number.isSafeInteger(value)) {
     return BigInt(context?.source ?? value.toString());
   }
+  if (typeof value === 'string' && value.length > 15) {
+    const c = value.charCodeAt(0);
+    if ((c >= 48 && c <= 57) || c === 45) {
+      const num = Number(value);
+      if (Number.isFinite(num) && !Number.isSafeInteger(num)) {
+        try {
+          return BigInt(value);
+        } catch {
+          // not a valid bigint string
+        }
+      }
+    }
+  }
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   return value;
 };

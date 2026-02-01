@@ -389,7 +389,7 @@ void describe('JSON Serializer', () => {
 
   void describe('JSONSerializer', () => {
     void it('parses BigInts by default', () => {
-      const json: string = `{"value":${UNSAFE_INTEGER_STR}}`;
+      const json: string = `{"value":"${UNSAFE_INTEGER_STR}"}`;
       const result = JSONSerializer.deserialize<{ value: bigint }>(json);
 
       assert.strictEqual(result.value, UNSAFE_BIGINT);
@@ -486,7 +486,7 @@ void describe('JSON Serializer', () => {
       const codec = JSONCodec<{ value: bigint }>({
         serializerOptions: { parseBigInts: true },
       });
-      const json: string = `{"value":${UNSAFE_INTEGER_STR}}`;
+      const json: string = `{"value":"${UNSAFE_INTEGER_STR}"}`;
       const decoded = codec.decode(json);
 
       assert.strictEqual(decoded.value, UNSAFE_BIGINT);
