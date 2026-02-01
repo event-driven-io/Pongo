@@ -1,4 +1,4 @@
-import type { ObjectCodec, Serializer } from '..';
+import type { SerializationCodec, Serializer } from '..';
 
 interface JSONSerializer<
   SerializeOptions extends JSONSerializeOptions = JSONSerializeOptions,
@@ -25,7 +25,7 @@ interface JSONCodec<
   T,
   SerializeOptions extends JSONSerializeOptions = JSONSerializeOptions,
   DeserializeOptions extends JSONDeserializeOptions = JSONDeserializeOptions,
-> extends ObjectCodec<T, string, SerializeOptions, DeserializeOptions> {
+> extends SerializationCodec<T, string, SerializeOptions, DeserializeOptions> {
   encode(object: T, options?: SerializeOptions): string;
   decode(payload: string, options?: DeserializeOptions): T;
 }
@@ -45,9 +45,9 @@ type JSONSerializationOptions<
 
 type JSONCodecOptions<
   T,
+  Payload = T,
   SerializeOptions extends JSONSerializeOptions = JSONSerializeOptions,
   DeserializeOptions extends JSONDeserializeOptions = JSONDeserializeOptions,
-  Payload = T,
 > = JSONSerializationOptions<SerializeOptions, DeserializeOptions> & {
   upcast?: (document: Payload) => T;
   downcast?: (document: T) => Payload;
@@ -220,11 +220,11 @@ const RawJSONSerializer = jsonSerializer();
 
 const JSONCodec = <
   T,
+  Payload = T,
   SerializeOptions extends JSONSerializeOptions = JSONSerializeOptions,
   DeserializeOptions extends JSONDeserializeOptions = JSONDeserializeOptions,
-  Payload = T,
 >(
-  options: JSONCodecOptions<T, SerializeOptions, DeserializeOptions, Payload>,
+  options: JSONCodecOptions<T, Payload, SerializeOptions, DeserializeOptions>,
 ): JSONCodec<T, SerializeOptions, DeserializeOptions> => {
   const serializer =
     'serializer' in options
