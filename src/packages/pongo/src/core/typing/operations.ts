@@ -61,9 +61,15 @@ export interface PongoSession {
   ): Promise<T>;
 }
 
-export type PongoDBCollectionOptions<T extends PongoDocument> = {
+export type PongoDBCollectionOptions<
+  T extends PongoDocument,
+  Payload extends PongoDocument = T,
+> = {
   schema?: {
-    upcast?: <FromDB extends PongoDocument = T>(document: FromDB) => T;
+    versioning?: {
+      upcast?: (document: Payload) => T;
+      downcast?: (document: T) => Payload;
+    };
   };
   errors?: { throwOnOperationFailures?: boolean };
 };
@@ -74,9 +80,9 @@ export interface PongoDb<ConnectorType extends string = string>
   get databaseName(): string;
   connect(): Promise<void>;
   close(): Promise<void>;
-  collection<T extends PongoDocument>(
+  collection<T extends PongoDocument, Payload extends PongoDocument = T>(
     name: string,
-    options?: PongoDBCollectionOptions<T>,
+    options?: PongoDBCollectionOptions<T, Payload>,
   ): PongoCollection<T>;
   collections(): ReadonlyArray<PongoCollection<PongoDocument>>;
   readonly schema: Readonly<{

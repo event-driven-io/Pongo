@@ -56,7 +56,10 @@ export type PongoCollectionOptions<
   sqlBuilder: PongoCollectionSQLBuilder;
   schema?: {
     autoMigration?: MigrationStyle;
-    versioning?: { upcast?: (doc: Payload) => T };
+    versioning?: {
+      upcast?: (doc: Payload) => T;
+      downcast?: (doc: T) => Payload;
+    };
   };
   errors?: { throwOnOperationFailures?: boolean };
 };
@@ -134,6 +137,9 @@ export const pongoCollection = <
   const upcast =
     schema?.versioning?.upcast ?? ((doc: Payload) => doc as unknown as T);
 
+  const downcast =
+    schema?.versioning?.downcast ?? ((doc: T) => doc as unknown as Payload);
+
   const collection = {
     dbName: db.databaseName,
     collectionName,
@@ -148,13 +154,14 @@ export const pongoCollection = <
 
       const _id = (document._id as string | undefined | null) ?? uuid();
       const _version = document._version ?? 1n;
+      const downcasted = downcast(document as T);
 
       const result = await command(
         SqlFor.insertOne({
-          ...document,
+          ...downcasted,
           _id,
           _version,
-        } as OptionalUnlessRequiredIdAndVersion<T>),
+        } as unknown as OptionalUnlessRequiredIdAndVersion<Payload>),
         options,
       );
 
@@ -175,14 +182,19 @@ export const pongoCollection = <
     ): Promise<PongoInsertManyResult> => {
       await ensureCollectionCreated(options);
 
-      const rows = documents.map((doc) => ({
-        ...doc,
-        _id: (doc._id as string | undefined | null) ?? uuid(),
-        _version: doc._version ?? 1n,
-      }));
+      const rows = documents.map((doc) => {
+        const downcasted = downcast(doc as T);
+        return {
+          ...downcasted,
+          _id: (doc._id as string | undefined | null) ?? uuid(),
+          _version: doc._version ?? 1n,
+        };
+      });
 
       const result = await command(
-        SqlFor.insertMany(rows as OptionalUnlessRequiredIdAndVersion<T>[]),
+        SqlFor.insertMany(
+          rows as unknown as OptionalUnlessRequiredIdAndVersion<Payload>[],
+        ),
         options,
       );
 
@@ -226,8 +238,10 @@ export const pongoCollection = <
     ): Promise<PongoUpdateResult> => {
       await ensureCollectionCreated(options);
 
+      const downcasted = downcast(document as T) as unknown as WithoutId<T>;
+
       const result = await command<UpdateSqlResult>(
-        SqlFor.replaceOne(filter, document, options),
+        SqlFor.replaceOne(filter, downcasted, options),
         options,
       );
       return operationResult<PongoUpdateResult>(
