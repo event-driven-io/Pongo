@@ -17,6 +17,25 @@ const UNSAFE_INTEGER = Number.MAX_SAFE_INTEGER + 2;
 const UNSAFE_INTEGER_STR = '9007199254740993';
 const UNSAFE_BIGINT = 9007199254740993n;
 
+// Detect if JSON.parse reviver supports context.source (Node 21+)
+const supportsReviverSource = (() => {
+  let hasSource = false;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-call
+  (JSON.parse as any)(
+    '1',
+    (
+      _key: string,
+      _value: unknown,
+      context: { source?: string } | undefined,
+    ) => {
+      hasSource = context?.source !== undefined;
+    },
+  );
+  return hasSource;
+})();
+
+const itWithSource = supportsReviverSource ? it : it.skip;
+
 void describe('JSON Serializer', () => {
   void describe('JSONReplacers', () => {
     void describe('bigInt', () => {
@@ -82,6 +101,74 @@ void describe('JSON Serializer', () => {
         }) as number;
 
         assert.strictEqual(result, 42);
+      });
+
+      void it('passes zero through unchanged', () => {
+        const result = JSONRevivers.bigInt('key', 0, {
+          source: '0',
+        }) as number;
+
+        assert.strictEqual(result, 0);
+      });
+
+      void it('passes negative integers through unchanged', () => {
+        const result = JSONRevivers.bigInt('key', -500, {
+          source: '-500',
+        }) as number;
+
+        assert.strictEqual(result, -500);
+      });
+
+      void it('passes max safe integer through unchanged', () => {
+        const result = JSONRevivers.bigInt('key', Number.MAX_SAFE_INTEGER, {
+          source: '9007199254740991',
+        }) as number;
+
+        assert.strictEqual(result, Number.MAX_SAFE_INTEGER);
+      });
+
+      void it('passes min safe integer through unchanged', () => {
+        const result = JSONRevivers.bigInt('key', Number.MIN_SAFE_INTEGER, {
+          source: '-9007199254740991',
+        }) as number;
+
+        assert.strictEqual(result, Number.MIN_SAFE_INTEGER);
+      });
+
+      void it('passes floating point numbers through unchanged', () => {
+        const floatValue: number = 3.14159;
+        const result = JSONRevivers.bigInt('key', floatValue, {
+          source: '3.14159',
+        }) as number;
+
+        assert.strictEqual(result, 3.14159);
+      });
+
+      void it('passes small floating point numbers through unchanged', () => {
+        const floatValue: number = 0.001;
+        const result = JSONRevivers.bigInt('key', floatValue, {
+          source: '0.001',
+        }) as number;
+
+        assert.strictEqual(result, 0.001);
+      });
+
+      void it('passes large floating point numbers through unchanged', () => {
+        const floatValue: number = 1.7976931348623157e308;
+        const result = JSONRevivers.bigInt('key', floatValue, {
+          source: '1.7976931348623157e+308',
+        }) as number;
+
+        assert.strictEqual(result, 1.7976931348623157e308);
+      });
+
+      void it('passes negative floating point numbers through unchanged', () => {
+        const floatValue: number = -19.99;
+        const result = JSONRevivers.bigInt('key', floatValue, {
+          source: '-19.99',
+        }) as number;
+
+        assert.strictEqual(result, -19.99);
       });
 
       void it('passes non-numbers through unchanged', () => {
@@ -333,6 +420,138 @@ void describe('JSON Serializer', () => {
   });
 
   void describe('jsonSerializer', () => {
+    void describe('number type preservation with parseBigInts', () => {
+      void it('preserves regular integers as numbers in JSON', () => {
+        const serializer = jsonSerializer({ parseBigInts: true });
+        const json = '{"count":42}';
+        const result = serializer.deserialize<{ count: number }>(json);
+
+        assert.strictEqual(result.count, 42);
+        assert.strictEqual(typeof result.count, 'number');
+      });
+
+      void it('preserves zero as number in JSON', () => {
+        const serializer = jsonSerializer({ parseBigInts: true });
+        const json = '{"value":0}';
+        const result = serializer.deserialize<{ value: number }>(json);
+
+        assert.strictEqual(result.value, 0);
+        assert.strictEqual(typeof result.value, 'number');
+      });
+
+      void it('preserves negative integers as numbers in JSON', () => {
+        const serializer = jsonSerializer({ parseBigInts: true });
+        const json = '{"value":-999}';
+        const result = serializer.deserialize<{ value: number }>(json);
+
+        assert.strictEqual(result.value, -999);
+        assert.strictEqual(typeof result.value, 'number');
+      });
+
+      void it('preserves floating point numbers in JSON', () => {
+        const serializer = jsonSerializer({ parseBigInts: true });
+        const json = '{"price":19.99}';
+        const result = serializer.deserialize<{ price: number }>(json);
+
+        assert.strictEqual(result.price, 19.99);
+        assert.strictEqual(typeof result.price, 'number');
+      });
+
+      void it('preserves small floating point numbers in JSON', () => {
+        const serializer = jsonSerializer({ parseBigInts: true });
+        const json = '{"rate":0.001}';
+        const result = serializer.deserialize<{ rate: number }>(json);
+
+        assert.strictEqual(result.rate, 0.001);
+        assert.strictEqual(typeof result.rate, 'number');
+      });
+
+      void it('preserves negative floating point numbers in JSON', () => {
+        const serializer = jsonSerializer({ parseBigInts: true });
+        const json = '{"change":-3.14}';
+        const result = serializer.deserialize<{ change: number }>(json);
+
+        assert.strictEqual(result.change, -3.14);
+        assert.strictEqual(typeof result.change, 'number');
+      });
+
+      void itWithSource('converts unsafe integers to BigInt in JSON', () => {
+        const serializer = jsonSerializer({ parseBigInts: true });
+        const json = `{"id":${UNSAFE_INTEGER_STR}}`;
+        const result = serializer.deserialize<{ id: bigint }>(json);
+
+        assert.strictEqual(result.id, UNSAFE_BIGINT);
+        assert.strictEqual(typeof result.id, 'bigint');
+      });
+
+      void itWithSource('handles mixed numeric types in same object', () => {
+        const serializer = jsonSerializer({ parseBigInts: true });
+        const json = `{"count":42,"price":19.99,"bigId":${UNSAFE_INTEGER_STR}}`;
+        const result = serializer.deserialize<{
+          count: number;
+          price: number;
+          bigId: bigint;
+        }>(json);
+
+        assert.strictEqual(result.count, 42);
+        assert.strictEqual(typeof result.count, 'number');
+
+        assert.strictEqual(result.price, 19.99);
+        assert.strictEqual(typeof result.price, 'number');
+
+        assert.strictEqual(result.bigId, UNSAFE_BIGINT);
+        assert.strictEqual(typeof result.bigId, 'bigint');
+      });
+
+      void it('preserves max safe integer as number', () => {
+        const serializer = jsonSerializer({ parseBigInts: true });
+        const json = `{"value":${Number.MAX_SAFE_INTEGER}}`;
+        const result = serializer.deserialize<{ value: number }>(json);
+
+        assert.strictEqual(result.value, Number.MAX_SAFE_INTEGER);
+        assert.strictEqual(typeof result.value, 'number');
+      });
+
+      void itWithSource(
+        'handles nested objects with mixed numeric types',
+        () => {
+          const serializer = jsonSerializer({ parseBigInts: true });
+          const json = `{"user":{"age":30,"balance":${UNSAFE_INTEGER_STR}},"meta":{"rate":0.5}}`;
+          const result = serializer.deserialize<{
+            user: { age: number; balance: bigint };
+            meta: { rate: number };
+          }>(json);
+
+          assert.strictEqual(result.user.age, 30);
+          assert.strictEqual(typeof result.user.age, 'number');
+
+          assert.strictEqual(result.user.balance, UNSAFE_BIGINT);
+          assert.strictEqual(typeof result.user.balance, 'bigint');
+
+          assert.strictEqual(result.meta.rate, 0.5);
+          assert.strictEqual(typeof result.meta.rate, 'number');
+        },
+      );
+
+      void itWithSource('handles arrays with mixed numeric types', () => {
+        const serializer = jsonSerializer({ parseBigInts: true });
+        const json = `[1, 2.5, ${UNSAFE_INTEGER_STR}, -10]`;
+        const result = serializer.deserialize<(number | bigint)[]>(json);
+
+        assert.strictEqual(result[0], 1);
+        assert.strictEqual(typeof result[0], 'number');
+
+        assert.strictEqual(result[1], 2.5);
+        assert.strictEqual(typeof result[1], 'number');
+
+        assert.strictEqual(result[2], UNSAFE_BIGINT);
+        assert.strictEqual(typeof result[2], 'bigint');
+
+        assert.strictEqual(result[3], -10);
+        assert.strictEqual(typeof result[3], 'number');
+      });
+    });
+
     void it('serializes with default replacer', () => {
       const serializer = jsonSerializer({ parseBigInts: true });
       const data: { value: bigint } = { value: 123n };
