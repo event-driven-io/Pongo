@@ -92,8 +92,17 @@ const isFirstLetterNumericOrMinus = (str: string): boolean => {
 };
 
 const bigIntReviver: JSONReviver = (_key, value, context) => {
-  if (typeof value === 'number' && !Number.isSafeInteger(value)) {
-    return BigInt(context?.source ?? value.toString());
+  if (
+    typeof value === 'number' &&
+    Number.isInteger(value) &&
+    !Number.isSafeInteger(value)
+  ) {
+    try {
+      return BigInt(context?.source ?? value.toString());
+    } catch {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+      return value;
+    }
   }
   if (typeof value === 'string' && value.length > 15) {
     if (isFirstLetterNumericOrMinus(value)) {
