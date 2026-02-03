@@ -11,6 +11,7 @@ import {
   defaultPostgreSqlDatabase,
   getDatabaseNameOrDefault,
 } from '../../core';
+import { setPgTypeParser } from '../serialization';
 import {
   pgConnection,
   PgDriverType,
@@ -42,7 +43,16 @@ export const pgNativePool = (options: {
   const getConnection = () =>
     pgConnection({
       type: 'PoolClient',
-      connect: () => pool.connect(),
+      connect: async () => {
+        const client = await pool.connect();
+
+        setPgTypeParser(client, {
+          parseBigInts: true,
+          serializer: options.serializer,
+        });
+
+        return client;
+      },
       close: (client) => Promise.resolve(client.release()),
       serializer: options.serializer,
     });
@@ -99,6 +109,12 @@ export const pgClientPool = (options: {
     getConnection: () => {
       const connect = async () => {
         const client = new pg.Client({ connectionString, database });
+
+        setPgTypeParser(client, {
+          parseBigInts: true,
+          serializer: options.serializer,
+        });
+
         await client.connect();
         return client;
       };
