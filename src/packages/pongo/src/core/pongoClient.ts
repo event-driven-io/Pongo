@@ -26,7 +26,8 @@ export const pongoClient = <
   ExtractPongoDatabaseTypeFromDriver<DatabaseDriver>
 > &
   PongoClientWithSchema<TypedClientSchema> => {
-  const { driver, schema, errors, ...connectionOptions } = options;
+  const { driver, schema, errors, serialization, ...connectionOptions } =
+    options;
 
   const dbClients = PongoDatabaseCache<PongoDb, TypedClientSchema>({
     driver,
@@ -51,6 +52,7 @@ export const pongoClient = <
       const db = dbClients.getOrCreate({
         ...connectionOptions,
         databaseName: dbName,
+        serialization,
         errors,
       });
 

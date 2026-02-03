@@ -2,6 +2,8 @@ import {
   type AnyConnection,
   type DatabaseDriverType,
   type DatabaseTransaction,
+  type JSONDeserializeOptions,
+  type JSONSerializeOptions,
   JSONSerializer,
   type MigrationStyle,
   type QueryResult,
@@ -51,6 +53,12 @@ export type PongoClientOptions<
             | { autoMigration?: MigrationStyle; definition?: TypedClientSchema }
             | undefined;
           errors?: { throwOnOperationFailures?: boolean } | undefined;
+          serialization?:
+            | {
+                serializer?: JSONSerializer;
+                options?: JSONSerializeOptions | JSONDeserializeOptions;
+              }
+            | undefined;
         } & Omit<Options, 'driver'>
       : never
     : never;
@@ -108,6 +116,12 @@ export type PongoDBCollectionOptions<
       downcast?: (document: T) => Payload;
     };
   };
+  serialization?:
+    | {
+        serializer?: JSONSerializer;
+        options?: JSONSerializeOptions | JSONDeserializeOptions;
+      }
+    | undefined;
   errors?: { throwOnOperationFailures?: boolean };
 };
 

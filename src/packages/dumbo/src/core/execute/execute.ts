@@ -6,12 +6,13 @@ import { type SQL, type SQLFormatter } from '../sql';
 
 export const mapColumnToJSON = (
   column: string,
+  serializer: JSONSerializer,
   options?: JSONDeserializeOptions,
 ) => ({
   [column]: (value: unknown) => {
     if (typeof value === 'string') {
       try {
-        return JSONSerializer.deserialize(value, options);
+        return serializer.deserialize(value, options);
       } catch {
         // ignore
       }
@@ -25,6 +26,16 @@ export const mapColumnToBigint = (column: string) => ({
   [column]: (value: unknown) => {
     if (typeof value === 'number' || typeof value === 'string') {
       return BigInt(value);
+    }
+
+    return value;
+  },
+});
+
+export const mapColumnToDate = (column: string) => ({
+  [column]: (value: unknown) => {
+    if (typeof value === 'number' || typeof value === 'string') {
+      return new Date(value);
     }
 
     return value;

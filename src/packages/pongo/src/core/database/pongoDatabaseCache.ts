@@ -1,5 +1,8 @@
 import type {
   DatabaseDriverType,
+  JSONDeserializeOptions,
+  JSONSerializeOptions,
+  JSONSerializer,
   MigrationStyle,
 } from '@event-driven-io/dumbo';
 import type {
@@ -35,6 +38,12 @@ export const PongoDatabaseCache = <
         PongoDatabaseFactoryOptions<CollectionsSchema>,
         'schema'
       > & {
+        serialization?:
+          | {
+              serializer?: JSONSerializer;
+              options?: JSONSerializeOptions | JSONDeserializeOptions;
+            }
+          | undefined;
         schema?: {
           autoMigration?: MigrationStyle;
         };
