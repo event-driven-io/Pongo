@@ -1,4 +1,5 @@
 import {
+  mapColumnToBigint,
   mapColumnToJSON,
   runSQLMigrations,
   single,
@@ -93,7 +94,7 @@ const columnMapping = {
   mapping: {
     ...mapColumnToJSON('data'),
     //...mapColumnToJSON('metadata'),
-    //...mapColumnToBigint('_version'),
+    ...mapColumnToBigint('_version'),
   } satisfies SQLQueryResultColumnMapping,
 };
 
