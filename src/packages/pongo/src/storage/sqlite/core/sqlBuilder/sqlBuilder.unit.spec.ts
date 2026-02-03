@@ -46,7 +46,7 @@ void describe('sqliteSQLBuilder', () => {
       const result = builder.find({});
       const { query } = SQL.format(result, sqliteFormatter);
 
-      assert.ok(query.includes('SELECT data FROM'));
+      assert.ok(query.includes('SELECT data, _version FROM'));
       assert.ok(!query.includes('WHERE'));
     });
 

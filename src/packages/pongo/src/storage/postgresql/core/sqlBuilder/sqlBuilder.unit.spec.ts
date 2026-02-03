@@ -8,7 +8,7 @@ void describe('find() query options', () => {
   void it('should apply limit correctly', () => {
     const query = postgresSQLBuilder('users').find({}, { limit: 4 });
     assert.deepStrictEqual(SQL.format(query, pgFormatter), {
-      query: 'SELECT data FROM users LIMIT $1 ;',
+      query: 'SELECT data, _version FROM users LIMIT $1 ;',
       params: [4],
     });
   });
@@ -16,7 +16,7 @@ void describe('find() query options', () => {
   void it('should apply offset correctly', () => {
     const query = postgresSQLBuilder('users').find({}, { skip: 123 });
     assert.deepStrictEqual(SQL.format(query, pgFormatter), {
-      query: 'SELECT data FROM users OFFSET $1 ;',
+      query: 'SELECT data, _version FROM users OFFSET $1 ;',
       params: [123],
     });
   });
@@ -27,7 +27,7 @@ void describe('find() query options', () => {
       { limit: 20, skip: 123 },
     );
     assert.deepStrictEqual(SQL.format(query, pgFormatter), {
-      query: 'SELECT data FROM users LIMIT $1 OFFSET $2 ;',
+      query: 'SELECT data, _version FROM users LIMIT $1 OFFSET $2 ;',
       params: [20, 123],
     });
   });
