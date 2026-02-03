@@ -1,9 +1,9 @@
 import {
+  JSONSerializer,
   runSQLMigrations,
   SQL,
   type DatabaseDriverType,
   type Dumbo,
-  type JSONSerializationOptions,
   type MigrationStyle,
   type QueryResult,
   type QueryResultRow,
@@ -39,6 +39,7 @@ export type PongoDatabaseOptions<
 > = {
   databaseName: string;
   pool: DumboType;
+  serializer: JSONSerializer;
   schemaComponent: PongoDatabaseSchemaComponent<DumboType['driverType']>;
   schema?:
     | {
@@ -47,7 +48,7 @@ export type PongoDatabaseOptions<
       }
     | undefined;
   errors?: { throwOnOperationFailures?: boolean } | undefined;
-} & JSONSerializationOptions;
+};
 
 export const PongoDatabase = <
   Database extends AnyPongoDb = AnyPongoDb,
@@ -60,7 +61,7 @@ export const PongoDatabase = <
 >(
   options: PongoDatabaseOptions<DumboType>,
 ): Database => {
-  const { databaseName, schemaComponent, pool, serialization } = options;
+  const { databaseName, schemaComponent, pool, serializer } = options;
 
   const collections = new Map<string, PongoCollection<Document>>();
 
@@ -102,10 +103,7 @@ export const PongoDatabase = <
           pongoSchema.collection<T>(collectionName),
         ),
         schema: { ...options.schema, ...collectionOptions?.schema },
-        serialization: {
-          ...serialization,
-          ...collectionOptions?.serialization,
-        },
+        serializer,
         errors: { ...options.errors, ...collectionOptions?.errors },
       }),
     transaction: () => pool.transaction(),
