@@ -8,7 +8,6 @@ import {
   type DatabaseDriverType,
   type DatabaseTransaction,
   type Dumbo,
-  type JSONSerializationOptions,
   type MigrationStyle,
   type QueryResult,
   type QueryResultRow,
@@ -66,7 +65,8 @@ export type PongoCollectionOptions<
     };
   };
   errors?: { throwOnOperationFailures?: boolean };
-} & JSONSerializationOptions;
+  serializer: JSONSerializer;
+};
 
 const enlistIntoTransactionIfActive = async <
   DriverType extends DatabaseDriverType = DatabaseDriverType,
@@ -103,12 +103,10 @@ export const pongoCollection = <
   schemaComponent,
   schema,
   errors,
-  serialization,
+  serializer,
 }: PongoCollectionOptions<T, DriverType, Payload>): PongoCollection<T> => {
   const SqlFor = schemaComponent.sqlBuilder;
   const sqlExecutor = pool.execute;
-
-  const serializer = JSONSerializer.from({ serialization });
 
   const columnMapping = {
     mapping: {

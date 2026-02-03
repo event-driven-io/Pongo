@@ -1,6 +1,7 @@
 import {
   combineMigrations,
   dumbo,
+  JSONSerializer,
   parseConnectionString,
   runSQLMigrations,
   type DatabaseDriverType,
@@ -206,6 +207,7 @@ const getMigrations = ({
     AnyPongoDatabaseDriverOptions
   > = {
     schema: { definition: dbDefinition },
+    serializer: JSONSerializer,
   };
 
   const customOptions = {

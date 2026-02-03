@@ -8,7 +8,7 @@ import { pgPool } from '.';
 import { pgDatabaseDriver } from '..';
 import { SQL } from '../../../../core';
 import { dumbo } from '../../../all';
-import { endPool, getPool } from './pool';
+import { endPool, getPgPool } from './pool';
 
 void describe('pg', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -39,7 +39,7 @@ void describe('pg', () => {
     });
 
     void it('connects using ambient pool', async () => {
-      const nativePool = getPool(connectionString);
+      const nativePool = getPgPool(connectionString);
       const pool = pgPool({ connectionString, pool: nativePool });
       const connection = await pool.connection();
 

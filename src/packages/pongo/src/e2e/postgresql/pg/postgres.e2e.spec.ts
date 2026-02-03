@@ -44,6 +44,7 @@ void describe('MongoDB Compatibility Tests', () => {
 
   let pongoDb: PongoDb;
   let mongoDb: Db;
+  let dbName: string;
 
   before(async () => {
     postgres = await new PostgreSqlContainer('postgres:18.0').start();
@@ -58,7 +59,7 @@ void describe('MongoDB Compatibility Tests', () => {
     await client.connect();
     await shim.connect();
 
-    const dbName = postgres.getDatabase();
+    dbName = postgres.getDatabase();
 
     pongoDb = client.db(dbName);
     mongoDb = shim.db(dbName);
@@ -1322,30 +1323,38 @@ void describe('MongoDB Compatibility Tests', () => {
   });
 
   void describe('Serialization', () => {
-    void it('should serialize and deserialize Date objects', async () => {
-      const collection = pongoDb.collection<User>('serialization_date_test', {
+    void it('should serialize and deserialize Date objects with custom serialization settings', async () => {
+      const client = pongoClient({
+        driver: databaseDriver,
+        connectionString: postgresConnectionString,
         serialization: { options: { parseDates: true } },
       });
+      try {
+        const db = client.db(dbName);
+        const collection = db.collection<User>('serialization_date_test');
 
-      const originalDoc: User = {
-        name: 'Date Test',
-        age: 40,
-        date: new Date('2024-05-01T10:00:00.000Z'),
-      };
+        const originalDoc: User = {
+          name: 'Date Test',
+          age: 40,
+          date: new Date('2024-05-01T10:00:00.000Z'),
+        };
 
-      const insertResult = await collection.insertOne(originalDoc);
-      assert.ok(insertResult.successful);
+        const insertResult = await collection.insertOne(originalDoc);
+        assert.ok(insertResult.successful);
 
-      const fetchedDoc = await collection.findOne({
-        _id: insertResult.insertedId!,
-      });
-      assert.ok(fetchedDoc);
-      assert.ok(fetchedDoc.date);
+        const fetchedDoc = await collection.findOne({
+          _id: insertResult.insertedId!,
+        });
+        assert.ok(fetchedDoc);
+        assert.ok(fetchedDoc.date);
 
-      assert.strictEqual(
-        fetchedDoc.date?.getTime(),
-        originalDoc.date?.getTime(),
-      );
+        assert.strictEqual(
+          fetchedDoc.date?.getTime(),
+          originalDoc.date?.getTime(),
+        );
+      } finally {
+        await client.close();
+      }
     });
 
     void it('should NOT deserialize Date objects with default settings', async () => {
@@ -1369,26 +1378,34 @@ void describe('MongoDB Compatibility Tests', () => {
       assert.strictEqual(fetchedDoc.date, '2024-05-01T10:00:00.000Z');
     });
 
-    void it('should serialize and deserialize bigint objects', async () => {
-      const collection = pongoDb.collection<User>('serialization_bigint_test', {
+    void it('should serialize and deserialize bigint objects with custom serialization settings', async () => {
+      const client = pongoClient({
+        driver: databaseDriver,
+        connectionString: postgresConnectionString,
         serialization: { options: { parseBigInts: true } },
       });
+      try {
+        const db = client.db(dbName);
+        const collection = db.collection<User>('serialization_bigint_test');
 
-      const originalDoc: User = {
-        name: 'BigInt Test',
-        age: 40,
-        bigInt: 12345678901234567890n,
-      };
+        const originalDoc: User = {
+          name: 'BigInt Test',
+          age: 40,
+          bigInt: 12345678901234567890n,
+        };
 
-      const insertResult = await collection.insertOne(originalDoc);
-      assert.ok(insertResult.successful);
+        const insertResult = await collection.insertOne(originalDoc);
+        assert.ok(insertResult.successful);
 
-      const fetchedDoc = await collection.findOne({
-        _id: insertResult.insertedId!,
-      });
-      assert.ok(fetchedDoc);
-      assert.ok(fetchedDoc.bigInt);
-      assert.strictEqual(fetchedDoc.bigInt, originalDoc.bigInt);
+        const fetchedDoc = await collection.findOne({
+          _id: insertResult.insertedId!,
+        });
+        assert.ok(fetchedDoc);
+        assert.ok(fetchedDoc.bigInt);
+        assert.strictEqual(fetchedDoc.bigInt, originalDoc.bigInt);
+      } finally {
+        await client.close();
+      }
     });
 
     void it('should NOT deserialize bigint objects with default settings', async () => {

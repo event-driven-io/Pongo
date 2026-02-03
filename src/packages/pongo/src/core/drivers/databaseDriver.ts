@@ -1,8 +1,6 @@
 import type {
   DatabaseDriverType,
-  JSONDeserializeOptions,
   JSONSerializationOptions,
-  JSONSerializeOptions,
   JSONSerializer,
   MigrationStyle,
 } from '@event-driven-io/dumbo';
@@ -31,12 +29,7 @@ export type PongoDatabaseFactoryOptions<
         definition?: PongoDbSchema<CollectionsSchema>;
       }
     | undefined;
-  serialization?:
-    | {
-        serializer?: JSONSerializer;
-        options?: JSONSerializeOptions | JSONDeserializeOptions;
-      }
-    | undefined;
+  serializer: JSONSerializer;
   errors?: { throwOnOperationFailures?: boolean } | undefined;
 } & DriverOptions;
 

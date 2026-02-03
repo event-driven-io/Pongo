@@ -1,3 +1,4 @@
+import { JSONSerializer } from '@event-driven-io/dumbo';
 import { PongoDatabaseCache } from './database';
 import type {
   AnyPongoDatabaseDriver,
@@ -26,13 +27,14 @@ export const pongoClient = <
   ExtractPongoDatabaseTypeFromDriver<DatabaseDriver>
 > &
   PongoClientWithSchema<TypedClientSchema> => {
-  const { driver, schema, errors, serialization, ...connectionOptions } =
-    options;
+  const { driver, schema, errors, ...connectionOptions } = options;
 
   const dbClients = PongoDatabaseCache<PongoDb, TypedClientSchema>({
     driver,
     typedSchema: schema?.definition,
   });
+
+  const serializer = JSONSerializer.from(options);
 
   const pongoClient: PongoClient<
     DatabaseDriver['driverType'],
@@ -52,7 +54,7 @@ export const pongoClient = <
       const db = dbClients.getOrCreate({
         ...connectionOptions,
         databaseName: dbName,
-        serialization,
+        serializer,
         errors,
       });
 

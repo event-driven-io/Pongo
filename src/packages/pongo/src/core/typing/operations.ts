@@ -111,7 +111,7 @@ export type PongoDBCollectionOptions<
     };
   };
   errors?: { throwOnOperationFailures?: boolean };
-} & JSONSerializationOptions;
+};
 
 export interface PongoDb<
   DriverType extends DatabaseDriverType = DatabaseDriverType,

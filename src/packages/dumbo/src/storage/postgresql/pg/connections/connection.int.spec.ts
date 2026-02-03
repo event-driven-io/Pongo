@@ -6,7 +6,7 @@ import { after, before, describe, it } from 'node:test';
 import pg from 'pg';
 import { pgPool } from '.';
 import { SQL } from '../../../../core';
-import { endPool, getPool } from './pool';
+import { endPool, getPgPool } from './pool';
 
 void describe('pg', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -37,7 +37,7 @@ void describe('pg', () => {
     });
 
     void it('connects using ambient pool', async () => {
-      const nativePool = getPool(connectionString);
+      const nativePool = getPgPool(connectionString);
       const pool = pgPool({ connectionString, pool: nativePool });
       const connection = await pool.connection();
 
