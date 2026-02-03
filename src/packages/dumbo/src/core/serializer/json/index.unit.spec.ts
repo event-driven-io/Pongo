@@ -10,7 +10,6 @@ import {
   JSONRevivers,
   JSONSerializer,
   jsonSerializer,
-  RawJSONSerializer,
 } from '.';
 
 const UNSAFE_INTEGER = Number.MAX_SAFE_INTEGER + 2;
@@ -357,10 +356,10 @@ void describe('JSON Serializer', () => {
       );
     });
 
-    void it('returns undefined for empty options', () => {
+    void it('returns default replacers for empty options', () => {
       const replacer = JSONReplacer({});
 
-      assert.strictEqual(replacer, undefined);
+      assert.notStrictEqual(replacer, undefined);
     });
   });
 
@@ -607,33 +606,25 @@ void describe('JSON Serializer', () => {
   });
 
   void describe('JSONSerializer', () => {
-    void it('parses BigInts by default', () => {
-      const json: string = `{"value":"${UNSAFE_INTEGER_STR}"}`;
+    void it('does not parse BigInt numbers', () => {
+      const json: string = `{"value":${UNSAFE_INTEGER_STR}}`;
       const result = JSONSerializer.deserialize<{ value: bigint }>(json);
 
-      assert.strictEqual(result.value, UNSAFE_BIGINT);
-    });
-
-    void it('serializes BigInts by default', () => {
-      const data: { value: bigint } = { value: UNSAFE_BIGINT };
-      const result: string = JSONSerializer.serialize(data);
-
-      assert.strictEqual(result, `{"value":"${UNSAFE_INTEGER_STR}"}`);
-    });
-  });
-
-  void describe('RawJSONSerializer', () => {
-    void it('does not parse BigInts', () => {
-      const json: string = '{"value":42}';
-      const result = RawJSONSerializer.deserialize<{ value: number }>(json);
-
-      assert.strictEqual(result.value, 42);
+      assert.strictEqual(result.value, 9007199254740992);
       assert.strictEqual(typeof result.value, 'number');
+    });
+
+    void it('does not parse BigInt strings', () => {
+      const json: string = '{"value":"42"}';
+      const result = JSONSerializer.deserialize<{ value: bigint }>(json);
+
+      assert.strictEqual(result.value, '42');
+      assert.strictEqual(typeof result.value, 'string');
     });
 
     void it('serializes without special handling', () => {
       const data: { name: string; count: number } = { name: 'test', count: 42 };
-      const result: string = RawJSONSerializer.serialize(data);
+      const result: string = JSONSerializer.serialize(data);
 
       assert.strictEqual(result, '{"name":"test","count":42}');
     });
