@@ -8,7 +8,7 @@ import { pgPool } from '.';
 import { pgDatabaseDriver } from '..';
 import { SQL } from '../../../../core';
 import { dumbo } from '../../../all';
-import { endPool, getPgPool } from './pool';
+import { endPgPool, getPgPool } from './pool';
 
 void describe('pg', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -48,7 +48,7 @@ void describe('pg', () => {
       } finally {
         await connection.close();
         await pool.close();
-        await endPool({ connectionString });
+        await endPgPool({ connectionString });
       }
     });
 

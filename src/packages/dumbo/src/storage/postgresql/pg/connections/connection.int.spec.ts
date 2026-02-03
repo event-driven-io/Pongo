@@ -6,7 +6,7 @@ import { after, before, describe, it } from 'node:test';
 import pg from 'pg';
 import { pgPool } from '.';
 import { SQL } from '../../../../core';
-import { endPool, getPgPool } from './pool';
+import { endPgPool, getPgPool } from './pool';
 
 void describe('pg', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -46,7 +46,7 @@ void describe('pg', () => {
       } finally {
         await connection.close();
         await pool.close();
-        await endPool({ connectionString });
+        await endPgPool({ connectionString });
       }
     });
 

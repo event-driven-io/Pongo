@@ -42,6 +42,7 @@ const sqlite3DatabaseDriver: PongoDatabaseDriver<
         connectionString: options.connectionString,
         driver: dumboDriver,
         ...options.connectionOptions,
+        serialization: { serializer: options.serializer },
       }),
       schemaComponent: PongoDatabaseSchemaComponent({
         driverType: SQLite3DriverType,
