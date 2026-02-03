@@ -1,5 +1,6 @@
 import pg from 'pg';
 import {
+  mapSQLQueryResult,
   tracer,
   type DbSQLExecutor,
   type QueryResult,
@@ -86,10 +87,20 @@ async function batch<Result extends QueryResultRow = QueryResultRow>(
       params,
       debugSQL: pgFormatter.describe(sqls[i]!),
     });
-    const result =
+    let result =
       params.length > 0
         ? await client.query<Result>(query, params)
         : await client.query<Result>(query);
+
+    if (options?.mapping) {
+      result = {
+        ...result,
+        rows: result.rows.map((row) =>
+          mapSQLQueryResult(row, options.mapping!),
+        ),
+      };
+    }
+
     results[i] = { rowCount: result.rowCount, rows: result.rows };
   }
   return Array.isArray(sqlOrSqls) ? results : results[0]!;
