@@ -1,4 +1,4 @@
-import { SQL } from '@event-driven-io/dumbo';
+import { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import { sqliteFormatter } from '@event-driven-io/dumbo/sqlite3';
 import { randomUUID } from 'crypto';
 import assert from 'node:assert/strict';
@@ -7,7 +7,7 @@ import { sqliteSQLBuilder } from './index';
 
 void describe('sqliteSQLBuilder', () => {
   const collectionName = 'testCollection';
-  const builder = sqliteSQLBuilder(collectionName);
+  const builder = sqliteSQLBuilder(collectionName, JSONSerializer);
 
   void describe('createCollection', () => {
     void it('should generate correct CREATE TABLE statement', () => {

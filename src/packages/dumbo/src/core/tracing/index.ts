@@ -72,11 +72,14 @@ type TraceEventFormatter = (event: any) => string;
 const nulloTraceEventRecorder: TraceEventRecorder = () => {};
 
 const getTraceEventFormatter =
-  (logStyle: LogStyle): TraceEventFormatter =>
+  (
+    logStyle: LogStyle,
+    serializer: JSONSerializer = JSONSerializer,
+  ): TraceEventFormatter =>
   (event) => {
     switch (logStyle) {
       case 'RAW':
-        return JSONSerializer.serialize(event);
+        return serializer.serialize(event);
       case 'PRETTY':
         return prettyJson(event, { handleMultiline: true });
     }

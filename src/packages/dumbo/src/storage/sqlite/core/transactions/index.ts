@@ -1,4 +1,5 @@
 import {
+  JSONSerializer,
   SQL,
   sqlExecutor,
   type DatabaseTransaction,
@@ -21,6 +22,7 @@ export const sqliteTransaction =
     driverType: ConnectionType['driverType'],
     connection: () => ConnectionType,
     allowNestedTransactions: boolean,
+    serializer: JSONSerializer,
   ) =>
   (
     getClient: Promise<InferDbClientFromConnection<ConnectionType>>,
@@ -98,7 +100,7 @@ export const sqliteTransaction =
             );
         }
       },
-      execute: sqlExecutor(sqliteSQLExecutor(driverType), {
+      execute: sqlExecutor(sqliteSQLExecutor(driverType, serializer), {
         connect: () => getClient,
       }),
     };

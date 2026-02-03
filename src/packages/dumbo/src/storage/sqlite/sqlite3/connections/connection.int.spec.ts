@@ -3,7 +3,7 @@ import fs from 'fs';
 import { afterEach, describe, it } from 'node:test';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { SQL } from '../../../../core';
+import { JSONSerializer, SQL } from '../../../../core';
 import { sqlite3Client, sqlite3Pool } from '../../../../sqlite3';
 import { InMemorySQLiteDatabase } from '../../core';
 
@@ -133,7 +133,10 @@ void describe('Node SQLite3 pool', () => {
       });
 
       void it('connects using ambient client', async () => {
-        const existingClient = sqlite3Client({ fileName });
+        const existingClient = sqlite3Client({
+          fileName,
+          serializer: JSONSerializer,
+        });
         await existingClient.connect();
 
         const pool = sqlite3Pool({

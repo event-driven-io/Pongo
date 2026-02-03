@@ -1,4 +1,4 @@
-import { dumbo } from '@event-driven-io/dumbo';
+import { dumbo, JSONSerializer } from '@event-driven-io/dumbo';
 import {
   sqlite3DatabaseDriver as dumboDriver,
   SQLite3DriverType,
@@ -52,7 +52,10 @@ const sqlite3DatabaseDriver: PongoDatabaseDriver<
             migrationsOrSchemaComponents: {
               migrations: pongoCollectionSQLiteMigrations(schema.name),
             },
-            sqlBuilder: sqliteSQLBuilder(schema.name),
+            sqlBuilder: sqliteSQLBuilder(
+              schema.name,
+              options.serialization?.serializer ?? JSONSerializer,
+            ),
           }),
         definition:
           options.schema?.definition ?? pongoSchema.db(databaseName, {}),

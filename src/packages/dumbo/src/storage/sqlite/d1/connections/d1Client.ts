@@ -5,6 +5,7 @@ import {
   type D1SessionConstraint,
 } from '@cloudflare/workers-types';
 import {
+  JSONSerializer,
   SQL,
   type QueryResult,
   type QueryResultRow,
@@ -18,6 +19,7 @@ export type D1DatabaseOrSession = D1Database | D1DatabaseSession;
 export type D1ClientOptions = {
   database: D1Database;
   session?: D1DatabaseSession | undefined;
+  serializer: JSONSerializer;
 };
 
 export type D1SessionOptions = {
@@ -33,7 +35,7 @@ export type D1Client = SQLiteClient & {
 };
 
 export const d1Client = (options: D1ClientOptions): D1Client => {
-  const { database, session } = options;
+  const { database, session, serializer } = options;
 
   const execute = session ?? database;
 
@@ -47,14 +49,20 @@ export const d1Client = (options: D1ClientOptions): D1Client => {
         ? database.withSession(constraintOrBookmark as string)
         : database.withSession();
 
-      return Promise.resolve(d1Client({ database, session: newSession }));
+      return Promise.resolve(
+        d1Client({
+          database,
+          session: newSession,
+          serializer,
+        }),
+      );
     },
 
     query: async <Result extends QueryResultRow = QueryResultRow>(
       sql: SQL,
       _options?: SQLQueryOptions,
     ): Promise<QueryResult<Result>> => {
-      const { query, params } = sqliteFormatter.format(sql);
+      const { query, params } = sqliteFormatter.format(sql, { serializer });
       const stmt = execute.prepare(query);
       const bound = params?.length ? stmt.bind(...params) : stmt;
       const { results } = await bound.all<Result>();
@@ -66,7 +74,7 @@ export const d1Client = (options: D1ClientOptions): D1Client => {
       _options?: SQLQueryOptions,
     ): Promise<QueryResult<Result>[]> => {
       const statements = sqls.map((sql) => {
-        const { query, params } = sqliteFormatter.format(sql);
+        const { query, params } = sqliteFormatter.format(sql, { serializer });
         const stmt = execute.prepare(query);
         return params?.length ? stmt.bind(...params) : stmt;
       });
@@ -81,7 +89,7 @@ export const d1Client = (options: D1ClientOptions): D1Client => {
       sql: SQL,
       _options?: SQLCommandOptions,
     ): Promise<QueryResult<Result>> => {
-      const { query, params } = sqliteFormatter.format(sql);
+      const { query, params } = sqliteFormatter.format(sql, { serializer });
       const stmt = execute.prepare(query);
       const bound = params?.length ? stmt.bind(...params) : stmt;
       const result = await bound.run<Result>();
@@ -96,7 +104,7 @@ export const d1Client = (options: D1ClientOptions): D1Client => {
       _options?: SQLCommandOptions,
     ): Promise<QueryResult<Result>[]> => {
       const statements = sqls.map((sql) => {
-        const { query, params } = sqliteFormatter.format(sql);
+        const { query, params } = sqliteFormatter.format(sql, { serializer });
         const stmt = execute.prepare(query);
         return params?.length ? stmt.bind(...params) : stmt;
       });

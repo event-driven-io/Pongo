@@ -2,8 +2,10 @@ import { type DatabaseDriverType } from '../drivers';
 import {
   sqlExecutor,
   type DbSQLExecutor,
+  type DbSQLExecutorOptions,
   type WithSQLExecutor,
 } from '../execute';
+import type { JSONSerializer } from '../serializer';
 import {
   transactionFactoryWithDbClient,
   type AnyDatabaseTransaction,
@@ -17,11 +19,9 @@ export interface Connection<
   DriverType extends DatabaseDriverType = DatabaseDriverType,
   DbClient = unknown,
   TransactionType extends DatabaseTransaction<Self> = DatabaseTransaction<Self>,
-  TransactionOptionsType extends DatabaseTransactionOptions =
-    DatabaseTransactionOptions,
->
-  extends
-    WithSQLExecutor,
+  TransactionOptionsType extends
+    DatabaseTransactionOptions = DatabaseTransactionOptions,
+> extends WithSQLExecutor,
     WithDatabaseTransactionFactory<
       Self,
       TransactionType,
@@ -79,10 +79,10 @@ export interface WithConnectionFactory<
 
 export type InitTransaction<
   ConnectionType extends AnyConnection = AnyConnection,
-  TreansactionType extends DatabaseTransaction<ConnectionType> =
-    DatabaseTransaction<ConnectionType>,
-  TransactionOptionsType extends DatabaseTransactionOptions =
-    DatabaseTransactionOptions,
+  TreansactionType extends
+    DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
+  TransactionOptionsType extends
+    DatabaseTransactionOptions = DatabaseTransactionOptions,
 > = (connection: () => ConnectionType) => (
   client: Promise<InferDbClientFromConnection<ConnectionType>>,
   options?: TransactionOptionsType & {
@@ -96,10 +96,10 @@ export type InitTransaction<
 export type CreateConnectionOptions<
   ConnectionType extends AnyConnection = AnyConnection,
   Executor extends DbSQLExecutor = DbSQLExecutor,
-  TransactionType extends DatabaseTransaction<ConnectionType> =
-    DatabaseTransaction<ConnectionType>,
-  TransactionOptionsType extends DatabaseTransactionOptions =
-    DatabaseTransactionOptions,
+  TransactionType extends
+    DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
+  TransactionOptionsType extends
+    DatabaseTransactionOptions = DatabaseTransactionOptions,
 > = {
   driverType: InferDriverTypeFromConnection<ConnectionType>;
   connect: () => Promise<InferDbClientFromConnection<ConnectionType>>;
@@ -109,32 +109,34 @@ export type CreateConnectionOptions<
     TransactionType,
     TransactionOptionsType
   >;
-  executor: () => Executor;
+  serializer: JSONSerializer;
+  executor: (options: DbSQLExecutorOptions) => Executor;
 };
 
 export type CreateAmbientConnectionOptions<
   ConnectionType extends AnyConnection = AnyConnection,
   Executor extends DbSQLExecutor = DbSQLExecutor,
-  TransactionType extends DatabaseTransaction<ConnectionType> =
-    DatabaseTransaction<ConnectionType>,
-  TransactionOptionsType extends DatabaseTransactionOptions =
-    DatabaseTransactionOptions,
+  TransactionType extends
+    DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
+  TransactionOptionsType extends
+    DatabaseTransactionOptions = DatabaseTransactionOptions,
 > = {
   driverType: InferDriverTypeFromConnection<ConnectionType>;
   client: InferDbClientFromConnection<ConnectionType>;
+  serializer: JSONSerializer;
   initTransaction: InitTransaction<
     ConnectionType,
     TransactionType,
     TransactionOptionsType
   >;
-  executor: () => Executor;
+  executor: (options: DbSQLExecutorOptions) => Executor;
 };
 
 export const createAmbientConnection = <
   ConnectionType extends AnyConnection = AnyConnection,
   Executor extends DbSQLExecutor = DbSQLExecutor,
-  TransactionType extends DatabaseTransaction<ConnectionType> =
-    DatabaseTransaction<ConnectionType>,
+  TransactionType extends
+    DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
 >(
   options: CreateAmbientConnectionOptions<
     ConnectionType,
@@ -142,7 +144,7 @@ export const createAmbientConnection = <
     TransactionType
   >,
 ): ConnectionType => {
-  const { driverType, client, executor, initTransaction } = options;
+  const { driverType, client, executor, initTransaction, serializer } = options;
 
   const clientPromise = Promise.resolve(client);
   const closePromise = Promise.resolve();
@@ -162,7 +164,7 @@ export const createAmbientConnection = <
       open,
       initTransaction(() => typedConnection),
     ),
-    execute: sqlExecutor(executor(), { connect: open }),
+    execute: sqlExecutor(executor({ serializer }), { connect: open }),
   };
 
   const typedConnection = connection as unknown as ConnectionType;
@@ -173,10 +175,10 @@ export const createAmbientConnection = <
 export type CreateSingletonConnectionOptions<
   ConnectionType extends AnyConnection = AnyConnection,
   Executor extends DbSQLExecutor = DbSQLExecutor,
-  TransactionType extends DatabaseTransaction<ConnectionType> =
-    DatabaseTransaction<ConnectionType>,
-  TransactionOptionsType extends DatabaseTransactionOptions =
-    DatabaseTransactionOptions,
+  TransactionType extends
+    DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
+  TransactionOptionsType extends
+    DatabaseTransactionOptions = DatabaseTransactionOptions,
 > = {
   driverType: InferDriverTypeFromConnection<ConnectionType>;
   connect: () => Promise<InferDbClientFromConnection<ConnectionType>>;
@@ -186,14 +188,15 @@ export type CreateSingletonConnectionOptions<
     TransactionType,
     TransactionOptionsType
   >;
-  executor: () => Executor;
+  serializer: JSONSerializer;
+  executor: (options: DbSQLExecutorOptions) => Executor;
 };
 
 export const createSingletonConnection = <
   ConnectionType extends AnyConnection = AnyConnection,
   Executor extends DbSQLExecutor = DbSQLExecutor,
-  TransactionType extends DatabaseTransaction<ConnectionType> =
-    DatabaseTransaction<ConnectionType>,
+  TransactionType extends
+    DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
 >(
   options: CreateSingletonConnectionOptions<
     ConnectionType,
@@ -201,7 +204,8 @@ export const createSingletonConnection = <
     TransactionType
   >,
 ): ConnectionType => {
-  const { driverType, connect, close, initTransaction, executor } = options;
+  const { driverType, connect, close, initTransaction, executor, serializer } =
+    options;
 
   let client: InferDbClientFromConnection<ConnectionType> | null = null;
   let connectPromise: Promise<
@@ -232,7 +236,7 @@ export const createSingletonConnection = <
       getClient,
       initTransaction(() => typedConnection),
     ),
-    execute: sqlExecutor(executor(), { connect: getClient }),
+    execute: sqlExecutor(executor({ serializer }), { connect: getClient }),
   };
 
   const typedConnection = connection as unknown as ConnectionType;
@@ -243,10 +247,10 @@ export const createSingletonConnection = <
 export type CreateTransientConnectionOptions<
   ConnectionType extends AnyConnection = AnyConnection,
   Executor extends DbSQLExecutor = DbSQLExecutor,
-  TransactionType extends DatabaseTransaction<ConnectionType> =
-    DatabaseTransaction<ConnectionType>,
-  TransactionOptionsType extends DatabaseTransactionOptions =
-    DatabaseTransactionOptions,
+  TransactionType extends
+    DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
+  TransactionOptionsType extends
+    DatabaseTransactionOptions = DatabaseTransactionOptions,
 > = {
   driverType: InferDriverTypeFromConnection<ConnectionType>;
   open: () => Promise<InferDbClientFromConnection<ConnectionType>>;
@@ -256,14 +260,15 @@ export type CreateTransientConnectionOptions<
     TransactionType,
     TransactionOptionsType
   >;
-  executor: () => Executor;
+  serializer: JSONSerializer;
+  executor: (options: DbSQLExecutorOptions) => Executor;
 };
 
 export const createTransientConnection = <
   ConnectionType extends AnyConnection = AnyConnection,
   Executor extends DbSQLExecutor = DbSQLExecutor,
-  TransactionType extends DatabaseTransaction<ConnectionType> =
-    DatabaseTransaction<ConnectionType>,
+  TransactionType extends
+    DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
 >(
   options: CreateTransientConnectionOptions<
     ConnectionType,
@@ -271,7 +276,8 @@ export const createTransientConnection = <
     TransactionType
   >,
 ): ConnectionType => {
-  const { driverType, open, close, initTransaction, executor } = options;
+  const { driverType, open, close, initTransaction, executor, serializer } =
+    options;
 
   const connection: Connection<
     ConnectionType,
@@ -286,7 +292,7 @@ export const createTransientConnection = <
       open,
       initTransaction(() => typedConnection),
     ),
-    execute: sqlExecutor(executor(), { connect: open }),
+    execute: sqlExecutor(executor({ serializer }), { connect: open }),
   };
 
   const typedConnection = connection as unknown as ConnectionType;
@@ -297,12 +303,13 @@ export const createTransientConnection = <
 export const createConnection = <
   ConnectionType extends AnyConnection = AnyConnection,
   Executor extends DbSQLExecutor = DbSQLExecutor,
-  TransactionType extends DatabaseTransaction<ConnectionType> =
-    DatabaseTransaction<ConnectionType>,
+  TransactionType extends
+    DatabaseTransaction<ConnectionType> = DatabaseTransaction<ConnectionType>,
 >(
   options: CreateConnectionOptions<ConnectionType, Executor, TransactionType>,
 ): ConnectionType => {
-  const { driverType, connect, close, initTransaction, executor } = options;
+  const { driverType, connect, close, initTransaction, executor, serializer } =
+    options;
 
   let client: InferDbClientFromConnection<ConnectionType> | null = null;
   let connectPromise: Promise<
@@ -333,7 +340,7 @@ export const createConnection = <
       getClient,
       initTransaction(() => typedConnection),
     ),
-    execute: sqlExecutor(executor(), { connect: getClient }),
+    execute: sqlExecutor(executor({ serializer }), { connect: getClient }),
   };
 
   const typedConnection = connection as unknown as ConnectionType;

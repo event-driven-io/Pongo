@@ -1,4 +1,4 @@
-import { dumbo } from '@event-driven-io/dumbo';
+import { dumbo, JSONSerializer } from '@event-driven-io/dumbo';
 import {
   pgDatabaseDriver as dumboDriver,
   getDatabaseNameOrDefault,
@@ -86,7 +86,10 @@ const pgDatabaseDriver: PongoDatabaseDriver<
             migrationsOrSchemaComponents: {
               migrations: pongoCollectionPostgreSQLMigrations(schema.name),
             },
-            sqlBuilder: postgresSQLBuilder(schema.name),
+            sqlBuilder: postgresSQLBuilder(
+              schema.name,
+              options.serialization?.serializer ?? JSONSerializer,
+            ),
           }),
         definition:
           options.schema?.definition ?? pongoSchema.db(databaseName, {}),

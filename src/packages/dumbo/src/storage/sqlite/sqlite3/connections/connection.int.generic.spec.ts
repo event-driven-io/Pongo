@@ -4,7 +4,7 @@ import { afterEach, describe, it } from 'node:test';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { useSqlite3DatabaseDriver, type SQLite3DumboOptions } from '..';
-import { SQL } from '../../../../core';
+import { JSONSerializer, SQL } from '../../../../core';
 import { dumbo } from '../../../all';
 import { InMemorySQLiteDatabase, SQLiteConnectionString } from '../../core';
 import { sqlite3Client } from './connection';
@@ -151,7 +151,10 @@ void describe('Node SQLite3 pool', () => {
       });
 
       void it('connects using ambient client', async () => {
-        const existingClient = sqlite3Client({ fileName });
+        const existingClient = sqlite3Client({
+          fileName,
+          serializer: JSONSerializer,
+        });
         await existingClient.connect();
 
         const pool = dumbo({

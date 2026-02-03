@@ -5,6 +5,7 @@ export const handleOperator = (
   path: string,
   operator: string,
   value: unknown,
+  serializer: JSONSerializer,
 ): SQL => {
   if (path === '_id' || path === '_version') {
     return handleMetadataOperator(path, operator, value);
@@ -57,7 +58,7 @@ export const handleOperator = (
     case '$elemMatch': {
       const subConditions = objectEntries(value as Record<string, unknown>)
         .map(([subKey, subValue]) => {
-          const serializedValue = JSONSerializer.serialize(subValue);
+          const serializedValue = serializer.serialize(subValue);
           return `json_extract(value, '$.${subKey}') = json('${serializedValue}')`;
         })
         .join(' AND ');
@@ -67,7 +68,7 @@ export const handleOperator = (
     }
     case '$all': {
       const jsonPath = buildJsonPath(path);
-      const serializedValue = JSONSerializer.serialize(value);
+      const serializedValue = serializer.serialize(value);
 
       return SQL`(SELECT COUNT(*) FROM json_each(json(${serializedValue})) WHERE json_each.value NOT IN (SELECT value FROM json_each(data, '${SQL.plain(jsonPath)}'))) = 0`;
     }
