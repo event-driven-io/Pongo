@@ -196,9 +196,19 @@ type ClassicJsonReviver =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (this: any, key: string, value: any) => any;
 
-const jsonSerializer = (options?: JSONSerializerOptions): JSONSerializer => {
-  const defaultReplacer = JSONReplacer(options);
-  const defaultReviver = JSONReviver(options);
+const jsonSerializer = (
+  options?: JSONSerializerOptions &
+    JSONDeserializeOptions &
+    JSONSerializeOptions,
+): JSONSerializer => {
+  const defaultReplacer = composeJSONReplacers(
+    JSONReplacer(options),
+    options?.replacer,
+  )!;
+  const defaultReviver = composeJSONRevivers(
+    JSONReviver(options),
+    options?.reviver,
+  )!;
 
   return {
     serialize: <T>(
@@ -277,4 +287,5 @@ export {
   type JSONDeserializeOptions,
   type JSONSerializationOptions,
   type JSONSerializeOptions,
+  type JSONSerializerOptions,
 };

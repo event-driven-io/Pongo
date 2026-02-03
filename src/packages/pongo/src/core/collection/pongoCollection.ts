@@ -1,4 +1,6 @@
 import {
+  jsonSerializer,
+  JSONSerializer,
   mapColumnToBigint,
   mapColumnToJSON,
   runSQLMigrations,
@@ -7,6 +9,8 @@ import {
   type DatabaseDriverType,
   type DatabaseTransaction,
   type Dumbo,
+  type JSONDeserializeOptions,
+  type JSONSerializeOptions,
   type MigrationStyle,
   type QueryResult,
   type QueryResultRow,
@@ -63,6 +67,12 @@ export type PongoCollectionOptions<
       downcast?: (doc: T) => Payload;
     };
   };
+  serialization?:
+    | {
+        serializer?: JSONSerializer;
+        options?: JSONSerializeOptions | JSONDeserializeOptions;
+      }
+    | undefined;
   errors?: { throwOnOperationFailures?: boolean };
 };
 
@@ -90,14 +100,6 @@ export const transactionExecutorOrDefault = async <
   return existingTransaction?.execute ?? defaultSqlExecutor;
 };
 
-const columnMapping = {
-  mapping: {
-    ...mapColumnToJSON('data'),
-    //...mapColumnToJSON('metadata'),
-    ...mapColumnToBigint('_version'),
-  } satisfies SQLQueryResultColumnMapping,
-};
-
 export const pongoCollection = <
   T extends PongoDocument,
   DriverType extends DatabaseDriverType = DatabaseDriverType,
@@ -109,16 +111,31 @@ export const pongoCollection = <
   schemaComponent,
   schema,
   errors,
+  serialization,
 }: PongoCollectionOptions<T, DriverType, Payload>): PongoCollection<T> => {
   const SqlFor = schemaComponent.sqlBuilder;
   const sqlExecutor = pool.execute;
+
+  const serializer =
+    (serialization?.serializer ?? serialization?.options)
+      ? jsonSerializer(serialization?.options)
+      : JSONSerializer;
+
+  const columnMapping = {
+    mapping: {
+      ...mapColumnToJSON('data', serializer),
+      //...mapColumnToJSON('metadata'),
+      ...mapColumnToBigint('_version'),
+    } satisfies SQLQueryResultColumnMapping,
+  };
+
   const command = async <Result extends QueryResultRow = QueryResultRow>(
     sql: SQL,
     options?: CollectionOperationOptions,
   ) =>
     (
       await transactionExecutorOrDefault(db, options, sqlExecutor)
-    ).command<Result>(sql);
+    ).command<Result>(sql, columnMapping);
 
   const query = async <T extends QueryResultRow>(
     sql: SQL,
