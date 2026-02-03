@@ -3,6 +3,7 @@ import {
   createSingletonConnectionPool,
   JSONSerializer,
   type ConnectionPool,
+  type JSONSerializationOptions,
 } from '../../../../core';
 import {
   d1Connection,
@@ -10,9 +11,9 @@ import {
   type D1Connection,
 } from '../connections/d1Connection';
 
-export type D1PoolOptions = Omit<D1ConnectionOptions, 'serializer'> & {
-  serializer?: JSONSerializer;
-};
+export type D1PoolOptions = Omit<D1ConnectionOptions, 'serializer'> &
+  JSONSerializationOptions;
+
 export type D1ConnectionPool = ConnectionPool<D1Connection>;
 
 export const d1Pool = (options: D1PoolOptions): D1ConnectionPool =>
@@ -21,6 +22,6 @@ export const d1Pool = (options: D1PoolOptions): D1ConnectionPool =>
     getConnection: () =>
       d1Connection({
         ...options,
-        serializer: options.serializer ?? JSONSerializer,
+        serializer: JSONSerializer.from(options),
       }),
   });

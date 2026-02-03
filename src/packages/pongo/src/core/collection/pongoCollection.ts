@@ -9,8 +9,7 @@ import {
   type DatabaseDriverType,
   type DatabaseTransaction,
   type Dumbo,
-  type JSONDeserializeOptions,
-  type JSONSerializeOptions,
+  type JSONSerializationOptions,
   type MigrationStyle,
   type QueryResult,
   type QueryResultRow,
@@ -67,14 +66,8 @@ export type PongoCollectionOptions<
       downcast?: (doc: T) => Payload;
     };
   };
-  serialization?:
-    | {
-        serializer?: JSONSerializer;
-        options?: JSONSerializeOptions | JSONDeserializeOptions;
-      }
-    | undefined;
   errors?: { throwOnOperationFailures?: boolean };
-};
+} & JSONSerializationOptions;
 
 const enlistIntoTransactionIfActive = async <
   DriverType extends DatabaseDriverType = DatabaseDriverType,
