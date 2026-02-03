@@ -10,7 +10,6 @@ import {
   defaultPostgreSqlDatabase,
   getDatabaseNameOrDefault,
 } from '../../core';
-import { setPgTypeParser } from '../serialization';
 import {
   pgConnection,
   PgDriverType,
@@ -189,8 +188,6 @@ export function pgPool(
   options: PgPoolOptions,
 ): PgNativePool | PgAmbientClientPool | PgAmbientConnectionPool {
   const { connectionString, database } = options;
-
-  setPgTypeParser();
 
   if ('client' in options && options.client)
     return pgAmbientClientPool({ client: options.client });
