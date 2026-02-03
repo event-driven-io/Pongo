@@ -1,5 +1,4 @@
 import {
-  jsonSerializer,
   JSONSerializer,
   mapColumnToBigint,
   mapColumnToJSON,
@@ -109,10 +108,7 @@ export const pongoCollection = <
   const SqlFor = schemaComponent.sqlBuilder;
   const sqlExecutor = pool.execute;
 
-  const serializer =
-    (serialization?.serializer ?? serialization?.options)
-      ? jsonSerializer(serialization?.options)
-      : JSONSerializer;
+  const serializer = JSONSerializer.from({ serialization });
 
   const columnMapping = {
     mapping: {

@@ -215,14 +215,8 @@ const jsonSerializer = (
     JSONDeserializeOptions &
     JSONSerializeOptions,
 ): JSONSerializer => {
-  const defaultReplacer = composeJSONReplacers(
-    JSONReplacer(options),
-    options?.replacer,
-  )!;
-  const defaultReviver = composeJSONRevivers(
-    JSONReviver(options),
-    options?.reviver,
-  )!;
+  const defaultReplacer = JSONReplacer(options);
+  const defaultReviver = JSONReviver(options);
 
   return {
     serialize: <T>(
@@ -260,9 +254,10 @@ const JSONSerializer: JSONSerializer & {
   >(
     options?: JSONSerializationOptions<SerializeOptions, DeserializeOptions>,
   ) =>
-    (options?.serialization?.serializer ?? options?.serialization?.options)
+    options?.serialization?.serializer ??
+    (options?.serialization?.options
       ? jsonSerializer(options?.serialization?.options)
-      : JSONSerializer,
+      : JSONSerializer),
 });
 
 const JSONCodec = <

@@ -32,6 +32,8 @@ type User = {
   age: number;
   address?: Address;
   tags?: string[];
+  bigInt?: bigint;
+  date?: Date;
 };
 
 void describe('MongoDB Compatibility Tests', () => {
@@ -1316,6 +1318,97 @@ void describe('MongoDB Compatibility Tests', () => {
       } finally {
         await typedClient.close();
       }
+    });
+  });
+
+  void describe('Serialization', () => {
+    void it('should serialize and deserialize Date objects', async () => {
+      const collection = pongoDb.collection<User>('serialization_date_test', {
+        serialization: { options: { parseDates: true } },
+      });
+
+      const originalDoc: User = {
+        name: 'Date Test',
+        age: 40,
+        date: new Date('2024-05-01T10:00:00.000Z'),
+      };
+
+      const insertResult = await collection.insertOne(originalDoc);
+      assert.ok(insertResult.successful);
+
+      const fetchedDoc = await collection.findOne({
+        _id: insertResult.insertedId!,
+      });
+      assert.ok(fetchedDoc);
+      assert.ok(fetchedDoc.date);
+
+      assert.strictEqual(
+        fetchedDoc.date?.getTime(),
+        originalDoc.date?.getTime(),
+      );
+    });
+
+    void it('should NOT deserialize Date objects with default settings', async () => {
+      const collection = pongoDb.collection<User>('serialization_date_test');
+
+      const originalDoc: User = {
+        name: 'Date Test',
+        age: 40,
+        date: new Date('2024-05-01T10:00:00.000Z'),
+      };
+
+      const insertResult = await collection.insertOne(originalDoc);
+      assert.ok(insertResult.successful);
+
+      const fetchedDoc = await collection.findOne({
+        _id: insertResult.insertedId!,
+      });
+      assert.ok(fetchedDoc);
+      assert.ok(fetchedDoc.date);
+
+      assert.strictEqual(fetchedDoc.date, '2024-05-01T10:00:00.000Z');
+    });
+
+    void it('should serialize and deserialize bigint objects', async () => {
+      const collection = pongoDb.collection<User>('serialization_bigint_test', {
+        serialization: { options: { parseBigInts: true } },
+      });
+
+      const originalDoc: User = {
+        name: 'BigInt Test',
+        age: 40,
+        bigInt: 12345678901234567890n,
+      };
+
+      const insertResult = await collection.insertOne(originalDoc);
+      assert.ok(insertResult.successful);
+
+      const fetchedDoc = await collection.findOne({
+        _id: insertResult.insertedId!,
+      });
+      assert.ok(fetchedDoc);
+      assert.ok(fetchedDoc.bigInt);
+      assert.strictEqual(fetchedDoc.bigInt, originalDoc.bigInt);
+    });
+
+    void it('should NOT deserialize bigint objects with default settings', async () => {
+      const collection = pongoDb.collection<User>('serialization_bigint_test');
+
+      const originalDoc: User = {
+        name: 'BigInt Test',
+        age: 40,
+        bigInt: 12345678901234567890n,
+      };
+
+      const insertResult = await collection.insertOne(originalDoc);
+      assert.ok(insertResult.successful);
+
+      const fetchedDoc = await collection.findOne({
+        _id: insertResult.insertedId!,
+      });
+      assert.ok(fetchedDoc);
+      assert.ok(fetchedDoc.bigInt);
+      assert.strictEqual(fetchedDoc.bigInt, '12345678901234567890');
     });
   });
 
