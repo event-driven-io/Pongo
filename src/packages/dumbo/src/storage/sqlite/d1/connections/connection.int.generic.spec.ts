@@ -91,7 +91,6 @@ void describe('D1 SQLite pool', () => {
     const options: D1DumboOptions = {
       driverType: `SQLite:d1`,
       database,
-      serializer: JSONSerializer,
     };
 
     const pool = dumbo(options);

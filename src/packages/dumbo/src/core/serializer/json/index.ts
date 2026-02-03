@@ -30,7 +30,7 @@ interface JSONCodec<
   decode(payload: string, options?: DeserializeOptions): T;
 }
 
-type JSONSerializationOptions<
+type JSONCodecSerializationOptions<
   SerializeOptions extends JSONSerializeOptions = JSONSerializeOptions,
   DeserializeOptions extends JSONDeserializeOptions = JSONDeserializeOptions,
 > =
@@ -43,12 +43,24 @@ type JSONSerializationOptions<
       serializerOptions?: JSONSerializerOptions;
     };
 
+type JSONSerializationOptions<
+  SerializeOptions extends JSONSerializeOptions = JSONSerializeOptions,
+  DeserializeOptions extends JSONDeserializeOptions = JSONDeserializeOptions,
+> = {
+  serialization?:
+    | {
+        serializer?: JSONSerializer<SerializeOptions, DeserializeOptions>;
+        options?: JSONSerializeOptions | JSONDeserializeOptions;
+      }
+    | undefined;
+};
+
 type JSONCodecOptions<
   T,
   Payload = T,
   SerializeOptions extends JSONSerializeOptions = JSONSerializeOptions,
   DeserializeOptions extends JSONDeserializeOptions = JSONDeserializeOptions,
-> = JSONSerializationOptions<SerializeOptions, DeserializeOptions> & {
+> = JSONCodecSerializationOptions<SerializeOptions, DeserializeOptions> & {
   upcast?: (document: Payload) => T;
   downcast?: (document: T) => Payload;
 };
@@ -232,7 +244,24 @@ const jsonSerializer = (
   };
 };
 
-const JSONSerializer = jsonSerializer({ parseBigInts: true });
+const JSONSerializer: JSONSerializer & {
+  from: <
+    SerializeOptions extends JSONSerializeOptions = JSONSerializeOptions,
+    DeserializeOptions extends JSONDeserializeOptions = JSONDeserializeOptions,
+  >(
+    options?: JSONSerializationOptions<SerializeOptions, DeserializeOptions>,
+  ) => JSONSerializer<SerializeOptions, DeserializeOptions>;
+} = Object.assign(jsonSerializer({ parseBigInts: true }), {
+  from: <
+    SerializeOptions extends JSONSerializeOptions = JSONSerializeOptions,
+    DeserializeOptions extends JSONDeserializeOptions = JSONDeserializeOptions,
+  >(
+    options?: JSONSerializationOptions<SerializeOptions, DeserializeOptions>,
+  ) =>
+    (options?.serialization?.serializer ?? options?.serialization?.options)
+      ? jsonSerializer(options?.serialization?.options)
+      : JSONSerializer,
+});
 
 const RawJSONSerializer = jsonSerializer();
 

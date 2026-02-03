@@ -5,6 +5,7 @@ import {
   JSONSerializer,
   tracer,
   type ConnectionPool,
+  type JSONSerializationOptions,
 } from '../../../../core';
 import {
   defaultPostgreSqlDatabase,
@@ -186,9 +187,8 @@ export type PgPoolNotPooledOptions =
       pooled?: false;
     };
 
-export type PgPoolOptions = (PgPoolPooledOptions | PgPoolNotPooledOptions) & {
-  serializer?: JSONSerializer;
-};
+export type PgPoolOptions = (PgPoolPooledOptions | PgPoolNotPooledOptions) &
+  JSONSerializationOptions;
 
 export function pgPool(options: PgPoolPooledOptions): PgNativePool;
 export function pgPool(options: PgPoolNotPooledOptions): PgAmbientClientPool;
@@ -197,7 +197,7 @@ export function pgPool(
 ): PgNativePool | PgAmbientClientPool | PgAmbientConnectionPool {
   const { connectionString, database } = options;
 
-  const serializer = options.serializer ?? JSONSerializer;
+  const serializer = options.serialization?.serializer ?? JSONSerializer;
 
   if ('client' in options && options.client)
     return pgAmbientClientPool({ client: options.client, serializer });

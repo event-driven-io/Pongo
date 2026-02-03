@@ -1,6 +1,7 @@
 import type {
   DatabaseDriverType,
   JSONDeserializeOptions,
+  JSONSerializationOptions,
   JSONSerializeOptions,
   JSONSerializer,
   MigrationStyle,
@@ -8,9 +9,9 @@ import type {
 import type { PongoCollectionSchema, PongoDbSchema } from '../schema';
 import type { AnyPongoDb, PongoDb } from '../typing';
 
-export interface PongoDatabaseDriverOptions<ConnectionOptions = unknown> {
+export type PongoDatabaseDriverOptions<ConnectionOptions = unknown> = {
   connectionOptions?: ConnectionOptions | undefined;
-}
+} & JSONSerializationOptions;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyPongoDatabaseDriverOptions = PongoDatabaseDriverOptions<any>;

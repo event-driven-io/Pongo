@@ -2,8 +2,7 @@ import {
   type AnyConnection,
   type DatabaseDriverType,
   type DatabaseTransaction,
-  type JSONDeserializeOptions,
-  type JSONSerializeOptions,
+  type JSONSerializationOptions,
   JSONSerializer,
   type MigrationStyle,
   type QueryResult,
@@ -53,13 +52,8 @@ export type PongoClientOptions<
             | { autoMigration?: MigrationStyle; definition?: TypedClientSchema }
             | undefined;
           errors?: { throwOnOperationFailures?: boolean } | undefined;
-          serialization?:
-            | {
-                serializer?: JSONSerializer;
-                options?: JSONSerializeOptions | JSONDeserializeOptions;
-              }
-            | undefined;
-        } & Omit<Options, 'driver'>
+        } & JSONSerializationOptions &
+          Omit<Options, 'driver'>
       : never
     : never;
 
@@ -116,14 +110,8 @@ export type PongoDBCollectionOptions<
       downcast?: (document: T) => Payload;
     };
   };
-  serialization?:
-    | {
-        serializer?: JSONSerializer;
-        options?: JSONSerializeOptions | JSONDeserializeOptions;
-      }
-    | undefined;
   errors?: { throwOnOperationFailures?: boolean };
-};
+} & JSONSerializationOptions;
 
 export interface PongoDb<
   DriverType extends DatabaseDriverType = DatabaseDriverType,
@@ -405,8 +393,9 @@ export declare interface RootFilterOperators<TSchema> extends Document {
   $comment?: string | Document;
 }
 
-export declare interface PongoFilterOperator<TValue>
-  extends NonObjectIdLikeDocument {
+export declare interface PongoFilterOperator<
+  TValue,
+> extends NonObjectIdLikeDocument {
   $eq?: TValue;
   $gt?: TValue;
   $gte?: TValue;

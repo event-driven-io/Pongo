@@ -4,12 +4,15 @@ import {
   type DumboConnectionOptions,
   type ExtractDumboDatabaseDriverOptions,
   type ExtractDumboTypeFromDriver,
+  type JSONSerializationOptions,
 } from '../../core';
 
 export * from './connections';
 
 export function dumbo<Driver extends AnyDumboDatabaseDriver>(
-  options: ExtractDumboDatabaseDriverOptions<Driver> & { driver: Driver },
+  options: ExtractDumboDatabaseDriverOptions<Driver> & {
+    driver: Driver;
+  } & JSONSerializationOptions,
 ): ExtractDumboTypeFromDriver<Driver>;
 
 export function dumbo<

@@ -1,11 +1,9 @@
 import {
-  JSONSerializer,
   runSQLMigrations,
   SQL,
   type DatabaseDriverType,
   type Dumbo,
-  type JSONDeserializeOptions,
-  type JSONSerializeOptions,
+  type JSONSerializationOptions,
   type MigrationStyle,
   type QueryResult,
   type QueryResultRow,
@@ -48,14 +46,8 @@ export type PongoDatabaseOptions<
         definition?: PongoDbSchema<CollectionsSchema>;
       }
     | undefined;
-  serialization?:
-    | {
-        serializer?: JSONSerializer;
-        options?: JSONSerializeOptions | JSONDeserializeOptions;
-      }
-    | undefined;
   errors?: { throwOnOperationFailures?: boolean } | undefined;
-};
+} & JSONSerializationOptions;
 
 export const PongoDatabase = <
   Database extends AnyPongoDb = AnyPongoDb,
