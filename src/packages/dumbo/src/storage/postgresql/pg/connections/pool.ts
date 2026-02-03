@@ -38,7 +38,7 @@ export const pgNativePool = (options: {
   serializer: JSONSerializer;
 }): PgNativePool => {
   const { connectionString, database } = options;
-  const pool = getPool({ connectionString, database });
+  const pool = getPgPool({ connectionString, database });
 
   const getConnection = () =>
     pgConnection({
@@ -58,7 +58,7 @@ export const pgNativePool = (options: {
     });
 
   const open = () => Promise.resolve(getConnection());
-  const close = () => endPool({ connectionString, database });
+  const close = () => endPgPool({ connectionString, database });
 
   return createConnectionPool({
     driverType: PgDriverType,
@@ -239,7 +239,7 @@ export function pgPool(
 const pools: Map<string, pg.Pool> = new Map();
 const usageCounter: Map<string, number> = new Map();
 
-export const getPool = (
+export const getPgPool = (
   connectionStringOrOptions: string | pg.PoolConfig,
 ): pg.Pool => {
   const connectionString =
@@ -268,7 +268,7 @@ export const getPool = (
   );
 };
 
-export const endPool = async ({
+export const endPgPool = async ({
   connectionString,
   database,
   force,
@@ -295,7 +295,7 @@ export const onEndPool = async (lookupKey: string, pool: pg.Pool) => {
   pools.delete(lookupKey);
 };
 
-export const endAllPools = () =>
+export const endAllPgPools = () =>
   Promise.all(
     [...pools.entries()].map(([lookupKey, pool]) => onEndPool(lookupKey, pool)),
   );
