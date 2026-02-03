@@ -1,5 +1,6 @@
 import sqlite3 from 'sqlite3';
 import {
+  JSONSerializer,
   SQL,
   type Connection,
   type DatabaseTransactionOptions,
@@ -54,10 +55,16 @@ export type SQLite3Connection<
   DatabaseTransactionOptions
 >;
 
-export const sqlite3Client = (options: SQLite3ClientOptions): SQLiteClient => {
+export const sqlite3Client = (
+  options: SQLite3ClientOptions & {
+    serializer: JSONSerializer;
+  },
+): SQLiteClient => {
   let db: sqlite3.Database;
 
   let isClosed = false;
+
+  const { serializer } = options;
 
   const connect: () => Promise<void> = () =>
     db
@@ -188,7 +195,9 @@ export const sqlite3Client = (options: SQLite3ClientOptions): SQLiteClient => {
       sql: SQL,
       _options?: SQLQueryOptions,
     ): Promise<QueryResult<Result>> => {
-      const { query, params } = sqliteFormatter.format(sql);
+      const { query, params } = sqliteFormatter.format(sql, {
+        serializer,
+      });
       const result = await executeQuery<Result>(
         query,
         params as SQLiteParameters[],
@@ -201,7 +210,9 @@ export const sqlite3Client = (options: SQLite3ClientOptions): SQLiteClient => {
     ): Promise<QueryResult<Result>[]> => {
       const results: QueryResult<Result>[] = [];
       for (const sql of sqls) {
-        const { query, params } = sqliteFormatter.format(sql);
+        const { query, params } = sqliteFormatter.format(sql, {
+          serializer,
+        });
         const result = await executeQuery<Result>(
           query,
           params as SQLiteParameters[],
@@ -214,7 +225,9 @@ export const sqlite3Client = (options: SQLite3ClientOptions): SQLiteClient => {
       sql: SQL,
       options?: SQLiteCommandOptions,
     ): Promise<QueryResult<Result>> => {
-      const { query, params } = sqliteFormatter.format(sql);
+      const { query, params } = sqliteFormatter.format(sql, {
+        serializer,
+      });
 
       return executeCommand<Result>(
         query,
@@ -229,7 +242,9 @@ export const sqlite3Client = (options: SQLite3ClientOptions): SQLiteClient => {
       const results: QueryResult<Result>[] = [];
 
       for (const sql of sqls) {
-        const { query, params } = sqliteFormatter.format(sql);
+        const { query, params } = sqliteFormatter.format(sql, {
+          serializer,
+        });
         const result = await executeCommand<Result>(
           query,
           params as SQLiteParameters[],
@@ -244,9 +259,11 @@ export const sqlite3Client = (options: SQLite3ClientOptions): SQLiteClient => {
 
 export const checkConnection = async (
   fileName: string,
+  serializer: JSONSerializer,
 ): Promise<ConnectionCheckResult> => {
   const client = sqlite3Client({
     fileName,
+    serializer,
   });
 
   try {
@@ -276,7 +293,9 @@ export const checkConnection = async (
   }
 };
 
-export const sqlite3Connection = (options: SQLite3ConnectionOptions) =>
+export const sqlite3Connection = (
+  options: SQLite3ConnectionOptions & { serializer: JSONSerializer },
+) =>
   sqliteConnection<SQLite3Connection, SQLite3ConnectionOptions>({
     type: 'Client',
     driverType: SQLite3DriverType,
@@ -284,7 +303,11 @@ export const sqlite3Connection = (options: SQLite3ConnectionOptions) =>
       if ('client' in connectionOptions && connectionOptions.client) {
         return connectionOptions.client;
       }
-      return sqlite3Client(connectionOptions);
+      return sqlite3Client({
+        ...connectionOptions,
+        serializer: options.serializer,
+      });
     },
     connectionOptions: options,
+    serializer: options.serializer,
   });

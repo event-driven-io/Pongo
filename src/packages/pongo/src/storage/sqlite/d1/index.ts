@@ -1,3 +1,4 @@
+import { JSONSerializer } from '@event-driven-io/dumbo';
 import type { D1PoolOptions } from '@event-driven-io/dumbo/cloudflare';
 import { D1DriverType, d1Pool } from '@event-driven-io/dumbo/cloudflare';
 import {
@@ -37,7 +38,10 @@ const d1DatabaseDriver: PongoDatabaseDriver<
             migrationsOrSchemaComponents: {
               migrations: pongoCollectionSQLiteMigrations(schema.name),
             },
-            sqlBuilder: sqliteSQLBuilder(schema.name),
+            sqlBuilder: sqliteSQLBuilder(
+              schema.name,
+              options.serialization?.serializer ?? JSONSerializer,
+            ),
           }),
         definition:
           options.schema?.definition ?? pongoSchema.db(databaseName, {}),

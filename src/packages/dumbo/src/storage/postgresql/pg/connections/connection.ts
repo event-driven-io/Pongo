@@ -1,5 +1,9 @@
 import pg from 'pg';
-import { createConnection, type Connection } from '../../../../core';
+import {
+  createConnection,
+  JSONSerializer,
+  type Connection,
+} from '../../../../core';
 import type { PostgreSQLDriverType } from '../../core';
 import { pgSQLExecutor } from '../execute';
 import { pgTransaction } from './transaction';
@@ -40,8 +44,16 @@ export type PgClientOptions = {
   close: (client: PgClient) => Promise<void>;
 };
 
+export type PgClientConnectionOptions = PgClientOptions & {
+  serializer: JSONSerializer;
+};
+
+export type PgPoolClientConnectionOptions = PgPoolClientOptions & {
+  serializer: JSONSerializer;
+};
+
 export const pgClientConnection = (
-  options: PgClientOptions,
+  options: PgClientConnectionOptions,
 ): PgClientConnection => {
   const { connect, close } = options;
 
@@ -49,13 +61,15 @@ export const pgClientConnection = (
     driverType: PgDriverType,
     connect,
     close,
-    initTransaction: (connection) => pgTransaction(connection),
+    initTransaction: (connection) =>
+      pgTransaction(connection, options.serializer),
     executor: pgSQLExecutor,
+    serializer: options.serializer,
   });
 };
 
 export const pgPoolClientConnection = (
-  options: PgPoolClientOptions,
+  options: PgPoolClientConnectionOptions,
 ): PgPoolClientConnection => {
   const { connect, close } = options;
 
@@ -63,17 +77,25 @@ export const pgPoolClientConnection = (
     driverType: PgDriverType,
     connect,
     close,
-    initTransaction: (connection) => pgTransaction(connection),
+    initTransaction: (connection) =>
+      pgTransaction(connection, options.serializer),
     executor: pgSQLExecutor,
+    serializer: options.serializer,
   });
 };
 
+export type PgConnectionOptions =
+  | PgPoolClientConnectionOptions
+  | PgClientConnectionOptions;
+
 export function pgConnection(
-  options: PgPoolClientOptions,
+  options: PgPoolClientConnectionOptions,
 ): PgPoolClientConnection;
-export function pgConnection(options: PgClientOptions): PgClientConnection;
 export function pgConnection(
-  options: PgPoolClientOptions | PgClientOptions,
+  options: PgClientConnectionOptions,
+): PgClientConnection;
+export function pgConnection(
+  options: PgPoolClientConnectionOptions | PgClientConnectionOptions,
 ): PgPoolClientConnection | PgClientConnection {
   return options.type === 'Client'
     ? pgClientConnection(options)

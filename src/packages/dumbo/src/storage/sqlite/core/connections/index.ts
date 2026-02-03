@@ -6,6 +6,7 @@ import {
 import {
   createAmbientConnection,
   createConnection,
+  JSONSerializer,
   type AnyConnection,
   type Connection,
   type ConnectionOptions,
@@ -64,8 +65,8 @@ export type SQLiteClientConnection<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
   SQLiteClientType extends SQLiteClient = SQLiteClient,
   TransactionType extends DatabaseTransaction<Self> = DatabaseTransaction<Self>,
-  TransactionOptionsType extends DatabaseTransactionOptions =
-    DatabaseTransactionOptions,
+  TransactionOptionsType extends
+    DatabaseTransactionOptions = DatabaseTransactionOptions,
 > = Connection<
   Self,
   DriverType,
@@ -79,8 +80,8 @@ export type SQLitePoolClientConnection<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
   SQLitePoolClientType extends SQLitePoolClient = SQLitePoolClient,
   TransactionType extends DatabaseTransaction<Self> = DatabaseTransaction<Self>,
-  TransactionOptionsType extends DatabaseTransactionOptions =
-    DatabaseTransactionOptions,
+  TransactionOptionsType extends
+    DatabaseTransactionOptions = DatabaseTransactionOptions,
 > = Connection<
   Self,
   DriverType,
@@ -96,8 +97,8 @@ export type SQLiteConnection<
     | SQLiteClient
     | SQLitePoolClient,
   TransactionType extends DatabaseTransaction<Self> = DatabaseTransaction<Self>,
-  TransactionOptionsType extends DatabaseTransactionOptions =
-    DatabaseTransactionOptions,
+  TransactionOptionsType extends
+    DatabaseTransactionOptions = DatabaseTransactionOptions,
 > =
   | (SQLiteClientType extends SQLiteClient
       ? SQLiteClientConnection<
@@ -135,8 +136,8 @@ export type SQLiteConnectionOptions<
 > = ConnectionOptions<ConnectionType> & SQLiteClientOptions;
 
 export type SQLiteClientConnectionDefinitionOptions<
-  SQLiteConnectionType extends AnySQLiteClientConnection =
-    AnySQLiteClientConnection,
+  SQLiteConnectionType extends
+    AnySQLiteClientConnection = AnySQLiteClientConnection,
   ConnectionOptions = SQLiteConnectionOptions,
 > = {
   driverType: InferDriverTypeFromConnection<SQLiteConnectionType>;
@@ -146,11 +147,12 @@ export type SQLiteClientConnectionDefinitionOptions<
     ConnectionOptions
   >;
   connectionOptions: SQLiteConnectionOptions<SQLiteConnectionType>;
+  serializer: JSONSerializer;
 };
 
 export type SQLitePoolConnectionDefinitionOptions<
-  SQLiteConnectionType extends AnySQLitePoolClientConnection =
-    AnySQLitePoolClientConnection,
+  SQLiteConnectionType extends
+    AnySQLitePoolClientConnection = AnySQLitePoolClientConnection,
   ConnectionOptions = SQLiteConnectionOptions,
 > = {
   driverType: InferDriverTypeFromConnection<SQLiteConnectionType>;
@@ -160,11 +162,12 @@ export type SQLitePoolConnectionDefinitionOptions<
     ConnectionOptions
   >;
   connectionOptions: SQLiteConnectionOptions<SQLiteConnectionType>;
+  serializer: JSONSerializer;
 };
 
 export type SQLiteConnectionDefinitionOptions<
-  SQLiteConnectionType extends AnySQLitePoolClientConnection =
-    AnySQLitePoolClientConnection,
+  SQLiteConnectionType extends
+    AnySQLitePoolClientConnection = AnySQLitePoolClientConnection,
   ClientOptions = SQLiteClientOptions,
 > =
   | SQLiteClientConnectionDefinitionOptions<SQLiteConnectionType, ClientOptions>
@@ -206,12 +209,12 @@ export const transactionNestingCounter = (): TransactionNestingCounter => {
 };
 
 export type SqliteAmbientClientConnectionOptions<
-  SQLiteConnectionType extends AnySQLiteClientConnection =
-    AnySQLiteClientConnection,
-  TransactionType extends DatabaseTransaction<SQLiteConnectionType> =
-    DatabaseTransaction<SQLiteConnectionType>,
-  TransactionOptionsType extends DatabaseTransactionOptions =
-    DatabaseTransactionOptions,
+  SQLiteConnectionType extends
+    AnySQLiteClientConnection = AnySQLiteClientConnection,
+  TransactionType extends
+    DatabaseTransaction<SQLiteConnectionType> = DatabaseTransaction<SQLiteConnectionType>,
+  TransactionOptionsType extends
+    DatabaseTransactionOptions = DatabaseTransactionOptions,
 > = {
   driverType: SQLiteConnectionType['driverType'];
   client: InferDbClientFromConnection<SQLiteConnectionType>;
@@ -221,16 +224,22 @@ export type SqliteAmbientClientConnectionOptions<
     TransactionOptionsType
   >;
   allowNestedTransactions?: boolean;
+  serializer: JSONSerializer;
 };
 
 export const sqliteAmbientClientConnection = <
-  SQLiteConnectionType extends AnySQLiteClientConnection =
-    AnySQLiteClientConnection,
+  SQLiteConnectionType extends
+    AnySQLiteClientConnection = AnySQLiteClientConnection,
 >(
   options: SqliteAmbientClientConnectionOptions<SQLiteConnectionType>,
 ) => {
-  const { client, driverType, initTransaction, allowNestedTransactions } =
-    options;
+  const {
+    client,
+    driverType,
+    initTransaction,
+    allowNestedTransactions,
+    serializer,
+  } = options;
 
   return createAmbientConnection<SQLiteConnectionType>({
     driverType,
@@ -242,14 +251,16 @@ export const sqliteAmbientClientConnection = <
           driverType,
           connection,
           allowNestedTransactions ?? false,
+          serializer,
         )),
-    executor: () => sqliteSQLExecutor(driverType),
+    executor: ({ serializer }) => sqliteSQLExecutor(driverType, serializer),
+    serializer,
   });
 };
 
 export const sqliteClientConnection = <
-  SQLiteConnectionType extends AnySQLiteClientConnection =
-    AnySQLiteClientConnection,
+  SQLiteConnectionType extends
+    AnySQLiteClientConnection = AnySQLiteClientConnection,
   ClientOptions = SQLiteClientOptions,
 >(
   options: SQLiteClientConnectionDefinitionOptions<
@@ -257,7 +268,7 @@ export const sqliteClientConnection = <
     ClientOptions
   >,
 ): SQLiteConnectionType => {
-  const { connectionOptions, sqliteClientFactory } = options;
+  const { connectionOptions, sqliteClientFactory, serializer } = options;
 
   let client: InferDbClientFromConnection<SQLiteConnectionType> | null = null;
 
@@ -293,14 +304,17 @@ export const sqliteClientConnection = <
         options.driverType,
         connection,
         connectionOptions.transactionOptions?.allowNestedTransactions ?? false,
+        serializer,
       ),
-    executor: () => sqliteSQLExecutor(options.driverType),
+    executor: ({ serializer }) =>
+      sqliteSQLExecutor(options.driverType, serializer),
+    serializer,
   });
 };
 
 export const sqlitePoolClientConnection = <
-  SQLiteConnectionType extends AnySQLiteClientConnection =
-    AnySQLiteClientConnection,
+  SQLiteConnectionType extends
+    AnySQLiteClientConnection = AnySQLiteClientConnection,
   ClientOptions = SQLiteClientOptions,
 >(
   options: SQLitePoolConnectionDefinitionOptions<
@@ -308,7 +322,7 @@ export const sqlitePoolClientConnection = <
     ClientOptions
   >,
 ): SQLiteConnectionType => {
-  const { connectionOptions, sqliteClientFactory } = options;
+  const { connectionOptions, sqliteClientFactory, serializer } = options;
 
   let client: InferDbClientFromConnection<SQLiteConnectionType> | null = null;
 
@@ -336,8 +350,11 @@ export const sqlitePoolClientConnection = <
         options.driverType,
         connection,
         connectionOptions.transactionOptions?.allowNestedTransactions ?? false,
+        serializer,
       ),
-    executor: () => sqliteSQLExecutor(options.driverType),
+    executor: ({ serializer }) =>
+      sqliteSQLExecutor(options.driverType, serializer),
+    serializer,
   });
 };
 

@@ -1,5 +1,6 @@
 import type { SQLiteDriverType } from '..';
 import {
+  JSONSerializer,
   mapSQLQueryResult,
   SQL,
   SQLFormatter,
@@ -32,6 +33,7 @@ export const sqliteSQLExecutor = <
   DriverType extends SQLiteDriverType = SQLiteDriverType,
 >(
   driverType: DriverType,
+  serializer: JSONSerializer,
   formatter?: SQLFormatter,
 ): SQLiteSQLExecutor<DriverType> => ({
   driverType,
@@ -45,9 +47,9 @@ export const sqliteSQLExecutor = <
     }
 
     tracer.info('db:sql:query', {
-      query: (formatter ?? sqliteFormatter).format(sql).query,
-      params: (formatter ?? sqliteFormatter).format(sql).params,
-      debugSQL: (formatter ?? sqliteFormatter).describe(sql),
+      query: (formatter ?? sqliteFormatter).format(sql, { serializer }).query,
+      params: (formatter ?? sqliteFormatter).format(sql, { serializer }).params,
+      debugSQL: (formatter ?? sqliteFormatter).describe(sql, { serializer }),
     });
 
     let result = await client.query<Result>(sql, options);
@@ -95,9 +97,9 @@ export const sqliteSQLExecutor = <
     }
 
     tracer.info('db:sql:command', {
-      query: (formatter ?? sqliteFormatter).format(sql).query,
-      params: (formatter ?? sqliteFormatter).format(sql).params,
-      debugSQL: (formatter ?? sqliteFormatter).describe(sql),
+      query: (formatter ?? sqliteFormatter).format(sql, { serializer }).query,
+      params: (formatter ?? sqliteFormatter).format(sql, { serializer }).params,
+      debugSQL: (formatter ?? sqliteFormatter).describe(sql, { serializer }),
     });
 
     return await client.command<Result>(sql, options);

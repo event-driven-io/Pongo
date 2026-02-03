@@ -405,9 +405,8 @@ export declare interface RootFilterOperators<TSchema> extends Document {
   $comment?: string | Document;
 }
 
-export declare interface PongoFilterOperator<
-  TValue,
-> extends NonObjectIdLikeDocument {
+export declare interface PongoFilterOperator<TValue>
+  extends NonObjectIdLikeDocument {
   $eq?: TValue;
   $gt?: TValue;
   $gte?: TValue;
@@ -518,6 +517,7 @@ export const operationResult = <T extends OperationResult>(
   options: {
     operationName: string;
     collectionName: string;
+    serializer: JSONSerializer;
     errors?: { throwOnOperationFailures?: boolean } | undefined;
   },
 ): T => {
@@ -532,7 +532,7 @@ export const operationResult = <T extends OperationResult>(
       if (!successful)
         throw new ConcurrencyError(
           errorMessage ??
-            `${operationName} on ${collectionName} failed. Expected document state does not match current one! Result: ${JSONSerializer.serialize(result)}!`,
+            `${operationName} on ${collectionName} failed. Expected document state does not match current one! Result: ${options.serializer.serialize(result)}!`,
         );
     },
   } as T;

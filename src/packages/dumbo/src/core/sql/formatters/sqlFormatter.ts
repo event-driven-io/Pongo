@@ -12,15 +12,19 @@ import { SQL } from '../sql';
 import { isTokenizedSQL, TokenizedSQL } from '../tokenizedSQL';
 import { SQLValueMapper, type MapSQLParamValueOptions } from '../valueMappers';
 
+export type FormatContext = Partial<SQLProcessorContext> &
+  Pick<SQLProcessorContext, 'serializer'>;
+
 export interface SQLFormatter {
-  format: (sql: SQL | SQL[], context?: SQLProcessorContext) => ParametrizedSQL;
-  describe: (sql: SQL | SQL[], context?: SQLProcessorContext) => string;
+  format: (sql: SQL | SQL[], context: FormatContext) => ParametrizedSQL;
+  describe: (sql: SQL | SQL[], context: FormatContext) => string;
   valueMapper: SQLValueMapper;
 }
 
 export type FormatSQLOptions = {
   mapper?: MapSQLParamValueOptions;
   processorsRegistry?: SQLProcessorsReadonlyRegistry;
+  serializer?: JSONSerializer;
 };
 
 export type SQLFormatterOptions = Partial<Omit<SQLFormatter, 'valueMapper'>> & {
@@ -47,17 +51,27 @@ export const SQLFormatter = ({
     format:
       format ??
       ((sql: SQL | SQL[], methodOptions) =>
-        formatSQL(sql, resultFormatter, {
-          ...options,
-          ...(methodOptions ?? {}),
-        })),
+        formatSQL(
+          sql,
+          resultFormatter,
+          methodOptions?.serializer ?? JSONSerializer,
+          {
+            ...options,
+            ...(methodOptions ?? {}),
+          },
+        )),
     describe:
       describe ??
       ((sql: SQL | SQL[], methodOptions) =>
-        describeSQL(sql, resultFormatter, {
-          ...options,
-          ...(methodOptions ?? {}),
-        })),
+        describeSQL(
+          sql,
+          resultFormatter,
+          methodOptions?.serializer ?? JSONSerializer,
+          {
+            ...options,
+            ...(methodOptions ?? {}),
+          },
+        )),
     valueMapper,
   };
 
@@ -89,6 +103,7 @@ export const getFormatter = (dialect: string): SQLFormatter => {
 export function formatSQL(
   sql: SQL | SQL[],
   formatter: SQLFormatter,
+  serializer: JSONSerializer,
   context?: FormatSQLOptions,
 ): ParametrizedSQL {
   const mapper: SQLValueMapper =
@@ -136,6 +151,7 @@ export function formatSQL(
     processor.handle(token, {
       builder,
       processorsRegistry,
+      serializer,
       mapper,
     });
   }
@@ -146,11 +162,12 @@ export function formatSQL(
 export const describeSQL = (
   sql: SQL | SQL[],
   formatter: SQLFormatter,
+  serializer: JSONSerializer,
   options?: FormatSQLOptions,
 ): string =>
-  formatSQL(sql, formatter, {
+  formatSQL(sql, formatter, serializer, {
     ...(options ?? {}),
     mapper: {
-      mapPlaceholder: (_, value) => JSONSerializer.serialize(value),
+      mapPlaceholder: (_, value) => serializer.serialize(value),
     },
   }).query;

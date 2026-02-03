@@ -1,4 +1,5 @@
 import {
+  JSONSerializer,
   sqlExecutor,
   type DatabaseTransaction,
   type DatabaseTransactionOptions,
@@ -32,7 +33,11 @@ export class D1TransactionNotSupportedError extends Error {
 }
 
 export const d1Transaction =
-  (connection: () => D1Connection, defaultOptions?: D1TransactionOptions) =>
+  (
+    connection: () => D1Connection,
+    serializer: JSONSerializer,
+    defaultOptions?: D1TransactionOptions,
+  ) =>
   (
     getClient: Promise<D1Client>,
     options?: {
@@ -111,7 +116,7 @@ export const d1Transaction =
           if (options?.close) await options?.close(client, error);
         }
       },
-      execute: sqlExecutor(sqliteSQLExecutor(D1DriverType), {
+      execute: sqlExecutor(sqliteSQLExecutor(D1DriverType, serializer), {
         connect: () => {
           if (!sessionClient) {
             throw new Error(

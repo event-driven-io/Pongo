@@ -2,7 +2,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import assert from 'assert';
 import { Miniflare } from 'miniflare';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-import { SQL } from '../../../../core';
+import { JSONSerializer, SQL } from '../../../../core';
 import { d1Pool } from '../pool';
 import { d1Client } from './d1Client';
 
@@ -74,7 +74,7 @@ void describe('Cloudflare d1 pool', () => {
   });
 
   void it('connects using ambient client', async () => {
-    const existingClient = d1Client({ database });
+    const existingClient = d1Client({ database, serializer: JSONSerializer });
     await existingClient.connect();
 
     const pool = d1Pool({

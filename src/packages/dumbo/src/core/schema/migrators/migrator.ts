@@ -1,4 +1,4 @@
-import { type Dumbo } from '../..';
+import { JSONSerializer, type Dumbo } from '../..';
 import { type DatabaseType, fromDatabaseDriverType } from '../../drivers';
 import type { SQLExecutor } from '../../execute';
 import {
@@ -151,7 +151,9 @@ const getMigrationHash = async (
   sqlMigration: SQLMigration,
   sqlFormatter: SQLFormatter,
 ): Promise<string> => {
-  const content = sqlFormatter.describe(sqlMigration.sqls);
+  const content = sqlFormatter.describe(sqlMigration.sqls, {
+    serializer: JSONSerializer,
+  });
 
   const encoder = new TextEncoder();
   const data = encoder.encode(content);

@@ -40,10 +40,11 @@ export const pongoCollectionPostgreSQLMigrations = (collectionName: string) => [
 
 export const postgresSQLBuilder = (
   collectionName: string,
+  serializer: JSONSerializer,
 ): PongoCollectionSQLBuilder => ({
   createCollection: (): SQL => createCollection(collectionName),
   insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
-    const serialized = JSONSerializer.serialize(document);
+    const serialized = serializer.serialize(document);
     const id = document._id;
     const version = document._version ?? 1n;
 
@@ -55,7 +56,7 @@ export const postgresSQLBuilder = (
     const values = SQL.merge(
       documents.map(
         (doc) =>
-          SQL`(${doc._id}, ${JSONSerializer.serialize(doc)}, ${doc._version ?? 1n})`,
+          SQL`(${doc._id}, ${serializer.serialize(doc)}, ${doc._version ?? 1n})`,
       ),
       ',',
     );
@@ -76,8 +77,12 @@ export const postgresSQLBuilder = (
         ? SQL`AND ${SQL.identifier(collectionName)}._version = ${expectedVersion}`
         : SQL``;
 
-    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
-    const updateQuery = isSQL(update) ? update : buildUpdateQuery(update);
+    const filterQuery = isSQL(filter)
+      ? filter
+      : constructFilterQuery(filter, serializer);
+    const updateQuery = isSQL(update)
+      ? update
+      : buildUpdateQuery(update, serializer);
 
     return SQL`
       WITH existing AS (
@@ -114,7 +119,9 @@ export const postgresSQLBuilder = (
         ? SQL`AND ${SQL.identifier(collectionName)}._version = ${expectedVersion}`
         : SQL``;
 
-    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
+    const filterQuery = isSQL(filter)
+      ? filter
+      : constructFilterQuery(filter, serializer);
 
     return SQL`
       WITH existing AS (
@@ -125,7 +132,7 @@ export const postgresSQLBuilder = (
       updated AS (
         UPDATE ${SQL.identifier(collectionName)}        
         SET 
-          data = ${JSONSerializer.serialize(document)} || jsonb_build_object('_id', ${SQL.identifier(collectionName)}._id) || jsonb_build_object('_version', (_version + 1)::text),
+          data = ${serializer.serialize(document)} || jsonb_build_object('_id', ${SQL.identifier(collectionName)}._id) || jsonb_build_object('_version', (_version + 1)::text),
           _version = _version + 1
         FROM existing 
         WHERE ${SQL.identifier(collectionName)}._id = existing._id ${expectedVersionUpdate}
@@ -144,8 +151,12 @@ export const postgresSQLBuilder = (
     filter: PongoFilter<T> | SQL,
     update: PongoUpdate<T> | SQL,
   ): SQL => {
-    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
-    const updateQuery = isSQL(update) ? update : buildUpdateQuery(update);
+    const filterQuery = isSQL(filter)
+      ? filter
+      : constructFilterQuery(filter, serializer);
+    const updateQuery = isSQL(update)
+      ? update
+      : buildUpdateQuery(update, serializer);
 
     return SQL`
       UPDATE ${SQL.identifier(collectionName)} 
@@ -164,7 +175,9 @@ export const postgresSQLBuilder = (
         ? SQL`AND ${SQL.identifier(collectionName)}._version = ${expectedVersion}`
         : SQL``;
 
-    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
+    const filterQuery = isSQL(filter)
+      ? filter
+      : constructFilterQuery(filter, serializer);
 
     return SQL`
       WITH existing AS (
@@ -187,17 +200,23 @@ export const postgresSQLBuilder = (
       ON existing._id = deleted._id;`;
   },
   deleteMany: <T>(filter: PongoFilter<T> | SQL): SQL => {
-    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
+    const filterQuery = isSQL(filter)
+      ? filter
+      : constructFilterQuery(filter, serializer);
 
     return SQL`DELETE FROM ${SQL.identifier(collectionName)} ${where(filterQuery)}`;
   },
   findOne: <T>(filter: PongoFilter<T> | SQL): SQL => {
-    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
+    const filterQuery = isSQL(filter)
+      ? filter
+      : constructFilterQuery(filter, serializer);
 
     return SQL`SELECT data, _version FROM ${SQL.identifier(collectionName)} ${where(filterQuery)} LIMIT 1;`;
   },
   find: <T>(filter: PongoFilter<T> | SQL, options?: FindOptions): SQL => {
-    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
+    const filterQuery = isSQL(filter)
+      ? filter
+      : constructFilterQuery(filter, serializer);
     const query: SQL[] = [];
 
     query.push(
@@ -219,7 +238,7 @@ export const postgresSQLBuilder = (
   countDocuments: <T>(filter: PongoFilter<T> | SQL): SQL => {
     const filterQuery = SQL.check.isSQL(filter)
       ? filter
-      : constructFilterQuery(filter);
+      : constructFilterQuery(filter, serializer);
     return SQL`SELECT COUNT(1) as count FROM ${SQL.identifier(collectionName)} ${where(filterQuery)};`;
   },
   rename: (newName: string): SQL =>

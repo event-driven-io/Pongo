@@ -75,6 +75,10 @@ export type SQLCommandOptions = {
   mapping?: SQLQueryResultColumnMapping;
 };
 
+export type DbSQLExecutorOptions = {
+  serializer: JSONSerializer;
+};
+
 export interface DbSQLExecutor<
   DriverType extends DatabaseDriverType = DatabaseDriverType,
   DbClient = unknown,

@@ -1,4 +1,4 @@
-import { JSONSerializer } from '../../serializer';
+import type { JSONSerializer } from '../../serializer';
 import { SQL } from '../sql';
 import { ansiSqlReservedMap as ansiSqlReservedWordsMap } from './reservedSqlWords';
 
@@ -10,6 +10,7 @@ export interface SQLValueMapper {
 
 export type MapSQLParamValue = (
   value: unknown,
+  serializer: JSONSerializer,
   options?: MapSQLParamValueOptions,
 ) => unknown;
 
@@ -83,8 +84,15 @@ export const SQLValueMapper = (
   };
 
   const resultMapper: SQLValueMapper = {
-    mapValue: (value: unknown) =>
-      mapSQLParamValue(value, mapSQLParamValueOptions),
+    mapValue: (
+      value: unknown,
+      serializer: JSONSerializer,
+      mapOptions?: MapSQLParamValueOptions,
+    ) =>
+      mapSQLParamValue(value, serializer, {
+        ...mapSQLParamValueOptions,
+        ...mapOptions,
+      }),
     mapPlaceholder: mapSQLParamValueOptions.mapPlaceholder,
     mapIdentifier: mapSQLParamValueOptions.mapIdentifier,
   };
@@ -93,6 +101,7 @@ export const SQLValueMapper = (
 
 export function mapSQLParamValue(
   value: unknown,
+  serializer: JSONSerializer,
   options?: MapSQLParamValueOptions,
 ): unknown {
   if (value === null || value === undefined) {
@@ -105,7 +114,7 @@ export function mapSQLParamValue(
     const mapValue: MapSQLParamValue = options?.mapValue ?? mapSQLParamValue;
     return options?.mapArray
       ? options.mapArray(value, mapValue)
-      : value.map((item) => mapValue(item, options));
+      : value.map((item) => mapValue(item, serializer, options));
   } else if (typeof value === 'boolean') {
     return options?.mapBoolean ? options.mapBoolean(value) : value;
   } else if (typeof value === 'bigint') {
@@ -117,8 +126,8 @@ export function mapSQLParamValue(
   } else if (typeof value === 'object') {
     return options?.mapObject
       ? options.mapObject(value)
-      : `${JSONSerializer.serialize(value).replace(/'/g, "''")}`;
+      : `${serializer.serialize(value).replace(/'/g, "''")}`;
   } else {
-    return JSONSerializer.serialize(value);
+    return serializer.serialize(value);
   }
 }

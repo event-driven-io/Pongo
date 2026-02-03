@@ -1,5 +1,6 @@
 import pg from 'pg';
 import {
+  JSONSerializer,
   mapSQLQueryResult,
   tracer,
   type DbSQLExecutor,
@@ -46,28 +47,51 @@ export const pgExecute = async <Result = void>(
 
 export type PgSQLExecutor = DbSQLExecutor<PgDriverType, PgClientOrPoolClient>;
 
-export const pgSQLExecutor = (): PgSQLExecutor => ({
+export const pgSQLExecutor = ({
+  serializer,
+}: {
+  serializer: JSONSerializer;
+}): PgSQLExecutor => ({
   driverType: PgDriverType,
-  query: batch,
-  batchQuery: batch,
-  command: batch,
-  batchCommand: batch,
+  query: <Result extends QueryResultRow = QueryResultRow>(
+    client: PgClientOrPoolClient,
+    sql: SQL,
+    options: SQLQueryOptions | undefined,
+  ) => batch<Result>(client, sql, serializer, options),
+  batchQuery: <Result extends QueryResultRow = QueryResultRow>(
+    client: PgClientOrPoolClient,
+    sqls: SQL[],
+    options: SQLQueryOptions | undefined,
+  ) => batch<Result>(client, sqls, serializer, options),
+  command: <Result extends QueryResultRow = QueryResultRow>(
+    client: PgClientOrPoolClient,
+    sql: SQL,
+    options: SQLQueryOptions | undefined,
+  ) => batch<Result>(client, sql, serializer, options),
+  batchCommand: <Result extends QueryResultRow = QueryResultRow>(
+    client: PgClientOrPoolClient,
+    sqls: SQL[],
+    options: SQLQueryOptions | undefined,
+  ) => batch<Result>(client, sqls, serializer, options),
   formatter: pgFormatter,
 });
 
 function batch<Result extends QueryResultRow = QueryResultRow>(
   client: PgClientOrPoolClient,
   sqlOrSqls: SQL,
+  serializer: JSONSerializer,
   options?: SQLQueryOptions | SQLCommandOptions,
 ): Promise<QueryResult<Result>>;
 function batch<Result extends QueryResultRow = QueryResultRow>(
   client: PgClientOrPoolClient,
   sqlOrSqls: SQL[],
+  serializer: JSONSerializer,
   options?: SQLQueryOptions | SQLCommandOptions,
 ): Promise<QueryResult<Result>[]>;
 async function batch<Result extends QueryResultRow = QueryResultRow>(
   client: PgClientOrPoolClient,
   sqlOrSqls: SQL | SQL[],
+  serializer: JSONSerializer,
   options?: SQLQueryOptions | SQLCommandOptions,
 ): Promise<QueryResult<Result> | QueryResult<Result>[]> {
   const sqls = Array.isArray(sqlOrSqls) ? sqlOrSqls : [sqlOrSqls];
@@ -81,11 +105,11 @@ async function batch<Result extends QueryResultRow = QueryResultRow>(
 
   //TODO: make it smarter at some point
   for (let i = 0; i < sqls.length; i++) {
-    const { query, params } = pgFormatter.format(sqls[i]!);
+    const { query, params } = pgFormatter.format(sqls[i]!, { serializer });
     tracer.info('db:sql:query', {
       query,
       params,
-      debugSQL: pgFormatter.describe(sqls[i]!),
+      debugSQL: pgFormatter.describe(sqls[i]!, { serializer }),
     });
     let result =
       params.length > 0

@@ -8,18 +8,21 @@ import {
   type PongoUpdate,
 } from '../../../../../core';
 
-export const buildUpdateQuery = <T>(update: PongoUpdate<T>): SQL =>
+export const buildUpdateQuery = <T>(
+  update: PongoUpdate<T>,
+  serializer: JSONSerializer,
+): SQL =>
   objectEntries(update).reduce(
     (currentUpdateQuery, [op, value]) => {
       switch (op) {
         case '$set':
-          return buildSetQuery(value, currentUpdateQuery);
+          return buildSetQuery(value, currentUpdateQuery, serializer);
         case '$unset':
           return buildUnsetQuery(value, currentUpdateQuery);
         case '$inc':
           return buildIncQuery(value, currentUpdateQuery);
         case '$push':
-          return buildPushQuery(value, currentUpdateQuery);
+          return buildPushQuery(value, currentUpdateQuery, serializer);
         default:
           return currentUpdateQuery;
       }
@@ -27,8 +30,11 @@ export const buildUpdateQuery = <T>(update: PongoUpdate<T>): SQL =>
     SQL`data`,
   );
 
-export const buildSetQuery = <T>(set: $set<T>, currentUpdateQuery: SQL): SQL =>
-  SQL`${currentUpdateQuery} || ${JSONSerializer.serialize(set)}::jsonb`;
+export const buildSetQuery = <T>(
+  set: $set<T>,
+  currentUpdateQuery: SQL,
+  serializer: JSONSerializer,
+): SQL => SQL`${currentUpdateQuery} || ${serializer.serialize(set)}::jsonb`;
 
 export const buildUnsetQuery = <T>(
   unset: $unset<T>,
@@ -54,9 +60,10 @@ export const buildIncQuery = <T>(
 export const buildPushQuery = <T>(
   push: $push<T>,
   currentUpdateQuery: SQL,
+  serializer: JSONSerializer,
 ): SQL => {
   for (const [key, value] of Object.entries(push)) {
-    const serializedValue = JSONSerializer.serialize([value]);
+    const serializedValue = serializer.serialize([value]);
     currentUpdateQuery = SQL`jsonb_set(${currentUpdateQuery}, '{${SQL.plain(key)}}', (coalesce(data->'${SQL.plain(key)}', '[]'::jsonb) || ${serializedValue}::jsonb), true)`;
   }
   return currentUpdateQuery;

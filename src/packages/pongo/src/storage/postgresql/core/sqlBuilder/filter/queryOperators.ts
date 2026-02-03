@@ -5,6 +5,7 @@ export const handleOperator = (
   path: string,
   operator: string,
   value: unknown,
+  serializer: JSONSerializer,
 ): SQL => {
   if (path === '_id' || path === '_version') {
     return handleMetadataOperator(path, operator, value);
@@ -12,10 +13,8 @@ export const handleOperator = (
 
   switch (operator) {
     case '$eq': {
-      const nestedPath = JSONSerializer.serialize(
-        buildNestedObject(path, value),
-      );
-      const serializedValue = JSONSerializer.serialize(value);
+      const nestedPath = serializer.serialize(buildNestedObject(path, value));
+      const serializedValue = serializer.serialize(value);
 
       return SQL`(data @> ${nestedPath}::jsonb OR jsonb_path_exists(data, '$.${SQL.plain(path)}[*] ? (@ == ${SQL.plain(serializedValue)})'))`;
     }
@@ -42,15 +41,13 @@ export const handleOperator = (
       const subQuery = objectEntries(value as Record<string, unknown>)
         .map(
           ([subKey, subValue]) =>
-            `@."${subKey}" == ${JSONSerializer.serialize(subValue)}`,
+            `@."${subKey}" == ${serializer.serialize(subValue)}`,
         )
         .join(' && ');
       return SQL`jsonb_path_exists(data, '$.${SQL.plain(path)}[*] ? (${SQL.plain(subQuery)})')`;
     }
     case '$all': {
-      const nestedPath = JSONSerializer.serialize(
-        buildNestedObject(path, value),
-      );
+      const nestedPath = serializer.serialize(buildNestedObject(path, value));
       return SQL`data @> ${nestedPath}::jsonb`;
     }
     case '$size': {

@@ -1,4 +1,5 @@
 import {
+  JSONSerializer,
   sqlExecutor,
   type AnyConnection,
   type DatabaseTransaction,
@@ -16,6 +17,7 @@ export type PgTransaction = DatabaseTransaction<PgConnection>;
 export const pgTransaction =
   <ConnectionType extends AnyConnection = AnyConnection>(
     connection: () => ConnectionType,
+    serializer: JSONSerializer,
   ) =>
   <DbClient extends PgPoolOrClient = PgPoolOrClient>(
     getClient: Promise<DbClient>,
@@ -46,7 +48,7 @@ export const pgTransaction =
         if (options?.close) await options?.close(client, error);
       }
     },
-    execute: sqlExecutor(pgSQLExecutor(), {
+    execute: sqlExecutor(pgSQLExecutor({ serializer }), {
       connect: () => getClient,
     }),
   });

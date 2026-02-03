@@ -40,6 +40,7 @@ export const pongoCollectionSQLiteMigrations = (collectionName: string) => [
 
 export const sqliteSQLBuilder = (
   collectionName: string,
+  serializer: JSONSerializer,
 ): PongoCollectionSQLBuilder => ({
   createCollection: (): SQL => createCollection(collectionName),
   insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
@@ -56,7 +57,7 @@ export const sqliteSQLBuilder = (
     const values = SQL.merge(
       documents.map(
         (doc) =>
-          SQL`(${doc._id}, ${JSONSerializer.serialize(doc)}, ${doc._version ?? 1n})`,
+          SQL`(${doc._id}, ${serializer.serialize(doc)}, ${doc._version ?? 1n})`,
       ),
       ',',
     );
@@ -74,8 +75,12 @@ export const sqliteSQLBuilder = (
     const expectedVersionCheck =
       expectedVersion != null ? SQL`AND _version = ${expectedVersion}` : SQL``;
 
-    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
-    const updateQuery = isSQL(update) ? update : buildUpdateQuery(update);
+    const filterQuery = isSQL(filter)
+      ? filter
+      : constructFilterQuery(filter, serializer);
+    const updateQuery = isSQL(update)
+      ? update
+      : buildUpdateQuery(update, serializer);
 
     return SQL`
       UPDATE ${SQL.identifier(collectionName)}
@@ -103,12 +108,14 @@ export const sqliteSQLBuilder = (
     const expectedVersionCheck =
       expectedVersion != null ? SQL`AND _version = ${expectedVersion}` : SQL``;
 
-    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
+    const filterQuery = isSQL(filter)
+      ? filter
+      : constructFilterQuery(filter, serializer);
 
     return SQL`
       UPDATE ${SQL.identifier(collectionName)}
       SET
-        data = json_patch(${JSONSerializer.serialize(document)}, json_object('_id', _id, '_version', cast(_version + 1 as TEXT))),
+        data = json_patch(${serializer.serialize(document)}, json_object('_id', _id, '_version', cast(_version + 1 as TEXT))),
         _version = _version + 1,
         _updated = datetime('now')
       WHERE _id = (
@@ -126,8 +133,12 @@ export const sqliteSQLBuilder = (
     filter: PongoFilter<T> | SQL,
     update: PongoUpdate<T> | SQL,
   ): SQL => {
-    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
-    const updateQuery = isSQL(update) ? update : buildUpdateQuery(update);
+    const filterQuery = isSQL(filter)
+      ? filter
+      : constructFilterQuery(filter, serializer);
+    const updateQuery = isSQL(update)
+      ? update
+      : buildUpdateQuery(update, serializer);
 
     return SQL`
       UPDATE ${SQL.identifier(collectionName)}
@@ -146,7 +157,9 @@ export const sqliteSQLBuilder = (
     const expectedVersionCheck =
       expectedVersion != null ? SQL`AND _version = ${expectedVersion}` : SQL``;
 
-    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
+    const filterQuery = isSQL(filter)
+      ? filter
+      : constructFilterQuery(filter, serializer);
 
     return SQL`
       DELETE FROM ${SQL.identifier(collectionName)}
@@ -161,17 +174,23 @@ export const sqliteSQLBuilder = (
         1 AS deleted;`;
   },
   deleteMany: <T>(filter: PongoFilter<T> | SQL): SQL => {
-    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
+    const filterQuery = isSQL(filter)
+      ? filter
+      : constructFilterQuery(filter, serializer);
 
     return SQL`DELETE FROM ${SQL.identifier(collectionName)} ${where(filterQuery)} RETURNING _id`;
   },
   findOne: <T>(filter: PongoFilter<T> | SQL): SQL => {
-    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
+    const filterQuery = isSQL(filter)
+      ? filter
+      : constructFilterQuery(filter, serializer);
 
     return SQL`SELECT data, _version FROM ${SQL.identifier(collectionName)} ${where(filterQuery)} LIMIT 1;`;
   },
   find: <T>(filter: PongoFilter<T> | SQL, options?: FindOptions): SQL => {
-    const filterQuery = isSQL(filter) ? filter : constructFilterQuery(filter);
+    const filterQuery = isSQL(filter)
+      ? filter
+      : constructFilterQuery(filter, serializer);
     const query: SQL[] = [];
 
     query.push(
@@ -193,7 +212,7 @@ export const sqliteSQLBuilder = (
   countDocuments: <T>(filter: PongoFilter<T> | SQL): SQL => {
     const filterQuery = SQL.check.isSQL(filter)
       ? filter
-      : constructFilterQuery(filter);
+      : constructFilterQuery(filter, serializer);
     return SQL`SELECT COUNT(1) as count FROM ${SQL.identifier(collectionName)} ${where(filterQuery)};`;
   },
   rename: (newName: string): SQL =>

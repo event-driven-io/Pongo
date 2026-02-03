@@ -33,6 +33,7 @@ export type PgPool =
 export const pgNativePool = (options: {
   connectionString: string;
   database?: string | undefined;
+  serializer: JSONSerializer;
 }): PgNativePool => {
   const { connectionString, database } = options;
   const pool = getPool({ connectionString, database });
@@ -42,6 +43,7 @@ export const pgNativePool = (options: {
       type: 'PoolClient',
       connect: () => pool.connect(),
       close: (client) => Promise.resolve(client.release()),
+      serializer: options.serializer,
     });
 
   const open = () => Promise.resolve(getConnection());
@@ -57,6 +59,7 @@ export const pgNativePool = (options: {
 
 export const pgAmbientNativePool = (options: {
   pool: pg.Pool;
+  serializer: JSONSerializer;
 }): PgNativePool => {
   const { pool } = options;
 
@@ -67,6 +70,7 @@ export const pgAmbientNativePool = (options: {
         type: 'PoolClient',
         connect: () => pool.connect(),
         close: (client) => Promise.resolve(client.release()),
+        serializer: options.serializer,
       }),
   });
 };
@@ -85,6 +89,7 @@ export const pgAmbientConnectionPool = (options: {
 export const pgClientPool = (options: {
   connectionString: string;
   database?: string | undefined;
+  serializer: JSONSerializer;
 }): PgAmbientClientPool => {
   const { connectionString, database } = options;
 
@@ -101,6 +106,7 @@ export const pgClientPool = (options: {
         type: 'Client',
         connect,
         close: (client) => client.end(),
+        serializer: options.serializer,
       });
     },
   });
@@ -108,6 +114,7 @@ export const pgClientPool = (options: {
 
 export const pgAmbientClientPool = (options: {
   client: pg.Client;
+  serializer: JSONSerializer;
 }): PgAmbientClientPool => {
   const { client } = options;
 
@@ -118,6 +125,7 @@ export const pgAmbientClientPool = (options: {
       type: 'Client',
       connect,
       close: () => Promise.resolve(),
+      serializer: options.serializer,
     });
   };
 
@@ -189,8 +197,10 @@ export function pgPool(
 ): PgNativePool | PgAmbientClientPool | PgAmbientConnectionPool {
   const { connectionString, database } = options;
 
+  const serializer = options.serializer ?? JSONSerializer;
+
   if ('client' in options && options.client)
-    return pgAmbientClientPool({ client: options.client });
+    return pgAmbientClientPool({ client: options.client, serializer });
 
   if ('connection' in options && options.connection)
     return pgAmbientConnectionPool({
@@ -198,14 +208,15 @@ export function pgPool(
     });
 
   if ('pooled' in options && options.pooled === false)
-    return pgClientPool({ connectionString, database });
+    return pgClientPool({ connectionString, database, serializer });
 
   if ('pool' in options && options.pool)
-    return pgAmbientNativePool({ pool: options.pool });
+    return pgAmbientNativePool({ pool: options.pool, serializer });
 
   return pgNativePool({
     connectionString,
     database,
+    serializer,
   });
 }
 

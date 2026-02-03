@@ -46,7 +46,12 @@ export const d1Connection = (options: D1ConnectionOptions) => {
         driverType: D1DriverType,
         client: options.client ?? d1Client(options),
         initTransaction: (connection) =>
-          d1Transaction(connection, options.transactionOptions),
+          d1Transaction(
+            connection,
+            options.serializer,
+            options.transactionOptions,
+          ),
+        serializer: options.serializer,
       }),
     };
 

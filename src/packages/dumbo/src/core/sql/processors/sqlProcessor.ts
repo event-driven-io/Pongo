@@ -1,3 +1,4 @@
+import type { JSONSerializer } from '../../serializer';
 import type { ParametrizedSQLBuilder } from '../parametrizedSQL';
 import type { AnySQLToken } from '../tokens';
 import type { SQLValueMapper } from '../valueMappers';
@@ -7,6 +8,7 @@ export type SQLProcessorContext = {
   mapper: SQLValueMapper;
   builder: ParametrizedSQLBuilder;
   processorsRegistry: SQLProcessorsReadonlyRegistry;
+  serializer: JSONSerializer;
 };
 
 export type SQLProcessor<Token extends AnySQLToken = AnySQLToken> = {

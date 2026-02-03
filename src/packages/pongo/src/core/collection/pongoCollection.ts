@@ -202,7 +202,7 @@ export const pongoCollection = <
           insertedId: successful ? _id : null,
           nextExpectedVersion: _version,
         },
-        { operationName: 'insertOne', collectionName, errors },
+        { operationName: 'insertOne', collectionName, serializer, errors },
       );
     },
     insertMany: async (
@@ -233,7 +233,7 @@ export const pongoCollection = <
           insertedCount: result.rowCount ?? 0,
           insertedIds: result.rows.map((d) => d._id as string),
         },
-        { operationName: 'insertMany', collectionName, errors },
+        { operationName: 'insertMany', collectionName, serializer, errors },
       );
     },
     updateOne: async (
@@ -257,7 +257,7 @@ export const pongoCollection = <
           matchedCount: Number(result.rows[0]?.matched ?? 0),
           nextExpectedVersion: BigInt(result.rows[0]?.version ?? 0n),
         },
-        { operationName: 'updateOne', collectionName, errors },
+        { operationName: 'updateOne', collectionName, serializer, errors },
       );
     },
     replaceOne: async (
@@ -280,7 +280,7 @@ export const pongoCollection = <
           matchedCount: Number(result.rows[0]?.matched ?? 0),
           nextExpectedVersion: BigInt(result.rows[0]?.version ?? 0n),
         },
-        { operationName: 'replaceOne', collectionName, errors },
+        { operationName: 'replaceOne', collectionName, serializer, errors },
       );
     },
     updateMany: async (
@@ -298,7 +298,7 @@ export const pongoCollection = <
           modifiedCount: result.rowCount ?? 0,
           matchedCount: result.rowCount ?? 0,
         },
-        { operationName: 'updateMany', collectionName, errors },
+        { operationName: 'updateMany', collectionName, serializer, errors },
       );
     },
     deleteOne: async (
@@ -317,7 +317,7 @@ export const pongoCollection = <
           deletedCount: Number(result.rows[0]?.deleted ?? 0),
           matchedCount: Number(result.rows[0]?.matched ?? 0),
         },
-        { operationName: 'deleteOne', collectionName, errors },
+        { operationName: 'deleteOne', collectionName, serializer, errors },
       );
     },
     deleteMany: async (
@@ -334,7 +334,7 @@ export const pongoCollection = <
           deletedCount: result.rowCount ?? 0,
           matchedCount: result.rowCount ?? 0,
         },
-        { operationName: 'deleteMany', collectionName, errors },
+        { operationName: 'deleteMany', collectionName, serializer, errors },
       );
     },
     findOne: async (
@@ -429,7 +429,7 @@ export const pongoCollection = <
             successful: false,
             document: existing as T,
           },
-          { operationName: 'handle', collectionName, errors },
+          { operationName: 'handle', collectionName, serializer, errors },
         );
       }
 
@@ -443,7 +443,7 @@ export const pongoCollection = <
             successful: true,
             document: existing as T | null,
           },
-          { operationName: 'handle', collectionName, errors },
+          { operationName: 'handle', collectionName, serializer, errors },
         );
 
       if (!existing && result) {
@@ -491,7 +491,7 @@ export const pongoCollection = <
           successful: true,
           document: existing as T,
         },
-        { operationName: 'handle', collectionName, errors },
+        { operationName: 'handle', collectionName, serializer, errors },
       );
     },
     find: async (

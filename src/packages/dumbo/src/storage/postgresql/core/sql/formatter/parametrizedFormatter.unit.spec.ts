@@ -1,13 +1,13 @@
 import assert from 'node:assert';
 import { describe, it } from 'node:test';
-import { SQL } from '../../../../../core';
+import { JSONSerializer, SQL } from '../../../../../core';
 import { pgFormatter } from './index';
 
 void describe('PostgreSQL Parametrized Formatter', () => {
   void describe('format method', () => {
     void it('should convert basic parametrized SQL to PostgreSQL format', () => {
       const sql = SQL`SELECT * FROM users WHERE id = ${123}`;
-      const result = pgFormatter.format(sql);
+      const result = pgFormatter.format(sql, { serializer: JSONSerializer });
 
       assert.deepStrictEqual(result, {
         query: 'SELECT * FROM users WHERE id = $1',
@@ -17,7 +17,7 @@ void describe('PostgreSQL Parametrized Formatter', () => {
 
     void it('handles identifiers by inlining them', () => {
       const sql = SQL`CREATE TABLE ${SQL.identifier('users')} (id INTEGER, name TEXT)`;
-      const result = pgFormatter.format(sql);
+      const result = pgFormatter.format(sql, { serializer: JSONSerializer });
 
       assert.deepStrictEqual(result, {
         query: 'CREATE TABLE users (id INTEGER, name TEXT)',
@@ -27,7 +27,7 @@ void describe('PostgreSQL Parametrized Formatter', () => {
 
     void it('handles quoted identifiers correctly', () => {
       const sql = SQL`CREATE TABLE ${SQL.identifier('User Table')} (id INTEGER)`;
-      const result = pgFormatter.format(sql);
+      const result = pgFormatter.format(sql, { serializer: JSONSerializer });
 
       assert.deepStrictEqual(result, {
         query: 'CREATE TABLE "User Table" (id INTEGER)',
@@ -37,7 +37,7 @@ void describe('PostgreSQL Parametrized Formatter', () => {
 
     void it('should mix identifiers and parameters correctly', () => {
       const sql = SQL`SELECT ${SQL.identifier('name')} FROM ${SQL.identifier('users')} WHERE id = ${123}`;
-      const result = pgFormatter.format(sql);
+      const result = pgFormatter.format(sql, { serializer: JSONSerializer });
 
       assert.deepStrictEqual(result, {
         query: 'SELECT name FROM users WHERE id = $1',
@@ -48,7 +48,7 @@ void describe('PostgreSQL Parametrized Formatter', () => {
     void it('handles arrays by expanding to individual parameters', () => {
       const ids = ['id1', 'id2', 'id3'];
       const sql = SQL`SELECT * FROM users WHERE _id = ANY (${ids})`;
-      const result = pgFormatter.format(sql);
+      const result = pgFormatter.format(sql, { serializer: JSONSerializer });
 
       assert.deepStrictEqual(result, {
         query: `SELECT * FROM users WHERE _id = ANY ($1)`,
@@ -59,7 +59,7 @@ void describe('PostgreSQL Parametrized Formatter', () => {
     void it('handles arrays by expanding to individual parameters', () => {
       const ids = ['id1', 'id2', 'id3'];
       const sql = SQL`SELECT * FROM users WHERE ${SQL.in('_id', ids)}`;
-      const result = pgFormatter.format(sql);
+      const result = pgFormatter.format(sql, { serializer: JSONSerializer });
 
       assert.deepStrictEqual(result, {
         query: `SELECT * FROM users WHERE _id = ANY ($1)`,
@@ -69,7 +69,7 @@ void describe('PostgreSQL Parametrized Formatter', () => {
 
     void it('handles multiple parameters', () => {
       const sql = SQL`SELECT * FROM users WHERE id = ${123} AND name = ${'John'}`;
-      const result = pgFormatter.format(sql);
+      const result = pgFormatter.format(sql, { serializer: JSONSerializer });
 
       assert.deepStrictEqual(result, {
         query: 'SELECT * FROM users WHERE id = $1 AND name = $2',
@@ -80,7 +80,9 @@ void describe('PostgreSQL Parametrized Formatter', () => {
     void it('handles nested SQL', () => {
       const innerSql = SQL`status = ${'active'}`;
       const outerSql = SQL`SELECT * FROM users WHERE ${innerSql} AND id = ${456}`;
-      const result = pgFormatter.format(outerSql);
+      const result = pgFormatter.format(outerSql, {
+        serializer: JSONSerializer,
+      });
 
       assert.deepStrictEqual(result, {
         query: 'SELECT * FROM users WHERE status = $1 AND id = $2',
@@ -91,7 +93,9 @@ void describe('PostgreSQL Parametrized Formatter', () => {
     void it('handles array of SQL', () => {
       const sql1 = SQL`INSERT INTO users (name) VALUES (${'Alice'})`;
       const sql2 = SQL`INSERT INTO users (name) VALUES (${'Bob'})`;
-      const result = pgFormatter.format([sql1, sql2]);
+      const result = pgFormatter.format([sql1, sql2], {
+        serializer: JSONSerializer,
+      });
 
       assert.deepStrictEqual(result, {
         query:
@@ -106,7 +110,7 @@ void describe('PostgreSQL Parametrized Formatter', () => {
       const obj = { key: 'value' };
 
       const sql = SQL`INSERT INTO test (date, bigint, json) VALUES (${date}, ${bigint}, ${obj})`;
-      const result = pgFormatter.format(sql);
+      const result = pgFormatter.format(sql, { serializer: JSONSerializer });
 
       assert.deepStrictEqual(result, {
         query: 'INSERT INTO test (date, bigint, json) VALUES ($1, $2, $3)',
@@ -120,7 +124,7 @@ void describe('PostgreSQL Parametrized Formatter', () => {
 
     void it('handles empty parameters', () => {
       const sql = SQL`SELECT * FROM users`;
-      const result = pgFormatter.format(sql);
+      const result = pgFormatter.format(sql, { serializer: JSONSerializer });
 
       assert.deepStrictEqual(result, {
         query: 'SELECT * FROM users',
@@ -130,14 +134,16 @@ void describe('PostgreSQL Parametrized Formatter', () => {
 
     void it('throws error for non-parametrized SQL', () => {
       assert.throws(() => {
-        pgFormatter.format('SELECT * FROM users' as SQL);
+        pgFormatter.format('SELECT * FROM users' as SQL, {
+          serializer: JSONSerializer,
+        });
       }, /Expected TokenizedSQL, got string-based SQL/);
     });
 
     void it('handles SQL.in with mode: params using IN syntax', () => {
       const ids = ['id1', 'id2', 'id3'];
       const sql = SQL`SELECT * FROM users WHERE ${SQL.in('_id', ids, { mode: 'params' })}`;
-      const result = pgFormatter.format(sql);
+      const result = pgFormatter.format(sql, { serializer: JSONSerializer });
 
       assert.deepStrictEqual(result, {
         query: `SELECT * FROM users WHERE _id IN ($1, $2, $3)`,
@@ -148,7 +154,7 @@ void describe('PostgreSQL Parametrized Formatter', () => {
     void it('handles SQL.in with mode: native using = ANY syntax (default)', () => {
       const ids = ['id1', 'id2', 'id3'];
       const sql = SQL`SELECT * FROM users WHERE ${SQL.in('_id', ids, { mode: 'native' })}`;
-      const result = pgFormatter.format(sql);
+      const result = pgFormatter.format(sql, { serializer: JSONSerializer });
 
       assert.deepStrictEqual(result, {
         query: `SELECT * FROM users WHERE _id = ANY ($1)`,
@@ -159,7 +165,7 @@ void describe('PostgreSQL Parametrized Formatter', () => {
     void it('handles SQL.array with mode: params expanding to individual params', () => {
       const ids = ['id1', 'id2', 'id3'];
       const sql = SQL`SELECT * FROM users WHERE _id IN (${SQL.array(ids, { mode: 'params' })})`;
-      const result = pgFormatter.format(sql);
+      const result = pgFormatter.format(sql, { serializer: JSONSerializer });
 
       assert.deepStrictEqual(result, {
         query: `SELECT * FROM users WHERE _id IN ($1, $2, $3)`,
@@ -170,7 +176,7 @@ void describe('PostgreSQL Parametrized Formatter', () => {
     void it('handles SQL.array with mode: native as single param (default)', () => {
       const ids = ['id1', 'id2', 'id3'];
       const sql = SQL`SELECT * FROM users WHERE _id = ANY (${SQL.array(ids, { mode: 'native' })})`;
-      const result = pgFormatter.format(sql);
+      const result = pgFormatter.format(sql, { serializer: JSONSerializer });
 
       assert.deepStrictEqual(result, {
         query: `SELECT * FROM users WHERE _id = ANY ($1)`,
@@ -181,7 +187,7 @@ void describe('PostgreSQL Parametrized Formatter', () => {
     void it('handles SQL.array without mode option (defaults to native)', () => {
       const ids = ['id1', 'id2', 'id3'];
       const sql = SQL`SELECT * FROM users WHERE _id = ANY (${SQL.array(ids)})`;
-      const result = pgFormatter.format(sql);
+      const result = pgFormatter.format(sql, { serializer: JSONSerializer });
 
       assert.deepStrictEqual(result, {
         query: `SELECT * FROM users WHERE _id = ANY ($1)`,
@@ -193,7 +199,7 @@ void describe('PostgreSQL Parametrized Formatter', () => {
   void describe('formatRaw method', () => {
     void it('should return inline formatted SQL string', () => {
       const sql = SQL`SELECT * FROM users WHERE id = ${123} AND name = ${'John'}`;
-      const result = pgFormatter.describe(sql);
+      const result = pgFormatter.describe(sql, { serializer: JSONSerializer });
 
       assert.strictEqual(typeof result, 'string');
       assert.ok(result.includes('123'));
@@ -203,7 +209,9 @@ void describe('PostgreSQL Parametrized Formatter', () => {
     void it('handles array of SQL', () => {
       const sql1 = SQL`SELECT ${123}`;
       const sql2 = SQL`SELECT ${'test'}`;
-      const result = pgFormatter.describe([sql1, sql2]);
+      const result = pgFormatter.describe([sql1, sql2], {
+        serializer: JSONSerializer,
+      });
 
       assert.strictEqual(typeof result, 'string');
       assert.ok(result.includes('123'));
@@ -214,44 +222,64 @@ void describe('PostgreSQL Parametrized Formatter', () => {
 
   void describe('mapSQLValue method', () => {
     void it('handles basic types', () => {
-      assert.strictEqual(pgFormatter.valueMapper.mapValue(123), 123);
-      assert.strictEqual(pgFormatter.valueMapper.mapValue('test'), 'test');
-      assert.strictEqual(pgFormatter.valueMapper.mapValue(null), null);
-      assert.strictEqual(pgFormatter.valueMapper.mapValue(undefined), null);
+      assert.strictEqual(
+        pgFormatter.valueMapper.mapValue(123, JSONSerializer),
+        123,
+      );
+      assert.strictEqual(
+        pgFormatter.valueMapper.mapValue('test', JSONSerializer),
+        'test',
+      );
+      assert.strictEqual(
+        pgFormatter.valueMapper.mapValue(null, JSONSerializer),
+        null,
+      );
+      assert.strictEqual(
+        pgFormatter.valueMapper.mapValue(undefined, JSONSerializer),
+        null,
+      );
     });
 
     void it('handles SQL identifier type', () => {
       // Valid unquoted identifier (lowercase, no special chars)
       const validIdentResult = pgFormatter.valueMapper.mapValue(
         SQL.identifier('table_name'),
+        JSONSerializer,
       );
       assert.strictEqual(validIdentResult, 'table_name');
 
       // Invalid identifier that needs quoting (mixed case)
       const quotedIdentResult = pgFormatter.valueMapper.mapValue(
         SQL.identifier('TableName'),
+        JSONSerializer,
       );
       assert.strictEqual(quotedIdentResult, '"TableName"');
     });
 
     void it('handles nested SQL', () => {
       const nestedSql = SQL`SELECT ${123}`;
-      const result = pgFormatter.valueMapper.mapValue(nestedSql);
+      const result = pgFormatter.valueMapper.mapValue(
+        nestedSql,
+        JSONSerializer,
+      );
       assert.strictEqual(typeof result, 'string');
       assert.ok((result as string).includes('123'));
     });
 
     void it('handles complex types', () => {
       const date = new Date('2023-01-01T00:00:00.000Z');
-      const dateResult = pgFormatter.valueMapper.mapValue(date);
+      const dateResult = pgFormatter.valueMapper.mapValue(date, JSONSerializer);
       assert.strictEqual(dateResult, '2023-01-01 00:00:00.000+00');
 
       const bigint = BigInt(123456789012345);
-      const bigintResult = pgFormatter.valueMapper.mapValue(bigint);
+      const bigintResult = pgFormatter.valueMapper.mapValue(
+        bigint,
+        JSONSerializer,
+      );
       assert.ok(typeof bigintResult === 'string');
 
       const obj = { key: 'value' };
-      const objResult = pgFormatter.valueMapper.mapValue(obj);
+      const objResult = pgFormatter.valueMapper.mapValue(obj, JSONSerializer);
       assert.ok(typeof objResult === 'string');
       assert.ok(objResult.includes('{"key":"value"}'));
     });

@@ -3,28 +3,31 @@ import { SQLProcessor, type SQLProcessorContext } from './sqlProcessor';
 
 export const ExpandArrayProcessor: SQLProcessor<SQLArray> = SQLProcessor({
   canHandle: 'SQL_ARRAY',
-  handle: (token: SQLArray, { builder, mapper }: SQLProcessorContext) => {
+  handle: (
+    token: SQLArray,
+    { builder, serializer, mapper }: SQLProcessorContext,
+  ) => {
     if (token.value.length === 0) {
       throw new Error(
         "Empty arrays are not supported. If you're using it with SELECT IN statement Use SQL.in(column, array) helper instead.",
       );
     }
-    builder.addParams(mapper.mapValue(token.value) as unknown[]);
+    builder.addParams(mapper.mapValue(token.value, serializer) as unknown[]);
   },
 });
 
 export const ExpandSQLInProcessor: SQLProcessor<SQLIn> = SQLProcessor({
   canHandle: 'SQL_IN',
   handle: (token: SQLIn, context: SQLProcessorContext) => {
-    const { builder, mapper, processorsRegistry } = context;
+    const { builder, mapper, processorsRegistry, serializer } = context;
     const { values: inValues, column } = token;
 
     if (inValues.value.length === 0) {
-      builder.addParam(mapper.mapValue(false));
+      builder.addParam(mapper.mapValue(false, serializer));
       return;
     }
 
-    builder.addSQL(mapper.mapValue(column.value) as string);
+    builder.addSQL(mapper.mapValue(column.value, serializer) as string);
     builder.addSQL(` IN (`);
 
     const arrayProcessor = processorsRegistry.get(SQLArray.type);
@@ -35,7 +38,12 @@ export const ExpandSQLInProcessor: SQLProcessor<SQLIn> = SQLProcessor({
       );
     }
 
-    arrayProcessor.handle(inValues, { builder, mapper, processorsRegistry });
+    arrayProcessor.handle(inValues, {
+      builder,
+      mapper,
+      processorsRegistry,
+      serializer: serializer,
+    });
     builder.addSQL(`)`);
   },
 });
@@ -45,15 +53,17 @@ export const FormatIdentifierProcessor: SQLProcessor<SQLIdentifier> =
     canHandle: 'SQL_IDENTIFIER',
     handle: (
       token: SQLIdentifier,
-      { builder, mapper }: SQLProcessorContext,
+      { builder, mapper, serializer }: SQLProcessorContext,
     ) => {
       // TODO: use MapIdentifier from mapper
-      builder.addSQL(mapper.mapValue(token) as string);
+      builder.addSQL(mapper.mapValue(token, serializer) as string);
     },
   });
 
 export const MapLiteralProcessor: SQLProcessor<SQLLiteral> = SQLProcessor({
   canHandle: 'SQL_LITERAL',
-  handle: (token: SQLLiteral, { builder, mapper }: SQLProcessorContext) =>
-    builder.addParam(mapper.mapValue(token.value)),
+  handle: (
+    token: SQLLiteral,
+    { builder, mapper, serializer }: SQLProcessorContext,
+  ) => builder.addParam(mapper.mapValue(token.value, serializer)),
 });

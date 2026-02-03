@@ -2,6 +2,7 @@ export * from './connections';
 import {
   canHandleDriverWithConnectionString,
   dumboDatabaseDriverRegistry,
+  JSONSerializer,
   type DumboConnectionOptions,
   type DumboDatabaseDriver,
 } from '../../../core';
@@ -27,7 +28,7 @@ export type SQLite3DumboOptions = Omit<
   SQLitePoolOptions<SQLite3Connection, SQLite3ConnectionOptions>,
   'driverType'
 > &
-  SQLite3ConnectionOptions;
+  SQLite3ConnectionOptions & { serializer?: JSONSerializer };
 
 export type Sqlite3Pool = SQLitePool<SQLite3Connection>;
 
@@ -41,7 +42,10 @@ export const sqlite3Pool = (options: SQLite3DumboOptions) =>
         : {
             connectionOptions: options as SQLite3ConnectionOptions,
             sqliteConnectionFactory: (opts: SQLite3ConnectionOptions) =>
-              sqlite3Connection(opts),
+              sqlite3Connection({
+                ...opts,
+                serializer: options.serializer ?? JSONSerializer,
+              }),
           }),
     }),
   );

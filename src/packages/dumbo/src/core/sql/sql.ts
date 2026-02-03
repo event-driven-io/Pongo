@@ -1,3 +1,4 @@
+import { JSONSerializer } from '../serializer';
 import {
   describeSQL,
   formatSQL,
@@ -8,12 +9,12 @@ import type { ParametrizedSQL } from './parametrizedSQL';
 import { isTokenizedSQL, TokenizedSQL } from './tokenizedSQL';
 import {
   SQLArray,
-  type SQLArrayMode,
   SQLColumnToken,
   SQLColumnTypeTokensFactory,
   SQLIdentifier,
   SQLIn,
   SQLPlain,
+  type SQLArrayMode,
 } from './tokens';
 
 export type SQL = string & { __brand: 'sql' };
@@ -101,12 +102,14 @@ SQL.format = (
   sql: SQL | SQL[],
   formatter: SQLFormatter,
   options?: FormatSQLOptions,
-): ParametrizedSQL => formatSQL(sql, formatter, options);
+): ParametrizedSQL =>
+  formatSQL(sql, formatter, options?.serializer ?? JSONSerializer, options);
 SQL.describe = (
   sql: SQL | SQL[],
   formatter: SQLFormatter,
   options?: FormatSQLOptions,
-): string => describeSQL(sql, formatter, options);
+): string =>
+  describeSQL(sql, formatter, options?.serializer ?? JSONSerializer, options);
 SQL.in = (
   column: string,
   values: unknown[],

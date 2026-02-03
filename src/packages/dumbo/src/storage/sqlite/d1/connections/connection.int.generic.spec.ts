@@ -3,7 +3,7 @@ import assert from 'assert';
 import { Miniflare } from 'miniflare';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { d1Client, useD1DatabaseDriver, type D1DumboOptions } from '..';
-import { SQL } from '../../../../core';
+import { JSONSerializer, SQL } from '../../../../core';
 import { dumbo } from '../../../all';
 
 void describe('D1 SQLite pool', () => {
@@ -91,6 +91,7 @@ void describe('D1 SQLite pool', () => {
     const options: D1DumboOptions = {
       driverType: `SQLite:d1`,
       database,
+      serializer: JSONSerializer,
     };
 
     const pool = dumbo(options);
@@ -105,7 +106,7 @@ void describe('D1 SQLite pool', () => {
   });
 
   void it('connects using ambient client', async () => {
-    const existingClient = d1Client({ database });
+    const existingClient = d1Client({ database, serializer: JSONSerializer });
     await existingClient.connect();
 
     const pool = dumbo({
