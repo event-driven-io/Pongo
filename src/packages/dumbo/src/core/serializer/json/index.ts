@@ -11,6 +11,8 @@ interface JSONSerializer<
 type JSONSerializerOptions = {
   parseDates?: boolean;
   parseBigInts?: boolean;
+  failOnBigIntSerialization?: boolean;
+  useDefaultDateSerialization?: boolean;
 };
 
 type JSONSerializeOptions = {
@@ -182,16 +184,16 @@ const composeJSONRevivers = (
 
 const JSONReplacer = (opts?: JSONSerializeOptions) =>
   composeJSONReplacers(
-    opts?.parseBigInts === true ? JSONReplacers.bigInt : undefined,
-    opts?.parseDates === true ? JSONReplacers.date : undefined,
     opts?.replacer,
+    opts?.failOnBigIntSerialization !== true ? JSONReplacers.bigInt : undefined,
+    opts?.useDefaultDateSerialization !== true ? JSONReplacers.date : undefined,
   );
 
 const JSONReviver = (opts?: JSONDeserializeOptions) =>
   composeJSONRevivers(
+    opts?.reviver,
     opts?.parseBigInts === true ? JSONRevivers.bigInt : undefined,
     opts?.parseDates === true ? JSONRevivers.date : undefined,
-    opts?.reviver,
   );
 
 const JSONReplacers = {
@@ -251,7 +253,7 @@ const JSONSerializer: JSONSerializer & {
   >(
     options?: JSONSerializationOptions<SerializeOptions, DeserializeOptions>,
   ) => JSONSerializer<SerializeOptions, DeserializeOptions>;
-} = Object.assign(jsonSerializer({ parseBigInts: true }), {
+} = Object.assign(jsonSerializer(), {
   from: <
     SerializeOptions extends JSONSerializeOptions = JSONSerializeOptions,
     DeserializeOptions extends JSONDeserializeOptions = JSONDeserializeOptions,
@@ -262,8 +264,6 @@ const JSONSerializer: JSONSerializer & {
       ? jsonSerializer(options?.serialization?.options)
       : JSONSerializer,
 });
-
-const RawJSONSerializer = jsonSerializer();
 
 const JSONCodec = <
   T,
@@ -311,7 +311,6 @@ export {
   JSONRevivers,
   JSONSerializer,
   jsonSerializer,
-  RawJSONSerializer,
   type JSONCodecOptions,
   type JSONDeserializeOptions,
   type JSONSerializationOptions,
