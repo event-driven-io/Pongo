@@ -6,7 +6,7 @@ import assert from 'assert';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { tableExists } from '..';
 import { type Dumbo, dumbo } from '../../..';
-import { count, rawSql, sql } from '../../../core';
+import { count, rawSql, single, sql } from '../../../core';
 import { type SQLMigration, MIGRATIONS_LOCK_ID } from '../../../core/schema';
 import { acquireAdvisoryLock, releaseAdvisoryLock } from '../locks';
 import { runPostgreSQLMigrations } from './migrations';
@@ -167,7 +167,7 @@ void describe('Migration Integration Tests', () => {
     const migrationCount = await count(
       pool.execute.query<{ count: number }>(
         sql(
-          'SELECT COUNT(*)::int as count FROM migrations WHERE name = %L',
+          'SELECT COUNT(*)::int as count FROM dmb_migrations WHERE name = %L',
           'hash_check_migration',
         ),
       ),
@@ -218,7 +218,7 @@ void describe('Migration Integration Tests', () => {
     }
   });
 
-  void it('should silently be not applied if a migration with the same name has a different hash with ignoreMigrationHashMismatch setting', async () => {
+  void it('should silently be not applied but update hash if a migration with the same name has a different hash with ignoreMigrationHashMismatch setting', async () => {
     const migration: SQLMigration = {
       name: 'hash_check_migration',
       sqls: [
@@ -231,6 +231,15 @@ void describe('Migration Integration Tests', () => {
     };
 
     await runPostgreSQLMigrations(pool, [migration]);
+
+    const { sql_hash: initialHash } = await single(
+      pool.execute.query<{ sql_hash: string }>(
+        sql(
+          'SELECT sql_hash FROM dmb_migrations WHERE name = %L',
+          'hash_check_migration',
+        ),
+      ),
+    );
 
     const modifiedMigration: SQLMigration = {
       ...migration,
@@ -251,6 +260,20 @@ void describe('Migration Integration Tests', () => {
     assert.ok(
       result.skipped.some((m) => m.name === 'hash_check_migration'),
       'The modified migration should be skipped due to hash mismatch.',
+    );
+
+    const { sql_hash: updatedHash } = await single(
+      pool.execute.query<{ sql_hash: string }>(
+        sql(
+          'SELECT sql_hash FROM dmb_migrations WHERE name = %L',
+          'hash_check_migration',
+        ),
+      ),
+    );
+    assert.notStrictEqual(
+      initialHash,
+      updatedHash,
+      'The migration hash should be updated in the database.',
     );
   });
 
