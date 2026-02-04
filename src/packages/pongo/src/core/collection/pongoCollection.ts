@@ -33,6 +33,7 @@ import {
   type PongoHandleResult,
   type PongoInsertManyResult,
   type PongoInsertOneResult,
+  type PongoMigrationOptions,
   type PongoUpdate,
   type PongoUpdateManyResult,
   type PongoUpdateResult,
@@ -533,7 +534,8 @@ export const pongoCollection = <
           migrations: SqlFor.migrations,
         });
       },
-      migrate: () => runPostgreSQLMigrations(pool, SqlFor.migrations()), // TODO: This needs to change to support more connectors
+      migrate: (options?: PongoMigrationOptions) =>
+        runPostgreSQLMigrations(pool, SqlFor.migrations(), options), // TODO: This needs to change to support more connectors
     },
   };
 

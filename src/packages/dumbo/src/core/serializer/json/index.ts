@@ -100,7 +100,6 @@ const bigIntReviver: JSONReviver = (_key, value, context) => {
     try {
       return BigInt(context?.source ?? value.toString());
     } catch {
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-return
       return value;
     }
   }

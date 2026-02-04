@@ -22,6 +22,7 @@ import {
   type PongoCollection,
   type PongoDb,
   type PongoDbClientOptions,
+  type PongoMigrationOptions,
 } from '../core';
 import { postgresSQLBuilder } from './sqlBuilder';
 
@@ -86,13 +87,14 @@ export const postgresDb = (
           components: [...collections.values()].map((c) => c.schema.component),
         });
       },
-      migrate: () =>
+      migrate: (options?: PongoMigrationOptions) =>
         runPostgreSQLMigrations(
           pool,
           [...collections.values()].flatMap((c) =>
             // TODO: This needs to change to support more connectors
             c.schema.component.migrations({ connector: 'PostgreSQL:pg' }),
           ),
+          options,
         ),
     },
 
