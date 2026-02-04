@@ -1,5 +1,4 @@
 import {
-  mapToCamelCase,
   rawSql,
   singleOrNull,
   sql,
@@ -112,7 +111,14 @@ const runSQLMigration = async (
       newMigration,
     );
 
-    if (checkResult.success === false) {
+    if (checkResult.exists === true) {
+      if (checkResult.hashesMatch === true) {
+        tracer.info('migration-already-applied', {
+          migrationName: migration.name,
+        });
+        return false;
+      }
+
       if (options?.ignoreMigrationHashMismatch !== true)
         throw new Error(
           `Migration hash mismatch for "${migration.name}". Aborting migration.`,
@@ -154,28 +160,32 @@ export const combineMigrations = (...migration: Pick<SQLMigration, 'sqls'>[]) =>
   migration.flatMap((m) => m.sqls).join('\n');
 
 type EnsureMigrationResult =
-  | { success: true }
-  | { success: false; hashFromDB: string };
+  | { exists: false }
+  | { exists: true; hashesMatch: true }
+  | { exists: true; hashesMatch: false; hashFromDB: string };
 
 const ensureMigrationWasNotAppliedYet = async (
   execute: SQLExecutor,
   migration: { name: string; sqlHash: string },
 ): Promise<EnsureMigrationResult> => {
   const result = await singleOrNull(
-    execute.query<{ sql_hash: string }>(
-      sql(`SELECT sql_hash FROM migrations WHERE name = %L`, migration.name),
+    execute.query<{ sqlHash: string }>(
+      sql(
+        `SELECT sql_hash as "sqlHash" FROM dmb_migrations WHERE name = %L`,
+        migration.name,
+      ),
     ),
   );
 
-  if (result === null) return { success: true };
+  if (result === null) return { exists: false };
 
-  const { sqlHash } = mapToCamelCase<Pick<MigrationRecord, 'sqlHash'>>(result);
+  const { sqlHash } = result;
 
-  if (sqlHash !== migration.sqlHash) {
-    return { success: false, hashFromDB: sqlHash };
-  }
-
-  return { success: true };
+  return {
+    exists: true,
+    hashesMatch: sqlHash === migration.sqlHash,
+    hashFromDB: sqlHash,
+  };
 };
 
 const recordMigration = async (
@@ -185,7 +195,7 @@ const recordMigration = async (
   await execute.command(
     sql(
       `
-      INSERT INTO migrations (name, sql_hash)
+      INSERT INTO dmb_migrations (name, sql_hash)
       VALUES (%L, %L)
       `,
       migration.name,
@@ -201,7 +211,7 @@ const updateMigrationHash = async (
   await execute.command(
     sql(
       `
-      UPDATE migrations
+      UPDATE dmb_migrations
       SET sql_hash = %L, timestamp = NOW()
       WHERE name = %L
       `,

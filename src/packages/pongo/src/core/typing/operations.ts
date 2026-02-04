@@ -75,9 +75,8 @@ export type PongoDBCollectionOptions<
   errors?: { throwOnOperationFailures?: boolean };
 };
 
-export interface PongoDb<
-  ConnectorType extends string = string,
-> extends DatabaseTransactionFactory<ConnectorType> {
+export interface PongoDb<ConnectorType extends string = string>
+  extends DatabaseTransactionFactory<ConnectorType> {
   get connectorType(): ConnectorType;
   get databaseName(): string;
   connect(): Promise<void>;
@@ -353,9 +352,8 @@ export declare interface RootFilterOperators<TSchema> extends Document {
   $comment?: string | Document;
 }
 
-export declare interface PongoFilterOperator<
-  TValue,
-> extends NonObjectIdLikeDocument {
+export declare interface PongoFilterOperator<TValue>
+  extends NonObjectIdLikeDocument {
   $eq?: TValue;
   $gt?: TValue;
   $gte?: TValue;

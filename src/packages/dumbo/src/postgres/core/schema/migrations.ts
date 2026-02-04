@@ -19,7 +19,7 @@ export type PostgreSQLMigratorOptions = {
 };
 
 const migrationTableSQL = rawSql(`
-  CREATE TABLE IF NOT EXISTS migrations (
+  CREATE TABLE IF NOT EXISTS dmb_migrations (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL UNIQUE,
     application VARCHAR(255) NOT NULL DEFAULT 'default',
