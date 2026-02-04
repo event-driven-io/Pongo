@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/dumbo",
-  "version": "0.12.5",
+  "version": "0.12.6",
   "description": "Dumbo - tools for dealing with PostgreSQL",
   "type": "module",
   "scripts": {
