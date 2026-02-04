@@ -7,6 +7,7 @@ import {
   type MigrationStyle,
   type QueryResult,
   type QueryResultRow,
+  type RunSQLMigrationsResult,
   type SQL,
   type SQLCommandOptions,
   type SQLExecutor,
@@ -129,7 +130,7 @@ export interface PongoDb<
   collections(): ReadonlyArray<PongoCollection<PongoDocument>>;
   readonly schema: Readonly<{
     component: PongoDatabaseSchemaComponent<DriverType>;
-    migrate(): Promise<void>;
+    migrate(options?: PongoMigrationOptions): Promise<RunSQLMigrationsResult>;
   }>;
   sql: {
     query<Result extends QueryResultRow = QueryResultRow>(
@@ -144,6 +145,11 @@ export interface PongoDb<
 }
 
 export type AnyPongoDb = PongoDb<DatabaseDriverType>;
+
+export type PongoMigrationOptions = {
+  dryRun?: boolean | undefined;
+  failOnMigrationHashMismatch?: boolean | undefined;
+};
 
 export type CollectionOperationOptions = {
   session?: PongoSession;
@@ -271,7 +277,7 @@ export interface PongoCollection<T extends PongoDocument> {
   ): Promise<PongoHandleResult<T>>;
   readonly schema: Readonly<{
     component: PongoCollectionSchemaComponent;
-    migrate(): Promise<void>;
+    migrate(options?: PongoMigrationOptions): Promise<RunSQLMigrationsResult>;
   }>;
   sql: {
     query<Result extends QueryResultRow = QueryResultRow>(

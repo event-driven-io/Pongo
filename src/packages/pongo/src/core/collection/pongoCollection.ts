@@ -37,6 +37,7 @@ import {
   type PongoHandleResult,
   type PongoInsertManyResult,
   type PongoInsertOneResult,
+  type PongoMigrationOptions,
   type PongoUpdate,
   type PongoUpdateManyResult,
   type PongoUpdateResult,
@@ -545,7 +546,8 @@ export const pongoCollection = <
     },
     schema: {
       component: schemaComponent,
-      migrate: () => runSQLMigrations(pool, schemaComponent.migrations),
+      migrate: (options?: PongoMigrationOptions) =>
+        runSQLMigrations(pool, schemaComponent.migrations, options),
     },
   };
 

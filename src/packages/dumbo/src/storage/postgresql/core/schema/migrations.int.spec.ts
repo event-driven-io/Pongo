@@ -220,6 +220,45 @@ void describe('Migration Integration Tests', () => {
     }
   });
 
+  void it('should silently be not applied if a migration with the same name has a different hash for default settings', async () => {
+    const migration: SQLMigration = {
+      name: 'hash_check_migration',
+      sqls: [
+        SQL`
+                CREATE TABLE hash_table (
+                    id SERIAL PRIMARY KEY,
+                    data TEXT NOT NULL
+                );`,
+      ],
+    };
+
+    await runSQLMigrations(pool, [migration]);
+
+    const modifiedMigration: SQLMigration = {
+      ...migration,
+      sqls: [
+        SQL`
+                CREATE TABLE hash_table (
+                    id SERIAL PRIMARY KEY,
+                    data TEXT NOT NULL,
+                    extra_column INT
+                );`,
+      ],
+    };
+
+    try {
+      await runSQLMigrations(pool, [modifiedMigration]);
+      assert.fail('The migration should have failed due to a hash mismatch.');
+    } catch (error) {
+      assert.ok(error instanceof Error);
+      assert.strictEqual(
+        error.message,
+        `Migration hash mismatch for "hash_check_migration". Aborting migration.`,
+        'throws a hash mismatch error.',
+      );
+    }
+  });
+
   void it('handles a large migration with multiple SQL statements', async () => {
     const migration: SQLMigration = {
       name: 'large_migration',

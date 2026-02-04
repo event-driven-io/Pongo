@@ -24,6 +24,7 @@ import {
   type PongoCollection,
   type PongoDb,
   type PongoDBCollectionOptions,
+  type PongoMigrationOptions,
 } from '../typing';
 import { type PongoDatabaseSchemaComponent } from './pongoDatabaseSchemaComponent';
 
@@ -114,7 +115,8 @@ export const PongoDatabase = <
 
     schema: {
       component: schemaComponent,
-      migrate: () => runSQLMigrations(pool, schemaComponent.migrations),
+      migrate: (options?: PongoMigrationOptions) =>
+        runSQLMigrations(pool, schemaComponent.migrations, options),
     },
 
     sql: {
