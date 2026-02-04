@@ -153,13 +153,27 @@ const runSQLMigration = async (
       sqlHash,
     };
 
-    const wasMigrationApplied = await ensureMigrationWasNotAppliedYet(
+    const checkResult = await ensureMigrationWasNotAppliedYet(
       execute,
       newMigration,
-      options,
     );
 
-    if (wasMigrationApplied) return false;
+    if (checkResult.success === false) {
+      if (options?.ignoreMigrationHashMismatch !== true)
+        throw new Error(
+          `Migration hash mismatch for "${migration.name}". Aborting migration.`,
+        );
+
+      tracer.warn('migration-hash-mismatch', {
+        migrationName: migration.name,
+        expectedHash: sqlHash,
+        actualHash: checkResult.hashFromDB,
+      });
+
+      await updateMigrationHash(execute, newMigration);
+
+      return false;
+    }
 
     await execute.batchCommand(sqls);
 
@@ -194,34 +208,29 @@ export const combineMigrations = (
   ...migration: Pick<SQLMigration, 'sqls'>[]
 ): SQL[] => migration.flatMap((m) => m.sqls);
 
+type EnsureMigrationResult =
+  | { success: true }
+  | { success: false; hashFromDB: string };
+
 const ensureMigrationWasNotAppliedYet = async (
   execute: SQLExecutor,
   migration: { name: string; sqlHash: string },
-  options?: { ignoreMigrationHashMismatch?: boolean },
-): Promise<boolean> => {
+): Promise<EnsureMigrationResult> => {
   const result = await singleOrNull(
     execute.query<{ sql_hash: string }>(
       SQL`SELECT sql_hash FROM migrations WHERE name = ${migration.name}`,
     ),
   );
 
-  if (result === null) return false;
+  if (result === null) return { success: true };
 
   const { sqlHash } = mapToCamelCase<Pick<MigrationRecord, 'sqlHash'>>(result);
 
   if (sqlHash !== migration.sqlHash) {
-    if (options?.ignoreMigrationHashMismatch !== true)
-      throw new Error(
-        `Migration hash mismatch for "${migration.name}". Aborting migration.`,
-      );
-    tracer.warn('migration-hash-mismatch', {
-      migrationName: migration.name,
-      expectedHash: migration.sqlHash,
-      actualHash: sqlHash,
-    });
+    return { success: false, hashFromDB: sqlHash };
   }
 
-  return true;
+  return { success: true };
 };
 
 const recordMigration = async (
@@ -232,5 +241,18 @@ const recordMigration = async (
     SQL`
       INSERT INTO migrations (name, sql_hash)
       VALUES (${migration.name}, ${migration.sqlHash})`,
+  );
+};
+
+const updateMigrationHash = async (
+  execute: SQLExecutor,
+  migration: { name: string; sqlHash: string },
+): Promise<void> => {
+  await execute.command(
+    SQL`
+      UPDATE migrations
+      SET sql_hash = ${migration.sqlHash}, timestamp = NOW()
+      WHERE name = ${migration.name}
+      `,
   );
 };
