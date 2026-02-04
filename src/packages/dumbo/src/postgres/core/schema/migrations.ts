@@ -15,7 +15,7 @@ export type PostgreSQLMigratorOptions = {
       Partial<Pick<DatabaseLockOptions, 'lockId'>>;
   };
   dryRun?: boolean | undefined;
-  failOnMigrationHashMismatch?: boolean | undefined;
+  ignoreMigrationHashMismatch?: boolean | undefined;
 };
 
 const migrationTableSQL = rawSql(`
@@ -54,5 +54,5 @@ export const runPostgreSQLMigrations = (
       },
     },
     dryRun: options?.dryRun,
-    failOnMigrationHashMismatch: options?.failOnMigrationHashMismatch,
+    ignoreMigrationHashMismatch: options?.ignoreMigrationHashMismatch,
   });

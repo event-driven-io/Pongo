@@ -40,7 +40,7 @@ export type MigratorOptions = {
       Partial<Pick<DatabaseLockOptions, 'lockId'>>;
   };
   dryRun?: boolean | undefined;
-  failOnMigrationHashMismatch?: boolean | undefined;
+  ignoreMigrationHashMismatch?: boolean | undefined;
 };
 
 export type RunSQLMigrationsResult = {
@@ -77,8 +77,8 @@ export const runSQLMigrations = (
 
         for (const migration of migrations) {
           const wasApplied = await runSQLMigration(execute, migration, {
-            failOnMigrationHashMismatch:
-              options.failOnMigrationHashMismatch ?? false,
+            ignoreMigrationHashMismatch:
+              options.ignoreMigrationHashMismatch ?? false,
           });
           if (wasApplied) {
             result.applied.push(migration);
@@ -96,7 +96,7 @@ export const runSQLMigrations = (
 const runSQLMigration = async (
   execute: SQLExecutor,
   migration: SQLMigration,
-  options?: { failOnMigrationHashMismatch?: boolean },
+  options?: { ignoreMigrationHashMismatch?: boolean },
 ): Promise<boolean> => {
   const sql = combineMigrations(migration);
   const sqlHash = await getMigrationHash(sql);
@@ -142,7 +142,7 @@ export const combineMigrations = (...migration: Pick<SQLMigration, 'sqls'>[]) =>
 const ensureMigrationWasNotAppliedYet = async (
   execute: SQLExecutor,
   migration: { name: string; sqlHash: string },
-  options?: { failOnMigrationHashMismatch?: boolean },
+  options?: { ignoreMigrationHashMismatch?: boolean },
 ): Promise<boolean> => {
   const result = await singleOrNull(
     execute.query<{ sql_hash: string }>(
@@ -155,7 +155,7 @@ const ensureMigrationWasNotAppliedYet = async (
   const { sqlHash } = mapToCamelCase<Pick<MigrationRecord, 'sqlHash'>>(result);
 
   if (sqlHash !== migration.sqlHash) {
-    if (options?.failOnMigrationHashMismatch === true)
+    if (options?.ignoreMigrationHashMismatch !== true)
       throw new Error(
         `Migration hash mismatch for "${migration.name}". Aborting migration.`,
       );

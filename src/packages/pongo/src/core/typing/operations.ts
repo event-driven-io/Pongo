@@ -105,7 +105,7 @@ export interface PongoDb<
 
 export type PongoMigrationOptions = {
   dryRun?: boolean | undefined;
-  failOnMigrationHashMismatch?: boolean | undefined;
+  ignoreMigrationHashMismatch?: boolean | undefined;
 };
 
 export type CollectionOperationOptions = {

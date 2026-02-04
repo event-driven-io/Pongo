@@ -206,9 +206,7 @@ void describe('Migration Integration Tests', () => {
     };
 
     try {
-      await runPostgreSQLMigrations(pool, [modifiedMigration], {
-        failOnMigrationHashMismatch: true,
-      });
+      await runPostgreSQLMigrations(pool, [modifiedMigration]);
       assert.fail('The migration should have failed due to a hash mismatch.');
     } catch (error) {
       assert.ok(error instanceof Error);
@@ -220,7 +218,7 @@ void describe('Migration Integration Tests', () => {
     }
   });
 
-  void it('should silently be not applied if a migration with the same name has a different hash for default settings', async () => {
+  void it('should silently be not applied if a migration with the same name has a different hash with ignoreMigrationHashMismatch setting', async () => {
     const migration: SQLMigration = {
       name: 'hash_check_migration',
       sqls: [
@@ -246,7 +244,9 @@ void describe('Migration Integration Tests', () => {
       ],
     };
 
-    const result = await runPostgreSQLMigrations(pool, [modifiedMigration]);
+    const result = await runPostgreSQLMigrations(pool, [modifiedMigration], {
+      ignoreMigrationHashMismatch: true,
+    });
 
     assert.ok(
       result.skipped.some((m) => m.name === 'hash_check_migration'),
