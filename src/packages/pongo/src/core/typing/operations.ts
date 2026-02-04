@@ -4,6 +4,7 @@ import {
   JSONSerializer,
   type QueryResult,
   type QueryResultRow,
+  type RunSQLMigrationsResult,
   type SchemaComponent,
   type SQL,
   type SQLExecutor,
@@ -74,8 +75,9 @@ export type PongoDBCollectionOptions<
   errors?: { throwOnOperationFailures?: boolean };
 };
 
-export interface PongoDb<ConnectorType extends string = string>
-  extends DatabaseTransactionFactory<ConnectorType> {
+export interface PongoDb<
+  ConnectorType extends string = string,
+> extends DatabaseTransactionFactory<ConnectorType> {
   get connectorType(): ConnectorType;
   get databaseName(): string;
   connect(): Promise<void>;
@@ -87,7 +89,7 @@ export interface PongoDb<ConnectorType extends string = string>
   collections(): ReadonlyArray<PongoCollection<PongoDocument>>;
   readonly schema: Readonly<{
     component: SchemaComponent;
-    migrate(): Promise<void>;
+    migrate(options?: PongoMigrationOptions): Promise<RunSQLMigrationsResult>;
   }>;
   sql: {
     query<Result extends QueryResultRow = QueryResultRow>(
@@ -100,6 +102,11 @@ export interface PongoDb<ConnectorType extends string = string>
     ): Promise<QueryResult<Result>>;
   };
 }
+
+export type PongoMigrationOptions = {
+  dryRun?: boolean | undefined;
+  failOnMigrationHashMismatch?: boolean | undefined;
+};
 
 export type CollectionOperationOptions = {
   session?: PongoSession;
@@ -222,7 +229,7 @@ export interface PongoCollection<T extends PongoDocument> {
   ): Promise<PongoHandleResult<T>>;
   readonly schema: Readonly<{
     component: SchemaComponent;
-    migrate(): Promise<void>;
+    migrate(options?: PongoMigrationOptions): Promise<RunSQLMigrationsResult>;
   }>;
   sql: {
     query<Result extends QueryResultRow = QueryResultRow>(
@@ -346,8 +353,9 @@ export declare interface RootFilterOperators<TSchema> extends Document {
   $comment?: string | Document;
 }
 
-export declare interface PongoFilterOperator<TValue>
-  extends NonObjectIdLikeDocument {
+export declare interface PongoFilterOperator<
+  TValue,
+> extends NonObjectIdLikeDocument {
   $eq?: TValue;
   $gt?: TValue;
   $gte?: TValue;

@@ -5,6 +5,7 @@ import {
   runSQLMigrations,
   schemaComponent,
   sqlMigration,
+  type RunSQLMigrationsResult,
   type SQLMigration,
 } from '../../../core/schema';
 
@@ -14,6 +15,7 @@ export type PostgreSQLMigratorOptions = {
       Partial<Pick<DatabaseLockOptions, 'lockId'>>;
   };
   dryRun?: boolean | undefined;
+  failOnMigrationHashMismatch?: boolean | undefined;
 };
 
 const migrationTableSQL = rawSql(`
@@ -39,7 +41,7 @@ export const runPostgreSQLMigrations = (
   pool: Dumbo,
   migrations: SQLMigration[],
   options?: PostgreSQLMigratorOptions,
-): Promise<void> =>
+): Promise<RunSQLMigrationsResult> =>
   runSQLMigrations(pool, migrations, {
     schema: {
       migrationTable: migrationTableSchemaComponent,
@@ -52,4 +54,5 @@ export const runPostgreSQLMigrations = (
       },
     },
     dryRun: options?.dryRun,
+    failOnMigrationHashMismatch: options?.failOnMigrationHashMismatch,
   });

@@ -40,13 +40,19 @@ export type MigratorOptions = {
       Partial<Pick<DatabaseLockOptions, 'lockId'>>;
   };
   dryRun?: boolean | undefined;
+  failOnMigrationHashMismatch?: boolean | undefined;
+};
+
+export type RunSQLMigrationsResult = {
+  applied: SQLMigration[];
+  skipped: SQLMigration[];
 };
 
 export const runSQLMigrations = (
   pool: Dumbo,
   migrations: ReadonlyArray<SQLMigration>,
   options: MigratorOptions,
-): Promise<void> =>
+): Promise<RunSQLMigrationsResult> =>
   pool.withTransaction(async ({ execute }) => {
     const { databaseLock, ...rest } = options.lock;
 
@@ -59,6 +65,8 @@ export const runSQLMigrations = (
       connector: 'PostgreSQL:pg', // TODO: This will need to change to support more connectors
     });
 
+    const result: RunSQLMigrationsResult = { applied: [], skipped: [] };
+
     await databaseLock.withAcquire(
       execute,
       async () => {
@@ -68,19 +76,28 @@ export const runSQLMigrations = (
         }
 
         for (const migration of migrations) {
-          await runSQLMigration(execute, migration);
+          const wasApplied = await runSQLMigration(execute, migration, {
+            failOnMigrationHashMismatch:
+              options.failOnMigrationHashMismatch ?? false,
+          });
+          if (wasApplied) {
+            result.applied.push(migration);
+          } else {
+            result.skipped.push(migration);
+          }
         }
       },
       lockOptions,
     );
 
-    return { success: options.dryRun ? false : true, result: undefined };
+    return { success: options.dryRun ? false : true, result };
   });
 
 const runSQLMigration = async (
   execute: SQLExecutor,
   migration: SQLMigration,
-): Promise<void> => {
+  options?: { failOnMigrationHashMismatch?: boolean },
+): Promise<boolean> => {
   const sql = combineMigrations(migration);
   const sqlHash = await getMigrationHash(sql);
 
@@ -93,14 +110,15 @@ const runSQLMigration = async (
     const wasMigrationApplied = await ensureMigrationWasNotAppliedYet(
       execute,
       newMigration,
+      options,
     );
 
-    if (wasMigrationApplied) return;
+    if (wasMigrationApplied) return false;
 
     await execute.command(rawSql(sql));
 
     await recordMigration(execute, newMigration);
-    // console.log(`Migration "${newMigration.name}" applied successfully.`);
+    return true;
   } catch (error) {
     tracer.error('migration-error', {
       migationName: migration.name,
@@ -124,6 +142,7 @@ export const combineMigrations = (...migration: Pick<SQLMigration, 'sqls'>[]) =>
 const ensureMigrationWasNotAppliedYet = async (
   execute: SQLExecutor,
   migration: { name: string; sqlHash: string },
+  options?: { failOnMigrationHashMismatch?: boolean },
 ): Promise<boolean> => {
   const result = await singleOrNull(
     execute.query<{ sql_hash: string }>(
@@ -136,12 +155,17 @@ const ensureMigrationWasNotAppliedYet = async (
   const { sqlHash } = mapToCamelCase<Pick<MigrationRecord, 'sqlHash'>>(result);
 
   if (sqlHash !== migration.sqlHash) {
-    throw new Error(
-      `Migration hash mismatch for "${migration.name}". Aborting migration.`,
-    );
+    if (options?.failOnMigrationHashMismatch === true)
+      throw new Error(
+        `Migration hash mismatch for "${migration.name}". Aborting migration.`,
+      );
+    tracer.warn('migration-hash-mismatch', {
+      migrationName: migration.name,
+      expectedHash: migration.sqlHash,
+      actualHash: sqlHash,
+    });
   }
 
-  //console.log(`Migration "${migration.name}" already applied. Skipping.`);
   return true;
 };
 
