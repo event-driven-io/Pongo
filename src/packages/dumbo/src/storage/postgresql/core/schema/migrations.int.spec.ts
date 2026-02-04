@@ -10,6 +10,7 @@ import {
   count,
   MIGRATIONS_LOCK_ID,
   runSQLMigrations,
+  single,
   SQL,
   type SQLMigration,
 } from '../../../../core';
@@ -171,7 +172,7 @@ void describe('Migration Integration Tests', () => {
 
     const migrationCount = await count(
       pool.execute.query<{ count: number }>(
-        SQL`SELECT COUNT(*)::int as count FROM migrations WHERE name = 'hash_check_migration'`,
+        SQL`SELECT COUNT(*)::int as count FROM dmb_migrations WHERE name = 'hash_check_migration'`,
       ),
     );
     assert.strictEqual(
@@ -220,7 +221,7 @@ void describe('Migration Integration Tests', () => {
     }
   });
 
-  void it('should silently be not applied if a migration with the same name has a different hash with ignoreMigrationHashMismatch setting', async () => {
+  void it('should silently be not applied but update hash if a migration with the same name has a different hash with ignoreMigrationHashMismatch setting', async () => {
     const migration: SQLMigration = {
       name: 'hash_check_migration',
       sqls: [
@@ -233,6 +234,13 @@ void describe('Migration Integration Tests', () => {
     };
 
     await runSQLMigrations(pool, [migration]);
+
+    const { sql_hash: initialHash } = await single(
+      pool.execute.query<{ sql_hash: string }>(
+        SQL`
+          SELECT sql_hash FROM dmb_migrations WHERE name = 'hash_check_migration'`,
+      ),
+    );
 
     const modifiedMigration: SQLMigration = {
       ...migration,
@@ -253,6 +261,17 @@ void describe('Migration Integration Tests', () => {
     assert.ok(
       result.skipped.some((m) => m.name === 'hash_check_migration'),
       'The modified migration should be skipped due to hash mismatch.',
+    );
+
+    const { sql_hash: updatedHash } = await single(
+      pool.execute.query<{ sql_hash: string }>(
+        SQL`SELECT sql_hash FROM dmb_migrations WHERE name = 'hash_check_migration'`,
+      ),
+    );
+    assert.notStrictEqual(
+      initialHash,
+      updatedHash,
+      'The migration hash should be updated in the database.',
     );
   });
 
