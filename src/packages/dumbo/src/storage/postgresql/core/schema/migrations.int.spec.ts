@@ -220,7 +220,7 @@ void describe('Migration Integration Tests', () => {
     }
   });
 
-  void it('should silently be not applied if a migration with the same name has a different hash for default settings', async () => {
+  void it('should silently be not applied if a migration with the same name has a different hash with ignoreMigrationHashMismatch setting', async () => {
     const migration: SQLMigration = {
       name: 'hash_check_migration',
       sqls: [
@@ -246,17 +246,14 @@ void describe('Migration Integration Tests', () => {
       ],
     };
 
-    try {
-      await runSQLMigrations(pool, [modifiedMigration]);
-      assert.fail('The migration should have failed due to a hash mismatch.');
-    } catch (error) {
-      assert.ok(error instanceof Error);
-      assert.strictEqual(
-        error.message,
-        `Migration hash mismatch for "hash_check_migration". Aborting migration.`,
-        'throws a hash mismatch error.',
-      );
-    }
+    const result = await runSQLMigrations(pool, [modifiedMigration], {
+      ignoreMigrationHashMismatch: true,
+    });
+
+    assert.ok(
+      result.skipped.some((m) => m.name === 'hash_check_migration'),
+      'The modified migration should be skipped due to hash mismatch.',
+    );
   });
 
   void it('handles a large migration with multiple SQL statements', async () => {
