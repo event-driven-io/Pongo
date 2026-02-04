@@ -7,6 +7,8 @@ import {
   type MigrationStyle,
   type QueryResult,
   type QueryResultRow,
+  type SQLCommandOptions,
+  type SQLQueryOptions,
 } from '@event-driven-io/dumbo';
 import { pongoCollection, transactionExecutorOrDefault } from '../collection';
 import {
@@ -67,18 +69,19 @@ export const PongoDatabase = <
 
   const command = async <Result extends QueryResultRow = QueryResultRow>(
     sql: SQL,
-    options?: CollectionOperationOptions,
+    options?: CollectionOperationOptions & SQLCommandOptions,
   ) =>
     (
       await transactionExecutorOrDefault(db, options, pool.execute)
-    ).command<Result>(sql);
+    ).command<Result>(sql, options);
 
   const query = async <T extends QueryResultRow>(
     sql: SQL,
-    options?: CollectionOperationOptions,
+    options?: CollectionOperationOptions & SQLQueryOptions,
   ) =>
     (await transactionExecutorOrDefault(db, options, pool.execute)).query<T>(
       sql,
+      options,
     );
 
   const driverType = pool.driverType as Database['driverType'];
@@ -117,14 +120,14 @@ export const PongoDatabase = <
     sql: {
       async query<Result extends QueryResultRow = QueryResultRow>(
         sql: SQL,
-        options?: CollectionOperationOptions,
+        options?: CollectionOperationOptions & SQLQueryOptions,
       ): Promise<Result[]> {
         const result = await query<Result>(sql, options);
         return result.rows;
       },
       async command<Result extends QueryResultRow = QueryResultRow>(
         sql: SQL,
-        options?: CollectionOperationOptions,
+        options?: CollectionOperationOptions & SQLCommandOptions,
       ): Promise<QueryResult<Result>> {
         return command(sql, options);
       },

@@ -8,7 +8,9 @@ import {
   type QueryResult,
   type QueryResultRow,
   type SQL,
+  type SQLCommandOptions,
   type SQLExecutor,
+  type SQLQueryOptions,
   type WithDatabaseTransactionFactory,
 } from '@event-driven-io/dumbo';
 import { v7 as uuid } from 'uuid';
@@ -132,11 +134,11 @@ export interface PongoDb<
   sql: {
     query<Result extends QueryResultRow = QueryResultRow>(
       sql: SQL,
-      options?: CollectionOperationOptions,
+      options?: CollectionOperationOptions & SQLQueryOptions,
     ): Promise<Result[]>;
     command<Result extends QueryResultRow = QueryResultRow>(
       sql: SQL,
-      options?: CollectionOperationOptions,
+      options?: CollectionOperationOptions & SQLCommandOptions,
     ): Promise<QueryResult<Result>>;
   };
 }

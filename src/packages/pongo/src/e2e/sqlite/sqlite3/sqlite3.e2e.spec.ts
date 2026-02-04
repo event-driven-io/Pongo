@@ -1,3 +1,4 @@
+import { JSONSerializer, mapColumnToJSON, SQL } from '@event-driven-io/dumbo';
 import { SQLiteConnectionString } from '@event-driven-io/dumbo/sqlite3';
 import assert from 'assert';
 import console from 'console';
@@ -30,6 +31,8 @@ type User = {
   age: number;
   address?: Address;
   tags?: string[];
+  bigInt?: bigint;
+  date?: Date;
 };
 
 void describe('SQLite MongoDB Compatibility Tests', () => {
@@ -1112,6 +1115,278 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       } finally {
         await typedClient.close();
       }
+    });
+  });
+
+  void describe('Serialization', () => {
+    void it('should serialize and deserialize Date objects with custom serialization settings', async () => {
+      const client = pongoClient({
+        driver: databaseDriver,
+        connectionString: fileName,
+        serialization: { options: { parseDates: true } },
+      });
+      try {
+        const db = client.db();
+        const collection = db.collection<User>('serialization_date_test');
+
+        const originalDoc: User = {
+          name: 'Date Test',
+          age: 40,
+          date: new Date('2024-05-01T10:00:00.000Z'),
+        };
+
+        const insertResult = await collection.insertOne(originalDoc);
+        assert.ok(insertResult.successful);
+
+        const fetchedDoc = await collection.findOne({
+          _id: insertResult.insertedId!,
+        });
+        assert.ok(fetchedDoc);
+        assert.ok(fetchedDoc.date);
+
+        assert.strictEqual(
+          fetchedDoc.date?.getTime(),
+          originalDoc.date?.getTime(),
+        );
+      } finally {
+        await client.close();
+      }
+    });
+
+    void it('should NOT deserialize Date objects with default settings', async () => {
+      const collection = pongoDb.collection<User>('serialization_date_test');
+
+      const originalDoc: User = {
+        name: 'Date Test',
+        age: 40,
+        date: new Date('2024-05-01T10:00:00.000Z'),
+      };
+
+      const insertResult = await collection.insertOne(originalDoc);
+      assert.ok(insertResult.successful);
+
+      const fetchedDoc = await collection.findOne({
+        _id: insertResult.insertedId!,
+      });
+      assert.ok(fetchedDoc);
+      assert.ok(fetchedDoc.date);
+
+      assert.strictEqual(fetchedDoc.date, '2024-05-01T10:00:00.000Z');
+    });
+
+    void it('should serialize and deserialize bigint objects with custom serialization settings', async () => {
+      const client = pongoClient({
+        driver: databaseDriver,
+        connectionString: fileName,
+        serialization: { options: { parseBigInts: true } },
+      });
+      try {
+        const db = client.db();
+        const collection = db.collection<User>('serialization_bigint_test');
+
+        const originalDoc: User = {
+          name: 'BigInt Test',
+          age: 40,
+          bigInt: 12345678901234567890n,
+        };
+
+        const insertResult = await collection.insertOne(originalDoc);
+        assert.ok(insertResult.successful);
+
+        const fetchedDoc = await collection.findOne({
+          _id: insertResult.insertedId!,
+        });
+        assert.ok(fetchedDoc);
+        assert.ok(fetchedDoc.bigInt);
+        assert.strictEqual(fetchedDoc.bigInt, originalDoc.bigInt);
+      } finally {
+        await client.close();
+      }
+    });
+
+    void it('should NOT deserialize bigint objects with default settings', async () => {
+      const collection = pongoDb.collection<User>('serialization_bigint_test');
+
+      const originalDoc: User = {
+        name: 'BigInt Test',
+        age: 40,
+        bigInt: 12345678901234567890n,
+      };
+
+      const insertResult = await collection.insertOne(originalDoc);
+      assert.ok(insertResult.successful);
+
+      const fetchedDoc = await collection.findOne({
+        _id: insertResult.insertedId!,
+      });
+      assert.ok(fetchedDoc);
+      assert.ok(fetchedDoc.bigInt);
+      assert.strictEqual(fetchedDoc.bigInt, '12345678901234567890');
+    });
+  });
+
+  void describe('Upcast/Downcast versioning', () => {
+    type UserDocV1 = {
+      name: string;
+      createdAt: string;
+      lastLogin: string;
+    };
+
+    type UserDocV2 = {
+      profile: {
+        name: string;
+      };
+      timestamps: {
+        createdAt: Date;
+        lastLogin: Date;
+      };
+    };
+
+    type StoredPayload = UserDocV1 & UserDocV2;
+
+    const upcast = (doc: StoredPayload): UserDocV2 => ({
+      profile: doc.profile ?? { name: doc.name },
+      timestamps: {
+        createdAt: new Date(doc.timestamps?.createdAt ?? doc.createdAt),
+        lastLogin: new Date(doc.timestamps?.lastLogin ?? doc.lastLogin),
+      },
+    });
+
+    const downcast = (doc: UserDocV2): StoredPayload => ({
+      name: doc.profile.name,
+      createdAt: doc.timestamps.createdAt.toISOString(),
+      lastLogin: doc.timestamps.lastLogin.toISOString(),
+      profile: doc.profile,
+      timestamps: doc.timestamps,
+    });
+
+    void it('should downcast V2 to V1 when storing and upcast to V2 when reading', async () => {
+      const collection = pongoDb.collection<UserDocV2, StoredPayload>(
+        'versioning_downcast_upcast',
+        {
+          schema: { versioning: { upcast, downcast } },
+        },
+      );
+
+      const v2Doc: UserDocV2 = {
+        profile: { name: 'Alice' },
+        timestamps: {
+          createdAt: new Date('2024-01-15T10:30:00.000Z'),
+          lastLogin: new Date('2024-06-20T14:45:00.000Z'),
+        },
+      };
+
+      const insertResult = await collection.insertOne(v2Doc);
+      assert.ok(insertResult.successful);
+
+      const rawRows = await pongoDb.sql.query<{ data: UserDocV1 }>(
+        SQL`SELECT data FROM "versioning_downcast_upcast" WHERE _id = ${insertResult.insertedId}`,
+        { mapping: mapColumnToJSON('data', JSONSerializer) },
+      );
+      const { _id, _version, ...storedData } = rawRows[0]!
+        .data as StoredPayload & { _id: string; _version: string };
+
+      assert.deepEqual(storedData, {
+        name: 'Alice',
+        createdAt: '2024-01-15T10:30:00.000Z',
+        lastLogin: '2024-06-20T14:45:00.000Z',
+        profile: { name: 'Alice' },
+        timestamps: {
+          createdAt: '2024-01-15T10:30:00.000Z',
+          lastLogin: '2024-06-20T14:45:00.000Z',
+        },
+      });
+
+      const {
+        _id: _ignored,
+        _version: _ignored2,
+        ...doc
+      } = (await collection.findOne({
+        _id: insertResult.insertedId!,
+      })) as UserDocV2 & { _id: string; _version: bigint };
+
+      assert.deepEqual(doc, v2Doc);
+    });
+
+    void it('should handle insertMany with downcast', async () => {
+      const collection = pongoDb.collection<UserDocV2, StoredPayload>(
+        'versioning_insertMany',
+        {
+          schema: { versioning: { upcast, downcast } },
+        },
+      );
+
+      const docs: UserDocV2[] = [
+        {
+          profile: { name: 'Charlie' },
+          timestamps: {
+            createdAt: new Date('2024-03-01T09:00:00.000Z'),
+            lastLogin: new Date('2024-08-01T12:00:00.000Z'),
+          },
+        },
+        {
+          profile: { name: 'Diana' },
+          timestamps: {
+            createdAt: new Date('2024-03-02T10:00:00.000Z'),
+            lastLogin: new Date('2024-08-02T13:00:00.000Z'),
+          },
+        },
+      ];
+
+      const insertResult = await collection.insertMany(docs);
+      assert.strictEqual(insertResult.insertedCount, 2);
+
+      const found = await collection.find({});
+      const charlie = found.find((d) => d.profile.name === 'Charlie');
+      const diana = found.find((d) => d.profile.name === 'Diana');
+
+      assert.deepEqual(
+        { profile: charlie?.profile, timestamps: charlie?.timestamps },
+        docs[0],
+      );
+      assert.deepEqual(
+        { profile: diana?.profile, timestamps: diana?.timestamps },
+        docs[1],
+      );
+    });
+
+    void it('should handle replaceOne with downcast', async () => {
+      const collection = pongoDb.collection<UserDocV2, StoredPayload>(
+        'versioning_replaceOne',
+        {
+          schema: { versioning: { upcast, downcast } },
+        },
+      );
+
+      const original: UserDocV2 = {
+        profile: { name: 'Eve' },
+        timestamps: {
+          createdAt: new Date('2024-04-01T11:00:00.000Z'),
+          lastLogin: new Date('2024-09-01T14:00:00.000Z'),
+        },
+      };
+
+      const insertResult = await collection.insertOne(original);
+
+      const replacement: UserDocV2 = {
+        profile: { name: 'Eve Updated' },
+        timestamps: {
+          createdAt: new Date('2024-04-01T11:00:00.000Z'),
+          lastLogin: new Date('2024-10-01T15:00:00.000Z'),
+        },
+      };
+
+      await collection.replaceOne(
+        { _id: insertResult.insertedId! },
+        replacement,
+      );
+
+      const doc = await collection.findOne({ _id: insertResult.insertedId! });
+
+      assert.deepEqual(
+        { profile: doc?.profile, timestamps: doc?.timestamps },
+        replacement,
+      );
     });
   });
 });
