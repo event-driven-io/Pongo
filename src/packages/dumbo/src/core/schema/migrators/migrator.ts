@@ -1,4 +1,4 @@
-import { JSONSerializer, type Dumbo } from '../..';
+import { type Dumbo, JSONSerializer } from '../..';
 import { type DatabaseType, fromDatabaseDriverType } from '../../drivers';
 import type { SQLExecutor } from '../../execute';
 import {
@@ -51,13 +51,19 @@ export type MigratorOptions = {
       Partial<Pick<DatabaseLockOptions, 'lockId'>>;
   };
   dryRun?: boolean | undefined;
+  failOnMigrationHashMismatch?: boolean | undefined;
+};
+
+export type RunSQLMigrationsResult = {
+  applied: SQLMigration[];
+  skipped: SQLMigration[];
 };
 
 export const runSQLMigrations = (
   pool: Dumbo,
   migrations: ReadonlyArray<SQLMigration>,
   partialOptions?: Partial<MigratorOptions>,
-): Promise<void> =>
+): Promise<RunSQLMigrationsResult> =>
   pool.withTransaction(async ({ execute }) => {
     const databaseType = fromDatabaseDriverType(pool.driverType).databaseType;
     const defaultOptions = getDefaultMigratorOptionsFromRegistry(databaseType);
@@ -96,6 +102,8 @@ export const runSQLMigrations = (
 
     const coreMigrations = migrationTable.migrations;
 
+    const result: RunSQLMigrationsResult = { applied: [], skipped: [] };
+
     await databaseLock.withAcquire(
       execute,
       async () => {
@@ -106,18 +114,36 @@ export const runSQLMigrations = (
         for (const migration of migrations) {
           await runSQLMigration(databaseType, execute, migration);
         }
+
+        for (const migration of migrations) {
+          const wasApplied = await runSQLMigration(
+            databaseType,
+            execute,
+            migration,
+            {
+              failOnMigrationHashMismatch:
+                options.failOnMigrationHashMismatch ?? false,
+            },
+          );
+          if (wasApplied) {
+            result.applied.push(migration);
+          } else {
+            result.skipped.push(migration);
+          }
+        }
       },
       lockOptions,
     );
 
-    return { success: options.dryRun ? false : true, result: undefined };
+    return { success: options.dryRun ? false : true, result };
   });
 
 const runSQLMigration = async (
   databaseType: DatabaseType,
   execute: SQLExecutor,
   migration: SQLMigration,
-): Promise<void> => {
+  options?: { failOnMigrationHashMismatch?: boolean },
+): Promise<boolean> => {
   const sqls = combineMigrations(migration);
   const sqlHash = await getMigrationHash(migration, getFormatter(databaseType));
 
@@ -130,13 +156,15 @@ const runSQLMigration = async (
     const wasMigrationApplied = await ensureMigrationWasNotAppliedYet(
       execute,
       newMigration,
+      options,
     );
 
-    if (wasMigrationApplied) return;
+    if (wasMigrationApplied) return false;
 
     await execute.batchCommand(sqls);
 
     await recordMigration(execute, newMigration);
+    return true;
     // console.log(`Migration "${newMigration.name}" applied successfully.`);
   } catch (error) {
     tracer.error('migration-error', {
@@ -169,6 +197,7 @@ export const combineMigrations = (
 const ensureMigrationWasNotAppliedYet = async (
   execute: SQLExecutor,
   migration: { name: string; sqlHash: string },
+  options?: { failOnMigrationHashMismatch?: boolean },
 ): Promise<boolean> => {
   const result = await singleOrNull(
     execute.query<{ sql_hash: string }>(
@@ -181,12 +210,17 @@ const ensureMigrationWasNotAppliedYet = async (
   const { sqlHash } = mapToCamelCase<Pick<MigrationRecord, 'sqlHash'>>(result);
 
   if (sqlHash !== migration.sqlHash) {
-    throw new Error(
-      `Migration hash mismatch for "${migration.name}". Aborting migration.`,
-    );
+    if (options?.failOnMigrationHashMismatch === true)
+      throw new Error(
+        `Migration hash mismatch for "${migration.name}". Aborting migration.`,
+      );
+    tracer.warn('migration-hash-mismatch', {
+      migrationName: migration.name,
+      expectedHash: migration.sqlHash,
+      actualHash: sqlHash,
+    });
   }
 
-  //console.log(`Migration "${migration.name}" already applied. Skipping.`);
   return true;
 };
 
