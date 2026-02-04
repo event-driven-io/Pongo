@@ -8,7 +8,7 @@ import { type MigratorOptions, runSQLMigrations } from './migrator';
 const { AutoIncrement, Varchar, Timestamp } = SQL.column.type;
 
 const migrationTableSQL = SQL`
-  CREATE TABLE IF NOT EXISTS migrations (
+  CREATE TABLE IF NOT EXISTS dmb_migrations (
     id ${AutoIncrement({ primaryKey: true })},
     name ${Varchar(255)} NOT NULL UNIQUE,
     application ${Varchar(255)} NOT NULL DEFAULT 'default',

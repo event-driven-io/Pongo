@@ -65,7 +65,7 @@ void describe('Migration Integration Tests', () => {
     await client.db().schema.migrate();
 
     const migrationNames = await pool.execute.query<{ name: number }>(
-      SQL`SELECT name FROM migrations`,
+      SQL`SELECT name FROM dmb_migrations`,
     );
     assert.strictEqual(
       migrationNames.rowCount,

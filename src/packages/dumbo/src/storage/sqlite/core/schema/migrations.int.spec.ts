@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { InMemorySQLiteDatabase, SQLiteConnectionString } from '..';
-import { count, dumbo, SQL, type Dumbo } from '../../../..';
+import { count, dumbo, single, SQL, type Dumbo } from '../../../..';
 import { runSQLMigrations, type SQLMigration } from '../../../../core/schema';
 import { SQLite3DriverType, tableExists } from '../../../../sqlite3';
 
@@ -180,7 +180,7 @@ void describe('Migration Integration Tests', () => {
 
         const migrationCount = await count(
           pool.execute.query<{ count: number }>(
-            SQL`SELECT COUNT(*) as count FROM migrations WHERE name = ${migration.name}`,
+            SQL`SELECT COUNT(*) as count FROM dmb_migrations WHERE name = ${migration.name}`,
           ),
         );
         assert.strictEqual(
@@ -195,10 +195,10 @@ void describe('Migration Integration Tests', () => {
           name: 'hash_check_migration',
           sqls: [
             SQL`
-                CREATE TABLE hash_table (
-                    id SERIAL PRIMARY KEY,
-                    data TEXT NOT NULL
-                );`,
+                      CREATE TABLE hash_table (
+                          id SERIAL PRIMARY KEY,
+                          data TEXT NOT NULL
+                      );`,
           ],
         };
 
@@ -208,11 +208,11 @@ void describe('Migration Integration Tests', () => {
           ...migration,
           sqls: [
             SQL`
-                CREATE TABLE hash_table (
-                    id SERIAL PRIMARY KEY,
-                    data TEXT NOT NULL,
-                    extra_column INT
-                );`,
+                      CREATE TABLE hash_table (
+                          id SERIAL PRIMARY KEY,
+                          data TEXT NOT NULL,
+                          extra_column INT
+                      );`,
           ],
         };
 
@@ -229,6 +229,60 @@ void describe('Migration Integration Tests', () => {
             'throws a hash mismatch error.',
           );
         }
+      });
+
+      void it('should silently be not applied but update hash if a migration with the same name has a different hash with ignoreMigrationHashMismatch setting', async () => {
+        const migration: SQLMigration = {
+          name: 'hash_check_migration',
+          sqls: [
+            SQL`
+                      CREATE TABLE hash_table (
+                          id SERIAL PRIMARY KEY,
+                          data TEXT NOT NULL
+                      );`,
+          ],
+        };
+
+        await runSQLMigrations(pool, [migration]);
+
+        const { sql_hash: initialHash } = await single(
+          pool.execute.query<{ sql_hash: string }>(
+            SQL`
+                SELECT sql_hash FROM dmb_migrations WHERE name = 'hash_check_migration'`,
+          ),
+        );
+
+        const modifiedMigration: SQLMigration = {
+          ...migration,
+          sqls: [
+            SQL`
+                      CREATE TABLE hash_table (
+                          id SERIAL PRIMARY KEY,
+                          data TEXT NOT NULL,
+                          extra_column INT
+                      );`,
+          ],
+        };
+
+        const result = await runSQLMigrations(pool, [modifiedMigration], {
+          ignoreMigrationHashMismatch: true,
+        });
+
+        assert.ok(
+          result.skipped.some((m) => m.name === 'hash_check_migration'),
+          'The modified migration should be skipped due to hash mismatch.',
+        );
+
+        const { sql_hash: updatedHash } = await single(
+          pool.execute.query<{ sql_hash: string }>(
+            SQL`SELECT sql_hash FROM dmb_migrations WHERE name = 'hash_check_migration'`,
+          ),
+        );
+        assert.notStrictEqual(
+          initialHash,
+          updatedHash,
+          'The migration hash should be updated in the database.',
+        );
       });
 
       void it('handles a large migration with multiple SQL statements', async () => {

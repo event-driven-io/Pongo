@@ -6,11 +6,11 @@ import {
   type DatabaseLockOptions,
   NoDatabaseLock,
 } from '../../locks';
-import { mapToCamelCase, singleOrNull } from '../../query';
+import { singleOrNull } from '../../query';
 import { SQL, SQLFormatter, getFormatter } from '../../sql';
 import { tracer } from '../../tracing';
 import { type SchemaComponent } from '../schemaComponent';
-import type { MigrationRecord, SQLMigration } from '../sqlMigration';
+import type { SQLMigration } from '../sqlMigration';
 import { migrationTableSchemaComponent } from './schemaComponentMigrator';
 
 export const MIGRATIONS_LOCK_ID = 999956789;
@@ -86,6 +86,9 @@ export const runSQLMigrations = (
         },
       },
       dryRun: defaultOptions.dryRun ?? partialOptions?.dryRun,
+      ignoreMigrationHashMismatch:
+        defaultOptions.ignoreMigrationHashMismatch ??
+        partialOptions?.ignoreMigrationHashMismatch,
     };
 
     const { databaseLock: _, ...rest } = options.lock ?? {};
@@ -109,10 +112,6 @@ export const runSQLMigrations = (
       async () => {
         for (const migration of coreMigrations) {
           await execute.batchCommand(migration.sqls);
-        }
-
-        for (const migration of migrations) {
-          await runSQLMigration(databaseType, execute, migration);
         }
 
         for (const migration of migrations) {
@@ -158,7 +157,13 @@ const runSQLMigration = async (
       newMigration,
     );
 
-    if (checkResult.success === false) {
+    if (checkResult.exists === true) {
+      if (checkResult.hashesMatch === true) {
+        tracer.info('migration-already-applied', {
+          migrationName: migration.name,
+        });
+        return false;
+      }
       if (options?.ignoreMigrationHashMismatch !== true)
         throw new Error(
           `Migration hash mismatch for "${migration.name}". Aborting migration.`,
@@ -209,28 +214,29 @@ export const combineMigrations = (
 ): SQL[] => migration.flatMap((m) => m.sqls);
 
 type EnsureMigrationResult =
-  | { success: true }
-  | { success: false; hashFromDB: string };
+  | { exists: false }
+  | { exists: true; hashesMatch: true }
+  | { exists: true; hashesMatch: false; hashFromDB: string };
 
 const ensureMigrationWasNotAppliedYet = async (
   execute: SQLExecutor,
   migration: { name: string; sqlHash: string },
 ): Promise<EnsureMigrationResult> => {
   const result = await singleOrNull(
-    execute.query<{ sql_hash: string }>(
-      SQL`SELECT sql_hash FROM migrations WHERE name = ${migration.name}`,
+    execute.query<{ sqlHash: string }>(
+      SQL`SELECT sql_hash as "sqlHash" FROM dmb_migrations WHERE name = ${migration.name}`,
     ),
   );
 
-  if (result === null) return { success: true };
+  if (result === null) return { exists: false };
 
-  const { sqlHash } = mapToCamelCase<Pick<MigrationRecord, 'sqlHash'>>(result);
+  const { sqlHash } = result;
 
-  if (sqlHash !== migration.sqlHash) {
-    return { success: false, hashFromDB: sqlHash };
-  }
-
-  return { success: true };
+  return {
+    exists: true,
+    hashesMatch: sqlHash === migration.sqlHash,
+    hashFromDB: sqlHash,
+  };
 };
 
 const recordMigration = async (
@@ -239,7 +245,7 @@ const recordMigration = async (
 ): Promise<void> => {
   await execute.command(
     SQL`
-      INSERT INTO migrations (name, sql_hash)
+      INSERT INTO dmb_migrations (name, sql_hash)
       VALUES (${migration.name}, ${migration.sqlHash})`,
   );
 };
@@ -250,8 +256,8 @@ const updateMigrationHash = async (
 ): Promise<void> => {
   await execute.command(
     SQL`
-      UPDATE migrations
-      SET sql_hash = ${migration.sqlHash}, timestamp = NOW()
+      UPDATE dmb_migrations
+      SET sql_hash = ${migration.sqlHash}, timestamp = ${new Date()}
       WHERE name = ${migration.name}
       `,
   );
