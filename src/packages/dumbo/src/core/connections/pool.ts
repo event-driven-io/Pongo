@@ -55,6 +55,7 @@ export const createAmbientConnectionPool = <
     getConnection: () => connection,
     execute: connection.execute,
     transaction: (options) => connection.transaction(options),
+    withConnection: (handle) => handle(connection),
     withTransaction: (handle, options) =>
       connection.withTransaction(handle, options),
   });

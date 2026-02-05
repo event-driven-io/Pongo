@@ -4,7 +4,11 @@ import { afterEach, describe, it } from 'node:test';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { JSONSerializer, SQL } from '../../../../core';
-import { sqlite3Client, sqlite3Pool } from '../../../../sqlite3';
+import {
+  sqlite3Client,
+  sqlite3Connection,
+  sqlite3Pool,
+} from '../../../../sqlite3';
 import { InMemorySQLiteDatabase } from '../../core';
 
 void describe('Node SQLite3 pool', () => {
@@ -153,7 +157,7 @@ void describe('Node SQLite3 pool', () => {
         }
       });
 
-      void it('connects using connected ambient connected connection', async () => {
+      void it('connects using connected ambient connected connection from pool', async () => {
         const ambientPool = sqlite3Pool({
           fileName,
         });
@@ -171,6 +175,86 @@ void describe('Node SQLite3 pool', () => {
           await pool.close();
           await ambientConnection.close();
           await ambientPool.close();
+        }
+      });
+
+      void it('connects using connected ambient connected connection', async () => {
+        const ambientConnection = sqlite3Connection({
+          fileName,
+          serializer: JSONSerializer,
+        });
+        await ambientConnection.open();
+
+        try {
+          const pool = sqlite3Pool({
+            fileName,
+            connection: ambientConnection,
+          });
+
+          try {
+            await pool.execute.query(SQL`SELECT 1`);
+          } finally {
+            await pool.close();
+          }
+
+          await ambientConnection.execute.query(SQL`SELECT 1`);
+        } finally {
+          await ambientConnection.close();
+        }
+      });
+
+      void it('connects using connected ambient connected connection and using transaction on pool', async () => {
+        const ambientConnection = sqlite3Connection({
+          fileName,
+          serializer: JSONSerializer,
+        });
+        await ambientConnection.open();
+
+        try {
+          const pool = sqlite3Pool({
+            fileName,
+            connection: ambientConnection,
+            transactionOptions: { allowNestedTransactions: true },
+          });
+
+          try {
+            await pool.withTransaction(async (tx) => {
+              await tx.execute.query(SQL`SELECT 1`);
+            });
+          } finally {
+            await pool.close();
+          }
+
+          await ambientConnection.withTransaction(async (tx) => {
+            await tx.execute.query(SQL`SELECT 1`);
+          });
+        } finally {
+          await ambientConnection.close();
+        }
+      });
+
+      void it('withConnection on ambient pool does not close the ambient connection', async () => {
+        const ambientConnection = sqlite3Connection({
+          fileName,
+          serializer: JSONSerializer,
+        });
+        await ambientConnection.open();
+
+        try {
+          const pool = sqlite3Pool({
+            fileName,
+            connection: ambientConnection,
+          });
+
+          await pool.withConnection(async (conn) => {
+            await conn.execute.query(SQL`SELECT 1`);
+          });
+
+          await pool.close();
+
+          await ambientConnection.execute.query(SQL`SELECT 1`);
+        } finally {
+          await ambientConnection.close();
         }
       });
 

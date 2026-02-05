@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, it } from 'node:test';
 import { JSONSerializer, SQL } from '../../../../core';
 import { d1Pool } from '../pool';
 import { d1Client } from './d1Client';
+import { d1Connection } from './d1Connection';
 
 void describe('Cloudflare d1 pool', () => {
   let mf: Miniflare;
@@ -92,7 +93,7 @@ void describe('Cloudflare d1 pool', () => {
     }
   });
 
-  void it('connects using connected ambient connected connection', async () => {
+  void it('connects using connected ambient connected connection from pool', async () => {
     const ambientPool = d1Pool({
       database,
     });
@@ -110,6 +111,56 @@ void describe('Cloudflare d1 pool', () => {
       await pool.close();
       await ambientConnection.close();
       await ambientPool.close();
+    }
+  });
+
+  void it('connects using connected ambient connected connection', async () => {
+    const ambientConnection = d1Connection({
+      database,
+      serializer: JSONSerializer,
+    });
+    await ambientConnection.open();
+
+    try {
+      const pool = d1Pool({
+        database,
+        connection: ambientConnection,
+      });
+
+      try {
+        await pool.execute.query(SQL`SELECT 1`);
+      } finally {
+        await pool.close();
+      }
+
+      await ambientConnection.execute.query(SQL`SELECT 1`);
+    } finally {
+      await ambientConnection.close();
+    }
+  });
+
+  void it('withConnection on ambient pool does not close the ambient connection', async () => {
+    const ambientConnection = d1Connection({
+      database,
+      serializer: JSONSerializer,
+    });
+    await ambientConnection.open();
+
+    try {
+      const pool = d1Pool({
+        database,
+        connection: ambientConnection,
+      });
+
+      await pool.withConnection(async (conn) => {
+        await conn.execute.query(SQL`SELECT 1`);
+      });
+
+      await pool.close();
+
+      await ambientConnection.execute.query(SQL`SELECT 1`);
+    } finally {
+      await ambientConnection.close();
     }
   });
 

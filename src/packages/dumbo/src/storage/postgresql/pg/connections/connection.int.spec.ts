@@ -6,6 +6,7 @@ import { after, before, describe, it } from 'node:test';
 import pg from 'pg';
 import { pgPool } from '.';
 import { SQL } from '../../../../core';
+import { pgConnection } from './connection';
 import { endPgPool, getPgPool } from './pool';
 
 void describe('pg', () => {
@@ -84,7 +85,7 @@ void describe('pg', () => {
       }
     });
 
-    void it('connects using connected ambient connected connection', async () => {
+    void it('connects using connected ambient connected connection from pool', async () => {
       const ambientPool = pgPool({ connectionString });
       const ambientConnection = await ambientPool.connection();
       await ambientConnection.open();
@@ -100,6 +101,100 @@ void describe('pg', () => {
         await pool.close();
         await ambientConnection.close();
         await ambientPool.close();
+      }
+    });
+
+    void it('connects using connected ambient connected connection', async () => {
+      const client = new pg.Client({ connectionString });
+      await client.connect();
+
+      const ambientConnection = pgConnection({
+        type: 'Client',
+        connect: () => Promise.resolve(client),
+        close: () => client.end(),
+        serializer: {} as never,
+      });
+      await ambientConnection.open();
+
+      try {
+        const pool = pgPool({
+          connectionString,
+          connection: ambientConnection,
+        });
+
+        try {
+          await pool.execute.query(SQL`SELECT 1`);
+        } finally {
+          await pool.close();
+        }
+
+        await ambientConnection.execute.query(SQL`SELECT 1`);
+      } finally {
+        await ambientConnection.close();
+      }
+    });
+
+    void it('connects using connected ambient connected connection and using transaction on pool', async () => {
+      const client = new pg.Client({ connectionString });
+      await client.connect();
+
+      const ambientConnection = pgConnection({
+        type: 'Client',
+        connect: () => Promise.resolve(client),
+        close: () => client.end(),
+        serializer: {} as never,
+      });
+      await ambientConnection.open();
+
+      try {
+        const pool = pgPool({
+          connectionString,
+          connection: ambientConnection,
+        });
+
+        try {
+          await pool.withTransaction(async (tx) => {
+            await tx.execute.query(SQL`SELECT 1`);
+          });
+        } finally {
+          await pool.close();
+        }
+
+        await ambientConnection.withTransaction(async (tx) => {
+          await tx.execute.query(SQL`SELECT 1`);
+        });
+      } finally {
+        await ambientConnection.close();
+      }
+    });
+
+    void it('withConnection on ambient pool does not close the ambient connection', async () => {
+      const client = new pg.Client({ connectionString });
+      await client.connect();
+
+      const ambientConnection = pgConnection({
+        type: 'Client',
+        connect: () => Promise.resolve(client),
+        close: () => client.end(),
+        serializer: {} as never,
+      });
+      await ambientConnection.open();
+
+      try {
+        const pool = pgPool({
+          connectionString,
+          connection: ambientConnection,
+        });
+
+        await pool.withConnection(async (conn) => {
+          await conn.execute.query(SQL`SELECT 1`);
+        });
+
+        await pool.close();
+
+        await ambientConnection.execute.query(SQL`SELECT 1`);
+      } finally {
+        await ambientConnection.close();
       }
     });
 
