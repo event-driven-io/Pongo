@@ -7,9 +7,10 @@ import {
   NoDatabaseLock,
 } from '../../locks';
 import { singleOrNull } from '../../query';
-import { SQL, SQLFormatter, getFormatter } from '../../sql';
+import type { SQLFormatter } from '../../sql';
+import { SQL, getFormatter } from '../../sql';
 import { tracer } from '../../tracing';
-import { type SchemaComponent } from '../schemaComponent';
+import type { SchemaComponent } from '../schemaComponent';
 import type { SQLMigration } from '../sqlMigration';
 import { migrationTableSchemaComponent } from './schemaComponentMigrator';
 

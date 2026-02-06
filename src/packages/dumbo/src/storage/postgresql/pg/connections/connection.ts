@@ -1,9 +1,6 @@
 import pg from 'pg';
-import {
-  createConnection,
-  JSONSerializer,
-  type Connection,
-} from '../../../../core';
+import type { JSONSerializer } from '../../../../core';
+import { createConnection, type Connection } from '../../../../core';
 import type { PostgreSQLDriverType } from '../../core';
 import { pgSQLExecutor } from '../execute';
 import { pgTransaction } from './transaction';

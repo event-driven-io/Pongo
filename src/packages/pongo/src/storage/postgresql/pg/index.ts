@@ -5,7 +5,7 @@ import {
   PgDriverType,
   type PgConnection,
 } from '@event-driven-io/dumbo/pg';
-import pg from 'pg';
+import type pg from 'pg';
 import {
   PongoCollectionSchemaComponent,
   PongoDatabase,
@@ -103,7 +103,6 @@ const pgDatabaseDriver: PongoDatabaseDriver<
       options.databaseName ?? getDatabaseNameOrDefault(options.connectionString)
     );
   },
-  defaultConnectionString: 'postgresql://localhost:5432/postgres',
 };
 
 export const usePgDatabaseDriver = () => {

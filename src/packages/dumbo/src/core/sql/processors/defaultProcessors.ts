@@ -1,4 +1,5 @@
-import { SQLArray, SQLIdentifier, SQLIn, SQLLiteral } from '../tokens';
+import type { SQLIdentifier, SQLIn, SQLLiteral } from '../tokens';
+import { SQLArray } from '../tokens';
 import { SQLProcessor, type SQLProcessorContext } from './sqlProcessor';
 
 export const ExpandArrayProcessor: SQLProcessor<SQLArray> = SQLProcessor({

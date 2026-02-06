@@ -1,4 +1,4 @@
-import { type AnyConnection, type ConnectionPool } from './connections';
+import type { AnyConnection, ConnectionPool } from './connections';
 import type {
   AnyDumboDatabaseDriver,
   DatabaseDriverType,

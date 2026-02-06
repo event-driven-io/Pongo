@@ -1,5 +1,5 @@
+import type { JSONSerializer } from '../../../../core';
 import {
-  JSONSerializer,
   sqlExecutor,
   type AnyConnection,
   type DatabaseTransaction,

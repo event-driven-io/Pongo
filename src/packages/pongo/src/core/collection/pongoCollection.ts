@@ -1,10 +1,9 @@
+import type { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import {
-  JSONSerializer,
   mapColumnToBigint,
   mapColumnToJSON,
   runSQLMigrations,
   single,
-  SQL,
   type DatabaseDriverType,
   type DatabaseTransaction,
   type Dumbo,
@@ -15,11 +14,11 @@ import {
   type SQLQueryResultColumnMapping,
 } from '@event-driven-io/dumbo';
 import { v7 as uuid } from 'uuid';
+import type { PongoCollectionSchemaComponent } from '..';
 import {
   deepEquals,
   expectedVersionValue,
   operationResult,
-  PongoCollectionSchemaComponent,
   type CollectionOperationOptions,
   type DeleteManyOptions,
   type DeleteOneOptions,

@@ -3,10 +3,10 @@ import {
   sqliteSQLExecutor,
   type SQLiteDriverType,
 } from '..';
+import type { JSONSerializer } from '../../../../core';
 import {
   createAmbientConnection,
   createConnection,
-  JSONSerializer,
   type AnyConnection,
   type Connection,
   type ConnectionOptions,

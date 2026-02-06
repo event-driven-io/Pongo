@@ -52,7 +52,6 @@ const d1DatabaseDriver: PongoDatabaseDriver<
   getDatabaseNameOrDefault: () => {
     return 'd1://default';
   },
-  defaultConnectionString: 'd1://default',
 };
 
 export const useSqlite3DatabaseDriver = () => {

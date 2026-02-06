@@ -1,6 +1,6 @@
 import sqlite3 from 'sqlite3';
+import type { JSONSerializer } from '../../../../core';
 import {
-  JSONSerializer,
   SQL,
   type Connection,
   type DatabaseTransactionOptions,

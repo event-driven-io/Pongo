@@ -1,7 +1,6 @@
+import type { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import {
-  JSONSerializer,
   runSQLMigrations,
-  SQL,
   type DatabaseDriverType,
   type Dumbo,
   type MigrationStyle,
@@ -17,16 +16,16 @@ import {
   type PongoCollectionSchema,
   type PongoDbSchema,
 } from '../schema';
-import {
-  type AnyPongoDb,
-  type CollectionOperationOptions,
-  type Document,
-  type PongoCollection,
-  type PongoDb,
-  type PongoDBCollectionOptions,
-  type PongoMigrationOptions,
+import type {
+  AnyPongoDb,
+  CollectionOperationOptions,
+  Document,
+  PongoCollection,
+  PongoDb,
+  PongoDBCollectionOptions,
+  PongoMigrationOptions,
 } from '../typing';
-import { type PongoDatabaseSchemaComponent } from './pongoDatabaseSchemaComponent';
+import type { PongoDatabaseSchemaComponent } from './pongoDatabaseSchemaComponent';
 
 export type PongoDatabaseOptions<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

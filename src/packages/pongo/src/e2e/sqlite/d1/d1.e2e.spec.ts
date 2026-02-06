@@ -4,8 +4,8 @@ import assert from 'assert';
 import { Miniflare } from 'miniflare';
 import { after, before, describe, it } from 'node:test';
 import { v4 as uuid } from 'uuid';
+import type { ObjectId } from '../../..';
 import {
-  ObjectId,
   pongoClient,
   pongoSchema,
   type PongoClient,

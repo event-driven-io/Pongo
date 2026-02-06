@@ -1,4 +1,4 @@
-import { type DatabaseDriverType } from '../drivers';
+import type { DatabaseDriverType } from '../drivers';
 import {
   sqlExecutor,
   type DbSQLExecutor,

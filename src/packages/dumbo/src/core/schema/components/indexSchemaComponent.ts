@@ -3,7 +3,7 @@ import {
   type SchemaComponent,
   type SchemaComponentOptions,
 } from '../schemaComponent';
-import { type ColumnSchemaComponent } from './columnSchemaComponent';
+import type { ColumnSchemaComponent } from './columnSchemaComponent';
 
 export type IndexURNType = 'sc:dumbo:index';
 export type IndexURN = `${IndexURNType}:${string}`;

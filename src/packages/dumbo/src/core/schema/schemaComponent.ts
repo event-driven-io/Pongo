@@ -1,4 +1,4 @@
-import { type SQLMigration } from './sqlMigration';
+import type { SQLMigration } from './sqlMigration';
 
 export type SchemaComponent<
   ComponentKey extends string = string,

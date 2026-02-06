@@ -1,6 +1,6 @@
 import pg from 'pg';
+import type { JSONSerializer } from '../../../../core';
 import {
-  JSONSerializer,
   mapSQLQueryResult,
   tracer,
   type DbSQLExecutor,

@@ -1,16 +1,16 @@
-import {
-  type D1Database,
-  type D1DatabaseSession,
-  type D1SessionBookmark,
-  type D1SessionConstraint,
+import type {
+  D1Database,
+  D1DatabaseSession,
+  D1SessionBookmark,
+  D1SessionConstraint,
 } from '@cloudflare/workers-types';
-import {
+import type {
   JSONSerializer,
+  QueryResult,
+  QueryResultRow,
   SQL,
-  type QueryResult,
-  type QueryResultRow,
-  type SQLCommandOptions,
-  type SQLQueryOptions,
+  SQLCommandOptions,
+  SQLQueryOptions,
 } from '../../../../core';
 import { sqliteFormatter, type SQLiteClient } from '../../core';
 

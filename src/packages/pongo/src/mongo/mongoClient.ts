@@ -2,7 +2,7 @@ import {
   parseConnectionString,
   toDatabaseDriverType,
 } from '@event-driven-io/dumbo';
-import { type ClientSessionOptions } from 'http2';
+import type { ClientSessionOptions } from 'http2';
 import type { ClientSession, WithSessionCallback } from 'mongodb';
 import {
   pongoClient,

@@ -1,5 +1,8 @@
 import type { BigIntegerToken, DefaultSQLColumnToken } from '../tokens';
-import { AutoIncrementSQLColumnToken, SQLColumnTypeTokens } from '../tokens';
+import type {
+  AutoIncrementSQLColumnToken,
+  SQLColumnTypeTokens,
+} from '../tokens';
 import { SQLProcessor, type SQLProcessorContext } from './sqlProcessor';
 
 export type DefaultSQLColumnProcessors = {
