@@ -48,6 +48,16 @@
         "default": "./dist/index.cjs"
       }
     },
+    "./postgresql": {
+      "import": {
+        "types": "./dist/postgresql.d.ts",
+        "default": "./dist/postgresql.js"
+      },
+      "require": {
+        "types": "./dist/postgresql.d.cts",
+        "default": "./dist/postgresql.cjs"
+      }
+    },
     "./pg": {
       "import": {
         "types": "./dist/pg.d.ts",
@@ -56,6 +66,16 @@
       "require": {
         "types": "./dist/pg.d.cts",
         "default": "./dist/pg.cjs"
+      }
+    },
+    "./sqlite": {
+      "import": {
+        "types": "./dist/sqlite.d.ts",
+        "default": "./dist/sqlite.js"
+      },
+      "require": {
+        "types": "./dist/sqlite.d.cts",
+        "default": "./dist/sqlite.cjs"
       }
     },
     "./sqlite3": {
@@ -84,8 +104,14 @@
       ".": [
         "./dist/index.d.ts"
       ],
+      "postgresql": [
+        "./dist/postgresql.d.ts"
+      ],
       "pg": [
         "./dist/pg.d.ts"
+      ],
+      "sqlite": [
+        "./dist/sqlite.d.ts"
       ],
       "sqlite3": [
         "./dist/sqlite3.d.ts"
