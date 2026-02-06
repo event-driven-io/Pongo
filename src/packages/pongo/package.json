@@ -104,9 +104,6 @@
   },
   "typesVersions": {
     "*": {
-      ".": [
-        "./dist/index.d.ts"
-      ],
       "shim": [
         "./dist/shim.d.ts"
       ],

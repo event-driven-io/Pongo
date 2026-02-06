@@ -101,9 +101,6 @@
   },
   "typesVersions": {
     "*": {
-      ".": [
-        "./dist/index.d.ts"
-      ],
       "postgresql": [
         "./dist/postgresql.d.ts"
       ],
