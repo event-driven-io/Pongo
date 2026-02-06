@@ -211,7 +211,7 @@ const getMigrations = ({
   };
 
   const customOptions = {
-    connectionString: connectionString ?? driver.defaultConnectionString,
+    connectionString,
     databaseName,
   };
 

@@ -76,6 +76,15 @@ export default [
         },
       ],
 
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        {
+          prefer: 'type-imports',
+          fixStyle: 'separate-type-imports',
+        },
+      ],
+      '@typescript-eslint/no-import-type-side-effects': 'error',
+
       '@typescript-eslint/no-misused-promises': ['off'],
       '@typescript-eslint/prefer-namespace-keyword': 'off',
     },

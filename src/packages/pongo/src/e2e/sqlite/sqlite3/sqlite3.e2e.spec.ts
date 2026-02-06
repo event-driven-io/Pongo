@@ -7,8 +7,8 @@ import { after, before, describe, it } from 'node:test';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
+import type { ObjectId } from '../../..';
 import {
-  ObjectId,
   pongoClient,
   pongoSchema,
   type PongoClient,

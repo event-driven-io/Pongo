@@ -1,4 +1,4 @@
-import { type DatabaseDriverType } from '../../..';
+import type { DatabaseDriverType } from '../../..';
 
 export * from './connections';
 export * from './execute';

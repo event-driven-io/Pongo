@@ -3,10 +3,8 @@ import {
   type DatabaseDriverType,
   type SchemaComponent,
 } from '@event-driven-io/dumbo';
-import {
-  PongoCollectionSchemaComponent,
-  type PongoCollectionSQLBuilder,
-} from '../collection';
+import type { PongoCollectionSchemaComponent } from '../collection';
+import type { PongoCollectionSQLBuilder } from '../collection';
 import {
   pongoSchema,
   type PongoCollectionSchema,

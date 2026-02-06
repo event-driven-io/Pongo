@@ -1,4 +1,4 @@
-import { type Connection } from '../../../../core';
+import type { Connection } from '../../../../core';
 import {
   sqliteAmbientClientConnection,
   type SQLiteConnectionOptions,

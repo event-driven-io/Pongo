@@ -284,7 +284,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   async findOne(
     filter?: unknown,
     options?: FindOptions<Document>,
-  ): Promise<import('mongodb').WithId<T> | T | null> {
+  ): Promise<WithId<T> | T | null> {
     return (await this.collection.findOne(
       filter as PongoFilter<T>,
       toCollectionOperationOptions(options),
@@ -356,12 +356,9 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   indexInformation(
     _options?: unknown,
   ):
-    | Promise<import('mongodb').IndexDescriptionInfo[]>
-    | Promise<import('mongodb').IndexDescriptionCompact>
-    | Promise<
-        | import('mongodb').IndexDescriptionCompact
-        | import('mongodb').IndexDescriptionInfo[]
-      > {
+    | Promise<IndexDescriptionInfo[]>
+    | Promise<IndexDescriptionCompact>
+    | Promise<IndexDescriptionCompact | IndexDescriptionInfo[]> {
     throw new Error('Method not implemented.');
   }
   estimatedDocumentCount(
@@ -406,9 +403,8 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     _key: unknown,
     _filter?: unknown,
     _options?: unknown,
-  ): // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    | Promise<any[]>
-    | Promise<import('mongodb').Flatten<import('mongodb').WithId<T>[Key]>[]> {
+  ): // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/consistent-type-imports
+    Promise<any[]> | Promise<import('mongodb').Flatten<WithId<T>[Key]>[]> {
     throw new Error('Method not implemented.');
   }
   indexes(
@@ -424,12 +420,9 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   indexes(
     _options?: unknown,
   ):
-    | Promise<import('mongodb').IndexDescriptionInfo[]>
-    | Promise<import('mongodb').IndexDescriptionCompact>
-    | Promise<
-        | import('mongodb').IndexDescriptionCompact
-        | import('mongodb').IndexDescriptionInfo[]
-      > {
+    | Promise<IndexDescriptionInfo[]>
+    | Promise<IndexDescriptionCompact>
+    | Promise<IndexDescriptionCompact | IndexDescriptionInfo[]> {
     throw new Error('Method not implemented.');
   }
   findOneAndDelete(
@@ -553,7 +546,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   listSearchIndexes(
     _name?: unknown,
     _options?: unknown,
-  ): import('mongodb').ListSearchIndexesCursor {
+  ): ListSearchIndexesCursor {
     throw new Error('Method not implemented.');
   }
   createSearchIndex(_description: SearchIndexDescription): Promise<string> {

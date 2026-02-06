@@ -1,6 +1,6 @@
+import type { SQLIn } from '../../../../../core';
 import {
   SQLArray,
-  SQLIn,
   SQLProcessor,
   type SQLProcessorContext,
 } from '../../../../../core';

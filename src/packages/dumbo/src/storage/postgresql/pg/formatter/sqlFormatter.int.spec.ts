@@ -1,7 +1,5 @@
-import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import assert from 'assert';
 import { after, before, describe, it } from 'node:test';
 import { pgDatabaseDriver } from '..';

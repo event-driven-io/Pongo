@@ -5,10 +5,10 @@ import {
   sqlExecutorInNewConnection,
   type WithSQLExecutor,
 } from '../execute';
-import {
-  type AnyConnection,
-  type InferDbClientFromConnection,
-  type WithConnectionFactory,
+import type {
+  AnyConnection,
+  InferDbClientFromConnection,
+  WithConnectionFactory,
 } from './connection';
 import {
   transactionFactoryWithAmbientConnection,

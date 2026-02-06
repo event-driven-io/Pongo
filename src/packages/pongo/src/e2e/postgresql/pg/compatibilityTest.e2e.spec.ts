@@ -8,11 +8,8 @@ import {
   type StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 import assert from 'assert';
-import {
-  Db as MongoDb,
-  ObjectId,
-  MongoClient as OriginalMongoClient,
-} from 'mongodb';
+import type { Db as MongoDb, ObjectId } from 'mongodb';
+import { MongoClient as OriginalMongoClient } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
 import { v7 as uuid } from 'uuid';
 import { pgDriver, usePgDatabaseDriver } from '../../../pg';

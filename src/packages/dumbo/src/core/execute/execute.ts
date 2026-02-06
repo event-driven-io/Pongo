@@ -1,8 +1,9 @@
 import type { Connection } from '../connections';
-import { type DatabaseDriverType } from '../drivers';
+import type { DatabaseDriverType } from '../drivers';
 import type { QueryResult, QueryResultRow } from '../query';
-import { JSONSerializer, type JSONDeserializeOptions } from '../serializer';
-import { type SQL, type SQLFormatter } from '../sql';
+import type { JSONSerializer } from '../serializer';
+import type { JSONDeserializeOptions } from '../serializer';
+import type { SQL, SQLFormatter } from '../sql';
 
 export const mapColumnToJSON = (
   column: string,

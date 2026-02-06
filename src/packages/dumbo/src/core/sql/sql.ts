@@ -1,10 +1,6 @@
 import { JSONSerializer } from '../serializer';
-import {
-  describeSQL,
-  formatSQL,
-  SQLFormatter,
-  type FormatSQLOptions,
-} from './formatters';
+import type { SQLFormatter } from './formatters';
+import { describeSQL, formatSQL, type FormatSQLOptions } from './formatters';
 import type { ParametrizedSQL } from './parametrizedSQL';
 import { isTokenizedSQL, TokenizedSQL } from './tokenizedSQL';
 import {

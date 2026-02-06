@@ -1,4 +1,4 @@
-import { type SQLExecutor } from '..';
+import type { SQLExecutor } from '..';
 
 export type DatabaseLockOptions = { lockId: number; timeoutMs?: number };
 

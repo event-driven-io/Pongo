@@ -1,4 +1,4 @@
-import { SQL } from '../sql';
+import type { SQL } from '../sql';
 
 export type MigrationStyle = 'None' | 'CreateOrUpdate';
 

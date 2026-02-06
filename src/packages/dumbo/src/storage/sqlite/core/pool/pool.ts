@@ -1,15 +1,15 @@
+import type { SQLiteConnectionString } from '..';
 import {
   InMemorySQLiteDatabase,
-  SQLiteConnectionString,
   type AnySQLiteConnection,
   type SQLiteConnectionFactory,
   type SQLiteConnectionOptions,
 } from '..';
+import type { JSONSerializer } from '../../../../core';
 import {
   createAlwaysNewConnectionPool,
   createAmbientConnectionPool,
   createSingletonConnectionPool,
-  JSONSerializer,
   type ConnectionPool,
 } from '../../../../core';
 

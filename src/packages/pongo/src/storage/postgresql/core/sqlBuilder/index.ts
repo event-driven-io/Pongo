@@ -1,9 +1,5 @@
-import {
-  isSQL,
-  JSONSerializer,
-  SQL,
-  sqlMigration,
-} from '@event-driven-io/dumbo';
+import type { JSONSerializer } from '@event-driven-io/dumbo';
+import { isSQL, SQL, sqlMigration } from '@event-driven-io/dumbo';
 import {
   expectedVersionValue,
   type DeleteOneOptions,

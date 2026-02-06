@@ -1,4 +1,4 @@
-import { SQL } from '@event-driven-io/dumbo';
+import type { SQL } from '@event-driven-io/dumbo';
 import type {
   DeleteOneOptions,
   FindOptions,

@@ -63,7 +63,6 @@ export interface PongoDatabaseDriver<
   >(
     options: PongoDatabaseFactoryOptions<CollectionsSchema, DriverOptions>,
   ): string;
-  defaultConnectionString: string;
 }
 
 export type AnyPongoDatabaseDriver = PongoDatabaseDriver<

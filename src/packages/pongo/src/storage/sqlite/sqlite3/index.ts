@@ -69,7 +69,6 @@ const sqlite3DatabaseDriver: PongoDatabaseDriver<
       options.databaseName ?? getDatabaseNameOrDefault(options.connectionString)
     );
   },
-  defaultConnectionString: ':memory:',
 };
 
 export const useSqlite3DatabaseDriver = () => {

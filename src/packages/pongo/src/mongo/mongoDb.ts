@@ -1,8 +1,5 @@
-import {
-  Collection as MongoCollection,
-  ObjectId,
-  type Document,
-} from 'mongodb';
+import type { Collection as MongoCollection, ObjectId } from 'mongodb';
+import type { Document } from 'mongodb';
 import type {
   DocumentHandler,
   HandleOptions,

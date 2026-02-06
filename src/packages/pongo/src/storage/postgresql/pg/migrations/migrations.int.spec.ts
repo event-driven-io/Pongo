@@ -3,10 +3,8 @@ import {
   PostgreSQLConnectionString,
   tableExists,
 } from '@event-driven-io/dumbo/pg';
-import {
-  PostgreSqlContainer,
-  StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import assert from 'assert';
 import { after, before, beforeEach, describe, it } from 'node:test';
 import { databaseDriver } from '..';

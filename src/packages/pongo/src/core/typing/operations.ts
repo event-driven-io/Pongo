@@ -1,18 +1,18 @@
-import {
-  type AnyConnection,
-  type DatabaseDriverType,
-  type DatabaseTransaction,
-  type JSONSerializationOptions,
-  JSONSerializer,
-  type MigrationStyle,
-  type QueryResult,
-  type QueryResultRow,
-  type RunSQLMigrationsResult,
-  type SQL,
-  type SQLCommandOptions,
-  type SQLExecutor,
-  type SQLQueryOptions,
-  type WithDatabaseTransactionFactory,
+import type { JSONSerializer } from '@event-driven-io/dumbo';
+import type {
+  AnyConnection,
+  DatabaseDriverType,
+  DatabaseTransaction,
+  JSONSerializationOptions,
+  MigrationStyle,
+  QueryResult,
+  QueryResultRow,
+  RunSQLMigrationsResult,
+  SQL,
+  SQLCommandOptions,
+  SQLExecutor,
+  SQLQueryOptions,
+  WithDatabaseTransactionFactory,
 } from '@event-driven-io/dumbo';
 import { v7 as uuid } from 'uuid';
 import type { PongoCollectionSchemaComponent } from '../collection';

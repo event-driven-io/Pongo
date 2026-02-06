@@ -1,8 +1,8 @@
 import type { WithSQLExecutor } from '../execute';
-import {
-  type AnyConnection,
-  type Connection,
-  type InferDbClientFromConnection,
+import type {
+  AnyConnection,
+  Connection,
+  InferDbClientFromConnection,
 } from './connection';
 
 export interface DatabaseTransaction<
