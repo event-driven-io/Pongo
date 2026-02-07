@@ -30,11 +30,11 @@ migrateCommand
   .command('run')
   .description('Run database migrations')
   .option(
-    '-cs, --connection-string <string>',
+    '--cs, --connection-string <string>',
     'Connection string for the database',
   )
   .option(
-    '-col, --collection <name>',
+    '--col, --collection <name>',
     'Specify the collection name',
     (value: string, previous: string[]) => {
       // Accumulate collection names into an array (explicitly typing `previous` as `string[]`)
@@ -43,7 +43,7 @@ migrateCommand
     [] as string[],
   )
   .option('-f, --config <path>', 'Path to configuration file with Pongo config')
-  .option('-dr, --dryRun', 'Perform dry run without commiting changes', false)
+  .option('--dr, --dryRun', 'Perform dry run without commiting changes', false)
   .action(async (options: MigrateRunOptions) => {
     const { collection, dryRun } = options;
     const connectionString =
@@ -88,7 +88,7 @@ migrateCommand
   .command('sql')
   .description('Generate SQL for database migration')
   .option(
-    '-col, --collection <name>',
+    '--col, --collection <name>',
     'Specify the collection name',
     (value: string, previous: string[]) => {
       // Accumulate collection names into an array (explicitly typing `previous` as `string[]`)

@@ -148,7 +148,7 @@ configCommand
   .command('sample')
   .description('Generate or print sample configuration')
   .option(
-    '-col, --collection <name>',
+    '--col, --collection <name>',
     'Specify the collection name',
     (value: string, previous: string[]) => {
       // Accumulate collection names into an array (explicitly typing `previous` as `string[]`)
