@@ -30,6 +30,7 @@ void describe('mapD1Error', () => {
     void it('returns DumboError(500) for a plain Error without D1 content', () => {
       const result = mapD1Error(new Error('plain error'));
       assert.ok(result instanceof DumboError);
+      assert.ok(DumboError.isInstanceOf(result));
       assert.strictEqual(result.errorCode, 500);
     });
 
@@ -37,6 +38,7 @@ void describe('mapD1Error', () => {
       for (const value of ['string', 42, null, undefined]) {
         const result = mapD1Error(value);
         assert.ok(result instanceof DumboError);
+        assert.ok(DumboError.isInstanceOf(result));
         assert.strictEqual(result.errorCode, 500);
       }
     });
@@ -46,6 +48,7 @@ void describe('mapD1Error', () => {
         new Error('Something completely unrelated happened'),
       );
       assert.ok(result instanceof DumboError);
+      assert.ok(DumboError.isInstanceOf(result));
       assert.strictEqual(result.errorCode, 500);
     });
   });
@@ -58,6 +61,16 @@ void describe('mapD1Error', () => {
       assert.ok(result instanceof UniqueConstraintError);
       assert.ok(result instanceof IntegrityConstraintViolationError);
       assert.ok(result instanceof DumboError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: UniqueConstraintError.ErrorType,
+        }),
+      );
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorCode: IntegrityConstraintViolationError.ErrorCode,
+        }),
+      );
     });
 
     void it('maps PRIMARY KEY constraint to UniqueConstraintError', () => {
@@ -66,6 +79,11 @@ void describe('mapD1Error', () => {
       );
       assert.ok(result instanceof UniqueConstraintError);
       assert.ok(result instanceof IntegrityConstraintViolationError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: UniqueConstraintError.ErrorType,
+        }),
+      );
     });
 
     void it('maps FOREIGN KEY constraint to ForeignKeyViolationError', () => {
@@ -74,6 +92,11 @@ void describe('mapD1Error', () => {
       );
       assert.ok(result instanceof ForeignKeyViolationError);
       assert.ok(result instanceof IntegrityConstraintViolationError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: ForeignKeyViolationError.ErrorType,
+        }),
+      );
     });
 
     void it('maps NOT NULL constraint to NotNullViolationError', () => {
@@ -82,6 +105,11 @@ void describe('mapD1Error', () => {
       );
       assert.ok(result instanceof NotNullViolationError);
       assert.ok(result instanceof IntegrityConstraintViolationError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: NotNullViolationError.ErrorType,
+        }),
+      );
     });
 
     void it('maps CHECK constraint to CheckViolationError', () => {
@@ -90,6 +118,11 @@ void describe('mapD1Error', () => {
       );
       assert.ok(result instanceof CheckViolationError);
       assert.ok(result instanceof IntegrityConstraintViolationError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: CheckViolationError.ErrorType,
+        }),
+      );
     });
 
     void it('maps generic constraint to IntegrityConstraintViolationError', () => {
@@ -98,6 +131,11 @@ void describe('mapD1Error', () => {
       );
       assert.ok(result instanceof IntegrityConstraintViolationError);
       assert.ok(result instanceof DumboError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: IntegrityConstraintViolationError.ErrorType,
+        }),
+      );
     });
 
     void it('maps constraint with SQLITE_CONSTRAINT prefix in message', () => {
@@ -119,6 +157,9 @@ void describe('mapD1Error', () => {
       );
       assert.ok(result instanceof DataError);
       assert.ok(result instanceof DumboError);
+      assert.ok(
+        DumboError.isInstanceOf(result, { errorType: DataError.ErrorType }),
+      );
       assert.strictEqual(result.errorCode, 400);
     });
 
@@ -134,6 +175,11 @@ void describe('mapD1Error', () => {
       );
       assert.ok(result instanceof SystemError);
       assert.ok(result instanceof TransientDatabaseError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: SystemError.ErrorType,
+        }),
+      );
     });
 
     void it('maps D1_SESSION_ERROR to ConnectionError', () => {
@@ -142,6 +188,11 @@ void describe('mapD1Error', () => {
       );
       assert.ok(result instanceof ConnectionError);
       assert.ok(result instanceof TransientDatabaseError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: ConnectionError.ErrorType,
+        }),
+      );
     });
 
     void it('maps D1_EXEC_ERROR to InvalidOperationError', () => {
@@ -150,6 +201,11 @@ void describe('mapD1Error', () => {
       );
       assert.ok(result instanceof InvalidOperationError);
       assert.ok(result instanceof DumboError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: InvalidOperationError.ErrorType,
+        }),
+      );
       assert.strictEqual(result.errorCode, 400);
     });
   });
@@ -159,6 +215,11 @@ void describe('mapD1Error', () => {
       const result = mapD1Error(d1Error('Network connection lost.'));
       assert.ok(result instanceof ConnectionError);
       assert.ok(result instanceof TransientDatabaseError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: ConnectionError.ErrorType,
+        }),
+      );
     });
 
     void it('maps transient resolve error to ConnectionError', () => {
@@ -183,6 +244,11 @@ void describe('mapD1Error', () => {
       );
       assert.ok(result instanceof InsufficientResourcesError);
       assert.ok(result instanceof TransientDatabaseError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: InsufficientResourcesError.ErrorType,
+        }),
+      );
     });
 
     void it('maps too many requests to InsufficientResourcesError', () => {
@@ -209,6 +275,11 @@ void describe('mapD1Error', () => {
       );
       assert.ok(result instanceof LockNotAvailableError);
       assert.ok(result instanceof TransientDatabaseError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: LockNotAvailableError.ErrorType,
+        }),
+      );
     });
 
     void it('maps D1_ERROR + SQLITE_LOCKED to DeadlockError', () => {
@@ -217,6 +288,11 @@ void describe('mapD1Error', () => {
       );
       assert.ok(result instanceof DeadlockError);
       assert.ok(result instanceof TransientDatabaseError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: DeadlockError.ErrorType,
+        }),
+      );
     });
 
     void it('maps D1_ERROR + SQLITE_CANTOPEN to ConnectionError', () => {
@@ -225,6 +301,11 @@ void describe('mapD1Error', () => {
       );
       assert.ok(result instanceof ConnectionError);
       assert.ok(result instanceof TransientDatabaseError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: ConnectionError.ErrorType,
+        }),
+      );
     });
 
     void it('maps D1_ERROR + SQLITE_NOMEM to InsufficientResourcesError', () => {
@@ -233,6 +314,11 @@ void describe('mapD1Error', () => {
       );
       assert.ok(result instanceof InsufficientResourcesError);
       assert.ok(result instanceof TransientDatabaseError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: InsufficientResourcesError.ErrorType,
+        }),
+      );
     });
 
     void it('maps D1_ERROR + SQLITE_IOERR to SystemError', () => {
@@ -241,6 +327,11 @@ void describe('mapD1Error', () => {
       );
       assert.ok(result instanceof SystemError);
       assert.ok(result instanceof TransientDatabaseError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: SystemError.ErrorType,
+        }),
+      );
     });
 
     void it('maps D1_ERROR + SQLITE_CORRUPT to SystemError', () => {
@@ -256,6 +347,9 @@ void describe('mapD1Error', () => {
         d1Error('D1_ERROR: SQLITE_TOOBIG: string or blob too big'),
       );
       assert.ok(result instanceof DataError);
+      assert.ok(
+        DumboError.isInstanceOf(result, { errorType: DataError.ErrorType }),
+      );
       assert.strictEqual(result.errorCode, 400);
     });
 
@@ -278,6 +372,11 @@ void describe('mapD1Error', () => {
         d1Error('D1_ERROR: SQLITE_ERROR: no such table: foo'),
       );
       assert.ok(result instanceof InvalidOperationError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: InvalidOperationError.ErrorType,
+        }),
+      );
       assert.strictEqual(result.errorCode, 400);
     });
 
@@ -317,6 +416,11 @@ void describe('mapD1Error', () => {
       );
       assert.ok(result instanceof SerializationError);
       assert.ok(result instanceof TransientDatabaseError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: SerializationError.ErrorType,
+        }),
+      );
     });
 
     void it('maps D1_ERROR + SQLITE_INTERRUPT to SerializationError', () => {
@@ -410,6 +514,11 @@ void describe('mapD1Error', () => {
       const result = mapD1Error(d1Error('SQLITE_BUSY: database is locked'));
       assert.ok(result instanceof LockNotAvailableError);
       assert.ok(result instanceof TransientDatabaseError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: LockNotAvailableError.ErrorType,
+        }),
+      );
     });
 
     void it('maps SQLITE_ERROR in bare message to InvalidOperationError', () => {
@@ -430,6 +539,7 @@ void describe('mapD1Error', () => {
       const original = d1Error('D1_ERROR: UNIQUE constraint failed: users.id');
       const result = mapD1Error(original);
       assert.ok(result instanceof DumboError);
+      assert.ok(DumboError.isInstanceOf(result));
       assert.strictEqual(result.innerError, original);
       assert.strictEqual(result.cause, original);
     });

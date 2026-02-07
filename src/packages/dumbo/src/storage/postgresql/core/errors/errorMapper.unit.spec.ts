@@ -33,6 +33,7 @@ void describe('mapPostgresError', () => {
     void it('returns DumboError(500) for a plain Error without code', () => {
       const result = mapPostgresError(new Error('plain error'));
       assert.ok(result instanceof DumboError);
+      assert.ok(DumboError.isInstanceOf(result));
       assert.strictEqual(result.errorCode, 500);
     });
 
@@ -40,6 +41,7 @@ void describe('mapPostgresError', () => {
       for (const value of ['string', 42, null, undefined]) {
         const result = mapPostgresError(value);
         assert.ok(result instanceof DumboError);
+        assert.ok(DumboError.isInstanceOf(result));
         assert.strictEqual(result.errorCode, 500);
       }
     });
@@ -49,6 +51,7 @@ void describe('mapPostgresError', () => {
       (error as Error & { code: number }).code = 123;
       const result = mapPostgresError(error);
       assert.ok(result instanceof DumboError);
+      assert.ok(DumboError.isInstanceOf(result));
       assert.strictEqual(result.errorCode, 500);
     });
   });
@@ -59,6 +62,16 @@ void describe('mapPostgresError', () => {
       assert.ok(result instanceof UniqueConstraintError);
       assert.ok(result instanceof IntegrityConstraintViolationError);
       assert.ok(result instanceof DumboError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: UniqueConstraintError.ErrorType,
+        }),
+      );
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorCode: IntegrityConstraintViolationError.ErrorCode,
+        }),
+      );
       assert.strictEqual(result.innerError?.message, 'test error');
     });
 
@@ -66,30 +79,55 @@ void describe('mapPostgresError', () => {
       const result = mapPostgresError(pgError('23503'));
       assert.ok(result instanceof ForeignKeyViolationError);
       assert.ok(result instanceof IntegrityConstraintViolationError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: ForeignKeyViolationError.ErrorType,
+        }),
+      );
     });
 
     void it('maps 23502 to NotNullViolationError', () => {
       const result = mapPostgresError(pgError('23502'));
       assert.ok(result instanceof NotNullViolationError);
       assert.ok(result instanceof IntegrityConstraintViolationError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: NotNullViolationError.ErrorType,
+        }),
+      );
     });
 
     void it('maps 23514 to CheckViolationError', () => {
       const result = mapPostgresError(pgError('23514'));
       assert.ok(result instanceof CheckViolationError);
       assert.ok(result instanceof IntegrityConstraintViolationError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: CheckViolationError.ErrorType,
+        }),
+      );
     });
 
     void it('maps 23P01 to ExclusionViolationError', () => {
       const result = mapPostgresError(pgError('23P01'));
       assert.ok(result instanceof ExclusionViolationError);
       assert.ok(result instanceof IntegrityConstraintViolationError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: ExclusionViolationError.ErrorType,
+        }),
+      );
     });
 
     void it('maps unknown class 23 code to IntegrityConstraintViolationError', () => {
       const result = mapPostgresError(pgError('23000'));
       assert.ok(result instanceof IntegrityConstraintViolationError);
       assert.ok(result instanceof DumboError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: IntegrityConstraintViolationError.ErrorType,
+        }),
+      );
     });
   });
 
@@ -98,12 +136,27 @@ void describe('mapPostgresError', () => {
       const result = mapPostgresError(pgError('40001'));
       assert.ok(result instanceof SerializationError);
       assert.ok(result instanceof TransientDatabaseError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: SerializationError.ErrorType,
+        }),
+      );
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorCode: TransientDatabaseError.ErrorCode,
+        }),
+      );
     });
 
     void it('maps 40P01 to DeadlockError', () => {
       const result = mapPostgresError(pgError('40P01'));
       assert.ok(result instanceof DeadlockError);
       assert.ok(result instanceof TransientDatabaseError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: DeadlockError.ErrorType,
+        }),
+      );
     });
   });
 
@@ -112,6 +165,11 @@ void describe('mapPostgresError', () => {
       const result = mapPostgresError(pgError('55P03'));
       assert.ok(result instanceof LockNotAvailableError);
       assert.ok(result instanceof TransientDatabaseError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: LockNotAvailableError.ErrorType,
+        }),
+      );
     });
 
     void it('maps 55006 to LockNotAvailableError', () => {
@@ -126,6 +184,11 @@ void describe('mapPostgresError', () => {
       const result = mapPostgresError(pgError('08000'));
       assert.ok(result instanceof ConnectionError);
       assert.ok(result instanceof TransientDatabaseError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: ConnectionError.ErrorType,
+        }),
+      );
     });
 
     void it('maps 08003 to ConnectionError', () => {
@@ -145,6 +208,11 @@ void describe('mapPostgresError', () => {
       const result = mapPostgresError(pgError('57P01'));
       assert.ok(result instanceof AdminShutdownError);
       assert.ok(result instanceof TransientDatabaseError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: AdminShutdownError.ErrorType,
+        }),
+      );
     });
 
     void it('maps 57P02 (crash shutdown) to AdminShutdownError', () => {
@@ -169,6 +237,11 @@ void describe('mapPostgresError', () => {
       const result = mapPostgresError(pgError('57014'));
       assert.ok(result instanceof QueryCanceledError);
       assert.ok(result instanceof TransientDatabaseError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: QueryCanceledError.ErrorType,
+        }),
+      );
     });
 
     void it('maps unknown class 57 code to ConnectionError', () => {
@@ -183,6 +256,11 @@ void describe('mapPostgresError', () => {
       const result = mapPostgresError(pgError('53000'));
       assert.ok(result instanceof InsufficientResourcesError);
       assert.ok(result instanceof TransientDatabaseError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: InsufficientResourcesError.ErrorType,
+        }),
+      );
     });
 
     void it('maps 53300 (too many connections) to InsufficientResourcesError', () => {
@@ -197,6 +275,11 @@ void describe('mapPostgresError', () => {
       const result = mapPostgresError(pgError('58000'));
       assert.ok(result instanceof SystemError);
       assert.ok(result instanceof TransientDatabaseError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: SystemError.ErrorType,
+        }),
+      );
     });
 
     void it('maps 58030 (I/O error) to SystemError', () => {
@@ -211,6 +294,9 @@ void describe('mapPostgresError', () => {
       const result = mapPostgresError(pgError('22000'));
       assert.ok(result instanceof DataError);
       assert.ok(result instanceof DumboError);
+      assert.ok(
+        DumboError.isInstanceOf(result, { errorType: DataError.ErrorType }),
+      );
       assert.strictEqual(result.errorCode, 400);
     });
 
@@ -225,6 +311,11 @@ void describe('mapPostgresError', () => {
       const result = mapPostgresError(pgError('42601'));
       assert.ok(result instanceof InvalidOperationError);
       assert.ok(result instanceof DumboError);
+      assert.ok(
+        DumboError.isInstanceOf(result, {
+          errorType: InvalidOperationError.ErrorType,
+        }),
+      );
       assert.strictEqual(result.errorCode, 400);
     });
 
@@ -239,6 +330,7 @@ void describe('mapPostgresError', () => {
       const original = pgError('23505', 'duplicate key value');
       const result = mapPostgresError(original);
       assert.ok(result instanceof DumboError);
+      assert.ok(DumboError.isInstanceOf(result));
       assert.strictEqual(result.innerError, original);
       assert.strictEqual(result.cause, original);
     });
@@ -254,12 +346,14 @@ void describe('mapPostgresError', () => {
     void it('returns DumboError(500) for class 01 (warning)', () => {
       const result = mapPostgresError(pgError('01000'));
       assert.ok(result instanceof DumboError);
+      assert.ok(DumboError.isInstanceOf(result));
       assert.strictEqual(result.errorCode, 500);
     });
 
     void it('returns DumboError(500) for class P0 (PL/pgSQL)', () => {
       const result = mapPostgresError(pgError('P0001'));
       assert.ok(result instanceof DumboError);
+      assert.ok(DumboError.isInstanceOf(result));
       assert.strictEqual(result.errorCode, 500);
     });
   });
