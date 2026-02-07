@@ -44,6 +44,7 @@ export {
 };
 
 export * from './connections';
+export * from './errors';
 export * from './execute';
 export * from './formatter';
 export * from './pool';
