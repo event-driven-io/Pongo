@@ -37,34 +37,37 @@ const sqliteError = (
 };
 
 void describe('mapSqliteError', () => {
-  void describe('returns undefined for non-SQLite errors', () => {
-    void it('returns undefined for a plain Error without code', () => {
+  void describe('returns DumboError(500) for non-SQLite errors', () => {
+    void it('returns DumboError(500) for a plain Error without code', () => {
       const result = mapSqliteError(new Error('plain error'));
-      assert.strictEqual(result, undefined);
+      assert.ok(result instanceof DumboError);
+      assert.strictEqual(result.errorCode, 500);
     });
 
-    void it('returns undefined for a non-Error value', () => {
-      assert.strictEqual(mapSqliteError('string'), undefined);
-      assert.strictEqual(mapSqliteError(42), undefined);
-      assert.strictEqual(mapSqliteError(null), undefined);
-      assert.strictEqual(mapSqliteError(undefined), undefined);
+    void it('returns DumboError(500) for a non-Error value', () => {
+      for (const value of ['string', 42, null, undefined]) {
+        const result = mapSqliteError(value);
+        assert.ok(result instanceof DumboError);
+        assert.strictEqual(result.errorCode, 500);
+      }
     });
 
-    void it('returns undefined for an error with numeric code', () => {
+    void it('returns DumboError(500) for an error with numeric code', () => {
       const error = new Error('numeric code');
       (error as Error & { code: number }).code = 123;
-      assert.strictEqual(mapSqliteError(error), undefined);
+      const result = mapSqliteError(error);
+      assert.ok(result instanceof DumboError);
+      assert.strictEqual(result.errorCode, 500);
     });
 
-    void it('returns undefined for an unrecognized SQLITE code', () => {
-      assert.strictEqual(
-        mapSqliteError(sqliteError('SQLITE_NOTICE', 27)),
-        undefined,
-      );
-      assert.strictEqual(
-        mapSqliteError(sqliteError('SQLITE_WARNING', 28)),
-        undefined,
-      );
+    void it('returns DumboError(500) for an unrecognized SQLITE code', () => {
+      const result1 = mapSqliteError(sqliteError('SQLITE_NOTICE', 27));
+      assert.ok(result1 instanceof DumboError);
+      assert.strictEqual(result1.errorCode, 500);
+
+      const result2 = mapSqliteError(sqliteError('SQLITE_WARNING', 28));
+      assert.ok(result2 instanceof DumboError);
+      assert.strictEqual(result2.errorCode, 500);
     });
   });
 

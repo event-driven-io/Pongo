@@ -1,9 +1,9 @@
-import type { DumboError } from '../../../../core/errors';
 import {
   CheckViolationError,
   ConnectionError,
   DataError,
   DeadlockError,
+  DumboError,
   ForeignKeyViolationError,
   InsufficientResourcesError,
   IntegrityConstraintViolationError,
@@ -156,11 +156,16 @@ const mapEmbeddedSqliteCode = (
  *   - https://developers.cloudflare.com/d1/platform/client-api/
  *   - https://github.com/cloudflare/workerd (src/cloudflare/internal/d1-api.ts)
  *
- * Returns `undefined` if the error is not a recognized D1 error.
+ * Falls back to a generic DumboError (500) if the error is not a recognized D1 error.
  */
-export const mapD1Error = (error: unknown): DumboError | undefined => {
+export const mapD1Error = (error: unknown): DumboError => {
   const message = getErrorMessage(error);
-  if (!message) return undefined;
+  if (!message)
+    return new DumboError({
+      errorCode: 500,
+      message: error instanceof Error ? error.message : String(error),
+      innerError: asError(error),
+    });
 
   const innerError = asError(error);
   const upper = message.toUpperCase();
@@ -204,16 +209,18 @@ export const mapD1Error = (error: unknown): DumboError | undefined => {
       if (mapped) return mapped;
     }
 
-    if (upper.startsWith('D1_EXEC_ERROR'))
-      return new InvalidOperationError(message, innerError);
-
     return new InvalidOperationError(message, innerError);
   }
 
   const embeddedCode = extractEmbeddedSqliteCode(message);
   if (embeddedCode) {
-    return mapEmbeddedSqliteCode(embeddedCode, message, innerError);
+    const mapped = mapEmbeddedSqliteCode(embeddedCode, message, innerError);
+    if (mapped) return mapped;
   }
 
-  return undefined;
+  return new DumboError({
+    errorCode: 500,
+    message,
+    innerError,
+  });
 };

@@ -14,6 +14,7 @@ import {
   InvalidOperationError,
   LockNotAvailableError,
   NotNullViolationError,
+  QueryCanceledError,
   SerializationError,
   SystemError,
   TransientDatabaseError,
@@ -28,23 +29,27 @@ const pgError = (code: string, message = 'test error'): Error => {
 };
 
 void describe('mapPostgresError', () => {
-  void describe('returns undefined for non-PostgreSQL errors', () => {
-    void it('returns undefined for a plain Error without code', () => {
+  void describe('returns DumboError(500) for non-PostgreSQL errors', () => {
+    void it('returns DumboError(500) for a plain Error without code', () => {
       const result = mapPostgresError(new Error('plain error'));
-      assert.strictEqual(result, undefined);
+      assert.ok(result instanceof DumboError);
+      assert.strictEqual(result.errorCode, 500);
     });
 
-    void it('returns undefined for a non-Error value', () => {
-      assert.strictEqual(mapPostgresError('string'), undefined);
-      assert.strictEqual(mapPostgresError(42), undefined);
-      assert.strictEqual(mapPostgresError(null), undefined);
-      assert.strictEqual(mapPostgresError(undefined), undefined);
+    void it('returns DumboError(500) for a non-Error value', () => {
+      for (const value of ['string', 42, null, undefined]) {
+        const result = mapPostgresError(value);
+        assert.ok(result instanceof DumboError);
+        assert.strictEqual(result.errorCode, 500);
+      }
     });
 
-    void it('returns undefined for an error with numeric code', () => {
+    void it('returns DumboError(500) for an error with numeric code', () => {
       const error = new Error('numeric code');
       (error as Error & { code: number }).code = 123;
-      assert.strictEqual(mapPostgresError(error), undefined);
+      const result = mapPostgresError(error);
+      assert.ok(result instanceof DumboError);
+      assert.strictEqual(result.errorCode, 500);
     });
   });
 
@@ -160,8 +165,14 @@ void describe('mapPostgresError', () => {
       assert.ok(result instanceof TransientDatabaseError);
     });
 
-    void it('maps unknown class 57 code to ConnectionError', () => {
+    void it('maps 57014 (query canceled) to QueryCanceledError', () => {
       const result = mapPostgresError(pgError('57014'));
+      assert.ok(result instanceof QueryCanceledError);
+      assert.ok(result instanceof TransientDatabaseError);
+    });
+
+    void it('maps unknown class 57 code to ConnectionError', () => {
+      const result = mapPostgresError(pgError('57999'));
       assert.ok(result instanceof ConnectionError);
       assert.ok(result instanceof TransientDatabaseError);
     });
@@ -239,13 +250,17 @@ void describe('mapPostgresError', () => {
     });
   });
 
-  void describe('returns undefined for unrecognized SQLSTATE classes', () => {
-    void it('returns undefined for class 01 (warning)', () => {
-      assert.strictEqual(mapPostgresError(pgError('01000')), undefined);
+  void describe('returns DumboError(500) for unrecognized SQLSTATE classes', () => {
+    void it('returns DumboError(500) for class 01 (warning)', () => {
+      const result = mapPostgresError(pgError('01000'));
+      assert.ok(result instanceof DumboError);
+      assert.strictEqual(result.errorCode, 500);
     });
 
-    void it('returns undefined for class P0 (PL/pgSQL)', () => {
-      assert.strictEqual(mapPostgresError(pgError('P0001')), undefined);
+    void it('returns DumboError(500) for class P0 (PL/pgSQL)', () => {
+      const result = mapPostgresError(pgError('P0001'));
+      assert.ok(result instanceof DumboError);
+      assert.strictEqual(result.errorCode, 500);
     });
   });
 });

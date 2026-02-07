@@ -147,6 +147,18 @@ export class AdminShutdownError extends TransientDatabaseError {
   }
 }
 
+export class QueryCanceledError extends TransientDatabaseError {
+  constructor(message?: string, innerError?: Error) {
+    super(
+      message ??
+        `The query was canceled, e.g. due to statement timeout or user request.`,
+      innerError,
+    );
+
+    Object.setPrototypeOf(this, QueryCanceledError.prototype);
+  }
+}
+
 export class IntegrityConstraintViolationError extends DumboError {
   constructor(message?: string, innerError?: Error) {
     super({

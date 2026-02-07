@@ -1,9 +1,9 @@
-import type { DumboError } from '../../../../core/errors';
 import {
   CheckViolationError,
   ConnectionError,
   DataError,
   DeadlockError,
+  DumboError,
   ForeignKeyViolationError,
   InsufficientResourcesError,
   IntegrityConstraintViolationError,
@@ -82,11 +82,16 @@ const mapConstraintError = (
  *
  * Result code reference: https://www.sqlite.org/rescode.html
  *
- * Returns `undefined` if the error is not a recognized SQLite error.
+ * Falls back to a generic DumboError (500) if the error is not a recognized SQLite error.
  */
-export const mapSqliteError = (error: unknown): DumboError | undefined => {
+export const mapSqliteError = (error: unknown): DumboError => {
   const code = getSqliteErrorCode(error);
-  if (!code) return undefined;
+  if (!code)
+    return new DumboError({
+      errorCode: 500,
+      message: getErrorMessage(error),
+      innerError: asError(error),
+    });
 
   const message = getErrorMessage(error);
   const innerError = asError(error);
@@ -193,5 +198,9 @@ export const mapSqliteError = (error: unknown): DumboError | undefined => {
       return new SerializationError(message, innerError);
   }
 
-  return undefined;
+  return new DumboError({
+    errorCode: 500,
+    message,
+    innerError,
+  });
 };

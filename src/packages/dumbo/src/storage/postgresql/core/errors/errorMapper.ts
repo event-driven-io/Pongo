@@ -1,10 +1,10 @@
-import type { DumboError } from '../../../../core/errors';
 import {
   AdminShutdownError,
   CheckViolationError,
   ConnectionError,
   DataError,
   DeadlockError,
+  DumboError,
   ExclusionViolationError,
   ForeignKeyViolationError,
   InsufficientResourcesError,
@@ -12,6 +12,7 @@ import {
   InvalidOperationError,
   LockNotAvailableError,
   NotNullViolationError,
+  QueryCanceledError,
   SerializationError,
   SystemError,
   UniqueConstraintError,
@@ -45,11 +46,16 @@ const asError = (error: unknown): Error | undefined =>
  * SQLSTATE reference: https://www.postgresql.org/docs/current/errcodes-appendix.html
  * Transient classification based on Npgsql's PostgresException.IsTransient.
  *
- * Returns `undefined` if the error is not a recognized PostgreSQL error.
+ * Falls back to a generic DumboError (500) if the error is not a recognized PostgreSQL error.
  */
-export const mapPostgresError = (error: unknown): DumboError | undefined => {
+export const mapPostgresError = (error: unknown): DumboError => {
   const code = getPostgresErrorCode(error);
-  if (!code) return undefined;
+  if (!code)
+    return new DumboError({
+      errorCode: 500,
+      message: getErrorMessage(error),
+      innerError: asError(error),
+    });
 
   const message = getErrorMessage(error);
   const innerError = asError(error);
@@ -81,6 +87,8 @@ export const mapPostgresError = (error: unknown): DumboError | undefined => {
       return new LockNotAvailableError(message, innerError);
 
     // ── Class 57: Operator Intervention ──
+    case '57014': // query_canceled (e.g. statement timeout)
+      return new QueryCanceledError(message, innerError);
     case '57P01': // admin shutdown
     case '57P02': // crash shutdown
       return new AdminShutdownError(message, innerError);
@@ -122,5 +130,9 @@ export const mapPostgresError = (error: unknown): DumboError | undefined => {
       return new SystemError(message, innerError);
   }
 
-  return undefined;
+  return new DumboError({
+    errorCode: 500,
+    message,
+    innerError,
+  });
 };
