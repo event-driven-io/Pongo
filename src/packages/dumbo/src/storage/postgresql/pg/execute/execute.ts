@@ -12,6 +12,7 @@ import {
   type SQLQueryOptions,
 } from '../../../../core';
 import { pgFormatter } from '../../core';
+import { mapPostgresError } from '../../core/errors/errorMapper';
 import { PgDriverType, type PgClientOrPoolClient } from '../connections';
 
 export const isPgNativePool = (
@@ -115,21 +116,25 @@ async function batchQuery<Result extends QueryResultRow = QueryResultRow>(
       params,
       debugSQL: pgFormatter.describe(sqls[i]!, { serializer }),
     });
-    let result =
-      params.length > 0
-        ? await client.query<Result>(query, params)
-        : await client.query<Result>(query);
+    try {
+      let result =
+        params.length > 0
+          ? await client.query<Result>(query, params)
+          : await client.query<Result>(query);
 
-    if (options?.mapping) {
-      result = {
-        ...result,
-        rows: result.rows.map((row) =>
-          mapSQLQueryResult(row, options.mapping!),
-        ),
-      };
+      if (options?.mapping) {
+        result = {
+          ...result,
+          rows: result.rows.map((row) =>
+            mapSQLQueryResult(row, options.mapping!),
+          ),
+        };
+      }
+
+      results[i] = { rowCount: result.rowCount, rows: result.rows };
+    } catch (error) {
+      throw mapPostgresError(error) ?? error;
     }
-
-    results[i] = { rowCount: result.rowCount, rows: result.rows };
   }
 
   return results;
@@ -157,24 +162,28 @@ async function batchCommand<Result extends QueryResultRow = QueryResultRow>(
       params,
       debugSQL: pgFormatter.describe(sqls[i]!, { serializer }),
     });
-    let result =
-      params.length > 0
-        ? await client.query<Result>(query, params)
-        : await client.query<Result>(query);
+    try {
+      let result =
+        params.length > 0
+          ? await client.query<Result>(query, params)
+          : await client.query<Result>(query);
 
-    if (options?.mapping) {
-      result = {
-        ...result,
-        rows: result.rows.map((row) =>
-          mapSQLQueryResult(row, options.mapping!),
-        ),
-      };
-    }
+      if (options?.mapping) {
+        result = {
+          ...result,
+          rows: result.rows.map((row) =>
+            mapSQLQueryResult(row, options.mapping!),
+          ),
+        };
+      }
 
-    results[i] = { rowCount: result.rowCount, rows: result.rows };
+      results[i] = { rowCount: result.rowCount, rows: result.rows };
 
-    if (options?.assertChanges && (results[i]!.rowCount ?? 0) === 0) {
-      throw new BatchCommandNoChangesError(i);
+      if (options?.assertChanges && (results[i]!.rowCount ?? 0) === 0) {
+        throw new BatchCommandNoChangesError(i);
+      }
+    } catch (error) {
+      throw mapPostgresError(error) ?? error;
     }
   }
 
