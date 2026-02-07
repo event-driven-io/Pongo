@@ -1,10 +1,10 @@
+import type { DumboError } from '../../../../core/errors';
 import {
   AdminShutdownError,
   CheckViolationError,
   ConnectionError,
   DataError,
   DeadlockError,
-  DumboError,
   ExclusionViolationError,
   ForeignKeyViolationError,
   InsufficientResourcesError,
@@ -21,9 +21,7 @@ import {
  * Checks whether the given error looks like a PostgreSQL DatabaseError
  * from the `pg` driver (has a string `code` property with a SQLSTATE value).
  */
-const getPostgresErrorCode = (
-  error: unknown,
-): string | undefined => {
+const getPostgresErrorCode = (error: unknown): string | undefined => {
   if (
     error instanceof Error &&
     'code' in error &&

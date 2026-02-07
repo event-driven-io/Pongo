@@ -1,8 +1,8 @@
 import type { Connection } from '../connections';
 import type { DatabaseDriverType } from '../drivers';
+import { DumboError } from '../errors';
 import type { QueryResult, QueryResultRow } from '../query';
-import type { JSONSerializer } from '../serializer';
-import type { JSONDeserializeOptions } from '../serializer';
+import type { JSONDeserializeOptions, JSONSerializer } from '../serializer';
 import type { SQL, SQLFormatter } from '../sql';
 
 export const mapColumnToJSON = (
@@ -80,13 +80,18 @@ export type BatchSQLCommandOptions = SQLCommandOptions & {
   assertChanges?: boolean;
 };
 
-export class BatchCommandNoChangesError extends Error {
+export class BatchCommandNoChangesError extends DumboError {
   readonly statementIndex: number;
 
   constructor(statementIndex: number) {
-    super(`Batch command at index ${statementIndex} affected no rows`);
+    super({
+      errorCode: 409,
+      message: `Batch command at index ${statementIndex} affected no rows`,
+    });
     this.name = 'BatchCommandNoChangesError';
     this.statementIndex = statementIndex;
+
+    Object.setPrototypeOf(this, BatchCommandNoChangesError.prototype);
   }
 }
 
