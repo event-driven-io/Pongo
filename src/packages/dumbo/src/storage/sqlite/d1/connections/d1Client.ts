@@ -4,13 +4,15 @@ import type {
   D1SessionBookmark,
   D1SessionConstraint,
 } from '@cloudflare/workers-types';
-import type {
-  JSONSerializer,
-  QueryResult,
-  QueryResultRow,
-  SQL,
-  SQLCommandOptions,
-  SQLQueryOptions,
+import {
+  BatchCommandNoChangesError,
+  type BatchSQLCommandOptions,
+  type JSONSerializer,
+  type QueryResult,
+  type QueryResultRow,
+  type SQL,
+  type SQLCommandOptions,
+  type SQLQueryOptions,
 } from '../../../../core';
 import { sqliteFormatter, type SQLiteClient } from '../../core';
 
@@ -101,18 +103,27 @@ export const d1Client = (options: D1ClientOptions): D1Client => {
 
     batchCommand: async <Result extends QueryResultRow = QueryResultRow>(
       sqls: SQL[],
-      _options?: SQLCommandOptions,
+      options?: BatchSQLCommandOptions,
     ): Promise<QueryResult<Result>[]> => {
       const statements = sqls.map((sql) => {
         const { query, params } = sqliteFormatter.format(sql, { serializer });
         const stmt = execute.prepare(query);
         return params?.length ? stmt.bind(...params) : stmt;
       });
-      const results = await execute.batch<Result>(statements);
-      return results.map((result) => ({
-        rowCount: result.meta?.changes ?? 0,
-        rows: result.results ?? [],
-      }));
+      const batchResults = await execute.batch<Result>(statements);
+
+      return batchResults.map((result, i) => {
+        const qr: QueryResult<Result> = {
+          rowCount: result.meta?.changes ?? 0,
+          rows: result.results ?? [],
+        };
+
+        if (options?.assertChanges && (qr.rowCount ?? 0) === 0) {
+          throw new BatchCommandNoChangesError(i);
+        }
+
+        return qr;
+      });
     },
   };
 };

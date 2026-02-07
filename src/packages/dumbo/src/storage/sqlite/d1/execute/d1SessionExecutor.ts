@@ -1,4 +1,5 @@
 import type {
+  BatchSQLCommandOptions,
   DbSQLExecutor,
   QueryResult,
   QueryResultRow,
@@ -42,7 +43,7 @@ export const d1SQLExecutor = (
   batchCommand: async <Result extends QueryResultRow>(
     client: D1Client,
     sqls: SQL[],
-    options?: SQLCommandOptions,
+    options?: BatchSQLCommandOptions,
   ): Promise<QueryResult<Result>[]> => {
     return await client.batchCommand<Result>(sqls, options);
   },

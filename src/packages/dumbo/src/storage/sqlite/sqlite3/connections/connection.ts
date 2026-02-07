@@ -1,6 +1,7 @@
 import sqlite3 from 'sqlite3';
 import type { JSONSerializer } from '../../../../core';
 import {
+  BatchCommandNoChangesError,
   SQL,
   type Connection,
   type DatabaseTransactionOptions,
@@ -19,6 +20,7 @@ import type {
 import {
   InMemorySQLiteDatabase,
   sqliteConnection,
+  type BatchSQLiteCommandOptions,
   type SQLiteClientOptions,
   type SQLiteCommandOptions,
   type SQLiteParameters,
@@ -237,12 +239,12 @@ export const sqlite3Client = (
     },
     batchCommand: async <Result extends QueryResultRow = QueryResultRow>(
       sqls: SQL[],
-      options?: SQLiteCommandOptions,
+      options?: BatchSQLiteCommandOptions,
     ): Promise<QueryResult<Result>[]> => {
       const results: QueryResult<Result>[] = [];
 
-      for (const sql of sqls) {
-        const { query, params } = sqliteFormatter.format(sql, {
+      for (let i = 0; i < sqls.length; i++) {
+        const { query, params } = sqliteFormatter.format(sqls[i]!, {
           serializer,
         });
         const result = await executeCommand<Result>(
@@ -251,6 +253,10 @@ export const sqlite3Client = (
           options,
         );
         results.push(result);
+
+        if (options?.assertChanges && (result.rowCount ?? 0) === 0) {
+          throw new BatchCommandNoChangesError(i);
+        }
       }
       return results;
     },
