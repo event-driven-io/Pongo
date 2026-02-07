@@ -45,25 +45,25 @@ migrateCommand
   .command('run')
   .description('Run database migrations')
   .option(
-    '-dbt, --database-type <string>',
+    '--dbt, --database-type <string>',
     'Database type that should be used for connection (e.g., PostgreSQL or SQLite)',
     undefined,
   )
   .option(
-    '-drv, --database-driver <string>',
+    '--drv, --database-driver <string>',
     'Database driver that should be used for connection (e.g., "pg" for PostgreSQL, "sqlite3" for SQLite)',
   )
   .option(
-    '-dbn, --database-name <string>',
+    '--dbn, --database-name <string>',
     'Database name to connect to',
     undefined,
   )
   .option(
-    '-cs, --connection-string <string>',
+    '--cs, --connection-string <string>',
     'Connection string for the database',
   )
   .option(
-    '-col, --collection <name>',
+    '--col, --collection <name>',
     'Specify the collection name',
     (value: string, previous: string[]) => {
       // Accumulate collection names into an array (explicitly typing `previous` as `string[]`)
@@ -72,7 +72,7 @@ migrateCommand
     [] as string[],
   )
   .option('-f, --config <path>', 'Path to configuration file with Pongo config')
-  .option('-dr, --dryRun', 'Perform dry run without commiting changes', false)
+  .option('--dr, --dryRun', 'Perform dry run without commiting changes', false)
   .action(async (options: MigrateRunOptions) => {
     const { collection, dryRun, databaseName, databaseDriver } = options;
     const connectionString =
@@ -125,20 +125,20 @@ migrateCommand
   .command('sql')
   .description('Generate SQL for database migration')
   .option(
-    '-dbt, --database-type <string>',
+    '--dbt, --database-type <string>',
     'Database type that should be used for connection (e.g., PostgreSQL or SQLite)',
   )
   .option(
-    '-drv, --database-driver <string>',
+    '--drv, --database-driver <string>',
     'Database driver that should be used for connection (e.g., "pg" for PostgreSQL, "sqlite3" for SQLite)',
   )
   .option(
-    '-dbn, --database-name <string>',
+    '--dbn, --database-name <string>',
     'Database name to connect to',
     undefined,
   )
   .option(
-    '-col, --collection <name>',
+    '--col, --collection <name>',
     'Specify the collection name',
     (value: string, previous: string[]) => {
       // Accumulate collection names into an array (explicitly typing `previous` as `string[]`)
