@@ -1,6 +1,7 @@
 import type { DatabaseDriverType } from '../../..';
 
 export * from './connections';
+export * from './errors';
 export * from './execute';
 export * from './pool';
 export * from './schema';
