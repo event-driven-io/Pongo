@@ -183,6 +183,50 @@ void describe('SQLite3 error mapping', () => {
     });
   });
 
+  void describe('error mapping in transactions', () => {
+    void it('maps unique constraint violation to UniqueConstraintError inside a transaction', async () => {
+      pool = sqlite3Pool({ fileName: InMemorySQLiteDatabase });
+      const connection = await pool.connection();
+
+      try {
+        await connection.execute.command(
+          SQL`CREATE TABLE IF NOT EXISTS test_tx_unique (id INTEGER PRIMARY KEY, value TEXT)`,
+        );
+        await connection.execute.command(
+          SQL`INSERT INTO test_tx_unique (id, value) VALUES (1, 'a')`,
+        );
+
+        await assert.rejects(
+          () =>
+            connection.withTransaction(async () => {
+              await connection.execute.command(
+                SQL`INSERT INTO test_tx_unique (id, value) VALUES (1, 'b')`,
+              );
+            }),
+          (error) => {
+            assert.ok(
+              error instanceof UniqueConstraintError,
+              `Expected UniqueConstraintError but got ${(error as Error).constructor.name}: ${(error as Error).message}`,
+            );
+            assert.ok(error instanceof IntegrityConstraintViolationError);
+            assert.ok(error instanceof DumboError);
+            assert.ok(
+              DumboError.isInstanceOf(error, {
+                errorType: UniqueConstraintError.ErrorType,
+              }),
+            );
+            return true;
+          },
+        );
+      } finally {
+        await connection.execute.command(
+          SQL`DROP TABLE IF EXISTS test_tx_unique`,
+        );
+        await connection.close();
+      }
+    });
+  });
+
   void describe('preserves inner error', () => {
     void it('wraps original sqlite3 error as innerError', async () => {
       pool = sqlite3Pool({ fileName: InMemorySQLiteDatabase });

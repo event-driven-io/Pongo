@@ -206,6 +206,60 @@ void describe('D1 error mapping', () => {
     });
   });
 
+  void describe('error mapping in transactions', () => {
+    void it('maps unique constraint violation to UniqueConstraintError inside a session-based transaction', async () => {
+      const pool = d1Pool({
+        database,
+        transactionOptions: {
+          allowNestedTransactions: true,
+          mode: 'session_based',
+        },
+      });
+      const connection = await pool.connection();
+
+      try {
+        await connection.execute.command(
+          SQL`CREATE TABLE IF NOT EXISTS test_tx_unique (id INTEGER PRIMARY KEY, value TEXT)`,
+        );
+        await connection.execute.command(
+          SQL`INSERT INTO test_tx_unique (id, value) VALUES (1, 'a')`,
+        );
+
+        await assert.rejects(
+          () =>
+            connection.withTransaction(
+              async () => {
+                await connection.execute.command(
+                  SQL`INSERT INTO test_tx_unique (id, value) VALUES (1, 'b')`,
+                );
+              },
+              { mode: 'session_based' },
+            ),
+          (error) => {
+            assert.ok(
+              error instanceof UniqueConstraintError,
+              `Expected UniqueConstraintError but got ${(error as Error).constructor.name}: ${(error as Error).message}`,
+            );
+            assert.ok(error instanceof IntegrityConstraintViolationError);
+            assert.ok(error instanceof DumboError);
+            assert.ok(
+              DumboError.isInstanceOf(error, {
+                errorType: UniqueConstraintError.ErrorType,
+              }),
+            );
+            return true;
+          },
+        );
+      } finally {
+        await connection.execute.command(
+          SQL`DROP TABLE IF EXISTS test_tx_unique`,
+        );
+        await connection.close();
+        await pool.close();
+      }
+    });
+  });
+
   void describe('preserves inner error', () => {
     void it('wraps original D1 error as innerError', async () => {
       const pool = d1Pool({ database });
