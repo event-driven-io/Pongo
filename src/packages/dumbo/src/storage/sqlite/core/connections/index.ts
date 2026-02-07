@@ -8,6 +8,7 @@ import {
   createAmbientConnection,
   createConnection,
   type AnyConnection,
+  type BatchSQLCommandOptions,
   type Connection,
   type ConnectionOptions,
   type DatabaseTransaction,
@@ -23,6 +24,9 @@ import { sqliteTransaction } from '../transactions';
 export type SQLiteCommandOptions = SQLCommandOptions & {
   ignoreChangesCount?: boolean;
 };
+
+export type BatchSQLiteCommandOptions = SQLiteCommandOptions &
+  BatchSQLCommandOptions;
 
 export type SQLiteParameters =
   | object

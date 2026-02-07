@@ -4,6 +4,7 @@ import {
   mapSQLQueryResult,
   SQL,
   tracer,
+  type BatchSQLCommandOptions,
   type DbSQLExecutor,
   type QueryResult,
   type QueryResultRow,
@@ -106,7 +107,7 @@ export const sqliteSQLExecutor = <
   batchCommand: async <Result extends QueryResultRow = QueryResultRow>(
     client: SQLiteClient,
     sqls: SQL[],
-    options?: SQLCommandOptions,
+    options?: BatchSQLCommandOptions,
   ): Promise<QueryResult<Result>[]> => {
     if (options?.timeoutMs) {
       await client.query(SQL`PRAGMA busy_timeout = ${options.timeoutMs}`);

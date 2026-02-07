@@ -76,6 +76,20 @@ export type SQLCommandOptions = {
   mapping?: SQLQueryResultColumnMapping;
 };
 
+export type BatchSQLCommandOptions = SQLCommandOptions & {
+  assertChanges?: boolean;
+};
+
+export class BatchCommandNoChangesError extends Error {
+  readonly statementIndex: number;
+
+  constructor(statementIndex: number) {
+    super(`Batch command at index ${statementIndex} affected no rows`);
+    this.name = 'BatchCommandNoChangesError';
+    this.statementIndex = statementIndex;
+  }
+}
+
 export type DbSQLExecutorOptions = {
   serializer: JSONSerializer;
 };
@@ -103,7 +117,7 @@ export interface DbSQLExecutor<
   batchCommand<Result extends QueryResultRow = QueryResultRow>(
     client: DbClient,
     sqls: SQL[],
-    options?: SQLCommandOptions,
+    options?: BatchSQLCommandOptions,
   ): Promise<QueryResult<Result>[]>;
   formatter: SQLFormatter;
 }
@@ -123,7 +137,7 @@ export interface SQLExecutor {
   ): Promise<QueryResult<Result>>;
   batchCommand<Result extends QueryResultRow = QueryResultRow>(
     sqls: SQL[],
-    options?: SQLCommandOptions,
+    options?: BatchSQLCommandOptions,
   ): Promise<QueryResult<Result>[]>;
 }
 

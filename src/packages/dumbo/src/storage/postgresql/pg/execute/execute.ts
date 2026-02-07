@@ -1,13 +1,14 @@
 import pg from 'pg';
 import type { JSONSerializer } from '../../../../core';
 import {
+  BatchCommandNoChangesError,
   mapSQLQueryResult,
   tracer,
+  type BatchSQLCommandOptions,
   type DbSQLExecutor,
   type QueryResult,
   type QueryResultRow,
   type SQL,
-  type SQLCommandOptions,
   type SQLQueryOptions,
 } from '../../../../core';
 import { pgFormatter } from '../../core';
@@ -53,54 +54,57 @@ export const pgSQLExecutor = ({
   serializer: JSONSerializer;
 }): PgSQLExecutor => ({
   driverType: PgDriverType,
-  query: <Result extends QueryResultRow = QueryResultRow>(
+  query: async <Result extends QueryResultRow = QueryResultRow>(
     client: PgClientOrPoolClient,
     sql: SQL,
     options: SQLQueryOptions | undefined,
-  ) => batch<Result>(client, sql, serializer, options),
+  ) => {
+    const results = await batchQuery<Result>(
+      client,
+      [sql],
+      serializer,
+      options,
+    );
+    return results[0]!;
+  },
   batchQuery: <Result extends QueryResultRow = QueryResultRow>(
     client: PgClientOrPoolClient,
     sqls: SQL[],
     options: SQLQueryOptions | undefined,
-  ) => batch<Result>(client, sqls, serializer, options),
-  command: <Result extends QueryResultRow = QueryResultRow>(
+  ) => batchQuery<Result>(client, sqls, serializer, options),
+  command: async <Result extends QueryResultRow = QueryResultRow>(
     client: PgClientOrPoolClient,
     sql: SQL,
-    options: SQLQueryOptions | undefined,
-  ) => batch<Result>(client, sql, serializer, options),
+    options: BatchSQLCommandOptions | undefined,
+  ) => {
+    const results = await batchCommand<Result>(
+      client,
+      [sql],
+      serializer,
+      options,
+    );
+    return results[0]!;
+  },
   batchCommand: <Result extends QueryResultRow = QueryResultRow>(
     client: PgClientOrPoolClient,
     sqls: SQL[],
-    options: SQLQueryOptions | undefined,
-  ) => batch<Result>(client, sqls, serializer, options),
+    options: BatchSQLCommandOptions | undefined,
+  ) => batchCommand<Result>(client, sqls, serializer, options),
   formatter: pgFormatter,
 });
 
-function batch<Result extends QueryResultRow = QueryResultRow>(
+async function batchQuery<Result extends QueryResultRow = QueryResultRow>(
   client: PgClientOrPoolClient,
-  sqlOrSqls: SQL,
+  sqls: SQL[],
   serializer: JSONSerializer,
-  options?: SQLQueryOptions | SQLCommandOptions,
-): Promise<QueryResult<Result>>;
-function batch<Result extends QueryResultRow = QueryResultRow>(
-  client: PgClientOrPoolClient,
-  sqlOrSqls: SQL[],
-  serializer: JSONSerializer,
-  options?: SQLQueryOptions | SQLCommandOptions,
-): Promise<QueryResult<Result>[]>;
-async function batch<Result extends QueryResultRow = QueryResultRow>(
-  client: PgClientOrPoolClient,
-  sqlOrSqls: SQL | SQL[],
-  serializer: JSONSerializer,
-  options?: SQLQueryOptions | SQLCommandOptions,
-): Promise<QueryResult<Result> | QueryResult<Result>[]> {
-  const sqls = Array.isArray(sqlOrSqls) ? sqlOrSqls : [sqlOrSqls];
+  options?: SQLQueryOptions,
+): Promise<QueryResult<Result>[]> {
   const results: QueryResult<Result>[] = Array<QueryResult<Result>>(
     sqls.length,
   );
 
   if (options?.timeoutMs) {
-    await client.query(`SET statement_timeout = ${options?.timeoutMs}`);
+    await client.query(`SET statement_timeout = ${options.timeoutMs}`);
   }
 
   //TODO: make it smarter at some point
@@ -127,5 +131,52 @@ async function batch<Result extends QueryResultRow = QueryResultRow>(
 
     results[i] = { rowCount: result.rowCount, rows: result.rows };
   }
-  return Array.isArray(sqlOrSqls) ? results : results[0]!;
+
+  return results;
+}
+
+async function batchCommand<Result extends QueryResultRow = QueryResultRow>(
+  client: PgClientOrPoolClient,
+  sqls: SQL[],
+  serializer: JSONSerializer,
+  options?: BatchSQLCommandOptions,
+): Promise<QueryResult<Result>[]> {
+  const results: QueryResult<Result>[] = Array<QueryResult<Result>>(
+    sqls.length,
+  );
+
+  if (options?.timeoutMs) {
+    await client.query(`SET statement_timeout = ${options.timeoutMs}`);
+  }
+
+  //TODO: make it smarter at some point
+  for (let i = 0; i < sqls.length; i++) {
+    const { query, params } = pgFormatter.format(sqls[i]!, { serializer });
+    tracer.info('db:sql:command', {
+      query,
+      params,
+      debugSQL: pgFormatter.describe(sqls[i]!, { serializer }),
+    });
+    let result =
+      params.length > 0
+        ? await client.query<Result>(query, params)
+        : await client.query<Result>(query);
+
+    if (options?.mapping) {
+      result = {
+        ...result,
+        rows: result.rows.map((row) =>
+          mapSQLQueryResult(row, options.mapping!),
+        ),
+      };
+    }
+
+    results[i] = { rowCount: result.rowCount, rows: result.rows };
+
+    if (options?.assertChanges && (results[i]!.rowCount ?? 0) === 0) {
+      throw new BatchCommandNoChangesError(i);
+    }
+  }
+
+  return results;
 }
