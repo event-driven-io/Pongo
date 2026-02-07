@@ -4,13 +4,14 @@ import {
   type DatabaseTransaction,
   type DatabaseTransactionOptions,
 } from '../../../../core';
-import { sqliteSQLExecutor, transactionNestingCounter } from '../../core';
+import { transactionNestingCounter } from '../../core';
 import {
   D1DriverType,
   type D1Client,
   type D1Connection,
   type D1SessionOptions,
 } from '../connections';
+import { d1SQLExecutor } from '../execute';
 
 export type D1Transaction = DatabaseTransaction<D1Connection>;
 
@@ -116,7 +117,7 @@ export const d1Transaction =
           if (options?.close) await options?.close(client, error);
         }
       },
-      execute: sqlExecutor(sqliteSQLExecutor(D1DriverType, serializer), {
+      execute: sqlExecutor(d1SQLExecutor(), {
         connect: () => {
           if (!sessionClient) {
             throw new Error(

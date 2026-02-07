@@ -159,6 +159,8 @@ const mapEmbeddedSqliteCode = (
  * Falls back to a generic DumboError (500) if the error is not a recognized D1 error.
  */
 export const mapD1Error = (error: unknown): DumboError => {
+  if (DumboError.isInstanceOf<DumboError>(error)) return error;
+
   const message = getErrorMessage(error);
   if (!message)
     return new DumboError({

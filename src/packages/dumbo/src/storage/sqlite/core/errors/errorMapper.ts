@@ -85,6 +85,8 @@ const mapConstraintError = (
  * Falls back to a generic DumboError (500) if the error is not a recognized SQLite error.
  */
 export const mapSqliteError = (error: unknown): DumboError => {
+  if (DumboError.isInstanceOf<DumboError>(error)) return error;
+
   const code = getSqliteErrorCode(error);
   if (!code)
     return new DumboError({

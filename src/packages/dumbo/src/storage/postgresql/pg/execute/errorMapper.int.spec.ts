@@ -258,6 +258,51 @@ void describe('PostgreSQL error mapping', () => {
     });
   });
 
+  void describe('error mapping in transactions', () => {
+    void it('maps unique constraint violation to UniqueConstraintError inside a transaction', async () => {
+      const pool = pgPool({ connectionString });
+      const connection = await pool.connection();
+
+      try {
+        await connection.execute.command(
+          SQL`CREATE TABLE IF NOT EXISTS test_tx_unique (id INT PRIMARY KEY, value TEXT)`,
+        );
+        await connection.execute.command(
+          SQL`INSERT INTO test_tx_unique (id, value) VALUES (1, 'a')`,
+        );
+
+        await assert.rejects(
+          () =>
+            connection.withTransaction(async () => {
+              await connection.execute.command(
+                SQL`INSERT INTO test_tx_unique (id, value) VALUES (1, 'b')`,
+              );
+            }),
+          (error) => {
+            assert.ok(
+              error instanceof UniqueConstraintError,
+              `Expected UniqueConstraintError but got ${(error as Error).constructor.name}: ${(error as Error).message}`,
+            );
+            assert.ok(error instanceof IntegrityConstraintViolationError);
+            assert.ok(error instanceof DumboError);
+            assert.ok(
+              DumboError.isInstanceOf(error, {
+                errorType: UniqueConstraintError.ErrorType,
+              }),
+            );
+            return true;
+          },
+        );
+      } finally {
+        await connection.execute.command(
+          SQL`DROP TABLE IF EXISTS test_tx_unique`,
+        );
+        await connection.close();
+        await pool.close();
+      }
+    });
+  });
+
   void describe('preserves inner error', () => {
     void it('wraps original pg error as innerError', async () => {
       const pool = pgPool({ connectionString });

@@ -11,10 +11,8 @@ import { sqliteFormatter } from '../../core';
 import type { D1Client, D1DriverType } from '../connections';
 import { mapD1Error } from '../errors/errorMapper';
 
-export const d1SQLExecutor = (
-  driverType: D1DriverType,
-): DbSQLExecutor<D1DriverType, D1Client> => ({
-  driverType,
+export const d1SQLExecutor = (): DbSQLExecutor<D1DriverType, D1Client> => ({
+  driverType: 'SQLite:d1',
   formatter: sqliteFormatter,
 
   query: async <Result extends QueryResultRow>(

@@ -357,4 +357,27 @@ void describe('mapPostgresError', () => {
       assert.strictEqual(result.errorCode, 500);
     });
   });
+
+  void describe('DumboError passthrough', () => {
+    void it('returns the same DumboError if error is already a DumboError', () => {
+      const original = new UniqueConstraintError('already mapped');
+      const result = mapPostgresError(original);
+      assert.strictEqual(result, original);
+    });
+
+    void it('returns the same IntegrityConstraintViolationError', () => {
+      const original = new IntegrityConstraintViolationError('already mapped');
+      const result = mapPostgresError(original);
+      assert.strictEqual(result, original);
+    });
+
+    void it('returns the same generic DumboError', () => {
+      const original = new DumboError({
+        errorCode: 500,
+        message: 'already mapped',
+      });
+      const result = mapPostgresError(original);
+      assert.strictEqual(result, original);
+    });
+  });
 });
