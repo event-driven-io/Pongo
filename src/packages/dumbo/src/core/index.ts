@@ -9,6 +9,7 @@ import { SQL, SQLColumnTypeTokensFactory } from './sql';
 
 export * from './connections';
 export * from './drivers';
+export * from './errors';
 export * from './execute';
 export * from './locks';
 export * from './query';
