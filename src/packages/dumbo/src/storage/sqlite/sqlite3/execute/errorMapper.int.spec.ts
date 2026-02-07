@@ -40,6 +40,16 @@ void describe('SQLite3 error mapping', () => {
             assert.ok(error instanceof UniqueConstraintError);
             assert.ok(error instanceof IntegrityConstraintViolationError);
             assert.ok(error instanceof DumboError);
+            assert.ok(
+              DumboError.isInstanceOf(error, {
+                errorType: UniqueConstraintError.ErrorType,
+              }),
+            );
+            assert.ok(
+              DumboError.isInstanceOf(error, {
+                errorCode: IntegrityConstraintViolationError.ErrorCode,
+              }),
+            );
             assert.ok(error.innerError);
             return true;
           },
@@ -64,6 +74,11 @@ void describe('SQLite3 error mapping', () => {
           (error) => {
             assert.ok(error instanceof NotNullViolationError);
             assert.ok(error instanceof IntegrityConstraintViolationError);
+            assert.ok(
+              DumboError.isInstanceOf(error, {
+                errorType: NotNullViolationError.ErrorType,
+              }),
+            );
             return true;
           },
         );
@@ -92,6 +107,11 @@ void describe('SQLite3 error mapping', () => {
           (error) => {
             assert.ok(error instanceof ForeignKeyViolationError);
             assert.ok(error instanceof IntegrityConstraintViolationError);
+            assert.ok(
+              DumboError.isInstanceOf(error, {
+                errorType: ForeignKeyViolationError.ErrorType,
+              }),
+            );
             return true;
           },
         );
@@ -116,6 +136,11 @@ void describe('SQLite3 error mapping', () => {
           (error) => {
             assert.ok(error instanceof CheckViolationError);
             assert.ok(error instanceof IntegrityConstraintViolationError);
+            assert.ok(
+              DumboError.isInstanceOf(error, {
+                errorType: CheckViolationError.ErrorType,
+              }),
+            );
             return true;
           },
         );
@@ -133,6 +158,11 @@ void describe('SQLite3 error mapping', () => {
         (error) => {
           assert.ok(error instanceof InvalidOperationError);
           assert.ok(error instanceof DumboError);
+          assert.ok(
+            DumboError.isInstanceOf(error, {
+              errorType: InvalidOperationError.ErrorType,
+            }),
+          );
           return true;
         },
       );
@@ -167,6 +197,7 @@ void describe('SQLite3 error mapping', () => {
             pool.execute.command(SQL`INSERT INTO test_inner (id) VALUES (1)`),
           (error) => {
             assert.ok(error instanceof DumboError);
+            assert.ok(DumboError.isInstanceOf(error));
             assert.ok(error.innerError);
             assert.ok('code' in error.innerError);
             assert.strictEqual(

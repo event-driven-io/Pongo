@@ -51,6 +51,16 @@ void describe('PostgreSQL error mapping', () => {
             assert.ok(error instanceof UniqueConstraintError);
             assert.ok(error instanceof IntegrityConstraintViolationError);
             assert.ok(error instanceof DumboError);
+            assert.ok(
+              DumboError.isInstanceOf(error, {
+                errorType: UniqueConstraintError.ErrorType,
+              }),
+            );
+            assert.ok(
+              DumboError.isInstanceOf(error, {
+                errorCode: IntegrityConstraintViolationError.ErrorCode,
+              }),
+            );
             assert.ok(error.innerError);
             return true;
           },
@@ -76,6 +86,11 @@ void describe('PostgreSQL error mapping', () => {
           (error) => {
             assert.ok(error instanceof NotNullViolationError);
             assert.ok(error instanceof IntegrityConstraintViolationError);
+            assert.ok(
+              DumboError.isInstanceOf(error, {
+                errorType: NotNullViolationError.ErrorType,
+              }),
+            );
             return true;
           },
         );
@@ -103,6 +118,11 @@ void describe('PostgreSQL error mapping', () => {
           (error) => {
             assert.ok(error instanceof ForeignKeyViolationError);
             assert.ok(error instanceof IntegrityConstraintViolationError);
+            assert.ok(
+              DumboError.isInstanceOf(error, {
+                errorType: ForeignKeyViolationError.ErrorType,
+              }),
+            );
             return true;
           },
         );
@@ -128,6 +148,11 @@ void describe('PostgreSQL error mapping', () => {
           (error) => {
             assert.ok(error instanceof CheckViolationError);
             assert.ok(error instanceof IntegrityConstraintViolationError);
+            assert.ok(
+              DumboError.isInstanceOf(error, {
+                errorType: CheckViolationError.ErrorType,
+              }),
+            );
             return true;
           },
         );
@@ -147,6 +172,11 @@ void describe('PostgreSQL error mapping', () => {
           (error) => {
             assert.ok(error instanceof InvalidOperationError);
             assert.ok(error instanceof DumboError);
+            assert.ok(
+              DumboError.isInstanceOf(error, {
+                errorType: InvalidOperationError.ErrorType,
+              }),
+            );
             return true;
           },
         );
@@ -190,6 +220,11 @@ void describe('PostgreSQL error mapping', () => {
           (error) => {
             assert.ok(error instanceof DataError);
             assert.ok(error instanceof DumboError);
+            assert.ok(
+              DumboError.isInstanceOf(error, {
+                errorType: DataError.ErrorType,
+              }),
+            );
             return true;
           },
         );
@@ -209,6 +244,11 @@ void describe('PostgreSQL error mapping', () => {
           (error) => {
             assert.ok(error instanceof TransientDatabaseError);
             assert.ok(error instanceof DumboError);
+            assert.ok(
+              DumboError.isInstanceOf(error, {
+                errorCode: TransientDatabaseError.ErrorCode,
+              }),
+            );
             return true;
           },
         );
@@ -232,6 +272,7 @@ void describe('PostgreSQL error mapping', () => {
             pool.execute.command(SQL`INSERT INTO test_inner (id) VALUES (1)`),
           (error) => {
             assert.ok(error instanceof DumboError);
+            assert.ok(DumboError.isInstanceOf(error));
             assert.ok(error.innerError);
             assert.ok('code' in error.innerError);
             assert.strictEqual(
