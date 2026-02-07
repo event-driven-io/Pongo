@@ -4,6 +4,7 @@ import {
   type SQLiteConnectionOptions,
   type SQLiteDriverType,
 } from '../../core';
+import { mapD1Error } from '../errors/errorMapper';
 import {
   d1Transaction,
   type D1Transaction,
@@ -52,6 +53,7 @@ export const d1Connection = (options: D1ConnectionOptions) => {
             options.transactionOptions,
           ),
         serializer: options.serializer,
+        errorMapper: mapD1Error,
       }),
     };
 

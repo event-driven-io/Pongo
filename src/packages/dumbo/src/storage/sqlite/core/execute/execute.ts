@@ -11,8 +11,12 @@ import {
   type SQLCommandOptions,
   type SQLQueryOptions,
 } from '../../../../core';
+import type { DumboError } from '../../../../core/errors';
 import type { SQLiteClient } from '../connections';
+import { mapSqliteError } from '../errors/errorMapper';
 import { sqliteFormatter } from '../sql/formatter';
+
+export type SQLiteErrorMapper = (error: unknown) => DumboError;
 
 export const sqliteExecute = async <Result = void>(
   database: SQLiteClient,
@@ -35,6 +39,7 @@ export const sqliteSQLExecutor = <
   driverType: DriverType,
   serializer: JSONSerializer,
   formatter?: SQLFormatter,
+  errorMapper?: SQLiteErrorMapper,
 ): SQLiteSQLExecutor<DriverType> => ({
   driverType,
   query: async <Result extends QueryResultRow = QueryResultRow>(
@@ -52,18 +57,22 @@ export const sqliteSQLExecutor = <
       debugSQL: (formatter ?? sqliteFormatter).describe(sql, { serializer }),
     });
 
-    let result = await client.query<Result>(sql, options);
+    try {
+      let result = await client.query<Result>(sql, options);
 
-    if (options?.mapping) {
-      result = {
-        ...result,
-        rows: result.rows.map((row) =>
-          mapSQLQueryResult(row, options.mapping!),
-        ),
-      };
+      if (options?.mapping) {
+        result = {
+          ...result,
+          rows: result.rows.map((row) =>
+            mapSQLQueryResult(row, options.mapping!),
+          ),
+        };
+      }
+
+      return result;
+    } catch (error) {
+      throw (errorMapper ?? mapSqliteError)(error);
     }
-
-    return result;
   },
   batchQuery: async <Result extends QueryResultRow = QueryResultRow>(
     client: SQLiteClient,
@@ -74,18 +83,22 @@ export const sqliteSQLExecutor = <
       await client.query(SQL`PRAGMA busy_timeout = ${options.timeoutMs}`);
     }
 
-    const results = await client.batchQuery<Result>(sqls, options);
+    try {
+      const results = await client.batchQuery<Result>(sqls, options);
 
-    if (options?.mapping) {
-      return results.map((result) => ({
-        ...result,
-        rows: result.rows.map((row) =>
-          mapSQLQueryResult(row, options.mapping!),
-        ),
-      }));
+      if (options?.mapping) {
+        return results.map((result) => ({
+          ...result,
+          rows: result.rows.map((row) =>
+            mapSQLQueryResult(row, options.mapping!),
+          ),
+        }));
+      }
+
+      return results;
+    } catch (error) {
+      throw (errorMapper ?? mapSqliteError)(error);
     }
-
-    return results;
   },
   command: async <Result extends QueryResultRow = QueryResultRow>(
     client: SQLiteClient,
@@ -102,7 +115,11 @@ export const sqliteSQLExecutor = <
       debugSQL: (formatter ?? sqliteFormatter).describe(sql, { serializer }),
     });
 
-    return await client.command<Result>(sql, options);
+    try {
+      return await client.command<Result>(sql, options);
+    } catch (error) {
+      throw (errorMapper ?? mapSqliteError)(error);
+    }
   },
   batchCommand: async <Result extends QueryResultRow = QueryResultRow>(
     client: SQLiteClient,
@@ -113,7 +130,11 @@ export const sqliteSQLExecutor = <
       await client.query(SQL`PRAGMA busy_timeout = ${options.timeoutMs}`);
     }
 
-    return await client.batchCommand<Result>(sqls, options);
+    try {
+      return await client.batchCommand<Result>(sqls, options);
+    } catch (error) {
+      throw (errorMapper ?? mapSqliteError)(error);
+    }
   },
   formatter: formatter ?? sqliteFormatter,
 });

@@ -26,23 +26,27 @@ import { mapD1Error } from './errorMapper';
 const d1Error = (message: string): Error => new Error(message);
 
 void describe('mapD1Error', () => {
-  void describe('returns undefined for non-D1 errors', () => {
-    void it('returns undefined for a plain Error without D1 content', () => {
-      assert.strictEqual(mapD1Error(new Error('plain error')), undefined);
+  void describe('returns DumboError(500) for non-D1 errors', () => {
+    void it('returns DumboError(500) for a plain Error without D1 content', () => {
+      const result = mapD1Error(new Error('plain error'));
+      assert.ok(result instanceof DumboError);
+      assert.strictEqual(result.errorCode, 500);
     });
 
-    void it('returns undefined for a non-Error value', () => {
-      assert.strictEqual(mapD1Error('string'), undefined);
-      assert.strictEqual(mapD1Error(42), undefined);
-      assert.strictEqual(mapD1Error(null), undefined);
-      assert.strictEqual(mapD1Error(undefined), undefined);
+    void it('returns DumboError(500) for a non-Error value', () => {
+      for (const value of ['string', 42, null, undefined]) {
+        const result = mapD1Error(value);
+        assert.ok(result instanceof DumboError);
+        assert.strictEqual(result.errorCode, 500);
+      }
     });
 
-    void it('returns undefined for an error with unrelated message', () => {
-      assert.strictEqual(
-        mapD1Error(new Error('Something completely unrelated happened')),
-        undefined,
+    void it('returns DumboError(500) for an error with unrelated message', () => {
+      const result = mapD1Error(
+        new Error('Something completely unrelated happened'),
       );
+      assert.ok(result instanceof DumboError);
+      assert.strictEqual(result.errorCode, 500);
     });
   });
 

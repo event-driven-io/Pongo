@@ -9,6 +9,7 @@ import {
   type ReleaseDatabaseLockOptions,
   type SQLExecutor,
 } from '../../../../core';
+import { QueryCanceledError } from '../../../../core/errors';
 
 export const tryAcquireAdvisoryLock = async (
   execute: SQLExecutor,
@@ -28,8 +29,7 @@ export const tryAcquireAdvisoryLock = async (
     );
     return true;
   } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === '57014')
-      return false;
+    if (error instanceof QueryCanceledError) return false;
 
     throw error;
   }
@@ -50,8 +50,7 @@ export const releaseAdvisoryLock = async (
     );
     return true;
   } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === '57014')
-      return false;
+    if (error instanceof QueryCanceledError) return false;
 
     throw error;
   }

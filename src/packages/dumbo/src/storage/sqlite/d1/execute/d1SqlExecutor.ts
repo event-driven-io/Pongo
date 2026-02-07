@@ -9,6 +9,7 @@ import type {
 } from '../../../../core';
 import { sqliteFormatter } from '../../core';
 import type { D1Client, D1DriverType } from '../connections';
+import { mapD1Error } from '../errors/errorMapper';
 
 export const d1SQLExecutor = (
   driverType: D1DriverType,
@@ -21,7 +22,11 @@ export const d1SQLExecutor = (
     sql: SQL,
     options?: SQLQueryOptions,
   ): Promise<QueryResult<Result>> => {
-    return await client.query<Result>(sql, options);
+    try {
+      return await client.query<Result>(sql, options);
+    } catch (error) {
+      throw mapD1Error(error);
+    }
   },
 
   batchQuery: async <Result extends QueryResultRow>(
@@ -29,7 +34,11 @@ export const d1SQLExecutor = (
     sqls: SQL[],
     options?: SQLQueryOptions,
   ): Promise<QueryResult<Result>[]> => {
-    return await client.batchQuery<Result>(sqls, options);
+    try {
+      return await client.batchQuery<Result>(sqls, options);
+    } catch (error) {
+      throw mapD1Error(error);
+    }
   },
 
   command: async <Result extends QueryResultRow>(
@@ -37,7 +46,11 @@ export const d1SQLExecutor = (
     sql: SQL,
     options?: SQLCommandOptions,
   ): Promise<QueryResult<Result>> => {
-    return await client.command<Result>(sql, options);
+    try {
+      return await client.command<Result>(sql, options);
+    } catch (error) {
+      throw mapD1Error(error);
+    }
   },
 
   batchCommand: async <Result extends QueryResultRow>(
@@ -45,6 +58,10 @@ export const d1SQLExecutor = (
     sqls: SQL[],
     options?: BatchSQLCommandOptions,
   ): Promise<QueryResult<Result>[]> => {
-    return await client.batchCommand<Result>(sqls, options);
+    try {
+      return await client.batchCommand<Result>(sqls, options);
+    } catch (error) {
+      throw mapD1Error(error);
+    }
   },
 });

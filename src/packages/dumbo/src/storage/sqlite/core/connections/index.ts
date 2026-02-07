@@ -2,6 +2,7 @@ import {
   SQLiteConnectionString,
   sqliteSQLExecutor,
   type SQLiteDriverType,
+  type SQLiteErrorMapper,
 } from '..';
 import type { JSONSerializer } from '../../../../core';
 import {
@@ -229,6 +230,7 @@ export type SqliteAmbientClientConnectionOptions<
   >;
   allowNestedTransactions?: boolean;
   serializer: JSONSerializer;
+  errorMapper?: SQLiteErrorMapper;
 };
 
 export const sqliteAmbientClientConnection = <
@@ -243,6 +245,7 @@ export const sqliteAmbientClientConnection = <
     initTransaction,
     allowNestedTransactions,
     serializer,
+    errorMapper,
   } = options;
 
   return createAmbientConnection<SQLiteConnectionType>({
@@ -257,7 +260,8 @@ export const sqliteAmbientClientConnection = <
           allowNestedTransactions ?? false,
           serializer,
         )),
-    executor: ({ serializer }) => sqliteSQLExecutor(driverType, serializer),
+    executor: ({ serializer }) =>
+      sqliteSQLExecutor(driverType, serializer, undefined, errorMapper),
     serializer,
   });
 };
