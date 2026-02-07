@@ -299,17 +299,17 @@ interface ShellOptions {
 const shellCommand = new Command('shell')
   .description('Start an interactive Pongo shell')
   .option(
-    '-drv, --database-driver <string>',
+    '--drv, --database-driver <string>',
     'Database driver that should be used for connection (e.g., "pg" for PostgreSQL, "sqlite3" for SQLite)',
     'pg',
   )
   .option(
-    '-cs, --connectionString <string>',
+    '--cs, --connectionString <string>',
     'Connection string for the database',
   )
-  .option('-db, --database <string>', 'Database name to connect', 'postgres')
+  .option('--db, --database <string>', 'Database name to connect', 'postgres')
   .option(
-    '-col, --collection <name>',
+    '--col, --collection <name>',
     'Specify the collection name',
     (value: string, previous: string[]) => {
       // Accumulate collection names into an array (explicitly typing `previous` as `string[]`)
@@ -318,16 +318,16 @@ const shellCommand = new Command('shell')
     [] as string[],
   )
   .option(
-    '-no-migrations, --disable-auto-migrations',
+    '--no-migrations, --disable-auto-migrations',
     'Disable automatic migrations',
   )
   .option('-o, --print-options', 'Print shell options')
   .option(
-    '-ll, --log-level <logLevel>',
+    '--ll, --log-level <logLevel>',
     'Log level: DISABLED, INFO, LOG, WARN, ERROR',
     'DISABLED',
   )
-  .option('-ls, --log-style', 'Log style: RAW, PRETTY', 'RAW')
+  .option('--ls, --log-style', 'Log style: RAW, PRETTY', 'RAW')
   .option('-p, --pretty-log', 'Turn on logging with prettified output')
   .action(async (options: ShellOptions) => {
     const { collection, database } = options;
