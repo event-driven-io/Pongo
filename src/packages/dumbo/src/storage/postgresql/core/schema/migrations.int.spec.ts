@@ -67,8 +67,8 @@ void describe('Migration Integration Tests', () => {
       lock: { options: { timeoutMs: 300 } },
     });
 
-    const usersTableExists = await tableExists(pool, 'users');
-    const rolesTableExists = await tableExists(pool, 'roles');
+    const usersTableExists = await tableExists(pool.execute, 'users');
+    const rolesTableExists = await tableExists(pool.execute, 'roles');
 
     assert.ok(usersTableExists, 'The users table should exist.');
     assert.ok(rolesTableExists, 'The roles table should exist.');
@@ -146,7 +146,7 @@ void describe('Migration Integration Tests', () => {
     } finally {
       await connection.close();
     }
-    const wasCreated = await tableExists(pool, 'concurrent_table');
+    const wasCreated = await tableExists(pool.execute, 'concurrent_table');
 
     assert.ok(wasCreated, 'The concurrent_table should exist.');
   });
@@ -302,10 +302,10 @@ void describe('Migration Integration Tests', () => {
 
     await runSQLMigrations(pool, [migration]);
 
-    const table1Exists = await tableExists(pool, 'large_table_1');
-    const table2Exists = await tableExists(pool, 'large_table_2');
-    const table3Exists = await tableExists(pool, 'large_table_3');
-    const table4Exists = await tableExists(pool, 'large_table_4');
+    const table1Exists = await tableExists(pool.execute, 'large_table_1');
+    const table2Exists = await tableExists(pool.execute, 'large_table_2');
+    const table3Exists = await tableExists(pool.execute, 'large_table_3');
+    const table4Exists = await tableExists(pool.execute, 'large_table_4');
 
     assert.ok(table1Exists, 'The large_table_1 table should exist.');
     assert.ok(table2Exists, 'The large_table_2 table should exist.');
