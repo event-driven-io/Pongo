@@ -1,5 +1,5 @@
 import {
-  resolveDatabaseMetadata,
+  getDatabaseMetadata,
   type DatabaseDriverType,
   type JSONSerializationOptions,
   type MigrationStyle,
@@ -43,7 +43,7 @@ export const PongoDatabaseCache = <
           };
         },
     ): Database => {
-      const metadata = resolveDatabaseMetadata(driver.driverType);
+      const metadata = getDatabaseMetadata(driver.driverType);
       const dbName =
         createOptions.databaseName ??
         (metadata

@@ -1,7 +1,7 @@
 import {
   dumbo,
+  getDatabaseMetadata,
   JSONSerializer,
-  resolveDatabaseMetadata,
 } from '@event-driven-io/dumbo';
 import {
   sqlite3DumboDriver as dumboDriver,
@@ -35,7 +35,7 @@ const sqlite3DatabaseDriver: PongoDatabaseDriver<
   databaseFactory: (options) => {
     const databaseName =
       options.databaseName ??
-      resolveDatabaseMetadata(SQLite3DriverType)!.getDatabaseNameOrDefault(
+      getDatabaseMetadata(SQLite3DriverType)!.getDatabaseNameOrDefault(
         options.connectionString,
       );
 
