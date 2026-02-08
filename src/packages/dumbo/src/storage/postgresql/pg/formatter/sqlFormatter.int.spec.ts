@@ -2,7 +2,7 @@ import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import assert from 'assert';
 import { after, before, describe, it } from 'node:test';
-import { pgDatabaseDriver } from '..';
+import { pgDumboDriver } from '..';
 import { dumbo, type Dumbo } from '../../../..';
 import { count, SQL } from '../../../../core';
 import { PostgreSQLConnectionString } from '../../core';
@@ -15,7 +15,7 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
   before(async () => {
     postgres = await new PostgreSqlContainer('postgres:18.0').start();
     connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
-    pool = dumbo({ connectionString, driver: pgDatabaseDriver });
+    pool = dumbo({ connectionString, driver: pgDumboDriver });
 
     await pool.execute.batchCommand([
       SQL`CREATE TABLE test_users (id SERIAL PRIMARY KEY, name TEXT)`,

@@ -1,7 +1,7 @@
 import assert from 'assert';
 import { Miniflare } from 'miniflare';
 import { after, before, describe, it } from 'node:test';
-import { d1DatabaseDriver, type D1ConnectionPool } from '..';
+import { d1DumboDriver, type D1ConnectionPool } from '..';
 import { dumbo } from '../../../..';
 import { count, SQL } from '../../../../core';
 
@@ -17,7 +17,7 @@ void describe('D1 SQL Formatter Integration Tests', () => {
     });
     const database = await mf.getD1Database('DB');
     pool = dumbo({
-      driver: d1DatabaseDriver,
+      driver: d1DumboDriver,
       database,
     });
     // Create test table for all tests

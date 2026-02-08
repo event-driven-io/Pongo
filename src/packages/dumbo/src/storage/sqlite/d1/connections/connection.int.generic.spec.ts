@@ -2,14 +2,14 @@ import type { D1Database } from '@cloudflare/workers-types';
 import assert from 'assert';
 import { Miniflare } from 'miniflare';
 import { afterEach, beforeEach, describe, it } from 'node:test';
-import { d1Client, useD1DatabaseDriver, type D1DumboOptions } from '..';
+import { d1Client, useD1DumboDriver, type D1DumboOptions } from '..';
 import { JSONSerializer, SQL } from '../../../../core';
 import { dumbo } from '../../../all';
 
 void describe('D1 SQLite pool', () => {
   let mf: Miniflare;
   let database: D1Database;
-  useD1DatabaseDriver();
+  useD1DumboDriver();
 
   beforeEach(async () => {
     mf = new Miniflare({

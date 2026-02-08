@@ -1,7 +1,8 @@
-import type {
-  DatabaseDriverType,
-  JSONSerializationOptions,
-  MigrationStyle,
+import {
+  resolveDatabaseMetadata,
+  type DatabaseDriverType,
+  type JSONSerializationOptions,
+  type MigrationStyle,
 } from '@event-driven-io/dumbo';
 import type {
   PongoDatabaseDriver,
@@ -42,10 +43,15 @@ export const PongoDatabaseCache = <
           };
         },
     ): Database => {
+      const metadata = resolveDatabaseMetadata(driver.driverType);
       const dbName =
         createOptions.databaseName ??
-        (driver.getDatabaseNameOrDefault
-          ? driver.getDatabaseNameOrDefault(createOptions)
+        (metadata
+          ? metadata.getDatabaseNameOrDefault(
+              'connectionString' in createOptions
+                ? (createOptions.connectionString as string)
+                : undefined,
+            )
           : 'db:default');
 
       const existing = dbClients.get(dbName);

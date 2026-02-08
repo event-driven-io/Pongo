@@ -6,13 +6,17 @@ import {
   type DumboConnectionOptions,
   type DumboDatabaseDriver,
 } from '../../../core';
-import { DefaultSQLiteMigratorOptions, sqliteFormatter } from '../core';
-import { D1DriverType, d1Client, type D1Connection } from './connections';
+import {
+  DefaultSQLiteMigratorOptions,
+  sqliteFormatter,
+  sqliteMetadata,
+} from '../core';
+import { D1DriverType, type D1Connection } from './connections';
 import { d1Pool, type D1PoolOptions } from './pool';
 
 export type D1DumboOptions = D1PoolOptions;
 
-export const d1DatabaseDriver: DumboDatabaseDriver<
+export const d1DumboDriver: DumboDatabaseDriver<
   D1Connection,
   D1DumboOptions,
   D1ConnectionPool
@@ -21,27 +25,25 @@ export const d1DatabaseDriver: DumboDatabaseDriver<
   createPool: (options) => d1Pool(options),
   sqlFormatter: sqliteFormatter,
   defaultMigratorOptions: DefaultSQLiteMigratorOptions,
-  getDatabaseNameOrDefault: () => 'd1:default', // TODO: make default database name not required
   canHandle: (options) => {
     return options.driverType === D1DriverType && 'database' in options;
-  }, // TODO: make connection string not required
+  },
+  databaseMetadata: {
+    ...sqliteMetadata,
+    defaultDatabase: 'd1:default',
+    getDatabaseNameOrDefault: () => 'd1:default',
+  },
 };
 
-export const useD1DatabaseDriver = () => {
-  dumboDatabaseDriverRegistry.register(D1DriverType, d1DatabaseDriver);
+export const useD1DumboDriver = () => {
+  dumboDatabaseDriverRegistry.register(D1DriverType, d1DumboDriver);
 };
 
 export type D1DumboConnectionOptions = DumboConnectionOptions<
-  typeof d1DatabaseDriver
+  typeof d1DumboDriver
 > & { database: D1Database };
 
-useD1DatabaseDriver();
-
-export {
-  d1Pool as connectionPool,
-  d1DatabaseDriver as databaseDriver,
-  d1Client as sqliteClient,
-};
+useD1DumboDriver();
 
 export * from './connections';
 export * from './errors';

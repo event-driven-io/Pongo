@@ -1,7 +1,10 @@
-import { dumbo, JSONSerializer } from '@event-driven-io/dumbo';
 import {
-  pgDatabaseDriver as dumboDriver,
-  getDatabaseNameOrDefault,
+  dumbo,
+  JSONSerializer,
+  resolveDatabaseMetadata,
+} from '@event-driven-io/dumbo';
+import {
+  pgDumboDriver as dumboDriver,
   PgDriverType,
   type PgConnection,
 } from '@event-driven-io/dumbo/pg';
@@ -68,7 +71,9 @@ const pgDatabaseDriver: PongoDatabaseDriver<
   databaseFactory: (options) => {
     const databaseName =
       options.databaseName ??
-      getDatabaseNameOrDefault(options.connectionString);
+      resolveDatabaseMetadata(PgDriverType)!.getDatabaseNameOrDefault(
+        options.connectionString,
+      );
 
     return PongoDatabase({
       ...options,
@@ -97,11 +102,6 @@ const pgDatabaseDriver: PongoDatabaseDriver<
       }),
       databaseName,
     });
-  },
-  getDatabaseNameOrDefault: (options) => {
-    return (
-      options.databaseName ?? getDatabaseNameOrDefault(options.connectionString)
-    );
   },
 };
 

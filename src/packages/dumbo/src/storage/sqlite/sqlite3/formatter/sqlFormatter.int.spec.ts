@@ -1,6 +1,6 @@
 import assert from 'assert';
 import { after, before, describe, it } from 'node:test';
-import { sqlite3DatabaseDriver } from '..';
+import { sqlite3DumboDriver } from '..';
 import { dumbo, type Dumbo } from '../../../..';
 import { count, SQL } from '../../../../core';
 import { InMemorySQLiteDatabase } from '../../core/connections';
@@ -11,7 +11,7 @@ void describe('SQLite3 SQL Formatter Integration Tests', () => {
   before(() => {
     pool = dumbo({
       connectionString: InMemorySQLiteDatabase,
-      driver: sqlite3DatabaseDriver,
+      driver: sqlite3DumboDriver,
     });
   });
 
