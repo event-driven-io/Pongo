@@ -1,7 +1,7 @@
 import {
   dumbo,
+  getDatabaseMetadata,
   JSONSerializer,
-  resolveDatabaseMetadata,
 } from '@event-driven-io/dumbo';
 import {
   pgDumboDriver as dumboDriver,
@@ -71,7 +71,7 @@ const pgDatabaseDriver: PongoDatabaseDriver<
   databaseFactory: (options) => {
     const databaseName =
       options.databaseName ??
-      resolveDatabaseMetadata(PgDriverType)!.getDatabaseNameOrDefault(
+      getDatabaseMetadata(PgDriverType)!.getDatabaseNameOrDefault(
         options.connectionString,
       );
 

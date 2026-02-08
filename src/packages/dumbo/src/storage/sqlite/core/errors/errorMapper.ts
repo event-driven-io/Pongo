@@ -76,7 +76,7 @@ const mapConstraintError = (
   return new IntegrityConstraintViolationError(message, innerError);
 };
 
-/**g
+/**
  * Maps a SQLite error (from the `sqlite3` / node-sqlite3 driver) to a typed
  * DumboError based on the SQLite result code.
  *

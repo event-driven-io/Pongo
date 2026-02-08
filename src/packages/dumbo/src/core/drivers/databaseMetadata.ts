@@ -86,16 +86,14 @@ export const dumboDatabaseMetadataRegistry =
     globalThis.dumboDatabaseMetadataRegistry ??
     DumboDatabaseMetadataRegistry());
 
-export const resolveDatabaseMetadata = (
+export const getDatabaseMetadata = (
   driverType: DatabaseDriverType,
-  driverOverride?: DatabaseMetadata,
 ): DatabaseMetadata | null => {
-  if (driverOverride) return driverOverride;
   const { databaseType } = fromDatabaseDriverType(driverType);
   return dumboDatabaseMetadataRegistry.tryGet(databaseType);
 };
 
-export const resolveDatabaseMetadataAsync = async (
+export const resolveDatabaseMetadata = async (
   driverType: DatabaseDriverType,
   driverOverride?: DatabaseMetadata,
 ): Promise<DatabaseMetadata | null> => {
@@ -107,13 +105,13 @@ export const resolveDatabaseMetadataAsync = async (
 export const getDefaultDatabase = (
   driverType: DatabaseDriverType,
 ): string | undefined => {
-  const metadata = resolveDatabaseMetadata(driverType);
+  const metadata = getDatabaseMetadata(driverType);
   return metadata?.defaultDatabase;
 };
 
 export const getDefaultDatabaseAsync = async (
   driverType: DatabaseDriverType,
 ): Promise<string | undefined> => {
-  const metadata = await resolveDatabaseMetadataAsync(driverType);
+  const metadata = await resolveDatabaseMetadata(driverType);
   return metadata?.defaultDatabase;
 };
