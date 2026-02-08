@@ -49,8 +49,8 @@ void describe('Migration Integration Tests', () => {
   void it('should apply multiple migrations sequentially', async () => {
     await client.db().schema.migrate();
 
-    const usersTableExists = await tableExists(pool, 'users');
-    const rolesTableExists = await tableExists(pool, 'roles');
+    const usersTableExists = await tableExists(pool.execute, 'users');
+    const rolesTableExists = await tableExists(pool.execute, 'roles');
 
     assert.ok(usersTableExists, 'The users table should exist.');
     assert.ok(rolesTableExists, 'The roles table should exist.');

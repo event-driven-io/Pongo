@@ -1,9 +1,9 @@
 import {
+  dumboDatabaseMetadataRegistry,
   exists,
   SQL,
-  dumboDatabaseMetadataRegistry,
-  type ConnectionPool,
   type DatabaseMetadata,
+  type SQLExecutor,
 } from '../../../../core';
 export * from './schema';
 
@@ -19,9 +19,9 @@ const tableExistsSQL = (tableName: string): SQL =>
    `;
 
 export const tableExists = async (
-  pool: ConnectionPool,
+  execute: SQLExecutor,
   tableName: string,
-): Promise<boolean> => exists(pool.execute.query(tableExistsSQL(tableName)));
+): Promise<boolean> => exists(execute.query(tableExistsSQL(tableName)));
 
 export const sqliteMetadata: DatabaseMetadata = {
   databaseType: 'SQLite',

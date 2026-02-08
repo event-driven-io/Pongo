@@ -1,9 +1,9 @@
-import type { ConnectionPool } from '../connections';
 import {
   fromDatabaseDriverType,
   type DatabaseDriverType,
   type DatabaseType,
 } from '.';
+import type { SQLExecutor } from '../execute';
 
 export interface DatabaseCapabilities {
   readonly supportsSchemas: boolean;
@@ -15,11 +15,11 @@ export interface DatabaseMetadata {
   readonly defaultDatabase: string;
   readonly capabilities: DatabaseCapabilities;
   readonly tableExists: (
-    pool: ConnectionPool,
+    pool: SQLExecutor,
     tableName: string,
   ) => Promise<boolean>;
   readonly functionExists?: (
-    pool: ConnectionPool,
+    pool: SQLExecutor,
     functionName: string,
   ) => Promise<boolean>;
   readonly parseDatabaseName?: (connectionString: string) => string | null;

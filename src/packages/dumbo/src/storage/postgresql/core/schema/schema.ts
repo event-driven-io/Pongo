@@ -1,9 +1,9 @@
 import {
+  dumboDatabaseMetadataRegistry,
   exists,
   SQL,
-  dumboDatabaseMetadataRegistry,
-  type ConnectionPool,
   type DatabaseMetadata,
+  type SQLExecutor,
 } from '../../../../core';
 import { parseDatabaseName } from '../connections/connectionString';
 export * from './schema';
@@ -18,9 +18,9 @@ export const tableExistsSQL = (tableName: string): SQL =>
   ) AS exists;`;
 
 export const tableExists = async (
-  pool: ConnectionPool,
+  execute: SQLExecutor,
   tableName: string,
-): Promise<boolean> => exists(pool.execute.query(tableExistsSQL(tableName)));
+): Promise<boolean> => exists(execute.query(tableExistsSQL(tableName)));
 
 export const functionExistsSQL = (functionName: string): SQL =>
   SQL`
@@ -31,10 +31,9 @@ export const functionExistsSQL = (functionName: string): SQL =>
       ) AS exists;`;
 
 export const functionExists = async (
-  pool: ConnectionPool,
+  execute: SQLExecutor,
   functionName: string,
-): Promise<boolean> =>
-  exists(pool.execute.query(functionExistsSQL(functionName)));
+): Promise<boolean> => exists(execute.query(functionExistsSQL(functionName)));
 
 export const postgreSQLMetadata: DatabaseMetadata = {
   databaseType: 'PostgreSQL',
