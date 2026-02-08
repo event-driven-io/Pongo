@@ -3,6 +3,7 @@ import type { Dumbo, DumboConnectionOptions } from '..';
 import type { AnyConnection } from '../connections';
 import type { MigratorOptions } from '../schema';
 import type { SQLFormatter } from '../sql';
+import type { DatabaseMetadata } from './databaseMetadata';
 
 export interface DumboDatabaseDriver<
   ConnectionType extends AnyConnection = AnyConnection,
@@ -16,8 +17,7 @@ export interface DumboDatabaseDriver<
   readonly driverType: ConnectionType['driverType'];
   readonly sqlFormatter: SQLFormatter;
   readonly defaultMigratorOptions: MigratorOptions;
-
-  getDatabaseNameOrDefault(connectionString: string): string;
+  readonly databaseMetadata: DatabaseMetadata;
 
   createPool(options: DumboConnectionOptions<this>): DumboType;
 

@@ -5,8 +5,8 @@ import {
 } from '../../../core';
 import {
   DefaultPostgreSQLMigratorOptions,
-  getDatabaseNameOrDefault,
   pgFormatter,
+  postgreSQLMetadata,
   PostgreSQLConnectionString,
 } from '../core';
 import {
@@ -25,7 +25,7 @@ const tryParseConnectionString = (connectionString: string) => {
   }
 };
 
-export const pgDatabaseDriver: DumboDatabaseDriver<
+export const pgDumboDriver: DumboDatabaseDriver<
   PgConnection,
   PgPoolOptions,
   PgPool
@@ -34,29 +34,19 @@ export const pgDatabaseDriver: DumboDatabaseDriver<
   createPool: (options) => pgPool(options as PgPoolOptions),
   sqlFormatter: pgFormatter,
   defaultMigratorOptions: DefaultPostgreSQLMigratorOptions,
-  getDatabaseNameOrDefault,
   canHandle: canHandleDriverWithConnectionString(
     PgDriverType,
     tryParseConnectionString,
   ),
+  databaseMetadata: postgreSQLMetadata,
 };
 
-export const usePgDatabaseDriver = () => {
-  dumboDatabaseDriverRegistry.register(PgDriverType, pgDatabaseDriver);
+export const usePgDumboDriver = () => {
+  dumboDatabaseDriverRegistry.register(PgDriverType, pgDumboDriver);
 };
 
-usePgDatabaseDriver();
+usePgDumboDriver();
 
 export * from './connections';
 export * from './execute';
 export * from './serialization';
-
-export { pgDatabaseDriver as databaseDriver };
-
-export type PostgreSQLPool = PgPool;
-export type PostgreSQLConnection = PgConnection;
-
-export type PostgreSQLPoolOptions = PgPoolOptions;
-export const postgresPool = pgPool;
-
-export const connectionPool = postgresPool;

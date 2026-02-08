@@ -8,16 +8,15 @@ import {
 } from '../../../core';
 import {
   DefaultSQLiteMigratorOptions,
-  InMemorySQLiteDatabase,
   SQLiteConnectionString,
   sqliteFormatter,
+  sqliteMetadata,
   sqlitePool,
   toSqlitePoolOptions,
   type SQLitePool,
   type SQLitePoolOptions,
 } from '../core';
 import {
-  sqlite3Client,
   sqlite3Connection,
   SQLite3DriverType,
   type SQLite3Connection,
@@ -58,40 +57,31 @@ const tryParseConnectionString = (connectionString: string) => {
   }
 };
 
-export const sqlite3DatabaseDriver = {
+export const sqlite3DumboDriver = {
   driverType: SQLite3DriverType,
   createPool: (options) => sqlite3Pool(options as SQLite3DumboOptions),
   sqlFormatter: sqliteFormatter,
   defaultMigratorOptions: DefaultSQLiteMigratorOptions,
-  getDatabaseNameOrDefault: () => InMemorySQLiteDatabase,
   canHandle: canHandleDriverWithConnectionString(
     SQLite3DriverType,
     tryParseConnectionString,
   ),
+  databaseMetadata: sqliteMetadata,
 } satisfies DumboDatabaseDriver<
   SQLite3Connection,
   SQLite3DumboOptions,
   Sqlite3Pool
 >;
 
-export const useSqlite3DatabaseDriver = () => {
-  dumboDatabaseDriverRegistry.register(
-    SQLite3DriverType,
-    sqlite3DatabaseDriver,
-  );
+export const useSqlite3DumboDriver = () => {
+  dumboDatabaseDriverRegistry.register(SQLite3DriverType, sqlite3DumboDriver);
 };
 
 export type SQLite3DumboConnectionOptions = DumboConnectionOptions<
-  typeof sqlite3DatabaseDriver
+  typeof sqlite3DumboDriver
 > & { connectionString: string | SQLiteConnectionString };
 
-useSqlite3DatabaseDriver();
-
-export {
-  sqlite3Pool as connectionPool,
-  sqlite3DatabaseDriver as databaseDriver,
-  sqlite3Client as sqliteClient,
-};
+useSqlite3DumboDriver();
 
 export * from './connections';
 export * from './formatter';

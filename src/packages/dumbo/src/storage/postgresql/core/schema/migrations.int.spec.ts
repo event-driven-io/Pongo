@@ -12,7 +12,7 @@ import {
   SQL,
   type SQLMigration,
 } from '../../../../core';
-import { pgDatabaseDriver } from '../../pg';
+import { pgDumboDriver } from '../../pg';
 import { acquireAdvisoryLock, releaseAdvisoryLock } from '../locks';
 
 void describe('Migration Integration Tests', () => {
@@ -23,7 +23,7 @@ void describe('Migration Integration Tests', () => {
   before(async () => {
     postgres = await new PostgreSqlContainer('postgres:18.0').start();
     connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
-    pool = dumbo({ connectionString, driver: pgDatabaseDriver });
+    pool = dumbo({ connectionString, driver: pgDumboDriver });
   });
 
   after(async () => {

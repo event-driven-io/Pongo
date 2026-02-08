@@ -5,7 +5,7 @@ import pg from 'pg';
 import { dumbo, single, SQL } from '..';
 import {
   defaultPostgreSQLConnectionString,
-  pgDatabaseDriver,
+  pgDumboDriver,
   PostgreSQLConnectionString,
 } from '../pg';
 
@@ -18,7 +18,7 @@ const pooled = process.env.BENCHMARK_CONNECTION_POOLED === 'true';
 
 const pool = dumbo({
   connectionString,
-  driver: pgDatabaseDriver,
+  driver: pgDumboDriver,
   pooled,
 });
 

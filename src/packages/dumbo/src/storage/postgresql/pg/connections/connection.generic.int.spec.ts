@@ -5,7 +5,7 @@ import {
 import { after, before, describe, it } from 'node:test';
 import pg from 'pg';
 import { pgPool } from '.';
-import { pgDatabaseDriver } from '..';
+import { pgDumboDriver } from '..';
 import { SQL } from '../../../../core';
 import { dumbo } from '../../../all';
 import { endPgPool, getPgPool } from './pool';
@@ -25,7 +25,7 @@ void describe('pg', () => {
 
   void describe('pgPool', () => {
     void it('connects using default pool', async () => {
-      const pool = dumbo({ connectionString, driver: pgDatabaseDriver });
+      const pool = dumbo({ connectionString, driver: pgDumboDriver });
       const connection = await pool.connection();
 
       try {

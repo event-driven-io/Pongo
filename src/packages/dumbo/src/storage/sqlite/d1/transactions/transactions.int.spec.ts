@@ -26,9 +26,7 @@ void describe('D1 Transactions', () => {
     void it('throws D1TransactionNotSupportedError when mode is not specified', async () => {
       const pool = d1Pool({
         database,
-        transactionOptions: {
-          allowNestedTransactions: true,
-        },
+        transactionOptions: { allowNestedTransactions: true },
       });
       const connection = await pool.connection();
 

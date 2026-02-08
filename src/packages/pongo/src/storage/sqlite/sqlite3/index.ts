@@ -1,6 +1,10 @@
-import { dumbo, JSONSerializer } from '@event-driven-io/dumbo';
 import {
-  sqlite3DatabaseDriver as dumboDriver,
+  dumbo,
+  JSONSerializer,
+  resolveDatabaseMetadata,
+} from '@event-driven-io/dumbo';
+import {
+  sqlite3DumboDriver as dumboDriver,
   SQLite3DriverType,
 } from '@event-driven-io/dumbo/sqlite3';
 import {
@@ -23,9 +27,6 @@ type SQLiteDatabaseDriverOptions =
     connectionString: string;
   };
 
-const getDatabaseNameOrDefault = (connectionString?: string) =>
-  connectionString || ':memory:';
-
 const sqlite3DatabaseDriver: PongoDatabaseDriver<
   PongoDb<SQLite3DriverType>,
   SQLiteDatabaseDriverOptions
@@ -34,7 +35,9 @@ const sqlite3DatabaseDriver: PongoDatabaseDriver<
   databaseFactory: (options) => {
     const databaseName =
       options.databaseName ??
-      getDatabaseNameOrDefault(options.connectionString);
+      resolveDatabaseMetadata(SQLite3DriverType)!.getDatabaseNameOrDefault(
+        options.connectionString,
+      );
 
     return PongoDatabase({
       ...options,
@@ -63,11 +66,6 @@ const sqlite3DatabaseDriver: PongoDatabaseDriver<
       }),
       databaseName,
     });
-  },
-  getDatabaseNameOrDefault: (options) => {
-    return (
-      options.databaseName ?? getDatabaseNameOrDefault(options.connectionString)
-    );
   },
 };
 

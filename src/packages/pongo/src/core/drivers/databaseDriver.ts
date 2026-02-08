@@ -55,14 +55,6 @@ export interface PongoDatabaseDriver<
   >(
     options: PongoDatabaseFactoryOptions<CollectionsSchema, DriverOptions>,
   ): Database & PongoDb<Database['driverType']>;
-  getDatabaseNameOrDefault?<
-    CollectionsSchema extends Record<string, PongoCollectionSchema> = Record<
-      string,
-      PongoCollectionSchema
-    >,
-  >(
-    options: PongoDatabaseFactoryOptions<CollectionsSchema, DriverOptions>,
-  ): string;
 }
 
 export type AnyPongoDatabaseDriver = PongoDatabaseDriver<

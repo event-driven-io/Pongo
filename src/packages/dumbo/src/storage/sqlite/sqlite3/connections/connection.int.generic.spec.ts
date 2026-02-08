@@ -3,14 +3,14 @@ import fs from 'fs';
 import { afterEach, describe, it } from 'node:test';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { useSqlite3DatabaseDriver, type SQLite3DumboOptions } from '..';
+import { useSqlite3DumboDriver, type SQLite3DumboOptions } from '..';
 import { JSONSerializer, SQL } from '../../../../core';
 import { dumbo } from '../../../all';
 import { InMemorySQLiteDatabase, SQLiteConnectionString } from '../../core';
 import { sqlite3Client } from './connection';
 
 void describe('Node SQLite3 pool', () => {
-  useSqlite3DatabaseDriver();
+  useSqlite3DumboDriver();
 
   const inMemoryfileName = InMemorySQLiteDatabase;
 
