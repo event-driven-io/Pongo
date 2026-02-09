@@ -6,8 +6,8 @@ import {
 import {
   DefaultPostgreSQLMigratorOptions,
   pgFormatter,
-  postgreSQLMetadata,
   PostgreSQLConnectionString,
+  postgreSQLMetadata,
 } from '../core';
 import {
   type PgConnection,
@@ -47,6 +47,7 @@ export const usePgDumboDriver = () => {
 
 usePgDumboDriver();
 
+export type PgDumboOptions = PgPoolOptions;
 export * from './connections';
 export * from './execute';
 export * from './serialization';

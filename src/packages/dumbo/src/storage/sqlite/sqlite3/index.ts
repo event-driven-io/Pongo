@@ -29,6 +29,8 @@ export type SQLite3DumboOptions = Omit<
 > &
   SQLite3ConnectionOptions & { serializer?: JSONSerializer };
 
+export type SQLite3PoolOptions = SQLite3DumboOptions;
+
 export type Sqlite3Pool = SQLitePool<SQLite3Connection>;
 
 export const sqlite3Pool = (options: SQLite3DumboOptions) =>
