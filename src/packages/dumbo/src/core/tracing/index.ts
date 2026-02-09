@@ -34,8 +34,7 @@ const getEnvVariable = (name: string): string | undefined => {
 };
 
 const shouldLog = (logLevel: LogLevel): boolean => {
-  const definedLogLevel =
-    getEnvVariable('DUMBO_LOG_LEVEL') ?? LogLevel.DISABLED;
+  const definedLogLevel = getEnvVariable('DUMBO_LOG_LEVEL') ?? LogLevel.ERROR;
 
   if (definedLogLevel === LogLevel.ERROR && logLevel === LogLevel.ERROR)
     return true;
