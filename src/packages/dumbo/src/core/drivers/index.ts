@@ -61,4 +61,3 @@ export function getDatabaseType<T extends DatabaseType>(
 }
 
 export * from './databaseDriver';
-export * from './databaseMetadata';

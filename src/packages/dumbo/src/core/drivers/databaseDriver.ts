@@ -2,8 +2,8 @@ import type { DatabaseDriverType } from '.';
 import type { Dumbo, DumboConnectionOptions } from '..';
 import type { AnyConnection } from '../connections';
 import type { MigratorOptions } from '../schema';
+import type { DatabaseMetadata } from '../schema/databaseMetadata/databaseMetadata';
 import type { SQLFormatter } from '../sql';
-import type { DatabaseMetadata } from './databaseMetadata';
 
 export interface DumboDatabaseDriver<
   ConnectionType extends AnyConnection = AnyConnection,

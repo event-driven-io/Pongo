@@ -28,11 +28,7 @@ export const d1DumboDriver: DumboDatabaseDriver<
   canHandle: (options) => {
     return options.driverType === D1DriverType && 'database' in options;
   },
-  databaseMetadata: {
-    ...sqliteMetadata,
-    defaultDatabase: 'd1:default',
-    getDatabaseNameOrDefault: () => 'd1:default',
-  },
+  databaseMetadata: sqliteMetadata,
 };
 
 export const useD1DumboDriver = () => {

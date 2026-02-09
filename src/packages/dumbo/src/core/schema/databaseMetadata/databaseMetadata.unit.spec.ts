@@ -5,17 +5,38 @@ import {
   type DatabaseMetadata,
 } from './databaseMetadata';
 
-const stubMetadata = (
+const stubMetadata = <
+  SupportsMultipleDatabases extends boolean = boolean,
+  SupportsSchemas extends boolean = boolean,
+  SupportsFunctions extends boolean = boolean,
+>(
   databaseType: string,
-  overrides?: Partial<DatabaseMetadata>,
-): DatabaseMetadata => ({
-  databaseType,
-  defaultDatabase: 'test_db',
-  capabilities: { supportsSchemas: false, supportsFunctions: false },
-  tableExists: () => Promise.resolve(false),
-  getDatabaseNameOrDefault: () => 'test_db',
-  ...overrides,
-});
+  overrides?: Partial<
+    DatabaseMetadata<
+      SupportsMultipleDatabases,
+      SupportsSchemas,
+      SupportsFunctions
+    >
+  >,
+): DatabaseMetadata<
+  SupportsMultipleDatabases,
+  SupportsSchemas,
+  SupportsFunctions
+> =>
+  ({
+    databaseType,
+    capabilities: {
+      supportsSchemas: false,
+      supportsFunctions: false,
+      supportsMultipleDatabases: false,
+    },
+    tableExists: () => Promise.resolve(false),
+    ...overrides,
+  }) as unknown as DatabaseMetadata<
+    SupportsMultipleDatabases,
+    SupportsSchemas,
+    SupportsFunctions
+  >;
 
 void describe('DumboDatabaseMetadataRegistry', () => {
   void describe('register and tryGet', () => {
@@ -38,27 +59,31 @@ void describe('DumboDatabaseMetadataRegistry', () => {
 
     void it('does not overwrite already registered resolved metadata', () => {
       const registry = DumboDatabaseMetadataRegistry();
-      const first = stubMetadata('TestDB', { defaultDatabase: 'first' });
-      const second = stubMetadata('TestDB', { defaultDatabase: 'second' });
+      const first = stubMetadata('TestDB', { defaultDatabaseName: 'first' });
+      const second = stubMetadata('TestDB', { defaultDatabaseName: 'second' });
 
       registry.register('TestDB', first);
       registry.register('TestDB', second);
 
       const result = registry.tryGet('TestDB');
-      assert.strictEqual(result?.defaultDatabase, 'first');
+      assert.strictEqual(result?.defaultDatabaseName, 'first');
     });
 
     void it('overwrites a lazy entry with a resolved one', () => {
       const registry = DumboDatabaseMetadataRegistry();
       const lazy = () =>
-        Promise.resolve(stubMetadata('TestDB', { defaultDatabase: 'lazy' }));
-      const resolved = stubMetadata('TestDB', { defaultDatabase: 'resolved' });
+        Promise.resolve(
+          stubMetadata('TestDB', { defaultDatabaseName: 'lazy' }),
+        );
+      const resolved = stubMetadata('TestDB', {
+        defaultDatabaseName: 'resolved',
+      });
 
       registry.register('TestDB', lazy);
       registry.register('TestDB', resolved);
 
       const result = registry.tryGet('TestDB');
-      assert.strictEqual(result?.defaultDatabase, 'resolved');
+      assert.strictEqual(result?.defaultDatabaseName, 'resolved');
     });
   });
 
