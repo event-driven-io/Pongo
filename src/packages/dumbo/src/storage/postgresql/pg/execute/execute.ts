@@ -133,6 +133,7 @@ async function batchQuery<Result extends QueryResultRow = QueryResultRow>(
 
       results[i] = { rowCount: result.rowCount, rows: result.rows };
     } catch (error) {
+      tracer.error('db:sql:batch_query:execute:error', { error });
       throw mapPostgresError(error);
     }
   }
@@ -183,6 +184,7 @@ async function batchCommand<Result extends QueryResultRow = QueryResultRow>(
         throw new BatchCommandNoChangesError(i);
       }
     } catch (error) {
+      tracer.error('db:sql:batch_command:execute:error', { error });
       throw mapPostgresError(error);
     }
   }

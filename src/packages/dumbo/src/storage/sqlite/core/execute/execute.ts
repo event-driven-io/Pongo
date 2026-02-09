@@ -71,6 +71,7 @@ export const sqliteSQLExecutor = <
 
       return result;
     } catch (error) {
+      tracer.error('db:sql:query:execute:error', { error });
       throw (errorMapper ?? mapSqliteError)(error);
     }
   },
@@ -97,6 +98,7 @@ export const sqliteSQLExecutor = <
 
       return results;
     } catch (error) {
+      tracer.error('db:sql:batch_query:execute:error', { error });
       throw (errorMapper ?? mapSqliteError)(error);
     }
   },
@@ -118,6 +120,7 @@ export const sqliteSQLExecutor = <
     try {
       return await client.command<Result>(sql, options);
     } catch (error) {
+      tracer.error('db:sql:command:execute:error', { error });
       throw (errorMapper ?? mapSqliteError)(error);
     }
   },
@@ -133,6 +136,7 @@ export const sqliteSQLExecutor = <
     try {
       return await client.batchCommand<Result>(sqls, options);
     } catch (error) {
+      tracer.error('db:sql:batch_command:execute:error', { error });
       throw (errorMapper ?? mapSqliteError)(error);
     }
   },

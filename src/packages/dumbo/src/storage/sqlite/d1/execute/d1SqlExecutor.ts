@@ -7,6 +7,7 @@ import type {
   SQLCommandOptions,
   SQLQueryOptions,
 } from '../../../../core';
+import { tracer } from '../../../../core';
 import { sqliteFormatter } from '../../core';
 import type { D1Client, D1DriverType } from '../connections';
 import { mapD1Error } from '../errors/errorMapper';
@@ -23,6 +24,7 @@ export const d1SQLExecutor = (): DbSQLExecutor<D1DriverType, D1Client> => ({
     try {
       return await client.query<Result>(sql, options);
     } catch (error) {
+      tracer.error('db:sql:query:execute:error', { error });
       throw mapD1Error(error);
     }
   },
@@ -35,6 +37,7 @@ export const d1SQLExecutor = (): DbSQLExecutor<D1DriverType, D1Client> => ({
     try {
       return await client.batchQuery<Result>(sqls, options);
     } catch (error) {
+      tracer.error('db:sql:batch_query:execute:error', { error });
       throw mapD1Error(error);
     }
   },
@@ -47,6 +50,7 @@ export const d1SQLExecutor = (): DbSQLExecutor<D1DriverType, D1Client> => ({
     try {
       return await client.command<Result>(sql, options);
     } catch (error) {
+      tracer.error('db:sql:command:execute:error', { error });
       throw mapD1Error(error);
     }
   },
@@ -59,6 +63,7 @@ export const d1SQLExecutor = (): DbSQLExecutor<D1DriverType, D1Client> => ({
     try {
       return await client.batchCommand<Result>(sqls, options);
     } catch (error) {
+      tracer.error('db:sql:batch_command:execute:error', { error });
       throw mapD1Error(error);
     }
   },
