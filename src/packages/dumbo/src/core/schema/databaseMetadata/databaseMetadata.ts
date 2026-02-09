@@ -2,29 +2,58 @@ import {
   fromDatabaseDriverType,
   type DatabaseDriverType,
   type DatabaseType,
-} from '.';
-import type { SQLExecutor } from '../execute';
+} from '../../drivers';
+import type { SQLExecutor } from '../../execute';
 
-export interface DatabaseCapabilities {
-  readonly supportsSchemas: boolean;
-  readonly supportsFunctions: boolean;
+export interface DatabaseCapabilities<
+  SupportsMultipleDatabases extends boolean,
+  SupportsSchemas extends boolean,
+  SupportsFunctions extends boolean,
+> {
+  readonly supportsMultipleDatabases: SupportsMultipleDatabases;
+  readonly supportsSchemas: SupportsSchemas;
+  readonly supportsFunctions: SupportsFunctions;
 }
 
-export interface DatabaseMetadata {
+export type DatabaseMetadata<
+  SupportsMultipleDatabases extends boolean = boolean,
+  SupportsSchemas extends boolean = boolean,
+  SupportsFunctions extends boolean = boolean,
+> = {
   readonly databaseType: DatabaseType;
-  readonly defaultDatabase: string;
-  readonly capabilities: DatabaseCapabilities;
+  readonly capabilities: DatabaseCapabilities<
+    SupportsMultipleDatabases,
+    SupportsSchemas,
+    SupportsFunctions
+  >;
   readonly tableExists: (
     pool: SQLExecutor,
     tableName: string,
   ) => Promise<boolean>;
-  readonly functionExists?: (
-    pool: SQLExecutor,
-    functionName: string,
-  ) => Promise<boolean>;
-  readonly parseDatabaseName?: (connectionString: string) => string | null;
-  readonly getDatabaseNameOrDefault: (connectionString?: string) => string;
-}
+} & (SupportsMultipleDatabases extends true
+  ? {
+      readonly defaultDatabaseName: string;
+      readonly parseDatabaseName: (
+        connectionString?: string,
+      ) => string | undefined;
+    }
+  : {
+      readonly defaultDatabaseName?: never;
+      readonly parseDatabaseName?: never;
+    }) &
+  (SupportsFunctions extends true
+    ? {
+        readonly functionExists: (
+          pool: SQLExecutor,
+          functionName: string,
+        ) => Promise<boolean>;
+      }
+    : {
+        readonly functionExists?: (
+          pool: SQLExecutor,
+          functionName: string,
+        ) => Promise<boolean>;
+      });
 
 export const DumboDatabaseMetadataRegistry = () => {
   const infos = new Map<
@@ -106,12 +135,12 @@ export const getDefaultDatabase = (
   driverType: DatabaseDriverType,
 ): string | undefined => {
   const metadata = getDatabaseMetadata(driverType);
-  return metadata?.defaultDatabase;
+  return metadata?.defaultDatabaseName;
 };
 
 export const getDefaultDatabaseAsync = async (
   driverType: DatabaseDriverType,
 ): Promise<string | undefined> => {
   const metadata = await resolveDatabaseMetadata(driverType);
-  return metadata?.defaultDatabase;
+  return metadata?.defaultDatabaseName;
 };

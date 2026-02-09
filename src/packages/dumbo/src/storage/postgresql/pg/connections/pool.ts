@@ -7,10 +7,7 @@ import {
   type ConnectionPool,
   type JSONSerializationOptions,
 } from '../../../../core';
-import {
-  defaultPostgreSqlDatabase,
-  getDatabaseNameOrDefault,
-} from '../../core';
+import { defaultPostgreSqlDatabase, parseDatabaseName } from '../../core';
 import { setPgTypeParser } from '../serialization';
 import {
   pgConnection,
@@ -255,7 +252,8 @@ export const getPgPool = (
   const database =
     poolOptions.database ??
     (poolOptions.connectionString
-      ? getDatabaseNameOrDefault(poolOptions.connectionString)
+      ? (parseDatabaseName(poolOptions.connectionString) ??
+        defaultPostgreSqlDatabase)
       : undefined);
 
   const lookupKey = key(connectionString, database);
@@ -277,7 +275,7 @@ export const endPgPool = async ({
   database?: string | undefined;
   force?: boolean;
 }): Promise<void> => {
-  database = database ?? getDatabaseNameOrDefault(connectionString);
+  database = database ?? parseDatabaseName(connectionString) ?? undefined;
   const lookupKey = key(connectionString, database);
 
   const pool = pools.get(lookupKey);

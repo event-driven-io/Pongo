@@ -1,11 +1,7 @@
 import type { DatabaseConnectionString } from '../../../all';
-import { defaultPostgreSqlDatabase } from '../schema';
 
 export const defaultPostgreSQLConnectionString: PostgreSQLConnectionString =
   'postgresql://postgres@localhost:5432/postgres' as PostgreSQLConnectionString;
-
-export const getDatabaseNameOrDefault = (connectionString: string) =>
-  parseDatabaseName(connectionString) ?? defaultPostgreSqlDatabase;
 
 export type PostgreSQLConnectionString = DatabaseConnectionString<
   'PostgreSQL',

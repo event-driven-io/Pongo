@@ -1,11 +1,4 @@
-import {
-  dumboDatabaseMetadataRegistry,
-  exists,
-  SQL,
-  type DatabaseMetadata,
-  type SQLExecutor,
-} from '../../../../core';
-import { parseDatabaseName } from '../connections/connectionString';
+import { exists, SQL, type SQLExecutor } from '../../../../core';
 export * from './schema';
 
 export const defaultPostgreSqlDatabase = 'postgres';
@@ -34,17 +27,3 @@ export const functionExists = async (
   execute: SQLExecutor,
   functionName: string,
 ): Promise<boolean> => exists(execute.query(functionExistsSQL(functionName)));
-
-export const postgreSQLMetadata: DatabaseMetadata = {
-  databaseType: 'PostgreSQL',
-  defaultDatabase: 'postgres',
-  capabilities: { supportsSchemas: true, supportsFunctions: true },
-  tableExists,
-  functionExists,
-  parseDatabaseName,
-  getDatabaseNameOrDefault: (connectionString?: string) =>
-    (connectionString ? parseDatabaseName(connectionString) : null) ??
-    'postgres',
-};
-
-dumboDatabaseMetadataRegistry.register('PostgreSQL', postgreSQLMetadata);

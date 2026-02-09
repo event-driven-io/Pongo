@@ -46,13 +46,12 @@ export const PongoDatabaseCache = <
       const metadata = getDatabaseMetadata(driver.driverType);
       const dbName =
         createOptions.databaseName ??
-        (metadata
-          ? metadata.getDatabaseNameOrDefault(
-              'connectionString' in createOptions
-                ? (createOptions.connectionString as string)
-                : undefined,
-            )
-          : 'db:default');
+        metadata?.parseDatabaseName?.(
+          'connectionString' in createOptions
+            ? (createOptions.connectionString as string)
+            : undefined,
+        ) ??
+        'db:default';
 
       const existing = dbClients.get(dbName);
       if (existing) return existing as Database;

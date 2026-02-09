@@ -43,3 +43,6 @@ export function dumbo<
     driverType: driver.driverType,
   }) as ExtractDumboTypeFromDriver<DatabaseDriver>;
 }
+
+import '../postgresql/core/schema/postgreSQLMetadata';
+import '../sqlite/core/schema/sqliteMetadata';

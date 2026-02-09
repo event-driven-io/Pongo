@@ -1,4 +1,4 @@
-import { getDatabaseMetadata, JSONSerializer } from '@event-driven-io/dumbo';
+import { JSONSerializer } from '@event-driven-io/dumbo';
 import type { D1PoolOptions } from '@event-driven-io/dumbo/cloudflare';
 import { D1DriverType, d1Pool } from '@event-driven-io/dumbo/cloudflare';
 import {
@@ -24,8 +24,7 @@ const d1DatabaseDriver: PongoDatabaseDriver<
 > = {
   driverType: D1DriverType,
   databaseFactory: (options) => {
-    const databaseName =
-      getDatabaseMetadata(D1DriverType)!.getDatabaseNameOrDefault();
+    const databaseName = options.databaseName ?? 'db:default';
 
     return PongoDatabase({
       ...options,
