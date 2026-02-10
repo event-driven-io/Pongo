@@ -2,8 +2,8 @@ import type { Connection } from '../connections';
 import type { QueryResult, QueryResultRow } from '../query';
 import { type SQL } from '../sql';
 
-export type SQLQueryOptions = { timeoutMs?: number };
-export type SQLCommandOptions = { timeoutMs?: number };
+export type SQLQueryOptions = { timeoutMs?: number | undefined };
+export type SQLCommandOptions = { timeoutMs?: number | undefined };
 
 export interface DbSQLExecutor<
   ConnectorType extends string = string,

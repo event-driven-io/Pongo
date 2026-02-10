@@ -16,6 +16,7 @@ export type PostgreSQLMigratorOptions = {
   };
   dryRun?: boolean | undefined;
   ignoreMigrationHashMismatch?: boolean | undefined;
+  migrationTimeoutMs?: number | undefined;
 };
 
 const migrationTableSQL = rawSql(`
@@ -55,4 +56,5 @@ export const runPostgreSQLMigrations = (
     },
     dryRun: options?.dryRun,
     ignoreMigrationHashMismatch: options?.ignoreMigrationHashMismatch,
+    migrationTimeoutMs: options?.migrationTimeoutMs,
   });
