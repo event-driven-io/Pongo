@@ -13,6 +13,7 @@ interface MigrateRunOptions {
   connectionString: string;
   config?: string;
   dryRun?: boolean;
+  timeoutMs?: number;
 }
 
 interface MigrateSqlOptions {
@@ -44,8 +45,13 @@ migrateCommand
   )
   .option('-f, --config <path>', 'Path to configuration file with Pongo config')
   .option('--dr, --dryRun', 'Perform dry run without commiting changes', false)
+  .option(
+    '--t, --timeout <ms>',
+    'Set the migration timeout in milliseconds',
+    parseInt,
+  )
   .action(async (options: MigrateRunOptions) => {
-    const { collection, dryRun } = options;
+    const { collection, dryRun, timeoutMs } = options;
     const connectionString =
       options.connectionString ?? process.env.DB_CONNECTION_STRING;
     let collectionNames: string[];
@@ -81,6 +87,7 @@ migrateCommand
 
     await runPostgreSQLMigrations(pool, migrations, {
       dryRun,
+      migrationTimeoutMs: timeoutMs,
     });
   });
 
