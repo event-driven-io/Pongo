@@ -25,6 +25,7 @@ interface MigrateRunOptions {
   databaseDriver: string;
   config?: string;
   dryRun?: boolean;
+  timeoutMs?: number;
 }
 
 interface MigrateSqlOptions {
@@ -73,8 +74,14 @@ migrateCommand
   )
   .option('-f, --config <path>', 'Path to configuration file with Pongo config')
   .option('--dr, --dryRun', 'Perform dry run without commiting changes', false)
+  .option(
+    '--t, --timeout <ms>',
+    'Set the migration timeout in milliseconds',
+    parseInt,
+  )
   .action(async (options: MigrateRunOptions) => {
-    const { collection, dryRun, databaseName, databaseDriver } = options;
+    const { collection, dryRun, databaseName, databaseDriver, timeoutMs } =
+      options;
     const connectionString =
       options.connectionString ?? process.env.DB_CONNECTION_STRING;
 
@@ -118,6 +125,7 @@ migrateCommand
 
     await runSQLMigrations(pool, migrations, {
       dryRun,
+      migrationTimeoutMs: timeoutMs,
     });
   });
 

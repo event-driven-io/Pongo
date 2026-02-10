@@ -67,12 +67,12 @@ export type SQLQueryResultColumnMapping = {
 };
 
 export type SQLQueryOptions = {
-  timeoutMs?: number;
+  timeoutMs?: number | undefined;
   mapping?: SQLQueryResultColumnMapping;
 };
 
 export type SQLCommandOptions = {
-  timeoutMs?: number;
+  timeoutMs?: number | undefined;
   mapping?: SQLQueryResultColumnMapping;
 };
 

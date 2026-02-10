@@ -53,6 +53,7 @@ export type MigratorOptions = {
   };
   dryRun?: boolean | undefined;
   ignoreMigrationHashMismatch?: boolean | undefined;
+  migrationTimeoutMs?: number | undefined;
 };
 
 export type RunSQLMigrationsResult = {
@@ -90,6 +91,8 @@ export const runSQLMigrations = (
       ignoreMigrationHashMismatch:
         defaultOptions.ignoreMigrationHashMismatch ??
         partialOptions?.ignoreMigrationHashMismatch,
+      migrationTimeoutMs:
+        defaultOptions.migrationTimeoutMs ?? partialOptions?.migrationTimeoutMs,
     };
 
     const { databaseLock: _, ...rest } = options.lock ?? {};
@@ -112,7 +115,9 @@ export const runSQLMigrations = (
       execute,
       async () => {
         for (const migration of coreMigrations) {
-          await execute.batchCommand(migration.sqls);
+          await execute.batchCommand(migration.sqls, {
+            timeoutMs: options.migrationTimeoutMs,
+          });
         }
 
         for (const migration of migrations) {
@@ -123,6 +128,7 @@ export const runSQLMigrations = (
             {
               ignoreMigrationHashMismatch:
                 options.ignoreMigrationHashMismatch ?? false,
+              migrationTimeoutMs: options.migrationTimeoutMs,
             },
           );
           if (wasApplied) {
@@ -142,7 +148,10 @@ const runSQLMigration = async (
   databaseType: DatabaseType,
   execute: SQLExecutor,
   migration: SQLMigration,
-  options?: { ignoreMigrationHashMismatch?: boolean },
+  options?: {
+    ignoreMigrationHashMismatch?: boolean;
+    migrationTimeoutMs?: number | undefined;
+  },
 ): Promise<boolean> => {
   const sqls = combineMigrations(migration);
   const sqlHash = await getMigrationHash(migration, getFormatter(databaseType));
@@ -181,7 +190,9 @@ const runSQLMigration = async (
       return false;
     }
 
-    await execute.batchCommand(sqls);
+    await execute.batchCommand(sqls, {
+      timeoutMs: options?.migrationTimeoutMs,
+    });
 
     await recordMigration(execute, newMigration);
     return true;

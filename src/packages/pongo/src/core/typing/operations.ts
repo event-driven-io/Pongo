@@ -149,6 +149,7 @@ export type AnyPongoDb = PongoDb<DatabaseDriverType>;
 export type PongoMigrationOptions = {
   dryRun?: boolean | undefined;
   ignoreMigrationHashMismatch?: boolean | undefined;
+  migrationTimeoutMs?: number | undefined;
 };
 
 export type CollectionOperationOptions = {
