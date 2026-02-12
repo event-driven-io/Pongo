@@ -383,7 +383,26 @@ export function sqliteConnection<
 export type InMemorySQLiteDatabase = ':memory:';
 export const InMemorySQLiteDatabase = SQLiteConnectionString(':memory:');
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export type SQLiteClientOptions = {};
+export type SQLitePragmaOptions = {
+  journal_mode?: 'DELETE' | 'TRUNCATE' | 'PERSIST' | 'MEMORY' | 'WAL' | 'OFF';
+  synchronous?: 'OFF' | 'NORMAL' | 'FULL' | 'EXTRA';
+  cache_size?: number;
+  foreign_keys?: boolean;
+  temp_store?: 'DEFAULT' | 'FILE' | 'MEMORY';
+  busy_timeout?: number;
+};
+
+export const DEFAULT_SQLITE_PRAGMA_OPTIONS: SQLitePragmaOptions = {
+  journal_mode: 'WAL',
+  synchronous: 'NORMAL',
+  cache_size: -1000000,
+  foreign_keys: true,
+  temp_store: 'MEMORY',
+  busy_timeout: 5000,
+};
+
+export type SQLiteClientOptions = {
+  pragmaOptions?: Partial<SQLitePragmaOptions>;
+};
 
 export * from './connectionString';
