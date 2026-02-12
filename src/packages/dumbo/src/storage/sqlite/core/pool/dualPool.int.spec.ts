@@ -188,4 +188,81 @@ void describe('SQLite Dual Connection Pool', () => {
       cleanupDb(customFileName);
     }
   });
+
+  void it('releases connections on query errors', async () => {
+    const errorFileName = 'error-test.db';
+    cleanupDb(errorFileName);
+
+    const pool = sqlite3Pool({ fileName: errorFileName });
+
+    try {
+      await pool.execute.command(
+        SQL`CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT NOT NULL)`,
+      );
+
+      let errorCount = 0;
+      const operations = Array.from({ length: 10 }, async () => {
+        try {
+          await pool.execute.command(SQL`INSERT INTO test (value) VALUES (NULL)`);
+        } catch {
+          errorCount++;
+        }
+      });
+
+      await Promise.all(operations);
+
+      if (errorCount !== 10) {
+        throw new Error(`Expected 10 errors, got ${errorCount}`);
+      }
+
+      const result = await pool.execute.query(SQL`SELECT COUNT(*) as count FROM test`);
+      if (!result.rows[0] || result.rows[0].count !== 0) {
+        throw new Error('No rows should have been inserted');
+      }
+    } finally {
+      await pool.close();
+      cleanupDb(errorFileName);
+    }
+  });
+
+  void it('releases connections on transaction rollback', async () => {
+    const rollbackFileName = 'rollback-test.db';
+    cleanupDb(rollbackFileName);
+
+    const pool = sqlite3Pool({ fileName: rollbackFileName });
+
+    try {
+      await pool.execute.command(
+        SQL`CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT NOT NULL)`,
+      );
+
+      let rollbackCount = 0;
+      const operations = Array.from({ length: 5 }, async () => {
+        try {
+          await pool.withTransaction(async (tx) => {
+            await tx.execute.command(SQL`INSERT INTO test (value) VALUES ('test')`);
+            await tx.execute.command(SQL`INSERT INTO test (value) VALUES (NULL)`);
+          });
+        } catch {
+          rollbackCount++;
+        }
+      });
+
+      await Promise.all(operations);
+
+      if (rollbackCount !== 5) {
+        throw new Error(`Expected 5 rollbacks, got ${rollbackCount}`);
+      }
+
+      const result = await pool.execute.query(
+        SQL`SELECT COUNT(*) as count FROM test`,
+      );
+      if (!result.rows[0] || result.rows[0].count !== 0) {
+        throw new Error('No rows should have been committed');
+      }
+    } finally {
+      await pool.close();
+      cleanupDb(rollbackFileName);
+    }
+  });
 });
