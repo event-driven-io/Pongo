@@ -162,10 +162,16 @@ export const createBoundedConnectionPool = <
   const result: ConnectionPool<ConnectionType> = {
     driverType,
     connection: acquire,
-    execute: sqlExecutorInNewConnection({
-      driverType,
-      connection: acquire,
-    }),
+    execute: {
+      query: (sql, options) =>
+        executeWithPooling((conn) => conn.execute.query(sql, options)),
+      batchQuery: (sqls, options) =>
+        executeWithPooling((conn) => conn.execute.batchQuery(sqls, options)),
+      command: (sql, options) =>
+        executeWithPooling((conn) => conn.execute.command(sql, options)),
+      batchCommand: (sqls, options) =>
+        executeWithPooling((conn) => conn.execute.batchCommand(sqls, options)),
+    },
     withConnection: executeWithPooling,
     transaction: (options) => {
       let conn: ConnectionType | null = null;
