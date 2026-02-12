@@ -395,11 +395,14 @@ void describe('SQLite3 Transactions', () => {
           SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
         );
 
-        await connection.withTransaction(async () => {
-          await connection.execute.query(
-            SQL`INSERT INTO test_table (id, value) VALUES (1, "test")`,
-          );
-        }, { mode: 'DEFERRED' } as SQLiteTransactionOptions);
+        await connection.withTransaction(
+          async () => {
+            await connection.execute.query(
+              SQL`INSERT INTO test_table (id, value) VALUES (1, "test")`,
+            );
+          },
+          { mode: 'DEFERRED' } as SQLiteTransactionOptions,
+        );
 
         const rows = await connection.execute.query<{ count: number }>(
           SQL`SELECT COUNT(*) as count FROM test_table`,
@@ -420,11 +423,14 @@ void describe('SQLite3 Transactions', () => {
           SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
         );
 
-        await connection.withTransaction(async () => {
-          await connection.execute.query(
-            SQL`INSERT INTO test_table (id, value) VALUES (1, "test")`,
-          );
-        }, { mode: 'EXCLUSIVE' } as SQLiteTransactionOptions);
+        await connection.withTransaction(
+          async () => {
+            await connection.execute.query(
+              SQL`INSERT INTO test_table (id, value) VALUES (1, "test")`,
+            );
+          },
+          { mode: 'EXCLUSIVE' } as SQLiteTransactionOptions,
+        );
 
         const rows = await connection.execute.query<{ count: number }>(
           SQL`SELECT COUNT(*) as count FROM test_table`,
@@ -476,11 +482,14 @@ void describe('SQLite3 Transactions', () => {
           SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
         );
 
-        await connection.withTransaction(async () => {
-          await connection.execute.query(
-            SQL`INSERT INTO test_table (id, value) VALUES (1, "test")`,
-          );
-        }, { mode: 'IMMEDIATE' } as SQLiteTransactionOptions);
+        await connection.withTransaction(
+          async () => {
+            await connection.execute.query(
+              SQL`INSERT INTO test_table (id, value) VALUES (1, "test")`,
+            );
+          },
+          { mode: 'IMMEDIATE' } as SQLiteTransactionOptions,
+        );
 
         const rows = await connection.execute.query<{ count: number }>(
           SQL`SELECT COUNT(*) as count FROM test_table`,

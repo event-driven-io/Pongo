@@ -1,8 +1,7 @@
 import type { SQLiteDriverType } from '..';
-import type { JSONSerializer, SQLFormatter } from '../../../../core';
+import type { JSONSerializer, SQLFormatter, SQL } from '../../../../core';
 import {
   mapSQLQueryResult,
-  SQL,
   tracer,
   type BatchSQLCommandOptions,
   type DbSQLExecutor,

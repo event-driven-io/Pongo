@@ -147,10 +147,9 @@ void describe('PRAGMA merging', () => {
   });
 
   void it('follows precedence: defaults < connection string < user options', () => {
-    const merged = mergePragmaOptions(
-      'file:test.db?cache_size=-500000',
-      { cache_size: -2000000 },
-    );
+    const merged = mergePragmaOptions('file:test.db?cache_size=-500000', {
+      cache_size: -2000000,
+    });
 
     assert.strictEqual(merged.cache_size, -2000000);
   });
