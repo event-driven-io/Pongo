@@ -11,9 +11,11 @@ import {
   createAmbientConnectionPool,
   createSingletonConnectionPool,
   type ConnectionPool,
-  type InferTransactionFromConnection,
-  type InferTransactionOptionsFromConnection,
 } from '../../../../core';
+import {
+  sqliteDualConnectionPool,
+  type SQLiteDualPoolOptions,
+} from './dualPool';
 
 export type SQLiteFileNameOrConnectionString =
   | {
@@ -39,11 +41,7 @@ export const isInMemoryDatabase = (
 
 export type SQLiteAmbientConnectionPool<
   SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
-> = ConnectionPool<
-  SQLiteConnectionType,
-  InferTransactionFromConnection<SQLiteConnectionType>,
-  InferTransactionOptionsFromConnection<SQLiteConnectionType>
->;
+> = ConnectionPool<SQLiteConnectionType>;
 
 type SQLiteAmbientConnectionPoolOptions<
   SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
@@ -88,11 +86,7 @@ type SQLiteSingletonConnectionPoolOptions<
 
 export type SQLiteSingletonConnectionPool<
   SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
-> = ConnectionPool<
-  SQLiteConnectionType,
-  InferTransactionFromConnection<SQLiteConnectionType>,
-  InferTransactionOptionsFromConnection<SQLiteConnectionType>
->;
+> = ConnectionPool<SQLiteConnectionType>;
 
 export const sqliteSingletonConnectionPool = <
   SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
@@ -130,11 +124,7 @@ type SQLiteAlwaysNewPoolOptions<
 
 export type SQLiteAlwaysNewConnectionPool<
   SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
-> = ConnectionPool<
-  SQLiteConnectionType,
-  InferTransactionFromConnection<SQLiteConnectionType>,
-  InferTransactionOptionsFromConnection<SQLiteConnectionType>
->;
+> = ConnectionPool<SQLiteConnectionType>;
 
 export const sqliteAlwaysNewConnectionPool = <
   SQLiteConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
@@ -163,6 +153,7 @@ export type SQLitePoolOptions<
       ConnectionOptions
     >
   | SQLiteAmbientConnectionPoolOptions<SQLiteConnectionType>
+  | SQLiteDualPoolOptions<SQLiteConnectionType, ConnectionOptions>
 ) & {
   driverType: SQLiteConnectionType['driverType'];
   serializer?: JSONSerializer;
@@ -192,15 +183,23 @@ export const toSqlitePoolOptions = <
   options: SQLitePoolFactoryOptions<SQLiteConnectionType, ConnectionOptions>,
 ): SQLitePoolOptions<SQLiteConnectionType, ConnectionOptions> => {
   const { singleton, ...rest } = options;
-  const useSingleton = singleton ?? isInMemoryDatabase(options);
+  const isInMemory = isInMemoryDatabase(options);
 
-  if (useSingleton) {
+  if (isInMemory) {
     return { ...rest, singleton: true } as SQLitePoolOptions<
       SQLiteConnectionType,
       ConnectionOptions
     >;
   }
-  return { ...rest, singleton: false } as SQLitePoolOptions<
+
+  if (singleton === true) {
+    return { ...rest, singleton: true } as SQLitePoolOptions<
+      SQLiteConnectionType,
+      ConnectionOptions
+    >;
+  }
+
+  return { ...rest, dual: true } as SQLitePoolOptions<
     SQLiteConnectionType,
     ConnectionOptions
   >;
@@ -217,23 +216,71 @@ export function sqlitePool<
   // TODO: Handle dates and bigints
   // setSQLiteTypeParser(serializer ?? JSONSerializer);
 
-  if (options.connection)
+  if (
+    (
+      options as SQLiteAmbientConnectionPoolOptions<SQLiteConnectionType> & {
+        driverType: SQLiteConnectionType['driverType'];
+      }
+    ).connection
+  )
     return createAmbientConnectionPool<SQLiteConnectionType>({
       driverType,
-      connection: options.connection,
-    }) as unknown as SQLitePool<SQLiteConnectionType>;
+      connection: (
+        options as SQLiteAmbientConnectionPoolOptions<SQLiteConnectionType> & {
+          driverType: SQLiteConnectionType['driverType'];
+        }
+      ).connection,
+    });
 
-  if (options.singleton === true && options.sqliteConnectionFactory) {
+  if ('dual' in options && options.dual) {
+    return sqliteDualConnectionPool(
+      options as SQLiteDualPoolOptions<SQLiteConnectionType, ConnectionOptions>,
+    );
+  }
+
+  if (
+    options.singleton === true &&
+    (
+      options as SQLiteSingletonConnectionPoolOptions<
+        SQLiteConnectionType,
+        ConnectionOptions
+      > & { driverType: SQLiteConnectionType['driverType'] }
+    ).sqliteConnectionFactory
+  ) {
     return createSingletonConnectionPool({
       driverType,
       getConnection: () =>
-        options.sqliteConnectionFactory(options.connectionOptions),
-    }) as unknown as SQLitePool<SQLiteConnectionType>;
+        (
+          options as SQLiteSingletonConnectionPoolOptions<
+            SQLiteConnectionType,
+            ConnectionOptions
+          > & { driverType: SQLiteConnectionType['driverType'] }
+        ).sqliteConnectionFactory(
+          (
+            options as SQLiteSingletonConnectionPoolOptions<
+              SQLiteConnectionType,
+              ConnectionOptions
+            > & { driverType: SQLiteConnectionType['driverType'] }
+          ).connectionOptions,
+        ),
+    });
   }
 
   return createAlwaysNewConnectionPool({
     driverType,
     getConnection: () =>
-      options.sqliteConnectionFactory!(options.connectionOptions!),
-  }) as unknown as SQLitePool<SQLiteConnectionType>;
+      (
+        options as SQLiteAlwaysNewPoolOptions<
+          SQLiteConnectionType,
+          ConnectionOptions
+        > & { driverType: SQLiteConnectionType['driverType'] }
+      ).sqliteConnectionFactory(
+        (
+          options as SQLiteAlwaysNewPoolOptions<
+            SQLiteConnectionType,
+            ConnectionOptions
+          > & { driverType: SQLiteConnectionType['driverType'] }
+        ).connectionOptions,
+      ),
+  });
 }

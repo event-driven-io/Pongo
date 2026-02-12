@@ -13,14 +13,13 @@ import {
   type Connection,
   type ConnectionOptions,
   type DatabaseTransaction,
-  type DatabaseTransactionOptions,
   type InferDbClientFromConnection,
   type InferDriverTypeFromConnection,
   type InitTransaction,
   type SQLCommandOptions,
   type SQLExecutor,
 } from '../../../../core';
-import { sqliteTransaction } from '../transactions';
+import { sqliteTransaction, type SQLiteTransactionMode } from '../transactions';
 
 export type SQLiteCommandOptions = SQLCommandOptions & {
   ignoreChangesCount?: boolean;
@@ -70,30 +69,14 @@ export type SQLiteClientConnection<
   DriverType extends SQLiteDriverType = SQLiteDriverType,
   SQLiteClientType extends SQLiteClient = SQLiteClient,
   TransactionType extends DatabaseTransaction<Self> = DatabaseTransaction<Self>,
-  TransactionOptionsType extends DatabaseTransactionOptions =
-    DatabaseTransactionOptions,
-> = Connection<
-  Self,
-  DriverType,
-  SQLiteClientType,
-  TransactionType,
-  TransactionOptionsType
->;
+> = Connection<Self, DriverType, SQLiteClientType, TransactionType>;
 
 export type SQLitePoolClientConnection<
   Self extends AnyConnection = AnyConnection,
   DriverType extends SQLiteDriverType = SQLiteDriverType,
   SQLitePoolClientType extends SQLitePoolClient = SQLitePoolClient,
   TransactionType extends DatabaseTransaction<Self> = DatabaseTransaction<Self>,
-  TransactionOptionsType extends DatabaseTransactionOptions =
-    DatabaseTransactionOptions,
-> = Connection<
-  Self,
-  DriverType,
-  SQLitePoolClientType,
-  TransactionType,
-  TransactionOptionsType
->;
+> = Connection<Self, DriverType, SQLitePoolClientType, TransactionType>;
 
 export type SQLiteConnection<
   Self extends AnyConnection = AnyConnection,
@@ -102,16 +85,13 @@ export type SQLiteConnection<
     | SQLiteClient
     | SQLitePoolClient,
   TransactionType extends DatabaseTransaction<Self> = DatabaseTransaction<Self>,
-  TransactionOptionsType extends DatabaseTransactionOptions =
-    DatabaseTransactionOptions,
 > =
   | (SQLiteClientType extends SQLiteClient
       ? SQLiteClientConnection<
           Self,
           DriverType,
           SQLiteClientType,
-          TransactionType,
-          TransactionOptionsType
+          TransactionType
         >
       : never)
   | (SQLiteClientType extends SQLitePoolClient
@@ -119,8 +99,7 @@ export type SQLiteConnection<
           Self,
           DriverType,
           SQLiteClientType,
-          TransactionType,
-          TransactionOptionsType
+          TransactionType
         >
       : never);
 
@@ -130,11 +109,11 @@ export type AnySQLiteClientConnection =
 
 export type AnySQLitePoolClientConnection =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  SQLitePoolClientConnection<any, any, any, any, any>;
+  SQLitePoolClientConnection<any, any, any, any>;
 
 export type AnySQLiteConnection =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  SQLiteConnection<any, any, any, any, any>;
+  SQLiteConnection<any, any, any, any>;
 
 export type SQLiteConnectionOptions<
   ConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
@@ -216,19 +195,12 @@ export const transactionNestingCounter = (): TransactionNestingCounter => {
 export type SqliteAmbientClientConnectionOptions<
   SQLiteConnectionType extends AnySQLiteClientConnection =
     AnySQLiteClientConnection,
-  TransactionType extends DatabaseTransaction<SQLiteConnectionType> =
-    DatabaseTransaction<SQLiteConnectionType>,
-  TransactionOptionsType extends DatabaseTransactionOptions =
-    DatabaseTransactionOptions,
 > = {
   driverType: SQLiteConnectionType['driverType'];
   client: InferDbClientFromConnection<SQLiteConnectionType>;
-  initTransaction?: InitTransaction<
-    SQLiteConnectionType,
-    TransactionType,
-    TransactionOptionsType
-  >;
+  initTransaction?: InitTransaction<SQLiteConnectionType>;
   allowNestedTransactions?: boolean;
+  defaultTransactionMode?: SQLiteTransactionMode;
   serializer: JSONSerializer;
   errorMapper?: SQLiteErrorMapper;
 };
@@ -244,6 +216,7 @@ export const sqliteAmbientClientConnection = <
     driverType,
     initTransaction,
     allowNestedTransactions,
+    defaultTransactionMode,
     serializer,
     errorMapper,
   } = options;
@@ -259,6 +232,7 @@ export const sqliteAmbientClientConnection = <
           connection,
           allowNestedTransactions ?? false,
           serializer,
+          defaultTransactionMode,
         )),
     executor: ({ serializer }) =>
       sqliteSQLExecutor(driverType, serializer, undefined, errorMapper),
@@ -313,6 +287,7 @@ export const sqliteClientConnection = <
         connection,
         connectionOptions.transactionOptions?.allowNestedTransactions ?? false,
         serializer,
+        connectionOptions.defaultTransactionMode,
       ),
     executor: ({ serializer }) =>
       sqliteSQLExecutor(options.driverType, serializer),
@@ -359,6 +334,7 @@ export const sqlitePoolClientConnection = <
         connection,
         connectionOptions.transactionOptions?.allowNestedTransactions ?? false,
         serializer,
+        connectionOptions.defaultTransactionMode,
       ),
     executor: ({ serializer }) =>
       sqliteSQLExecutor(options.driverType, serializer),
@@ -383,7 +359,27 @@ export function sqliteConnection<
 export type InMemorySQLiteDatabase = ':memory:';
 export const InMemorySQLiteDatabase = SQLiteConnectionString(':memory:');
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-export type SQLiteClientOptions = {};
+export type SQLitePragmaOptions = {
+  journal_mode?: 'DELETE' | 'TRUNCATE' | 'PERSIST' | 'MEMORY' | 'WAL' | 'OFF';
+  synchronous?: 'OFF' | 'NORMAL' | 'FULL' | 'EXTRA';
+  cache_size?: number;
+  foreign_keys?: boolean;
+  temp_store?: 'DEFAULT' | 'FILE' | 'MEMORY';
+  busy_timeout?: number;
+};
+
+export const DEFAULT_SQLITE_PRAGMA_OPTIONS: SQLitePragmaOptions = {
+  journal_mode: 'WAL',
+  synchronous: 'NORMAL',
+  cache_size: -1000000,
+  foreign_keys: true,
+  temp_store: 'MEMORY',
+  busy_timeout: 5000,
+};
+
+export type SQLiteClientOptions = {
+  pragmaOptions?: Partial<SQLitePragmaOptions>;
+  defaultTransactionMode?: SQLiteTransactionMode;
+};
 
 export * from './connectionString';

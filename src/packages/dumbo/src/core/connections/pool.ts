@@ -8,6 +8,7 @@ import {
 import type {
   AnyConnection,
   InferDbClientFromConnection,
+  InferTransactionFromConnection,
   WithConnectionFactory,
   WithConnectionOptions,
 } from './connection';
@@ -21,19 +22,11 @@ import {
 
 export interface ConnectionPool<
   ConnectionType extends AnyConnection = AnyConnection,
-  TransactionType extends DatabaseTransaction<ConnectionType> =
-    DatabaseTransaction<ConnectionType>,
-  TransactionOptionsType extends DatabaseTransactionOptions =
-    DatabaseTransactionOptions,
 >
   extends
     WithSQLExecutor,
     WithConnectionFactory<ConnectionType>,
-    WithDatabaseTransactionFactory<
-      ConnectionType,
-      TransactionType,
-      TransactionOptionsType
-    > {
+    WithDatabaseTransactionFactory<ConnectionType> {
   driverType: ConnectionType['driverType'];
   close: () => Promise<void>;
 }
@@ -60,10 +53,16 @@ export const createAmbientConnectionPool = <
     driverType,
     getConnection: () => connection,
     execute: connection.execute,
-    transaction: (options) => connection.transaction(options),
+    transaction: (options) =>
+      connection.transaction(
+        options,
+      ) as InferTransactionFromConnection<ConnectionType>,
     withConnection: (handle, _options?) => handle(connection),
-    withTransaction: (handle, options) =>
-      connection.withTransaction(handle, options),
+    withTransaction: (handle, options) => {
+      const withTx =
+        connection.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
+      return withTx(handle, options);
+    },
   });
 };
 
@@ -106,6 +105,162 @@ export const createSingletonConnectionPool = <
     ...transactionFactoryWithAmbientConnection(getExistingOrNewConnection),
     close: () => {
       return connection !== null ? connection.close() : Promise.resolve();
+    },
+  };
+
+  return result;
+};
+
+export type CreateBoundedConnectionPoolOptions<
+  ConnectionType extends AnyConnection,
+> = {
+  driverType: ConnectionType['driverType'];
+  getConnection: () => ConnectionType | Promise<ConnectionType>;
+  maxConnections: number;
+};
+
+export const createBoundedConnectionPool = <
+  ConnectionType extends AnyConnection,
+>(
+  options: CreateBoundedConnectionPoolOptions<ConnectionType>,
+): ConnectionPool<ConnectionType> => {
+  const { driverType, getConnection, maxConnections } = options;
+  const pool: ConnectionType[] = [];
+  const waitQueue: Array<(conn: ConnectionType) => void> = [];
+  let activeCount = 0;
+
+  const acquire = async (): Promise<ConnectionType> => {
+    if (pool.length > 0) {
+      return pool.pop()!;
+    }
+
+    if (activeCount < maxConnections) {
+      activeCount++;
+      return await getConnection();
+    }
+
+    return new Promise((resolve) => {
+      waitQueue.push(resolve);
+    });
+  };
+
+  const release = (conn: ConnectionType) => {
+    if (waitQueue.length > 0) {
+      const next = waitQueue.shift()!;
+      next(conn);
+      return;
+    }
+
+    pool.push(conn);
+  };
+
+  const executeWithPooling = async <Result>(
+    operation: (conn: ConnectionType) => Promise<Result>,
+  ): Promise<Result> => {
+    const conn = await acquire();
+    try {
+      return await operation(conn);
+    } finally {
+      release(conn);
+    }
+  };
+
+  const result: ConnectionPool<ConnectionType> = {
+    driverType,
+    connection: acquire,
+    execute: {
+      query: (sql, options) =>
+        executeWithPooling((conn) => conn.execute.query(sql, options)),
+      batchQuery: (sqls, options) =>
+        executeWithPooling((conn) => conn.execute.batchQuery(sqls, options)),
+      command: (sql, options) =>
+        executeWithPooling((conn) => conn.execute.command(sql, options)),
+      batchCommand: (sqls, options) =>
+        executeWithPooling((conn) => conn.execute.batchCommand(sqls, options)),
+    },
+    withConnection: executeWithPooling,
+    transaction: (options) => {
+      let conn: ConnectionType | null = null;
+      let innerTx: DatabaseTransaction<ConnectionType> | null = null;
+
+      const ensureConnection = async () => {
+        if (!conn) {
+          conn = await acquire();
+          innerTx = conn.transaction(options);
+        }
+        return innerTx!;
+      };
+
+      const tx: DatabaseTransaction<ConnectionType> = {
+        driverType,
+        get connection() {
+          if (!conn) {
+            throw new Error('Transaction not started - call begin() first');
+          }
+          return conn;
+        },
+        execute: {
+          query: async (sql, queryOptions) => {
+            const tx = await ensureConnection();
+            return tx.execute.query(sql, queryOptions);
+          },
+          batchQuery: async (sqls, queryOptions) => {
+            const tx = await ensureConnection();
+            return tx.execute.batchQuery(sqls, queryOptions);
+          },
+          command: async (sql, commandOptions) => {
+            const tx = await ensureConnection();
+            return tx.execute.command(sql, commandOptions);
+          },
+          batchCommand: async (sqls, commandOptions) => {
+            const tx = await ensureConnection();
+            return tx.execute.batchCommand(sqls, commandOptions);
+          },
+        },
+        begin: async () => {
+          const tx = await ensureConnection();
+          return tx.begin();
+        },
+        commit: async () => {
+          if (!innerTx) {
+            throw new Error('Transaction not started');
+          }
+          try {
+            return await innerTx.commit();
+          } finally {
+            if (conn) release(conn);
+          }
+        },
+        rollback: async (error?: unknown) => {
+          if (!innerTx) {
+            if (conn) release(conn);
+            return;
+          }
+          try {
+            return await innerTx.rollback(error);
+          } finally {
+            if (conn) release(conn);
+          }
+        },
+        _transactionOptions: undefined as unknown as DatabaseTransactionOptions,
+      };
+
+      return tx as InferTransactionFromConnection<ConnectionType>;
+    },
+    withTransaction: async (handle, options) => {
+      const conn = await acquire();
+      try {
+        const withTx =
+          conn.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
+        return await withTx(handle, options);
+      } finally {
+        release(conn);
+      }
+    },
+    close: async () => {
+      const connections = [...pool];
+      pool.length = 0;
+      await Promise.all(connections.map((conn) => conn.close()));
     },
   };
 

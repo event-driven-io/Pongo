@@ -1,42 +1,50 @@
 import type { WithSQLExecutor } from '../execute';
 import type {
   AnyConnection,
-  Connection,
   InferDbClientFromConnection,
+  InferTransactionFromConnection,
+  InferTransactionOptionsFromConnection,
 } from './connection';
 
 export interface DatabaseTransaction<
   ConnectionType extends AnyConnection = AnyConnection,
+  TransactionOptionsType extends DatabaseTransactionOptions =
+    DatabaseTransactionOptions,
 > extends WithSQLExecutor {
   driverType: ConnectionType['driverType'];
   connection: ConnectionType;
   begin: () => Promise<void>;
   commit: () => Promise<void>;
   rollback: (error?: unknown) => Promise<void>;
+  _transactionOptions: TransactionOptionsType;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyDatabaseTransaction = DatabaseTransaction<any>;
+export type AnyDatabaseTransaction = DatabaseTransaction<any, any>;
 
 export type DatabaseTransactionOptions = {
   allowNestedTransactions?: boolean;
   readonly?: boolean;
 };
 
+export type InferTransactionOptionsFromTransaction<
+  C extends AnyDatabaseTransaction,
+> =
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  C extends DatabaseTransaction<any, infer TO> ? TO : never;
+
 export interface WithDatabaseTransactionFactory<
   ConnectionType extends AnyConnection = AnyConnection,
-  TransactionType extends DatabaseTransaction<ConnectionType> =
-    DatabaseTransaction<ConnectionType>,
-  TransactionOptionsType extends DatabaseTransactionOptions =
-    DatabaseTransactionOptions,
 > {
-  transaction: (options?: TransactionOptionsType) => TransactionType;
+  transaction: (
+    options?: InferTransactionOptionsFromConnection<ConnectionType>,
+  ) => InferTransactionFromConnection<ConnectionType>;
 
   withTransaction: <Result = never>(
     handle: (
-      transaction: TransactionType,
+      transaction: InferTransactionFromConnection<ConnectionType>,
     ) => Promise<TransactionResult<Result> | Result>,
-    options?: TransactionOptionsType,
+    options?: InferTransactionOptionsFromConnection<ConnectionType>,
   ) => Promise<Result>;
 }
 
@@ -79,36 +87,33 @@ export const executeInTransaction = async <
 
 export const transactionFactoryWithDbClient = <
   ConnectionType extends AnyConnection = AnyConnection,
-  TransactionType extends DatabaseTransaction<ConnectionType> =
-    DatabaseTransaction<ConnectionType>,
-  TransactionOptionsType extends DatabaseTransactionOptions =
-    DatabaseTransactionOptions,
 >(
   connect: () => Promise<InferDbClientFromConnection<ConnectionType>>,
   initTransaction: (
     client: Promise<InferDbClientFromConnection<ConnectionType>>,
-    options?: TransactionOptionsType & {
+    options?: InferTransactionOptionsFromConnection<ConnectionType> & {
       close: (
         client: InferDbClientFromConnection<ConnectionType>,
         error?: unknown,
       ) => Promise<void>;
     },
-  ) => TransactionType,
-): WithDatabaseTransactionFactory<
-  ConnectionType,
-  TransactionType,
-  TransactionOptionsType
-> => {
-  let currentTransaction: TransactionType | undefined = undefined;
+  ) => InferTransactionFromConnection<ConnectionType>,
+): WithDatabaseTransactionFactory<ConnectionType> => {
+  let currentTransaction:
+    | InferTransactionFromConnection<ConnectionType>
+    | undefined = undefined;
 
-  const getOrInitCurrentTransaction = (options?: TransactionOptionsType) =>
+  const getOrInitCurrentTransaction = (
+    options?: InferTransactionOptionsFromConnection<ConnectionType>,
+  ) =>
     currentTransaction ??
     (currentTransaction = initTransaction(connect(), {
       close: () => {
         currentTransaction = undefined;
         return Promise.resolve();
       },
-      ...(options ?? ({} as TransactionOptionsType)),
+      ...(options ??
+        ({} as InferTransactionOptionsFromConnection<ConnectionType>)),
     }));
 
   return {
@@ -134,20 +139,14 @@ const wrapInConnectionClosure = async <
 
 export const transactionFactoryWithNewConnection = <
   ConnectionType extends AnyConnection = AnyConnection,
-  TransactionType extends DatabaseTransaction<ConnectionType> =
-    DatabaseTransaction<ConnectionType>,
-  TransactionOptionsType extends DatabaseTransactionOptions =
-    DatabaseTransactionOptions,
 >(
   connect: () => ConnectionType,
-): WithDatabaseTransactionFactory<
-  ConnectionType,
-  TransactionType,
-  TransactionOptionsType
-> => ({
+): WithDatabaseTransactionFactory<ConnectionType> => ({
   transaction: (options) => {
     const connection = connect();
-    const transaction = connection.transaction(options) as TransactionType;
+    const transaction = connection.transaction(
+      options,
+    ) as InferTransactionFromConnection<ConnectionType>;
 
     return {
       ...transaction,
@@ -158,17 +157,10 @@ export const transactionFactoryWithNewConnection = <
     };
   },
   withTransaction: (handle, options) => {
-    const connection = connect() as unknown as Connection<
-      ConnectionType,
-      ConnectionType['driverType'],
-      InferDbClientFromConnection<ConnectionType>,
-      TransactionType,
-      TransactionOptionsType
-    >;
-    return wrapInConnectionClosure(
-      connection as unknown as ConnectionType,
-      () => connection.withTransaction(handle, options),
-    );
+    const connection = connect();
+    const withTx =
+      connection.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
+    return wrapInConnectionClosure(connection, () => withTx(handle, options));
   },
 });
 
@@ -185,10 +177,12 @@ export const transactionFactoryWithAmbientConnection = <
       ...transaction,
       commit: () => transaction.commit(),
       rollback: () => transaction.rollback(),
-    };
+    } as InferTransactionFromConnection<ConnectionType>;
   },
   withTransaction: (handle, options) => {
     const connection = connect();
-    return connection.withTransaction(handle, options);
+    const withTx =
+      connection.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
+    return withTx(handle, options);
   },
 });

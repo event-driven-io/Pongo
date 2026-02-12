@@ -1,4 +1,7 @@
-import type { JSONSerializer } from '../../../../core';
+import type {
+  InferTransactionFromConnection,
+  JSONSerializer,
+} from '../../../../core';
 import {
   SQL,
   sqlExecutor,
@@ -15,7 +18,9 @@ import {
 
 export type SQLiteTransaction<
   ConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
-> = DatabaseTransaction<ConnectionType>;
+  TransactionOptions extends SQLiteTransactionOptions =
+    SQLiteTransactionOptions,
+> = DatabaseTransaction<ConnectionType, TransactionOptions>;
 
 export type SQLiteTransactionMode = 'DEFERRED' | 'IMMEDIATE' | 'EXCLUSIVE';
 
@@ -29,6 +34,7 @@ export const sqliteTransaction =
     connection: () => ConnectionType,
     allowNestedTransactions: boolean,
     serializer: JSONSerializer,
+    defaultTransactionMode?: 'IMMEDIATE' | 'DEFERRED' | 'EXCLUSIVE',
   ) =>
   (
     getClient: Promise<InferDbClientFromConnection<ConnectionType>>,
@@ -37,13 +43,13 @@ export const sqliteTransaction =
         client: InferDbClientFromConnection<ConnectionType>,
         error?: unknown,
       ) => Promise<void>;
-    } & DatabaseTransactionOptions,
-  ): DatabaseTransaction<ConnectionType> => {
+    } & SQLiteTransactionOptions,
+  ): InferTransactionFromConnection<ConnectionType> => {
     const transactionCounter = transactionNestingCounter();
     allowNestedTransactions =
       options?.allowNestedTransactions ?? allowNestedTransactions;
 
-    return {
+    const transaction: DatabaseTransaction<ConnectionType> = {
       connection: connection(),
       driverType,
       begin: async function () {
@@ -61,7 +67,8 @@ export const sqliteTransaction =
           transactionCounter.increment();
         }
 
-        await client.query(SQL`BEGIN TRANSACTION`);
+        const mode = options?.mode ?? defaultTransactionMode ?? 'IMMEDIATE';
+        await client.query(SQL`BEGIN ${SQL.plain(mode)} TRANSACTION`);
       },
       commit: async function () {
         const client = (await getClient) as SQLiteClientOrPoolClient;
@@ -109,5 +116,9 @@ export const sqliteTransaction =
       execute: sqlExecutor(sqliteSQLExecutor(driverType, serializer), {
         connect: () => getClient,
       }),
+      _transactionOptions: options ?? {},
     };
+
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
+    return transaction as InferTransactionFromConnection<ConnectionType>;
   };

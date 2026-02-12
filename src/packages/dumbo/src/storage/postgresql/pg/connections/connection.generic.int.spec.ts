@@ -197,7 +197,7 @@ void describe('pg', () => {
       const ambientPool = pgPool({ connectionString });
       try {
         await ambientPool.withConnection((ambientConnection) =>
-          ambientConnection.withTransaction<void>(async () => {
+          ambientConnection.withTransaction(async () => {
             const pool = pgPool({
               connectionString,
               connection: ambientConnection,

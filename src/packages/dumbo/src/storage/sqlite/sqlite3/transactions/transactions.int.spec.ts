@@ -5,7 +5,10 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { sqlite3Pool } from '..';
 import { SQL } from '../../../../core';
-import { InMemorySQLiteDatabase } from '../../core';
+import {
+  InMemorySQLiteDatabase,
+  type SQLiteTransactionOptions,
+} from '../../core';
 
 void describe('SQLite3 Transactions', () => {
   const inMemoryfileName: string = InMemorySQLiteDatabase;
@@ -118,7 +121,7 @@ void describe('SQLite3 Transactions', () => {
       void it('should try catch and roll back everything when the inner transaction errors for a pooled connection', async () => {
         const pool = sqlite3Pool({
           fileName,
-
+          defaultTransactionMode: 'DEFERRED',
           transactionOptions: { allowNestedTransactions: true },
         });
         const connection = await pool.connection();
@@ -260,7 +263,7 @@ void describe('SQLite3 Transactions', () => {
       void it('transactions errors inside the nested inner transaction for a singleton should try catch and roll back everything', async () => {
         const pool = sqlite3Pool({
           fileName,
-
+          defaultTransactionMode: 'DEFERRED',
           transactionOptions: { allowNestedTransactions: true },
         });
         const connection = await pool.connection();
@@ -481,4 +484,146 @@ void describe('SQLite3 Transactions', () => {
       });
     });
   }
+
+  void describe('transaction modes', () => {
+    void it('uses IMMEDIATE mode by default', async () => {
+      const pool = sqlite3Pool({ fileName: inMemoryfileName });
+      const connection = await pool.connection();
+
+      try {
+        await connection.execute.query(
+          SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
+        );
+
+        await connection.withTransaction(async () => {
+          await connection.execute.query(
+            SQL`INSERT INTO test_table (id, value) VALUES (1, "test")`,
+          );
+        });
+
+        const rows = await connection.execute.query<{ count: number }>(
+          SQL`SELECT COUNT(*) as count FROM test_table`,
+        );
+        assert.strictEqual(rows.rows[0]?.count, 1);
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+    });
+
+    void it('can override to DEFERRED mode', async () => {
+      const pool = sqlite3Pool({ fileName: inMemoryfileName });
+      const connection = await pool.connection();
+
+      try {
+        await connection.execute.query(
+          SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
+        );
+
+        await connection.withTransaction(
+          async () => {
+            await connection.execute.query(
+              SQL`INSERT INTO test_table (id, value) VALUES (1, "test")`,
+            );
+          },
+          { mode: 'DEFERRED' } as SQLiteTransactionOptions,
+        );
+
+        const rows = await connection.execute.query<{ count: number }>(
+          SQL`SELECT COUNT(*) as count FROM test_table`,
+        );
+        assert.strictEqual(rows.rows[0]?.count, 1);
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+    });
+
+    void it('can override to EXCLUSIVE mode', async () => {
+      const pool = sqlite3Pool({ fileName: inMemoryfileName });
+      const connection = await pool.connection();
+
+      try {
+        await connection.execute.query(
+          SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
+        );
+
+        await connection.withTransaction(
+          async () => {
+            await connection.execute.query(
+              SQL`INSERT INTO test_table (id, value) VALUES (1, "test")`,
+            );
+          },
+          { mode: 'EXCLUSIVE' } as SQLiteTransactionOptions,
+        );
+
+        const rows = await connection.execute.query<{ count: number }>(
+          SQL`SELECT COUNT(*) as count FROM test_table`,
+        );
+        assert.strictEqual(rows.rows[0]?.count, 1);
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+    });
+
+    void it('respects defaultTransactionMode from connection options', async () => {
+      const pool = sqlite3Pool({
+        fileName: inMemoryfileName,
+        defaultTransactionMode: 'DEFERRED',
+      });
+      const connection = await pool.connection();
+
+      try {
+        await connection.execute.query(
+          SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
+        );
+
+        await connection.withTransaction(async () => {
+          await connection.execute.query(
+            SQL`INSERT INTO test_table (id, value) VALUES (1, "test")`,
+          );
+        });
+
+        const rows = await connection.execute.query<{ count: number }>(
+          SQL`SELECT COUNT(*) as count FROM test_table`,
+        );
+        assert.strictEqual(rows.rows[0]?.count, 1);
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+    });
+
+    void it('transaction option mode overrides defaultTransactionMode', async () => {
+      const pool = sqlite3Pool({
+        fileName: inMemoryfileName,
+        defaultTransactionMode: 'DEFERRED',
+      });
+      const connection = await pool.connection();
+
+      try {
+        await connection.execute.query(
+          SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
+        );
+
+        await connection.withTransaction(
+          async () => {
+            await connection.execute.query(
+              SQL`INSERT INTO test_table (id, value) VALUES (1, "test")`,
+            );
+          },
+          { mode: 'IMMEDIATE' } as SQLiteTransactionOptions,
+        );
+
+        const rows = await connection.execute.query<{ count: number }>(
+          SQL`SELECT COUNT(*) as count FROM test_table`,
+        );
+        assert.strictEqual(rows.rows[0]?.count, 1);
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+    });
+  });
 });

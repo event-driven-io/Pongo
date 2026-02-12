@@ -5,8 +5,6 @@ import {
   JSONSerializer,
   tracer,
   type ConnectionPool,
-  type InferTransactionFromConnection,
-  type InferTransactionOptionsFromConnection,
   type JSONSerializationOptions,
 } from '../../../../core';
 import { defaultPostgreSqlDatabase, parseDatabaseName } from '../../core';
@@ -18,17 +16,9 @@ import {
   type PgPoolClientConnection,
 } from './connection';
 
-export type PgNativePool = ConnectionPool<
-  PgPoolClientConnection,
-  InferTransactionFromConnection<PgPoolClientConnection>,
-  InferTransactionOptionsFromConnection<PgPoolClientConnection>
->;
+export type PgNativePool = ConnectionPool<PgPoolClientConnection>;
 
-export type PgAmbientClientPool = ConnectionPool<
-  PgClientConnection,
-  InferTransactionFromConnection<PgClientConnection>,
-  InferTransactionOptionsFromConnection<PgClientConnection>
->;
+export type PgAmbientClientPool = ConnectionPool<PgClientConnection>;
 
 export type PgAmbientConnectionPool = ConnectionPool<
   PgPoolClientConnection | PgClientConnection

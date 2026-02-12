@@ -23,16 +23,14 @@ export type PgClientConnection = Connection<
   PgClientConnection,
   PgDriverType,
   PgClient,
-  DatabaseTransaction<PgClientConnection>,
-  PgTransactionOptions
+  DatabaseTransaction<PgClientConnection, PgTransactionOptions>
 >;
 
 export type PgPoolClientConnection = Connection<
   PgPoolClientConnection,
   PgDriverType,
   PgPoolClient,
-  DatabaseTransaction<PgPoolClientConnection>,
-  PgTransactionOptions
+  DatabaseTransaction<PgPoolClientConnection, PgTransactionOptions>
 >;
 
 export type PgConnection = PgPoolClientConnection | PgClientConnection;

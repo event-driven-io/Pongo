@@ -25,6 +25,10 @@ import {
   type SQLiteCommandOptions,
   type SQLiteParameters,
 } from '../../core/connections';
+import {
+  buildPragmaStatements,
+  mergePragmaOptions,
+} from '../../core/connections/pragmas';
 import { sqliteFormatter } from '../../core/sql/formatter';
 
 export type SQLite3DriverType = SQLiteDriverType<'sqlite3'>;
@@ -53,8 +57,7 @@ export type SQLite3Connection<
   SQLite3Connection,
   SQLite3DriverType,
   ClientType,
-  SQLiteTransaction<SQLite3Connection>,
-  SQLiteTransactionOptions
+  SQLiteTransaction<SQLite3Connection, SQLiteTransactionOptions>
 >;
 
 export const sqlite3Client = (
@@ -68,15 +71,21 @@ export const sqlite3Client = (
 
   const { serializer } = options;
 
+  const connectionString =
+    options.fileName ?? options.connectionString ?? InMemorySQLiteDatabase;
+
+  const finalPragmas = mergePragmaOptions(
+    String(connectionString),
+    options.pragmaOptions,
+  );
+
   const connect: () => Promise<void> = () =>
     db
-      ? Promise.resolve() // If db is already initialized, resolve immediately
+      ? Promise.resolve()
       : new Promise((resolve, reject) => {
           try {
             db = new sqlite3.Database(
-              options.fileName ??
-                options.connectionString ??
-                InMemorySQLiteDatabase,
+              connectionString,
               sqlite3.OPEN_URI | sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
               (err) => {
                 if (err) {
@@ -85,14 +94,25 @@ export const sqlite3Client = (
                 }
               },
             );
-            db.run('PRAGMA journal_mode = WAL;', (err) => {
-              if (err) {
-                reject(err);
-                return;
-              }
 
-              resolve();
-            });
+            const pragmaStatements = buildPragmaStatements(finalPragmas);
+            const applyPragma = (pragma: string, value: string | number) => {
+              return new Promise<void>((resolve, reject) => {
+                db.run(`PRAGMA ${pragma} = ${value};`, (err) => {
+                  if (err) reject(err);
+                  else resolve();
+                });
+              });
+            };
+
+            pragmaStatements
+              .reduce(
+                (promise, { pragma, value }) =>
+                  promise.then(() => applyPragma(pragma, value)),
+                Promise.resolve(),
+              )
+              .then(() => resolve())
+              .catch(reject);
           } catch (error) {
             reject(error as Error);
           }
