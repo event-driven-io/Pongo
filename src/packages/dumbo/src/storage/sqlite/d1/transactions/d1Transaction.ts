@@ -13,7 +13,10 @@ import {
 } from '../connections';
 import { d1SQLExecutor } from '../execute';
 
-export type D1Transaction = DatabaseTransaction<D1Connection>;
+export type D1Transaction = DatabaseTransaction<
+  D1Connection,
+  D1TransactionOptions
+>;
 
 export type D1TransactionOptions = DatabaseTransactionOptions & {
   d1Session?: D1SessionOptions;
@@ -127,5 +130,6 @@ export const d1Transaction =
           return Promise.resolve(sessionClient);
         },
       }),
+      _transactionOptions: options ?? {},
     };
   };

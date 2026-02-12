@@ -1,8 +1,7 @@
 import type { SQLiteDriverType } from '..';
-import type { JSONSerializer, SQLFormatter } from '../../../../core';
+import type { JSONSerializer, SQLFormatter, SQL } from '../../../../core';
 import {
   mapSQLQueryResult,
-  SQL,
   tracer,
   type BatchSQLCommandOptions,
   type DbSQLExecutor,
@@ -47,10 +46,6 @@ export const sqliteSQLExecutor = <
     sql: SQL,
     options?: SQLQueryOptions,
   ): Promise<QueryResult<Result>> => {
-    if (options?.timeoutMs) {
-      await client.query(SQL`PRAGMA busy_timeout = ${options.timeoutMs}`);
-    }
-
     tracer.info('db:sql:query', {
       query: (formatter ?? sqliteFormatter).format(sql, { serializer }).query,
       params: (formatter ?? sqliteFormatter).format(sql, { serializer }).params,
@@ -80,10 +75,6 @@ export const sqliteSQLExecutor = <
     sqls: SQL[],
     options?: SQLQueryOptions,
   ): Promise<QueryResult<Result>[]> => {
-    if (options?.timeoutMs) {
-      await client.query(SQL`PRAGMA busy_timeout = ${options.timeoutMs}`);
-    }
-
     try {
       const results = await client.batchQuery<Result>(sqls, options);
 
@@ -107,10 +98,6 @@ export const sqliteSQLExecutor = <
     sql: SQL,
     options?: SQLCommandOptions,
   ): Promise<QueryResult<Result>> => {
-    if (options?.timeoutMs) {
-      await client.query(SQL`PRAGMA busy_timeout = ${options.timeoutMs}`);
-    }
-
     tracer.info('db:sql:command', {
       query: (formatter ?? sqliteFormatter).format(sql, { serializer }).query,
       params: (formatter ?? sqliteFormatter).format(sql, { serializer }).params,
@@ -129,10 +116,6 @@ export const sqliteSQLExecutor = <
     sqls: SQL[],
     options?: BatchSQLCommandOptions,
   ): Promise<QueryResult<Result>[]> => {
-    if (options?.timeoutMs) {
-      await client.query(SQL`PRAGMA busy_timeout = ${options.timeoutMs}`);
-    }
-
     try {
       return await client.batchCommand<Result>(sqls, options);
     } catch (error) {

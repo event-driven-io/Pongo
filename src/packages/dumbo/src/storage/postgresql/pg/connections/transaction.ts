@@ -12,7 +12,10 @@ import {
   type PgPoolOrClient,
 } from './connection';
 
-export type PgTransaction = DatabaseTransaction<PgConnection>;
+export type PgTransaction = DatabaseTransaction<
+  PgConnection,
+  PgTransactionOptions
+>;
 
 export type PgIsolationLevel =
   | 'READ UNCOMMITTED'
@@ -68,4 +71,5 @@ export const pgTransaction =
     execute: sqlExecutor(pgSQLExecutor({ serializer }), {
       connect: () => getClient,
     }),
+    _transactionOptions: options ?? {},
   });

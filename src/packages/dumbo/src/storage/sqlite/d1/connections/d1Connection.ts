@@ -5,11 +5,7 @@ import {
   type SQLiteDriverType,
 } from '../../core';
 import { mapD1Error } from '../errors/errorMapper';
-import {
-  d1Transaction,
-  type D1Transaction,
-  type D1TransactionOptions,
-} from '../transactions';
+import { d1Transaction, type D1Transaction } from '../transactions';
 import {
   d1Client,
   type D1Client,
@@ -24,8 +20,7 @@ export type D1Connection = Connection<
   D1Connection,
   D1DriverType,
   D1Client,
-  D1Transaction,
-  D1TransactionOptions
+  D1Transaction
 > & {
   d1Session: (constraintOrBookmark?: D1SessionOptions) => Promise<D1Connection>;
   withD1Session: <Result = never>(
