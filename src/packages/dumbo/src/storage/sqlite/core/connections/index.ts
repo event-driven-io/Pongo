@@ -229,6 +229,7 @@ export type SqliteAmbientClientConnectionOptions<
     TransactionOptionsType
   >;
   allowNestedTransactions?: boolean;
+  defaultTransactionMode?: SQLiteTransactionMode;
   serializer: JSONSerializer;
   errorMapper?: SQLiteErrorMapper;
 };
@@ -244,6 +245,7 @@ export const sqliteAmbientClientConnection = <
     driverType,
     initTransaction,
     allowNestedTransactions,
+    defaultTransactionMode,
     serializer,
     errorMapper,
   } = options;
@@ -259,6 +261,7 @@ export const sqliteAmbientClientConnection = <
           connection,
           allowNestedTransactions ?? false,
           serializer,
+          defaultTransactionMode,
         )),
     executor: ({ serializer }) =>
       sqliteSQLExecutor(driverType, serializer, undefined, errorMapper),
@@ -313,6 +316,7 @@ export const sqliteClientConnection = <
         connection,
         connectionOptions.transactionOptions?.allowNestedTransactions ?? false,
         serializer,
+        connectionOptions.defaultTransactionMode,
       ),
     executor: ({ serializer }) =>
       sqliteSQLExecutor(options.driverType, serializer),
@@ -359,6 +363,7 @@ export const sqlitePoolClientConnection = <
         connection,
         connectionOptions.transactionOptions?.allowNestedTransactions ?? false,
         serializer,
+        connectionOptions.defaultTransactionMode,
       ),
     executor: ({ serializer }) =>
       sqliteSQLExecutor(options.driverType, serializer),
@@ -401,8 +406,11 @@ export const DEFAULT_SQLITE_PRAGMA_OPTIONS: SQLitePragmaOptions = {
   busy_timeout: 5000,
 };
 
+export type SQLiteTransactionMode = 'IMMEDIATE' | 'DEFERRED' | 'EXCLUSIVE';
+
 export type SQLiteClientOptions = {
   pragmaOptions?: Partial<SQLitePragmaOptions>;
+  defaultTransactionMode?: SQLiteTransactionMode;
 };
 
 export * from './connectionString';

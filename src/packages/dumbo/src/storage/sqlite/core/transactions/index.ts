@@ -17,12 +17,17 @@ export type SQLiteTransaction<
   ConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
 > = DatabaseTransaction<ConnectionType>;
 
+export type SQLiteTransactionOptions = DatabaseTransactionOptions & {
+  mode?: 'IMMEDIATE' | 'DEFERRED' | 'EXCLUSIVE';
+};
+
 export const sqliteTransaction =
   <ConnectionType extends AnySQLiteConnection = AnySQLiteConnection>(
     driverType: ConnectionType['driverType'],
     connection: () => ConnectionType,
     allowNestedTransactions: boolean,
     serializer: JSONSerializer,
+    defaultTransactionMode?: 'IMMEDIATE' | 'DEFERRED' | 'EXCLUSIVE',
   ) =>
   (
     getClient: Promise<InferDbClientFromConnection<ConnectionType>>,
@@ -31,7 +36,7 @@ export const sqliteTransaction =
         client: InferDbClientFromConnection<ConnectionType>,
         error?: unknown,
       ) => Promise<void>;
-    } & DatabaseTransactionOptions,
+    } & SQLiteTransactionOptions,
   ): DatabaseTransaction<ConnectionType> => {
     const transactionCounter = transactionNestingCounter();
     allowNestedTransactions =
@@ -55,7 +60,8 @@ export const sqliteTransaction =
           transactionCounter.increment();
         }
 
-        await client.query(SQL`BEGIN TRANSACTION`);
+        const mode = options?.mode ?? defaultTransactionMode ?? 'IMMEDIATE';
+        await client.query(SQL`BEGIN ${SQL.plain(mode)} TRANSACTION`);
       },
       commit: async function () {
         const client = (await getClient) as SQLiteClientOrPoolClient;
