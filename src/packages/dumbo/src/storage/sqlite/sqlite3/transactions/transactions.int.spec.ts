@@ -354,6 +354,131 @@ void describe('SQLite3 Transactions', () => {
           await pool.close();
         }
       });
+
+      void it('accepts transaction mode DEFERRED', async () => {
+        const pool = sqlite3Pool({ fileName });
+        try {
+          await pool.execute.command(
+            SQL`CREATE TABLE test_mode (id INTEGER PRIMARY KEY, value TEXT)`,
+          );
+          await pool.execute.command(
+            SQL`INSERT INTO test_mode (id, value) VALUES (1, 'test')`,
+          );
+
+          await pool.withTransaction<void>(
+            async (tx) => {
+              const result = await tx.execute.query(
+                SQL`SELECT value FROM test_mode WHERE id = 1`,
+              );
+              assert.strictEqual(result.rows[0]?.value, 'test');
+              return { success: true, result: undefined };
+            },
+            { mode: 'DEFERRED' },
+          );
+        } finally {
+          await pool.close();
+        }
+      });
+
+      void it('accepts transaction mode IMMEDIATE', async () => {
+        const pool = sqlite3Pool({ fileName });
+        try {
+          await pool.execute.command(
+            SQL`CREATE TABLE test_mode_imm (id INTEGER PRIMARY KEY, value TEXT)`,
+          );
+          await pool.execute.command(
+            SQL`INSERT INTO test_mode_imm (id, value) VALUES (1, 'test')`,
+          );
+
+          await pool.withTransaction<void>(
+            async (tx) => {
+              const result = await tx.execute.query(
+                SQL`SELECT value FROM test_mode_imm WHERE id = 1`,
+              );
+              assert.strictEqual(result.rows[0]?.value, 'test');
+              return { success: true, result: undefined };
+            },
+            { mode: 'IMMEDIATE' },
+          );
+        } finally {
+          await pool.close();
+        }
+      });
+
+      void it('accepts transaction mode EXCLUSIVE', async () => {
+        const pool = sqlite3Pool({ fileName });
+        try {
+          await pool.execute.command(
+            SQL`CREATE TABLE test_mode_exc (id INTEGER PRIMARY KEY, value TEXT)`,
+          );
+          await pool.execute.command(
+            SQL`INSERT INTO test_mode_exc (id, value) VALUES (1, 'test')`,
+          );
+
+          await pool.withTransaction<void>(
+            async (tx) => {
+              const result = await tx.execute.query(
+                SQL`SELECT value FROM test_mode_exc WHERE id = 1`,
+              );
+              assert.strictEqual(result.rows[0]?.value, 'test');
+              return { success: true, result: undefined };
+            },
+            { mode: 'EXCLUSIVE' },
+          );
+        } finally {
+          await pool.close();
+        }
+      });
+
+      void it('accepts readonly in transaction options', async () => {
+        const pool = sqlite3Pool({ fileName });
+        try {
+          await pool.execute.command(
+            SQL`CREATE TABLE test_readonly (id INTEGER PRIMARY KEY, value TEXT)`,
+          );
+          await pool.execute.command(
+            SQL`INSERT INTO test_readonly (id, value) VALUES (1, 'test')`,
+          );
+
+          await pool.withTransaction<void>(
+            async (tx) => {
+              const result = await tx.execute.query(
+                SQL`SELECT value FROM test_readonly WHERE id = 1`,
+              );
+              assert.strictEqual(result.rows[0]?.value, 'test');
+              return { success: true, result: undefined };
+            },
+            { readonly: true },
+          );
+        } finally {
+          await pool.close();
+        }
+      });
+
+      void it('accepts both mode and readonly in transaction options', async () => {
+        const pool = sqlite3Pool({ fileName });
+        try {
+          await pool.execute.command(
+            SQL`CREATE TABLE test_mode_readonly (id INTEGER PRIMARY KEY, value TEXT)`,
+          );
+          await pool.execute.command(
+            SQL`INSERT INTO test_mode_readonly (id, value) VALUES (1, 'test')`,
+          );
+
+          await pool.withTransaction<void>(
+            async (tx) => {
+              const result = await tx.execute.query(
+                SQL`SELECT value FROM test_mode_readonly WHERE id = 1`,
+              );
+              assert.strictEqual(result.rows[0]?.value, 'test');
+              return { success: true, result: undefined };
+            },
+            { mode: 'DEFERRED', readonly: true },
+          );
+        } finally {
+          await pool.close();
+        }
+      });
     });
   }
 });

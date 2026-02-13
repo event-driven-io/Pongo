@@ -17,6 +17,12 @@ export type SQLiteTransaction<
   ConnectionType extends AnySQLiteConnection = AnySQLiteConnection,
 > = DatabaseTransaction<ConnectionType>;
 
+export type SQLiteTransactionMode = 'DEFERRED' | 'IMMEDIATE' | 'EXCLUSIVE';
+
+export type SQLiteTransactionOptions = DatabaseTransactionOptions & {
+  mode?: SQLiteTransactionMode;
+};
+
 export const sqliteTransaction =
   <ConnectionType extends AnySQLiteConnection = AnySQLiteConnection>(
     driverType: ConnectionType['driverType'],

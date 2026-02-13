@@ -1,9 +1,13 @@
 import pg from 'pg';
 import type { JSONSerializer } from '../../../../core';
-import { createConnection, type Connection } from '../../../../core';
+import {
+  createConnection,
+  type Connection,
+  type DatabaseTransaction,
+} from '../../../../core';
 import type { PostgreSQLDriverType } from '../../core';
 import { pgSQLExecutor } from '../execute';
-import { pgTransaction } from './transaction';
+import { pgTransaction, type PgTransactionOptions } from './transaction';
 
 export type PgDriverType = PostgreSQLDriverType<'pg'>;
 export const PgDriverType: PgDriverType = 'PostgreSQL:pg';
@@ -18,13 +22,17 @@ export type PgPoolOrClient = pg.Pool | PgPoolClient | PgClient;
 export type PgClientConnection = Connection<
   PgClientConnection,
   PgDriverType,
-  PgClient
+  PgClient,
+  DatabaseTransaction<PgClientConnection>,
+  PgTransactionOptions
 >;
 
 export type PgPoolClientConnection = Connection<
   PgPoolClientConnection,
   PgDriverType,
-  PgPoolClient
+  PgPoolClient,
+  DatabaseTransaction<PgPoolClientConnection>,
+  PgTransactionOptions
 >;
 
 export type PgConnection = PgPoolClientConnection | PgClientConnection;

@@ -4,7 +4,6 @@ import {
   BatchCommandNoChangesError,
   SQL,
   type Connection,
-  type DatabaseTransactionOptions,
   type QueryResult,
   type QueryResultRow,
   type SQLQueryOptions,
@@ -16,6 +15,7 @@ import type {
   SQLiteDriverType,
   SQLiteFileNameOrConnectionString,
   SQLiteTransaction,
+  SQLiteTransactionOptions,
 } from '../../core';
 import {
   InMemorySQLiteDatabase,
@@ -54,7 +54,7 @@ export type SQLite3Connection<
   SQLite3DriverType,
   ClientType,
   SQLiteTransaction<SQLite3Connection>,
-  DatabaseTransactionOptions
+  SQLiteTransactionOptions
 >;
 
 export const sqlite3Client = (

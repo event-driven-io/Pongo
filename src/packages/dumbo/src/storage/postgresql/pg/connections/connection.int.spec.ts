@@ -306,5 +306,75 @@ void describe('pg', () => {
         await ambientPool.close();
       }
     });
+
+    void it('accepts isolation level in transaction options', async () => {
+      const pool = pgPool({ connectionString });
+      try {
+        await pool.withTransaction(
+          async (tx) => {
+            await tx.execute.query(SQL`SELECT 1`);
+          },
+          { isolationLevel: 'READ COMMITTED' },
+        );
+      } finally {
+        await pool.close();
+      }
+    });
+
+    void it('accepts readonly in transaction options', async () => {
+      const pool = pgPool({ connectionString });
+      try {
+        await pool.execute.command(
+          SQL`CREATE TABLE IF NOT EXISTS test_readonly (id INTEGER PRIMARY KEY, value TEXT)`,
+        );
+        await pool.execute.command(
+          SQL`INSERT INTO test_readonly (id, value) VALUES (1, 'test')`,
+        );
+
+        await pool.withTransaction(
+          async (tx) => {
+            const result = await tx.execute.query(
+              SQL`SELECT value FROM test_readonly WHERE id = 1`,
+            );
+            if (result.rows[0]?.value !== 'test') {
+              throw new Error('Read-only transaction query failed');
+            }
+          },
+          { readonly: true },
+        );
+
+        await pool.execute.command(SQL`DROP TABLE test_readonly`);
+      } finally {
+        await pool.close();
+      }
+    });
+
+    void it('accepts both isolation level and readonly in transaction options', async () => {
+      const pool = pgPool({ connectionString });
+      try {
+        await pool.execute.command(
+          SQL`CREATE TABLE IF NOT EXISTS test_iso_readonly (id INTEGER PRIMARY KEY, value TEXT)`,
+        );
+        await pool.execute.command(
+          SQL`INSERT INTO test_iso_readonly (id, value) VALUES (1, 'test')`,
+        );
+
+        await pool.withTransaction(
+          async (tx) => {
+            const result = await tx.execute.query(
+              SQL`SELECT value FROM test_iso_readonly WHERE id = 1`,
+            );
+            if (result.rows[0]?.value !== 'test') {
+              throw new Error('Transaction query failed');
+            }
+          },
+          { isolationLevel: 'SERIALIZABLE', readonly: true },
+        );
+
+        await pool.execute.command(SQL`DROP TABLE test_iso_readonly`);
+      } finally {
+        await pool.close();
+      }
+    });
   });
 });
