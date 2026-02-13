@@ -9,6 +9,7 @@ import type {
   AnyConnection,
   InferDbClientFromConnection,
   WithConnectionFactory,
+  WithConnectionOptions,
 } from './connection';
 import {
   transactionFactoryWithAmbientConnection,
@@ -55,7 +56,7 @@ export const createAmbientConnectionPool = <
     getConnection: () => connection,
     execute: connection.execute,
     transaction: (options) => connection.transaction(options),
-    withConnection: (handle) => handle(connection),
+    withConnection: (handle, _options?) => handle(connection),
     withTransaction: (handle, options) =>
       connection.withTransaction(handle, options),
   });
@@ -92,6 +93,7 @@ export const createSingletonConnectionPool = <
     }),
     withConnection: <Result>(
       handle: (connection: ConnectionType) => Promise<Result>,
+      _options?: WithConnectionOptions,
     ) =>
       executeInAmbientConnection<ConnectionType, Result>(handle, {
         connection: getExistingOrNewConnectionAsync,
@@ -178,7 +180,10 @@ export const createConnectionPool = <ConnectionType extends AnyConnection>(
   const withConnection =
     'withConnection' in pool
       ? pool.withConnection
-      : <Result>(handle: (connection: ConnectionType) => Promise<Result>) =>
+      : <Result>(
+          handle: (connection: ConnectionType) => Promise<Result>,
+          _options?: WithConnectionOptions,
+        ) =>
           executeInNewConnection<ConnectionType, Result>(handle, {
             connection,
           });

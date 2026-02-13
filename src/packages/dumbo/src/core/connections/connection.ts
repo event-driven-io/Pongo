@@ -69,6 +69,10 @@ export type ConnectionFactory<
   ConnectionType extends AnyConnection = AnyConnection,
 > = (options: ConnectionOptions<ConnectionType>) => ConnectionType;
 
+export type WithConnectionOptions = {
+  readonly?: boolean;
+};
+
 export interface WithConnectionFactory<
   ConnectionType extends AnyConnection = AnyConnection,
 > {
@@ -76,6 +80,7 @@ export interface WithConnectionFactory<
 
   withConnection: <Result = unknown>(
     handle: (connection: ConnectionType) => Promise<Result>,
+    options?: WithConnectionOptions,
   ) => Promise<Result>;
 }
 

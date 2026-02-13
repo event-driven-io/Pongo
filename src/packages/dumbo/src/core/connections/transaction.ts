@@ -20,6 +20,7 @@ export type AnyDatabaseTransaction = DatabaseTransaction<any>;
 
 export type DatabaseTransactionOptions = {
   allowNestedTransactions?: boolean;
+  readonly?: boolean;
 };
 
 export interface WithDatabaseTransactionFactory<
