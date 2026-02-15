@@ -13,7 +13,7 @@ import { Command } from 'commander';
 import repl from 'node:repl';
 import {
   pongoClient,
-  pongoDatabaseDriverRegistry,
+  pongoDriverRegistry,
   pongoSchema,
   type PongoClient,
   type PongoClientOptions,
@@ -151,7 +151,7 @@ const startRepl = async (options: {
   const { databaseType } = parseConnectionString(connectionString);
   const driverType = `${databaseType}:${options.databaseDriver}` as const;
 
-  const driver = pongoDatabaseDriverRegistry.tryGet(driverType);
+  const driver = pongoDriverRegistry.tryGet(driverType);
 
   if (driver === null) {
     console.error(

@@ -1,9 +1,9 @@
-import type { JSONSerializer } from '@event-driven-io/dumbo';
 import type {
   AnyConnection,
   DatabaseDriverType,
   DatabaseTransaction,
   JSONSerializationOptions,
+  JSONSerializer,
   MigrationStyle,
   QueryResult,
   QueryResultRow,
@@ -17,10 +17,7 @@ import type {
 import { v7 as uuid } from 'uuid';
 import type { PongoCollectionSchemaComponent } from '../collection';
 import type { PongoDatabaseSchemaComponent } from '../database/pongoDatabaseSchemaComponent';
-import type {
-  AnyPongoDatabaseDriver,
-  ExtractPongoDatabaseDriverOptions,
-} from '../drivers';
+import type { AnyPongoDriver, ExtractPongoDriverOptions } from '../drivers';
 import { ConcurrencyError } from '../errors';
 import type { PongoClientSchema } from '../schema';
 
@@ -44,10 +41,10 @@ export interface PongoClient<
 }
 
 export type PongoClientOptions<
-  DatabaseDriver extends AnyPongoDatabaseDriver = AnyPongoDatabaseDriver,
+  DatabaseDriver extends AnyPongoDriver = AnyPongoDriver,
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
 > =
-  ExtractPongoDatabaseDriverOptions<DatabaseDriver> extends infer Options
+  ExtractPongoDriverOptions<DatabaseDriver> extends infer Options
     ? Options extends unknown
       ? {
           driver: DatabaseDriver;

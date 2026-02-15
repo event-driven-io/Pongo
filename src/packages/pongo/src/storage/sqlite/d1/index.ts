@@ -4,21 +4,20 @@ import { D1DriverType, d1Pool } from '@event-driven-io/dumbo/cloudflare';
 import {
   PongoCollectionSchemaComponent,
   PongoDatabase,
-  pongoDatabaseDriverRegistry,
   PongoDatabaseSchemaComponent,
+  pongoDriverRegistry,
   pongoSchema,
-  type PongoDatabaseDriver,
-  type PongoDatabaseDriverOptions,
   type PongoDb,
+  type PongoDriver,
+  type PongoDriverOptions,
 } from '../../../core';
 import { pongoCollectionSQLiteMigrations, sqliteSQLBuilder } from '../core';
 
 export type SQLitePongoClientOptions = object;
 
-type D1DatabaseDriverOptions = PongoDatabaseDriverOptions<never> &
-  D1PoolOptions;
+type D1DatabaseDriverOptions = PongoDriverOptions<never> & D1PoolOptions;
 
-const d1DatabaseDriver: PongoDatabaseDriver<
+const d1PongoDriver: PongoDriver<
   PongoDb<D1DriverType>,
   D1DatabaseDriverOptions
 > = {
@@ -51,10 +50,10 @@ const d1DatabaseDriver: PongoDatabaseDriver<
   },
 };
 
-export const useSqlite3DatabaseDriver = () => {
-  pongoDatabaseDriverRegistry.register(D1DriverType, d1DatabaseDriver);
+export const useD1PongoDriver = () => {
+  pongoDriverRegistry.register(D1DriverType, d1PongoDriver);
 };
 
-useSqlite3DatabaseDriver();
+useD1PongoDriver();
 
-export { d1DatabaseDriver as d1Driver, d1DatabaseDriver as databaseDriver };
+export { d1PongoDriver as d1Driver, d1PongoDriver as pongoDriver };

@@ -6,24 +6,24 @@ import {
 import {
   PongoCollectionSchemaComponent,
   PongoDatabase,
-  pongoDatabaseDriverRegistry,
   PongoDatabaseSchemaComponent,
+  pongoDriverRegistry,
   pongoSchema,
-  type PongoDatabaseDriver,
-  type PongoDatabaseDriverOptions,
   type PongoDb,
+  type PongoDriver,
+  type PongoDriverOptions,
 } from '../../../core';
 import { pongoCollectionSQLiteMigrations, sqliteSQLBuilder } from '../core';
 
 export type SQLitePongoClientOptions = object;
 
 type SQLiteDatabaseDriverOptions =
-  PongoDatabaseDriverOptions<SQLitePongoClientOptions> & {
+  PongoDriverOptions<SQLitePongoClientOptions> & {
     databaseName?: string | undefined;
     connectionString: string;
   };
 
-const sqlite3DatabaseDriver: PongoDatabaseDriver<
+const sqlite3PongoDriver: PongoDriver<
   PongoDb<SQLite3DriverType>,
   SQLiteDatabaseDriverOptions
 > = {
@@ -61,16 +61,13 @@ const sqlite3DatabaseDriver: PongoDatabaseDriver<
   },
 };
 
-export const useSqlite3DatabaseDriver = () => {
-  pongoDatabaseDriverRegistry.register(
-    SQLite3DriverType,
-    sqlite3DatabaseDriver,
-  );
+export const useSqlite3PongoDriver = () => {
+  pongoDriverRegistry.register(SQLite3DriverType, sqlite3PongoDriver);
 };
 
-useSqlite3DatabaseDriver();
+useSqlite3PongoDriver();
 
 export {
-  sqlite3DatabaseDriver as databaseDriver,
-  sqlite3DatabaseDriver as sqlite3Driver,
+  sqlite3PongoDriver as pongoDriver,
+  sqlite3PongoDriver as sqlite3Driver,
 };

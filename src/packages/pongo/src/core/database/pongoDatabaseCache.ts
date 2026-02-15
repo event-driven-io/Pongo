@@ -4,10 +4,7 @@ import {
   type JSONSerializationOptions,
   type MigrationStyle,
 } from '@event-driven-io/dumbo';
-import type {
-  PongoDatabaseDriver,
-  PongoDatabaseFactoryOptions,
-} from '../drivers';
+import type { PongoDatabaseFactoryOptions, PongoDriver } from '../drivers';
 import type { PongoClientSchema, PongoCollectionSchema } from '../schema';
 import type { PongoDb } from '../typing';
 
@@ -18,7 +15,7 @@ export const PongoDatabaseCache = <
   driver,
   typedSchema,
 }: {
-  driver: PongoDatabaseDriver<Database>;
+  driver: PongoDriver<Database>;
   typedSchema?: TypedClientSchema | undefined;
 }) => {
   const dbClients = new Map<string, PongoDb>();

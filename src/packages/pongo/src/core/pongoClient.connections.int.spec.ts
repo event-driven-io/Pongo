@@ -10,7 +10,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { after, before, describe, it } from 'node:test';
 import pg from 'pg';
-import { databaseDriver } from '../pg';
+import { pongoDriver } from '../pg';
 import { pongoClient } from './pongoClient';
 
 type User = {
@@ -35,7 +35,7 @@ void describe('Pongo collection', () => {
     poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
   ) => {
     const pongo = pongoClient({
-      driver: databaseDriver,
+      driver: pongoDriver,
       connectionString,
       connectionOptions: isPgNativePool(poolOrClient)
         ? undefined
@@ -94,7 +94,7 @@ void describe('Pongo collection', () => {
       try {
         await pool.withConnection(async (connection) => {
           const pongo = pongoClient({
-            driver: databaseDriver,
+            driver: pongoDriver,
             connectionString,
             connectionOptions: {
               connection,
@@ -117,7 +117,7 @@ void describe('Pongo collection', () => {
       try {
         await pool.withTransaction(async ({ connection }) => {
           const pongo = pongoClient({
-            driver: databaseDriver,
+            driver: pongoDriver,
             connectionString,
             connectionOptions: { connection },
           });

@@ -7,7 +7,7 @@ import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import assert from 'assert';
 import { after, before, beforeEach, describe, it } from 'node:test';
-import { databaseDriver } from '..';
+import { pongoDriver } from '..';
 import { pongoClient, pongoSchema, type PongoClient } from '../../../../core';
 
 void describe('Migration Integration Tests', () => {
@@ -28,7 +28,7 @@ void describe('Migration Integration Tests', () => {
     connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
     pool = dumbo({ connectionString });
     client = pongoClient({
-      driver: databaseDriver,
+      driver: pongoDriver,
       connectionString,
       schema: { autoMigration: 'CreateOrUpdate', definition: schema },
     });

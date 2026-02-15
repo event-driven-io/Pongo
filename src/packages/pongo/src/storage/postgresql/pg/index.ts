@@ -9,12 +9,12 @@ import type pg from 'pg';
 import {
   PongoCollectionSchemaComponent,
   PongoDatabase,
-  pongoDatabaseDriverRegistry,
   PongoDatabaseSchemaComponent,
+  pongoDriverRegistry,
   pongoSchema,
-  type PongoDatabaseDriver,
-  type PongoDatabaseDriverOptions,
   type PongoDb,
+  type PongoDriver,
+  type PongoDriverOptions,
 } from '../../../core';
 import {
   pongoCollectionPostgreSQLMigrations,
@@ -54,13 +54,12 @@ export type NotPooledPongoOptions =
       pooled?: false;
     };
 
-type PgDatabaseDriverOptions =
-  PongoDatabaseDriverOptions<PgPongoClientOptions> & {
-    databaseName?: string | undefined;
-    connectionString: string;
-  };
+type PgDatabaseDriverOptions = PongoDriverOptions<PgPongoClientOptions> & {
+  databaseName?: string | undefined;
+  connectionString: string;
+};
 
-const pgDatabaseDriver: PongoDatabaseDriver<
+const pgPongoDriver: PongoDriver<
   PongoDb<PgDriverType>,
   PgDatabaseDriverOptions
 > = {
@@ -101,10 +100,10 @@ const pgDatabaseDriver: PongoDatabaseDriver<
   },
 };
 
-export const usePgDatabaseDriver = () => {
-  pongoDatabaseDriverRegistry.register(PgDriverType, pgDatabaseDriver);
+export const usePgPongoDriver = () => {
+  pongoDriverRegistry.register(PgDriverType, pgPongoDriver);
 };
 
-usePgDatabaseDriver();
+usePgPongoDriver();
 
-export { pgDatabaseDriver as databaseDriver, pgDatabaseDriver as pgDriver };
+export { pgPongoDriver as pgDriver, pgPongoDriver as pongoDriver };

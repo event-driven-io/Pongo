@@ -1,7 +1,7 @@
 import { JSONSerializer } from '@event-driven-io/dumbo';
 import { PongoDatabaseCache } from './database';
 import type {
-  AnyPongoDatabaseDriver,
+  AnyPongoDriver,
   ExtractPongoDatabaseTypeFromDriver,
 } from './drivers';
 import { pongoSession } from './pongoSession';
@@ -18,7 +18,7 @@ import type {
 } from './typing';
 
 export const pongoClient = <
-  DatabaseDriver extends AnyPongoDatabaseDriver,
+  DatabaseDriver extends AnyPongoDriver,
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
 >(
   options: PongoClientOptions<DatabaseDriver, TypedClientSchema>,

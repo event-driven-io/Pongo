@@ -7,20 +7,19 @@ import type {
 import type { PongoCollectionSchema, PongoDbSchema } from '../schema';
 import type { AnyPongoDb, PongoDb } from '../typing';
 
-export type PongoDatabaseDriverOptions<ConnectionOptions = unknown> = {
+export type PongoDriverOptions<ConnectionOptions = unknown> = {
   connectionOptions?: ConnectionOptions | undefined;
 } & JSONSerializationOptions;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyPongoDatabaseDriverOptions = PongoDatabaseDriverOptions<any>;
+export type AnyPongoDriverOptions = PongoDriverOptions<any>;
 
 export type PongoDatabaseFactoryOptions<
   CollectionsSchema extends Record<string, PongoCollectionSchema> = Record<
     string,
     PongoCollectionSchema
   >,
-  DriverOptions extends AnyPongoDatabaseDriverOptions =
-    AnyPongoDatabaseDriverOptions,
+  DriverOptions extends AnyPongoDriverOptions = AnyPongoDriverOptions,
 > = {
   databaseName?: string | undefined;
   schema?:
@@ -33,18 +32,9 @@ export type PongoDatabaseFactoryOptions<
   errors?: { throwOnOperationFailures?: boolean } | undefined;
 } & DriverOptions;
 
-export type DatabaseDriverOptionsWithDatabaseName = {
-  databaseName?: string | undefined;
-};
-
-export type DatabaseDriverOptionsWithConnectionString = {
-  connectionString?: string | undefined;
-};
-
-export interface PongoDatabaseDriver<
+export interface PongoDriver<
   Database extends AnyPongoDb = AnyPongoDb,
-  DriverOptions extends AnyPongoDatabaseDriverOptions =
-    AnyPongoDatabaseDriverOptions,
+  DriverOptions extends AnyPongoDriverOptions = AnyPongoDriverOptions,
 > {
   driverType: Database['driverType'];
   databaseFactory<
@@ -57,30 +47,25 @@ export interface PongoDatabaseDriver<
   ): Database & PongoDb<Database['driverType']>;
 }
 
-export type AnyPongoDatabaseDriver = PongoDatabaseDriver<
-  AnyPongoDb,
-  AnyPongoDatabaseDriverOptions
->;
+export type AnyPongoDriver = PongoDriver<AnyPongoDb, AnyPongoDriverOptions>;
 
-export type ExtractPongoDatabaseDriverOptions<DatabaseDriver> =
+export type ExtractPongoDriverOptions<DatabaseDriver> =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  DatabaseDriver extends PongoDatabaseDriver<any, infer O> ? O : never;
+  DatabaseDriver extends PongoDriver<any, infer O> ? O : never;
 
 export type ExtractPongoDatabaseTypeFromDriver<DatabaseDriver> =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  DatabaseDriver extends PongoDatabaseDriver<infer D, any> ? D : never;
+  DatabaseDriver extends PongoDriver<infer D, any> ? D : never;
 
-export const PongoDatabaseDriverRegistry = () => {
+export const PongoDriverRegistry = () => {
   const drivers = new Map<
     DatabaseDriverType,
-    PongoDatabaseDriver | (() => Promise<PongoDatabaseDriver>)
+    PongoDriver | (() => Promise<PongoDriver>)
   >();
 
   const register = <Database extends AnyPongoDb = AnyPongoDb>(
     driverType: Database['driverType'],
-    driver:
-      | PongoDatabaseDriver<Database>
-      | (() => Promise<PongoDatabaseDriver<Database>>),
+    driver: PongoDriver<Database> | (() => Promise<PongoDriver<Database>>),
   ): void => {
     const entry = drivers.get(driverType);
     if (
@@ -92,9 +77,7 @@ export const PongoDatabaseDriverRegistry = () => {
     drivers.set(driverType, driver);
   };
 
-  const tryResolve = async <
-    Driver extends AnyPongoDatabaseDriver = AnyPongoDatabaseDriver,
-  >(
+  const tryResolve = async <Driver extends AnyPongoDriver = AnyPongoDriver>(
     driverType: Driver['driverType'],
   ): Promise<Driver | null> => {
     const entry = drivers.get(driverType);
@@ -109,9 +92,7 @@ export const PongoDatabaseDriverRegistry = () => {
     return driver as Driver;
   };
 
-  const tryGet = <
-    Driver extends AnyPongoDatabaseDriver = AnyPongoDatabaseDriver,
-  >(
+  const tryGet = <Driver extends AnyPongoDriver = AnyPongoDriver>(
     driverType: Driver['driverType'],
   ): Driver | null => {
     const entry = drivers.get(driverType);
@@ -133,11 +114,8 @@ export const PongoDatabaseDriverRegistry = () => {
 };
 
 declare global {
-  var pongoDatabaseDriverRegistry: ReturnType<
-    typeof PongoDatabaseDriverRegistry
-  >;
+  var pongoDriverRegistry: ReturnType<typeof PongoDriverRegistry>;
 }
 
-export const pongoDatabaseDriverRegistry =
-  (globalThis.pongoDatabaseDriverRegistry =
-    globalThis.pongoDatabaseDriverRegistry ?? PongoDatabaseDriverRegistry());
+export const pongoDriverRegistry = (globalThis.pongoDriverRegistry =
+  globalThis.pongoDriverRegistry ?? PongoDriverRegistry());

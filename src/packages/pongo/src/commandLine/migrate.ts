@@ -8,9 +8,9 @@ import {
 } from '@event-driven-io/dumbo';
 import { Command } from 'commander';
 import {
-  pongoDatabaseDriverRegistry,
+  pongoDriverRegistry,
   pongoSchema,
-  type AnyPongoDatabaseDriverOptions,
+  type AnyPongoDriverOptions,
   type PongoCollectionSchema,
   type PongoDatabaseFactoryOptions,
   type PongoDocument,
@@ -199,7 +199,7 @@ const getMigrations = ({
   databaseName: string | undefined;
   collectionNames: string[];
 }) => {
-  const driver = pongoDatabaseDriverRegistry.tryGet(driverType);
+  const driver = pongoDriverRegistry.tryGet(driverType);
 
   if (driver === null) {
     console.error(
@@ -212,7 +212,7 @@ const getMigrations = ({
 
   const driverOptions: PongoDatabaseFactoryOptions<
     Record<string, PongoCollectionSchema<PongoDocument>>,
-    AnyPongoDatabaseDriverOptions
+    AnyPongoDriverOptions
   > = {
     schema: { definition: dbDefinition },
     serializer: JSONSerializer,
