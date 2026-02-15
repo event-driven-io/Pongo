@@ -7,7 +7,7 @@ import type { ClientSession, WithSessionCallback } from 'mongodb';
 import {
   pongoClient,
   pongoSession,
-  type AnyPongoDatabaseDriver,
+  type AnyPongoDriver,
   type PongoClient,
   type PongoClientOptions,
   type PongoClientSchema,
@@ -15,7 +15,7 @@ import {
 import { Db } from './mongoDb';
 
 export class MongoClient<
-  DatabaseDriverType extends AnyPongoDatabaseDriver = AnyPongoDatabaseDriver,
+  DatabaseDriverType extends AnyPongoDriver = AnyPongoDriver,
   TypedClientSchema extends PongoClientSchema = PongoClientSchema,
 > {
   private pongoClient: PongoClient;
@@ -29,7 +29,7 @@ export class MongoClient<
       PongoClientOptions<DatabaseDriverType, TypedClientSchema>,
       'connectionString'
     > & {
-      driver?: AnyPongoDatabaseDriver;
+      driver?: AnyPongoDriver;
     },
   );
   constructor(
@@ -40,7 +40,7 @@ export class MongoClient<
       PongoClientOptions<DatabaseDriverType, TypedClientSchema>,
       'connectionString'
     > & {
-      driver?: AnyPongoDatabaseDriver;
+      driver?: AnyPongoDriver;
     },
   ) {
     if (typeof connectionStringOrOptions !== 'string') {
@@ -54,7 +54,7 @@ export class MongoClient<
 
     const driver =
       options?.driver ??
-      pongoDatabaseDriverRegistry.tryGet(
+      pongoDriverRegistry.tryGet(
         toDatabaseDriverType(databaseType, driverName),
       );
 

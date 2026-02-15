@@ -15,7 +15,7 @@ import {
   type PongoDb,
 } from '../../..';
 import { pongoSchema } from '../../../core';
-import { databaseDriver } from '../../../pg';
+import { pongoDriver } from '../../../pg';
 import { MongoClient, type Db } from '../../../shim';
 
 type History = { street: string };
@@ -52,7 +52,7 @@ void describe('MongoDB Compatibility Tests', () => {
       postgres.getConnectionUri(),
     );
     client = pongoClient({
-      driver: databaseDriver,
+      driver: pongoDriver,
       connectionString: postgresConnectionString,
     });
     shim = new MongoClient(postgresConnectionString);
@@ -1269,7 +1269,7 @@ void describe('MongoDB Compatibility Tests', () => {
 
     void it('should access typed collection and perform operation', async () => {
       const typedClient = pongoClient({
-        driver: databaseDriver,
+        driver: pongoDriver,
         connectionString: postgresConnectionString,
         schema: { definition: schema },
       });
@@ -1296,7 +1296,7 @@ void describe('MongoDB Compatibility Tests', () => {
 
     void it('should access collection by name and perform operation', async () => {
       const typedClient = pongoClient({
-        driver: databaseDriver,
+        driver: pongoDriver,
         connectionString: postgresConnectionString,
         schema: { definition: schema },
       });
@@ -1325,7 +1325,7 @@ void describe('MongoDB Compatibility Tests', () => {
   void describe('Serialization', () => {
     void it('should serialize and deserialize Date objects with custom serialization settings', async () => {
       const client = pongoClient({
-        driver: databaseDriver,
+        driver: pongoDriver,
         connectionString: postgresConnectionString,
         serialization: { options: { parseDates: true } },
       });
@@ -1380,7 +1380,7 @@ void describe('MongoDB Compatibility Tests', () => {
 
     void it('should serialize and deserialize bigint objects with custom serialization settings', async () => {
       const client = pongoClient({
-        driver: databaseDriver,
+        driver: pongoDriver,
         connectionString: postgresConnectionString,
         serialization: { options: { parseBigInts: true } },
       });

@@ -43,12 +43,17 @@ export type ConnectionPoolFactory<
   ConnectionPoolOptions = unknown,
 > = (options: ConnectionPoolOptions) => ConnectionPoolType;
 
+export type AmbientConnectionPoolOptions<ConnectionType extends AnyConnection> =
+  {
+    driverType: ConnectionType['driverType'];
+    connection: ConnectionType;
+  };
+
 export const createAmbientConnectionPool = <
   ConnectionType extends AnyConnection,
->(options: {
-  driverType: ConnectionType['driverType'];
-  connection: ConnectionType;
-}): ConnectionPool<ConnectionType> => {
+>(
+  options: AmbientConnectionPoolOptions<ConnectionType>,
+): ConnectionPool<ConnectionType> => {
   const { driverType, connection } = options;
 
   return createConnectionPool<ConnectionType>({
@@ -62,7 +67,7 @@ export const createAmbientConnectionPool = <
   });
 };
 
-export type CreateSingletonConnectionPoolOptions<
+export type SingletonConnectionPoolOptions<
   ConnectionType extends AnyConnection,
 > = {
   driverType: ConnectionType['driverType'];
@@ -73,7 +78,7 @@ export type CreateSingletonConnectionPoolOptions<
 export const createSingletonConnectionPool = <
   ConnectionType extends AnyConnection,
 >(
-  options: CreateSingletonConnectionPoolOptions<ConnectionType>,
+  options: SingletonConnectionPoolOptions<ConnectionType>,
 ): ConnectionPool<ConnectionType> => {
   const { driverType, getConnection } = options;
   let connection: ConnectionType | null = null;
@@ -107,7 +112,7 @@ export const createSingletonConnectionPool = <
   return result;
 };
 
-export type CreateSingletonClientPoolOptions<
+export type SingletonClientConnectionPoolOptions<
   ConnectionType extends AnyConnection,
 > = {
   driverType: ConnectionType['driverType'];
@@ -117,8 +122,10 @@ export type CreateSingletonClientPoolOptions<
   }) => ConnectionType;
 };
 
-export const createSingletonClientPool = <ConnectionType extends AnyConnection>(
-  options: CreateSingletonClientPoolOptions<ConnectionType>,
+export const createSingletonClientConnectionPool = <
+  ConnectionType extends AnyConnection,
+>(
+  options: SingletonClientConnectionPoolOptions<ConnectionType>,
 ): ConnectionPool<ConnectionType> => {
   const { driverType, dbClient } = options;
 

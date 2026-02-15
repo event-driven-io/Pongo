@@ -12,7 +12,7 @@ import type { Db as MongoDb, ObjectId } from 'mongodb';
 import { MongoClient as OriginalMongoClient } from 'mongodb';
 import { after, before, describe, it } from 'node:test';
 import { v7 as uuid } from 'uuid';
-import { pgDriver, usePgDatabaseDriver } from '../../../pg';
+import { pgDriver, usePgPongoDriver } from '../../../pg';
 import { MongoClient, type Db } from '../../../shim';
 
 type History = { street: string };
@@ -44,7 +44,7 @@ void describe('MongoDB Compatibility Tests', () => {
   let mongoDb: MongoDb;
 
   before(async () => {
-    usePgDatabaseDriver();
+    usePgPongoDriver();
 
     postgres = await new PostgreSqlContainer('postgres:18.0').start();
     postgresConnectionString = PostgreSQLConnectionString(
