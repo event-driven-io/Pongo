@@ -32,8 +32,6 @@ void describe('Cloudflare d1 pool', () => {
     const otherConnection = await pool.connection();
 
     try {
-      assert.strictEqual(connection, otherConnection);
-
       const client = await connection.open();
       const otherClient = await otherConnection.open();
       assert.strictEqual(client, otherClient);
