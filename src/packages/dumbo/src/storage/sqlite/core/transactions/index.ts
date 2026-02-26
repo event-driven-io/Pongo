@@ -26,6 +26,7 @@ export type SQLiteTransactionMode = 'DEFERRED' | 'IMMEDIATE' | 'EXCLUSIVE';
 
 export type SQLiteTransactionOptions = DatabaseTransactionOptions & {
   mode?: SQLiteTransactionMode;
+  useSavepoints?: boolean;
 };
 
 export const sqliteTransaction =
@@ -58,9 +59,11 @@ export const sqliteTransaction =
         if (allowNestedTransactions) {
           if (transactionCounter.level >= 1) {
             transactionCounter.increment();
-            await client.query(
-              SQL`SAVEPOINT transaction${SQL.plain(transactionCounter.level.toString())}`,
-            );
+            if (options?.useSavepoints) {
+              await client.query(
+                SQL`SAVEPOINT transaction${SQL.plain(transactionCounter.level.toString())}`,
+              );
+            }
             return;
           }
 
@@ -76,9 +79,11 @@ export const sqliteTransaction =
         try {
           if (allowNestedTransactions) {
             if (transactionCounter.level > 1) {
-              await client.query(
-                SQL`RELEASE transaction${SQL.plain(transactionCounter.level.toString())}`,
-              );
+              if (options?.useSavepoints) {
+                await client.query(
+                  SQL`RELEASE transaction${SQL.plain(transactionCounter.level.toString())}`,
+                );
+              }
               transactionCounter.decrement();
 
               return;
