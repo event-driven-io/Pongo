@@ -2,6 +2,7 @@ import { dumbo } from '@event-driven-io/dumbo';
 import {
   isPgNativePool,
   PostgreSQLConnectionString,
+  type PgConnection,
 } from '@event-driven-io/dumbo/pg';
 import {
   PostgreSqlContainer,
@@ -119,7 +120,7 @@ void describe('Pongo collection', () => {
           const pongo = pongoClient({
             driver: pongoDriver,
             connectionString,
-            connectionOptions: { connection },
+            connectionOptions: { connection: connection as PgConnection },
           });
 
           const users = pongo.db().collection<User>('connections');

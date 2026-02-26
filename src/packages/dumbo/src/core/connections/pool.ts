@@ -1,3 +1,4 @@
+import { DumboError } from '../errors';
 import {
   executeInAmbientConnection,
   executeInNewConnection,
@@ -135,25 +136,39 @@ export const createBoundedConnectionPool = <
 ): ConnectionPool<ConnectionType> => {
   const { driverType, getConnection, maxConnections } = options;
   const pool: ConnectionType[] = [];
+  const allConnections = new Set<ConnectionType>();
 
   const taskProcessor = new TaskProcessor({
     maxActiveTasks: maxConnections,
     maxQueueSize: 1000,
   });
 
+  const ackCallbacks = new Map<ConnectionType, () => void>();
+  let closed = false;
+
   const acquire = async (): Promise<ConnectionType> => {
+    if (closed) throw new DumboError('Connection pool is closed');
+
     return taskProcessor.enqueue(async ({ ack }) => {
       let conn: ConnectionType | undefined = pool.pop();
       if (!conn) {
         conn = await getConnection();
+        allConnections.add(conn);
       }
-      ack();
+      ackCallbacks.set(conn, ack);
       return conn;
     });
   };
 
   const release = (conn: ConnectionType) => {
+    if (closed) return;
+
     pool.push(conn);
+    const ack = ackCallbacks.get(conn);
+    if (ack) {
+      ackCallbacks.delete(conn);
+      ack();
+    }
   };
 
   const executeWithPooling = async <Result>(
@@ -171,8 +186,12 @@ export const createBoundedConnectionPool = <
     driverType,
     connection: async () => {
       const conn = await acquire();
+      let released = false;
       return wrapPooledConnection(conn, () => {
-        release(conn);
+        if (!released) {
+          released = true;
+          release(conn);
+        }
         return Promise.resolve();
       });
     },
@@ -266,10 +285,16 @@ export const createBoundedConnectionPool = <
       }
     },
     close: async () => {
-      const connections = [...pool];
+      if (closed) return;
+      closed = true;
+
+      for (const ack of ackCallbacks.values()) ack();
+      ackCallbacks.clear();
+
+      const connections = [...allConnections];
+      allConnections.clear();
       pool.length = 0;
       await Promise.all(connections.map((conn) => conn.close()));
-      await taskProcessor.waitForEndOfProcessing();
     },
   };
 
