@@ -32,6 +32,11 @@ export interface ConnectionPool<
   close: () => Promise<void>;
 }
 
+const wrapPooledConnection = <ConnectionType extends AnyConnection>(
+  conn: ConnectionType,
+  onClose: () => Promise<void>,
+): ConnectionType => ({ ...conn, close: onClose });
+
 export type ConnectionPoolFactory<
   ConnectionPoolType extends ConnectionPool = ConnectionPool,
   ConnectionPoolOptions = unknown,
@@ -91,7 +96,10 @@ export const createSingletonConnectionPool = <
 
   const result: ConnectionPool<ConnectionType> = {
     driverType,
-    connection: getExistingOrNewConnectionAsync,
+    connection: () =>
+      getExistingOrNewConnectionAsync().then((conn) =>
+        wrapPooledConnection(conn, () => Promise.resolve()),
+      ),
     execute: sqlExecutorInAmbientConnection({
       driverType,
       connection: getExistingOrNewConnectionAsync,
@@ -161,7 +169,13 @@ export const createBoundedConnectionPool = <
 
   const result: ConnectionPool<ConnectionType> = {
     driverType,
-    connection: acquire,
+    connection: async () => {
+      const conn = await acquire();
+      return wrapPooledConnection(conn, () => {
+        release(conn);
+        return Promise.resolve();
+      });
+    },
     execute: {
       query: (sql, options) =>
         executeWithPooling((conn) => conn.execute.query(sql, options)),
@@ -255,6 +269,7 @@ export const createBoundedConnectionPool = <
       const connections = [...pool];
       pool.length = 0;
       await Promise.all(connections.map((conn) => conn.close()));
+      await taskProcessor.waitForEndOfProcessing();
     },
   };
 

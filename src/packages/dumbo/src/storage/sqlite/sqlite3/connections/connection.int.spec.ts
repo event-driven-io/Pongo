@@ -46,8 +46,6 @@ void describe('Node SQLite3 pool', () => {
       const otherConnection = await pool.connection();
 
       try {
-        assert.strictEqual(connection, otherConnection);
-
         const client = await connection.open();
         const otherClient = await otherConnection.open();
         assert.strictEqual(client, otherClient);
@@ -68,8 +66,6 @@ void describe('Node SQLite3 pool', () => {
       const otherConnection = await pool.connection();
 
       try {
-        assert.deepStrictEqual(connection, otherConnection);
-
         const client = await connection.open();
         const otherClient = await otherConnection.open();
         assert.deepStrictEqual(client, otherClient);
@@ -129,8 +125,6 @@ void describe('Node SQLite3 pool', () => {
       const otherConnection = await pool.connection();
 
       try {
-        assert.strictEqual(connection, otherConnection);
-
         const client = await connection.open();
         const otherClient = await otherConnection.open();
         assert.strictEqual(client, otherClient);
@@ -416,78 +410,214 @@ void describe('Node SQLite3 pool', () => {
           await ambientPool.close();
         }
       });
+    });
+  }
 
-      void it('handles concurrent writes and consumers without SQLITE_BUSY', async () => {
-        const pool = sqlite3Pool({ fileName });
+  void describe('dual pool concurrency (file-based)', () => {
+    void it('handles concurrent writes and consumers without SQLITE_BUSY', async () => {
+      const pool = sqlite3Pool({ fileName });
 
-        // Step 1: Setup table before concurrency
-        {
-          const conn = await pool.connection();
-          try {
-            await conn.execute.command(SQL`
+      // Step 1: Setup table before concurrency
+      {
+        const conn = await pool.connection();
+        try {
+          await conn.execute.command(SQL`
               CREATE TABLE IF NOT EXISTS test_concurrent (
                 id INTEGER PRIMARY KEY,
                 value INTEGER
               )
             `);
-          } finally {
+        } finally {
+          await conn.close();
+        }
+      }
+
+      let running = true;
+      const consumer = async () => {
+        while (running) {
+          try {
+            const conn = await pool.connection();
+            await conn.execute.query(SQL`SELECT COUNT(*) FROM test_concurrent`);
             await conn.close();
+          } catch {
+            // Ignore errors for this test
           }
+          await new Promise((r) => setTimeout(r, 10));
         }
+      };
 
-        let running = true;
-        const consumer = async () => {
-          while (running) {
+      const consumer1 = consumer();
+      const consumer2 = consumer();
+
+      // Step 3: Perform concurrent writes
+      const writePromises = [];
+      const errors: string[] = [];
+      for (let i = 0; i < 10; i++) {
+        writePromises.push(
+          (async () => {
+            const conn = await pool.connection();
             try {
-              const conn = await pool.connection();
-              await conn.execute.query(
-                SQL`SELECT COUNT(*) FROM test_concurrent`,
+              await conn.execute.command(
+                SQL`INSERT INTO test_concurrent (value) VALUES (${i})`,
               );
+            } catch (err) {
+              errors.push((err as Error).message);
+            } finally {
               await conn.close();
-            } catch {
-              // Ignore errors for this test
             }
-            await new Promise((r) => setTimeout(r, 10));
-          }
-        };
-
-        const consumer1 = consumer();
-        const consumer2 = consumer();
-
-        // Step 3: Perform concurrent writes
-        const writePromises = [];
-        const errors: string[] = [];
-        for (let i = 0; i < 10; i++) {
-          writePromises.push(
-            (async () => {
-              const conn = await pool.connection();
-              try {
-                await conn.execute.command(
-                  SQL`INSERT INTO test_concurrent (value) VALUES (${i})`,
-                );
-              } catch (err) {
-                errors.push((err as Error).message);
-              } finally {
-                await conn.close();
-              }
-            })(),
-          );
-        }
-
-        await Promise.all(writePromises);
-
-        // Step 4: Stop consumers
-        running = false;
-        await Promise.all([consumer1, consumer2]);
-
-        await pool.close();
-
-        assert.strictEqual(
-          errors.length,
-          0,
-          `Errors occurred: ${errors.join(', ')}`,
+          })(),
         );
-      });
+      }
+
+      await Promise.all(writePromises);
+
+      // Step 4: Stop consumers
+      running = false;
+      await Promise.all([consumer1, consumer2]);
+
+      await pool.close();
+
+      assert.strictEqual(
+        errors.length,
+        0,
+        `Errors occurred: ${errors.join(', ')}`,
+      );
     });
-  }
+
+    void it('handles concurrent readonly reads without blocking', async () => {
+      const pool = sqlite3Pool({ fileName });
+
+      const conn = await pool.connection();
+      try {
+        await conn.execute.command(SQL`
+          CREATE TABLE IF NOT EXISTS test_reads (
+            id INTEGER PRIMARY KEY,
+            value INTEGER
+          )
+        `);
+        await conn.execute.command(
+          SQL`INSERT INTO test_reads (value) VALUES (42)`,
+        );
+      } finally {
+        await conn.close();
+      }
+
+      const errors: string[] = [];
+      const readPromises = Array.from({ length: 8 }, (_, i) =>
+        (async () => {
+          try {
+            const conn = await pool.connection({ readonly: true });
+            try {
+              await conn.execute.query(
+                SQL`SELECT * FROM test_reads WHERE value = ${42}`,
+              );
+            } finally {
+              await conn.close();
+            }
+          } catch (err) {
+            errors.push(`reader ${i}: ${(err as Error).message}`);
+          }
+        })(),
+      );
+
+      await Promise.all(readPromises);
+      await pool.close();
+
+      assert.strictEqual(errors.length, 0, `Read errors: ${errors.join(', ')}`);
+    });
+
+    void it('handles concurrent reads and writes through separate pools', async () => {
+      const pool = sqlite3Pool({ fileName });
+
+      const conn = await pool.connection();
+      try {
+        await conn.execute.command(SQL`
+          CREATE TABLE IF NOT EXISTS test_dual (
+            id INTEGER PRIMARY KEY,
+            value INTEGER
+          )
+        `);
+      } finally {
+        await conn.close();
+      }
+
+      const errors: string[] = [];
+
+      const writePromises = Array.from({ length: 10 }, (_, i) =>
+        (async () => {
+          try {
+            const conn = await pool.connection();
+            try {
+              await conn.execute.command(
+                SQL`INSERT INTO test_dual (value) VALUES (${i})`,
+              );
+            } finally {
+              await conn.close();
+            }
+          } catch (err) {
+            errors.push(`writer ${i}: ${(err as Error).message}`);
+          }
+        })(),
+      );
+
+      const readPromises = Array.from({ length: 10 }, (_, i) =>
+        (async () => {
+          try {
+            const conn = await pool.connection({ readonly: true });
+            try {
+              await conn.execute.query(
+                SQL`SELECT COUNT(*) as cnt FROM test_dual`,
+              );
+            } finally {
+              await conn.close();
+            }
+          } catch (err) {
+            errors.push(`reader ${i}: ${(err as Error).message}`);
+          }
+        })(),
+      );
+
+      await Promise.all([...writePromises, ...readPromises]);
+      await pool.close();
+
+      assert.strictEqual(errors.length, 0, `Errors: ${errors.join(', ')}`);
+    });
+
+    void it('reuses reader pool connections after close', async () => {
+      const pool = sqlite3Pool({ fileName });
+
+      const conn = await pool.connection();
+      try {
+        await conn.execute.command(SQL`
+          CREATE TABLE IF NOT EXISTS test_reuse (
+            id INTEGER PRIMARY KEY,
+            value INTEGER
+          )
+        `);
+        await conn.execute.command(
+          SQL`INSERT INTO test_reuse (value) VALUES (1)`,
+        );
+      } finally {
+        await conn.close();
+      }
+
+      const firstConn = await pool.connection({ readonly: true });
+      const firstClient = await firstConn.open();
+      await firstConn.execute.query(SQL`SELECT * FROM test_reuse`);
+      await firstConn.close();
+
+      const secondConn = await pool.connection({ readonly: true });
+      const secondClient = await secondConn.open();
+      await secondConn.execute.query(SQL`SELECT * FROM test_reuse`);
+      await secondConn.close();
+
+      assert.strictEqual(
+        firstClient,
+        secondClient,
+        'Reader pool should reuse connections instead of creating new ones',
+      );
+
+      await pool.close();
+    });
+  });
 });
