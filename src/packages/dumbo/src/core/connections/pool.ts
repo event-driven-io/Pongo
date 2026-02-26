@@ -5,6 +5,7 @@ import {
   sqlExecutorInNewConnection,
   type WithSQLExecutor,
 } from '../execute';
+import { TaskProcessor } from '../taskProcessing';
 import type {
   AnyConnection,
   InferDbClientFromConnection,
@@ -126,31 +127,24 @@ export const createBoundedConnectionPool = <
 ): ConnectionPool<ConnectionType> => {
   const { driverType, getConnection, maxConnections } = options;
   const pool: ConnectionType[] = [];
-  const waitQueue: Array<(conn: ConnectionType) => void> = [];
-  let activeCount = 0;
+
+  const taskProcessor = new TaskProcessor({
+    maxActiveTasks: maxConnections,
+    maxQueueSize: 1000,
+  });
 
   const acquire = async (): Promise<ConnectionType> => {
-    if (pool.length > 0) {
-      return pool.pop()!;
-    }
-
-    if (activeCount < maxConnections) {
-      activeCount++;
-      return await getConnection();
-    }
-
-    return new Promise((resolve) => {
-      waitQueue.push(resolve);
+    return taskProcessor.enqueue(async ({ ack }) => {
+      let conn: ConnectionType | undefined = pool.pop();
+      if (!conn) {
+        conn = await getConnection();
+      }
+      ack();
+      return conn;
     });
   };
 
   const release = (conn: ConnectionType) => {
-    if (waitQueue.length > 0) {
-      const next = waitQueue.shift()!;
-      next(conn);
-      return;
-    }
-
     pool.push(conn);
   };
 

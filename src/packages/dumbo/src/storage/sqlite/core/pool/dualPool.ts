@@ -49,14 +49,20 @@ export const sqliteDualConnectionPool = <
 
   return {
     driverType: options.driverType,
-    connection: writerPool.connection,
+    connection: (connectionOptions) =>
+      connectionOptions?.readonly
+        ? readerPool.connection(connectionOptions)
+        : writerPool.connection(connectionOptions),
     execute: {
       query: (...args) => readerPool.execute.query(...args),
       batchQuery: (...args) => readerPool.execute.batchQuery(...args),
       command: (...args) => writerPool.execute.command(...args),
       batchCommand: (...args) => writerPool.execute.batchCommand(...args),
     },
-    withConnection: writerPool.withConnection,
+    withConnection: (handle, connectionOptions) =>
+      connectionOptions?.readonly
+        ? readerPool.withConnection(handle, connectionOptions)
+        : writerPool.withConnection(handle, connectionOptions),
     transaction: writerPool.transaction,
     withTransaction: writerPool.withTransaction,
     close: () =>
