@@ -416,6 +416,78 @@ void describe('Node SQLite3 pool', () => {
           await ambientPool.close();
         }
       });
+
+      void it('handles concurrent writes and consumers without SQLITE_BUSY', async () => {
+        const pool = sqlite3Pool({ fileName });
+
+        // Step 1: Setup table before concurrency
+        {
+          const conn = await pool.connection();
+          try {
+            await conn.execute.command(SQL`
+              CREATE TABLE IF NOT EXISTS test_concurrent (
+                id INTEGER PRIMARY KEY,
+                value INTEGER
+              )
+            `);
+          } finally {
+            await conn.close();
+          }
+        }
+
+        let running = true;
+        const consumer = async () => {
+          while (running) {
+            try {
+              const conn = await pool.connection();
+              await conn.execute.query(
+                SQL`SELECT COUNT(*) FROM test_concurrent`,
+              );
+              await conn.close();
+            } catch {
+              // Ignore errors for this test
+            }
+            await new Promise((r) => setTimeout(r, 10));
+          }
+        };
+
+        const consumer1 = consumer();
+        const consumer2 = consumer();
+
+        // Step 3: Perform concurrent writes
+        const writePromises = [];
+        const errors: string[] = [];
+        for (let i = 0; i < 10; i++) {
+          writePromises.push(
+            (async () => {
+              const conn = await pool.connection();
+              try {
+                await conn.execute.command(
+                  SQL`INSERT INTO test_concurrent (value) VALUES (${i})`,
+                );
+              } catch (err) {
+                errors.push((err as Error).message);
+              } finally {
+                await conn.close();
+              }
+            })(),
+          );
+        }
+
+        await Promise.all(writePromises);
+
+        // Step 4: Stop consumers
+        running = false;
+        await Promise.all([consumer1, consumer2]);
+
+        await pool.close();
+
+        assert.strictEqual(
+          errors.length,
+          0,
+          `Errors occurred: ${errors.join(', ')}`,
+        );
+      });
     });
   }
 });
