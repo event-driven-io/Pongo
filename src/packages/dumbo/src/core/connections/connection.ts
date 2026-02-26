@@ -72,7 +72,7 @@ export type WithConnectionOptions = {
 export interface WithConnectionFactory<
   ConnectionType extends AnyConnection = AnyConnection,
 > {
-  connection: () => Promise<ConnectionType>;
+  connection: (options?: WithConnectionOptions) => Promise<ConnectionType>;
 
   withConnection: <Result = unknown>(
     handle: (connection: ConnectionType) => Promise<Result>,

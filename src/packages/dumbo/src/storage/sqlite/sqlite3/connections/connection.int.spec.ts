@@ -60,7 +60,7 @@ void describe('Node SQLite3 pool', () => {
   });
 
   void describe(`file-based database`, () => {
-    void it('returns the new connection each time', async () => {
+    void it('returns the same connection from writer sub-pool', async () => {
       const pool = sqlite3Pool({
         fileName,
       });
@@ -68,14 +68,54 @@ void describe('Node SQLite3 pool', () => {
       const otherConnection = await pool.connection();
 
       try {
-        assert.notDeepStrictEqual(connection, otherConnection);
+        assert.deepStrictEqual(connection, otherConnection);
 
         const client = await connection.open();
         const otherClient = await otherConnection.open();
-        assert.notDeepStrictEqual(client, otherClient);
+        assert.deepStrictEqual(client, otherClient);
       } finally {
         await connection.close();
         await otherConnection.close();
+        await pool.close();
+      }
+    });
+
+    void it('returns the new connection for readonly option and no options', async () => {
+      const pool = sqlite3Pool({
+        fileName,
+      });
+      const connection = await pool.connection();
+      const readonlyConnection = await pool.connection({ readonly: true });
+
+      try {
+        assert.notDeepStrictEqual(connection, readonlyConnection);
+
+        const client = await connection.open();
+        const otherClient = await readonlyConnection.open();
+        assert.notDeepStrictEqual(client, otherClient);
+      } finally {
+        await connection.close();
+        await readonlyConnection.close();
+        await pool.close();
+      }
+    });
+
+    void it('returns the new connection for readonly option and not readonly', async () => {
+      const pool = sqlite3Pool({
+        fileName,
+      });
+      const connection = await pool.connection({ readonly: false });
+      const readonlyConnection = await pool.connection({ readonly: true });
+
+      try {
+        assert.notDeepStrictEqual(connection, readonlyConnection);
+
+        const client = await connection.open();
+        const otherClient = await readonlyConnection.open();
+        assert.notDeepStrictEqual(client, otherClient);
+      } finally {
+        await connection.close();
+        await readonlyConnection.close();
         await pool.close();
       }
     });
