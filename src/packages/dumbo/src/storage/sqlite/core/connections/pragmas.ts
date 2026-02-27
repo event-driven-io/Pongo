@@ -18,15 +18,19 @@ export const mergePragmaOptions = (
   };
 };
 
-export const buildPragmaStatements = (
+export const buildConnectionPragmaStatements = (
   pragmas: SQLitePragmaOptions,
-): Array<{ pragma: string; value: string | number }> => {
-  return [
-    { pragma: 'journal_mode', value: pragmas.journal_mode! },
-    { pragma: 'synchronous', value: pragmas.synchronous! },
-    { pragma: 'cache_size', value: pragmas.cache_size! },
-    { pragma: 'foreign_keys', value: pragmas.foreign_keys ? 'ON' : 'OFF' },
-    { pragma: 'temp_store', value: pragmas.temp_store! },
-    { pragma: 'busy_timeout', value: pragmas.busy_timeout! },
-  ];
-};
+): Array<{ pragma: string; value: string | number }> => [
+  // busy_timeout FIRST - enables waiting on locks for subsequent operations
+  { pragma: 'busy_timeout', value: pragmas.busy_timeout! },
+  { pragma: 'synchronous', value: pragmas.synchronous! },
+  { pragma: 'cache_size', value: pragmas.cache_size! },
+  { pragma: 'foreign_keys', value: pragmas.foreign_keys ? 'ON' : 'OFF' },
+  { pragma: 'temp_store', value: pragmas.temp_store! },
+];
+
+export const buildDatabasePragmaStatements = (
+  pragmas: SQLitePragmaOptions,
+): Array<{ pragma: string; value: string | number }> => [
+  { pragma: 'journal_mode', value: pragmas.journal_mode! },
+];

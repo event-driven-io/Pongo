@@ -2,7 +2,11 @@ import assert from 'assert';
 import { describe, it } from 'node:test';
 import { parsePragmasFromConnectionString } from './connectionString';
 import { DEFAULT_SQLITE_PRAGMA_OPTIONS } from './index';
-import { buildPragmaStatements, mergePragmaOptions } from './pragmas';
+import {
+  buildConnectionPragmaStatements,
+  buildDatabasePragmaStatements,
+  mergePragmaOptions,
+} from './pragmas';
 
 void describe('PRAGMA parsing', () => {
   void it('parses journal_mode from connection string', () => {
@@ -156,21 +160,52 @@ void describe('PRAGMA merging', () => {
 });
 
 void describe('PRAGMA statement building', () => {
-  void it('builds statements from default options', () => {
-    const statements = buildPragmaStatements(DEFAULT_SQLITE_PRAGMA_OPTIONS);
+  void it('buildConnectionPragmaStatements returns connection-level pragmas with busy_timeout first', () => {
+    const statements = buildConnectionPragmaStatements(
+      DEFAULT_SQLITE_PRAGMA_OPTIONS,
+    );
 
     assert.deepStrictEqual(statements, [
-      { pragma: 'journal_mode', value: 'WAL' },
+      { pragma: 'busy_timeout', value: 5000 },
       { pragma: 'synchronous', value: 'NORMAL' },
       { pragma: 'cache_size', value: -1000000 },
       { pragma: 'foreign_keys', value: 'ON' },
       { pragma: 'temp_store', value: 'MEMORY' },
+    ]);
+  });
+
+  void it('buildDatabasePragmaStatements returns database-level pragmas', () => {
+    const statements = buildDatabasePragmaStatements(
+      DEFAULT_SQLITE_PRAGMA_OPTIONS,
+    );
+
+    assert.deepStrictEqual(statements, [
+      { pragma: 'journal_mode', value: 'WAL' },
+    ]);
+  });
+
+  void it('connection and database pragmas combine to cover all options', () => {
+    const connectionStatements = buildConnectionPragmaStatements(
+      DEFAULT_SQLITE_PRAGMA_OPTIONS,
+    );
+    const databaseStatements = buildDatabasePragmaStatements(
+      DEFAULT_SQLITE_PRAGMA_OPTIONS,
+    );
+
+    const allPragmas = [...connectionStatements, ...databaseStatements];
+
+    assert.deepStrictEqual(allPragmas, [
       { pragma: 'busy_timeout', value: 5000 },
+      { pragma: 'synchronous', value: 'NORMAL' },
+      { pragma: 'cache_size', value: -1000000 },
+      { pragma: 'foreign_keys', value: 'ON' },
+      { pragma: 'temp_store', value: 'MEMORY' },
+      { pragma: 'journal_mode', value: 'WAL' },
     ]);
   });
 
   void it('converts foreign_keys boolean to ON/OFF', () => {
-    const statementsOn = buildPragmaStatements({
+    const statementsOn = buildConnectionPragmaStatements({
       ...DEFAULT_SQLITE_PRAGMA_OPTIONS,
       foreign_keys: true,
     });
@@ -180,7 +215,7 @@ void describe('PRAGMA statement building', () => {
       'ON',
     );
 
-    const statementsOff = buildPragmaStatements({
+    const statementsOff = buildConnectionPragmaStatements({
       ...DEFAULT_SQLITE_PRAGMA_OPTIONS,
       foreign_keys: false,
     });
@@ -192,7 +227,7 @@ void describe('PRAGMA statement building', () => {
   });
 
   void it('builds statements with custom values', () => {
-    const statements = buildPragmaStatements({
+    const connectionStatements = buildConnectionPragmaStatements({
       journal_mode: 'DELETE',
       synchronous: 'FULL',
       cache_size: -2000000,
@@ -201,13 +236,25 @@ void describe('PRAGMA statement building', () => {
       busy_timeout: 10000,
     });
 
-    assert.deepStrictEqual(statements, [
-      { pragma: 'journal_mode', value: 'DELETE' },
+    assert.deepStrictEqual(connectionStatements, [
+      { pragma: 'busy_timeout', value: 10000 },
       { pragma: 'synchronous', value: 'FULL' },
       { pragma: 'cache_size', value: -2000000 },
       { pragma: 'foreign_keys', value: 'OFF' },
       { pragma: 'temp_store', value: 'FILE' },
-      { pragma: 'busy_timeout', value: 10000 },
+    ]);
+
+    const databaseStatements = buildDatabasePragmaStatements({
+      journal_mode: 'DELETE',
+      synchronous: 'FULL',
+      cache_size: -2000000,
+      foreign_keys: false,
+      temp_store: 'FILE',
+      busy_timeout: 10000,
+    });
+
+    assert.deepStrictEqual(databaseStatements, [
+      { pragma: 'journal_mode', value: 'DELETE' },
     ]);
   });
 });
