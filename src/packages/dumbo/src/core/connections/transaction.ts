@@ -199,12 +199,19 @@ export const transactionFactoryWithAsyncAmbientConnection = <
     transaction: (options) => {
       let conn: ConnectionType | null = null;
       let innerTx: DatabaseTransaction<ConnectionType> | null = null;
+      let connectingPromise: Promise<void> | null = null;
 
       const ensureConnection = async () => {
-        if (!conn) {
-          conn = await connect();
-          innerTx = conn.transaction(options);
+        if (conn) return innerTx!;
+
+        if (!connectingPromise) {
+          connectingPromise = (async () => {
+            conn = await connect();
+            innerTx = conn.transaction(options);
+          })();
         }
+
+        await connectingPromise;
         return innerTx!;
       };
 
