@@ -4,6 +4,8 @@ import { after, before, describe, it } from 'node:test';
 import { SQL } from '../../../../core';
 import { sqlite3Pool } from '../../sqlite3';
 
+const withDeadline = { timeout: 30000 };
+
 void describe('SQLite Dual Connection Pool', () => {
   const fileName = 'dual-pool-test.db';
 
@@ -25,69 +27,89 @@ void describe('SQLite Dual Connection Pool', () => {
     cleanupDb(fileName);
   });
 
-  void it('creates dual pool by default for file-based databases', async () => {
-    const pool = sqlite3Pool({ fileName });
+  void it(
+    'creates dual pool by default for file-based databases',
+    withDeadline,
+    async () => {
+      const pool = sqlite3Pool({ fileName });
 
-    try {
-      await pool.execute.command(
-        SQL`CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT)`,
-      );
-      await pool.execute.command(SQL`INSERT INTO test (value) VALUES ('test')`);
+      try {
+        await pool.execute.command(
+          SQL`CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT)`,
+        );
+        await pool.execute.command(
+          SQL`INSERT INTO test (value) VALUES ('test')`,
+        );
 
-      const result = await pool.execute.query(SQL`SELECT * FROM test`);
-      if (result.rows.length !== 1 || result.rows[0]?.value !== 'test') {
-        throw new Error('Dual pool query failed');
+        const result = await pool.execute.query(SQL`SELECT * FROM test`);
+        if (result.rows.length !== 1 || result.rows[0]?.value !== 'test') {
+          throw new Error('Dual pool query failed');
+        }
+      } finally {
+        await pool.close();
       }
-    } finally {
-      await pool.close();
-    }
-  });
+    },
+  );
 
-  void it('uses singleton pool for in-memory databases', async () => {
-    const pool = sqlite3Pool({ fileName: ':memory:' });
+  void it(
+    'uses singleton pool for in-memory databases',
+    withDeadline,
+    async () => {
+      const pool = sqlite3Pool({ fileName: ':memory:' });
 
-    try {
-      await pool.execute.command(
-        SQL`CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT)`,
-      );
-      await pool.execute.command(
-        SQL`INSERT INTO test (value) VALUES ('memory-test')`,
-      );
+      try {
+        await pool.execute.command(
+          SQL`CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT)`,
+        );
+        await pool.execute.command(
+          SQL`INSERT INTO test (value) VALUES ('memory-test')`,
+        );
 
-      const result = await pool.execute.query(SQL`SELECT * FROM test`);
-      if (result.rows.length !== 1 || result.rows[0]?.value !== 'memory-test') {
-        throw new Error('In-memory pool query failed');
+        const result = await pool.execute.query(SQL`SELECT * FROM test`);
+        if (
+          result.rows.length !== 1 ||
+          result.rows[0]?.value !== 'memory-test'
+        ) {
+          throw new Error('In-memory pool query failed');
+        }
+      } finally {
+        await pool.close();
       }
-    } finally {
-      await pool.close();
-    }
-  });
+    },
+  );
 
-  void it('allows explicit singleton pool for file-based databases', async () => {
-    const singletonFileName = 'singleton-test.db';
-    cleanupDb(singletonFileName);
-
-    const pool = sqlite3Pool({ fileName: singletonFileName, singleton: true });
-
-    try {
-      await pool.execute.command(
-        SQL`CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT)`,
-      );
-      await pool.execute.command(
-        SQL`INSERT INTO test (value) VALUES ('singleton')`,
-      );
-
-      const result = await pool.execute.query(SQL`SELECT * FROM test`);
-      if (result.rows.length !== 1 || result.rows[0]?.value !== 'singleton') {
-        throw new Error('Singleton pool query failed');
-      }
-    } finally {
-      await pool.close();
+  void it(
+    'allows explicit singleton pool for file-based databases',
+    withDeadline,
+    async () => {
+      const singletonFileName = 'singleton-test.db';
       cleanupDb(singletonFileName);
-    }
-  });
 
-  void it('handles concurrent reads during writes', async () => {
+      const pool = sqlite3Pool({
+        fileName: singletonFileName,
+        singleton: true,
+      });
+
+      try {
+        await pool.execute.command(
+          SQL`CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT)`,
+        );
+        await pool.execute.command(
+          SQL`INSERT INTO test (value) VALUES ('singleton')`,
+        );
+
+        const result = await pool.execute.query(SQL`SELECT * FROM test`);
+        if (result.rows.length !== 1 || result.rows[0]?.value !== 'singleton') {
+          throw new Error('Singleton pool query failed');
+        }
+      } finally {
+        await pool.close();
+        cleanupDb(singletonFileName);
+      }
+    },
+  );
+
+  void it('handles concurrent reads during writes', withDeadline, async () => {
     const concurrentFileName = 'concurrent-test.db';
     cleanupDb(concurrentFileName);
 
@@ -128,7 +150,7 @@ void describe('SQLite Dual Connection Pool', () => {
     }
   });
 
-  void it('handles transactions with dual pool', async () => {
+  void it('handles transactions with dual pool', withDeadline, async () => {
     const txFileName = 'transaction-test.db';
     cleanupDb(txFileName);
 
@@ -163,7 +185,7 @@ void describe('SQLite Dual Connection Pool', () => {
     }
   });
 
-  void it('respects custom reader pool size', async () => {
+  void it('respects custom reader pool size', withDeadline, async () => {
     const customFileName = 'custom-pool-test.db';
     cleanupDb(customFileName);
 
@@ -190,7 +212,7 @@ void describe('SQLite Dual Connection Pool', () => {
     }
   });
 
-  void it('releases connections on query errors', async () => {
+  void it('releases connections on query errors', withDeadline, async () => {
     const errorFileName = 'error-test.db';
     cleanupDb(errorFileName);
 
@@ -202,7 +224,7 @@ void describe('SQLite Dual Connection Pool', () => {
       );
 
       let errorCount = 0;
-      const operations = Array.from({ length: 10 }, async () => {
+      const operations = Array.from({ length: 10 }, withDeadline, async () => {
         try {
           await pool.execute.command(
             SQL`INSERT INTO test (value) VALUES (NULL)`,
@@ -230,70 +252,78 @@ void describe('SQLite Dual Connection Pool', () => {
     }
   });
 
-  void it('releases connections on transaction rollback', async () => {
-    const rollbackFileName = 'rollback-test.db';
-    cleanupDb(rollbackFileName);
+  void it(
+    'releases connections on transaction rollback',
+    withDeadline,
+    async () => {
+      const rollbackFileName = 'rollback-test.db';
+      cleanupDb(rollbackFileName);
 
-    const pool = sqlite3Pool({ fileName: rollbackFileName });
+      const pool = sqlite3Pool({ fileName: rollbackFileName });
 
-    try {
-      await pool.execute.command(
-        SQL`CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT NOT NULL)`,
-      );
+      try {
+        await pool.execute.command(
+          SQL`CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT NOT NULL)`,
+        );
 
-      let rollbackCount = 0;
-      const operations = Array.from({ length: 5 }, async () => {
+        let rollbackCount = 0;
+        const operations = Array.from({ length: 5 }, withDeadline, async () => {
+          try {
+            await pool.withTransaction(async (tx) => {
+              await tx.execute.command(
+                SQL`INSERT INTO test (value) VALUES ('test')`,
+              );
+              await tx.execute.command(
+                SQL`INSERT INTO test (value) VALUES (NULL)`,
+              );
+            });
+          } catch {
+            rollbackCount++;
+          }
+        });
+
+        await Promise.all(operations);
+
+        if (rollbackCount !== 5) {
+          throw new Error(`Expected 5 rollbacks, got ${rollbackCount}`);
+        }
+
+        const result = await pool.execute.query(
+          SQL`SELECT COUNT(*) as count FROM test`,
+        );
+        if (!result.rows[0] || result.rows[0].count !== 0) {
+          throw new Error('No rows should have been committed');
+        }
+      } finally {
+        await pool.close();
+        cleanupDb(rollbackFileName);
+      }
+    },
+  );
+
+  void it(
+    'handles parallel connection creation during pool initialization',
+    withDeadline,
+    async () => {
+      const parallelFileName = 'parallel-init-test.db';
+
+      const readPromises = Array.from({ length: 100 }, async (_, i) => {
+        const pool = sqlite3Pool({
+          fileName: parallelFileName,
+        });
+
         try {
-          await pool.withTransaction(async (tx) => {
-            await tx.execute.command(
-              SQL`INSERT INTO test (value) VALUES ('test')`,
-            );
-            await tx.execute.command(
-              SQL`INSERT INTO test (value) VALUES (NULL)`,
-            );
-          });
-        } catch {
-          rollbackCount++;
+          return await pool.execute.query(SQL`SELECT ${i} as value`);
+        } catch (error) {
+          return error;
+        } finally {
+          await pool.close();
         }
       });
 
-      await Promise.all(operations);
+      const results = await Promise.all(readPromises);
 
-      if (rollbackCount !== 5) {
-        throw new Error(`Expected 5 rollbacks, got ${rollbackCount}`);
-      }
-
-      const result = await pool.execute.query(
-        SQL`SELECT COUNT(*) as count FROM test`,
-      );
-      if (!result.rows[0] || result.rows[0].count !== 0) {
-        throw new Error('No rows should have been committed');
-      }
-    } finally {
-      await pool.close();
-      cleanupDb(rollbackFileName);
-    }
-  });
-
-  void it('handles parallel connection creation during pool initialization', async () => {
-    const parallelFileName = 'parallel-init-test.db';
-
-    const readPromises = Array.from({ length: 100 }, async (_, i) => {
-      const pool = sqlite3Pool({
-        fileName: parallelFileName,
-      });
-
-      try {
-        return await pool.execute.query(SQL`SELECT ${i} as value`);
-      } catch (error) {
-        return error;
-      } finally {
-        await pool.close();
-      }
-    });
-
-    const results = await Promise.all(readPromises);
-
-    assert.equal(results.filter((r) => r instanceof Error).length, 0);
-  });
+      assert.equal(results.filter((r) => r instanceof Error).length, 0);
+    },
+  );
 });

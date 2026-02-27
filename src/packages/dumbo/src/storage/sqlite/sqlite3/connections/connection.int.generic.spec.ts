@@ -9,6 +9,8 @@ import { dumbo } from '../../../all';
 import { InMemorySQLiteDatabase, SQLiteConnectionString } from '../../core';
 import { sqlite3Client } from './connection';
 
+const withDeadline = { timeout: 30000 };
+
 void describe('Node SQLite3 pool', () => {
   useSqlite3DumboDriver();
 
@@ -42,7 +44,7 @@ void describe('Node SQLite3 pool', () => {
   });
 
   void describe(`in-memory database`, () => {
-    void it('returns the singleton connection', async () => {
+    void it('returns the singleton connection', withDeadline, async () => {
       const pool = dumbo({
         driverType: `SQLite:sqlite3`,
         connectionString: inMemoryfileName,
@@ -66,7 +68,7 @@ void describe('Node SQLite3 pool', () => {
   });
 
   void describe(`file-based database`, () => {
-    void it('returns the new connection each time', async () => {
+    void it('returns the new connection each time', withDeadline, async () => {
       const pool = dumbo({
         driverType: `SQLite:sqlite3`,
         connectionString,
@@ -88,33 +90,37 @@ void describe('Node SQLite3 pool', () => {
       }
     });
 
-    void it('for singleton setting returns the singleton connection', async () => {
-      const pool = dumbo({
-        driverType: `SQLite:sqlite3`,
-        connectionString,
-        singleton: true,
-      });
-      const connection = await pool.connection();
-      const otherConnection = await pool.connection();
+    void it(
+      'for singleton setting returns the singleton connection',
+      withDeadline,
+      async () => {
+        const pool = dumbo({
+          driverType: `SQLite:sqlite3`,
+          connectionString,
+          singleton: true,
+        });
+        const connection = await pool.connection();
+        const otherConnection = await pool.connection();
 
-      try {
-        // Won't work for now as it's lazy loaded
-        // assert.strictEqual(connection, otherConnection);
+        try {
+          // Won't work for now as it's lazy loaded
+          // assert.strictEqual(connection, otherConnection);
 
-        const client = await connection.open();
-        const otherClient = await otherConnection.open();
-        assert.strictEqual(client, otherClient);
-      } finally {
-        await connection.close();
-        await otherConnection.close();
-        await pool.close();
-      }
-    });
+          const client = await connection.open();
+          const otherClient = await otherConnection.open();
+          assert.strictEqual(client, otherClient);
+        } finally {
+          await connection.close();
+          await otherConnection.close();
+          await pool.close();
+        }
+      },
+    );
   });
 
   for (const { testName, connectionString } of testCases) {
     void describe(`dumbo with ${testName} database`, () => {
-      void it('connects using default pool', async () => {
+      void it('connects using default pool', withDeadline, async () => {
         const pool = dumbo({
           driverType: `SQLite:sqlite3`,
           connectionString,
@@ -132,7 +138,7 @@ void describe('Node SQLite3 pool', () => {
         }
       });
 
-      void it('connects using client', async () => {
+      void it('connects using client', withDeadline, async () => {
         const options: SQLite3DumboOptions = {
           driverType: `SQLite:sqlite3`,
           connectionString,
@@ -150,7 +156,7 @@ void describe('Node SQLite3 pool', () => {
         }
       });
 
-      void it('connects using ambient client', async () => {
+      void it('connects using ambient client', withDeadline, async () => {
         const existingClient = sqlite3Client({
           fileName,
           serializer: JSONSerializer,
@@ -173,142 +179,73 @@ void describe('Node SQLite3 pool', () => {
         }
       });
 
-      void it('connects using connected ambient connected connection', async () => {
-        const ambientPool = dumbo({
-          driverType: `SQLite:sqlite3`,
-          connectionString,
-          fileName,
-        });
-        const ambientConnection = await ambientPool.connection();
-        await ambientConnection.open();
-
-        const pool = dumbo({
-          driverType: `SQLite:sqlite3`,
-          connectionString,
-          connection: ambientConnection,
-        });
-
-        try {
-          await pool.execute.query(SQL`SELECT 1`);
-        } finally {
-          await pool.close();
-          await ambientConnection.close();
-          await ambientPool.close();
-        }
-      });
-
-      void it('connects using connected ambient not-connected connection', async () => {
-        const ambientPool = dumbo({
-          driverType: `SQLite:sqlite3`,
-          connectionString,
-        });
-        const ambientConnection = await ambientPool.connection();
-
-        const pool = dumbo({
-          driverType: `SQLite:sqlite3`,
-          connectionString,
-          connection: ambientConnection,
-        });
-
-        try {
-          await pool.execute.query(SQL`SELECT 1`);
-        } finally {
-          await pool.close();
-          await ambientConnection.close();
-          await ambientPool.close();
-        }
-      });
-
-      void it('connects using ambient connected connection with transaction', async () => {
-        const ambientPool = dumbo({
-          driverType: `SQLite:sqlite3`,
-          connectionString,
-        });
-        const ambientConnection = await ambientPool.connection();
-        await ambientConnection.open();
-
-        try {
-          await ambientConnection.withTransaction<void>(async () => {
-            const pool = dumbo({
-              driverType: `SQLite:sqlite3`,
-              connectionString,
-              connection: ambientConnection,
-            });
-            try {
-              await pool.execute.query(SQL`SELECT 1`);
-
-              return { success: true, result: undefined };
-            } finally {
-              await pool.close();
-            }
+      void it(
+        'connects using connected ambient connected connection',
+        withDeadline,
+        async () => {
+          const ambientPool = dumbo({
+            driverType: `SQLite:sqlite3`,
+            connectionString,
+            fileName,
           });
-        } finally {
-          await ambientConnection.close();
-          await ambientPool.close();
-        }
-      });
+          const ambientConnection = await ambientPool.connection();
+          await ambientConnection.open();
 
-      void it('connects using ambient not-connected connection with transaction', async () => {
-        const ambientPool = dumbo({
-          driverType: `SQLite:sqlite3`,
-          connectionString,
-        });
-        const ambientConnection = await ambientPool.connection();
-
-        try {
-          await ambientConnection.withTransaction<void>(async () => {
-            const pool = dumbo({
-              driverType: `SQLite:sqlite3`,
-              connectionString,
-              connection: ambientConnection,
-            });
-            try {
-              await pool.execute.query(SQL`SELECT 1`);
-
-              return { success: true, result: undefined };
-            } finally {
-              await pool.close();
-            }
+          const pool = dumbo({
+            driverType: `SQLite:sqlite3`,
+            connectionString,
+            connection: ambientConnection,
           });
-        } finally {
-          await ambientConnection.close();
-          await ambientPool.close();
-        }
-      });
 
-      void it('connects using ambient connection in withConnection scope', async () => {
-        const ambientPool = dumbo({
-          driverType: `SQLite:sqlite3`,
-          connectionString,
-        });
-        try {
-          await ambientPool.withConnection(async (ambientConnection) => {
-            const pool = dumbo({
-              driverType: `SQLite:sqlite3`,
-              connectionString,
-              connection: ambientConnection,
-            });
-            try {
-              await pool.execute.query(SQL`SELECT 1`);
+          try {
+            await pool.execute.query(SQL`SELECT 1`);
+          } finally {
+            await pool.close();
+            await ambientConnection.close();
+            await ambientPool.close();
+          }
+        },
+      );
 
-              return { success: true, result: undefined };
-            } finally {
-              await pool.close();
-            }
+      void it(
+        'connects using connected ambient not-connected connection',
+        withDeadline,
+        async () => {
+          const ambientPool = dumbo({
+            driverType: `SQLite:sqlite3`,
+            connectionString,
           });
-        } finally {
-          await ambientPool.close();
-        }
-      });
+          const ambientConnection = await ambientPool.connection();
 
-      void it('connects using ambient connection in withConnection and withTransaction scope', async () => {
-        const ambientPool = dumbo({
-          driverType: `SQLite:sqlite3`,
-          connectionString,
-        });
-        try {
-          await ambientPool.withConnection((ambientConnection) =>
-            ambientConnection.withTransaction<void>(async () => {
+          const pool = dumbo({
+            driverType: `SQLite:sqlite3`,
+            connectionString,
+            connection: ambientConnection,
+          });
+
+          try {
+            await pool.execute.query(SQL`SELECT 1`);
+          } finally {
+            await pool.close();
+            await ambientConnection.close();
+            await ambientPool.close();
+          }
+        },
+      );
+
+      void it(
+        'connects using ambient connected connection with transaction',
+        withDeadline,
+        async () => {
+          const ambientPool = dumbo({
+            driverType: `SQLite:sqlite3`,
+            connectionString,
+          });
+          const ambientConnection = await ambientPool.connection();
+          await ambientConnection.open();
+
+          try {
+            await ambientConnection.withTransaction<void>(async () => {
               const pool = dumbo({
                 driverType: `SQLite:sqlite3`,
                 connectionString,
@@ -316,15 +253,108 @@ void describe('Node SQLite3 pool', () => {
               });
               try {
                 await pool.execute.query(SQL`SELECT 1`);
+
+                return { success: true, result: undefined };
               } finally {
                 await pool.close();
               }
-            }),
-          );
-        } finally {
-          await ambientPool.close();
-        }
-      });
+            });
+          } finally {
+            await ambientConnection.close();
+            await ambientPool.close();
+          }
+        },
+      );
+
+      void it(
+        'connects using ambient not-connected connection with transaction',
+        withDeadline,
+        async () => {
+          const ambientPool = dumbo({
+            driverType: `SQLite:sqlite3`,
+            connectionString,
+          });
+          const ambientConnection = await ambientPool.connection();
+
+          try {
+            await ambientConnection.withTransaction<void>(async () => {
+              const pool = dumbo({
+                driverType: `SQLite:sqlite3`,
+                connectionString,
+                connection: ambientConnection,
+              });
+              try {
+                await pool.execute.query(SQL`SELECT 1`);
+
+                return { success: true, result: undefined };
+              } finally {
+                await pool.close();
+              }
+            });
+          } finally {
+            await ambientConnection.close();
+            await ambientPool.close();
+          }
+        },
+      );
+
+      void it(
+        'connects using ambient connection in withConnection scope',
+        withDeadline,
+        async () => {
+          const ambientPool = dumbo({
+            driverType: `SQLite:sqlite3`,
+            connectionString,
+          });
+          try {
+            await ambientPool.withConnection(async (ambientConnection) => {
+              const pool = dumbo({
+                driverType: `SQLite:sqlite3`,
+                connectionString,
+                connection: ambientConnection,
+              });
+              try {
+                await pool.execute.query(SQL`SELECT 1`);
+
+                return { success: true, result: undefined };
+              } finally {
+                await pool.close();
+              }
+            });
+          } finally {
+            await ambientPool.close();
+          }
+        },
+      );
+
+      void it(
+        'connects using ambient connection in withConnection and withTransaction scope',
+        withDeadline,
+        async () => {
+          const ambientPool = dumbo({
+            driverType: `SQLite:sqlite3`,
+            connectionString,
+          });
+          try {
+            await ambientPool.withConnection((ambientConnection) =>
+              ambientConnection.withTransaction<void>(async () => {
+                const pool = dumbo({
+                  driverType: `SQLite:sqlite3`,
+                  connectionString,
+                  connection: ambientConnection,
+                });
+                try {
+                  await pool.execute.query(SQL`SELECT 1`);
+                } finally {
+                  await pool.close();
+                }
+              }),
+            );
+          } finally {
+            await ambientPool.close();
+          }
+        },
+      );
     });
   }
 });
