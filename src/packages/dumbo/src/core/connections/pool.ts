@@ -15,10 +15,8 @@ import type {
   WithConnectionOptions,
 } from './connection';
 import {
-  transactionFactoryWithAmbientConnection,
+  transactionFactoryWithAsyncAmbientConnection,
   transactionFactoryWithNewConnection,
-  type DatabaseTransaction,
-  type DatabaseTransactionOptions,
   type WithDatabaseTransactionFactory,
 } from './transaction';
 
@@ -77,7 +75,8 @@ export type SingletonConnectionPoolOptions<
   ConnectionType extends AnyConnection,
 > = {
   driverType: ConnectionType['driverType'];
-  getConnection: () => ConnectionType;
+  getConnection: () => ConnectionType | Promise<ConnectionType>;
+  closeConnection?: (connection: ConnectionType) => void | Promise<void>;
   connectionOptions?: never;
 };
 
@@ -89,30 +88,31 @@ export const createSingletonConnectionPool = <
   const { driverType, getConnection } = options;
   let connection: ConnectionType | null = null;
 
-  const getExistingOrNewConnection = () =>
-    connection ?? (connection = getConnection());
-
-  const getExistingOrNewConnectionAsync = () =>
-    Promise.resolve(getExistingOrNewConnection());
+  const getExistingOrNewConnection = async () =>
+    connection ?? (connection = await getConnection());
 
   const result: ConnectionPool<ConnectionType> = {
     driverType,
     connection: () =>
-      getExistingOrNewConnectionAsync().then((conn) =>
+      getExistingOrNewConnection().then((conn) =>
         wrapPooledConnection(conn, () => Promise.resolve()),
       ),
     execute: sqlExecutorInAmbientConnection({
       driverType,
-      connection: getExistingOrNewConnectionAsync,
+      connection: getExistingOrNewConnection,
     }),
     withConnection: <Result>(
       handle: (connection: ConnectionType) => Promise<Result>,
       _options?: WithConnectionOptions,
     ) =>
       executeInAmbientConnection<ConnectionType, Result>(handle, {
-        connection: getExistingOrNewConnectionAsync,
+        connection: getExistingOrNewConnection,
       }),
-    ...transactionFactoryWithAmbientConnection(getExistingOrNewConnection),
+    ...transactionFactoryWithAsyncAmbientConnection(
+      options.driverType,
+      getExistingOrNewConnection,
+      options.closeConnection,
+    ),
     close: () => {
       return connection !== null ? connection.close() : Promise.resolve();
     },
@@ -206,84 +206,11 @@ export const createBoundedConnectionPool = <
         executeWithPooling((conn) => conn.execute.batchCommand(sqls, options)),
     },
     withConnection: executeWithPooling,
-    transaction: (options) => {
-      let conn: ConnectionType | null = null;
-      let innerTx: DatabaseTransaction<ConnectionType> | null = null;
-
-      const ensureConnection = async () => {
-        if (!conn) {
-          conn = await acquire();
-          innerTx = conn.transaction(options);
-        }
-        return innerTx!;
-      };
-
-      const tx: DatabaseTransaction<ConnectionType> = {
-        driverType,
-        get connection() {
-          if (!conn) {
-            throw new Error('Transaction not started - call begin() first');
-          }
-          return conn;
-        },
-        execute: {
-          query: async (sql, queryOptions) => {
-            const tx = await ensureConnection();
-            return tx.execute.query(sql, queryOptions);
-          },
-          batchQuery: async (sqls, queryOptions) => {
-            const tx = await ensureConnection();
-            return tx.execute.batchQuery(sqls, queryOptions);
-          },
-          command: async (sql, commandOptions) => {
-            const tx = await ensureConnection();
-            return tx.execute.command(sql, commandOptions);
-          },
-          batchCommand: async (sqls, commandOptions) => {
-            const tx = await ensureConnection();
-            return tx.execute.batchCommand(sqls, commandOptions);
-          },
-        },
-        begin: async () => {
-          const tx = await ensureConnection();
-          return tx.begin();
-        },
-        commit: async () => {
-          if (!innerTx) {
-            throw new Error('Transaction not started');
-          }
-          try {
-            return await innerTx.commit();
-          } finally {
-            if (conn) release(conn);
-          }
-        },
-        rollback: async (error?: unknown) => {
-          if (!innerTx) {
-            if (conn) release(conn);
-            return;
-          }
-          try {
-            return await innerTx.rollback(error);
-          } finally {
-            if (conn) release(conn);
-          }
-        },
-        _transactionOptions: undefined as unknown as DatabaseTransactionOptions,
-      };
-
-      return tx as InferTransactionFromConnection<ConnectionType>;
-    },
-    withTransaction: async (handle, options) => {
-      const conn = await acquire();
-      try {
-        const withTx =
-          conn.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
-        return await withTx(handle, options);
-      } finally {
-        release(conn);
-      }
-    },
+    ...transactionFactoryWithAsyncAmbientConnection(
+      driverType,
+      acquire,
+      release,
+    ),
     close: async () => {
       if (closed) return;
       closed = true;

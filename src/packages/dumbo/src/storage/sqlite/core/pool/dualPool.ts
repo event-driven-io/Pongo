@@ -48,15 +48,25 @@ export const sqliteDualConnectionPool = <
     return connectionOptions as ConnectionOptions;
   };
 
-  const wrappedConnectionFactory = (
+  const wrappedConnectionFactory = async (
     opts: ConnectionOptions,
-  ): SQLiteConnectionType => {
+  ): Promise<SQLiteConnectionType> => {
     const connection = sqliteConnectionFactory(opts);
 
-    if (!opts.skipDatabasePragmas && databaseInitPromise === null) {
-      databaseInitPromise = (async () => {
-        await connection.open();
-      })();
+    if (!opts.skipDatabasePragmas) {
+      if (databaseInitPromise === null) {
+        databaseInitPromise = connection.open().catch((error) => {
+          databaseInitPromise = null;
+          throw error;
+        });
+      }
+
+      await databaseInitPromise;
+    } else {
+      if (databaseInitPromise !== null) {
+        await databaseInitPromise;
+      }
+      await connection.open();
     }
 
     return connection;
@@ -69,13 +79,7 @@ export const sqliteDualConnectionPool = <
 
   const readerPool = createBoundedConnectionPool({
     driverType: options.driverType,
-    getConnection: async () => {
-      const conn = wrappedConnectionFactory(getConnectionOptions());
-      if (databaseInitPromise !== null) {
-        await databaseInitPromise;
-      }
-      return conn;
-    },
+    getConnection: () => wrappedConnectionFactory(getConnectionOptions()),
     maxConnections: readerPoolSize,
   });
 

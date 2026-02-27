@@ -186,3 +186,93 @@ export const transactionFactoryWithAmbientConnection = <
     return withTx(handle, options);
   },
 });
+
+export const transactionFactoryWithAsyncAmbientConnection = <
+  ConnectionType extends AnyConnection = AnyConnection,
+>(
+  driverType: ConnectionType['driverType'],
+  connect: () => Promise<ConnectionType>,
+  close?: (connection: ConnectionType) => void | Promise<void>,
+): WithDatabaseTransactionFactory<ConnectionType> => {
+  close ??= () => Promise.resolve();
+  return {
+    transaction: (options) => {
+      let conn: ConnectionType | null = null;
+      let innerTx: DatabaseTransaction<ConnectionType> | null = null;
+
+      const ensureConnection = async () => {
+        if (!conn) {
+          conn = await connect();
+          innerTx = conn.transaction(options);
+        }
+        return innerTx!;
+      };
+
+      const tx: DatabaseTransaction<ConnectionType> = {
+        driverType,
+        get connection() {
+          if (!conn) {
+            throw new Error('Transaction not started - call begin() first');
+          }
+          return conn;
+        },
+        execute: {
+          query: async (sql, queryOptions) => {
+            const tx = await ensureConnection();
+            return tx.execute.query(sql, queryOptions);
+          },
+          batchQuery: async (sqls, queryOptions) => {
+            const tx = await ensureConnection();
+            return tx.execute.batchQuery(sqls, queryOptions);
+          },
+          command: async (sql, commandOptions) => {
+            const tx = await ensureConnection();
+            return tx.execute.command(sql, commandOptions);
+          },
+          batchCommand: async (sqls, commandOptions) => {
+            const tx = await ensureConnection();
+            return tx.execute.batchCommand(sqls, commandOptions);
+          },
+        },
+        begin: async () => {
+          const tx = await ensureConnection();
+          return tx.begin();
+        },
+        commit: async () => {
+          if (!innerTx) {
+            throw new Error('Transaction not started');
+          }
+          try {
+            return await innerTx.commit();
+          } finally {
+            if (conn) await close(conn);
+          }
+        },
+        rollback: async (error?: unknown) => {
+          if (!innerTx) {
+            if (conn) await close(conn);
+            return;
+          }
+          try {
+            return await innerTx.rollback(error);
+          } finally {
+            if (conn) await close(conn);
+          }
+        },
+        _transactionOptions: undefined as unknown as DatabaseTransactionOptions,
+      };
+
+      return tx as InferTransactionFromConnection<ConnectionType>;
+    },
+    withTransaction: async (handle, options) => {
+      const conn = await connect();
+      try {
+        const withTx =
+          conn.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
+        return await withTx(handle, options);
+      } finally {
+        await close(conn);
+      }
+    },
+  };
+};
