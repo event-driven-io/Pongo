@@ -9,6 +9,7 @@ import type {
   SQLiteConnectionFactory,
   SQLiteConnectionOptions,
 } from '../connections';
+import { mapSqliteError } from '../errors';
 import type { SQLitePool } from './pool';
 
 export type SQLiteDualPoolOptions<
@@ -79,7 +80,7 @@ export const sqliteDualConnectionPool = <
           if (retryCount < 3) {
             return ensureDatabaseInitialized(connectionOptions, retryCount + 1);
           }
-          throw error;
+          throw mapSqliteError(error);
         }
       },
       { taskGroupId: 'db-init' },

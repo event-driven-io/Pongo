@@ -8,6 +8,7 @@ import {
   type QueryResultRow,
   type SQLQueryOptions,
 } from '../../../../core';
+import { mapSqliteError } from '../../core/errors/errorMapper';
 import type {
   SQLiteClient,
   SQLiteClientOrPoolClient,
@@ -254,43 +255,32 @@ export const sqlite3Client = (
 
   return {
     connect,
-    close: (): Promise<void> => {
+    close: async (): Promise<void> => {
       if (isClosed) {
-        return Promise.resolve();
+        return;
       }
       isClosed = true;
-      if (db)
-        return new Promise((resolve, reject) => {
-          db.close((err: Error | null) => {
-            if (err) {
-              reject(err);
-              return;
-            }
-
-            resolve();
+      if (db) {
+        try {
+          await new Promise<void>((resolve, reject) => {
+            db.close((err: Error | null) => {
+              if (err) {
+                reject(err);
+                return;
+              }
+              resolve();
+            });
           });
-        });
-      return Promise.resolve();
+        } catch (error) {
+          throw mapSqliteError(error);
+        }
+      }
     },
     query: async <Result extends QueryResultRow = QueryResultRow>(
       sql: SQL,
       _options?: SQLQueryOptions,
     ): Promise<QueryResult<Result>> => {
-      const { query, params } = sqliteFormatter.format(sql, {
-        serializer,
-      });
-      const result = await executeQuery<Result>(
-        query,
-        params as SQLiteParameters[],
-      );
-      return { rowCount: result.length, rows: result };
-    },
-    batchQuery: async <Result extends QueryResultRow = QueryResultRow>(
-      sqls: SQL[],
-      _options?: SQLQueryOptions,
-    ): Promise<QueryResult<Result>[]> => {
-      const results: QueryResult<Result>[] = [];
-      for (const sql of sqls) {
+      try {
         const { query, params } = sqliteFormatter.format(sql, {
           serializer,
         });
@@ -298,46 +288,76 @@ export const sqlite3Client = (
           query,
           params as SQLiteParameters[],
         );
-        results.push({ rowCount: result.length, rows: result });
+        return { rowCount: result.length, rows: result };
+      } catch (error) {
+        throw mapSqliteError(error);
       }
-      return results;
+    },
+    batchQuery: async <Result extends QueryResultRow = QueryResultRow>(
+      sqls: SQL[],
+      _options?: SQLQueryOptions,
+    ): Promise<QueryResult<Result>[]> => {
+      try {
+        const results: QueryResult<Result>[] = [];
+        for (const sql of sqls) {
+          const { query, params } = sqliteFormatter.format(sql, {
+            serializer,
+          });
+          const result = await executeQuery<Result>(
+            query,
+            params as SQLiteParameters[],
+          );
+          results.push({ rowCount: result.length, rows: result });
+        }
+        return results;
+      } catch (error) {
+        throw mapSqliteError(error);
+      }
     },
     command: async <Result extends QueryResultRow = QueryResultRow>(
       sql: SQL,
       options?: SQLiteCommandOptions,
     ): Promise<QueryResult<Result>> => {
-      const { query, params } = sqliteFormatter.format(sql, {
-        serializer,
-      });
+      try {
+        const { query, params } = sqliteFormatter.format(sql, {
+          serializer,
+        });
 
-      return executeCommand<Result>(
-        query,
-        params as SQLiteParameters[],
-        options,
-      );
+        return await executeCommand<Result>(
+          query,
+          params as SQLiteParameters[],
+          options,
+        );
+      } catch (error) {
+        throw mapSqliteError(error);
+      }
     },
     batchCommand: async <Result extends QueryResultRow = QueryResultRow>(
       sqls: SQL[],
       options?: BatchSQLiteCommandOptions,
     ): Promise<QueryResult<Result>[]> => {
-      const results: QueryResult<Result>[] = [];
+      try {
+        const results: QueryResult<Result>[] = [];
 
-      for (let i = 0; i < sqls.length; i++) {
-        const { query, params } = sqliteFormatter.format(sqls[i]!, {
-          serializer,
-        });
-        const result = await executeCommand<Result>(
-          query,
-          params as SQLiteParameters[],
-          options,
-        );
-        results.push(result);
+        for (let i = 0; i < sqls.length; i++) {
+          const { query, params } = sqliteFormatter.format(sqls[i]!, {
+            serializer,
+          });
+          const result = await executeCommand<Result>(
+            query,
+            params as SQLiteParameters[],
+            options,
+          );
+          results.push(result);
 
-        if (options?.assertChanges && (result.rowCount ?? 0) === 0) {
-          throw new BatchCommandNoChangesError(i);
+          if (options?.assertChanges && (result.rowCount ?? 0) === 0) {
+            throw new BatchCommandNoChangesError(i);
+          }
         }
+        return results;
+      } catch (error) {
+        throw mapSqliteError(error);
       }
-      return results;
     },
   };
 };
