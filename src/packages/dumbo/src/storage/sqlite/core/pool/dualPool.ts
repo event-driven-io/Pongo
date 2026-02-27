@@ -38,55 +38,34 @@ export const sqliteDualConnectionPool = <
 
   let databaseInitPromise: Promise<void> | null = null;
 
-  const getConnectionOptions = ({
-    readonly,
-  }: {
-    readonly: boolean;
-  }): ConnectionOptions => {
-    if (databaseInitPromise !== null) {
-      return {
-        ...connectionOptions,
-        skipDatabasePragmas: true,
-        readonly: readonly,
-      } as ConnectionOptions;
-    }
-    return connectionOptions as ConnectionOptions;
-  };
-
   const wrappedConnectionFactory = async (
-    opts: ConnectionOptions,
+    readonly: boolean,
+    connectionOptions: ConnectionOptions | undefined,
   ): Promise<SQLiteConnectionType> => {
-    const connection = sqliteConnectionFactory(opts);
+    const connection = sqliteConnectionFactory({
+      ...connectionOptions,
+      skipDatabasePragmas: databaseInitPromise !== null,
+      readonly,
+    } as ConnectionOptions);
 
-    if (!opts.skipDatabasePragmas) {
-      if (databaseInitPromise === null) {
-        databaseInitPromise = connection.open().catch((error) => {
-          databaseInitPromise = null;
-          throw error;
-        });
-      }
+    databaseInitPromise ??= connection.open().catch((error) => {
+      databaseInitPromise = null;
+      throw error;
+    });
 
-      await databaseInitPromise;
-    } else {
-      if (databaseInitPromise !== null) {
-        await databaseInitPromise;
-      }
-      await connection.open();
-    }
+    await databaseInitPromise;
 
     return connection;
   };
 
   const writerPool = createSingletonConnectionPool({
     driverType: options.driverType,
-    getConnection: () =>
-      wrappedConnectionFactory(getConnectionOptions({ readonly: false })),
+    getConnection: () => wrappedConnectionFactory(false, connectionOptions),
   });
 
   const readerPool = createBoundedConnectionPool({
     driverType: options.driverType,
-    getConnection: () =>
-      wrappedConnectionFactory(getConnectionOptions({ readonly: true })),
+    getConnection: () => wrappedConnectionFactory(true, connectionOptions),
     maxConnections: readerPoolSize,
   });
 
