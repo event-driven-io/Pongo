@@ -38,11 +38,16 @@ export const sqliteDualConnectionPool = <
 
   let databaseInitPromise: Promise<void> | null = null;
 
-  const getConnectionOptions = (): ConnectionOptions => {
+  const getConnectionOptions = ({
+    readonly,
+  }: {
+    readonly: boolean;
+  }): ConnectionOptions => {
     if (databaseInitPromise !== null) {
       return {
         ...connectionOptions,
         skipDatabasePragmas: true,
+        readonly: readonly,
       } as ConnectionOptions;
     }
     return connectionOptions as ConnectionOptions;
@@ -74,12 +79,14 @@ export const sqliteDualConnectionPool = <
 
   const writerPool = createSingletonConnectionPool({
     driverType: options.driverType,
-    getConnection: () => wrappedConnectionFactory(getConnectionOptions()),
+    getConnection: () =>
+      wrappedConnectionFactory(getConnectionOptions({ readonly: false })),
   });
 
   const readerPool = createBoundedConnectionPool({
     driverType: options.driverType,
-    getConnection: () => wrappedConnectionFactory(getConnectionOptions()),
+    getConnection: () =>
+      wrappedConnectionFactory(getConnectionOptions({ readonly: true })),
     maxConnections: readerPoolSize,
   });
 

@@ -18,6 +18,7 @@ import type {
   SQLiteTransactionOptions,
 } from '../../core';
 import {
+  DEFAULT_SQLITE_PRAGMA_OPTIONS,
   InMemorySQLiteDatabase,
   sqliteConnection,
   type BatchSQLiteCommandOptions,
@@ -61,6 +62,43 @@ export type SQLite3Connection<
   SQLiteTransaction<SQLite3Connection, SQLiteTransactionOptions>
 >;
 
+const applyPragma = (
+  database: sqlite3.Database,
+  pragma: string,
+  value: string | number,
+) => {
+  return new Promise<void>((resolve, reject) => {
+    database.run(`PRAGMA ${pragma} = ${value};`, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+};
+
+const queryPragma = (
+  database: sqlite3.Database,
+  pragma: string,
+): Promise<string> =>
+  new Promise((resolve, reject) => {
+    database.get(
+      `PRAGMA ${pragma};`,
+      (err: Error | null, row: { [key: string]: string } | null) => {
+        if (err) reject(err);
+        else resolve(row?.[pragma] ?? '');
+      },
+    );
+  });
+
+const applyPragmas = (
+  database: sqlite3.Database,
+  pragmas: Array<{ pragma: string; value: string | number }>,
+) =>
+  pragmas.reduce(
+    (promise, { pragma, value }) =>
+      promise.then(() => applyPragma(database, pragma, value)),
+    Promise.resolve(),
+  );
+
 export const sqlite3Client = (
   options: SQLite3ClientOptions & {
     serializer: JSONSerializer;
@@ -80,74 +118,50 @@ export const sqlite3Client = (
     options.pragmaOptions,
   );
 
+  const databaseMode = options.readonly
+    ? sqlite3.OPEN_URI | sqlite3.OPEN_READONLY
+    : sqlite3.OPEN_URI | sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE;
+
+  const connectionPragmas = buildConnectionPragmaStatements(finalPragmas);
+
   const connect: () => Promise<void> = () =>
     db
       ? Promise.resolve()
       : new Promise((resolve, reject) => {
           try {
-            db = new sqlite3.Database(
-              connectionString,
-              sqlite3.OPEN_URI | sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
-              (err) => {
-                if (err) {
-                  reject(err);
-                  return;
-                }
-              },
-            );
+            db = new sqlite3.Database(connectionString, databaseMode, (err) => {
+              if (err) {
+                reject(err);
+                return;
+              }
 
-            const applyPragma = (pragma: string, value: string | number) => {
-              return new Promise<void>((resolve, reject) => {
-                db.run(`PRAGMA ${pragma} = ${value};`, (err) => {
-                  if (err) reject(err);
-                  else resolve();
-                });
-              });
-            };
+              const busyTimeout =
+                finalPragmas.busy_timeout ??
+                DEFAULT_SQLITE_PRAGMA_OPTIONS.busy_timeout!;
 
-            const queryPragma = (pragma: string): Promise<string> =>
-              new Promise((resolve, reject) => {
-                db.get(
-                  `PRAGMA ${pragma};`,
-                  (
-                    err: Error | null,
-                    row: { [key: string]: string } | null,
-                  ) => {
-                    if (err) reject(err);
-                    else resolve(row?.[pragma] ?? '');
-                  },
-                );
-              });
+              db.configure('busyTimeout', busyTimeout);
 
-            const applyPragmas = (
-              pragmas: Array<{ pragma: string; value: string | number }>,
-            ) =>
-              pragmas.reduce(
-                (promise, { pragma, value }) =>
-                  promise.then(() => applyPragma(pragma, value)),
-                Promise.resolve(),
-              );
+              applyPragmas(
+                db,
+                connectionPragmas.filter((p) => p.pragma !== 'busy_timeout'),
+              )
+                .then(async () => {
+                  if (options.skipDatabasePragmas) return;
 
-            const connectionPragmas =
-              buildConnectionPragmaStatements(finalPragmas);
+                  const databasePragmas =
+                    buildDatabasePragmaStatements(finalPragmas);
+                  for (const { pragma, value } of databasePragmas) {
+                    const current = await queryPragma(db, pragma);
+                    if (current.toUpperCase() !== String(value).toUpperCase()) {
+                      await applyPragma(db, pragma, value);
+                    }
+                  }
+                })
+                .then(() => resolve())
+                .catch(reject);
+            });
 
             // Apply connection-level pragmas first (busy_timeout is first)
-            applyPragmas(connectionPragmas)
-              .then(async () => {
-                // Only apply database-level pragmas if not skipped
-                if (options.skipDatabasePragmas) return;
-
-                const databasePragmas =
-                  buildDatabasePragmaStatements(finalPragmas);
-                for (const { pragma, value } of databasePragmas) {
-                  const current = await queryPragma(pragma);
-                  if (current.toUpperCase() !== String(value).toUpperCase()) {
-                    await applyPragma(pragma, value);
-                  }
-                }
-              })
-              .then(() => resolve())
-              .catch(reject);
           } catch (error) {
             reject(error as Error);
           }
@@ -194,6 +208,7 @@ export const sqlite3Client = (
               });
             },
           );
+          return;
         }
         // OD: 2026-01-21
         // This is needed as SQLite does not return changes count properly
@@ -203,25 +218,32 @@ export const sqlite3Client = (
         // But for now, we do it manually, as a workaround
         // We also serialize it to avoid race conditions
         db.serialize(() => {
-          db.all(sql, params ?? [], (err: Error | null, rows: Result[]) => {
+          let hasFailed = false;
+          let resultRows: Result[] = [];
+
+          db.all(sql, params ?? [], (err, rows: Result[]) => {
             if (err) {
-              reject(err);
-              return;
+              hasFailed = true;
+              return reject(err);
             }
-            db.get(
-              'SELECT changes() as changes',
-              (changesErr: Error | null, row: { changes: number } | null) => {
-                if (changesErr) {
-                  reject(changesErr);
-                  return;
-                }
-                resolve({
-                  rowCount: row?.changes ?? 0,
-                  rows: rows ?? [],
-                });
-              },
-            );
+            resultRows = rows;
           });
+
+          db.get(
+            'SELECT changes() as changes',
+            (err, row: { changes: number } | null) => {
+              // If the first query failed, we exit immediately.
+              // The promise is already rejected; we don't want to touch it.
+              if (hasFailed) return;
+
+              if (err) return reject(err);
+
+              resolve({
+                rowCount: row?.changes ?? 0,
+                rows: resultRows,
+              });
+            },
+          );
         });
       } catch (error) {
         reject(error as Error);

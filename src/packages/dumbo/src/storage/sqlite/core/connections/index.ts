@@ -391,6 +391,7 @@ export type SQLiteClientOptions = {
   pragmaOptions?: Partial<SQLitePragmaOptions>;
   defaultTransactionMode?: SQLiteTransactionMode;
   skipDatabasePragmas?: boolean;
+  readonly?: boolean;
 };
 
 export * from './connectionString';
