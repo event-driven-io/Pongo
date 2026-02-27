@@ -41,6 +41,7 @@ export const sqliteDualConnectionPool = <
   const wrappedConnectionFactory = async (
     readonly: boolean,
     connectionOptions: ConnectionOptions | undefined,
+    retryCount = 0,
   ): Promise<SQLiteConnectionType> => {
     const connection = sqliteConnectionFactory({
       ...connectionOptions,
@@ -48,12 +49,22 @@ export const sqliteDualConnectionPool = <
       readonly,
     } as ConnectionOptions);
 
-    databaseInitPromise ??= connection.open().catch((error) => {
-      databaseInitPromise = null;
-      throw error;
-    });
+    databaseInitPromise ??= connection.open();
 
-    await databaseInitPromise;
+    try {
+      await databaseInitPromise;
+    } catch (error) {
+      databaseInitPromise = null;
+      await connection.close();
+      if (retryCount < 3) {
+        return wrappedConnectionFactory(
+          readonly,
+          connectionOptions,
+          retryCount + 1,
+        );
+      }
+      throw error;
+    }
 
     return connection;
   };
