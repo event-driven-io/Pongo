@@ -86,10 +86,15 @@ export const createSingletonConnectionPool = <
   options: SingletonConnectionPoolOptions<ConnectionType>,
 ): ConnectionPool<ConnectionType> => {
   const { driverType, getConnection } = options;
-  let connection: ConnectionType | null = null;
 
-  const getExistingOrNewConnection = async () =>
-    connection ?? (connection = await getConnection());
+  let connectionPromise: Promise<ConnectionType> | null = null;
+
+  const getExistingOrNewConnection = () => {
+    if (!connectionPromise) {
+      connectionPromise ??= Promise.resolve(getConnection());
+    }
+    return connectionPromise;
+  };
 
   const result: ConnectionPool<ConnectionType> = {
     driverType,
@@ -113,8 +118,10 @@ export const createSingletonConnectionPool = <
       getExistingOrNewConnection,
       options.closeConnection,
     ),
-    close: () => {
-      return connection !== null ? connection.close() : Promise.resolve();
+    close: async () => {
+      if (!connectionPromise) return;
+      const connection = await connectionPromise;
+      await connection.close();
     },
   };
 
@@ -129,15 +136,30 @@ export type CreateBoundedConnectionPoolOptions<
   maxConnections: number;
 };
 
+const memoizeConnection = <T>(fn: () => T | Promise<T>) => {
+  let promise: Promise<T> | null = null;
+  return () => {
+    if (!promise) {
+      promise = Promise.resolve(fn()).catch((err) => {
+        promise = null; // Reset so we can try again
+        throw err;
+      });
+    }
+    return promise;
+  };
+};
+
 export const createBoundedConnectionPool = <
   ConnectionType extends AnyConnection,
 >(
   options: CreateBoundedConnectionPoolOptions<ConnectionType>,
 ): ConnectionPool<ConnectionType> => {
-  const { driverType, getConnection, maxConnections } = options;
+  const { driverType, maxConnections } = options;
+
+  const getConnection = memoizeConnection(options.getConnection);
+
   const pool: ConnectionType[] = [];
   const allConnections = new Set<ConnectionType>();
-
   const taskProcessor = new TaskProcessor({
     maxActiveTasks: maxConnections,
     maxQueueSize: 1000,
@@ -150,23 +172,26 @@ export const createBoundedConnectionPool = <
     if (closed) throw new DumboError('Connection pool is closed');
 
     return taskProcessor.enqueue(async ({ ack }) => {
-      let conn: ConnectionType | undefined = pool.pop();
-      if (!conn) {
-        conn = await getConnection();
-        allConnections.add(conn);
+      try {
+        let conn: ConnectionType | undefined = pool.pop();
+        if (!conn) {
+          conn = await getConnection();
+          allConnections.add(conn);
+        }
+        ackCallbacks.set(conn, ack);
+        return conn;
+      } catch (e) {
+        ack();
+        throw e;
       }
-      ackCallbacks.set(conn, ack);
-      return conn;
     });
   };
 
   const release = (conn: ConnectionType) => {
-    if (closed) return;
-
-    pool.push(conn);
     const ack = ackCallbacks.get(conn);
     if (ack) {
       ackCallbacks.delete(conn);
+      pool.push(conn);
       ack();
     }
   };
@@ -182,28 +207,21 @@ export const createBoundedConnectionPool = <
     }
   };
 
-  const result: ConnectionPool<ConnectionType> = {
+  return {
     driverType,
     connection: async () => {
       const conn = await acquire();
-      let released = false;
-      return wrapPooledConnection(conn, () => {
-        if (!released) {
-          released = true;
-          release(conn);
-        }
-        return Promise.resolve();
-      });
+      return wrapPooledConnection(conn, () => Promise.resolve(release(conn)));
     },
     execute: {
-      query: (sql, options) =>
-        executeWithPooling((conn) => conn.execute.query(sql, options)),
-      batchQuery: (sqls, options) =>
-        executeWithPooling((conn) => conn.execute.batchQuery(sqls, options)),
-      command: (sql, options) =>
-        executeWithPooling((conn) => conn.execute.command(sql, options)),
-      batchCommand: (sqls, options) =>
-        executeWithPooling((conn) => conn.execute.batchCommand(sqls, options)),
+      query: (sql, opts) =>
+        executeWithPooling((c) => c.execute.query(sql, opts)),
+      batchQuery: (sqls, opts) =>
+        executeWithPooling((c) => c.execute.batchQuery(sqls, opts)),
+      command: (sql, opts) =>
+        executeWithPooling((c) => c.execute.command(sql, opts)),
+      batchCommand: (sqls, opts) =>
+        executeWithPooling((c) => c.execute.batchCommand(sqls, opts)),
     },
     withConnection: executeWithPooling,
     ...transactionFactoryWithAsyncAmbientConnection(
@@ -224,8 +242,6 @@ export const createBoundedConnectionPool = <
       await Promise.all(connections.map((conn) => conn.close()));
     },
   };
-
-  return result;
 };
 
 export type SingletonClientConnectionPoolOptions<
