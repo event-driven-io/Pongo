@@ -118,10 +118,6 @@ export const sqlite3Client = (
     options.pragmaOptions,
   );
 
-  const databaseMode = options.readonly
-    ? sqlite3.OPEN_URI | sqlite3.OPEN_READONLY
-    : sqlite3.OPEN_URI | sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE;
-
   const connectionPragmas = buildConnectionPragmaStatements(finalPragmas);
 
   const connect: () => Promise<void> = () =>
@@ -129,37 +125,43 @@ export const sqlite3Client = (
       ? Promise.resolve()
       : new Promise((resolve, reject) => {
           try {
-            db = new sqlite3.Database(connectionString, databaseMode, (err) => {
-              if (err) {
-                reject(err);
-                return;
-              }
+            db = new sqlite3.Database(
+              connectionString,
+              sqlite3.OPEN_URI | sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
+              (err) => {
+                if (err) {
+                  reject(err);
+                  return;
+                }
 
-              const busyTimeout =
-                finalPragmas.busy_timeout ??
-                DEFAULT_SQLITE_PRAGMA_OPTIONS.busy_timeout!;
+                const busyTimeout =
+                  finalPragmas.busy_timeout ??
+                  DEFAULT_SQLITE_PRAGMA_OPTIONS.busy_timeout!;
 
-              db.configure('busyTimeout', busyTimeout);
+                db.configure('busyTimeout', busyTimeout);
 
-              applyPragmas(
-                db,
-                connectionPragmas.filter((p) => p.pragma !== 'busy_timeout'),
-              )
-                .then(async () => {
-                  if (options.skipDatabasePragmas) return;
+                applyPragmas(
+                  db,
+                  connectionPragmas.filter((p) => p.pragma !== 'busy_timeout'),
+                )
+                  .then(async () => {
+                    if (options.skipDatabasePragmas) return;
 
-                  const databasePragmas =
-                    buildDatabasePragmaStatements(finalPragmas);
-                  for (const { pragma, value } of databasePragmas) {
-                    const current = await queryPragma(db, pragma);
-                    if (current.toUpperCase() !== String(value).toUpperCase()) {
-                      await applyPragma(db, pragma, value);
+                    const databasePragmas =
+                      buildDatabasePragmaStatements(finalPragmas);
+                    for (const { pragma, value } of databasePragmas) {
+                      const current = await queryPragma(db, pragma);
+                      if (
+                        current.toUpperCase() !== String(value).toUpperCase()
+                      ) {
+                        await applyPragma(db, pragma, value);
+                      }
                     }
-                  }
-                })
-                .then(() => resolve())
-                .catch(reject);
-            });
+                  })
+                  .then(() => resolve())
+                  .catch(reject);
+              },
+            );
 
             // Apply connection-level pragmas first (busy_timeout is first)
           } catch (error) {
