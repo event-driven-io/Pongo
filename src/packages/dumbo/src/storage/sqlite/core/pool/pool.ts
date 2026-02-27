@@ -185,6 +185,13 @@ export const toSqlitePoolOptions = <
   const { singleton, ...rest } = options;
   const isInMemory = isInMemoryDatabase(options);
 
+  if ('client' in options && options.client) {
+    return { ...rest, singleton: true } as SQLitePoolOptions<
+      SQLiteConnectionType,
+      ConnectionOptions
+    >;
+  }
+
   if (isInMemory) {
     return { ...rest, singleton: true } as SQLitePoolOptions<
       SQLiteConnectionType,
@@ -212,9 +219,6 @@ export function sqlitePool<
   options: SQLitePoolOptions<SQLiteConnectionType, ConnectionOptions>,
 ): SQLitePool<SQLiteConnectionType> {
   const { driverType } = options;
-
-  // TODO: Handle dates and bigints
-  // setSQLiteTypeParser(serializer ?? JSONSerializer);
 
   if (
     (
