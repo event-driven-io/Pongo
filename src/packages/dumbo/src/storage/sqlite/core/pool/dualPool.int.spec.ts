@@ -1,3 +1,4 @@
+import assert from 'node:assert';
 import * as fs from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import { SQL } from '../../../../core';
@@ -272,5 +273,27 @@ void describe('SQLite Dual Connection Pool', () => {
       await pool.close();
       cleanupDb(rollbackFileName);
     }
+  });
+
+  void it('handles parallel connection creation during pool initialization', async () => {
+    const parallelFileName = 'parallel-init-test.db';
+
+    const readPromises = Array.from({ length: 100 }, async (_, i) => {
+      const pool = sqlite3Pool({
+        fileName: parallelFileName,
+      });
+
+      try {
+        return await pool.execute.query(SQL`SELECT ${i} as value`);
+      } catch (error) {
+        return error;
+      } finally {
+        await pool.close();
+      }
+    });
+
+    const results = await Promise.all(readPromises);
+
+    assert.equal(results.filter((r) => r instanceof Error).length, 0);
   });
 });
