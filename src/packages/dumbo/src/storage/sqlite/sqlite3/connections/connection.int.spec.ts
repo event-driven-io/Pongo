@@ -14,6 +14,8 @@ import {
   type SQLiteClientOrPoolClient,
 } from '../../core';
 
+const withDeadline = { timeout: 30000 };
+
 void describe('Node SQLite3 pool', () => {
   const inMemoryfileName: string = InMemorySQLiteDatabase;
 
@@ -876,5 +878,42 @@ void describe('Node SQLite3 pool', () => {
         await pool.close();
       }
     });
+
+    void it(
+      'handles parallel connection opens without SQLITE_BUSY',
+      withDeadline,
+      async () => {
+        const pool = sqlite3Pool({ fileName });
+
+        const errors: string[] = [];
+        const connectionCount = 100;
+
+        const connectionPromises = Array.from(
+          { length: connectionCount },
+          (_, i) =>
+            (async () => {
+              try {
+                const conn = await pool.connection({ readonly: i % 2 === 0 });
+                try {
+                  await conn.execute.query(SQL`SELECT 1`);
+                } finally {
+                  await conn.close();
+                }
+              } catch (err) {
+                errors.push(`connection ${i}: ${(err as Error).message}`);
+              }
+            })(),
+        );
+
+        await Promise.all(connectionPromises);
+        await pool.close();
+
+        assert.strictEqual(
+          errors.length,
+          0,
+          `SQLITE_BUSY or other errors occurred: ${errors.join(', ')}`,
+        );
+      },
+    );
   });
 });

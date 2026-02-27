@@ -36,14 +36,25 @@ export const sqliteDualConnectionPool = <
   const { sqliteConnectionFactory, connectionOptions } = options;
   const readerPoolSize = options.readerPoolSize ?? Math.max(4, cpus().length);
 
+  // First connection applies database-level pragmas, subsequent connections skip them
+  let databaseInitialized = false;
+
+  const getConnectionOptions = (): ConnectionOptions => {
+    if (databaseInitialized) {
+      return { ...connectionOptions, skipDatabasePragmas: true };
+    }
+    databaseInitialized = true;
+    return connectionOptions;
+  };
+
   const writerPool = createSingletonConnectionPool({
     driverType: options.driverType,
-    getConnection: () => sqliteConnectionFactory(connectionOptions),
+    getConnection: () => sqliteConnectionFactory(getConnectionOptions()),
   });
 
   const readerPool = createBoundedConnectionPool({
     driverType: options.driverType,
-    getConnection: () => sqliteConnectionFactory(connectionOptions),
+    getConnection: () => sqliteConnectionFactory(getConnectionOptions()),
     maxConnections: readerPoolSize,
   });
 

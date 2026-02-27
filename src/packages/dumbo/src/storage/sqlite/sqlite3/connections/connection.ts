@@ -26,7 +26,8 @@ import {
   type SQLiteParameters,
 } from '../../core/connections';
 import {
-  buildPragmaStatements,
+  buildConnectionPragmaStatements,
+  buildDatabasePragmaStatements,
   mergePragmaOptions,
 } from '../../core/connections/pragmas';
 import { sqliteFormatter } from '../../core/sql/formatter';
@@ -95,7 +96,6 @@ export const sqlite3Client = (
               },
             );
 
-            const pragmaStatements = buildPragmaStatements(finalPragmas);
             const applyPragma = (pragma: string, value: string | number) => {
               return new Promise<void>((resolve, reject) => {
                 db.run(`PRAGMA ${pragma} = ${value};`, (err) => {
@@ -105,12 +105,47 @@ export const sqlite3Client = (
               });
             };
 
-            pragmaStatements
-              .reduce(
+            const queryPragma = (pragma: string): Promise<string> =>
+              new Promise((resolve, reject) => {
+                db.get(
+                  `PRAGMA ${pragma};`,
+                  (
+                    err: Error | null,
+                    row: { [key: string]: string } | null,
+                  ) => {
+                    if (err) reject(err);
+                    else resolve(row?.[pragma] ?? '');
+                  },
+                );
+              });
+
+            const applyPragmas = (
+              pragmas: Array<{ pragma: string; value: string | number }>,
+            ) =>
+              pragmas.reduce(
                 (promise, { pragma, value }) =>
                   promise.then(() => applyPragma(pragma, value)),
                 Promise.resolve(),
-              )
+              );
+
+            const connectionPragmas =
+              buildConnectionPragmaStatements(finalPragmas);
+
+            // Apply connection-level pragmas first (busy_timeout is first)
+            applyPragmas(connectionPragmas)
+              .then(async () => {
+                // Only apply database-level pragmas if not skipped
+                if (options.skipDatabasePragmas) return;
+
+                const databasePragmas =
+                  buildDatabasePragmaStatements(finalPragmas);
+                for (const { pragma, value } of databasePragmas) {
+                  const current = await queryPragma(pragma);
+                  if (current.toUpperCase() !== String(value).toUpperCase()) {
+                    await applyPragma(pragma, value);
+                  }
+                }
+              })
               .then(() => resolve())
               .catch(reject);
           } catch (error) {

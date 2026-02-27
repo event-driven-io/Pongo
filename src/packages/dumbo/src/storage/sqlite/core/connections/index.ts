@@ -1,4 +1,5 @@
 import {
+  mapSqliteError,
   SQLiteConnectionString,
   sqliteSQLExecutor,
   type SQLiteDriverType,
@@ -261,8 +262,13 @@ export const sqliteClientConnection = <
 
     client = sqliteClientFactory(connectionOptions as ClientOptions);
 
-    if (client && 'connect' in client && typeof client.connect === 'function')
-      await client.connect();
+    if (client && 'connect' in client && typeof client.connect === 'function') {
+      try {
+        await client.connect();
+      } catch (error) {
+        throw mapSqliteError(error);
+      }
+    }
 
     return client;
   };
@@ -316,7 +322,11 @@ export const sqlitePoolClientConnection = <
 
     client = sqliteClientFactory(connectionOptions as ClientOptions);
 
-    await client.connect();
+    try {
+      await client.connect();
+    } catch (error) {
+      throw mapSqliteError(error);
+    }
 
     return client;
   };
@@ -380,6 +390,7 @@ export const DEFAULT_SQLITE_PRAGMA_OPTIONS: SQLitePragmaOptions = {
 export type SQLiteClientOptions = {
   pragmaOptions?: Partial<SQLitePragmaOptions>;
   defaultTransactionMode?: SQLiteTransactionMode;
+  skipDatabasePragmas?: boolean;
 };
 
 export * from './connectionString';
