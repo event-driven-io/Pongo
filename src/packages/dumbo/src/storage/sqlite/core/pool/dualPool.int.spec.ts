@@ -224,7 +224,7 @@ void describe('SQLite Dual Connection Pool', () => {
       );
 
       let errorCount = 0;
-      const operations = Array.from({ length: 10 }, withDeadline, async () => {
+      const operations = Array.from({ length: 10 }, async () => {
         try {
           await pool.execute.command(
             SQL`INSERT INTO test (value) VALUES (NULL)`,
@@ -267,7 +267,7 @@ void describe('SQLite Dual Connection Pool', () => {
         );
 
         let rollbackCount = 0;
-        const operations = Array.from({ length: 5 }, withDeadline, async () => {
+        const operations = Array.from({ length: 5 }, async () => {
           try {
             await pool.withTransaction(async (tx) => {
               await tx.execute.command(

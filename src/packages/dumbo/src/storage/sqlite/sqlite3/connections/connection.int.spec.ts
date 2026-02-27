@@ -43,28 +43,23 @@ void describe('Node SQLite3 pool', () => {
   });
 
   void describe(`in-memory database`, () => {
-    void it(
-      'returns the singleton connection',
-      withDeadline,
-      withDeadline,
-      async () => {
-        const pool = sqlite3Pool({
-          fileName: inMemoryfileName,
-        });
-        const connection = await pool.connection();
-        const otherConnection = await pool.connection();
+    void it('returns the singleton connection', withDeadline, async () => {
+      const pool = sqlite3Pool({
+        fileName: inMemoryfileName,
+      });
+      const connection = await pool.connection();
+      const otherConnection = await pool.connection();
 
-        try {
-          const client = await connection.open();
-          const otherClient = await otherConnection.open();
-          assert.strictEqual(client, otherClient);
-        } finally {
-          await connection.close();
-          await otherConnection.close();
-          await pool.close();
-        }
-      },
-    );
+      try {
+        const client = await connection.open();
+        const otherClient = await otherConnection.open();
+        assert.strictEqual(client, otherClient);
+      } finally {
+        await connection.close();
+        await otherConnection.close();
+        await pool.close();
+      }
+    });
   });
 
   void describe(`file-based database`, () => {
@@ -164,29 +159,24 @@ void describe('Node SQLite3 pool', () => {
 
   for (const { testName, fileName } of testCases) {
     void describe(`sqlite3Pool with ${testName} database`, () => {
-      void it(
-        'connects using default pool',
-        withDeadline,
-        withDeadline,
-        async () => {
-          const pool = sqlite3Pool({
-            fileName,
-          });
-          const connection = await pool.connection();
+      void it('connects using default pool', withDeadline, async () => {
+        const pool = sqlite3Pool({
+          fileName,
+        });
+        const connection = await pool.connection();
 
-          try {
-            await connection.execute.query(SQL`SELECT 1`);
-          } catch (error) {
-            console.log(error);
-            assert.fail();
-          } finally {
-            await connection.close();
-            await pool.close();
-          }
-        },
-      );
+        try {
+          await connection.execute.query(SQL`SELECT 1`);
+        } catch (error) {
+          console.log(error);
+          assert.fail();
+        } finally {
+          await connection.close();
+          await pool.close();
+        }
+      });
 
-      void it('connects using client', withDeadline, withDeadline, async () => {
+      void it('connects using client', withDeadline, async () => {
         const pool = sqlite3Pool({
           fileName,
           pooled: false,
@@ -201,31 +191,26 @@ void describe('Node SQLite3 pool', () => {
         }
       });
 
-      void it(
-        'connects using ambient client',
-        withDeadline,
-        withDeadline,
-        async () => {
-          const existingClient = sqlite3Client({
-            fileName,
-            serializer: JSONSerializer,
-          });
-          await existingClient.connect();
+      void it('connects using ambient client', withDeadline, async () => {
+        const existingClient = sqlite3Client({
+          fileName,
+          serializer: JSONSerializer,
+        });
+        await existingClient.connect();
 
-          const pool = sqlite3Pool({
-            client: existingClient,
-          });
-          const connection = await pool.connection();
+        const pool = sqlite3Pool({
+          client: existingClient,
+        });
+        const connection = await pool.connection();
 
-          try {
-            await connection.execute.query(SQL`SELECT 1`);
-          } finally {
-            await connection.close();
-            await pool.close();
-            await existingClient.close();
-          }
-        },
-      );
+        try {
+          await connection.execute.query(SQL`SELECT 1`);
+        } finally {
+          await connection.close();
+          await pool.close();
+          await existingClient.close();
+        }
+      });
 
       void it(
         'connects using connected ambient connected connection from pool',
