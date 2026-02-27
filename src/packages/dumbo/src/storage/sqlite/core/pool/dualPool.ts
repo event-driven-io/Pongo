@@ -15,7 +15,7 @@ export type SQLiteDualPoolOptions<
   ConnectionOptions extends SQLiteConnectionOptions,
 > = {
   driverType: SQLiteConnectionType['driverType'];
-  dual: true;
+  dual?: true;
   singleton?: false;
   pooled?: true;
   connection?: never;
@@ -24,7 +24,7 @@ export type SQLiteDualPoolOptions<
     SQLiteConnectionType,
     ConnectionOptions
   >;
-  connectionOptions: ConnectionOptions;
+  connectionOptions?: ConnectionOptions;
 };
 
 export const sqliteDualConnectionPool = <
@@ -36,25 +36,46 @@ export const sqliteDualConnectionPool = <
   const { sqliteConnectionFactory, connectionOptions } = options;
   const readerPoolSize = options.readerPoolSize ?? Math.max(4, cpus().length);
 
-  // First connection applies database-level pragmas, subsequent connections skip them
-  let databaseInitialized = false;
+  let databaseInitPromise: Promise<void> | null = null;
 
   const getConnectionOptions = (): ConnectionOptions => {
-    if (databaseInitialized) {
-      return { ...connectionOptions, skipDatabasePragmas: true };
+    if (databaseInitPromise !== null) {
+      return {
+        ...connectionOptions,
+        skipDatabasePragmas: true,
+      } as ConnectionOptions;
     }
-    databaseInitialized = true;
-    return connectionOptions;
+    return connectionOptions as ConnectionOptions;
+  };
+
+  const wrappedConnectionFactory = (
+    opts: ConnectionOptions,
+  ): SQLiteConnectionType => {
+    const connection = sqliteConnectionFactory(opts);
+
+    if (!opts.skipDatabasePragmas && databaseInitPromise === null) {
+      databaseInitPromise = (async () => {
+        await connection.open();
+      })();
+    }
+
+    return connection;
   };
 
   const writerPool = createSingletonConnectionPool({
     driverType: options.driverType,
-    getConnection: () => sqliteConnectionFactory(getConnectionOptions()),
+    getConnection: () => wrappedConnectionFactory(getConnectionOptions()),
   });
 
   const readerPool = createBoundedConnectionPool({
     driverType: options.driverType,
-    getConnection: () => sqliteConnectionFactory(getConnectionOptions()),
+    getConnection: async () => {
+      const conn = wrappedConnectionFactory(getConnectionOptions());
+      if (databaseInitPromise !== null) {
+        await databaseInitPromise;
+      }
+      return conn;
+    },
     maxConnections: readerPoolSize,
   });
 
