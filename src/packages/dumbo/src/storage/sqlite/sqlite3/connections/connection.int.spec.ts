@@ -191,26 +191,30 @@ void describe('Node SQLite3 pool', () => {
         }
       });
 
-      void it('connects using ambient client', withDeadline, async () => {
-        const existingClient = sqlite3Client({
-          fileName,
-          serializer: JSONSerializer,
-        });
-        await existingClient.connect();
+      void it(
+        `connects using ambient client ${testName}`,
+        withDeadline,
+        async () => {
+          const existingClient = sqlite3Client({
+            fileName,
+            serializer: JSONSerializer,
+          });
+          await existingClient.connect();
 
-        const pool = sqlite3Pool({
-          client: existingClient,
-        });
-        const connection = await pool.connection();
+          const pool = sqlite3Pool({
+            client: existingClient,
+          });
+          const connection = await pool.connection();
 
-        try {
-          await connection.execute.query(SQL`SELECT 1`);
-        } finally {
-          await connection.close();
-          await pool.close();
-          await existingClient.close();
-        }
-      });
+          try {
+            await connection.execute.query(SQL`SELECT 1`);
+          } finally {
+            await connection.close();
+            await pool.close();
+            await existingClient.close();
+          }
+        },
+      );
 
       void it(
         'connects using connected ambient connected connection from pool',

@@ -3,6 +3,7 @@ import {
   createBoundedConnectionPool,
   createSingletonConnectionPool,
 } from '../../../../core';
+import { TaskProcessor } from '../../../../core/taskProcessing';
 import type {
   AnySQLiteConnection,
   SQLiteConnectionFactory,
@@ -38,33 +39,66 @@ export const sqliteDualConnectionPool = <
 
   let databaseInitPromise: Promise<void> | null = null;
 
+  const initTaskProcessor = new TaskProcessor({
+    maxActiveTasks: 1,
+    maxQueueSize: 1000,
+  });
+
+  const ensureDatabaseInitialized = async (
+    connectionOptions: ConnectionOptions | undefined,
+    retryCount = 0,
+  ): Promise<void> => {
+    if (databaseInitPromise !== null) {
+      return databaseInitPromise;
+    }
+
+    return initTaskProcessor.enqueue(
+      async ({ ack }) => {
+        if (databaseInitPromise !== null) {
+          ack();
+          return databaseInitPromise;
+        }
+
+        const initConnection = sqliteConnectionFactory({
+          ...connectionOptions,
+          skipDatabasePragmas: false,
+          readonly: false,
+        } as ConnectionOptions);
+
+        const initPromise = initConnection.open();
+        databaseInitPromise = initPromise;
+
+        try {
+          await initPromise;
+          await initConnection.close();
+          ack();
+        } catch (error) {
+          databaseInitPromise = null;
+          await initConnection.close();
+          ack();
+          if (retryCount < 3) {
+            return ensureDatabaseInitialized(connectionOptions, retryCount + 1);
+          }
+          throw error;
+        }
+      },
+      { taskGroupId: 'db-init' },
+    );
+  };
+
   const wrappedConnectionFactory = async (
     readonly: boolean,
     connectionOptions: ConnectionOptions | undefined,
-    retryCount = 0,
   ): Promise<SQLiteConnectionType> => {
+    await ensureDatabaseInitialized(connectionOptions);
+
     const connection = sqliteConnectionFactory({
       ...connectionOptions,
-      skipDatabasePragmas: databaseInitPromise !== null,
+      skipDatabasePragmas: true,
       readonly,
     } as ConnectionOptions);
 
-    databaseInitPromise ??= connection.open();
-
-    try {
-      await databaseInitPromise;
-    } catch (error) {
-      databaseInitPromise = null;
-      await connection.close();
-      if (retryCount < 3) {
-        return wrappedConnectionFactory(
-          readonly,
-          connectionOptions,
-          retryCount + 1,
-        );
-      }
-      throw error;
-    }
+    await connection.open();
 
     return connection;
   };
