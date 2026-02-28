@@ -1,4 +1,5 @@
 import assert from 'assert';
+import fs from 'fs';
 import { afterEach, describe, it } from 'node:test';
 import {
   CheckViolationError,
@@ -6,6 +7,7 @@ import {
   ForeignKeyViolationError,
   IntegrityConstraintViolationError,
   InvalidOperationError,
+  LockNotAvailableError,
   NotNullViolationError,
   SQL,
   UniqueConstraintError,
@@ -253,6 +255,92 @@ void describe('SQLite3 error mapping', () => {
         );
       } finally {
         await pool.execute.command(SQL`DROP TABLE IF EXISTS test_inner`);
+      }
+    });
+  });
+
+  void describe('lock and busy errors', () => {
+    void it('maps SQLITE_BUSY to LockNotAvailableError when BEGIN TRANSACTION fails', async () => {
+      // This test replicates the original issue: SQLITE_BUSY thrown during
+      // BEGIN TRANSACTION was not mapped because transaction.begin() calls
+      // client.query() directly, bypassing the executor wrapper.
+      const testFile = `/tmp/test-busy-${Date.now()}.db`;
+
+      const pool1 = sqlite3Pool({
+        fileName: testFile,
+        pragmaOptions: { busy_timeout: 1 },
+      });
+      const pool2 = sqlite3Pool({
+        fileName: testFile,
+        pragmaOptions: { busy_timeout: 1 },
+      });
+
+      try {
+        await pool1.execute.command(
+          SQL`CREATE TABLE IF NOT EXISTS test_busy (id INTEGER PRIMARY KEY, value TEXT)`,
+        );
+        await pool1.execute.command(
+          SQL`INSERT INTO test_busy (id, value) VALUES (1, 'initial')`,
+        );
+
+        const conn1 = await pool1.connection();
+
+        await conn1.withTransaction(async (tx) => {
+          // Hold the write lock
+          await tx.execute.command(
+            SQL`UPDATE test_busy SET value = 'updated' WHERE id = 1`,
+          );
+
+          // pool2 tries to start an IMMEDIATE transaction while pool1 holds the lock.
+          // This triggers SQLITE_BUSY during BEGIN IMMEDIATE TRANSACTION,
+          // which calls client.query() directly in transaction.begin().
+          const conn2 = await pool2.connection();
+          try {
+            await assert.rejects(
+              () =>
+                conn2.withTransaction(
+                  () => {
+                    // Should never reach here
+                    assert.fail('Should have thrown LockNotAvailableError');
+                  },
+                  { mode: 'IMMEDIATE' },
+                ),
+              (error) => {
+                assert.ok(
+                  error instanceof LockNotAvailableError,
+                  `Expected LockNotAvailableError but got ${(error as Error).constructor.name}: ${(error as Error).message}`,
+                );
+                assert.ok(error instanceof DumboError);
+                assert.ok(
+                  DumboError.isInstanceOf(error, {
+                    errorType: LockNotAvailableError.ErrorType,
+                  }),
+                );
+                assert.ok(error.innerError);
+                assert.ok('code' in error.innerError);
+                assert.strictEqual(
+                  (error.innerError as Error & { code: string }).code,
+                  'SQLITE_BUSY',
+                );
+                return true;
+              },
+            );
+          } finally {
+            await conn2.close();
+          }
+        });
+
+        await conn1.close();
+      } finally {
+        await pool1.close();
+        await pool2.close();
+        try {
+          fs.unlinkSync(testFile);
+          fs.unlinkSync(`${testFile}-shm`);
+          fs.unlinkSync(`${testFile}-wal`);
+        } catch {
+          // ignore cleanup errors
+        }
       }
     });
   });
