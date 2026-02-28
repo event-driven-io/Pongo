@@ -271,19 +271,16 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   }
   findOne(): Promise<WithId<T> | null>;
   findOne(filter: Filter<T>): Promise<WithId<T> | null>;
-  findOne(
-    filter: Filter<T>,
-    options: FindOptions<Document>,
-  ): Promise<WithId<T> | null>;
+  findOne(filter: Filter<T>, options: FindOptions): Promise<WithId<T> | null>;
   findOne<TS = T>(): Promise<TS | null>;
   findOne<TS = T>(filter: Filter<TS>): Promise<TS | null>;
   findOne<TS = T>(
     filter: Filter<TS>,
-    options?: FindOptions<Document>,
+    options?: FindOptions,
   ): Promise<TS | null>;
   async findOne(
     filter?: unknown,
-    options?: FindOptions<Document>,
+    options?: FindOptions,
   ): Promise<WithId<T> | T | null> {
     return (await this.collection.findOne(
       filter as PongoFilter<T>,
@@ -291,17 +288,14 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     )) as T;
   }
   find(): MongoFindCursor<WithId<T>>;
-  find(
-    filter: Filter<T>,
-    options?: FindOptions<Document>,
-  ): MongoFindCursor<WithId<T>>;
+  find(filter: Filter<T>, options?: FindOptions): MongoFindCursor<WithId<T>>;
   find<T extends Document>(
     filter: Filter<T>,
-    options?: FindOptions<Document>,
+    options?: FindOptions,
   ): MongoFindCursor<T>;
   find(
     filter?: unknown,
-    options?: FindOptions<Document>,
+    options?: FindOptions,
   ): MongoFindCursor<WithId<T>> | MongoFindCursor<T> {
     return new FindCursor(
       this.collection.find(filter as PongoFilter<T>, toFindOptions(options)),
