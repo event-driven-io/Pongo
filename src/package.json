@@ -41,7 +41,9 @@
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
-    "copy:readme": "cpy '../README.md' 'packages/pongo/src'"
+    "copy:readme": "cpy '../README.md' 'packages/pongo/src'",
+    "bench": "node --import tsx packages/dumbo/src/benchmarks/index.ts",
+    "bench:sqlite": "node --import tsx packages/dumbo/src/benchmarks/sqlite.bench.ts"
   },
   "repository": {
     "type": "git",
@@ -78,13 +80,11 @@
     "@faker-js/faker": "^10.2.0",
     "@testcontainers/mongodb": "^11.11.0",
     "@testcontainers/postgresql": "^11.11.0",
-    "@types/benchmark": "^2.1.5",
     "@types/mongodb": "^4.0.7",
     "@types/node": "^25.0.10",
     "@types/pg": "^8.16.0",
     "@typescript-eslint/eslint-plugin": "^8.54.0",
     "@typescript-eslint/parser": "^8.54.0",
-    "benchmark": "^2.1.4",
     "cpy-cli": "^6.0.0",
     "dotenv": "^17.2.3",
     "eslint": "^9.39.2",
@@ -92,6 +92,7 @@
     "eslint-plugin-prettier": "^5.5.5",
     "glob-bin": "^1.0.0",
     "miniflare": "^4.20260124.0",
+    "mitata": "^1.0.34",
     "npm-run-all2": "^8.0.4",
     "prettier": "^3.8.1",
     "testcontainers": "^11.11.0",

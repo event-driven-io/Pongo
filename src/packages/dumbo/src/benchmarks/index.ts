@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-import Benchmark from 'benchmark';
+import { bench, group, run, summary } from 'mitata';
 import pg from 'pg';
 import { dumbo, single, SQL } from '..';
 import {
@@ -14,6 +14,8 @@ const connectionString = PostgreSQLConnectionString(
     defaultPostgreSQLConnectionString,
 );
 
+console.log(`Using PostgreSQL connection string: ${connectionString}`);
+
 const pooled = process.env.BENCHMARK_CONNECTION_POOLED === 'true';
 
 const pool = dumbo({
@@ -24,104 +26,170 @@ const pool = dumbo({
 
 const rawPgPool = new pg.Pool({ connectionString });
 
-const setup = () =>
-  pool.execute.command(
+const setup = async () => {
+  await pool.execute.command(
     SQL`
       CREATE TABLE IF NOT EXISTS cars (
-        id SERIAL PRIMARY KEY, 
+        id SERIAL PRIMARY KEY,
         brand VARCHAR(255)
       );`,
   );
-
-const openAndCloseRawConnection = async () => {
-  if (pooled) {
-    const client = await rawPgPool.connect();
-    client.release();
-  } else {
-    const client = new pg.Client(connectionString);
-    await client.connect();
-    await client.end();
-  }
+  await pool.execute.command(
+    SQL`CREATE TABLE IF NOT EXISTS bench_streams (
+      stream_id TEXT PRIMARY KEY,
+      stream_position INTEGER NOT NULL DEFAULT 0
+    )`,
+  );
+  await pool.execute.command(SQL`TRUNCATE TABLE bench_streams;`);
+  await pool.execute.command(
+    SQL`CREATE TABLE IF NOT EXISTS bench_messages (
+      id BIGSERIAL PRIMARY KEY,
+      stream_id TEXT NOT NULL,
+      stream_position INTEGER NOT NULL,
+      data TEXT NOT NULL
+    )`,
+  );
+  await pool.execute.command(SQL`TRUNCATE TABLE bench_messages;`);
 };
 
-const openAndCloseDumboConnection = async () => {
-  const connection = await pool.connection();
-  try {
-    await connection.open();
-  } finally {
-    await connection.close();
-  }
-};
+const appendWithTransaction = async (streamId: string, data: string) =>
+  pool.withTransaction(async (tx) => {
+    const streamResult = await tx.execute.command<{
+      stream_position: number;
+    }>(
+      SQL`INSERT INTO bench_streams (stream_id, stream_position)
+        VALUES (${streamId}, 1)
+        ON CONFLICT (stream_id) DO UPDATE
+          SET stream_position = bench_streams.stream_position + 1
+        RETURNING stream_position`,
+    );
 
-const getRecord = () =>
-  single(pool.execute.query(SQL`SELECT * FROM cars LIMIT 1;`));
+    const position = streamResult.rows[0]!.stream_position;
 
-// Function to update a record by ID
-const insertRecord = () =>
-  pool.withTransaction((transaction) =>
-    transaction.execute.command(SQL`INSERT INTO cars (brand) VALUES ('bmw')`),
+    await tx.execute.command<{ id: number }>(
+      SQL`INSERT INTO bench_messages (stream_id, stream_position, data)
+        VALUES (${streamId}, ${position}, ${data})
+        RETURNING id`,
+    );
+  });
+
+const appendRaw = async (streamId: string, data: string) => {
+  const streamResult = await pool.execute.command<{
+    stream_position: number;
+  }>(
+    SQL`INSERT INTO bench_streams (stream_id, stream_position)
+      VALUES (${streamId}, 1)
+      ON CONFLICT (stream_id) DO UPDATE
+        SET stream_position = bench_streams.stream_position + 1
+      RETURNING stream_position`,
   );
 
-// Setup Benchmark.js
-async function runBenchmark() {
-  await setup();
+  const position = streamResult.rows[0]!.stream_position;
 
-  const suite = new Benchmark.Suite();
+  await pool.execute.command<{ id: number }>(
+    SQL`INSERT INTO bench_messages (stream_id, stream_position, data)
+      VALUES (${streamId}, ${position}, ${data})
+      RETURNING id`,
+  );
+};
 
-  suite
-    .add('Opening and closing raw connection', {
-      defer: true,
-      fn: async function (deferred: Benchmark.Deferred) {
-        await openAndCloseRawConnection();
-        deferred.resolve();
-      },
-    })
-    .add('Opening and closing connection', {
-      defer: true,
-      fn: async function (deferred: Benchmark.Deferred) {
-        await openAndCloseDumboConnection();
-        deferred.resolve();
-      },
-    })
-    .add('INSERTING records in transaction', {
-      defer: true,
-      fn: async function (deferred: Benchmark.Deferred) {
-        await insertRecord();
-        deferred.resolve();
-      },
-    })
-    .add('READING records', {
-      defer: true,
-      fn: async function (deferred: Benchmark.Deferred) {
-        await getRecord();
-        deferred.resolve();
-      },
-    })
-    .on('cycle', function (event: Benchmark.Event) {
-      console.log(String(event.target as unknown));
-    })
-    .on('complete', async function (this: Benchmark.Suite) {
-      this.forEach((bench: Benchmark.Target) => {
-        const stats = bench.stats;
-        console.log(`\nBenchmark: ${bench.name}`);
-        console.log(`  Operations per second: ${bench.hz!.toFixed(2)} ops/sec`);
-        console.log(
-          `  Mean execution time: ${(stats!.mean * 1000).toFixed(2)} ms`,
-        );
-        console.log(
-          `  Standard deviation: ${(stats!.deviation * 1000).toFixed(2)} ms`,
-        );
-        console.log(`  Margin of error: ±${stats!.rme.toFixed(2)}%`);
-        console.log(`  Sample size: ${stats!.sample.length} runs`);
-        console.log();
-      });
+await setup();
 
-      console.log('Benchmarking complete.');
-      await rawPgPool.end();
-      return pool.close(); // Close the database connection
-    })
-    // Run the benchmarks
-    .run({ async: true });
-}
+// Pre-create streams for the "existing stream" benchmarks
+await appendWithTransaction('warm-stream', '{"type":"warmup"}');
+await appendRaw('warm-stream-raw', '{"type":"warmup"}');
 
-runBenchmark().catch(console.error);
+let txCounter = 0;
+let rawCounter = 0;
+
+summary(() => {
+  bench('open and close raw connection', async () => {
+    if (pooled) {
+      const client = await rawPgPool.connect();
+      client.release();
+    } else {
+      const client = new pg.Client(connectionString);
+      await client.connect();
+      await client.end();
+    }
+  });
+
+  bench('open and close dumbo connection', async () => {
+    const connection = await pool.connection();
+    try {
+      await connection.open();
+    } finally {
+      await connection.close();
+    }
+  });
+
+  bench('INSERT in transaction', async () => {
+    await pool.withTransaction((transaction) =>
+      transaction.execute.command(SQL`INSERT INTO cars (brand) VALUES ('bmw')`),
+    );
+  });
+
+  bench('SELECT single record', async () => {
+    await single(pool.execute.query(SQL`SELECT * FROM cars LIMIT 1;`));
+  });
+
+  bench('append to new stream (with tx)', async () => {
+    await appendWithTransaction(
+      `stream-tx-${txCounter++}`,
+      '{"type":"created"}',
+    );
+  });
+
+  bench('append to new stream (raw)', async () => {
+    await appendRaw(`stream-raw-${rawCounter++}`, '{"type":"created"}');
+  });
+
+  bench('append to existing stream (with tx)', async () => {
+    await appendWithTransaction('warm-stream', '{"type":"appended"}');
+  });
+
+  bench('append to existing stream (raw)', async () => {
+    await appendRaw('warm-stream-raw', '{"type":"appended"}');
+  });
+});
+
+group('sequential throughput', () => {
+  bench('1000 sequential appends (with tx)', async () => {
+    const batchId = `seq-tx-${Date.now()}`;
+    for (let i = 0; i < 1000; i++) {
+      await appendWithTransaction(`${batchId}-${i}`, '{"type":"batch"}');
+    }
+  });
+
+  bench('1000 sequential appends (raw)', async () => {
+    const batchId = `seq-raw-${Date.now()}`;
+    for (let i = 0; i < 1000; i++) {
+      await appendRaw(`${batchId}-${i}`, '{"type":"batch"}');
+    }
+  });
+});
+
+group('concurrent throughput (Promise.all)', () => {
+  bench('1000 concurrent appends to unique streams (with tx)', async () => {
+    const batchId = `conc-tx-${Date.now()}`;
+    await Promise.all(
+      Array.from({ length: 1000 }, (_, i) =>
+        appendWithTransaction(`${batchId}-${i}`, '{"type":"concurrent"}'),
+      ),
+    );
+  });
+
+  bench('1000 concurrent appends to unique streams (raw)', async () => {
+    const batchId = `conc-raw-${Date.now()}`;
+    await Promise.all(
+      Array.from({ length: 1000 }, (_, i) =>
+        appendRaw(`${batchId}-${i}`, '{"type":"concurrent"}'),
+      ),
+    );
+  });
+});
+
+await run();
+
+await rawPgPool.end();
+await pool.close();
