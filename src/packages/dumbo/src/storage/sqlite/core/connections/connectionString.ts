@@ -75,5 +75,10 @@ export const parsePragmasFromConnectionString = (
     pragmas.busy_timeout = parseInt(busyTimeout, 10);
   }
 
+  const mmapSize = params.get('mmap_size');
+  if (mmapSize !== null) {
+    pragmas.mmap_size = parseInt(mmapSize, 10);
+  }
+
   return pragmas;
 };

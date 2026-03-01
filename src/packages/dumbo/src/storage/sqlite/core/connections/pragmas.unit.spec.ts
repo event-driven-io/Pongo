@@ -81,6 +81,14 @@ void describe('PRAGMA parsing', () => {
     assert.strictEqual(pragmas.busy_timeout, 10000);
   });
 
+  void it('parses mmap_size from connection string', () => {
+    const pragmas = parsePragmasFromConnectionString(
+      'file:test.db?mmap_size=536870912',
+    );
+
+    assert.strictEqual(pragmas.mmap_size, 536870912);
+  });
+
   void it('parses multiple PRAGMAs from connection string', () => {
     const pragmas = parsePragmasFromConnectionString(
       'file:test.db?journal_mode=WAL&synchronous=NORMAL&cache_size=-1000000&foreign_keys=true&temp_store=memory&busy_timeout=5000',
@@ -171,6 +179,7 @@ void describe('PRAGMA statement building', () => {
       { pragma: 'cache_size', value: -1000000 },
       { pragma: 'foreign_keys', value: 'ON' },
       { pragma: 'temp_store', value: 'MEMORY' },
+      { pragma: 'mmap_size', value: 268435456 },
     ]);
   });
 
@@ -200,6 +209,7 @@ void describe('PRAGMA statement building', () => {
       { pragma: 'cache_size', value: -1000000 },
       { pragma: 'foreign_keys', value: 'ON' },
       { pragma: 'temp_store', value: 'MEMORY' },
+      { pragma: 'mmap_size', value: 268435456 },
       { pragma: 'journal_mode', value: 'WAL' },
     ]);
   });

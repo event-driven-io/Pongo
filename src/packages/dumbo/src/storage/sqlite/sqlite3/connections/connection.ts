@@ -46,6 +46,9 @@ export type ConnectionCheckResult =
       error: unknown;
     };
 
+const hasReturningClause = (sql: string): boolean =>
+  /\bRETURNING\b/i.test(sql);
+
 export type SQLite3ClientOptions = SQLiteClientOptions &
   SQLiteFileNameOrConnectionString;
 
@@ -213,6 +216,15 @@ export const sqlite3Client = (
           );
           return;
         }
+
+        if (hasReturningClause(sql)) {
+          db.all(sql, params ?? [], (err, rows: Result[]) => {
+            if (err) return reject(err);
+            resolve({ rowCount: rows.length, rows });
+          });
+          return;
+        }
+
         // OD: 2026-01-21
         // This is needed as SQLite does not return changes count properly
         // We need to query it separately with SELECT changes()
