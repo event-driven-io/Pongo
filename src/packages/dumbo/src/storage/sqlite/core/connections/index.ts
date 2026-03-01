@@ -376,6 +376,7 @@ export type SQLitePragmaOptions = {
   foreign_keys?: boolean;
   temp_store?: 'DEFAULT' | 'FILE' | 'MEMORY';
   busy_timeout?: number;
+  mmap_size?: number;
 };
 
 export const DEFAULT_SQLITE_PRAGMA_OPTIONS: SQLitePragmaOptions = {
@@ -385,6 +386,7 @@ export const DEFAULT_SQLITE_PRAGMA_OPTIONS: SQLitePragmaOptions = {
   foreign_keys: true,
   temp_store: 'MEMORY',
   busy_timeout: 5000,
+  mmap_size: 268435456,
 };
 
 export type SQLiteClientOptions = {

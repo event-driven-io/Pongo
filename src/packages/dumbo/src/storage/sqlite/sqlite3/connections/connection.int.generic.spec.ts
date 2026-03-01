@@ -68,13 +68,13 @@ void describe('Node SQLite3 pool', () => {
   });
 
   void describe(`file-based database`, () => {
-    void it('returns the new connection each time', withDeadline, async () => {
+    void it('returns the new readonly connection', withDeadline, async () => {
       const pool = dumbo({
         driverType: `SQLite:sqlite3`,
         connectionString,
       });
-      const connection = await pool.connection();
-      const otherConnection = await pool.connection();
+      const connection = await pool.connection({ readonly: true });
+      const otherConnection = await pool.connection({ readonly: true });
 
       try {
         // Won't work for now as it's lazy loaded
@@ -82,6 +82,7 @@ void describe('Node SQLite3 pool', () => {
 
         const client = await connection.open();
         const otherClient = await otherConnection.open();
+        // File-based pool uses a singleton writer — both connections share the same client
         assert.notDeepStrictEqual(client, otherClient);
       } finally {
         await connection.close();
@@ -89,6 +90,32 @@ void describe('Node SQLite3 pool', () => {
         await pool.close();
       }
     });
+    void it(
+      'returns the same writable connection each time',
+      withDeadline,
+      async () => {
+        const pool = dumbo({
+          driverType: `SQLite:sqlite3`,
+          connectionString,
+        });
+        const connection = await pool.connection();
+        const otherConnection = await pool.connection();
+
+        try {
+          // Won't work for now as it's lazy loaded
+          // assert.notDeepStrictEqual(connection, otherConnection);
+
+          const client = await connection.open();
+          const otherClient = await otherConnection.open();
+          // File-based pool uses a singleton writer — both connections share the same client
+          assert.deepStrictEqual(client, otherClient);
+        } finally {
+          await connection.close();
+          await otherConnection.close();
+          await pool.close();
+        }
+      },
+    );
 
     void it(
       'for singleton setting returns the singleton connection',

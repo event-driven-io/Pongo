@@ -27,6 +27,9 @@ export const buildConnectionPragmaStatements = (
   { pragma: 'cache_size', value: pragmas.cache_size! },
   { pragma: 'foreign_keys', value: pragmas.foreign_keys ? 'ON' : 'OFF' },
   { pragma: 'temp_store', value: pragmas.temp_store! },
+  ...(pragmas.mmap_size !== undefined
+    ? [{ pragma: 'mmap_size', value: pragmas.mmap_size }]
+    : []),
 ];
 
 export const buildDatabasePragmaStatements = (
