@@ -46,8 +46,7 @@ export type ConnectionCheckResult =
       error: unknown;
     };
 
-const hasReturningClause = (sql: string): boolean =>
-  /\bRETURNING\b/i.test(sql);
+const hasReturningClause = (sql: string): boolean => /\bRETURNING\b/i.test(sql);
 
 export type SQLite3ClientOptions = SQLiteClientOptions &
   SQLiteFileNameOrConnectionString;
