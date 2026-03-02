@@ -137,7 +137,27 @@ async function main() {
     });
   });
 
-  await run();
+  const results = await run();
+
+  const rows = results.benchmarks.flatMap((trial) =>
+    trial.runs
+      .filter((r) => r.stats !== undefined)
+      .map((r) => {
+        const match = r.name.match(/^(\d+)\s/);
+        const multiplier = match ? parseInt(match[1]!, 10) : 1;
+        const opsPerSec = Math.round((multiplier * 1e9) / r.stats.avg);
+        return { name: r.name, opsPerSec };
+      }),
+  );
+
+  const nameWidth = Math.max(...rows.map((r) => r.name.length));
+  console.log('\nops/sec');
+  console.log('-'.repeat(nameWidth + 20));
+  for (const { name, opsPerSec } of rows) {
+    console.log(
+      `${name.padEnd(nameWidth)}  ${opsPerSec.toLocaleString().padStart(12)} ops/sec`,
+    );
+  }
 
   await pool.close();
 }

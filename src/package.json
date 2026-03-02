@@ -42,7 +42,8 @@
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
     "copy:readme": "cpy '../README.md' 'packages/pongo/src'",
-    "bench": "node --import tsx packages/dumbo/src/benchmarks/index.ts",
+    "bench": "run-s bench:sqlite bench:postgresql",
+    "bench:postgresql": "node --import tsx packages/dumbo/src/benchmarks/postgresql.bench.ts",
     "bench:sqlite": "node --import tsx packages/dumbo/src/benchmarks/sqlite.bench.ts"
   },
   "repository": {

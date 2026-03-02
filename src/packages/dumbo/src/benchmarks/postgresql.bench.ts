@@ -1,5 +1,7 @@
 import 'dotenv/config';
 
+import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
+import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { bench, group, run, summary } from 'mitata';
 import pg from 'pg';
 import { dumbo, single, SQL } from '..';
@@ -9,14 +11,20 @@ import {
   PostgreSQLConnectionString,
 } from '../pg';
 
+let postgres: StartedPostgreSqlContainer = undefined!;
+
+if (!process.env.BENCHMARK_POSTGRESQL_CONNECTION_STRING)
+  postgres = await new PostgreSqlContainer('postgres:18.0').start();
+
 const connectionString = PostgreSQLConnectionString(
   process.env.BENCHMARK_POSTGRESQL_CONNECTION_STRING ??
+    postgres?.getConnectionUri() ??
     defaultPostgreSQLConnectionString,
 );
 
 console.log(`Using PostgreSQL connection string: ${connectionString}`);
 
-const pooled = process.env.BENCHMARK_CONNECTION_POOLED === 'true';
+const pooled = process.env.BENCHMARK_CONNECTION_POOLED !== 'false';
 
 const pool = dumbo({
   connectionString,
@@ -122,7 +130,9 @@ summary(() => {
       await connection.close();
     }
   });
+});
 
+summary(() => {
   bench('INSERT in transaction', async () => {
     await pool.withTransaction((transaction) =>
       transaction.execute.command(SQL`INSERT INTO cars (brand) VALUES ('bmw')`),
@@ -132,7 +142,9 @@ summary(() => {
   bench('SELECT single record', async () => {
     await single(pool.execute.query(SQL`SELECT * FROM cars LIMIT 1;`));
   });
+});
 
+summary(() => {
   bench('append to new stream (with tx)', async () => {
     await appendWithTransaction(
       `stream-tx-${txCounter++}`,
@@ -189,7 +201,28 @@ group('concurrent throughput (Promise.all)', () => {
   });
 });
 
-await run();
+const results = await run();
+
+const rows = results.benchmarks.flatMap((trial) =>
+  trial.runs
+    .filter((r) => r.stats !== undefined)
+    .map((r) => {
+      const match = r.name.match(/^(\d+)\s/);
+      const multiplier = match ? parseInt(match[1]!, 10) : 1;
+      const opsPerSec = Math.round((multiplier * 1e9) / r.stats.avg);
+      return { name: r.name, opsPerSec };
+    }),
+);
+
+const nameWidth = Math.max(...rows.map((r) => r.name.length));
+console.log('\nops/sec');
+console.log('-'.repeat(nameWidth + 20));
+for (const { name, opsPerSec } of rows) {
+  console.log(
+    `${name.padEnd(nameWidth)}  ${opsPerSec.toLocaleString().padStart(12)} ops/sec`,
+  );
+}
 
 await rawPgPool.end();
 await pool.close();
+if (postgres) await postgres.stop();
