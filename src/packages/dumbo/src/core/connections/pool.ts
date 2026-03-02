@@ -1,4 +1,3 @@
-import { DumboError } from '../errors';
 import {
   executeInAmbientConnection,
   executeInNewConnection,
@@ -6,7 +5,7 @@ import {
   sqlExecutorInNewConnection,
   type WithSQLExecutor,
 } from '../execute';
-import { TaskProcessor } from '../taskProcessing';
+import { guardBoundedAccess } from '../taskProcessing';
 import type {
   AnyConnection,
   InferDbClientFromConnection,
@@ -136,19 +135,6 @@ export type CreateBoundedConnectionPoolOptions<
   maxConnections: number;
 };
 
-const memoizeConnection = <T>(fn: () => T | Promise<T>) => {
-  let promise: Promise<T> | null = null;
-  return () => {
-    if (!promise) {
-      promise = Promise.resolve(fn()).catch((err) => {
-        promise = null; // Reset so we can try again
-        throw err;
-      });
-    }
-    return promise;
-  };
-};
-
 export const createBoundedConnectionPool = <
   ConnectionType extends AnyConnection,
 >(
@@ -156,62 +142,31 @@ export const createBoundedConnectionPool = <
 ): ConnectionPool<ConnectionType> => {
   const { driverType, maxConnections } = options;
 
-  const getConnection = memoizeConnection(options.getConnection);
-
-  const pool: ConnectionType[] = [];
-  const allConnections = new Set<ConnectionType>();
-  const taskProcessor = new TaskProcessor({
-    maxActiveTasks: maxConnections,
-    maxQueueSize: 1000,
+  const guardMaxConnections = guardBoundedAccess(options.getConnection, {
+    maxResources: maxConnections,
+    reuseResources: true,
   });
 
-  const ackCallbacks = new Map<ConnectionType, () => void>();
   let closed = false;
-
-  const acquire = async (): Promise<ConnectionType> => {
-    if (closed) throw new DumboError('Connection pool is closed');
-
-    return taskProcessor.enqueue(async ({ ack }) => {
-      try {
-        let conn: ConnectionType | undefined = pool.pop();
-        if (!conn) {
-          conn = await getConnection();
-          allConnections.add(conn);
-        }
-        ackCallbacks.set(conn, ack);
-        return conn;
-      } catch (e) {
-        ack();
-        throw e;
-      }
-    });
-  };
-
-  const release = (conn: ConnectionType) => {
-    const ack = ackCallbacks.get(conn);
-    if (ack) {
-      ackCallbacks.delete(conn);
-      pool.push(conn);
-      ack();
-    }
-  };
 
   const executeWithPooling = async <Result>(
     operation: (conn: ConnectionType) => Promise<Result>,
   ): Promise<Result> => {
-    const conn = await acquire();
+    const conn = await guardMaxConnections.acquire();
     try {
       return await operation(conn);
     } finally {
-      release(conn);
+      guardMaxConnections.release(conn);
     }
   };
 
   return {
     driverType,
     connection: async () => {
-      const conn = await acquire();
-      return wrapPooledConnection(conn, () => Promise.resolve(release(conn)));
+      const conn = await guardMaxConnections.acquire();
+      return wrapPooledConnection(conn, () =>
+        Promise.resolve(guardMaxConnections.release(conn)),
+      );
     },
     execute: {
       query: (sql, opts) =>
@@ -226,20 +181,14 @@ export const createBoundedConnectionPool = <
     withConnection: executeWithPooling,
     ...transactionFactoryWithAsyncAmbientConnection(
       driverType,
-      acquire,
-      release,
+      guardMaxConnections.acquire,
+      guardMaxConnections.release,
     ),
     close: async () => {
       if (closed) return;
       closed = true;
 
-      for (const ack of ackCallbacks.values()) ack();
-      ackCallbacks.clear();
-
-      const connections = [...allConnections];
-      allConnections.clear();
-      pool.length = 0;
-      await Promise.all(connections.map((conn) => conn.close()));
+      await guardMaxConnections.stop({ force: true });
     },
   };
 };

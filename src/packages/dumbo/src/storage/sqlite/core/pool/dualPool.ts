@@ -3,7 +3,7 @@ import {
   createBoundedConnectionPool,
   createSingletonConnectionPool,
 } from '../../../../core';
-import { TaskProcessor } from '../../../../core/taskProcessing';
+import { guardInitializedOnce } from '../../../../core/taskProcessing';
 import type {
   AnySQLiteConnection,
   SQLiteConnectionFactory,
@@ -40,58 +40,43 @@ export const sqliteDualConnectionPool = <
 
   let databaseInitPromise: Promise<void> | null = null;
 
-  const initTaskProcessor = new TaskProcessor({
-    maxActiveTasks: 1,
-    maxQueueSize: 1000,
-  });
-
-  const ensureDatabaseInitialized = async (
-    connectionOptions: ConnectionOptions | undefined,
-    retryCount = 0,
-  ): Promise<void> => {
+  const guardSingleConnection = guardInitializedOnce(async () => {
     if (databaseInitPromise !== null) {
       return databaseInitPromise;
     }
 
-    return initTaskProcessor.enqueue(
-      async ({ ack }) => {
-        if (databaseInitPromise !== null) {
-          ack();
-          return databaseInitPromise;
-        }
+    const initConnection = sqliteConnectionFactory({
+      ...connectionOptions,
+      skipDatabasePragmas: false,
+      readonly: false,
+    } as ConnectionOptions);
 
-        const initConnection = sqliteConnectionFactory({
-          ...connectionOptions,
-          skipDatabasePragmas: false,
-          readonly: false,
-        } as ConnectionOptions);
+    const initPromise = initConnection.open();
+    databaseInitPromise = initPromise;
 
-        const initPromise = initConnection.open();
-        databaseInitPromise = initPromise;
+    try {
+      await initPromise;
+      await initConnection.close();
+    } catch (error) {
+      databaseInitPromise = null;
+      await initConnection.close();
+      throw mapSqliteError(error);
+    }
+  });
 
-        try {
-          await initPromise;
-          await initConnection.close();
-          ack();
-        } catch (error) {
-          databaseInitPromise = null;
-          await initConnection.close();
-          ack();
-          if (retryCount < 3) {
-            return ensureDatabaseInitialized(connectionOptions, retryCount + 1);
-          }
-          throw mapSqliteError(error);
-        }
-      },
-      { taskGroupId: 'db-init' },
-    );
+  const ensureDatabaseInitialized = async (): Promise<void> => {
+    if (databaseInitPromise !== null) {
+      return databaseInitPromise;
+    }
+
+    return guardSingleConnection.ensureInitialized();
   };
 
   const wrappedConnectionFactory = async (
     readonly: boolean,
     connectionOptions: ConnectionOptions | undefined,
   ): Promise<SQLiteConnectionType> => {
-    await ensureDatabaseInitialized(connectionOptions);
+    await ensureDatabaseInitialized();
 
     const connection = sqliteConnectionFactory({
       ...connectionOptions,
@@ -134,7 +119,7 @@ export const sqliteDualConnectionPool = <
     transaction: writerPool.transaction,
     withTransaction: writerPool.withTransaction,
     close: async () => {
-      await initTaskProcessor.stop();
+      await guardSingleConnection.stop();
       await Promise.all([writerPool.close(), readerPool.close()]);
     },
   };

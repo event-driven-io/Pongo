@@ -1,3 +1,4 @@
+import { v7 as uuid } from 'uuid';
 import { TaskProcessor } from './taskProcessor';
 
 export type ExclusiveAccessGuard = {
@@ -44,8 +45,10 @@ export const guardBoundedAccess = <Resource>(
     maxResources: number;
     maxQueueSize?: number;
     reuseResources?: boolean;
+    closeResource?: (resource: Resource) => void | Promise<void>;
   },
 ): BoundedAccessGuard<Resource> => {
+  let isStopped = false;
   const taskProcessor = new TaskProcessor({
     maxActiveTasks: options.maxResources,
     maxQueueSize: options.maxQueueSize ?? 1000,
@@ -104,7 +107,22 @@ export const guardBoundedAccess = <Resource>(
     release,
     execute,
     waitForIdle: () => taskProcessor.waitForEndOfProcessing(),
-    stop: (options) => taskProcessor.stop(options),
+    stop: async (stopOptions) => {
+      if (isStopped) return;
+      isStopped = true;
+      if (options?.closeResource) {
+        const resources = [...allResources];
+        allResources.clear();
+        resourcePool.length = 0;
+        await Promise.all(
+          resources.map(
+            async (resource) => await options.closeResource!(resource),
+          ),
+        );
+      }
+
+      await taskProcessor.stop(stopOptions);
+    },
   };
 };
 
@@ -140,10 +158,9 @@ export const guardInitializedOnce = <T>(
           return initPromise;
         }
 
-        const promise = initialize();
-        initPromise = promise;
-
         try {
+          const promise = initialize();
+          initPromise = promise;
           const result = await promise;
           ack();
           return result;
@@ -157,7 +174,7 @@ export const guardInitializedOnce = <T>(
           throw error;
         }
       },
-      { taskGroupId: 'initialization' },
+      { taskGroupId: uuid() },
     );
   };
 
