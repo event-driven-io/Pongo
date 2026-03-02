@@ -60,7 +60,7 @@ export const sqliteTransaction =
           if (transactionCounter.level >= 1) {
             transactionCounter.increment();
             if (options?.useSavepoints) {
-              await client.query(
+              await client.command(
                 SQL`SAVEPOINT transaction${SQL.plain(transactionCounter.level.toString())}`,
               );
             }
@@ -71,7 +71,7 @@ export const sqliteTransaction =
         }
 
         const mode = options?.mode ?? defaultTransactionMode ?? 'IMMEDIATE';
-        await client.query(SQL`BEGIN ${SQL.plain(mode)} TRANSACTION`);
+        await client.command(SQL`BEGIN ${SQL.plain(mode)} TRANSACTION`);
       },
       commit: async function () {
         const client = (await getClient) as SQLiteClientOrPoolClient;
@@ -80,7 +80,7 @@ export const sqliteTransaction =
           if (allowNestedTransactions) {
             if (transactionCounter.level > 1) {
               if (options?.useSavepoints) {
-                await client.query(
+                await client.command(
                   SQL`RELEASE transaction${SQL.plain(transactionCounter.level.toString())}`,
                 );
               }
@@ -91,7 +91,7 @@ export const sqliteTransaction =
 
             transactionCounter.reset();
           }
-          await client.query(SQL`COMMIT`);
+          await client.command(SQL`COMMIT`);
         } finally {
           if (options?.close)
             await options?.close(
@@ -109,7 +109,7 @@ export const sqliteTransaction =
             }
           }
 
-          await client.query(SQL`ROLLBACK`);
+          await client.command(SQL`ROLLBACK`);
         } finally {
           if (options?.close)
             await options?.close(

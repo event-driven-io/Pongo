@@ -485,6 +485,75 @@ void describe('SQLite3 Transactions', () => {
     });
   }
 
+  void describe('concurrent transactions on dual pool', () => {
+    for (const { testName, fileName } of testCases) {
+      void it(`serializes concurrent withTransaction calls with ${testName} database`, async () => {
+        const pool = sqlite3Pool({
+          fileName,
+          transactionOptions: { allowNestedTransactions: true },
+        });
+
+        try {
+          await pool.execute.command(
+            SQL`CREATE TABLE concurrent_test (id INTEGER PRIMARY KEY, value TEXT)`,
+          );
+
+          const concurrentInserts = Array.from({ length: 20 }, (_, i) =>
+            pool.withTransaction(async (tx) => {
+              await tx.execute.command(
+                SQL`INSERT INTO concurrent_test (id, value) VALUES (${i + 1}, ${`value-${i + 1}`})`,
+              );
+            }),
+          );
+
+          await Promise.all(concurrentInserts);
+
+          const rows = await pool.execute.query<{ count: number }>(
+            SQL`SELECT COUNT(*) as count FROM concurrent_test`,
+          );
+          assert.strictEqual(rows.rows[0]?.count, 20);
+        } finally {
+          await pool.close();
+        }
+      });
+
+      void it(`serializes concurrent withConnection writes with ${testName} database`, async () => {
+        const pool = sqlite3Pool({
+          fileName,
+          transactionOptions: { allowNestedTransactions: true },
+        });
+
+        try {
+          await pool.execute.command(
+            SQL`CREATE TABLE concurrent_conn_test (id INTEGER PRIMARY KEY, value TEXT)`,
+          );
+
+          const concurrentOps = Array.from({ length: 20 }, (_, i) =>
+            pool.withConnection(
+              async (connection) => {
+                await connection.withTransaction(async () => {
+                  await connection.execute.command(
+                    SQL`INSERT INTO concurrent_conn_test (id, value) VALUES (${i + 1}, ${`value-${i + 1}`})`,
+                  );
+                });
+              },
+              { readonly: false },
+            ),
+          );
+
+          await Promise.all(concurrentOps);
+
+          const rows = await pool.execute.query<{ count: number }>(
+            SQL`SELECT COUNT(*) as count FROM concurrent_conn_test`,
+          );
+          assert.strictEqual(rows.rows[0]?.count, 20);
+        } finally {
+          await pool.close();
+        }
+      });
+    }
+  });
+
   void describe('transaction modes', () => {
     void it('uses IMMEDIATE mode by default', async () => {
       const pool = sqlite3Pool({ fileName: inMemoryfileName });
