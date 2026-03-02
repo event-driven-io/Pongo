@@ -133,7 +133,9 @@ export const sqliteDualConnectionPool = <
         : writerPool.withConnection(handle, connectionOptions),
     transaction: writerPool.transaction,
     withTransaction: writerPool.withTransaction,
-    close: () =>
-      Promise.all([writerPool.close(), readerPool.close()]).then(() => {}),
+    close: async () => {
+      await initTaskProcessor.stop();
+      await Promise.all([writerPool.close(), readerPool.close()]);
+    },
   };
 };
