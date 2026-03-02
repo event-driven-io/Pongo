@@ -60,9 +60,7 @@ export class TaskProcessor {
     this.activeGroups.clear();
 
     if (!options?.force) {
-      while (this.activeTasks > 0) {
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      }
+      await this.waitForEndOfProcessing();
     }
   }
 

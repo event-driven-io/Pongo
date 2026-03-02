@@ -4,7 +4,7 @@ import {
   guardBoundedAccess,
   guardExclusiveAccess,
   guardInitializedOnce,
-} from './executors';
+} from './executionGuards';
 
 void describe('Task Processing Guards', () => {
   void describe('guardExclusiveAccess', () => {
