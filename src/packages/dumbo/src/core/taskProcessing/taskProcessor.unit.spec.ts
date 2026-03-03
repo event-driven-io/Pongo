@@ -1,8 +1,8 @@
 import assert from 'assert';
-import { beforeEach, describe, it } from 'node:test';
+import { beforeEach, describe, it } from 'vitest';
 import { TaskProcessor, type Task } from './taskProcessor';
 
-void describe('TaskProcessor', () => {
+describe('TaskProcessor', () => {
   let taskProcessor: TaskProcessor;
 
   beforeEach(() => {
@@ -12,7 +12,7 @@ void describe('TaskProcessor', () => {
     });
   });
 
-  void it('should enqueue and process a task', async () => {
+  it('should enqueue and process a task', async () => {
     const task: Task<string> = ({ ack }: { ack: () => void }) => {
       ack();
       return Promise.resolve('Task should be processed successfully');
@@ -22,7 +22,7 @@ void describe('TaskProcessor', () => {
     assert.ok(result, 'Task should be processed successfully');
   });
 
-  void it('should process multiple tasks concurrently', async () => {
+  it('should process multiple tasks concurrently', async () => {
     const taskResults: string[] = [];
     const tasks = [
       taskProcessor.enqueue(async ({ ack }) => {
@@ -46,7 +46,7 @@ void describe('TaskProcessor', () => {
     );
   });
 
-  void it('should process queued tasks once active tasks are completed', async () => {
+  it('should process queued tasks once active tasks are completed', async () => {
     const tasks: string[] = [];
 
     // Enqueue 2 active tasks
@@ -83,7 +83,7 @@ void describe('TaskProcessor', () => {
     );
   });
 
-  void it('should process tasks in FIFO order without taskGroupId', async () => {
+  it('should process tasks in FIFO order without taskGroupId', async () => {
     const taskResults: string[] = [];
     const tasks = [
       taskProcessor.enqueue(async ({ ack }) => {
@@ -112,7 +112,7 @@ void describe('TaskProcessor', () => {
     );
   });
 
-  void it('should process tasks with taskGroupId sequentially', async () => {
+  it('should process tasks with taskGroupId sequentially', async () => {
     const taskResults: string[] = [];
     const tasks = [
       taskProcessor.enqueue(
@@ -142,7 +142,7 @@ void describe('TaskProcessor', () => {
     );
   });
 
-  void it('should process tasks from different taskGroupIds concurrently', async () => {
+  it('should process tasks from different taskGroupIds concurrently', async () => {
     const taskResults: string[] = [];
     const tasks = [
       taskProcessor.enqueue(
@@ -172,7 +172,7 @@ void describe('TaskProcessor', () => {
     );
   });
 
-  void it('should process ungrouped tasks concurrently with grouped tasks', async () => {
+  it('should process ungrouped tasks concurrently with grouped tasks', async () => {
     const taskResults: string[] = [];
     const tasks = [
       taskProcessor.enqueue(
@@ -199,7 +199,7 @@ void describe('TaskProcessor', () => {
     );
   });
 
-  void it('should respect queue size limit and reject tasks when exceeded', async () => {
+  it('should respect queue size limit and reject tasks when exceeded', async () => {
     const tasks = [
       taskProcessor.enqueue(({ ack }) => {
         ack();
@@ -235,7 +235,7 @@ void describe('TaskProcessor', () => {
     );
   });
 
-  void it('should process tasks from blocked groups in FIFO order after unblocking', async () => {
+  it('should process tasks from blocked groups in FIFO order after unblocking', async () => {
     const taskResults: string[] = [];
     const tasks = [
       taskProcessor.enqueue(
@@ -267,7 +267,7 @@ void describe('TaskProcessor', () => {
 
   // with delays
 
-  void it('should process tasks in strict FIFO order without taskGroupId', async () => {
+  it('should process tasks in strict FIFO order without taskGroupId', async () => {
     const taskResults: string[] = [];
     const tasks = [
       taskProcessor.enqueue(async ({ ack }) => {
@@ -296,7 +296,7 @@ void describe('TaskProcessor', () => {
     );
   });
 
-  void it('should process tasks with taskGroupId in strict FIFO order within the group', async () => {
+  it('should process tasks with taskGroupId in strict FIFO order within the group', async () => {
     const taskResults: string[] = [];
     const tasks = [
       taskProcessor.enqueue(
@@ -334,7 +334,7 @@ void describe('TaskProcessor', () => {
     ]);
   });
 
-  void it('should delay tasks from the same taskGroupId but allow other groups to process', async () => {
+  it('should delay tasks from the same taskGroupId but allow other groups to process', async () => {
     const taskResults: string[] = [];
     const tasks = [
       taskProcessor.enqueue(
@@ -372,7 +372,7 @@ void describe('TaskProcessor', () => {
     ]);
   });
 
-  void it('should ensure ungrouped tasks interleave with grouped tasks based on availability', async () => {
+  it('should ensure ungrouped tasks interleave with grouped tasks based on availability', async () => {
     const taskResults: string[] = [];
     const tasks = [
       taskProcessor.enqueue(
@@ -407,7 +407,7 @@ void describe('TaskProcessor', () => {
     ]);
   });
 
-  void it('should ensure blocked tasks from an active group are eventually processed', async () => {
+  it('should ensure blocked tasks from an active group are eventually processed', async () => {
     const taskResults: string[] = [];
     const tasks = [
       taskProcessor.enqueue(

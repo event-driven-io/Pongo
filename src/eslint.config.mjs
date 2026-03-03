@@ -18,6 +18,7 @@ const compat = new FlatCompat({
 export default [
   {
     ignores: [
+      'vitest.config.ts',
       '**/dist/',
       '**/lib/',
       '**/cache/',

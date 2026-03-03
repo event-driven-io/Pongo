@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { SQL } from '../../../sql';
 import type { Equals, Expect, IsError } from '../../../testing';
 import type { TypeValidationResult } from '../../../typing';
@@ -9,7 +9,7 @@ import type { ValidateDatabaseSchema } from './relationshipValidation';
 const { schema, table, column } = dumboSchema;
 const { Integer, BigInteger } = SQL.column.type;
 
-void describe('ValidateDatabaseSchema', () => {
+describe('ValidateDatabaseSchema', () => {
   const usersTable = table('users', {
     columns: {
       id: column('id', Integer),
@@ -35,13 +35,13 @@ void describe('ValidateDatabaseSchema', () => {
     public: typeof _validSchema;
   };
 
-  void it('returns success when all tables are valid', () => {
+  it('returns success when all tables are valid', () => {
     type Result = ValidateDatabaseSchema<typeof _validSchema, ValidSchemas>;
 
     type _Then = Expect<Equals<Result, TypeValidationResult<true, undefined>>>;
   });
 
-  void it('collects errors from a single invalid table', () => {
+  it('collects errors from a single invalid table', () => {
     const invalidTable = table('invalid', {
       columns: {
         col1: column('col1', Integer),
@@ -97,7 +97,7 @@ void describe('ValidateDatabaseSchema', () => {
     type _Then = [Expect<IsError<Result>>, Expect<Equals<Result, Expected>>];
   });
 
-  void it('collects errors from multiple invalid tables', () => {
+  it('collects errors from multiple invalid tables', () => {
     const invalidTable1 = table('invalid1', {
       columns: {
         col1: column('col1', Integer),
@@ -173,7 +173,7 @@ void describe('ValidateDatabaseSchema', () => {
     type _Then = [Expect<IsError<Result>>, Expect<Equals<Result, Expected>>];
   });
 
-  void it('returns success when schema has no tables', () => {
+  it('returns success when schema has no tables', () => {
     const _emptySchema = schema('empty', {});
 
     type EmptySchemas = {

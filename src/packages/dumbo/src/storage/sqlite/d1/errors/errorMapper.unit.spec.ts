@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import {
   CheckViolationError,
   ConnectionError,
@@ -25,16 +25,16 @@ import { mapD1Error } from './errorMapper';
  */
 const d1Error = (message: string): Error => new Error(message);
 
-void describe('mapD1Error', () => {
-  void describe('returns DumboError(500) for non-D1 errors', () => {
-    void it('returns DumboError(500) for a plain Error without D1 content', () => {
+describe('mapD1Error', () => {
+  describe('returns DumboError(500) for non-D1 errors', () => {
+    it('returns DumboError(500) for a plain Error without D1 content', () => {
       const result = mapD1Error(new Error('plain error'));
       assert.ok(result instanceof DumboError);
       assert.ok(DumboError.isInstanceOf(result));
       assert.strictEqual(result.errorCode, 500);
     });
 
-    void it('returns DumboError(500) for a non-Error value', () => {
+    it('returns DumboError(500) for a non-Error value', () => {
       for (const value of ['string', 42, null, undefined]) {
         const result = mapD1Error(value);
         assert.ok(result instanceof DumboError);
@@ -43,7 +43,7 @@ void describe('mapD1Error', () => {
       }
     });
 
-    void it('returns DumboError(500) for an error with unrelated message', () => {
+    it('returns DumboError(500) for an error with unrelated message', () => {
       const result = mapD1Error(
         new Error('Something completely unrelated happened'),
       );
@@ -53,8 +53,8 @@ void describe('mapD1Error', () => {
     });
   });
 
-  void describe('constraint violations (D1_ERROR with constraint text)', () => {
-    void it('maps UNIQUE constraint to UniqueConstraintError', () => {
+  describe('constraint violations (D1_ERROR with constraint text)', () => {
+    it('maps UNIQUE constraint to UniqueConstraintError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: UNIQUE constraint failed: users.email'),
       );
@@ -73,7 +73,7 @@ void describe('mapD1Error', () => {
       );
     });
 
-    void it('maps PRIMARY KEY constraint to UniqueConstraintError', () => {
+    it('maps PRIMARY KEY constraint to UniqueConstraintError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: PRIMARY KEY must be unique'),
       );
@@ -86,7 +86,7 @@ void describe('mapD1Error', () => {
       );
     });
 
-    void it('maps FOREIGN KEY constraint to ForeignKeyViolationError', () => {
+    it('maps FOREIGN KEY constraint to ForeignKeyViolationError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: FOREIGN KEY constraint failed'),
       );
@@ -99,7 +99,7 @@ void describe('mapD1Error', () => {
       );
     });
 
-    void it('maps NOT NULL constraint to NotNullViolationError', () => {
+    it('maps NOT NULL constraint to NotNullViolationError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: NOT NULL constraint failed: users.name'),
       );
@@ -112,7 +112,7 @@ void describe('mapD1Error', () => {
       );
     });
 
-    void it('maps CHECK constraint to CheckViolationError', () => {
+    it('maps CHECK constraint to CheckViolationError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: CHECK constraint failed: age_positive'),
       );
@@ -125,7 +125,7 @@ void describe('mapD1Error', () => {
       );
     });
 
-    void it('maps generic constraint to IntegrityConstraintViolationError', () => {
+    it('maps generic constraint to IntegrityConstraintViolationError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_CONSTRAINT: constraint failed'),
       );
@@ -138,7 +138,7 @@ void describe('mapD1Error', () => {
       );
     });
 
-    void it('maps constraint with SQLITE_CONSTRAINT prefix in message', () => {
+    it('maps constraint with SQLITE_CONSTRAINT prefix in message', () => {
       const result = mapD1Error(
         d1Error(
           'D1_ERROR: SQLITE_CONSTRAINT: UNIQUE constraint failed: users.email',
@@ -148,8 +148,8 @@ void describe('mapD1Error', () => {
     });
   });
 
-  void describe('D1-specific prefix errors', () => {
-    void it('maps D1_TYPE_ERROR to DataError', () => {
+  describe('D1-specific prefix errors', () => {
+    it('maps D1_TYPE_ERROR to DataError', () => {
       const result = mapD1Error(
         d1Error(
           'D1_TYPE_ERROR: Provided value is undefined but should be null. Use null, not undefined.',
@@ -163,13 +163,13 @@ void describe('mapD1Error', () => {
       assert.strictEqual(result.errorCode, 400);
     });
 
-    void it('maps D1_COLUMN_NOTFOUND to DataError', () => {
+    it('maps D1_COLUMN_NOTFOUND to DataError', () => {
       const result = mapD1Error(d1Error('D1_COLUMN_NOTFOUND'));
       assert.ok(result instanceof DataError);
       assert.strictEqual(result.errorCode, 400);
     });
 
-    void it('maps D1_DUMP_ERROR to SystemError', () => {
+    it('maps D1_DUMP_ERROR to SystemError', () => {
       const result = mapD1Error(
         d1Error('D1_DUMP_ERROR: failed to dump database'),
       );
@@ -182,7 +182,7 @@ void describe('mapD1Error', () => {
       );
     });
 
-    void it('maps D1_SESSION_ERROR to ConnectionError', () => {
+    it('maps D1_SESSION_ERROR to ConnectionError', () => {
       const result = mapD1Error(
         d1Error('D1_SESSION_ERROR: invalid bookmark or constraint'),
       );
@@ -195,7 +195,7 @@ void describe('mapD1Error', () => {
       );
     });
 
-    void it('maps D1_EXEC_ERROR to InvalidOperationError', () => {
+    it('maps D1_EXEC_ERROR to InvalidOperationError', () => {
       const result = mapD1Error(
         d1Error('D1_EXEC_ERROR: Error in line 3: no such table: foo'),
       );
@@ -210,8 +210,8 @@ void describe('mapD1Error', () => {
     });
   });
 
-  void describe('D1 platform transient errors', () => {
-    void it('maps "Network connection lost." to ConnectionError', () => {
+  describe('D1 platform transient errors', () => {
+    it('maps "Network connection lost." to ConnectionError', () => {
       const result = mapD1Error(d1Error('Network connection lost.'));
       assert.ok(result instanceof ConnectionError);
       assert.ok(result instanceof TransientDatabaseError);
@@ -222,7 +222,7 @@ void describe('mapD1Error', () => {
       );
     });
 
-    void it('maps transient resolve error to ConnectionError', () => {
+    it('maps transient resolve error to ConnectionError', () => {
       const result = mapD1Error(
         d1Error('Cannot resolve D1 DB due to transient issue on remote node.'),
       );
@@ -230,7 +230,7 @@ void describe('mapD1Error', () => {
       assert.ok(result instanceof TransientDatabaseError);
     });
 
-    void it('maps D1 DB reset to ConnectionError', () => {
+    it('maps D1 DB reset to ConnectionError', () => {
       const result = mapD1Error(
         d1Error('D1 DB reset because its code was updated.'),
       );
@@ -238,7 +238,7 @@ void describe('mapD1Error', () => {
       assert.ok(result instanceof TransientDatabaseError);
     });
 
-    void it('maps overloaded DB to InsufficientResourcesError', () => {
+    it('maps overloaded DB to InsufficientResourcesError', () => {
       const result = mapD1Error(
         d1Error('D1 DB is overloaded. Too many requests queued.'),
       );
@@ -251,7 +251,7 @@ void describe('mapD1Error', () => {
       );
     });
 
-    void it('maps too many requests to InsufficientResourcesError', () => {
+    it('maps too many requests to InsufficientResourcesError', () => {
       const result = mapD1Error(
         d1Error('Too many requests. Please retry later.'),
       );
@@ -259,7 +259,7 @@ void describe('mapD1Error', () => {
       assert.ok(result instanceof TransientDatabaseError);
     });
 
-    void it('maps memory limit to InsufficientResourcesError', () => {
+    it('maps memory limit to InsufficientResourcesError', () => {
       const result = mapD1Error(
         d1Error('Memory limit would be exceeded by this operation.'),
       );
@@ -268,8 +268,8 @@ void describe('mapD1Error', () => {
     });
   });
 
-  void describe('D1_ERROR with embedded SQLITE_* codes', () => {
-    void it('maps D1_ERROR + SQLITE_BUSY to LockNotAvailableError', () => {
+  describe('D1_ERROR with embedded SQLITE_* codes', () => {
+    it('maps D1_ERROR + SQLITE_BUSY to LockNotAvailableError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_BUSY: database is locked'),
       );
@@ -282,7 +282,7 @@ void describe('mapD1Error', () => {
       );
     });
 
-    void it('maps D1_ERROR + SQLITE_LOCKED to DeadlockError', () => {
+    it('maps D1_ERROR + SQLITE_LOCKED to DeadlockError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_LOCKED: database table is locked'),
       );
@@ -295,7 +295,7 @@ void describe('mapD1Error', () => {
       );
     });
 
-    void it('maps D1_ERROR + SQLITE_CANTOPEN to ConnectionError', () => {
+    it('maps D1_ERROR + SQLITE_CANTOPEN to ConnectionError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_CANTOPEN: unable to open database file'),
       );
@@ -308,7 +308,7 @@ void describe('mapD1Error', () => {
       );
     });
 
-    void it('maps D1_ERROR + SQLITE_NOMEM to InsufficientResourcesError', () => {
+    it('maps D1_ERROR + SQLITE_NOMEM to InsufficientResourcesError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_NOMEM: out of memory'),
       );
@@ -321,7 +321,7 @@ void describe('mapD1Error', () => {
       );
     });
 
-    void it('maps D1_ERROR + SQLITE_IOERR to SystemError', () => {
+    it('maps D1_ERROR + SQLITE_IOERR to SystemError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_IOERR: disk I/O error'),
       );
@@ -334,7 +334,7 @@ void describe('mapD1Error', () => {
       );
     });
 
-    void it('maps D1_ERROR + SQLITE_CORRUPT to SystemError', () => {
+    it('maps D1_ERROR + SQLITE_CORRUPT to SystemError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_CORRUPT: database disk image is malformed'),
       );
@@ -342,7 +342,7 @@ void describe('mapD1Error', () => {
       assert.ok(result instanceof TransientDatabaseError);
     });
 
-    void it('maps D1_ERROR + SQLITE_TOOBIG to DataError', () => {
+    it('maps D1_ERROR + SQLITE_TOOBIG to DataError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_TOOBIG: string or blob too big'),
       );
@@ -353,21 +353,21 @@ void describe('mapD1Error', () => {
       assert.strictEqual(result.errorCode, 400);
     });
 
-    void it('maps D1_ERROR + SQLITE_MISMATCH to DataError', () => {
+    it('maps D1_ERROR + SQLITE_MISMATCH to DataError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_MISMATCH: datatype mismatch'),
       );
       assert.ok(result instanceof DataError);
     });
 
-    void it('maps D1_ERROR + SQLITE_RANGE to DataError', () => {
+    it('maps D1_ERROR + SQLITE_RANGE to DataError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_RANGE: column index out of range'),
       );
       assert.ok(result instanceof DataError);
     });
 
-    void it('maps D1_ERROR + SQLITE_ERROR to InvalidOperationError', () => {
+    it('maps D1_ERROR + SQLITE_ERROR to InvalidOperationError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_ERROR: no such table: foo'),
       );
@@ -380,7 +380,7 @@ void describe('mapD1Error', () => {
       assert.strictEqual(result.errorCode, 400);
     });
 
-    void it('maps D1_ERROR + SQLITE_READONLY to InvalidOperationError', () => {
+    it('maps D1_ERROR + SQLITE_READONLY to InvalidOperationError', () => {
       const result = mapD1Error(
         d1Error(
           'D1_ERROR: SQLITE_READONLY: attempt to write a readonly database',
@@ -389,28 +389,28 @@ void describe('mapD1Error', () => {
       assert.ok(result instanceof InvalidOperationError);
     });
 
-    void it('maps D1_ERROR + SQLITE_AUTH to InvalidOperationError', () => {
+    it('maps D1_ERROR + SQLITE_AUTH to InvalidOperationError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_AUTH: authorization denied'),
       );
       assert.ok(result instanceof InvalidOperationError);
     });
 
-    void it('maps D1_ERROR + SQLITE_PERM to InvalidOperationError', () => {
+    it('maps D1_ERROR + SQLITE_PERM to InvalidOperationError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_PERM: access permission denied'),
       );
       assert.ok(result instanceof InvalidOperationError);
     });
 
-    void it('maps D1_ERROR + SQLITE_SCHEMA to InvalidOperationError', () => {
+    it('maps D1_ERROR + SQLITE_SCHEMA to InvalidOperationError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_SCHEMA: database schema has changed'),
       );
       assert.ok(result instanceof InvalidOperationError);
     });
 
-    void it('maps D1_ERROR + SQLITE_ABORT to SerializationError', () => {
+    it('maps D1_ERROR + SQLITE_ABORT to SerializationError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_ABORT: callback requested query abort'),
       );
@@ -423,7 +423,7 @@ void describe('mapD1Error', () => {
       );
     });
 
-    void it('maps D1_ERROR + SQLITE_INTERRUPT to SerializationError', () => {
+    it('maps D1_ERROR + SQLITE_INTERRUPT to SerializationError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_INTERRUPT: interrupted'),
       );
@@ -431,7 +431,7 @@ void describe('mapD1Error', () => {
       assert.ok(result instanceof TransientDatabaseError);
     });
 
-    void it('maps D1_ERROR + SQLITE_FULL to InsufficientResourcesError', () => {
+    it('maps D1_ERROR + SQLITE_FULL to InsufficientResourcesError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_FULL: database or disk is full'),
       );
@@ -439,7 +439,7 @@ void describe('mapD1Error', () => {
       assert.ok(result instanceof TransientDatabaseError);
     });
 
-    void it('maps D1_ERROR + SQLITE_PROTOCOL to LockNotAvailableError', () => {
+    it('maps D1_ERROR + SQLITE_PROTOCOL to LockNotAvailableError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_PROTOCOL: locking protocol'),
       );
@@ -447,7 +447,7 @@ void describe('mapD1Error', () => {
       assert.ok(result instanceof TransientDatabaseError);
     });
 
-    void it('maps D1_ERROR + SQLITE_NOTADB to ConnectionError', () => {
+    it('maps D1_ERROR + SQLITE_NOTADB to ConnectionError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_NOTADB: file is not a database'),
       );
@@ -455,21 +455,21 @@ void describe('mapD1Error', () => {
       assert.ok(result instanceof TransientDatabaseError);
     });
 
-    void it('maps D1_ERROR + SQLITE_INTERNAL to SystemError', () => {
+    it('maps D1_ERROR + SQLITE_INTERNAL to SystemError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_INTERNAL: internal error'),
       );
       assert.ok(result instanceof SystemError);
     });
 
-    void it('maps D1_ERROR + SQLITE_NOLFS to SystemError', () => {
+    it('maps D1_ERROR + SQLITE_NOLFS to SystemError', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_NOLFS: large file support is disabled'),
       );
       assert.ok(result instanceof SystemError);
     });
 
-    void it('maps D1_ERROR + SQLITE_MISUSE to InvalidOperationError', () => {
+    it('maps D1_ERROR + SQLITE_MISUSE to InvalidOperationError', () => {
       const result = mapD1Error(
         d1Error(
           'D1_ERROR: SQLITE_MISUSE: library routine called out of sequence',
@@ -478,21 +478,21 @@ void describe('mapD1Error', () => {
       assert.ok(result instanceof InvalidOperationError);
     });
 
-    void it('falls back to InvalidOperationError for D1_ERROR with unknown SQLITE code', () => {
+    it('falls back to InvalidOperationError for D1_ERROR with unknown SQLITE code', () => {
       const result = mapD1Error(
         d1Error('D1_ERROR: SQLITE_NOTICE: some notice'),
       );
       assert.ok(result instanceof InvalidOperationError);
     });
 
-    void it('falls back to InvalidOperationError for D1_ERROR without SQLITE code', () => {
+    it('falls back to InvalidOperationError for D1_ERROR without SQLITE code', () => {
       const result = mapD1Error(d1Error('D1_ERROR: something went wrong'));
       assert.ok(result instanceof InvalidOperationError);
     });
   });
 
-  void describe('D1_EXEC_ERROR with embedded SQLITE_* codes', () => {
-    void it('maps D1_EXEC_ERROR + SQLITE_ERROR to InvalidOperationError', () => {
+  describe('D1_EXEC_ERROR with embedded SQLITE_* codes', () => {
+    it('maps D1_EXEC_ERROR + SQLITE_ERROR to InvalidOperationError', () => {
       const result = mapD1Error(
         d1Error(
           'D1_EXEC_ERROR: Error in line 5: SQLITE_ERROR: no such table: foo',
@@ -501,7 +501,7 @@ void describe('mapD1Error', () => {
       assert.ok(result instanceof InvalidOperationError);
     });
 
-    void it('maps D1_EXEC_ERROR without SQLITE code to InvalidOperationError', () => {
+    it('maps D1_EXEC_ERROR without SQLITE code to InvalidOperationError', () => {
       const result = mapD1Error(
         d1Error('D1_EXEC_ERROR: Error in line 2: syntax error'),
       );
@@ -509,8 +509,8 @@ void describe('mapD1Error', () => {
     });
   });
 
-  void describe('bare SQLITE_* codes in message (no D1 prefix)', () => {
-    void it('maps SQLITE_BUSY in bare message to LockNotAvailableError', () => {
+  describe('bare SQLITE_* codes in message (no D1 prefix)', () => {
+    it('maps SQLITE_BUSY in bare message to LockNotAvailableError', () => {
       const result = mapD1Error(d1Error('SQLITE_BUSY: database is locked'));
       assert.ok(result instanceof LockNotAvailableError);
       assert.ok(result instanceof TransientDatabaseError);
@@ -521,12 +521,12 @@ void describe('mapD1Error', () => {
       );
     });
 
-    void it('maps SQLITE_ERROR in bare message to InvalidOperationError', () => {
+    it('maps SQLITE_ERROR in bare message to InvalidOperationError', () => {
       const result = mapD1Error(d1Error('SQLITE_ERROR: no such table: foo'));
       assert.ok(result instanceof InvalidOperationError);
     });
 
-    void it('maps SQLITE_CORRUPT in bare message to SystemError', () => {
+    it('maps SQLITE_CORRUPT in bare message to SystemError', () => {
       const result = mapD1Error(
         d1Error('SQLITE_CORRUPT: database disk image is malformed'),
       );
@@ -534,8 +534,8 @@ void describe('mapD1Error', () => {
     });
   });
 
-  void describe('preserves inner error', () => {
-    void it('sets innerError to original error', () => {
+  describe('preserves inner error', () => {
+    it('sets innerError to original error', () => {
       const original = d1Error('D1_ERROR: UNIQUE constraint failed: users.id');
       const result = mapD1Error(original);
       assert.ok(result instanceof DumboError);
@@ -544,7 +544,7 @@ void describe('mapD1Error', () => {
       assert.strictEqual(result.cause, original);
     });
 
-    void it('preserves original error message', () => {
+    it('preserves original error message', () => {
       const msg = 'D1_ERROR: UNIQUE constraint failed: users.id';
       const result = mapD1Error(d1Error(msg));
       assert.ok(result);
@@ -552,20 +552,20 @@ void describe('mapD1Error', () => {
     });
   });
 
-  void describe('DumboError passthrough', () => {
-    void it('returns the same DumboError if error is already a DumboError', () => {
+  describe('DumboError passthrough', () => {
+    it('returns the same DumboError if error is already a DumboError', () => {
       const original = new UniqueConstraintError('already mapped');
       const result = mapD1Error(original);
       assert.strictEqual(result, original);
     });
 
-    void it('returns the same IntegrityConstraintViolationError', () => {
+    it('returns the same IntegrityConstraintViolationError', () => {
       const original = new IntegrityConstraintViolationError('already mapped');
       const result = mapD1Error(original);
       assert.strictEqual(result, original);
     });
 
-    void it('returns the same generic DumboError', () => {
+    it('returns the same generic DumboError', () => {
       const original = new DumboError({
         errorCode: 500,
         message: 'already mapped',

@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { SQL } from '../../../sql';
 import type { Equals, Expect, IsError } from '../../../testing';
 import type { TypeValidationResult } from '../../../typing';
@@ -9,7 +9,7 @@ import type { ValidateRelationship } from './relationshipValidation';
 const { schema, table, column } = dumboSchema;
 const { Integer, BigInteger } = SQL.column.type;
 
-void describe('ValidateRelationship', () => {
+describe('ValidateRelationship', () => {
   const usersTable = table('users', {
     columns: {
       id: column('id', Integer),
@@ -43,7 +43,7 @@ void describe('ValidateRelationship', () => {
   type PostsTable = typeof postsTable;
   type ExistingColumns = InferTableSchemaComponentColumns<PostsTable>;
 
-  void it('fails when columns and references have different lengths', () => {
+  it('fails when columns and references have different lengths', () => {
     type MismatchedLengthRel = {
       columns: ['user_id', 'tenant_id'];
       references: ['public.users.id'];
@@ -83,7 +83,7 @@ void describe('ValidateRelationship', () => {
     ];
   });
 
-  void it('fails when columns and references are both empty', () => {
+  it('fails when columns and references are both empty', () => {
     type EmptyRel = {
       columns: [];
       references: [];
@@ -123,7 +123,7 @@ void describe('ValidateRelationship', () => {
     ];
   });
 
-  void it('fails when references are longer than columns', () => {
+  it('fails when references are longer than columns', () => {
     type ReferencesLongerRel = {
       columns: ['user_id'];
       references: ['public.users.id', 'public.users.tenant_id'];
@@ -163,7 +163,7 @@ void describe('ValidateRelationship', () => {
     ];
   });
 
-  void it('collects missing schema errors', () => {
+  it('collects missing schema errors', () => {
     type MissingSchemaRel = {
       columns: ['user_id'];
       references: ['nonexistent.users.id'];
@@ -202,7 +202,7 @@ void describe('ValidateRelationship', () => {
     ];
   });
 
-  void it('collects missing table errors', () => {
+  it('collects missing table errors', () => {
     type MissingTableRel = {
       columns: ['user_id'];
       references: ['public.nonexistent.id'];
@@ -241,7 +241,7 @@ void describe('ValidateRelationship', () => {
     ];
   });
 
-  void it('collects missing column errors', () => {
+  it('collects missing column errors', () => {
     type MissingColumnRel = {
       columns: ['user_id'];
       references: ['public.users.nonexistent'];
@@ -280,7 +280,7 @@ void describe('ValidateRelationship', () => {
     ];
   });
 
-  void it('collects multiple errors from different references', () => {
+  it('collects multiple errors from different references', () => {
     type MultipleErrorsRel = {
       columns: ['user_id', 'tenant_id'];
       references: ['nonexistent.users.id', 'public.missing_table.id'];
@@ -323,7 +323,7 @@ void describe('ValidateRelationship', () => {
     ];
   });
 
-  void it('collects all errors when all references are invalid', () => {
+  it('collects all errors when all references are invalid', () => {
     type AllInvalidRel = {
       columns: ['user_id', 'tenant_id', 'post_id'];
       references: [
@@ -374,7 +374,7 @@ void describe('ValidateRelationship', () => {
     ];
   });
 
-  void it('collects type mismatch errors', () => {
+  it('collects type mismatch errors', () => {
     type TypeMismatchTable = typeof typeMismatchTable;
     type TypeMismatchColumns =
       InferTableSchemaComponentColumns<TypeMismatchTable>;

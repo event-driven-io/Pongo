@@ -10,7 +10,7 @@ import {
 import assert from 'assert';
 import type { Db as MongoDb, ObjectId } from 'mongodb';
 import { MongoClient as OriginalMongoClient } from 'mongodb';
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v7 as uuid } from 'uuid';
 import { pgDriver, usePgPongoDriver } from '../../../pg';
 import { MongoClient, type Db } from '../../../shim';
@@ -31,7 +31,7 @@ type User = {
   tags?: string[];
 };
 
-void describe('MongoDB Compatibility Tests', () => {
+describe('MongoDB Compatibility Tests', () => {
   let postgres: StartedPostgreSqlContainer;
   let postgresConnectionString: PostgreSQLConnectionString;
   let pongoClient: MongoClient;
@@ -43,7 +43,7 @@ void describe('MongoDB Compatibility Tests', () => {
   let pongoDb: Db;
   let mongoDb: MongoDb;
 
-  before(async () => {
+  beforeAll(async () => {
     usePgPongoDriver();
 
     postgres = await new PostgreSqlContainer('postgres:18.0').start();
@@ -69,7 +69,7 @@ void describe('MongoDB Compatibility Tests', () => {
     mongoDb = mongoClient.db(dbName);
   });
 
-  after(async () => {
+  afterAll(async () => {
     try {
       await pongoClient.close();
       await postgres.stop();
@@ -84,8 +84,8 @@ void describe('MongoDB Compatibility Tests', () => {
     }
   });
 
-  void describe('Insert Operations', () => {
-    void it('should insert a document into both PostgreSQL and MongoDB', async () => {
+  describe('Insert Operations', () => {
+    it('should insert a document into both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('insertOne');
       const mongoCollection = mongoDb.collection<User>('insertOne');
       const doc = { name: 'Anita', age: 25 };
@@ -111,7 +111,7 @@ void describe('MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should insert many documents into both PostgreSQL and MongoDB', async () => {
+    it('should insert many documents into both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('insertMany');
       const mongoCollection = mongoDb.collection<User>('insertMany');
       const docs = [
@@ -148,8 +148,8 @@ void describe('MongoDB Compatibility Tests', () => {
     });
   });
 
-  void describe('Update Operations', () => {
-    void it('should update a document in both PostgreSQL and MongoDB', async () => {
+  describe('Update Operations', () => {
+    it('should update a document in both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('updateOne');
       const mongoCollection = mongoDb.collection<User>('updateOne');
       const doc = { name: 'Roger', age: 30 };
@@ -188,7 +188,7 @@ void describe('MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should update a multiple properties in document in both PostgreSQL and MongoDB', async () => {
+    it('should update a multiple properties in document in both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('updateOneMultiple');
       const mongoCollection = mongoDb.collection<User>('updateOneMultiple');
       const doc = { name: 'Roger', age: 30 };
@@ -230,7 +230,7 @@ void describe('MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should update documents in both PostgreSQL and MongoDB', async () => {
+    it('should update documents in both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('updateMany');
       const mongoCollection = mongoDb.collection<User>('updateMany');
 
@@ -283,7 +283,7 @@ void describe('MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should update a document in both PostgreSQL and MongoDB using $unset', async () => {
+    it('should update a document in both PostgreSQL and MongoDB using $unset', async () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
       const mongoCollection = mongoDb.collection<User>('testCollection');
       const doc = { name: 'Roger', age: 30, address: { city: 'Wonderland' } };
@@ -322,7 +322,7 @@ void describe('MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should update a document in both PostgreSQL and MongoDB using $inc', async () => {
+    it('should update a document in both PostgreSQL and MongoDB using $inc', async () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
       const mongoCollection = mongoDb.collection<User>('testCollection');
       const doc = { name: 'Roger', age: 30 };
@@ -361,7 +361,7 @@ void describe('MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should update a document in both PostgreSQL and MongoDB using $push', async () => {
+    it('should update a document in both PostgreSQL and MongoDB using $push', async () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
       const mongoCollection = mongoDb.collection<User>('testCollection');
       const doc = { name: 'Roger', age: 30 };
@@ -418,8 +418,8 @@ void describe('MongoDB Compatibility Tests', () => {
     });
   });
 
-  void describe('Replace Operations', () => {
-    void it('should replace a document in both PostgreSQL and MongoDB', async () => {
+  describe('Replace Operations', () => {
+    it('should replace a document in both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('updateOne');
       const mongoCollection = mongoDb.collection<User>('updateOne');
       const doc = { name: 'Roger', age: 30 };
@@ -463,8 +463,8 @@ void describe('MongoDB Compatibility Tests', () => {
     });
   });
 
-  void describe('Delete Operations', () => {
-    void it('should delete a document from both PostgreSQL and MongoDB', async () => {
+  describe('Delete Operations', () => {
+    it('should delete a document from both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
       const mongoCollection = mongoDb.collection<User>('testCollection');
       const doc = { name: 'Cruella', age: 35 };
@@ -489,7 +489,7 @@ void describe('MongoDB Compatibility Tests', () => {
       assert.strictEqual(mongoDoc, null);
     });
 
-    void it('should delete documents in both PostgreSQL and MongoDB', async () => {
+    it('should delete documents in both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('updateMany');
       const mongoCollection = mongoDb.collection<User>('updateMany');
 
@@ -542,8 +542,8 @@ void describe('MongoDB Compatibility Tests', () => {
     });
   });
 
-  void describe('Find Operations', () => {
-    void it('should find documents with a filter in both PostgreSQL and MongoDB', async () => {
+  describe('Find Operations', () => {
+    it('should find documents with a filter in both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
       const mongoCollection = mongoDb.collection<User>('testCollection');
       const docs = [
@@ -575,7 +575,7 @@ void describe('MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should find one document with a filter in both PostgreSQL and MongoDB', async () => {
+    it('should find one document with a filter in both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
       const mongoCollection = mongoDb.collection<User>('testCollection');
       const doc = { name: 'Grace', age: 55 };
@@ -598,7 +598,7 @@ void describe('MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should find documents with a nested property filter in both PostgreSQL and MongoDB', async () => {
+    it('should find documents with a nested property filter in both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>(
         'findWithNestedProperty',
       );
@@ -653,7 +653,7 @@ void describe('MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should find documents with multiple nested property filters in both PostgreSQL and MongoDB', async () => {
+    it('should find documents with multiple nested property filters in both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>(
         'findWithMultipleNestedProperties',
       );
@@ -708,7 +708,7 @@ void describe('MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should find documents with multiple nested property object filters in both PostgreSQL and MongoDB', async () => {
+    it('should find documents with multiple nested property object filters in both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
       const mongoCollection = mongoDb.collection<User>('testCollection');
 
@@ -760,7 +760,7 @@ void describe('MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should find documents with an array filter in both PostgreSQL and MongoDB', async () => {
+    it('should find documents with an array filter in both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('findWithArrayFilter');
       const mongoCollection = mongoDb.collection<User>('findWithArrayFilter');
 
@@ -787,7 +787,7 @@ void describe('MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should find documents with multiple array filters in both PostgreSQL and MongoDB', async () => {
+    it('should find documents with multiple array filters in both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>(
         'findWithMultipleArrayFilters',
       );
@@ -853,7 +853,7 @@ void describe('MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should find documents with a nested array element match filter in both PostgreSQL and MongoDB', async () => {
+    it('should find documents with a nested array element match filter in both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>(
         'findWithElemMatchFilter',
       );
@@ -920,7 +920,7 @@ void describe('MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should limit number of results in both PostgreSQL and MongoDB', async () => {
+    it('should limit number of results in both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('limitCollection');
       const mongoCollection = mongoDb.collection<User>('limitCollection');
       const docs = [
@@ -954,7 +954,7 @@ void describe('MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should skip number of results in both PostgreSQL and MongoDB', async () => {
+    it('should skip number of results in both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('skipCollection');
       const mongoCollection = mongoDb.collection<User>('skipCollection');
       const docs = [
@@ -988,7 +988,7 @@ void describe('MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should use limit and skip parameters to paginate results in both PostgreSQL and MongoDB', async () => {
+    it('should use limit and skip parameters to paginate results in both PostgreSQL and MongoDB', async () => {
       const pongoCollection = pongoDb.collection<User>('limitSkipCollection');
       const mongoCollection = mongoDb.collection<User>('limitSkipCollection');
       const docs = [
@@ -1027,8 +1027,8 @@ void describe('MongoDB Compatibility Tests', () => {
     });
   });
 
-  void describe('Handle Operations', () => {
-    void it('should insert a new document if it does not exist', async () => {
+  describe('Handle Operations', () => {
+    it('should insert a new document if it does not exist', async () => {
       const pongoCollection = pongoDb.collection<User>('handleCollection');
       const nonExistingId = uuid() as unknown as ObjectId;
 
@@ -1055,7 +1055,7 @@ void describe('MongoDB Compatibility Tests', () => {
       });
     });
 
-    void it('should replace an existing document', async () => {
+    it('should replace an existing document', async () => {
       const pongoCollection = pongoDb.collection<User>('handleCollection');
 
       const existingDoc: User = { name: 'John', age: 25 };
@@ -1087,7 +1087,7 @@ void describe('MongoDB Compatibility Tests', () => {
       });
     });
 
-    void it('should delete an existing document if the handler returns null', async () => {
+    it('should delete an existing document if the handler returns null', async () => {
       const pongoCollection = pongoDb.collection<User>('handleCollection');
 
       const existingDoc: User = { name: 'John', age: 25 };
@@ -1111,7 +1111,7 @@ void describe('MongoDB Compatibility Tests', () => {
       assert.strictEqual(pongoDoc, null);
     });
 
-    void it('should do nothing if the handler returns the existing document unchanged', async () => {
+    it('should do nothing if the handler returns the existing document unchanged', async () => {
       const pongoCollection = pongoDb.collection<User>('handleCollection');
 
       const existingDoc: User = { name: 'John', age: 25 };

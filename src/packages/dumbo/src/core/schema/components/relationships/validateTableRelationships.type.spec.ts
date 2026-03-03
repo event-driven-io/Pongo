@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { SQL } from '../../../sql';
 import type { Equals, Expect, IsError } from '../../../testing';
 import type { TypeValidationResult } from '../../../typing';
@@ -9,7 +9,7 @@ import type { ValidateTableRelationships } from './relationshipValidation';
 const { schema, table, column } = dumboSchema;
 const { Integer, BigInteger } = SQL.column.type;
 
-void describe('ValidateTableRelationships', () => {
+describe('ValidateTableRelationships', () => {
   const usersTable = table('users', {
     columns: {
       id: column('id', Integer),
@@ -45,7 +45,7 @@ void describe('ValidateTableRelationships', () => {
     public: typeof _publicSchema;
   };
 
-  void it('returns empty array when all relationships are valid', () => {
+  it('returns empty array when all relationships are valid', () => {
     type Result = ValidateTableRelationships<
       typeof postsTable,
       typeof _publicSchema,
@@ -55,7 +55,7 @@ void describe('ValidateTableRelationships', () => {
     type _Then = Expect<Equals<Result, []>>;
   });
 
-  void it('collects errors when relationship has length mismatch', () => {
+  it('collects errors when relationship has length mismatch', () => {
     const _invalidTable = table('invalid', {
       columns: {
         col1: column('col1', Integer),
@@ -98,7 +98,7 @@ void describe('ValidateTableRelationships', () => {
     type _Then = [Expect<IsError<Result>>, Expect<Equals<Result, Expected>>];
   });
 
-  void it('collects errors when relationship references missing schema', () => {
+  it('collects errors when relationship references missing schema', () => {
     const _missingSchemaTable = table('missing_schema', {
       columns: {
         user_id: column('user_id', Integer),
@@ -139,7 +139,7 @@ void describe('ValidateTableRelationships', () => {
     type _Then = [Expect<IsError<Result>>, Expect<Equals<Result, Expected>>];
   });
 
-  void it('collects errors from multiple invalid relationships', () => {
+  it('collects errors from multiple invalid relationships', () => {
     const _multiErrorTable = table('multi_error', {
       columns: {
         col1: column('col1', Integer),
@@ -188,7 +188,7 @@ void describe('ValidateTableRelationships', () => {
     type _Then = [Expect<IsError<Result>>, Expect<Equals<Result, Expected>>];
   });
 
-  void it('returns empty array when table has no relationships', () => {
+  it('returns empty array when table has no relationships', () => {
     const _noRelTable = table('no_rels', {
       columns: {
         id: column('id', Integer),
@@ -204,7 +204,7 @@ void describe('ValidateTableRelationships', () => {
     type _Then = Expect<Equals<Result, []>>;
   });
 
-  void it('collects errors for type mismatch', () => {
+  it('collects errors for type mismatch', () => {
     type Result = ValidateTableRelationships<
       typeof typeMismatchTable,
       typeof _publicSchema,

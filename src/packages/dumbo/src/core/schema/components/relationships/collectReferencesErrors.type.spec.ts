@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { SQL } from '../../../sql';
 import type { Equals, Expect } from '../../../testing';
 import { dumboSchema } from '../../dumboSchema';
@@ -12,7 +12,7 @@ import type {
 const { column, table, schema } = dumboSchema;
 const { BigInteger, Varchar, Integer } = SQL.column.type;
 
-void describe('CollectReferencesErrors', () => {
+describe('CollectReferencesErrors', () => {
   const usersTable = table('users', {
     columns: {
       id: column('id', BigInteger),
@@ -38,7 +38,7 @@ void describe('CollectReferencesErrors', () => {
     public: typeof _publicSchema;
   };
 
-  void it('returns empty array when all references are valid', () => {
+  it('returns empty array when all references are valid', () => {
     type Columns = readonly [SchemaColumnName<'public', 'posts', 'user_id'>];
     type References = readonly [SchemaColumnName<'public', 'users', 'id'>];
 
@@ -53,7 +53,7 @@ void describe('CollectReferencesErrors', () => {
     type _Then = Expect<Equals<Result, []>>;
   });
 
-  void it('returns empty array for multiple valid references', () => {
+  it('returns empty array for multiple valid references', () => {
     type Columns = readonly [
       SchemaColumnName<'public', 'posts', 'user_id'>,
       SchemaColumnName<'public', 'posts', 'title'>,
@@ -74,7 +74,7 @@ void describe('CollectReferencesErrors', () => {
     type _Then = Expect<Equals<Result, []>>;
   });
 
-  void it('collects error for missing schema', () => {
+  it('collects error for missing schema', () => {
     type Columns = readonly [SchemaColumnName<'public', 'posts', 'user_id'>];
     type References = readonly [SchemaColumnName<'nonexistent', 'users', 'id'>];
 
@@ -93,7 +93,7 @@ void describe('CollectReferencesErrors', () => {
     type _Then = Expect<Equals<Result, Expected>>;
   });
 
-  void it('collects error for missing table', () => {
+  it('collects error for missing table', () => {
     type Columns = readonly [SchemaColumnName<'public', 'posts', 'user_id'>];
     type References = readonly [
       SchemaColumnName<'public', 'nonexistent', 'id'>,
@@ -114,7 +114,7 @@ void describe('CollectReferencesErrors', () => {
     type _Then = Expect<Equals<Result, Expected>>;
   });
 
-  void it('collects error for missing column', () => {
+  it('collects error for missing column', () => {
     type Columns = readonly [SchemaColumnName<'public', 'posts', 'user_id'>];
     type References = readonly [
       SchemaColumnName<'public', 'users', 'nonexistent'>,
@@ -138,7 +138,7 @@ void describe('CollectReferencesErrors', () => {
     type _Then = Expect<Equals<Result, Expected>>;
   });
 
-  void it('collects error for type mismatch', () => {
+  it('collects error for type mismatch', () => {
     type Columns = readonly [SchemaColumnName<'public', 'posts', 'user_id'>];
     type References = readonly [SchemaColumnName<'public', 'users', 'name'>];
 
@@ -161,7 +161,7 @@ void describe('CollectReferencesErrors', () => {
     type _Then = Expect<Equals<Result, Expected>>;
   });
 
-  void it('collects multiple errors for different invalid references', () => {
+  it('collects multiple errors for different invalid references', () => {
     type Columns = readonly [
       SchemaColumnName<'public', 'posts', 'user_id'>,
       SchemaColumnName<'public', 'posts', 'title'>,
@@ -194,7 +194,7 @@ void describe('CollectReferencesErrors', () => {
     type _Then = Expect<Equals<Result, Expected>>;
   });
 
-  void it('collects only errors, skipping valid references', () => {
+  it('collects only errors, skipping valid references', () => {
     type Columns = readonly [
       SchemaColumnName<'public', 'posts', 'user_id'>,
       SchemaColumnName<'public', 'posts', 'title'>,
@@ -225,7 +225,7 @@ void describe('CollectReferencesErrors', () => {
     type _Then = Expect<Equals<Result, Expected>>;
   });
 
-  void it('returns empty array for empty input tuples', () => {
+  it('returns empty array for empty input tuples', () => {
     type Columns = readonly [];
     type References = readonly [];
 
@@ -240,7 +240,7 @@ void describe('CollectReferencesErrors', () => {
     type _Then = Expect<Equals<Result, []>>;
   });
 
-  void it('accumulates errors with pre-existing errors', () => {
+  it('accumulates errors with pre-existing errors', () => {
     type Columns = readonly [SchemaColumnName<'public', 'posts', 'user_id'>];
     type References = readonly [
       SchemaColumnName<'public', 'users', 'nonexistent'>,

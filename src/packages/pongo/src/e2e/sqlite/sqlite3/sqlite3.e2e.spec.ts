@@ -3,10 +3,10 @@ import { SQLiteConnectionString } from '@event-driven-io/dumbo/sqlite3';
 import assert from 'assert';
 import console from 'console';
 import fs from 'fs';
-import { after, before, describe, it } from 'node:test';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v4 as uuid } from 'uuid';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import type { ObjectId } from '../../..';
 import {
   pongoClient,
@@ -35,7 +35,7 @@ type User = {
   date?: Date;
 };
 
-void describe('SQLite MongoDB Compatibility Tests', () => {
+describe('SQLite MongoDB Compatibility Tests', () => {
   let client: PongoClient;
   let shim: MongoClient;
 
@@ -47,7 +47,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
   const fileName = path.resolve(testDatabasePath, 'test.db');
   const connectionString = SQLiteConnectionString(`file:${fileName}`);
 
-  before(async () => {
+  beforeAll(async () => {
     client = pongoClient({
       driver: databaseDriver,
       connectionString,
@@ -62,7 +62,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
     mongoDb = shim.db(dbName);
   });
 
-  after(async () => {
+  afterAll(async () => {
     await client.close();
     await shim.close();
     if (!fs.existsSync(fileName)) {
@@ -81,8 +81,8 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
     }
   });
 
-  void describe('FindOne', () => {
-    void it('should return null when does not exist', async () => {
+  describe('FindOne', () => {
+    it('should return null when does not exist', async () => {
       const pongoCollection = pongoDb.collection<User>('findOne');
       const mongoCollection = mongoDb.collection<User>('shimFindOne');
       const nonExistingId = uuid() as unknown as ObjectId;
@@ -98,8 +98,8 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
     });
   });
 
-  void describe('Insert Operations', async () => {
-    await it('should insert a document with id into both SQLite and MongoDB shim', async () => {
+  describe('Insert Operations', () => {
+    it('should insert a document with id into both SQLite and MongoDB shim', async () => {
       const pongoCollection = pongoDb.collection<User>('insertOne');
       const mongoCollection = mongoDb.collection<User>('shiminsertOne');
       const doc: User = {
@@ -131,7 +131,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should insert a document into both SQLite and MongoDB shim', async () => {
+    it('should insert a document into both SQLite and MongoDB shim', async () => {
       const pongoCollection = pongoDb.collection<User>('insertOne');
       const mongoCollection = mongoDb.collection<User>('shiminsertOne');
       const doc = { name: 'Anita', age: 25 };
@@ -157,7 +157,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should insert many documents into both SQLite and MongoDB shim', async () => {
+    it('should insert many documents into both SQLite and MongoDB shim', async () => {
       const pongoCollection = pongoDb.collection<User>('insertMany');
       const mongoCollection = mongoDb.collection<User>('shiminsertMany');
       const docs = [
@@ -192,8 +192,8 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
     });
   });
 
-  void describe('Update Operations', () => {
-    void it('should update a document', async () => {
+  describe('Update Operations', () => {
+    it('should update a document', async () => {
       const pongoCollection = pongoDb.collection<User>('updateOne');
       const mongoCollection = mongoDb.collection<User>('shimupdateOne');
       const doc = { name: 'Roger', age: 30 };
@@ -232,7 +232,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should NOT update a non-existing document', async () => {
+    it('should NOT update a non-existing document', async () => {
       const pongoCollection = pongoDb.collection<User>('updateOne');
       const mongoCollection = mongoDb.collection<User>('shimupdateOne');
       const nonExistingId = 'non-existing';
@@ -269,7 +269,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       assert(mongoDoc === null);
     });
 
-    void it('should update a multiple properties in document', async () => {
+    it('should update a multiple properties in document', async () => {
       const pongoCollection = pongoDb.collection<User>('updateOneMultiple');
       const mongoCollection = mongoDb.collection<User>('shimupdateOneMultiple');
       const doc = { name: 'Roger', age: 30 };
@@ -311,7 +311,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should update documents', async () => {
+    it('should update documents', async () => {
       const pongoCollection = pongoDb.collection<User>('updateMany');
       const mongoCollection = mongoDb.collection<User>('shimupdateMany');
 
@@ -362,7 +362,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should update a document using $unset', async () => {
+    it('should update a document using $unset', async () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
       const mongoCollection = mongoDb.collection<User>('shimtestCollection');
       const doc = { name: 'Roger', age: 30, address: { city: 'Wonderland' } };
@@ -401,7 +401,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should update a document using $inc', async () => {
+    it('should update a document using $inc', async () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
       const mongoCollection = mongoDb.collection<User>('shimtestCollection');
       const doc = { name: 'Roger', age: 30 };
@@ -440,7 +440,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should update a document using $push', async () => {
+    it('should update a document using $push', async () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
       const mongoCollection = mongoDb.collection<User>('shimtestCollection');
       const doc = { name: 'Roger', age: 30 };
@@ -498,8 +498,8 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
     });
   });
 
-  void describe('Replace Operations', () => {
-    void it('should replace a document', async () => {
+  describe('Replace Operations', () => {
+    it('should replace a document', async () => {
       const pongoCollection = pongoDb.collection<User>('updateOne');
       const mongoCollection = mongoDb.collection<User>('shimupdateOne');
       const doc = { name: 'Roger', age: 30 };
@@ -543,8 +543,8 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
     });
   });
 
-  void describe('Delete Operations', () => {
-    void it('should delete a document from both SQLite and MongoDB shim', async () => {
+  describe('Delete Operations', () => {
+    it('should delete a document from both SQLite and MongoDB shim', async () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
       const mongoCollection = mongoDb.collection<User>('shimtestCollection');
       const doc = { name: 'Cruella', age: 35 };
@@ -569,7 +569,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       assert.strictEqual(mongoDoc, null);
     });
 
-    void it('should delete documents', async () => {
+    it('should delete documents', async () => {
       const pongoCollection = pongoDb.collection<User>('updateMany');
       const mongoCollection = mongoDb.collection<User>('shimupdateMany');
 
@@ -619,7 +619,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should delete documents in transaction', async () => {
+    it('should delete documents in transaction', async () => {
       const docs = [
         { name: 'David', age: 40 },
         { name: 'Eve', age: 45 },
@@ -694,8 +694,8 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
     });
   });
 
-  void describe('Find Operations', () => {
-    void it('should find documents with a filter', async () => {
+  describe('Find Operations', () => {
+    it('should find documents with a filter', async () => {
       const pongoCollection = pongoDb.collection<User>('findWithFilter');
       const mongoCollection = mongoDb.collection<User>('shimfindWithFilter');
       const docs = [
@@ -725,7 +725,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should find one document with a filter', async () => {
+    it('should find one document with a filter', async () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
       const mongoCollection = mongoDb.collection<User>('shimtestCollection');
       const doc = { name: 'Grace', age: 55 };
@@ -748,7 +748,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should find documents with multiple nested property object filters', async () => {
+    it('should find documents with multiple nested property object filters', async () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
       const mongoCollection = mongoDb.collection<User>('shimtestCollection');
 
@@ -800,7 +800,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should find documents with an array filter', async () => {
+    it('should find documents with an array filter', async () => {
       const pongoCollection = pongoDb.collection<User>('findWithArrayFilter');
       const mongoCollection = mongoDb.collection<User>(
         'shimfindWithArrayFilter',
@@ -831,7 +831,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should find documents with multiple array filters', async () => {
+    it('should find documents with multiple array filters', async () => {
       const pongoCollection = pongoDb.collection<User>(
         'findWithMultipleArrayFilters',
       );
@@ -867,8 +867,8 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
     });
   });
 
-  void describe('Handle Operations', () => {
-    void it(`should pass null to handle if document doesn't exist`, async () => {
+  describe('Handle Operations', () => {
+    it(`should pass null to handle if document doesn't exist`, async () => {
       const pongoCollection = pongoDb.collection<User>('handleCollection');
       const nonExistingId = uuid() as unknown as ObjectId;
 
@@ -887,7 +887,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       assert.ok(wasHandled);
     });
 
-    void it('should insert a new document if it does not exist', async () => {
+    it('should insert a new document if it does not exist', async () => {
       const pongoCollection = pongoDb.collection<User>('handleCollection');
       const nonExistingId = uuid() as unknown as ObjectId;
 
@@ -914,7 +914,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       });
     });
 
-    void it('should replace an existing document', async () => {
+    it('should replace an existing document', async () => {
       const pongoCollection = pongoDb.collection<User>('handleCollection');
 
       const existingDoc: User = { name: 'John', age: 25 };
@@ -946,7 +946,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       });
     });
 
-    void it('should delete an existing document if the handler returns null', async () => {
+    it('should delete an existing document if the handler returns null', async () => {
       const pongoCollection = pongoDb.collection<User>('handleCollection');
 
       const existingDoc: User = { name: 'John', age: 25 };
@@ -970,7 +970,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       assert.strictEqual(pongoDoc, null);
     });
 
-    void it('should do nothing if the handler returns the existing document unchanged', async () => {
+    it('should do nothing if the handler returns the existing document unchanged', async () => {
       const pongoCollection = pongoDb.collection<User>('handleCollection');
 
       const existingDoc: User = { name: 'John', age: 25 };
@@ -1003,7 +1003,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
     });
   });
 
-  void it('should make the change if the handler returns the existing document changed', async () => {
+  it('should make the change if the handler returns the existing document changed', async () => {
     const pongoCollection = pongoDb.collection<User>('handleCollection');
 
     const existingDoc: User = { name: 'John', age: 25 };
@@ -1040,8 +1040,8 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
     });
   });
 
-  void describe('No filter', () => {
-    void it('should filter and count without filter specified', async () => {
+  describe('No filter', () => {
+    it('should filter and count without filter specified', async () => {
       const pongoCollection = pongoDb.collection<User>('nofilter');
 
       const newDoc: User = { name: 'John', age: 25 };
@@ -1056,14 +1056,14 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
     });
   });
 
-  void describe('Pongo Schema', () => {
+  describe('Pongo Schema', () => {
     const schema = pongoSchema.client({
       database: pongoSchema.db({
         users: pongoSchema.collection<User>('users'),
       }),
     });
 
-    void it('should access typed collection and perform operation', async () => {
+    it('should access typed collection and perform operation', async () => {
       const typedClient = pongoClient({
         driver: databaseDriver,
         connectionString,
@@ -1090,7 +1090,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       }
     });
 
-    void it('should access collection by name and perform operation', async () => {
+    it('should access collection by name and perform operation', async () => {
       const typedClient = pongoClient({
         driver: databaseDriver,
         connectionString,
@@ -1118,8 +1118,8 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
     });
   });
 
-  void describe('Serialization', () => {
-    void it('should serialize and deserialize Date objects with custom serialization settings', async () => {
+  describe('Serialization', () => {
+    it('should serialize and deserialize Date objects with custom serialization settings', async () => {
       const client = pongoClient({
         driver: databaseDriver,
         connectionString: fileName,
@@ -1153,7 +1153,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       }
     });
 
-    void it('should NOT deserialize Date objects with default settings', async () => {
+    it('should NOT deserialize Date objects with default settings', async () => {
       const collection = pongoDb.collection<User>('serialization_date_test');
 
       const originalDoc: User = {
@@ -1174,7 +1174,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       assert.strictEqual(fetchedDoc.date, '2024-05-01T10:00:00.000Z');
     });
 
-    void it('should serialize and deserialize bigint objects with custom serialization settings', async () => {
+    it('should serialize and deserialize bigint objects with custom serialization settings', async () => {
       const client = pongoClient({
         driver: databaseDriver,
         connectionString: fileName,
@@ -1204,7 +1204,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       }
     });
 
-    void it('should NOT deserialize bigint objects with default settings', async () => {
+    it('should NOT deserialize bigint objects with default settings', async () => {
       const collection = pongoDb.collection<User>('serialization_bigint_test');
 
       const originalDoc: User = {
@@ -1225,7 +1225,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
     });
   });
 
-  void describe('Upcast/Downcast versioning', () => {
+  describe('Upcast/Downcast versioning', () => {
     type UserDocV1 = {
       name: string;
       createdAt: string;
@@ -1260,7 +1260,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       timestamps: doc.timestamps,
     });
 
-    void it('should downcast V2 to V1 when storing and upcast to V2 when reading', async () => {
+    it('should downcast V2 to V1 when storing and upcast to V2 when reading', async () => {
       const collection = pongoDb.collection<UserDocV2, StoredPayload>(
         'versioning_downcast_upcast',
         {
@@ -1308,7 +1308,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       assert.deepEqual(doc, v2Doc);
     });
 
-    void it('should handle insertMany with downcast', async () => {
+    it('should handle insertMany with downcast', async () => {
       const collection = pongoDb.collection<UserDocV2, StoredPayload>(
         'versioning_insertMany',
         {
@@ -1350,7 +1350,7 @@ void describe('SQLite MongoDB Compatibility Tests', () => {
       );
     });
 
-    void it('should handle replaceOne with downcast', async () => {
+    it('should handle replaceOne with downcast', async () => {
       const collection = pongoDb.collection<UserDocV2, StoredPayload>(
         'versioning_replaceOne',
         {

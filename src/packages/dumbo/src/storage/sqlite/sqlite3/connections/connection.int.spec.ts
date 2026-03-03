@@ -1,6 +1,6 @@
 import assert from 'assert';
 import fs from 'fs';
-import { afterEach, describe, it } from 'node:test';
+import { afterEach, describe, it } from 'vitest';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { count, JSONSerializer, SQL } from '../../../../core';
@@ -16,7 +16,7 @@ import {
 
 const withDeadline = { timeout: 30000 };
 
-void describe('Node SQLite3 pool', () => {
+describe('Node SQLite3 pool', () => {
   const inMemoryfileName: string = InMemorySQLiteDatabase;
 
   const testDatabasePath = path.resolve(
@@ -42,8 +42,8 @@ void describe('Node SQLite3 pool', () => {
     }
   });
 
-  void describe(`in-memory database`, () => {
-    void it('returns the singleton connection', withDeadline, async () => {
+  describe(`in-memory database`, () => {
+    it('returns the singleton connection', withDeadline, async () => {
       const pool = sqlite3Pool({
         fileName: inMemoryfileName,
       });
@@ -62,8 +62,8 @@ void describe('Node SQLite3 pool', () => {
     });
   });
 
-  void describe(`file-based database`, () => {
-    void it(
+  describe(`file-based database`, () => {
+    it(
       'returns the same connection from writer sub-pool',
       withDeadline,
       async () => {
@@ -85,7 +85,7 @@ void describe('Node SQLite3 pool', () => {
       },
     );
 
-    void it(
+    it(
       'returns the new connection for readonly option and no options',
       withDeadline,
       async () => {
@@ -109,7 +109,7 @@ void describe('Node SQLite3 pool', () => {
       },
     );
 
-    void it(
+    it(
       'returns the new connection for readonly option and not readonly',
       withDeadline,
       async () => {
@@ -133,7 +133,7 @@ void describe('Node SQLite3 pool', () => {
       },
     );
 
-    void it(
+    it(
       'for singleton setting returns the singleton connection',
       withDeadline,
       async () => {
@@ -158,8 +158,8 @@ void describe('Node SQLite3 pool', () => {
   });
 
   for (const { testName, fileName } of testCases) {
-    void describe(`sqlite3Pool with ${testName} database`, () => {
-      void it('connects using default pool', withDeadline, async () => {
+    describe(`sqlite3Pool with ${testName} database`, () => {
+      it('connects using default pool', withDeadline, async () => {
         const pool = sqlite3Pool({
           fileName,
         });
@@ -176,7 +176,7 @@ void describe('Node SQLite3 pool', () => {
         }
       });
 
-      void it('connects using client', withDeadline, async () => {
+      it('connects using client', withDeadline, async () => {
         const pool = sqlite3Pool({
           fileName,
           pooled: false,
@@ -191,7 +191,7 @@ void describe('Node SQLite3 pool', () => {
         }
       });
 
-      void it(
+      it(
         `connects using ambient client ${testName}`,
         withDeadline,
         async () => {
@@ -216,7 +216,7 @@ void describe('Node SQLite3 pool', () => {
         },
       );
 
-      void it(
+      it(
         'connects using connected ambient connected connection from pool',
         withDeadline,
         async () => {
@@ -241,7 +241,7 @@ void describe('Node SQLite3 pool', () => {
         },
       );
 
-      void it(
+      it(
         'connects using connected ambient connected connection',
         withDeadline,
         async () => {
@@ -270,7 +270,7 @@ void describe('Node SQLite3 pool', () => {
         },
       );
 
-      void it(
+      it(
         'connects using connected ambient connected connection and using transaction on pool',
         withDeadline,
         async () => {
@@ -304,7 +304,7 @@ void describe('Node SQLite3 pool', () => {
         },
       );
 
-      void it(
+      it(
         'withConnection on ambient pool does not close the ambient connection',
         withDeadline,
         async () => {
@@ -333,7 +333,7 @@ void describe('Node SQLite3 pool', () => {
         },
       );
 
-      void it(
+      it(
         'connects using connected ambient not-connected connection',
         withDeadline,
         async () => {
@@ -357,7 +357,7 @@ void describe('Node SQLite3 pool', () => {
         },
       );
 
-      void it(
+      it(
         'connects using ambient connected connection with transaction',
         withDeadline,
         async () => {
@@ -388,7 +388,7 @@ void describe('Node SQLite3 pool', () => {
         },
       );
 
-      void it(
+      it(
         'connects using ambient not-connected connection with transaction',
         withDeadline,
         async () => {
@@ -418,7 +418,7 @@ void describe('Node SQLite3 pool', () => {
         },
       );
 
-      void it(
+      it(
         'connects using ambient connection in withConnection scope',
         withDeadline,
         async () => {
@@ -445,7 +445,7 @@ void describe('Node SQLite3 pool', () => {
         },
       );
 
-      void it(
+      it(
         'connects using ambient connection in withConnection and withTransaction scope',
         withDeadline,
         async () => {
@@ -474,8 +474,8 @@ void describe('Node SQLite3 pool', () => {
     });
   }
 
-  void describe('dual pool concurrency (file-based)', () => {
-    void it(
+  describe('dual pool concurrency (file-based)', () => {
+    it(
       'handles concurrent writes and consumers without SQLITE_BUSY',
       withDeadline,
       async () => {
@@ -551,7 +551,7 @@ void describe('Node SQLite3 pool', () => {
       },
     );
 
-    void it(
+    it(
       'handles concurrent readonly reads without blocking',
       withDeadline,
       async () => {
@@ -601,7 +601,7 @@ void describe('Node SQLite3 pool', () => {
       },
     );
 
-    void it(
+    it(
       'handles concurrent reads and writes through separate pools',
       withDeadline,
       async () => {
@@ -660,7 +660,7 @@ void describe('Node SQLite3 pool', () => {
       },
     );
 
-    void it(
+    it(
       'handles concurrent writes with connection.transaction() and reads',
       withDeadline,
       async () => {
@@ -729,7 +729,7 @@ void describe('Node SQLite3 pool', () => {
       },
     );
 
-    void it(
+    it(
       'handles concurrent writes with connection.withTransaction() and reads',
       withDeadline,
       async () => {
@@ -800,7 +800,7 @@ void describe('Node SQLite3 pool', () => {
       },
     );
 
-    void it(
+    it(
       'handles concurrent writes with pool.transaction() and reads',
       withDeadline,
       async () => {
@@ -864,7 +864,7 @@ void describe('Node SQLite3 pool', () => {
       },
     );
 
-    void it(
+    it(
       'handles concurrent writes with pool.withTransaction() and reads',
       withDeadline,
       async () => {
@@ -929,55 +929,47 @@ void describe('Node SQLite3 pool', () => {
       },
     );
 
-    void it(
-      'reuses reader pool connections after close',
-      withDeadline,
-      async () => {
-        const pool = sqlite3Pool({ fileName });
+    it('reuses reader pool connections after close', withDeadline, async () => {
+      const pool = sqlite3Pool({ fileName });
 
-        try {
-          await pool.execute.command(SQL`
+      try {
+        await pool.execute.command(SQL`
           CREATE TABLE IF NOT EXISTS test_reuse (
             id INTEGER PRIMARY KEY,
             value INTEGER
           )
         `);
 
-          let firstClient: SQLiteClientOrPoolClient;
-          let secondClient: SQLiteClientOrPoolClient;
+        let firstClient: SQLiteClientOrPoolClient;
+        let secondClient: SQLiteClientOrPoolClient;
 
-          const firstConn = await pool.connection({ readonly: true });
-          try {
-            firstClient = await firstConn.open();
-            await firstConn.execute.query(
-              SQL`SELECT 1 FROM test_reuse limit 1`,
-            );
-          } finally {
-            await firstConn.close();
-          }
-
-          const secondConn = await pool.connection({ readonly: true });
-          try {
-            secondClient = await secondConn.open();
-            await firstConn.execute.query(
-              SQL`SELECT 1 FROM test_reuse limit 1`,
-            );
-          } finally {
-            await secondConn.close();
-          }
-
-          assert.strictEqual(
-            firstClient,
-            secondClient,
-            'Reader pool should reuse connections instead of creating new ones',
-          );
+        const firstConn = await pool.connection({ readonly: true });
+        try {
+          firstClient = await firstConn.open();
+          await firstConn.execute.query(SQL`SELECT 1 FROM test_reuse limit 1`);
         } finally {
-          await pool.close();
+          await firstConn.close();
         }
-      },
-    );
 
-    void it(
+        const secondConn = await pool.connection({ readonly: true });
+        try {
+          secondClient = await secondConn.open();
+          await firstConn.execute.query(SQL`SELECT 1 FROM test_reuse limit 1`);
+        } finally {
+          await secondConn.close();
+        }
+
+        assert.strictEqual(
+          firstClient,
+          secondClient,
+          'Reader pool should reuse connections instead of creating new ones',
+        );
+      } finally {
+        await pool.close();
+      }
+    });
+
+    it(
       'handles parallel connection opens without SQLITE_BUSY',
       withDeadline,
       async () => {

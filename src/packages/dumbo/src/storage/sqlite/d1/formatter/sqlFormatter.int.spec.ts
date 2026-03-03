@@ -1,15 +1,15 @@
 import assert from 'assert';
 import { Miniflare } from 'miniflare';
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { d1DumboDriver, type D1ConnectionPool } from '..';
 import { dumbo } from '../../../..';
 import { count, SQL } from '../../../../core';
 
-void describe('D1 SQL Formatter Integration Tests', () => {
+describe('D1 SQL Formatter Integration Tests', () => {
   let mf: Miniflare;
   let pool: D1ConnectionPool;
 
-  before(async () => {
+  beforeAll(async () => {
     mf = new Miniflare({
       modules: true,
       script: 'export default { fetch() { return new Response("ok"); } }',
@@ -31,13 +31,13 @@ void describe('D1 SQL Formatter Integration Tests', () => {
     );
   });
 
-  after(async () => {
+  afterAll(async () => {
     await pool.close();
     await mf.dispose();
   });
 
-  void describe('Direct Array Handling', () => {
-    void it('throws error for empty arrays in IN clauses', async () => {
+  describe('Direct Array Handling', () => {
+    it('throws error for empty arrays in IN clauses', async () => {
       const emptyIds: number[] = [];
 
       try {
@@ -51,7 +51,7 @@ void describe('D1 SQL Formatter Integration Tests', () => {
       }
     });
 
-    void it('handles non-empty arrays correctly', async () => {
+    it('handles non-empty arrays correctly', async () => {
       // Non-empty arrays should still work
       const names = ['Alice'];
       const result = await count(
@@ -64,8 +64,8 @@ void describe('D1 SQL Formatter Integration Tests', () => {
     });
   });
 
-  void describe('SQL.in Helper', () => {
-    void it('handles empty arrays by returning FALSE, so no records', async () => {
+  describe('SQL.in Helper', () => {
+    it('handles empty arrays by returning FALSE, so no records', async () => {
       const emptyIds: number[] = [];
       const result = await count(
         pool.execute.query(
@@ -76,7 +76,7 @@ void describe('D1 SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 0);
     });
 
-    void it('handles non-empty arrays with standard IN clause', async () => {
+    it('handles non-empty arrays with standard IN clause', async () => {
       // Non-empty array should use standard IN clause for SQLite
       const ids = [1];
       const result = await count(
@@ -88,7 +88,7 @@ void describe('D1 SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 1);
     });
 
-    void it('handles string array with single value', async () => {
+    it('handles string array with single value', async () => {
       const names = ['Alice'];
       const result = await count(
         pool.execute.query(
@@ -99,7 +99,7 @@ void describe('D1 SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 1);
     });
 
-    void it('handles string array with multiple values', async () => {
+    it('handles string array with multiple values', async () => {
       const names = ['Alice', 'Bob'];
       const result = await count(
         pool.execute.query(
@@ -110,7 +110,7 @@ void describe('D1 SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 2);
     });
 
-    void it('handles empty string arrays', async () => {
+    it('handles empty string arrays', async () => {
       const emptyNames: string[] = [];
       const result = await count(
         pool.execute.query(

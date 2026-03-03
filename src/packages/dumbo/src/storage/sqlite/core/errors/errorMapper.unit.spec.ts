@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import {
   CheckViolationError,
   ConnectionError,
@@ -36,16 +36,16 @@ const sqliteError = (
   return error;
 };
 
-void describe('mapSqliteError', () => {
-  void describe('returns DumboError(500) for non-SQLite errors', () => {
-    void it('returns DumboError(500) for a plain Error without code', () => {
+describe('mapSqliteError', () => {
+  describe('returns DumboError(500) for non-SQLite errors', () => {
+    it('returns DumboError(500) for a plain Error without code', () => {
       const result = mapSqliteError(new Error('plain error'));
       assert.ok(result instanceof DumboError);
       assert.ok(DumboError.isInstanceOf(result));
       assert.strictEqual(result.errorCode, 500);
     });
 
-    void it('returns DumboError(500) for a non-Error value', () => {
+    it('returns DumboError(500) for a non-Error value', () => {
       for (const value of ['string', 42, null, undefined]) {
         const result = mapSqliteError(value);
         assert.ok(result instanceof DumboError);
@@ -54,7 +54,7 @@ void describe('mapSqliteError', () => {
       }
     });
 
-    void it('returns DumboError(500) for an error with numeric code', () => {
+    it('returns DumboError(500) for an error with numeric code', () => {
       const error = new Error('numeric code');
       (error as Error & { code: number }).code = 123;
       const result = mapSqliteError(error);
@@ -63,7 +63,7 @@ void describe('mapSqliteError', () => {
       assert.strictEqual(result.errorCode, 500);
     });
 
-    void it('returns DumboError(500) for an unrecognized SQLITE code', () => {
+    it('returns DumboError(500) for an unrecognized SQLITE code', () => {
       const result1 = mapSqliteError(sqliteError('SQLITE_NOTICE', 27));
       assert.ok(result1 instanceof DumboError);
       assert.strictEqual(result1.errorCode, 500);
@@ -74,8 +74,8 @@ void describe('mapSqliteError', () => {
     });
   });
 
-  void describe('constraint violations (SQLITE_CONSTRAINT)', () => {
-    void it('maps UNIQUE constraint to UniqueConstraintError', () => {
+  describe('constraint violations (SQLITE_CONSTRAINT)', () => {
+    it('maps UNIQUE constraint to UniqueConstraintError', () => {
       const result = mapSqliteError(
         sqliteError(
           'SQLITE_CONSTRAINT',
@@ -98,7 +98,7 @@ void describe('mapSqliteError', () => {
       );
     });
 
-    void it('maps PRIMARY KEY constraint to UniqueConstraintError', () => {
+    it('maps PRIMARY KEY constraint to UniqueConstraintError', () => {
       const result = mapSqliteError(
         sqliteError(
           'SQLITE_CONSTRAINT',
@@ -115,7 +115,7 @@ void describe('mapSqliteError', () => {
       );
     });
 
-    void it('maps FOREIGN KEY constraint to ForeignKeyViolationError', () => {
+    it('maps FOREIGN KEY constraint to ForeignKeyViolationError', () => {
       const result = mapSqliteError(
         sqliteError(
           'SQLITE_CONSTRAINT',
@@ -132,7 +132,7 @@ void describe('mapSqliteError', () => {
       );
     });
 
-    void it('maps NOT NULL constraint to NotNullViolationError', () => {
+    it('maps NOT NULL constraint to NotNullViolationError', () => {
       const result = mapSqliteError(
         sqliteError(
           'SQLITE_CONSTRAINT',
@@ -149,7 +149,7 @@ void describe('mapSqliteError', () => {
       );
     });
 
-    void it('maps CHECK constraint to CheckViolationError', () => {
+    it('maps CHECK constraint to CheckViolationError', () => {
       const result = mapSqliteError(
         sqliteError(
           'SQLITE_CONSTRAINT',
@@ -166,7 +166,7 @@ void describe('mapSqliteError', () => {
       );
     });
 
-    void it('maps unknown constraint subtype to IntegrityConstraintViolationError', () => {
+    it('maps unknown constraint subtype to IntegrityConstraintViolationError', () => {
       const result = mapSqliteError(
         sqliteError(
           'SQLITE_CONSTRAINT',
@@ -184,8 +184,8 @@ void describe('mapSqliteError', () => {
     });
   });
 
-  void describe('busy / lock errors', () => {
-    void it('maps SQLITE_BUSY to LockNotAvailableError', () => {
+  describe('busy / lock errors', () => {
+    it('maps SQLITE_BUSY to LockNotAvailableError', () => {
       const result = mapSqliteError(
         sqliteError('SQLITE_BUSY', 5, 'SQLITE_BUSY: database is locked'),
       );
@@ -198,7 +198,7 @@ void describe('mapSqliteError', () => {
       );
     });
 
-    void it('maps SQLITE_LOCKED to DeadlockError', () => {
+    it('maps SQLITE_LOCKED to DeadlockError', () => {
       const result = mapSqliteError(
         sqliteError(
           'SQLITE_LOCKED',
@@ -215,7 +215,7 @@ void describe('mapSqliteError', () => {
       );
     });
 
-    void it('maps SQLITE_PROTOCOL to LockNotAvailableError', () => {
+    it('maps SQLITE_PROTOCOL to LockNotAvailableError', () => {
       const result = mapSqliteError(
         sqliteError('SQLITE_PROTOCOL', 15, 'SQLITE_PROTOCOL: locking protocol'),
       );
@@ -224,8 +224,8 @@ void describe('mapSqliteError', () => {
     });
   });
 
-  void describe('connection errors', () => {
-    void it('maps SQLITE_CANTOPEN to ConnectionError', () => {
+  describe('connection errors', () => {
+    it('maps SQLITE_CANTOPEN to ConnectionError', () => {
       const result = mapSqliteError(
         sqliteError(
           'SQLITE_CANTOPEN',
@@ -242,7 +242,7 @@ void describe('mapSqliteError', () => {
       );
     });
 
-    void it('maps SQLITE_NOTADB to ConnectionError', () => {
+    it('maps SQLITE_NOTADB to ConnectionError', () => {
       const result = mapSqliteError(
         sqliteError(
           'SQLITE_NOTADB',
@@ -255,8 +255,8 @@ void describe('mapSqliteError', () => {
     });
   });
 
-  void describe('resource errors', () => {
-    void it('maps SQLITE_NOMEM to InsufficientResourcesError', () => {
+  describe('resource errors', () => {
+    it('maps SQLITE_NOMEM to InsufficientResourcesError', () => {
       const result = mapSqliteError(
         sqliteError('SQLITE_NOMEM', 7, 'SQLITE_NOMEM: out of memory'),
       );
@@ -269,7 +269,7 @@ void describe('mapSqliteError', () => {
       );
     });
 
-    void it('maps SQLITE_FULL to InsufficientResourcesError', () => {
+    it('maps SQLITE_FULL to InsufficientResourcesError', () => {
       const result = mapSqliteError(
         sqliteError('SQLITE_FULL', 13, 'SQLITE_FULL: database or disk is full'),
       );
@@ -278,8 +278,8 @@ void describe('mapSqliteError', () => {
     });
   });
 
-  void describe('system / I/O errors', () => {
-    void it('maps SQLITE_IOERR to SystemError', () => {
+  describe('system / I/O errors', () => {
+    it('maps SQLITE_IOERR to SystemError', () => {
       const result = mapSqliteError(
         sqliteError('SQLITE_IOERR', 10, 'SQLITE_IOERR: disk I/O error'),
       );
@@ -292,7 +292,7 @@ void describe('mapSqliteError', () => {
       );
     });
 
-    void it('maps SQLITE_CORRUPT to SystemError', () => {
+    it('maps SQLITE_CORRUPT to SystemError', () => {
       const result = mapSqliteError(
         sqliteError(
           'SQLITE_CORRUPT',
@@ -304,7 +304,7 @@ void describe('mapSqliteError', () => {
       assert.ok(result instanceof TransientDatabaseError);
     });
 
-    void it('maps SQLITE_INTERNAL to SystemError', () => {
+    it('maps SQLITE_INTERNAL to SystemError', () => {
       const result = mapSqliteError(
         sqliteError('SQLITE_INTERNAL', 2, 'SQLITE_INTERNAL: internal error'),
       );
@@ -312,7 +312,7 @@ void describe('mapSqliteError', () => {
       assert.ok(result instanceof TransientDatabaseError);
     });
 
-    void it('maps SQLITE_NOLFS to SystemError', () => {
+    it('maps SQLITE_NOLFS to SystemError', () => {
       const result = mapSqliteError(
         sqliteError(
           'SQLITE_NOLFS',
@@ -325,8 +325,8 @@ void describe('mapSqliteError', () => {
     });
   });
 
-  void describe('data errors', () => {
-    void it('maps SQLITE_TOOBIG to DataError', () => {
+  describe('data errors', () => {
+    it('maps SQLITE_TOOBIG to DataError', () => {
       const result = mapSqliteError(
         sqliteError(
           'SQLITE_TOOBIG',
@@ -342,7 +342,7 @@ void describe('mapSqliteError', () => {
       assert.strictEqual(result.errorCode, 400);
     });
 
-    void it('maps SQLITE_MISMATCH to DataError', () => {
+    it('maps SQLITE_MISMATCH to DataError', () => {
       const result = mapSqliteError(
         sqliteError(
           'SQLITE_MISMATCH',
@@ -353,7 +353,7 @@ void describe('mapSqliteError', () => {
       assert.ok(result instanceof DataError);
     });
 
-    void it('maps SQLITE_RANGE to DataError', () => {
+    it('maps SQLITE_RANGE to DataError', () => {
       const result = mapSqliteError(
         sqliteError(
           'SQLITE_RANGE',
@@ -365,8 +365,8 @@ void describe('mapSqliteError', () => {
     });
   });
 
-  void describe('invalid operation errors', () => {
-    void it('maps SQLITE_ERROR to InvalidOperationError', () => {
+  describe('invalid operation errors', () => {
+    it('maps SQLITE_ERROR to InvalidOperationError', () => {
       const result = mapSqliteError(
         sqliteError('SQLITE_ERROR', 1, 'SQLITE_ERROR: no such table: foo'),
       );
@@ -380,7 +380,7 @@ void describe('mapSqliteError', () => {
       assert.strictEqual(result.errorCode, 400);
     });
 
-    void it('maps SQLITE_READONLY to InvalidOperationError', () => {
+    it('maps SQLITE_READONLY to InvalidOperationError', () => {
       const result = mapSqliteError(
         sqliteError(
           'SQLITE_READONLY',
@@ -391,7 +391,7 @@ void describe('mapSqliteError', () => {
       assert.ok(result instanceof InvalidOperationError);
     });
 
-    void it('maps SQLITE_MISUSE to InvalidOperationError', () => {
+    it('maps SQLITE_MISUSE to InvalidOperationError', () => {
       const result = mapSqliteError(
         sqliteError(
           'SQLITE_MISUSE',
@@ -402,21 +402,21 @@ void describe('mapSqliteError', () => {
       assert.ok(result instanceof InvalidOperationError);
     });
 
-    void it('maps SQLITE_AUTH to InvalidOperationError', () => {
+    it('maps SQLITE_AUTH to InvalidOperationError', () => {
       const result = mapSqliteError(
         sqliteError('SQLITE_AUTH', 23, 'SQLITE_AUTH: authorization denied'),
       );
       assert.ok(result instanceof InvalidOperationError);
     });
 
-    void it('maps SQLITE_PERM to InvalidOperationError', () => {
+    it('maps SQLITE_PERM to InvalidOperationError', () => {
       const result = mapSqliteError(
         sqliteError('SQLITE_PERM', 3, 'SQLITE_PERM: access permission denied'),
       );
       assert.ok(result instanceof InvalidOperationError);
     });
 
-    void it('maps SQLITE_SCHEMA to InvalidOperationError', () => {
+    it('maps SQLITE_SCHEMA to InvalidOperationError', () => {
       const result = mapSqliteError(
         sqliteError(
           'SQLITE_SCHEMA',
@@ -428,8 +428,8 @@ void describe('mapSqliteError', () => {
     });
   });
 
-  void describe('serialization / abort errors', () => {
-    void it('maps SQLITE_ABORT to SerializationError', () => {
+  describe('serialization / abort errors', () => {
+    it('maps SQLITE_ABORT to SerializationError', () => {
       const result = mapSqliteError(
         sqliteError(
           'SQLITE_ABORT',
@@ -446,7 +446,7 @@ void describe('mapSqliteError', () => {
       );
     });
 
-    void it('maps SQLITE_INTERRUPT to SerializationError', () => {
+    it('maps SQLITE_INTERRUPT to SerializationError', () => {
       const result = mapSqliteError(
         sqliteError('SQLITE_INTERRUPT', 9, 'SQLITE_INTERRUPT: interrupted'),
       );
@@ -455,8 +455,8 @@ void describe('mapSqliteError', () => {
     });
   });
 
-  void describe('preserves inner error', () => {
-    void it('sets innerError to original error', () => {
+  describe('preserves inner error', () => {
+    it('sets innerError to original error', () => {
       const original = sqliteError(
         'SQLITE_CONSTRAINT',
         19,
@@ -469,7 +469,7 @@ void describe('mapSqliteError', () => {
       assert.strictEqual(result.cause, original);
     });
 
-    void it('preserves original error message', () => {
+    it('preserves original error message', () => {
       const result = mapSqliteError(
         sqliteError(
           'SQLITE_CONSTRAINT',
@@ -485,20 +485,20 @@ void describe('mapSqliteError', () => {
     });
   });
 
-  void describe('DumboError passthrough', () => {
-    void it('returns the same DumboError if error is already a DumboError', () => {
+  describe('DumboError passthrough', () => {
+    it('returns the same DumboError if error is already a DumboError', () => {
       const original = new UniqueConstraintError('already mapped');
       const result = mapSqliteError(original);
       assert.strictEqual(result, original);
     });
 
-    void it('returns the same IntegrityConstraintViolationError', () => {
+    it('returns the same IntegrityConstraintViolationError', () => {
       const original = new IntegrityConstraintViolationError('already mapped');
       const result = mapSqliteError(original);
       assert.strictEqual(result, original);
     });
 
-    void it('returns the same generic DumboError', () => {
+    it('returns the same generic DumboError', () => {
       const original = new DumboError({
         errorCode: 500,
         message: 'already mapped',

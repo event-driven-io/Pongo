@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { before, describe, it } from 'node:test';
+import { beforeAll, describe, it } from 'vitest';
 import { registerFormatter, SQLFormatter } from './formatters';
 import { isSQL, RawSQL, SQL } from './sql';
 import { isTokenizedSQL, type TokenizedSQL } from './tokenizedSQL';
@@ -13,19 +13,19 @@ const mockFormatter: SQLFormatter = SQLFormatter({
   }),
 });
 
-void describe('SQL template', () => {
-  before(() => {
+describe('SQL template', () => {
+  beforeAll(() => {
     registerFormatter('test', mockFormatter);
   });
 
-  void describe('Basic SQL Creation', () => {
-    void it('should create SQL from template literals', () => {
+  describe('Basic SQL Creation', () => {
+    it('should create SQL from template literals', () => {
       const query = SQL`SELECT * FROM users`;
       assert.strictEqual(isSQL(query), true);
       assert.strictEqual(isTokenizedSQL(query), true);
     });
 
-    void it('should create SQL from raw string', () => {
+    it('should create SQL from raw string', () => {
       const query = SQL`SELECT * FROM users`;
       assert.strictEqual(isSQL(query), true);
       assert.strictEqual(isTokenizedSQL(query), true);
@@ -34,7 +34,7 @@ void describe('SQL template', () => {
       ]);
     });
 
-    void it('handles SQL with interpolated values', () => {
+    it('handles SQL with interpolated values', () => {
       const name = 'John';
       const age = 30;
       const query = SQL`SELECT * FROM users WHERE name = ${name} AND age = ${age}`;
@@ -49,8 +49,8 @@ void describe('SQL template', () => {
     });
   });
 
-  void describe('isEmpty function', () => {
-    void it('should correctly identify empty SQL', () => {
+  describe('isEmpty function', () => {
+    it('should correctly identify empty SQL', () => {
       const empty1 = SQL``;
       const empty2 = SQL.EMPTY;
       const withContent = SQL`SELECT 1`;
@@ -62,7 +62,7 @@ void describe('SQL template', () => {
       assert.strictEqual(SQL.check.isEmpty(withWhitespace), true);
     });
 
-    void it('handles SQL with only values', () => {
+    it('handles SQL with only values', () => {
       const onlyValues = SQL`${'test'}`;
       const withEmptyStrings = SQL`${''}${'test'}${''}`;
 
@@ -70,7 +70,7 @@ void describe('SQL template', () => {
       assert.strictEqual(SQL.check.isEmpty(withEmptyStrings), false);
     });
 
-    void it('handles complex empty cases', () => {
+    it('handles complex empty cases', () => {
       const emptyWithValues = SQL`${''}${''}${''}`;
       const reallyEmpty = SQL``;
 
@@ -79,8 +79,8 @@ void describe('SQL template', () => {
     });
   });
 
-  void describe('merge Method', () => {
-    void it('should merge SQL objects', () => {
+  describe('merge Method', () => {
+    it('should merge SQL objects', () => {
       const base = SQL`SELECT *`;
       const from = SQL`FROM users`;
       const where = SQL`WHERE active = ${true}`;
@@ -92,7 +92,7 @@ void describe('SQL template', () => {
       assert.strictEqual(SQL.check.isEmpty(result), false);
     });
 
-    void it('handles empty SQL in merging', () => {
+    it('handles empty SQL in merging', () => {
       const base = SQL`SELECT * FROM users`;
       const empty = SQL.EMPTY;
       const order = SQL`ORDER BY name`;
@@ -113,7 +113,7 @@ void describe('SQL template', () => {
       ]);
     });
 
-    void it('should return appropriate types for edge cases', () => {
+    it('should return appropriate types for edge cases', () => {
       const empty1 = SQL``;
       const empty2 = SQL.EMPTY;
       const content = SQL`SELECT 1`;
@@ -128,8 +128,8 @@ void describe('SQL template', () => {
     });
   });
 
-  void describe('format Method', () => {
-    void it('should format simple SQL', () => {
+  describe('format Method', () => {
+    it('should format simple SQL', () => {
       const query = SQL`SELECT * FROM ${SQL.identifier('users')} WHERE name = ${'John'}`;
       const formatted = SQL.format(query, mockFormatter);
 
@@ -139,7 +139,7 @@ void describe('SQL template', () => {
       });
     });
 
-    void it('should format complex nested SQL', () => {
+    it('should format complex nested SQL', () => {
       const subquery = SQL`SELECT id FROM roles WHERE name = ${'admin'}`;
       const mainQuery = SQL`SELECT * FROM users WHERE role_id IN (${subquery})`;
 
@@ -152,7 +152,7 @@ void describe('SQL template', () => {
       });
     });
 
-    void it('handles all data types correctly', () => {
+    it('handles all data types correctly', () => {
       const date = new Date('2024-01-01');
       const query = SQL`
         INSERT INTO test (
@@ -203,7 +203,7 @@ void describe('SQL template', () => {
       });
     });
 
-    void it('should format concatenated SQL correctly', () => {
+    it('should format concatenated SQL correctly', () => {
       const base = SQL`SELECT * FROM users`;
       const where = SQL`WHERE active = ${true}`;
       const order = SQL`ORDER BY ${SQL.identifier('name')}`;
@@ -218,8 +218,8 @@ void describe('SQL template', () => {
     });
   });
 
-  void describe('RawSQL template', () => {
-    void it('should create SQL from template literals without parameterization', () => {
+  describe('RawSQL template', () => {
+    it('should create SQL from template literals without parameterization', () => {
       const query = RawSQL`SELECT * FROM users`;
       assert.strictEqual(isSQL(query), true);
       assert.strictEqual(isTokenizedSQL(query), true);
@@ -229,7 +229,7 @@ void describe('SQL template', () => {
       assert.deepStrictEqual(tokenized.sqlTokens, []);
     });
 
-    void it('should interpolate values directly into the SQL string', () => {
+    it('should interpolate values directly into the SQL string', () => {
       const tableName = 'users';
       const columnName = 'active';
       const query = RawSQL`SELECT * FROM ${tableName} WHERE ${columnName} = true`;
@@ -241,7 +241,7 @@ void describe('SQL template', () => {
       assert.deepStrictEqual(tokenized.sqlTokens, []);
     });
 
-    void it('should format without parameters', () => {
+    it('should format without parameters', () => {
       const tableName = 'users';
       const query = RawSQL`SELECT * FROM ${tableName}`;
       const formatted = SQL.format(query, mockFormatter);
@@ -252,7 +252,7 @@ void describe('SQL template', () => {
       });
     });
 
-    void it('should work with SQL.merge', () => {
+    it('should work with SQL.merge', () => {
       const base = RawSQL`SELECT * FROM users`;
       const where = SQL`WHERE id = ${123}`;
       const result = SQL.merge([base, where]);
@@ -264,7 +264,7 @@ void describe('SQL template', () => {
       });
     });
 
-    void it('should handle empty template', () => {
+    it('should handle empty template', () => {
       const query = RawSQL``;
       assert.strictEqual(isSQL(query), true);
       assert.strictEqual(SQL.check.isEmpty(query), true);

@@ -3,7 +3,7 @@ import {
   type StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 import assert from 'assert';
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
   CheckViolationError,
   DataError,
@@ -18,21 +18,21 @@ import {
 } from '../../../../core';
 import { pgPool } from '../connections';
 
-void describe('PostgreSQL error mapping', () => {
+describe('PostgreSQL error mapping', () => {
   let postgres: StartedPostgreSqlContainer;
   let connectionString: string;
 
-  before(async () => {
+  beforeAll(async () => {
     postgres = await new PostgreSqlContainer('postgres:18.0').start();
     connectionString = postgres.getConnectionUri();
   });
 
-  after(async () => {
+  afterAll(async () => {
     await postgres.stop();
   });
 
-  void describe('integrity constraint violations', () => {
-    void it('maps unique constraint violation to UniqueConstraintError', async () => {
+  describe('integrity constraint violations', () => {
+    it('maps unique constraint violation to UniqueConstraintError', async () => {
       const pool = pgPool({ connectionString });
       try {
         await pool.execute.command(
@@ -71,7 +71,7 @@ void describe('PostgreSQL error mapping', () => {
       }
     });
 
-    void it('maps NOT NULL violation to NotNullViolationError', async () => {
+    it('maps NOT NULL violation to NotNullViolationError', async () => {
       const pool = pgPool({ connectionString });
       try {
         await pool.execute.command(
@@ -100,7 +100,7 @@ void describe('PostgreSQL error mapping', () => {
       }
     });
 
-    void it('maps foreign key violation to ForeignKeyViolationError', async () => {
+    it('maps foreign key violation to ForeignKeyViolationError', async () => {
       const pool = pgPool({ connectionString });
       try {
         await pool.execute.command(
@@ -133,7 +133,7 @@ void describe('PostgreSQL error mapping', () => {
       }
     });
 
-    void it('maps CHECK violation to CheckViolationError', async () => {
+    it('maps CHECK violation to CheckViolationError', async () => {
       const pool = pgPool({ connectionString });
       try {
         await pool.execute.command(
@@ -163,8 +163,8 @@ void describe('PostgreSQL error mapping', () => {
     });
   });
 
-  void describe('syntax and access errors', () => {
-    void it('maps syntax error to InvalidOperationError', async () => {
+  describe('syntax and access errors', () => {
+    it('maps syntax error to InvalidOperationError', async () => {
       const pool = pgPool({ connectionString });
       try {
         await assert.rejects(
@@ -185,7 +185,7 @@ void describe('PostgreSQL error mapping', () => {
       }
     });
 
-    void it('maps undefined table to InvalidOperationError', async () => {
+    it('maps undefined table to InvalidOperationError', async () => {
       const pool = pgPool({ connectionString });
       try {
         await assert.rejects(
@@ -204,8 +204,8 @@ void describe('PostgreSQL error mapping', () => {
     });
   });
 
-  void describe('data exceptions', () => {
-    void it('maps data exception to DataError', async () => {
+  describe('data exceptions', () => {
+    it('maps data exception to DataError', async () => {
       const pool = pgPool({ connectionString });
       try {
         await pool.execute.command(
@@ -235,8 +235,8 @@ void describe('PostgreSQL error mapping', () => {
     });
   });
 
-  void describe('transient errors', () => {
-    void it('maps query cancellation to TransientDatabaseError', async () => {
+  describe('transient errors', () => {
+    it('maps query cancellation to TransientDatabaseError', async () => {
       const pool = pgPool({ connectionString });
       try {
         await assert.rejects(
@@ -258,8 +258,8 @@ void describe('PostgreSQL error mapping', () => {
     });
   });
 
-  void describe('error mapping in transactions', () => {
-    void it('maps unique constraint violation to UniqueConstraintError inside a transaction', async () => {
+  describe('error mapping in transactions', () => {
+    it('maps unique constraint violation to UniqueConstraintError inside a transaction', async () => {
       const pool = pgPool({ connectionString });
       const connection = await pool.connection();
 
@@ -303,8 +303,8 @@ void describe('PostgreSQL error mapping', () => {
     });
   });
 
-  void describe('preserves inner error', () => {
-    void it('wraps original pg error as innerError', async () => {
+  describe('preserves inner error', () => {
+    it('wraps original pg error as innerError', async () => {
       const pool = pgPool({ connectionString });
       try {
         await pool.execute.command(

@@ -1,6 +1,6 @@
 import assert from 'assert';
 import fs from 'fs';
-import { afterEach, describe, it } from 'node:test';
+import { afterEach, describe, it } from 'vitest';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { sqlite3Pool } from '..';
@@ -10,7 +10,7 @@ import {
   type SQLiteTransactionOptions,
 } from '../../core';
 
-void describe('SQLite3 Transactions', () => {
+describe('SQLite3 Transactions', () => {
   const inMemoryfileName: string = InMemorySQLiteDatabase;
 
   const testDatabasePath = path.resolve(
@@ -37,8 +37,8 @@ void describe('SQLite3 Transactions', () => {
   });
 
   for (const { testName, fileName } of testCases) {
-    void describe(`transactions with ${testName} database`, () => {
-      void it('commits a nested transaction with pool', async () => {
+    describe(`transactions with ${testName} database`, () => {
+      it('commits a nested transaction with pool', async () => {
         const pool = sqlite3Pool({
           fileName,
           transactionOptions: { allowNestedTransactions: true },
@@ -79,7 +79,7 @@ void describe('SQLite3 Transactions', () => {
           await pool.close();
         }
       });
-      void it('should fail with an error if transaction nested is false', async () => {
+      it('should fail with an error if transaction nested is false', async () => {
         const pool = sqlite3Pool({
           fileName,
           transactionOptions: { allowNestedTransactions: false },
@@ -118,7 +118,7 @@ void describe('SQLite3 Transactions', () => {
         }
       });
 
-      void it('should try catch and roll back everything when the inner transaction errors for a pooled connection', async () => {
+      it('should try catch and roll back everything when the inner transaction errors for a pooled connection', async () => {
         const pool = sqlite3Pool({
           fileName,
           defaultTransactionMode: 'DEFERRED',
@@ -159,7 +159,7 @@ void describe('SQLite3 Transactions', () => {
         }
       });
 
-      void it('should try catch and roll back everything when the outer transactions errors for a pooled connection', async () => {
+      it('should try catch and roll back everything when the outer transactions errors for a pooled connection', async () => {
         const pool = sqlite3Pool({
           fileName,
           singleton: true,
@@ -213,7 +213,7 @@ void describe('SQLite3 Transactions', () => {
         }
       });
 
-      void it('commits a nested transaction with singleton pool', async () => {
+      it('commits a nested transaction with singleton pool', async () => {
         const pool = sqlite3Pool({
           fileName,
           singleton: true,
@@ -260,7 +260,7 @@ void describe('SQLite3 Transactions', () => {
         }
       });
 
-      void it('transactions errors inside the nested inner transaction for a singleton should try catch and roll back everything', async () => {
+      it('transactions errors inside the nested inner transaction for a singleton should try catch and roll back everything', async () => {
         const pool = sqlite3Pool({
           fileName,
           defaultTransactionMode: 'DEFERRED',
@@ -308,7 +308,7 @@ void describe('SQLite3 Transactions', () => {
         }
       });
 
-      void it('transactions errors inside the outer transaction for a singleton should try catch and roll back everything', async () => {
+      it('transactions errors inside the outer transaction for a singleton should try catch and roll back everything', async () => {
         const pool = sqlite3Pool({
           fileName,
           singleton: true,
@@ -358,7 +358,7 @@ void describe('SQLite3 Transactions', () => {
         }
       });
 
-      void it('accepts transaction mode DEFERRED', async () => {
+      it('accepts transaction mode DEFERRED', async () => {
         const pool = sqlite3Pool({ fileName });
         try {
           await pool.execute.command(
@@ -383,7 +383,7 @@ void describe('SQLite3 Transactions', () => {
         }
       });
 
-      void it('accepts transaction mode IMMEDIATE', async () => {
+      it('accepts transaction mode IMMEDIATE', async () => {
         const pool = sqlite3Pool({ fileName });
         try {
           await pool.execute.command(
@@ -408,7 +408,7 @@ void describe('SQLite3 Transactions', () => {
         }
       });
 
-      void it('accepts transaction mode EXCLUSIVE', async () => {
+      it('accepts transaction mode EXCLUSIVE', async () => {
         const pool = sqlite3Pool({ fileName });
         try {
           await pool.execute.command(
@@ -433,7 +433,7 @@ void describe('SQLite3 Transactions', () => {
         }
       });
 
-      void it('accepts readonly in transaction options', async () => {
+      it('accepts readonly in transaction options', async () => {
         const pool = sqlite3Pool({ fileName });
         try {
           await pool.execute.command(
@@ -458,7 +458,7 @@ void describe('SQLite3 Transactions', () => {
         }
       });
 
-      void it('accepts both mode and readonly in transaction options', async () => {
+      it('accepts both mode and readonly in transaction options', async () => {
         const pool = sqlite3Pool({ fileName });
         try {
           await pool.execute.command(
@@ -485,9 +485,9 @@ void describe('SQLite3 Transactions', () => {
     });
   }
 
-  void describe('concurrent transactions on dual pool', () => {
+  describe('concurrent transactions on dual pool', () => {
     for (const { testName, fileName } of testCases) {
-      void it(`serializes concurrent withTransaction calls with ${testName} database`, async () => {
+      it(`serializes concurrent withTransaction calls with ${testName} database`, async () => {
         const pool = sqlite3Pool({
           fileName,
           transactionOptions: { allowNestedTransactions: true },
@@ -517,7 +517,7 @@ void describe('SQLite3 Transactions', () => {
         }
       });
 
-      void it(`serializes concurrent withConnection writes with ${testName} database`, async () => {
+      it(`serializes concurrent withConnection writes with ${testName} database`, async () => {
         const pool = sqlite3Pool({
           fileName,
           transactionOptions: { allowNestedTransactions: true },
@@ -554,8 +554,8 @@ void describe('SQLite3 Transactions', () => {
     }
   });
 
-  void describe('transaction modes', () => {
-    void it('uses IMMEDIATE mode by default', async () => {
+  describe('transaction modes', () => {
+    it('uses IMMEDIATE mode by default', async () => {
       const pool = sqlite3Pool({ fileName: inMemoryfileName });
       const connection = await pool.connection();
 
@@ -580,7 +580,7 @@ void describe('SQLite3 Transactions', () => {
       }
     });
 
-    void it('can override to DEFERRED mode', async () => {
+    it('can override to DEFERRED mode', async () => {
       const pool = sqlite3Pool({ fileName: inMemoryfileName });
       const connection = await pool.connection();
 
@@ -608,7 +608,7 @@ void describe('SQLite3 Transactions', () => {
       }
     });
 
-    void it('can override to EXCLUSIVE mode', async () => {
+    it('can override to EXCLUSIVE mode', async () => {
       const pool = sqlite3Pool({ fileName: inMemoryfileName });
       const connection = await pool.connection();
 
@@ -636,7 +636,7 @@ void describe('SQLite3 Transactions', () => {
       }
     });
 
-    void it('respects defaultTransactionMode from connection options', async () => {
+    it('respects defaultTransactionMode from connection options', async () => {
       const pool = sqlite3Pool({
         fileName: inMemoryfileName,
         defaultTransactionMode: 'DEFERRED',
@@ -664,7 +664,7 @@ void describe('SQLite3 Transactions', () => {
       }
     });
 
-    void it('transaction option mode overrides defaultTransactionMode', async () => {
+    it('transaction option mode overrides defaultTransactionMode', async () => {
       const pool = sqlite3Pool({
         fileName: inMemoryfileName,
         defaultTransactionMode: 'DEFERRED',

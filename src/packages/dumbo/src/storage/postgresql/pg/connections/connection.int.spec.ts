@@ -2,28 +2,28 @@ import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import pg from 'pg';
 import { pgPool } from '.';
 import { SQL } from '../../../../core';
 import { pgConnection } from './connection';
 import { endPgPool, getPgPool } from './pool';
 
-void describe('pg', () => {
+describe('pg', () => {
   let postgres: StartedPostgreSqlContainer;
   let connectionString: string;
 
-  before(async () => {
+  beforeAll(async () => {
     postgres = await new PostgreSqlContainer('postgres:18.0').start();
     connectionString = postgres.getConnectionUri();
   });
 
-  after(async () => {
+  afterAll(async () => {
     await postgres.stop();
   });
 
-  void describe('pgPool', () => {
-    void it('connects using default pool', async () => {
+  describe('pgPool', () => {
+    it('connects using default pool', async () => {
       const pool = pgPool({ connectionString });
       const connection = await pool.connection();
 
@@ -37,7 +37,7 @@ void describe('pg', () => {
       }
     });
 
-    void it('connects using ambient pool', async () => {
+    it('connects using ambient pool', async () => {
       const nativePool = getPgPool(connectionString);
       const pool = pgPool({ connectionString, pool: nativePool });
       const connection = await pool.connection();
@@ -51,7 +51,7 @@ void describe('pg', () => {
       }
     });
 
-    void it('connects using client', async () => {
+    it('connects using client', async () => {
       const pool = pgPool({
         connectionString,
         pooled: false,
@@ -66,7 +66,7 @@ void describe('pg', () => {
       }
     });
 
-    void it('connects using ambient client', async () => {
+    it('connects using ambient client', async () => {
       const existingClient = new pg.Client({ connectionString });
       await existingClient.connect();
 
@@ -85,7 +85,7 @@ void describe('pg', () => {
       }
     });
 
-    void it('connects using connected ambient connected connection from pool', async () => {
+    it('connects using connected ambient connected connection from pool', async () => {
       const ambientPool = pgPool({ connectionString });
       const ambientConnection = await ambientPool.connection();
       await ambientConnection.open();
@@ -104,7 +104,7 @@ void describe('pg', () => {
       }
     });
 
-    void it('connects using connected ambient connected connection', async () => {
+    it('connects using connected ambient connected connection', async () => {
       const client = new pg.Client({ connectionString });
       await client.connect();
 
@@ -134,7 +134,7 @@ void describe('pg', () => {
       }
     });
 
-    void it('connects using connected ambient connected connection and using transaction on pool', async () => {
+    it('connects using connected ambient connected connection and using transaction on pool', async () => {
       const client = new pg.Client({ connectionString });
       await client.connect();
 
@@ -168,7 +168,7 @@ void describe('pg', () => {
       }
     });
 
-    void it('withConnection on ambient pool does not close the ambient connection', async () => {
+    it('withConnection on ambient pool does not close the ambient connection', async () => {
       const client = new pg.Client({ connectionString });
       await client.connect();
 
@@ -198,7 +198,7 @@ void describe('pg', () => {
       }
     });
 
-    void it('connects using connected ambient not-connected connection', async () => {
+    it('connects using connected ambient not-connected connection', async () => {
       const ambientPool = pgPool({ connectionString });
       const ambientConnection = await ambientPool.connection();
 
@@ -216,7 +216,7 @@ void describe('pg', () => {
       }
     });
 
-    void it('connects using ambient connected connection with transaction', async () => {
+    it('connects using ambient connected connection with transaction', async () => {
       const ambientPool = pgPool({ connectionString });
       const ambientConnection = await ambientPool.connection();
       await ambientConnection.open();
@@ -241,7 +241,7 @@ void describe('pg', () => {
       }
     });
 
-    void it('connects using ambient not-connected connection with transaction', async () => {
+    it('connects using ambient not-connected connection with transaction', async () => {
       const ambientPool = pgPool({ connectionString });
       const ambientConnection = await ambientPool.connection();
 
@@ -265,7 +265,7 @@ void describe('pg', () => {
       }
     });
 
-    void it('connects using ambient connection in withConnection scope', async () => {
+    it('connects using ambient connection in withConnection scope', async () => {
       const ambientPool = pgPool({ connectionString });
       try {
         await ambientPool.withConnection(async (ambientConnection) => {
@@ -286,7 +286,7 @@ void describe('pg', () => {
       }
     });
 
-    void it('connects using ambient connection in withConnection and withTransaction scope', async () => {
+    it('connects using ambient connection in withConnection and withTransaction scope', async () => {
       const ambientPool = pgPool({ connectionString });
       try {
         await ambientPool.withConnection((ambientConnection) =>
@@ -307,7 +307,7 @@ void describe('pg', () => {
       }
     });
 
-    void it('accepts isolation level in transaction options', async () => {
+    it('accepts isolation level in transaction options', async () => {
       const pool = pgPool({ connectionString });
       try {
         await pool.withTransaction(
@@ -321,7 +321,7 @@ void describe('pg', () => {
       }
     });
 
-    void it('accepts readonly in transaction options', async () => {
+    it('accepts readonly in transaction options', async () => {
       const pool = pgPool({ connectionString });
       try {
         await pool.execute.command(
@@ -349,7 +349,7 @@ void describe('pg', () => {
       }
     });
 
-    void it('accepts both isolation level and readonly in transaction options', async () => {
+    it('accepts both isolation level and readonly in transaction options', async () => {
       const pool = pgPool({ connectionString });
       try {
         await pool.execute.command(

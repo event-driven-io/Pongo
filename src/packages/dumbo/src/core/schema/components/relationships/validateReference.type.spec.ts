@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { SQL } from '../../../sql';
 import type { Equals, Expect, IsError } from '../../../testing';
 import type { TypeValidationResult } from '../../../typing';
@@ -9,7 +9,7 @@ import type { ValidateReference } from './relationshipValidation';
 const { column, table, schema } = dumboSchema;
 const { BigInteger, Varchar, Integer } = SQL.column.type;
 
-void describe('ValidateReference', () => {
+describe('ValidateReference', () => {
   const usersTable = table('users', {
     columns: {
       id: column('id', BigInteger),
@@ -36,8 +36,8 @@ void describe('ValidateReference', () => {
     public: typeof _publicSchema;
   };
 
-  void describe('reference existence validation', () => {
-    void it('fails when referenced schema does not exist', () => {
+  describe('reference existence validation', () => {
+    it('fails when referenced schema does not exist', () => {
       type RefPath = SchemaColumnName<'nonexistent', 'users', 'id'>;
       type ColPath = SchemaColumnName<'public', 'posts', 'user_id'>;
 
@@ -60,7 +60,7 @@ void describe('ValidateReference', () => {
       ];
     });
 
-    void it('fails when referenced table does not exist', () => {
+    it('fails when referenced table does not exist', () => {
       type RefPath = SchemaColumnName<'public', 'nonexistent', 'id'>;
       type ColPath = SchemaColumnName<'public', 'posts', 'user_id'>;
 
@@ -83,7 +83,7 @@ void describe('ValidateReference', () => {
       ];
     });
 
-    void it('fails when referenced column does not exist', () => {
+    it('fails when referenced column does not exist', () => {
       type RefPath = SchemaColumnName<'public', 'users', 'nonexistent'>;
       type ColPath = SchemaColumnName<'public', 'posts', 'user_id'>;
 
@@ -107,8 +107,8 @@ void describe('ValidateReference', () => {
     });
   });
 
-  void describe('type matching: both ColumnTypeToken', () => {
-    void it('validates when types match', () => {
+  describe('type matching: both ColumnTypeToken', () => {
+    it('validates when types match', () => {
       type RefPath = SchemaColumnName<'public', 'users', 'id'>;
       type ColPath = SchemaColumnName<'public', 'posts', 'user_id'>;
 
@@ -119,7 +119,7 @@ void describe('ValidateReference', () => {
       >;
     });
 
-    void it('fails when types do not match', () => {
+    it('fails when types do not match', () => {
       type RefPath = SchemaColumnName<'public', 'users', 'name'>;
       type ColPath = SchemaColumnName<'public', 'posts', 'user_id'>;
 
@@ -144,7 +144,7 @@ void describe('ValidateReference', () => {
       ];
     });
 
-    void it('fails when integer does not match bigint', () => {
+    it('fails when integer does not match bigint', () => {
       type RefPath = SchemaColumnName<'public', 'users', 'age'>;
       type ColPath = SchemaColumnName<'public', 'posts', 'user_id'>;
 
@@ -170,7 +170,7 @@ void describe('ValidateReference', () => {
     });
   });
 
-  void describe('type matching: ColumnType is ColumnTypeToken, RefColumnType is string', () => {
+  describe('type matching: ColumnType is ColumnTypeToken, RefColumnType is string', () => {
     const stringRefTable = table('string_ref', {
       columns: {
         id: column('id', 'BIGINT'),
@@ -187,7 +187,7 @@ void describe('ValidateReference', () => {
       mixed1: typeof _mixedSchema1;
     };
 
-    void it('validates when string reference type matches ColumnTypeToken', () => {
+    it('validates when string reference type matches ColumnTypeToken', () => {
       type RefPath = SchemaColumnName<'mixed1', 'string_ref', 'id'>;
       type ColPath = SchemaColumnName<'mixed1', 'posts', 'user_id'>;
 
@@ -198,7 +198,7 @@ void describe('ValidateReference', () => {
       >;
     });
 
-    void it('fails when string reference type does not match ColumnTypeToken', () => {
+    it('fails when string reference type does not match ColumnTypeToken', () => {
       type RefPath = SchemaColumnName<'mixed1', 'string_ref', 'label'>;
       type ColPath = SchemaColumnName<'mixed1', 'posts', 'user_id'>;
 
@@ -224,7 +224,7 @@ void describe('ValidateReference', () => {
     });
   });
 
-  void describe('type matching: RefColumnType is ColumnTypeToken, ColumnType is string', () => {
+  describe('type matching: RefColumnType is ColumnTypeToken, ColumnType is string', () => {
     const stringColTable = table('string_col', {
       columns: {
         id: column('id', 'BIGINT'),
@@ -241,7 +241,7 @@ void describe('ValidateReference', () => {
       mixed2: typeof _mixedSchema2;
     };
 
-    void it('validates when ColumnTypeToken reference matches string type', () => {
+    it('validates when ColumnTypeToken reference matches string type', () => {
       type RefPath = SchemaColumnName<'mixed2', 'users', 'id'>;
       type ColPath = SchemaColumnName<'mixed2', 'string_col', 'id'>;
 
@@ -252,7 +252,7 @@ void describe('ValidateReference', () => {
       >;
     });
 
-    void it('fails when ColumnTypeToken reference does not match string type', () => {
+    it('fails when ColumnTypeToken reference does not match string type', () => {
       type RefPath = SchemaColumnName<'mixed2', 'users', 'age'>;
       type ColPath = SchemaColumnName<'mixed2', 'string_col', 'id'>;
 
@@ -278,7 +278,7 @@ void describe('ValidateReference', () => {
     });
   });
 
-  void describe('type matching: both are strings', () => {
+  describe('type matching: both are strings', () => {
     const stringOnlyTable1 = table('string_only1', {
       columns: {
         id: column('id', 'BIGINT'),
@@ -302,7 +302,7 @@ void describe('ValidateReference', () => {
       mixed3: typeof _mixedSchema3;
     };
 
-    void it('validates when both string types match', () => {
+    it('validates when both string types match', () => {
       type RefPath = SchemaColumnName<'mixed3', 'string_only1', 'id'>;
       type ColPath = SchemaColumnName<'mixed3', 'string_only2', 'ref_id'>;
 
@@ -313,7 +313,7 @@ void describe('ValidateReference', () => {
       >;
     });
 
-    void it('fails when both string types do not match', () => {
+    it('fails when both string types do not match', () => {
       type RefPath = SchemaColumnName<'mixed3', 'string_only1', 'label'>;
       type ColPath = SchemaColumnName<'mixed3', 'string_only2', 'ref_id'>;
 
@@ -339,8 +339,8 @@ void describe('ValidateReference', () => {
     });
   });
 
-  void describe('edge cases', () => {
-    void it('validates self-referencing column', () => {
+  describe('edge cases', () => {
+    it('validates self-referencing column', () => {
       type RefPath = SchemaColumnName<'public', 'users', 'id'>;
       type ColPath = SchemaColumnName<'public', 'users', 'id'>;
 
@@ -351,7 +351,7 @@ void describe('ValidateReference', () => {
       >;
     });
 
-    void it('validates reference across different tables with same type', () => {
+    it('validates reference across different tables with same type', () => {
       type RefPath = SchemaColumnName<'public', 'posts', 'post_id'>;
       type ColPath = SchemaColumnName<'public', 'users', 'id'>;
 

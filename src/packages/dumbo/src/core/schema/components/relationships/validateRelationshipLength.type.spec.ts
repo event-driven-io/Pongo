@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import type { Equals, Expect, IsError, IsOK } from '../../../testing';
 import type {
   TypeValidationResult,
@@ -6,8 +6,8 @@ import type {
 } from '../../../typing';
 import type { ValidateRelationshipLength } from './relationshipValidation';
 
-void describe('ValidateRelationshipLength', () => {
-  void it('succeeds for single reference and column', () => {
+describe('ValidateRelationshipLength', () => {
+  it('succeeds for single reference and column', () => {
     type SingleColumnAndReferences = {
       columns: ['user_id'];
       references: ['public.users.id'];
@@ -23,7 +23,7 @@ void describe('ValidateRelationshipLength', () => {
     ];
   });
 
-  void it('succeeds for multiple reference and column of the same length', () => {
+  it('succeeds for multiple reference and column of the same length', () => {
     type MultipleColumnsAndReferences = {
       columns: ['user_id', 'tenant_id'];
       references: ['public.users.id', 'public.users.tenant_id'];
@@ -39,7 +39,7 @@ void describe('ValidateRelationshipLength', () => {
     ];
   });
 
-  void it('fails when references and columns are empty', () => {
+  it('fails when references and columns are empty', () => {
     type EmptyRelationship = {
       columns: [];
       references: [];
@@ -66,7 +66,7 @@ void describe('ValidateRelationshipLength', () => {
     ];
   });
 
-  void it('fails when columns are longer than references', () => {
+  it('fails when columns are longer than references', () => {
     type RelWithColumnsLongerThanReferences = {
       columns: ['user_id', 'tenant_id'];
       references: ['public.users.id'];
@@ -94,7 +94,7 @@ void describe('ValidateRelationshipLength', () => {
     ];
   });
 
-  void it('fails when references are longer than columns', () => {
+  it('fails when references are longer than columns', () => {
     type RelWithReferencesLongerThanColumns = {
       columns: ['user_id'];
       references: ['public.users.id', 'public.users.tenant_id'];
