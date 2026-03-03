@@ -1,7 +1,7 @@
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import assert from 'assert';
-import { after, before, beforeEach, describe, it } from 'node:test';
+import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { PostgreSQLConnectionString, tableExists } from '..';
 import { dumbo, type Dumbo } from '../../../..';
 import {
@@ -15,18 +15,18 @@ import {
 import { pgDumboDriver } from '../../pg';
 import { acquireAdvisoryLock, releaseAdvisoryLock } from '../locks';
 
-void describe('Migration Integration Tests', () => {
+describe('Migration Integration Tests', () => {
   let pool: Dumbo;
   let postgres: StartedPostgreSqlContainer;
   let connectionString: PostgreSQLConnectionString;
 
-  before(async () => {
+  beforeAll(async () => {
     postgres = await new PostgreSqlContainer('postgres:18.0').start();
     connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
     pool = dumbo({ connectionString, driver: pgDumboDriver });
   });
 
-  after(async () => {
+  afterAll(async () => {
     await pool.close();
     await postgres.stop();
   });
@@ -37,7 +37,7 @@ void describe('Migration Integration Tests', () => {
     );
   });
 
-  void it('should apply multiple migrations sequentially', async () => {
+  it('should apply multiple migrations sequentially', async () => {
     const firstMigration: SQLMigration = {
       name: 'initial_setup',
       sqls: [
@@ -74,7 +74,7 @@ void describe('Migration Integration Tests', () => {
     assert.ok(rolesTableExists, 'The roles table should exist.');
   });
 
-  void it('should timeout if the advisory lock is not acquired within the specified time', async () => {
+  it('should timeout if the advisory lock is not acquired within the specified time', async () => {
     const migration: SQLMigration = {
       name: 'timeout_migration',
       sqls: [
@@ -115,7 +115,7 @@ void describe('Migration Integration Tests', () => {
     }
   });
 
-  void it('should ensure that advisory locks prevent failing on concurrent migrations', async () => {
+  it('should ensure that advisory locks prevent failing on concurrent migrations', async () => {
     const migration: SQLMigration = {
       name: 'concurrent_migration',
       sqls: [
@@ -151,7 +151,7 @@ void describe('Migration Integration Tests', () => {
     assert.ok(wasCreated, 'The concurrent_table should exist.');
   });
 
-  void it('should correctly apply a migration if the hash matches the previous migration with the same name', async () => {
+  it('should correctly apply a migration if the hash matches the previous migration with the same name', async () => {
     const migration: SQLMigration = {
       name: 'hash_check_migration',
       sqls: [
@@ -180,7 +180,7 @@ void describe('Migration Integration Tests', () => {
     );
   });
 
-  void it('should fail if a migration with the same name has a different hash', async () => {
+  it('should fail if a migration with the same name has a different hash', async () => {
     const migration: SQLMigration = {
       name: 'hash_check_migration',
       sqls: [
@@ -219,7 +219,7 @@ void describe('Migration Integration Tests', () => {
     }
   });
 
-  void it('should silently be not applied but update hash if a migration with the same name has a different hash with ignoreMigrationHashMismatch setting', async () => {
+  it('should silently be not applied but update hash if a migration with the same name has a different hash with ignoreMigrationHashMismatch setting', async () => {
     const migration: SQLMigration = {
       name: 'hash_check_migration',
       sqls: [
@@ -273,7 +273,7 @@ void describe('Migration Integration Tests', () => {
     );
   });
 
-  void it('handles a large migration with multiple SQL statements', async () => {
+  it('handles a large migration with multiple SQL statements', async () => {
     const migration: SQLMigration = {
       name: 'large_migration',
       sqls: [

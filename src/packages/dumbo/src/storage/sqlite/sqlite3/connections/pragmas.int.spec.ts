@@ -1,13 +1,13 @@
 import assert from 'assert';
 import fs from 'fs';
-import { afterEach, describe, it } from 'node:test';
+import { afterEach, describe, it } from 'vitest';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { SQL } from '../../../../core';
 import { sqlite3Pool } from '../../../../sqlite3';
 import { InMemorySQLiteDatabase } from '../../core';
 
-void describe('PRAGMA application in sqlite3', () => {
+describe('PRAGMA application in sqlite3', () => {
   const testDatabasePath = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
   );
@@ -29,7 +29,7 @@ void describe('PRAGMA application in sqlite3', () => {
     }
   });
 
-  void it('applies default PRAGMA values on connection', async () => {
+  it('applies default PRAGMA values on connection', async () => {
     const pool = sqlite3Pool({ fileName });
 
     try {
@@ -62,7 +62,7 @@ void describe('PRAGMA application in sqlite3', () => {
     }
   });
 
-  void it('applies PRAGMA values from connection string', async () => {
+  it('applies PRAGMA values from connection string', async () => {
     const pool = sqlite3Pool({
       connectionString: `file:${fileName}?synchronous=FULL&foreign_keys=off`,
     });
@@ -87,7 +87,7 @@ void describe('PRAGMA application in sqlite3', () => {
     }
   });
 
-  void it('applies PRAGMA values from code options', async () => {
+  it('applies PRAGMA values from code options', async () => {
     const pool = sqlite3Pool({
       fileName,
       pragmaOptions: {
@@ -117,7 +117,7 @@ void describe('PRAGMA application in sqlite3', () => {
     }
   });
 
-  void it('code options override connection string', async () => {
+  it('code options override connection string', async () => {
     const pool = sqlite3Pool({
       connectionString: `file:${fileName}?synchronous=OFF`,
       pragmaOptions: {
@@ -135,7 +135,7 @@ void describe('PRAGMA application in sqlite3', () => {
     }
   });
 
-  void it('applies PRAGMAs to in-memory database', async () => {
+  it('applies PRAGMAs to in-memory database', async () => {
     const pool = sqlite3Pool({
       fileName: InMemorySQLiteDatabase,
       pragmaOptions: {
@@ -158,7 +158,7 @@ void describe('PRAGMA application in sqlite3', () => {
     }
   });
 
-  void it('WAL mode persists across connections', async () => {
+  it('WAL mode persists across connections', async () => {
     const pool1 = sqlite3Pool({ fileName });
 
     try {
@@ -182,7 +182,7 @@ void describe('PRAGMA application in sqlite3', () => {
     }
   });
 
-  void it('enforces foreign key constraints when enabled', async () => {
+  it('enforces foreign key constraints when enabled', async () => {
     const pool = sqlite3Pool({
       fileName,
       pragmaOptions: {
@@ -218,7 +218,7 @@ void describe('PRAGMA application in sqlite3', () => {
     }
   });
 
-  void it('allows foreign key violations when disabled', async () => {
+  it('allows foreign key violations when disabled', async () => {
     const pool = sqlite3Pool({
       fileName,
       pragmaOptions: {

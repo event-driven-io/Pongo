@@ -1,13 +1,13 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import assert from 'assert';
 import { Miniflare } from 'miniflare';
-import { afterEach, beforeEach, describe, it } from 'node:test';
+import { afterEach, beforeEach, describe, it } from 'vitest';
 import { JSONSerializer, SQL } from '../../../../core';
 import { d1Pool } from '../pool';
 import { d1Client } from './d1Client';
 import { d1Connection } from './d1Connection';
 
-void describe('Cloudflare d1 pool', () => {
+describe('Cloudflare d1 pool', () => {
   let mf: Miniflare;
   let database: D1Database;
 
@@ -24,7 +24,7 @@ void describe('Cloudflare d1 pool', () => {
     await mf.dispose();
   });
 
-  void it('returns the singleton connection', async () => {
+  it('returns the singleton connection', async () => {
     const pool = d1Pool({
       database,
     });
@@ -41,7 +41,7 @@ void describe('Cloudflare d1 pool', () => {
       await pool.close();
     }
   });
-  void it('calls SQL correctly using default config', async () => {
+  it('calls SQL correctly using default config', async () => {
     const pool = d1Pool({
       database,
     });
@@ -58,7 +58,7 @@ void describe('Cloudflare d1 pool', () => {
     }
   });
 
-  void it('connects using client', async () => {
+  it('connects using client', async () => {
     const pool = d1Pool({
       database,
     });
@@ -72,7 +72,7 @@ void describe('Cloudflare d1 pool', () => {
     }
   });
 
-  void it('connects using ambient client', async () => {
+  it('connects using ambient client', async () => {
     const existingClient = d1Client({ database, serializer: JSONSerializer });
     await existingClient.connect();
 
@@ -91,7 +91,7 @@ void describe('Cloudflare d1 pool', () => {
     }
   });
 
-  void it('connects using connected ambient connected connection from pool', async () => {
+  it('connects using connected ambient connected connection from pool', async () => {
     const ambientPool = d1Pool({
       database,
     });
@@ -112,7 +112,7 @@ void describe('Cloudflare d1 pool', () => {
     }
   });
 
-  void it('connects using connected ambient connected connection', async () => {
+  it('connects using connected ambient connected connection', async () => {
     const ambientConnection = d1Connection({
       database,
       serializer: JSONSerializer,
@@ -137,7 +137,7 @@ void describe('Cloudflare d1 pool', () => {
     }
   });
 
-  void it('withConnection on ambient pool does not close the ambient connection', async () => {
+  it('withConnection on ambient pool does not close the ambient connection', async () => {
     const ambientConnection = d1Connection({
       database,
       serializer: JSONSerializer,
@@ -162,7 +162,7 @@ void describe('Cloudflare d1 pool', () => {
     }
   });
 
-  void it('connects using connected ambient not-connected connection', async () => {
+  it('connects using connected ambient not-connected connection', async () => {
     const ambientPool = d1Pool({
       database,
     });
@@ -182,7 +182,7 @@ void describe('Cloudflare d1 pool', () => {
     }
   });
 
-  void it('connects using ambient connected connection with transaction and session_based mode', async () => {
+  it('connects using ambient connected connection with transaction and session_based mode', async () => {
     const ambientPool = d1Pool({
       database,
       transactionOptions: { mode: 'session_based' },
@@ -210,7 +210,7 @@ void describe('Cloudflare d1 pool', () => {
     }
   });
 
-  void it('connects using ambient not-connected connection with transaction and session_based mode', async () => {
+  it('connects using ambient not-connected connection with transaction and session_based mode', async () => {
     const ambientPool = d1Pool({
       database,
       transactionOptions: { mode: 'session_based' },
@@ -238,7 +238,7 @@ void describe('Cloudflare d1 pool', () => {
     }
   });
 
-  void it('connects using ambient connection in withConnection scope', async () => {
+  it('connects using ambient connection in withConnection scope', async () => {
     const ambientPool = d1Pool({
       database,
     });
@@ -261,7 +261,7 @@ void describe('Cloudflare d1 pool', () => {
     }
   });
 
-  void it('connects using ambient connection in withConnection and withTransaction scope and session_based mode', async () => {
+  it('connects using ambient connection in withConnection and withTransaction scope and session_based mode', async () => {
     const ambientPool = d1Pool({
       database,
       transactionOptions: { mode: 'session_based' },

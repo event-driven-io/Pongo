@@ -1,13 +1,13 @@
 import assert from 'assert';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import chalk from './color';
 import { prettyJson } from './pretty';
 
-void describe('prettyPrintJson', () => {
+describe('prettyPrintJson', () => {
   // Turn off chalk colorization during tests for easy comparison
   chalk.level = 0;
 
-  void it('formats a simple object correctly without multiline strings', () => {
+  it('formats a simple object correctly without multiline strings', () => {
     const input = {
       name: 'John Doe',
       age: 30,
@@ -22,7 +22,7 @@ void describe('prettyPrintJson', () => {
     assert.strictEqual(output, expectedOutput);
   });
 
-  void it('formats a simple object with multiline string handling', () => {
+  it('formats a simple object with multiline string handling', () => {
     const input = {
       name: 'John Doe',
       bio: 'This is line one.\nThis is line two.',
@@ -40,7 +40,7 @@ void describe('prettyPrintJson', () => {
     assert.strictEqual(output, expectedOutput);
   });
 
-  void it('formats nested objects correctly', () => {
+  it('formats nested objects correctly', () => {
     const input = {
       user: {
         name: 'Alice',
@@ -67,7 +67,7 @@ void describe('prettyPrintJson', () => {
     assert.strictEqual(output, expectedOutput);
   });
 
-  void it('handles arrays and numbers correctly', () => {
+  it('handles arrays and numbers correctly', () => {
     const input = {
       numbers: [1, 2, 3, 4, 5],
       active: true,
@@ -88,7 +88,7 @@ void describe('prettyPrintJson', () => {
     assert.strictEqual(output, expectedOutput);
   });
 
-  void it('formats an object with null values and booleans correctly', () => {
+  it('formats an object with null values and booleans correctly', () => {
     const input = {
       name: 'Test',
       isActive: false,
@@ -105,7 +105,7 @@ void describe('prettyPrintJson', () => {
     assert.strictEqual(output, expectedOutput);
   });
 
-  void it('handles multiline SQL-like queries in strings', () => {
+  it('handles multiline SQL-like queries in strings', () => {
     const input = {
       query:
         'CREATE TABLE users (\n  id INT PRIMARY KEY,\n  name TEXT NOT NULL\n)',

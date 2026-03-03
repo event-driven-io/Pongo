@@ -1,18 +1,18 @@
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import assert from 'assert';
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { pgDumboDriver } from '..';
 import { dumbo, type Dumbo } from '../../../..';
 import { count, SQL } from '../../../../core';
 import { PostgreSQLConnectionString } from '../../core';
 
-void describe('PostgreSQL SQL Formatter Integration Tests', () => {
+describe('PostgreSQL SQL Formatter Integration Tests', () => {
   let pool: Dumbo;
   let postgres: StartedPostgreSqlContainer;
   let connectionString: PostgreSQLConnectionString;
 
-  before(async () => {
+  beforeAll(async () => {
     postgres = await new PostgreSqlContainer('postgres:18.0').start();
     connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
     pool = dumbo({ connectionString, driver: pgDumboDriver });
@@ -23,13 +23,13 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
     ]);
   });
 
-  after(async () => {
+  afterAll(async () => {
     await pool.close();
     await postgres.stop();
   });
 
-  void describe('Direct Array Handling', () => {
-    void it('throws error for empty arrays in IN clauses', async () => {
+  describe('Direct Array Handling', () => {
+    it('throws error for empty arrays in IN clauses', async () => {
       const emptyIds: number[] = [];
 
       try {
@@ -43,7 +43,7 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
       }
     });
 
-    void it('handles non-empty arrays', async () => {
+    it('handles non-empty arrays', async () => {
       const ids = [1];
       const result = await count(
         pool.execute.query(
@@ -55,8 +55,8 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
     });
   });
 
-  void describe('SQL.in Helper', () => {
-    void it('handles empty arrays by returning FALSE, so no records', async () => {
+  describe('SQL.in Helper', () => {
+    it('handles empty arrays by returning FALSE, so no records', async () => {
       const emptyIds: number[] = [];
       const result = await count(
         pool.execute.query(
@@ -67,7 +67,7 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 0);
     });
 
-    void it('handles non-empty arrays', async () => {
+    it('handles non-empty arrays', async () => {
       const ids = [1];
       const result = await count(
         pool.execute.query(
@@ -78,7 +78,7 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 1);
     });
 
-    void it('handles string array with single value', async () => {
+    it('handles string array with single value', async () => {
       const names = ['Alice'];
       const result = await count(
         pool.execute.query(
@@ -89,7 +89,7 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 1);
     });
 
-    void it('handles string array with multiple values', async () => {
+    it('handles string array with multiple values', async () => {
       const names = ['Alice', 'Bob'];
       const result = await count(
         pool.execute.query(
@@ -100,7 +100,7 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 2);
     });
 
-    void it('handles empty string', async () => {
+    it('handles empty string', async () => {
       const emptyNames: string[] = [];
       const result = await count(
         pool.execute.query(
@@ -112,8 +112,8 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
     });
   });
 
-  void describe('SQL.in with mode option', () => {
-    void it('handles mode: native (default) using = ANY syntax', async () => {
+  describe('SQL.in with mode option', () => {
+    it('handles mode: native (default) using = ANY syntax', async () => {
       const ids = [1, 2];
       const result = await count(
         pool.execute.query(
@@ -124,7 +124,7 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 2);
     });
 
-    void it('handles mode: params using IN syntax with expanded params', async () => {
+    it('handles mode: params using IN syntax with expanded params', async () => {
       const ids = [1, 2];
       const result = await count(
         pool.execute.query(
@@ -135,7 +135,7 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 2);
     });
 
-    void it('handles mode: params with string array', async () => {
+    it('handles mode: params with string array', async () => {
       const names = ['Alice', 'Bob'];
       const result = await count(
         pool.execute.query(
@@ -147,8 +147,8 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
     });
   });
 
-  void describe('SQL.array helper', () => {
-    void it('handles mode: native (default) with = ANY', async () => {
+  describe('SQL.array helper', () => {
+    it('handles mode: native (default) with = ANY', async () => {
       const ids = [1, 2];
       const result = await count(
         pool.execute.query(
@@ -159,7 +159,7 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 2);
     });
 
-    void it('handles mode: params with IN syntax', async () => {
+    it('handles mode: params with IN syntax', async () => {
       const ids = [1, 2];
       const result = await count(
         pool.execute.query(
@@ -170,7 +170,7 @@ void describe('PostgreSQL SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 2);
     });
 
-    void it('handles array without mode option (defaults to native)', async () => {
+    it('handles array without mode option (defaults to native)', async () => {
       const names = ['Alice'];
       const result = await count(
         pool.execute.query(

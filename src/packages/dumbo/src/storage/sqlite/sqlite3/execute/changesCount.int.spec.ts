@@ -1,10 +1,10 @@
 import assert from 'assert';
-import { afterEach, beforeEach, describe, it } from 'node:test';
+import { afterEach, beforeEach, describe, it } from 'vitest';
 import { JSONSerializer, SQL } from '../../../../core';
 import { sqlite3Client } from '../connections/connection';
 import { InMemorySQLiteDatabase } from '../../core';
 
-void describe('executeCommand changes count accuracy', () => {
+describe('executeCommand changes count accuracy', () => {
   let client: ReturnType<typeof sqlite3Client>;
 
   beforeEach(async () => {
@@ -23,21 +23,21 @@ void describe('executeCommand changes count accuracy', () => {
     await client.close();
   });
 
-  void it('returns correct rowCount for INSERT', async () => {
+  it('returns correct rowCount for INSERT', async () => {
     const result = await client.command(
       SQL`INSERT INTO changes_test (id, value) VALUES (1, 'a')`,
     );
     assert.strictEqual(result.rowCount, 1);
   });
 
-  void it('returns correct rowCount for multi-row INSERT', async () => {
+  it('returns correct rowCount for multi-row INSERT', async () => {
     const result = await client.command(
       SQL`INSERT INTO changes_test (id, value) VALUES (1, 'a'), (2, 'b'), (3, 'c')`,
     );
     assert.strictEqual(result.rowCount, 3);
   });
 
-  void it('returns correct rowCount for UPDATE', async () => {
+  it('returns correct rowCount for UPDATE', async () => {
     await client.command(
       SQL`INSERT INTO changes_test (id, value) VALUES (1, 'a'), (2, 'b'), (3, 'c')`,
     );
@@ -47,7 +47,7 @@ void describe('executeCommand changes count accuracy', () => {
     assert.strictEqual(result.rowCount, 2);
   });
 
-  void it('returns correct rowCount for DELETE', async () => {
+  it('returns correct rowCount for DELETE', async () => {
     await client.command(
       SQL`INSERT INTO changes_test (id, value) VALUES (1, 'a'), (2, 'b'), (3, 'c')`,
     );
@@ -57,14 +57,14 @@ void describe('executeCommand changes count accuracy', () => {
     assert.strictEqual(result.rowCount, 2);
   });
 
-  void it('returns 0 rowCount when no rows affected', async () => {
+  it('returns 0 rowCount when no rows affected', async () => {
     const result = await client.command(
       SQL`UPDATE changes_test SET value = 'x' WHERE id = 999`,
     );
     assert.strictEqual(result.rowCount, 0);
   });
 
-  void it('returns correct rowCount for INSERT with RETURNING', async () => {
+  it('returns correct rowCount for INSERT with RETURNING', async () => {
     const result = await client.command(
       SQL`INSERT INTO changes_test (id, value) VALUES (1, 'a'), (2, 'b') RETURNING id`,
     );
@@ -72,7 +72,7 @@ void describe('executeCommand changes count accuracy', () => {
     assert.strictEqual(result.rows.length, 2);
   });
 
-  void it('returns correct rowCount for UPDATE with RETURNING', async () => {
+  it('returns correct rowCount for UPDATE with RETURNING', async () => {
     await client.command(
       SQL`INSERT INTO changes_test (id, value) VALUES (1, 'a'), (2, 'b'), (3, 'c')`,
     );
@@ -83,7 +83,7 @@ void describe('executeCommand changes count accuracy', () => {
     assert.strictEqual(result.rows.length, 2);
   });
 
-  void it('returns correct rowCount for INSERT ON CONFLICT DO NOTHING with RETURNING', async () => {
+  it('returns correct rowCount for INSERT ON CONFLICT DO NOTHING with RETURNING', async () => {
     await client.command(
       SQL`INSERT INTO changes_test (id, value) VALUES (1, 'existing')`,
     );
@@ -95,7 +95,7 @@ void describe('executeCommand changes count accuracy', () => {
     assert.strictEqual(result.rows.length, 1);
   });
 
-  void it('returns correct rowCount across sequential commands', async () => {
+  it('returns correct rowCount across sequential commands', async () => {
     const r1 = await client.command(
       SQL`INSERT INTO changes_test (id, value) VALUES (1, 'a')`,
     );

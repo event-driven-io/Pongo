@@ -1,15 +1,15 @@
 import assert from 'assert';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { dumboDatabaseMetadataRegistry } from '../../../core';
 import '../index';
 
-void describe('dumboDatabaseMetadataRegistry - automatic registrations', () => {
-  void describe('PostgreSQL metadata', () => {
-    void it('is automatically registered', () => {
+describe('dumboDatabaseMetadataRegistry - automatic registrations', () => {
+  describe('PostgreSQL metadata', () => {
+    it('is automatically registered', () => {
       assert.strictEqual(dumboDatabaseMetadataRegistry.has('PostgreSQL'), true);
     });
 
-    void it('can be retrieved via tryGet', () => {
+    it('can be retrieved via tryGet', () => {
       const metadata = dumboDatabaseMetadataRegistry.tryGet('PostgreSQL');
 
       assert.ok(metadata, 'PostgreSQL metadata should be registered');
@@ -17,7 +17,7 @@ void describe('dumboDatabaseMetadataRegistry - automatic registrations', () => {
       assert.strictEqual(metadata.defaultDatabaseName, 'postgres');
     });
 
-    void it('has correct capabilities', () => {
+    it('has correct capabilities', () => {
       const metadata = dumboDatabaseMetadataRegistry.tryGet('PostgreSQL');
 
       assert.ok(metadata);
@@ -25,28 +25,28 @@ void describe('dumboDatabaseMetadataRegistry - automatic registrations', () => {
       assert.strictEqual(metadata.capabilities.supportsFunctions, true);
     });
 
-    void it('has tableExists function', () => {
+    it('has tableExists function', () => {
       const metadata = dumboDatabaseMetadataRegistry.tryGet('PostgreSQL');
 
       assert.ok(metadata);
       assert.strictEqual(typeof metadata.tableExists, 'function');
     });
 
-    void it('has functionExists function', () => {
+    it('has functionExists function', () => {
       const metadata = dumboDatabaseMetadataRegistry.tryGet('PostgreSQL');
 
       assert.ok(metadata);
       assert.strictEqual(typeof metadata.functionExists, 'function');
     });
 
-    void it('has parseDatabaseName function', () => {
+    it('has parseDatabaseName function', () => {
       const metadata = dumboDatabaseMetadataRegistry.tryGet('PostgreSQL');
 
       assert.ok(metadata);
       assert.strictEqual(typeof metadata.parseDatabaseName, 'function');
     });
 
-    void it('returns correct default database name', () => {
+    it('returns correct default database name', () => {
       const metadata = dumboDatabaseMetadataRegistry.tryGet('PostgreSQL');
 
       assert.ok(metadata);
@@ -58,12 +58,12 @@ void describe('dumboDatabaseMetadataRegistry - automatic registrations', () => {
     });
   });
 
-  void describe('SQLite metadata', () => {
-    void it('is automatically registered', () => {
+  describe('SQLite metadata', () => {
+    it('is automatically registered', () => {
       assert.strictEqual(dumboDatabaseMetadataRegistry.has('SQLite'), true);
     });
 
-    void it('can be retrieved via tryGet', () => {
+    it('can be retrieved via tryGet', () => {
       const metadata = dumboDatabaseMetadataRegistry.tryGet('SQLite');
 
       assert.ok(metadata, 'SQLite metadata should be registered');
@@ -71,7 +71,7 @@ void describe('dumboDatabaseMetadataRegistry - automatic registrations', () => {
       assert.strictEqual(metadata.defaultDatabaseName, undefined);
     });
 
-    void it('has correct capabilities', () => {
+    it('has correct capabilities', () => {
       const metadata = dumboDatabaseMetadataRegistry.tryGet('SQLite');
 
       assert.ok(metadata);
@@ -79,21 +79,21 @@ void describe('dumboDatabaseMetadataRegistry - automatic registrations', () => {
       assert.strictEqual(metadata.capabilities.supportsFunctions, false);
     });
 
-    void it('has tableExists function', () => {
+    it('has tableExists function', () => {
       const metadata = dumboDatabaseMetadataRegistry.tryGet('SQLite');
 
       assert.ok(metadata);
       assert.strictEqual(typeof metadata.tableExists, 'function');
     });
 
-    void it('does not have functionExists', () => {
+    it('does not have functionExists', () => {
       const metadata = dumboDatabaseMetadataRegistry.tryGet('SQLite');
 
       assert.ok(metadata);
       assert.strictEqual(metadata.functionExists, undefined);
     });
 
-    void it('returns correct default database name', () => {
+    it('returns correct default database name', () => {
       const metadata = dumboDatabaseMetadataRegistry.tryGet('SQLite');
 
       assert.ok(metadata);
@@ -102,8 +102,8 @@ void describe('dumboDatabaseMetadataRegistry - automatic registrations', () => {
     });
   });
 
-  void describe('registered database types', () => {
-    void it('lists both PostgreSQL and SQLite', () => {
+  describe('registered database types', () => {
+    it('lists both PostgreSQL and SQLite', () => {
       const types = dumboDatabaseMetadataRegistry.databaseTypes;
 
       assert.ok(types.includes('PostgreSQL'), 'Should include PostgreSQL');

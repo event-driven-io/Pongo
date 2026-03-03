@@ -9,7 +9,7 @@ import {
   type StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
 import { randomUUID } from 'node:crypto';
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import pg from 'pg';
 import { pongoDriver } from '../pg';
 import { pongoClient } from './pongoClient';
@@ -19,16 +19,16 @@ type User = {
   name: string;
 };
 
-void describe('Pongo collection', () => {
+describe('Pongo collection', () => {
   let postgres: StartedPostgreSqlContainer;
   let connectionString: PostgreSQLConnectionString;
 
-  before(async () => {
+  beforeAll(async () => {
     postgres = await new PostgreSqlContainer('postgres:18.0').start();
     connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
   });
 
-  after(async () => {
+  afterAll(async () => {
     await postgres.stop();
   });
 
@@ -53,8 +53,8 @@ void describe('Pongo collection', () => {
     }
   };
 
-  void describe('Pool', () => {
-    void it('connects using pool', async () => {
+  describe('Pool', () => {
+    it('connects using pool', async () => {
       const pool = new pg.Pool({ connectionString });
 
       try {
@@ -66,7 +66,7 @@ void describe('Pongo collection', () => {
       }
     });
 
-    void it('connects using connected pool client', async () => {
+    it('connects using connected pool client', async () => {
       const pool = new pg.Pool({ connectionString });
       const poolClient = await pool.connect();
 
@@ -78,7 +78,7 @@ void describe('Pongo collection', () => {
       }
     });
 
-    void it('connects using connected client', async () => {
+    it('connects using connected client', async () => {
       const client = new pg.Client({ connectionString });
       await client.connect();
 
@@ -89,7 +89,7 @@ void describe('Pongo collection', () => {
       }
     });
 
-    void it('connects using existing connection', async () => {
+    it('connects using existing connection', async () => {
       const pool = dumbo({ connectionString });
 
       try {
@@ -112,7 +112,7 @@ void describe('Pongo collection', () => {
       }
     });
 
-    void it('connects using existing connection from transaction', async () => {
+    it('connects using existing connection from transaction', async () => {
       const pool = dumbo({ connectionString });
 
       try {

@@ -1,17 +1,17 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import type { Equals, Expect, IsError, IsOK } from '../../../testing';
 import type { TypeValidationResult } from '../../../typing';
 import type { AnyColumnSchemaComponent } from '../columnSchemaComponent';
 import type { ValidateRelationshipColumns } from './relationshipValidation';
 
-void describe('ValidateRelationshipColumns', () => {
+describe('ValidateRelationshipColumns', () => {
   type ExistingColumns = {
     post_id: AnyColumnSchemaComponent;
     user_id: AnyColumnSchemaComponent;
     tenant_id: AnyColumnSchemaComponent;
   };
 
-  void it('succeeds for single reference and column', () => {
+  it('succeeds for single reference and column', () => {
     type SingleColumnAndReferences = {
       columns: ['user_id'];
       references: ['public.users.id'];
@@ -26,7 +26,7 @@ void describe('ValidateRelationshipColumns', () => {
     type _Then = Expect<IsOK<Result>>;
   });
 
-  void it('succeeds for multiple reference and column of the same length', () => {
+  it('succeeds for multiple reference and column of the same length', () => {
     type MultipleColumnsAndReferences = {
       columns: ['user_id', 'tenant_id'];
       references: ['public.users.id', 'public.users.tenant_id'];
@@ -41,7 +41,7 @@ void describe('ValidateRelationshipColumns', () => {
     type _Then = Expect<IsOK<Result>>;
   });
 
-  void it('fails when references and columns are empty', () => {
+  it('fails when references and columns are empty', () => {
     type EmptyRelationship = {
       columns: [];
       references: [];
@@ -71,7 +71,7 @@ void describe('ValidateRelationshipColumns', () => {
     ];
   });
 
-  void it('fails for single invalid columns', () => {
+  it('fails for single invalid columns', () => {
     type SingleColumnAndReferences = {
       columns: ['invalid'];
       references: ['public.users.id'];
@@ -101,7 +101,7 @@ void describe('ValidateRelationshipColumns', () => {
     ];
   });
 
-  void it('fails for multiple invalid columns', () => {
+  it('fails for multiple invalid columns', () => {
     type MultipleColumnsAndReferences = {
       columns: ['invalid', 'not_exist'];
       references: ['public.users.id', 'public.users.tenant_id'];
@@ -131,7 +131,7 @@ void describe('ValidateRelationshipColumns', () => {
     ];
   });
 
-  void it('fails for multiple invalid columns with a valid one', () => {
+  it('fails for multiple invalid columns with a valid one', () => {
     type MultipleColumnsAndReferences = {
       columns: ['invalid', 'not_exist', 'user_id'];
       references: [

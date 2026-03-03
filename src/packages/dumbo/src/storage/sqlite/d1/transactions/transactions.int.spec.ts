@@ -1,11 +1,11 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import assert from 'assert';
 import { Miniflare } from 'miniflare';
-import { afterEach, beforeEach, describe, it } from 'node:test';
+import { afterEach, beforeEach, describe, it } from 'vitest';
 import { d1Pool } from '..';
 import { SQL } from '../../../../core';
 
-void describe('D1 Transactions', () => {
+describe('D1 Transactions', () => {
   let mf: Miniflare;
   let database: D1Database;
 
@@ -22,8 +22,8 @@ void describe('D1 Transactions', () => {
     await mf.dispose();
   });
 
-  void describe(`transactions with database`, () => {
-    void it('throws D1TransactionNotSupportedError when mode is not specified', async () => {
+  describe(`transactions with database`, () => {
+    it('throws D1TransactionNotSupportedError when mode is not specified', async () => {
       const pool = d1Pool({
         database,
         transactionOptions: { allowNestedTransactions: true },
@@ -52,7 +52,7 @@ void describe('D1 Transactions', () => {
       }
     });
 
-    void it('throws D1TransactionNotSupportedError when mode is strict', async () => {
+    it('throws D1TransactionNotSupportedError when mode is strict', async () => {
       const pool = d1Pool({
         database,
         transactionOptions: {
@@ -87,7 +87,7 @@ void describe('D1 Transactions', () => {
       }
     });
 
-    void it('allows transaction when mode is session_based', async () => {
+    it('allows transaction when mode is session_based', async () => {
       const pool = d1Pool({
         database,
         transactionOptions: {
@@ -119,7 +119,7 @@ void describe('D1 Transactions', () => {
       }
     });
 
-    void it('commits a nested transaction with pool', async () => {
+    it('commits a nested transaction with pool', async () => {
       const pool = d1Pool({
         database,
         transactionOptions: {
@@ -166,7 +166,7 @@ void describe('D1 Transactions', () => {
         await pool.close();
       }
     });
-    void it('should fail with an error if transaction nested is false', async () => {
+    it('should fail with an error if transaction nested is false', async () => {
       const pool = d1Pool({
         database,
         transactionOptions: {
@@ -211,7 +211,7 @@ void describe('D1 Transactions', () => {
       }
     });
 
-    void it('should try catch and NOT roll back everything when the inner transaction errors for a pooled connection', async () => {
+    it('should try catch and NOT roll back everything when the inner transaction errors for a pooled connection', async () => {
       const pool = d1Pool({
         database,
         transactionOptions: {
@@ -263,7 +263,7 @@ void describe('D1 Transactions', () => {
       }
     });
 
-    void it('should try catch and NOT roll back everything when the outer transactions errors for a pooled connection', async () => {
+    it('should try catch and NOT roll back everything when the outer transactions errors for a pooled connection', async () => {
       const pool = d1Pool({
         database,
         transactionOptions: {
@@ -327,7 +327,7 @@ void describe('D1 Transactions', () => {
       }
     });
 
-    void it('commits a nested transaction with singleton pool', async () => {
+    it('commits a nested transaction with singleton pool', async () => {
       const pool = d1Pool({
         database,
         transactionOptions: {
@@ -377,7 +377,7 @@ void describe('D1 Transactions', () => {
       }
     });
 
-    void it('transactions errors inside the nested inner transaction for a singleton should try catch and NOT roll back everything', async () => {
+    it('transactions errors inside the nested inner transaction for a singleton should try catch and NOT roll back everything', async () => {
       const pool = d1Pool({
         database,
         transactionOptions: {
@@ -436,7 +436,7 @@ void describe('D1 Transactions', () => {
       }
     });
 
-    void it('transactions errors inside the outer transaction for a singleton should try catch and NOT roll back everything', async () => {
+    it('transactions errors inside the outer transaction for a singleton should try catch and NOT roll back everything', async () => {
       const pool = d1Pool({
         database,
         transactionOptions: {

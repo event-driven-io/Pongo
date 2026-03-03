@@ -1,12 +1,12 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import assert from 'assert';
 import { Miniflare } from 'miniflare';
-import { afterEach, beforeEach, describe, it } from 'node:test';
+import { afterEach, beforeEach, describe, it } from 'vitest';
 import { d1Client, useD1DumboDriver, type D1DumboOptions } from '..';
 import { JSONSerializer, SQL } from '../../../../core';
 import { dumbo } from '../../../all';
 
-void describe('D1 SQLite pool', () => {
+describe('D1 SQLite pool', () => {
   let mf: Miniflare;
   let database: D1Database;
   useD1DumboDriver();
@@ -24,7 +24,7 @@ void describe('D1 SQLite pool', () => {
     await mf.dispose();
   });
 
-  void it('returns the new connection each time', async () => {
+  it('returns the new connection each time', async () => {
     const pool = dumbo({
       driverType: `SQLite:d1`,
       database,
@@ -46,7 +46,7 @@ void describe('D1 SQLite pool', () => {
     }
   });
 
-  void it('for singleton setting returns the singleton connection', async () => {
+  it('for singleton setting returns the singleton connection', async () => {
     const pool = dumbo({
       driverType: `SQLite:d1`,
       database,
@@ -69,7 +69,7 @@ void describe('D1 SQLite pool', () => {
     }
   });
 
-  void it('connects using default pool', async () => {
+  it('connects using default pool', async () => {
     const pool = dumbo({
       driverType: `SQLite:d1`,
       database,
@@ -87,7 +87,7 @@ void describe('D1 SQLite pool', () => {
     }
   });
 
-  void it('connects using client', async () => {
+  it('connects using client', async () => {
     const options: D1DumboOptions = {
       driverType: `SQLite:d1`,
       database,
@@ -104,7 +104,7 @@ void describe('D1 SQLite pool', () => {
     }
   });
 
-  void it('connects using ambient client', async () => {
+  it('connects using ambient client', async () => {
     const existingClient = d1Client({ database, serializer: JSONSerializer });
     await existingClient.connect();
 
@@ -124,7 +124,7 @@ void describe('D1 SQLite pool', () => {
     }
   });
 
-  void it('connects using connected ambient connected connection', async () => {
+  it('connects using connected ambient connected connection', async () => {
     const ambientPool = dumbo({
       driverType: `SQLite:d1`,
       database,
@@ -147,7 +147,7 @@ void describe('D1 SQLite pool', () => {
     }
   });
 
-  void it('connects using connected ambient not-connected connection', async () => {
+  it('connects using connected ambient not-connected connection', async () => {
     const ambientPool = dumbo({
       driverType: `SQLite:d1`,
       database,
@@ -169,7 +169,7 @@ void describe('D1 SQLite pool', () => {
     }
   });
 
-  void it('connects using ambient connected connection with transaction', async () => {
+  it('connects using ambient connected connection with transaction', async () => {
     const ambientPool = dumbo({
       driverType: `SQLite:d1`,
       database,
@@ -198,7 +198,7 @@ void describe('D1 SQLite pool', () => {
     }
   });
 
-  void it('connects using ambient not-connected connection with transaction', async () => {
+  it('connects using ambient not-connected connection with transaction', async () => {
     const ambientPool = dumbo({
       driverType: `SQLite:d1`,
       database,
@@ -226,7 +226,7 @@ void describe('D1 SQLite pool', () => {
     }
   });
 
-  void it('connects using ambient connection in withConnection scope', async () => {
+  it('connects using ambient connection in withConnection scope', async () => {
     const ambientPool = dumbo({
       driverType: `SQLite:d1`,
       database,
@@ -251,7 +251,7 @@ void describe('D1 SQLite pool', () => {
     }
   });
 
-  void it('connects using ambient connection in withConnection and withTransaction scope', async () => {
+  it('connects using ambient connection in withConnection and withTransaction scope', async () => {
     const ambientPool = dumbo({
       driverType: `SQLite:d1`,
       database,

@@ -1,6 +1,6 @@
 import assert from 'assert';
 import fs from 'fs';
-import { afterEach, describe, it } from 'node:test';
+import { afterEach, describe, it } from 'vitest';
 import {
   CheckViolationError,
   DumboError,
@@ -15,15 +15,15 @@ import {
 import { sqlite3Pool } from '../../../../sqlite3';
 import { InMemorySQLiteDatabase } from '../../core';
 
-void describe('SQLite3 error mapping', () => {
+describe('SQLite3 error mapping', () => {
   let pool: ReturnType<typeof sqlite3Pool>;
 
   afterEach(async () => {
     await pool.close();
   });
 
-  void describe('integrity constraint violations', () => {
-    void it('maps unique constraint violation to UniqueConstraintError', async () => {
+  describe('integrity constraint violations', () => {
+    it('maps unique constraint violation to UniqueConstraintError', async () => {
       pool = sqlite3Pool({ fileName: InMemorySQLiteDatabase });
       try {
         await pool.execute.command(
@@ -61,7 +61,7 @@ void describe('SQLite3 error mapping', () => {
       }
     });
 
-    void it('maps NOT NULL violation to NotNullViolationError', async () => {
+    it('maps NOT NULL violation to NotNullViolationError', async () => {
       pool = sqlite3Pool({ fileName: InMemorySQLiteDatabase });
       try {
         await pool.execute.command(
@@ -89,7 +89,7 @@ void describe('SQLite3 error mapping', () => {
       }
     });
 
-    void it('maps foreign key violation to ForeignKeyViolationError', async () => {
+    it('maps foreign key violation to ForeignKeyViolationError', async () => {
       pool = sqlite3Pool({ fileName: InMemorySQLiteDatabase });
       try {
         // SQLite has foreign keys disabled by default
@@ -123,7 +123,7 @@ void describe('SQLite3 error mapping', () => {
       }
     });
 
-    void it('maps CHECK violation to CheckViolationError', async () => {
+    it('maps CHECK violation to CheckViolationError', async () => {
       pool = sqlite3Pool({ fileName: InMemorySQLiteDatabase });
       try {
         await pool.execute.command(
@@ -152,8 +152,8 @@ void describe('SQLite3 error mapping', () => {
     });
   });
 
-  void describe('syntax and access errors', () => {
-    void it('maps syntax error to InvalidOperationError', async () => {
+  describe('syntax and access errors', () => {
+    it('maps syntax error to InvalidOperationError', async () => {
       pool = sqlite3Pool({ fileName: InMemorySQLiteDatabase });
       await assert.rejects(
         () => pool.execute.command(SQL`SELEC 1`),
@@ -170,7 +170,7 @@ void describe('SQLite3 error mapping', () => {
       );
     });
 
-    void it('maps undefined table to InvalidOperationError', async () => {
+    it('maps undefined table to InvalidOperationError', async () => {
       pool = sqlite3Pool({ fileName: InMemorySQLiteDatabase });
       await assert.rejects(
         () =>
@@ -185,8 +185,8 @@ void describe('SQLite3 error mapping', () => {
     });
   });
 
-  void describe('error mapping in transactions', () => {
-    void it('maps unique constraint violation to UniqueConstraintError inside a transaction', async () => {
+  describe('error mapping in transactions', () => {
+    it('maps unique constraint violation to UniqueConstraintError inside a transaction', async () => {
       pool = sqlite3Pool({ fileName: InMemorySQLiteDatabase });
       const connection = await pool.connection();
 
@@ -229,8 +229,8 @@ void describe('SQLite3 error mapping', () => {
     });
   });
 
-  void describe('preserves inner error', () => {
-    void it('wraps original sqlite3 error as innerError', async () => {
+  describe('preserves inner error', () => {
+    it('wraps original sqlite3 error as innerError', async () => {
       pool = sqlite3Pool({ fileName: InMemorySQLiteDatabase });
       try {
         await pool.execute.command(
@@ -259,8 +259,8 @@ void describe('SQLite3 error mapping', () => {
     });
   });
 
-  void describe('lock and busy errors', () => {
-    void it('maps SQLITE_BUSY to LockNotAvailableError when BEGIN TRANSACTION fails', async () => {
+  describe('lock and busy errors', () => {
+    it('maps SQLITE_BUSY to LockNotAvailableError when BEGIN TRANSACTION fails', async () => {
       // This test replicates the original issue: SQLITE_BUSY thrown during
       // BEGIN TRANSACTION was not mapped because transaction.begin() calls
       // client.query() directly, bypassing the executor wrapper.

@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import {
   DumboDatabaseMetadataRegistry,
   type DatabaseMetadata,
@@ -38,9 +38,9 @@ const stubMetadata = <
     SupportsFunctions
   >;
 
-void describe('DumboDatabaseMetadataRegistry', () => {
-  void describe('register and tryGet', () => {
-    void it('registers and retrieves metadata by database type', () => {
+describe('DumboDatabaseMetadataRegistry', () => {
+  describe('register and tryGet', () => {
+    it('registers and retrieves metadata by database type', () => {
       const registry = DumboDatabaseMetadataRegistry();
       const metadata = stubMetadata('TestDB');
 
@@ -50,14 +50,14 @@ void describe('DumboDatabaseMetadataRegistry', () => {
       assert.strictEqual(result, metadata);
     });
 
-    void it('returns null for unregistered database type', () => {
+    it('returns null for unregistered database type', () => {
       const registry = DumboDatabaseMetadataRegistry();
 
       const result = registry.tryGet('NonExistent');
       assert.strictEqual(result, null);
     });
 
-    void it('does not overwrite already registered resolved metadata', () => {
+    it('does not overwrite already registered resolved metadata', () => {
       const registry = DumboDatabaseMetadataRegistry();
       const first = stubMetadata('TestDB', { defaultDatabaseName: 'first' });
       const second = stubMetadata('TestDB', { defaultDatabaseName: 'second' });
@@ -69,7 +69,7 @@ void describe('DumboDatabaseMetadataRegistry', () => {
       assert.strictEqual(result?.defaultDatabaseName, 'first');
     });
 
-    void it('overwrites a lazy entry with a resolved one', () => {
+    it('overwrites a lazy entry with a resolved one', () => {
       const registry = DumboDatabaseMetadataRegistry();
       const lazy = () =>
         Promise.resolve(
@@ -87,8 +87,8 @@ void describe('DumboDatabaseMetadataRegistry', () => {
     });
   });
 
-  void describe('tryResolve', () => {
-    void it('resolves a lazy metadata entry', async () => {
+  describe('tryResolve', () => {
+    it('resolves a lazy metadata entry', async () => {
       const registry = DumboDatabaseMetadataRegistry();
       const metadata = stubMetadata('LazyDB');
       const lazy = () => Promise.resolve(metadata);
@@ -105,14 +105,14 @@ void describe('DumboDatabaseMetadataRegistry', () => {
       assert.strictEqual(registry.tryGet('LazyDB'), metadata);
     });
 
-    void it('returns null for unregistered type', async () => {
+    it('returns null for unregistered type', async () => {
       const registry = DumboDatabaseMetadataRegistry();
 
       const result = await registry.tryResolve('Missing');
       assert.strictEqual(result, null);
     });
 
-    void it('returns already resolved metadata directly', async () => {
+    it('returns already resolved metadata directly', async () => {
       const registry = DumboDatabaseMetadataRegistry();
       const metadata = stubMetadata('DirectDB');
 
@@ -123,21 +123,21 @@ void describe('DumboDatabaseMetadataRegistry', () => {
     });
   });
 
-  void describe('has', () => {
-    void it('returns true for registered type', () => {
+  describe('has', () => {
+    it('returns true for registered type', () => {
       const registry = DumboDatabaseMetadataRegistry();
       registry.register('HasDB', stubMetadata('HasDB'));
 
       assert.strictEqual(registry.has('HasDB'), true);
     });
 
-    void it('returns false for unregistered type', () => {
+    it('returns false for unregistered type', () => {
       const registry = DumboDatabaseMetadataRegistry();
 
       assert.strictEqual(registry.has('NopeDB'), false);
     });
 
-    void it('returns true for lazy registered type', () => {
+    it('returns true for lazy registered type', () => {
       const registry = DumboDatabaseMetadataRegistry();
       registry.register('LazyHas', () =>
         Promise.resolve(stubMetadata('LazyHas')),
@@ -147,8 +147,8 @@ void describe('DumboDatabaseMetadataRegistry', () => {
     });
   });
 
-  void describe('databaseTypes', () => {
-    void it('returns all registered database types', () => {
+  describe('databaseTypes', () => {
+    it('returns all registered database types', () => {
       const registry = DumboDatabaseMetadataRegistry();
       registry.register('Alpha', stubMetadata('Alpha'));
       registry.register('Beta', stubMetadata('Beta'));
@@ -157,7 +157,7 @@ void describe('DumboDatabaseMetadataRegistry', () => {
       assert.deepStrictEqual(types.sort(), ['Alpha', 'Beta']);
     });
 
-    void it('returns empty array when nothing registered', () => {
+    it('returns empty array when nothing registered', () => {
       const registry = DumboDatabaseMetadataRegistry();
 
       assert.deepStrictEqual(registry.databaseTypes, []);

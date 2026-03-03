@@ -6,11 +6,11 @@ import {
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import assert from 'assert';
-import { after, before, beforeEach, describe, it } from 'node:test';
+import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import { pongoDriver } from '..';
 import { pongoClient, pongoSchema, type PongoClient } from '../../../../core';
 
-void describe('Migration Integration Tests', () => {
+describe('Migration Integration Tests', () => {
   let pool: Dumbo;
   let postgres: StartedPostgreSqlContainer;
   let connectionString: PostgreSQLConnectionString;
@@ -23,7 +23,7 @@ void describe('Migration Integration Tests', () => {
     }),
   });
 
-  before(async () => {
+  beforeAll(async () => {
     postgres = await new PostgreSqlContainer('postgres:18.0').start();
     connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
     pool = dumbo({ connectionString });
@@ -34,7 +34,7 @@ void describe('Migration Integration Tests', () => {
     });
   });
 
-  after(async () => {
+  afterAll(async () => {
     await client.close();
     await pool.close();
     await postgres.stop();
@@ -46,7 +46,7 @@ void describe('Migration Integration Tests', () => {
     );
   });
 
-  void it('should apply multiple migrations sequentially', async () => {
+  it('should apply multiple migrations sequentially', async () => {
     await client.db().schema.migrate();
 
     const usersTableExists = await tableExists(pool.execute, 'users');
@@ -56,7 +56,7 @@ void describe('Migration Integration Tests', () => {
     assert.ok(rolesTableExists, 'The roles table should exist.');
   });
 
-  void it('should correctly apply a migration if the hash matches the previous migration with the same name', async () => {
+  it('should correctly apply a migration if the hash matches the previous migration with the same name', async () => {
     await client.db().schema.migrate();
 
     // Attempt to run the same migration again with the same content

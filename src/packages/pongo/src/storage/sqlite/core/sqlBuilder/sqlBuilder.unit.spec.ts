@@ -2,15 +2,15 @@ import { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import { sqliteFormatter } from '@event-driven-io/dumbo/sqlite3';
 import { randomUUID } from 'crypto';
 import assert from 'node:assert/strict';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { sqliteSQLBuilder } from './index';
 
-void describe('sqliteSQLBuilder', () => {
+describe('sqliteSQLBuilder', () => {
   const collectionName = 'testCollection';
   const builder = sqliteSQLBuilder(collectionName, JSONSerializer);
 
-  void describe('createCollection', () => {
-    void it('should generate correct CREATE TABLE statement', () => {
+  describe('createCollection', () => {
+    it('should generate correct CREATE TABLE statement', () => {
       const result = builder.createCollection();
       const { query } = SQL.format(result, sqliteFormatter);
 
@@ -30,8 +30,8 @@ void describe('sqliteSQLBuilder', () => {
     });
   });
 
-  void describe('insertOne', () => {
-    void it('should generate correct INSERT statement', () => {
+  describe('insertOne', () => {
+    it('should generate correct INSERT statement', () => {
       const document = { _id: randomUUID(), name: 'Test', age: 30 };
       const result = builder.insertOne(document);
       const { query } = SQL.format(result, sqliteFormatter);
@@ -41,8 +41,8 @@ void describe('sqliteSQLBuilder', () => {
     });
   });
 
-  void describe('find operations', () => {
-    void it('should handle empty filter', () => {
+  describe('find operations', () => {
+    it('should handle empty filter', () => {
       const result = builder.find({});
       const { query } = SQL.format(result, sqliteFormatter);
 
@@ -50,7 +50,7 @@ void describe('sqliteSQLBuilder', () => {
       assert.ok(!query.includes('WHERE'));
     });
 
-    void it('should handle simple equality filter', () => {
+    it('should handle simple equality filter', () => {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
       const result = builder.find({ name: 'John' } as any);
       const { query } = SQL.format(result, sqliteFormatter);
@@ -59,7 +59,7 @@ void describe('sqliteSQLBuilder', () => {
       assert.ok(query.includes('json_extract'));
     });
 
-    void it('should handle limit and skip options', () => {
+    it('should handle limit and skip options', () => {
       const result = builder.find({}, { limit: 10, skip: 5 });
       const { query } = SQL.format(result, sqliteFormatter);
 
@@ -68,8 +68,8 @@ void describe('sqliteSQLBuilder', () => {
     });
   });
 
-  void describe('update operations', () => {
-    void it('should handle $set operator', () => {
+  describe('update operations', () => {
+    it('should handle $set operator', () => {
       const result = builder.updateOne(
         { _id: 'test-id' },
         { $set: { name: 'Updated' } },
@@ -80,7 +80,7 @@ void describe('sqliteSQLBuilder', () => {
       assert.ok(query.includes('json_patch') || query.includes('json_set'));
     });
 
-    void it('should handle $inc operator', () => {
+    it('should handle $inc operator', () => {
       const result = builder.updateOne(
         { _id: 'test-id' },
         { $inc: { count: 1 } },
@@ -91,7 +91,7 @@ void describe('sqliteSQLBuilder', () => {
       assert.ok(query.includes('json_extract'));
     });
 
-    void it('should handle $push operator', () => {
+    it('should handle $push operator', () => {
       const result = builder.updateOne(
         { _id: 'test-id' },
         { $push: { tags: 'new-tag' } },
@@ -103,8 +103,8 @@ void describe('sqliteSQLBuilder', () => {
     });
   });
 
-  void describe('delete operations', () => {
-    void it('should generate correct DELETE statement', () => {
+  describe('delete operations', () => {
+    it('should generate correct DELETE statement', () => {
       const result = builder.deleteOne({ _id: 'test-id' });
       const { query } = SQL.format(result, sqliteFormatter);
 
@@ -112,7 +112,7 @@ void describe('sqliteSQLBuilder', () => {
       assert.ok(query.includes('WHERE'));
     });
 
-    void it('should handle expected version in deleteOne', () => {
+    it('should handle expected version in deleteOne', () => {
       const result = builder.deleteOne(
         { _id: 'test-id' },
         { expectedVersion: 2n },
@@ -123,8 +123,8 @@ void describe('sqliteSQLBuilder', () => {
     });
   });
 
-  void describe('countDocuments', () => {
-    void it('should generate correct COUNT statement', () => {
+  describe('countDocuments', () => {
+    it('should generate correct COUNT statement', () => {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
       const result = builder.countDocuments({ status: 'active' } as any);
       const { query } = SQL.format(result, sqliteFormatter);

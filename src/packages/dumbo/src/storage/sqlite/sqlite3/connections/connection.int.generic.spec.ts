@@ -1,6 +1,6 @@
 import assert from 'assert';
 import fs from 'fs';
-import { afterEach, describe, it } from 'node:test';
+import { afterEach, describe, it } from 'vitest';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { useSqlite3DumboDriver, type SQLite3DumboOptions } from '..';
@@ -11,7 +11,7 @@ import { sqlite3Client } from './connection';
 
 const withDeadline = { timeout: 30000 };
 
-void describe('Node SQLite3 pool', () => {
+describe('Node SQLite3 pool', () => {
   useSqlite3DumboDriver();
 
   const inMemoryfileName = InMemorySQLiteDatabase;
@@ -43,8 +43,8 @@ void describe('Node SQLite3 pool', () => {
     }
   });
 
-  void describe(`in-memory database`, () => {
-    void it('returns the singleton connection', withDeadline, async () => {
+  describe(`in-memory database`, () => {
+    it('returns the singleton connection', withDeadline, async () => {
       const pool = dumbo({
         driverType: `SQLite:sqlite3`,
         connectionString: inMemoryfileName,
@@ -67,8 +67,8 @@ void describe('Node SQLite3 pool', () => {
     });
   });
 
-  void describe(`file-based database`, () => {
-    void it('returns the new readonly connection', withDeadline, async () => {
+  describe(`file-based database`, () => {
+    it('returns the new readonly connection', withDeadline, async () => {
       const pool = dumbo({
         driverType: `SQLite:sqlite3`,
         connectionString,
@@ -90,7 +90,7 @@ void describe('Node SQLite3 pool', () => {
         await pool.close();
       }
     });
-    void it(
+    it(
       'returns the same writable connection each time',
       withDeadline,
       async () => {
@@ -117,7 +117,7 @@ void describe('Node SQLite3 pool', () => {
       },
     );
 
-    void it(
+    it(
       'for singleton setting returns the singleton connection',
       withDeadline,
       async () => {
@@ -146,8 +146,8 @@ void describe('Node SQLite3 pool', () => {
   });
 
   for (const { testName, connectionString } of testCases) {
-    void describe(`dumbo with ${testName} database`, () => {
-      void it('connects using default pool', withDeadline, async () => {
+    describe(`dumbo with ${testName} database`, () => {
+      it('connects using default pool', withDeadline, async () => {
         const pool = dumbo({
           driverType: `SQLite:sqlite3`,
           connectionString,
@@ -165,7 +165,7 @@ void describe('Node SQLite3 pool', () => {
         }
       });
 
-      void it('connects using client', withDeadline, async () => {
+      it('connects using client', withDeadline, async () => {
         const options: SQLite3DumboOptions = {
           driverType: `SQLite:sqlite3`,
           connectionString,
@@ -183,7 +183,7 @@ void describe('Node SQLite3 pool', () => {
         }
       });
 
-      void it('connects using ambient client', withDeadline, async () => {
+      it('connects using ambient client', withDeadline, async () => {
         const existingClient = sqlite3Client({
           fileName,
           serializer: JSONSerializer,
@@ -206,7 +206,7 @@ void describe('Node SQLite3 pool', () => {
         }
       });
 
-      void it(
+      it(
         'connects using connected ambient connected connection',
         withDeadline,
         async () => {
@@ -234,7 +234,7 @@ void describe('Node SQLite3 pool', () => {
         },
       );
 
-      void it(
+      it(
         'connects using connected ambient not-connected connection',
         withDeadline,
         async () => {
@@ -260,7 +260,7 @@ void describe('Node SQLite3 pool', () => {
         },
       );
 
-      void it(
+      it(
         'connects using ambient connected connection with transaction',
         withDeadline,
         async () => {
@@ -293,7 +293,7 @@ void describe('Node SQLite3 pool', () => {
         },
       );
 
-      void it(
+      it(
         'connects using ambient not-connected connection with transaction',
         withDeadline,
         async () => {
@@ -325,7 +325,7 @@ void describe('Node SQLite3 pool', () => {
         },
       );
 
-      void it(
+      it(
         'connects using ambient connection in withConnection scope',
         withDeadline,
         async () => {
@@ -354,7 +354,7 @@ void describe('Node SQLite3 pool', () => {
         },
       );
 
-      void it(
+      it(
         'connects using ambient connection in withConnection and withTransaction scope',
         withDeadline,
         async () => {

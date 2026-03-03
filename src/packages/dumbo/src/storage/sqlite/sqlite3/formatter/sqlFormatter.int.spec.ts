@@ -1,25 +1,25 @@
 import assert from 'assert';
-import { after, before, describe, it } from 'node:test';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { sqlite3DumboDriver } from '..';
 import { dumbo, type Dumbo } from '../../../..';
 import { count, SQL } from '../../../../core';
 import { InMemorySQLiteDatabase } from '../../core/connections';
 
-void describe('SQLite3 SQL Formatter Integration Tests', () => {
+describe('SQLite3 SQL Formatter Integration Tests', () => {
   let pool: Dumbo;
 
-  before(() => {
+  beforeAll(() => {
     pool = dumbo({
       connectionString: InMemorySQLiteDatabase,
       driver: sqlite3DumboDriver,
     });
   });
 
-  after(async () => {
+  afterAll(async () => {
     await pool.close();
   });
 
-  before(async () => {
+  beforeAll(async () => {
     // Create test table for all tests
     await pool.execute.query(
       SQL`CREATE TABLE test_users (id INTEGER PRIMARY KEY, name TEXT)`,
@@ -31,8 +31,8 @@ void describe('SQLite3 SQL Formatter Integration Tests', () => {
     );
   });
 
-  void describe('Direct Array Handling', () => {
-    void it('throws error for empty arrays in IN clauses', async () => {
+  describe('Direct Array Handling', () => {
+    it('throws error for empty arrays in IN clauses', async () => {
       const emptyIds: number[] = [];
 
       try {
@@ -46,7 +46,7 @@ void describe('SQLite3 SQL Formatter Integration Tests', () => {
       }
     });
 
-    void it('handles non-empty arrays correctly', async () => {
+    it('handles non-empty arrays correctly', async () => {
       // Non-empty arrays should still work
       const names = ['Alice'];
       const result = await count(
@@ -59,8 +59,8 @@ void describe('SQLite3 SQL Formatter Integration Tests', () => {
     });
   });
 
-  void describe('SQL.in Helper', () => {
-    void it('handles empty arrays by returning FALSE, so no records', async () => {
+  describe('SQL.in Helper', () => {
+    it('handles empty arrays by returning FALSE, so no records', async () => {
       const emptyIds: number[] = [];
       const result = await count(
         pool.execute.query(
@@ -71,7 +71,7 @@ void describe('SQLite3 SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 0);
     });
 
-    void it('handles non-empty arrays with standard IN clause', async () => {
+    it('handles non-empty arrays with standard IN clause', async () => {
       // Non-empty array should use standard IN clause for SQLite
       const ids = [1];
       const result = await count(
@@ -83,7 +83,7 @@ void describe('SQLite3 SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 1);
     });
 
-    void it('handles string array with single value', async () => {
+    it('handles string array with single value', async () => {
       const names = ['Alice'];
       const result = await count(
         pool.execute.query(
@@ -94,7 +94,7 @@ void describe('SQLite3 SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 1);
     });
 
-    void it('handles string array with multiple values', async () => {
+    it('handles string array with multiple values', async () => {
       const names = ['Alice', 'Bob'];
       const result = await count(
         pool.execute.query(
@@ -105,7 +105,7 @@ void describe('SQLite3 SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 2);
     });
 
-    void it('handles empty string arrays', async () => {
+    it('handles empty string arrays', async () => {
       const emptyNames: string[] = [];
       const result = await count(
         pool.execute.query(
@@ -117,8 +117,8 @@ void describe('SQLite3 SQL Formatter Integration Tests', () => {
     });
   });
 
-  void describe('SQL.in with mode option', () => {
-    void it('handles mode: params using IN syntax (default for SQLite)', async () => {
+  describe('SQL.in with mode option', () => {
+    it('handles mode: params using IN syntax (default for SQLite)', async () => {
       const ids = [1, 2];
       const result = await count(
         pool.execute.query(
@@ -129,7 +129,7 @@ void describe('SQLite3 SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 2);
     });
 
-    void it('handles mode: native falling back to params (SQLite has no native arrays)', async () => {
+    it('handles mode: native falling back to params (SQLite has no native arrays)', async () => {
       const ids = [1, 2];
       const result = await count(
         pool.execute.query(
@@ -140,7 +140,7 @@ void describe('SQLite3 SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 2);
     });
 
-    void it('handles mode: params with string array', async () => {
+    it('handles mode: params with string array', async () => {
       const names = ['Alice', 'Bob'];
       const result = await count(
         pool.execute.query(
@@ -152,8 +152,8 @@ void describe('SQLite3 SQL Formatter Integration Tests', () => {
     });
   });
 
-  void describe('SQL.array helper', () => {
-    void it('handles mode: params with IN syntax', async () => {
+  describe('SQL.array helper', () => {
+    it('handles mode: params with IN syntax', async () => {
       const ids = [1, 2];
       const result = await count(
         pool.execute.query(
@@ -164,7 +164,7 @@ void describe('SQLite3 SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 2);
     });
 
-    void it('handles mode: native falling back to params (SQLite has no native arrays)', async () => {
+    it('handles mode: native falling back to params (SQLite has no native arrays)', async () => {
       const names = ['Alice'];
       const result = await count(
         pool.execute.query(
@@ -175,7 +175,7 @@ void describe('SQLite3 SQL Formatter Integration Tests', () => {
       assert.strictEqual(result, 1);
     });
 
-    void it('handles array without mode option (defaults to params for SQLite)', async () => {
+    it('handles array without mode option (defaults to params for SQLite)', async () => {
       const names = ['Alice', 'Bob'];
       const result = await count(
         pool.execute.query(

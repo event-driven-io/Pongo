@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import type { Equals, Expect } from '../../../testing';
 import type {
   Join,
@@ -11,48 +11,48 @@ import type {
   FormatValidationErrors,
 } from './formatRelationshipErrors';
 
-void describe('Join', () => {
-  void it('concatenates empty array to empty string', () => {
+describe('Join', () => {
+  it('concatenates empty array to empty string', () => {
     type Result = Join<[], ', '>;
     type _Then = Expect<Equals<Result, ''>>;
   });
 
-  void it('handles single element', () => {
+  it('handles single element', () => {
     type Result = Join<['foo'], ', '>;
     type _Then = Expect<Equals<Result, 'foo'>>;
   });
 
-  void it('concatenates multiple elements with separator', () => {
+  it('concatenates multiple elements with separator', () => {
     type Result = Join<['foo', 'bar', 'baz'], ', '>;
     type _Then = Expect<Equals<Result, 'foo, bar, baz'>>;
   });
 
-  void it('handles different separators', () => {
+  it('handles different separators', () => {
     type Result = Join<['a', 'b', 'c'], ' | '>;
     type _Then = Expect<Equals<Result, 'a | b | c'>>;
   });
 });
 
-void describe('IndentErrors', () => {
-  void it('formats empty array', () => {
+describe('IndentErrors', () => {
+  it('formats empty array', () => {
     type Result = IndentErrors<[]>;
     type _Then = Expect<Equals<Result, []>>;
   });
 
-  void it('adds bullet and indent to single message', () => {
+  it('adds bullet and indent to single message', () => {
     type Result = IndentErrors<['Missing column']>;
     type _Then = Expect<Equals<Result, ['  - Missing column']>>;
   });
 
-  void it('adds bullet and indent to multiple messages', () => {
+  it('adds bullet and indent to multiple messages', () => {
     type Result = IndentErrors<['First error', 'Second error', 'Third error']>;
     type Expected = ['  - First error', '  - Second error', '  - Third error'];
     type _Then = Expect<Equals<Result, Expected>>;
   });
 });
 
-void describe('FormatSingleError', () => {
-  void it('formats reference_columns_mismatch error', () => {
+describe('FormatSingleError', () => {
+  it('formats reference_columns_mismatch error', () => {
     type Error = {
       errorCode: 'reference_columns_mismatch';
       invalidColumns: ['col1', 'col2'];
@@ -63,7 +63,7 @@ void describe('FormatSingleError', () => {
     type _Then = Expect<Equals<Result, Expected>>;
   });
 
-  void it('formats reference_length_mismatch error', () => {
+  it('formats reference_length_mismatch error', () => {
     type Error = {
       errorCode: 'reference_length_mismatch';
       columns: ['col1', 'col2'];
@@ -75,7 +75,7 @@ void describe('FormatSingleError', () => {
     type _Then = Expect<Equals<Result, Expected>>;
   });
 
-  void it('formats missing_schema error', () => {
+  it('formats missing_schema error', () => {
     type Error = {
       errorCode: 'missing_schema';
       reference: 'nonexistent.users.id';
@@ -86,7 +86,7 @@ void describe('FormatSingleError', () => {
     type _Then = Expect<Equals<Result, Expected>>;
   });
 
-  void it('formats missing_table error', () => {
+  it('formats missing_table error', () => {
     type Error = {
       errorCode: 'missing_table';
       reference: 'public.nonexistent.id';
@@ -97,7 +97,7 @@ void describe('FormatSingleError', () => {
     type _Then = Expect<Equals<Result, Expected>>;
   });
 
-  void it('formats missing_column error', () => {
+  it('formats missing_column error', () => {
     type Error = {
       errorCode: 'missing_column';
       reference: 'public.users.nonexistent';
@@ -108,7 +108,7 @@ void describe('FormatSingleError', () => {
     type _Then = Expect<Equals<Result, Expected>>;
   });
 
-  void it('formats type_mismatch error', () => {
+  it('formats type_mismatch error', () => {
     type Error = {
       errorCode: 'type_mismatch';
       reference: 'public.users.id';
@@ -122,8 +122,8 @@ void describe('FormatSingleError', () => {
   });
 });
 
-void describe('FormatRelationshipBlock', () => {
-  void it('formats single error in relationship', () => {
+describe('FormatRelationshipBlock', () => {
+  it('formats single error in relationship', () => {
     type Input = {
       relationship: 'user';
       errors: [
@@ -139,7 +139,7 @@ void describe('FormatRelationshipBlock', () => {
     type _Then = Expect<Equals<Result, Expected>>;
   });
 
-  void it('formats multiple errors in relationship', () => {
+  it('formats multiple errors in relationship', () => {
     type Input = {
       relationship: 'posts';
       errors: [
@@ -164,8 +164,8 @@ void describe('FormatRelationshipBlock', () => {
   });
 });
 
-void describe('FormatTableLevel', () => {
-  void it('formats single relationship error in table', () => {
+describe('FormatTableLevel', () => {
+  it('formats single relationship error in table', () => {
     type Input = {
       table: 'posts';
       errors: [
@@ -187,7 +187,7 @@ void describe('FormatTableLevel', () => {
     type _Then = Expect<Equals<Result, Expected>>;
   });
 
-  void it('formats multiple relationship errors in table', () => {
+  it('formats multiple relationship errors in table', () => {
     type Input = {
       table: 'posts';
       errors: [
@@ -223,8 +223,8 @@ void describe('FormatTableLevel', () => {
   });
 });
 
-void describe('FormatSchemaLevel', () => {
-  void it('formats single table error in schema', () => {
+describe('FormatSchemaLevel', () => {
+  it('formats single table error in schema', () => {
     type Input = {
       schema: 'public';
       errors: [
@@ -252,7 +252,7 @@ void describe('FormatSchemaLevel', () => {
     type _Then = Expect<Equals<Result, Expected>>;
   });
 
-  void it('formats multiple table errors in schema', () => {
+  it('formats multiple table errors in schema', () => {
     type Input = {
       schema: 'public';
       errors: [
@@ -300,8 +300,8 @@ void describe('FormatSchemaLevel', () => {
   });
 });
 
-void describe('FormatDatabaseValidationErrors', () => {
-  void it('formats database validation errors with multiple schemas', () => {
+describe('FormatDatabaseValidationErrors', () => {
+  it('formats database validation errors with multiple schemas', () => {
     type Input = [
       {
         schema: 'public';
@@ -357,8 +357,8 @@ Schema "auth":
   });
 });
 
-void describe('FormatValidationErrors', () => {
-  void it('formats validation result with errors', () => {
+describe('FormatValidationErrors', () => {
+  it('formats validation result with errors', () => {
     type Input = {
       valid: false;
       error: [
@@ -393,7 +393,7 @@ Schema "public":
     type _Then = Expect<Equals<Result, Expected>>;
   });
 
-  void it('returns never for valid result', () => {
+  it('returns never for valid result', () => {
     type Input = {
       valid: true;
       error: undefined;

@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { parsePragmasFromConnectionString } from './connectionString';
 import { DEFAULT_SQLITE_PRAGMA_OPTIONS } from './index';
 import {
@@ -8,8 +8,8 @@ import {
   mergePragmaOptions,
 } from './pragmas';
 
-void describe('PRAGMA parsing', () => {
-  void it('parses journal_mode from connection string', () => {
+describe('PRAGMA parsing', () => {
+  it('parses journal_mode from connection string', () => {
     const pragmas = parsePragmasFromConnectionString(
       'file:test.db?journal_mode=DELETE',
     );
@@ -17,7 +17,7 @@ void describe('PRAGMA parsing', () => {
     assert.strictEqual(pragmas.journal_mode, 'DELETE');
   });
 
-  void it('parses synchronous from connection string', () => {
+  it('parses synchronous from connection string', () => {
     const pragmas = parsePragmasFromConnectionString(
       'file:test.db?synchronous=FULL',
     );
@@ -25,7 +25,7 @@ void describe('PRAGMA parsing', () => {
     assert.strictEqual(pragmas.synchronous, 'FULL');
   });
 
-  void it('parses cache_size from connection string', () => {
+  it('parses cache_size from connection string', () => {
     const pragmas = parsePragmasFromConnectionString(
       'file:test.db?cache_size=-2000000',
     );
@@ -33,7 +33,7 @@ void describe('PRAGMA parsing', () => {
     assert.strictEqual(pragmas.cache_size, -2000000);
   });
 
-  void it('parses foreign_keys=true from connection string', () => {
+  it('parses foreign_keys=true from connection string', () => {
     const pragmas = parsePragmasFromConnectionString(
       'file:test.db?foreign_keys=true',
     );
@@ -41,7 +41,7 @@ void describe('PRAGMA parsing', () => {
     assert.strictEqual(pragmas.foreign_keys, true);
   });
 
-  void it('parses foreign_keys=on from connection string', () => {
+  it('parses foreign_keys=on from connection string', () => {
     const pragmas = parsePragmasFromConnectionString(
       'file:test.db?foreign_keys=on',
     );
@@ -49,7 +49,7 @@ void describe('PRAGMA parsing', () => {
     assert.strictEqual(pragmas.foreign_keys, true);
   });
 
-  void it('parses foreign_keys=1 from connection string', () => {
+  it('parses foreign_keys=1 from connection string', () => {
     const pragmas = parsePragmasFromConnectionString(
       'file:test.db?foreign_keys=1',
     );
@@ -57,7 +57,7 @@ void describe('PRAGMA parsing', () => {
     assert.strictEqual(pragmas.foreign_keys, true);
   });
 
-  void it('parses foreign_keys=false from connection string', () => {
+  it('parses foreign_keys=false from connection string', () => {
     const pragmas = parsePragmasFromConnectionString(
       'file:test.db?foreign_keys=false',
     );
@@ -65,7 +65,7 @@ void describe('PRAGMA parsing', () => {
     assert.strictEqual(pragmas.foreign_keys, false);
   });
 
-  void it('parses temp_store from connection string', () => {
+  it('parses temp_store from connection string', () => {
     const pragmas = parsePragmasFromConnectionString(
       'file:test.db?temp_store=file',
     );
@@ -73,7 +73,7 @@ void describe('PRAGMA parsing', () => {
     assert.strictEqual(pragmas.temp_store, 'FILE');
   });
 
-  void it('parses busy_timeout from connection string', () => {
+  it('parses busy_timeout from connection string', () => {
     const pragmas = parsePragmasFromConnectionString(
       'file:test.db?busy_timeout=10000',
     );
@@ -81,7 +81,7 @@ void describe('PRAGMA parsing', () => {
     assert.strictEqual(pragmas.busy_timeout, 10000);
   });
 
-  void it('parses mmap_size from connection string', () => {
+  it('parses mmap_size from connection string', () => {
     const pragmas = parsePragmasFromConnectionString(
       'file:test.db?mmap_size=536870912',
     );
@@ -89,7 +89,7 @@ void describe('PRAGMA parsing', () => {
     assert.strictEqual(pragmas.mmap_size, 536870912);
   });
 
-  void it('parses multiple PRAGMAs from connection string', () => {
+  it('parses multiple PRAGMAs from connection string', () => {
     const pragmas = parsePragmasFromConnectionString(
       'file:test.db?journal_mode=WAL&synchronous=NORMAL&cache_size=-1000000&foreign_keys=true&temp_store=memory&busy_timeout=5000',
     );
@@ -104,39 +104,39 @@ void describe('PRAGMA parsing', () => {
     });
   });
 
-  void it('returns empty object for non-file URIs', () => {
+  it('returns empty object for non-file URIs', () => {
     const pragmas = parsePragmasFromConnectionString(':memory:');
 
     assert.deepStrictEqual(pragmas, {});
   });
 
-  void it('returns empty object for relative paths', () => {
+  it('returns empty object for relative paths', () => {
     const pragmas = parsePragmasFromConnectionString('./test.db');
 
     assert.deepStrictEqual(pragmas, {});
   });
 
-  void it('returns empty object for absolute paths', () => {
+  it('returns empty object for absolute paths', () => {
     const pragmas = parsePragmasFromConnectionString('/var/lib/test.db');
 
     assert.deepStrictEqual(pragmas, {});
   });
 
-  void it('returns empty object for file URI without query params', () => {
+  it('returns empty object for file URI without query params', () => {
     const pragmas = parsePragmasFromConnectionString('file:test.db');
 
     assert.deepStrictEqual(pragmas, {});
   });
 });
 
-void describe('PRAGMA merging', () => {
-  void it('uses defaults when no overrides provided', () => {
+describe('PRAGMA merging', () => {
+  it('uses defaults when no overrides provided', () => {
     const merged = mergePragmaOptions('file:test.db');
 
     assert.deepStrictEqual(merged, DEFAULT_SQLITE_PRAGMA_OPTIONS);
   });
 
-  void it('connection string overrides defaults', () => {
+  it('connection string overrides defaults', () => {
     const merged = mergePragmaOptions(
       'file:test.db?synchronous=FULL&foreign_keys=false',
     );
@@ -147,7 +147,7 @@ void describe('PRAGMA merging', () => {
     assert.strictEqual(merged.cache_size, -1000000);
   });
 
-  void it('user options override connection string', () => {
+  it('user options override connection string', () => {
     const merged = mergePragmaOptions(
       'file:test.db?synchronous=FULL&foreign_keys=false',
       { synchronous: 'NORMAL', busy_timeout: 10000 },
@@ -158,7 +158,7 @@ void describe('PRAGMA merging', () => {
     assert.strictEqual(merged.busy_timeout, 10000);
   });
 
-  void it('follows precedence: defaults < connection string < user options', () => {
+  it('follows precedence: defaults < connection string < user options', () => {
     const merged = mergePragmaOptions('file:test.db?cache_size=-500000', {
       cache_size: -2000000,
     });
@@ -167,8 +167,8 @@ void describe('PRAGMA merging', () => {
   });
 });
 
-void describe('PRAGMA statement building', () => {
-  void it('buildConnectionPragmaStatements returns connection-level pragmas with busy_timeout first', () => {
+describe('PRAGMA statement building', () => {
+  it('buildConnectionPragmaStatements returns connection-level pragmas with busy_timeout first', () => {
     const statements = buildConnectionPragmaStatements(
       DEFAULT_SQLITE_PRAGMA_OPTIONS,
     );
@@ -183,7 +183,7 @@ void describe('PRAGMA statement building', () => {
     ]);
   });
 
-  void it('buildDatabasePragmaStatements returns database-level pragmas', () => {
+  it('buildDatabasePragmaStatements returns database-level pragmas', () => {
     const statements = buildDatabasePragmaStatements(
       DEFAULT_SQLITE_PRAGMA_OPTIONS,
     );
@@ -193,7 +193,7 @@ void describe('PRAGMA statement building', () => {
     ]);
   });
 
-  void it('connection and database pragmas combine to cover all options', () => {
+  it('connection and database pragmas combine to cover all options', () => {
     const connectionStatements = buildConnectionPragmaStatements(
       DEFAULT_SQLITE_PRAGMA_OPTIONS,
     );
@@ -214,7 +214,7 @@ void describe('PRAGMA statement building', () => {
     ]);
   });
 
-  void it('converts foreign_keys boolean to ON/OFF', () => {
+  it('converts foreign_keys boolean to ON/OFF', () => {
     const statementsOn = buildConnectionPragmaStatements({
       ...DEFAULT_SQLITE_PRAGMA_OPTIONS,
       foreign_keys: true,
@@ -236,7 +236,7 @@ void describe('PRAGMA statement building', () => {
     );
   });
 
-  void it('builds statements with custom values', () => {
+  it('builds statements with custom values', () => {
     const connectionStatements = buildConnectionPragmaStatements({
       journal_mode: 'DELETE',
       synchronous: 'FULL',

@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { afterEach, beforeEach, describe, it } from 'node:test';
+import { afterEach, beforeEach, describe, it } from 'vitest';
 import {
   BatchCommandNoChangesError,
   JSONSerializer,
@@ -8,7 +8,7 @@ import {
 import { sqlite3Client } from '../connections/connection';
 import { InMemorySQLiteDatabase } from '../../core';
 
-void describe('batchCommand with assertChanges', () => {
+describe('batchCommand with assertChanges', () => {
   let client: ReturnType<typeof sqlite3Client>;
 
   beforeEach(async () => {
@@ -33,7 +33,7 @@ void describe('batchCommand with assertChanges', () => {
     await client.close();
   });
 
-  void it('throws BatchCommandNoChangesError when assertChanges is true and a command affects no rows', async () => {
+  it('throws BatchCommandNoChangesError when assertChanges is true and a command affects no rows', async () => {
     try {
       await client.batchCommand(
         [
@@ -49,7 +49,7 @@ void describe('batchCommand with assertChanges', () => {
     }
   });
 
-  void it('stops executing subsequent commands after assertChanges failure', async () => {
+  it('stops executing subsequent commands after assertChanges failure', async () => {
     try {
       await client.batchCommand(
         [
@@ -70,7 +70,7 @@ void describe('batchCommand with assertChanges', () => {
     assert.strictEqual(result.rows[0]!.value, 'original');
   });
 
-  void it('succeeds when assertChanges is true and all commands affect rows', async () => {
+  it('succeeds when assertChanges is true and all commands affect rows', async () => {
     const results = await client.batchCommand(
       [
         SQL`UPDATE test_items SET value = 'updated1' WHERE id = 1`,
@@ -84,7 +84,7 @@ void describe('batchCommand with assertChanges', () => {
     assert.ok((results[1]!.rowCount ?? 0) > 0);
   });
 
-  void it('does not check changes when assertChanges is not set', async () => {
+  it('does not check changes when assertChanges is not set', async () => {
     const results = await client.batchCommand([
       SQL`UPDATE test_items SET value = 'updated' WHERE id = 999`,
     ]);

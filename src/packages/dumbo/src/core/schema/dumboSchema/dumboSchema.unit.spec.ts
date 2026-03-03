@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { SQL } from '../../sql';
 import type { Equals, Expect } from '../../testing';
 import type { TableColumnNames, TableRowType } from '../components';
@@ -9,25 +9,25 @@ import { dumboSchema } from './index';
 const { database, schema, table, column, index } = dumboSchema;
 const { Varchar, JSONB } = SQL.column.type;
 
-void describe('dumboSchema', () => {
-  void it('should create a column', () => {
+describe('dumboSchema', () => {
+  it('should create a column', () => {
     const col = column('id', Varchar('max'));
     assert.strictEqual(col.columnName, 'id');
   });
 
-  void it('should create an index', () => {
+  it('should create an index', () => {
     const idx = index('idx_email', ['email']);
     assert.strictEqual(idx.indexName, 'idx_email');
     assert.strictEqual(idx.isUnique, false);
   });
 
-  void it('should create a unique index', () => {
+  it('should create a unique index', () => {
     const idx = index('idx_email', ['email'], { unique: true });
     assert.strictEqual(idx.indexName, 'idx_email');
     assert.strictEqual(idx.isUnique, true);
   });
 
-  void it('should create a table with columns and indexes', () => {
+  it('should create a table with columns and indexes', () => {
     const tbl = table('users', {
       columns: {
         id: column('id', Varchar('max')),
@@ -48,7 +48,7 @@ void describe('dumboSchema', () => {
     assert.ok(tbl.columns.email !== undefined);
   });
 
-  void it('should create a named schema', () => {
+  it('should create a named schema', () => {
     const sch = schema('public', {
       users: table('users', {
         columns: {
@@ -63,7 +63,7 @@ void describe('dumboSchema', () => {
     assert.ok(sch.tables.users.columns.id !== undefined);
   });
 
-  void it('should create a default schema without name', () => {
+  it('should create a default schema without name', () => {
     const sch = schema({
       users: table('users', {
         columns: {
@@ -76,7 +76,7 @@ void describe('dumboSchema', () => {
     assert.strictEqual(sch.tables.size, 1);
   });
 
-  void it('should create a default database', () => {
+  it('should create a default database', () => {
     const db = database({
       public: schema('public', {
         users: table('users', {
@@ -92,7 +92,7 @@ void describe('dumboSchema', () => {
     assert.ok(db.schemas.has('public'));
   });
 
-  void it('should create a named database', () => {
+  it('should create a named database', () => {
     const db = database('myapp', {
       public: schema('public', {
         users: table('users', {
@@ -111,7 +111,7 @@ void describe('dumboSchema', () => {
     assert.ok(db.schemas.public.tables.users.columns.id !== undefined);
   });
 
-  void it('should handle DEFAULT_SCHEMA', () => {
+  it('should handle DEFAULT_SCHEMA', () => {
     const db = database(
       'myapp',
       schema({
@@ -128,13 +128,13 @@ void describe('dumboSchema', () => {
     assert.ok(db.schemas.has(dumboSchema.schema.defaultName));
   });
 
-  void it('should create schema from table names', () => {
+  it('should create schema from table names', () => {
     const sch = schema.from('public', ['users', 'posts']);
     assert.strictEqual(sch.schemaName, 'public');
     assert.strictEqual(sch.tables.size, 2);
   });
 
-  void it('should create database from schema names', () => {
+  it('should create database from schema names', () => {
     const db = database.from('myapp', ['public', 'analytics']);
     assert.strictEqual(db.databaseName, 'myapp');
     assert.strictEqual(db.schemas.size, 2);
@@ -226,8 +226,8 @@ type UserColumns = TableColumnNames<typeof _usersTable>;
 
 const _userColumns: UserColumns[] = ['id', 'email', 'name', 'metadata'];
 
-void describe('Foreign Key Validation', () => {
-  void it('should accept valid single foreign key', () => {
+describe('Foreign Key Validation', () => {
+  it('should accept valid single foreign key', () => {
     const db = database('test', {
       public: schema('public', {
         users: table('users', {
@@ -259,7 +259,7 @@ void describe('Foreign Key Validation', () => {
     );
   });
 
-  void it('should accept valid composite foreign key', () => {
+  it('should accept valid composite foreign key', () => {
     const db = database('test', {
       public: schema('public', {
         users: table('users', {
@@ -291,7 +291,7 @@ void describe('Foreign Key Validation', () => {
     );
   });
 
-  void it('should accept self-referential foreign key', () => {
+  it('should accept self-referential foreign key', () => {
     const db = database('test', {
       public: schema('public', {
         users: table('users', {
@@ -317,7 +317,7 @@ void describe('Foreign Key Validation', () => {
     );
   });
 
-  void it('should accept multiple foreign keys in one table', () => {
+  it('should accept multiple foreign keys in one table', () => {
     const db = database('test', {
       public: schema('public', {
         users: table('users', {
@@ -353,7 +353,7 @@ void describe('Foreign Key Validation', () => {
     );
   });
 
-  void it('should accept cross-schema foreign key', () => {
+  it('should accept cross-schema foreign key', () => {
     const db = database('test', {
       public: schema('public', {
         users: table('users', {

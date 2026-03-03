@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { SQL } from '../../../sql';
 import type { Equals, Expect } from '../../../testing';
 import type { TypeValidationResult } from '../../../typing';
@@ -10,7 +10,7 @@ import type { CollectRelationshipErrors } from './relationshipValidation';
 const { schema, table, column } = dumboSchema;
 const { Integer, BigInteger, Varchar } = SQL.column.type;
 
-void describe('CollectRelationshipErrors', () => {
+describe('CollectRelationshipErrors', () => {
   const usersTable = table('users', {
     columns: {
       id: column('id', BigInteger),
@@ -52,7 +52,7 @@ void describe('CollectRelationshipErrors', () => {
   type PostsTable = typeof postsTable;
   type PostsColumns = InferTableSchemaComponentColumns<PostsTable>;
 
-  void it('returns empty array when all relationships are valid', () => {
+  it('returns empty array when all relationships are valid', () => {
     type Result = CollectRelationshipErrors<
       PostsColumns,
       PostsTable['relationships'],
@@ -64,7 +64,7 @@ void describe('CollectRelationshipErrors', () => {
     type _Then = Expect<Equals<Result, []>>;
   });
 
-  void it('collects errors for invalid references', () => {
+  it('collects errors for invalid references', () => {
     const _postsTableWithBadRef = table('posts', {
       columns: {
         id: column('id', BigInteger),
@@ -107,7 +107,7 @@ void describe('CollectRelationshipErrors', () => {
     type _Then = Expect<Equals<Result, Expected>>;
   });
 
-  void it('collects errors from multiple invalid relationships', () => {
+  it('collects errors from multiple invalid relationships', () => {
     const _postsTableMultipleErrors = table('posts', {
       columns: {
         id: column('id', BigInteger),
@@ -168,7 +168,7 @@ void describe('CollectRelationshipErrors', () => {
     type _Then = Expect<Equals<Result, Expected>>;
   });
 
-  void it('collects type mismatch errors', () => {
+  it('collects type mismatch errors', () => {
     const _postsTableTypeMismatch = table('posts', {
       columns: {
         id: column('id', BigInteger),
@@ -209,7 +209,7 @@ void describe('CollectRelationshipErrors', () => {
     type _Then = Expect<Equals<Result, Expected>>;
   });
 
-  void it('collects length mismatch errors', () => {
+  it('collects length mismatch errors', () => {
     const _postsTableLengthMismatch = table('posts', {
       columns: {
         id: column('id', BigInteger),
@@ -254,7 +254,7 @@ void describe('CollectRelationshipErrors', () => {
     type _Then = Expect<Equals<Result, Expected>>;
   });
 
-  void it('skips valid relationships and only collects errors', () => {
+  it('skips valid relationships and only collects errors', () => {
     const _postsTableMixed = table('posts', {
       columns: {
         id: column('id', BigInteger),
@@ -299,7 +299,7 @@ void describe('CollectRelationshipErrors', () => {
     type _Then = Expect<Equals<Result, Expected>>;
   });
 
-  void it('handles composite foreign keys', () => {
+  it('handles composite foreign keys', () => {
     const compositeUsersTable = table('users', {
       columns: {
         id: column('id', BigInteger),

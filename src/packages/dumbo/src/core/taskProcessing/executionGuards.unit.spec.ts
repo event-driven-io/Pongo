@@ -1,14 +1,14 @@
 import assert from 'node:assert';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import {
   guardBoundedAccess,
   guardExclusiveAccess,
   guardInitializedOnce,
 } from './executionGuards';
 
-void describe('Task Processing Guards', () => {
-  void describe('guardExclusiveAccess', () => {
-    void it('ensures operations run one at a time', async () => {
+describe('Task Processing Guards', () => {
+  describe('guardExclusiveAccess', () => {
+    it('ensures operations run one at a time', async () => {
       const guard = guardExclusiveAccess();
       const executionOrder: number[] = [];
       let activeOperations = 0;
@@ -35,7 +35,7 @@ void describe('Task Processing Guards', () => {
       assert.strictEqual(activeOperations, 0);
     });
 
-    void it('propagates errors correctly', async () => {
+    it('propagates errors correctly', async () => {
       const guard = guardExclusiveAccess();
 
       await assert.rejects(
@@ -44,7 +44,7 @@ void describe('Task Processing Guards', () => {
       );
     });
 
-    void it('stops and rejects new operations after stop with force', async () => {
+    it('stops and rejects new operations after stop with force', async () => {
       const guard = guardExclusiveAccess();
 
       await guard.stop({ force: true });
@@ -55,7 +55,7 @@ void describe('Task Processing Guards', () => {
       );
     });
 
-    void it('waits for active operations when stopping without force', async () => {
+    it('waits for active operations when stopping without force', async () => {
       const guard = guardExclusiveAccess();
       let operationCompleted = false;
 
@@ -79,8 +79,8 @@ void describe('Task Processing Guards', () => {
     });
   });
 
-  void describe('guardBoundedAccess', () => {
-    void it('limits concurrent access to resources', async () => {
+  describe('guardBoundedAccess', () => {
+    it('limits concurrent access to resources', async () => {
       let resourceId = 0;
       const guard = guardBoundedAccess(() => ({ id: ++resourceId }), {
         maxResources: 2,
@@ -109,7 +109,7 @@ void describe('Task Processing Guards', () => {
       assert.strictEqual(results.length, 4);
     });
 
-    void it('reuses resources when enabled', async () => {
+    it('reuses resources when enabled', async () => {
       const createdResources: number[] = [];
       const guard = guardBoundedAccess(
         () => {
@@ -137,7 +137,7 @@ void describe('Task Processing Guards', () => {
       );
     });
 
-    void it('releases resources on error', async () => {
+    it('releases resources on error', async () => {
       const guard = guardBoundedAccess(() => ({ id: 1 }), {
         maxResources: 1,
         reuseResources: true,
@@ -156,7 +156,7 @@ void describe('Task Processing Guards', () => {
       );
     });
 
-    void it('stops and clears queue on stop with force', async () => {
+    it('stops and clears queue on stop with force', async () => {
       const guard = guardBoundedAccess(() => ({ id: 1 }), {
         maxResources: 1,
         reuseResources: false,
@@ -170,7 +170,7 @@ void describe('Task Processing Guards', () => {
       );
     });
 
-    void it('waits for active operations when stopping without force', async () => {
+    it('waits for active operations when stopping without force', async () => {
       const guard = guardBoundedAccess(() => ({ id: 1 }), {
         maxResources: 1,
         reuseResources: true,
@@ -198,8 +198,8 @@ void describe('Task Processing Guards', () => {
     });
   });
 
-  void describe('guardInitializedOnce', () => {
-    void it('ensures initialization happens only once', async () => {
+  describe('guardInitializedOnce', () => {
+    it('ensures initialization happens only once', async () => {
       let initCount = 0;
       const guard = guardInitializedOnce(async () => {
         initCount++;
@@ -221,7 +221,7 @@ void describe('Task Processing Guards', () => {
       );
     });
 
-    void it('retries on failure', async () => {
+    it('retries on failure', async () => {
       let attempts = 0;
       const guard = guardInitializedOnce(
         () => {
@@ -243,7 +243,7 @@ void describe('Task Processing Guards', () => {
       );
     });
 
-    void it('throws after max retries exceeded', async () => {
+    it('throws after max retries exceeded', async () => {
       let attempts = 0;
       const guard = guardInitializedOnce(
         async () => {
@@ -257,7 +257,7 @@ void describe('Task Processing Guards', () => {
       assert.strictEqual(attempts, 3, 'Should attempt maxRetries + 1 times');
     });
 
-    void it('allows reset to reinitialize', async () => {
+    it('allows reset to reinitialize', async () => {
       let initCount = 0;
       const guard = guardInitializedOnce(() => {
         initCount++;
@@ -278,7 +278,7 @@ void describe('Task Processing Guards', () => {
       );
     });
 
-    void it('stops and prevents new initialization after stop', async () => {
+    it('stops and prevents new initialization after stop', async () => {
       const guard = guardInitializedOnce(() => {
         return Promise.resolve('initialized');
       });

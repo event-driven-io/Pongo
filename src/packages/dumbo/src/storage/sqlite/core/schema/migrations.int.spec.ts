@@ -1,6 +1,6 @@
 import assert from 'assert';
 import fs from 'fs';
-import { afterEach, beforeEach, describe, it } from 'node:test';
+import { afterEach, beforeEach, describe, it } from 'vitest';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { InMemorySQLiteDatabase, SQLiteConnectionString } from '..';
@@ -8,7 +8,7 @@ import { count, dumbo, single, SQL, type Dumbo } from '../../../..';
 import { runSQLMigrations, type SQLMigration } from '../../../../core/schema';
 import { SQLite3DriverType, tableExists } from '../../../../sqlite3';
 
-void describe('Migration Integration Tests', () => {
+describe('Migration Integration Tests', () => {
   const inMemoryfileName = InMemorySQLiteDatabase;
 
   const testDatabasePath = path.resolve(
@@ -28,7 +28,7 @@ void describe('Migration Integration Tests', () => {
   for (const { testName, connectionString } of testCases) {
     let pool: Dumbo;
 
-    void describe(`dumbo with ${testName} database`, () => {
+    describe(`dumbo with ${testName} database`, () => {
       beforeEach(() => {
         pool = dumbo({ connectionString, driverType: SQLite3DriverType });
       });
@@ -46,7 +46,7 @@ void describe('Migration Integration Tests', () => {
         }
       });
 
-      void it('should apply multiple migrations sequentially', async () => {
+      it('should apply multiple migrations sequentially', async () => {
         const firstMigration: SQLMigration = {
           name: 'initial_setup',
           sqls: [
@@ -84,7 +84,7 @@ void describe('Migration Integration Tests', () => {
         assert.ok(rolesTableExists, 'The roles table should exist.');
       });
 
-      // void it('should timeout if the advisory lock is not acquired within the specified time', async () => {
+      // it('should timeout if the advisory lock is not acquired within the specified time', async () => {
       //   const migration: SQLMigration = {
       //     name: 'timeout_migration',
       //     sqls: [
@@ -125,7 +125,7 @@ void describe('Migration Integration Tests', () => {
       //   }
       // });
 
-      // void it('should ensure that advisory locks prevent failing on concurrent migrations', async () => {
+      // it('should ensure that advisory locks prevent failing on concurrent migrations', async () => {
       //   const migration: SQLMigration = {
       //     name: 'concurrent_migration',
       //     sqls: [
@@ -161,7 +161,7 @@ void describe('Migration Integration Tests', () => {
       //   assert.ok(wasCreated, 'The concurrent_table should exist.');
       // });
 
-      void it('should correctly apply a migration if the hash matches the previous migration with the same name', async () => {
+      it('should correctly apply a migration if the hash matches the previous migration with the same name', async () => {
         const migration: SQLMigration = {
           name: 'hash_check_migration',
           sqls: [
@@ -190,7 +190,7 @@ void describe('Migration Integration Tests', () => {
         );
       });
 
-      void it('should fail if a migration with the same name has a different hash', async () => {
+      it('should fail if a migration with the same name has a different hash', async () => {
         const migration: SQLMigration = {
           name: 'hash_check_migration',
           sqls: [
@@ -231,7 +231,7 @@ void describe('Migration Integration Tests', () => {
         }
       });
 
-      void it('should silently be not applied but update hash if a migration with the same name has a different hash with ignoreMigrationHashMismatch setting', async () => {
+      it('should silently be not applied but update hash if a migration with the same name has a different hash with ignoreMigrationHashMismatch setting', async () => {
         const migration: SQLMigration = {
           name: 'hash_check_migration',
           sqls: [
@@ -285,7 +285,7 @@ void describe('Migration Integration Tests', () => {
         );
       });
 
-      void it('handles a large migration with multiple SQL statements', async () => {
+      it('handles a large migration with multiple SQL statements', async () => {
         const migration: SQLMigration = {
           name: 'large_migration',
           sqls: [

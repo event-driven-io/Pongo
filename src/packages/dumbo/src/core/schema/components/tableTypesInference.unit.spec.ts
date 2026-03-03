@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { SQL } from '../../sql';
 import { dumboSchema } from '../dumboSchema';
 import type { TableRowType } from './tableTypesInference';
@@ -7,8 +7,8 @@ import type { TableRowType } from './tableTypesInference';
 const { table, column } = dumboSchema;
 const { Serial, Varchar, Integer, Timestamp, JSONB } = SQL.column.type;
 
-void describe('Type Inference Runtime Tests', () => {
-  void it('should compile successfully with basic table', () => {
+describe('Type Inference Runtime Tests', () => {
+  it('should compile successfully with basic table', () => {
     const _users = table('users', {
       columns: {
         id: column('id', Serial, { primaryKey: true }),
@@ -30,7 +30,7 @@ void describe('Type Inference Runtime Tests', () => {
     assert.strictEqual(sampleUser.nickname, 'tester');
   });
 
-  void it('should allow null for nullable columns', () => {
+  it('should allow null for nullable columns', () => {
     const _users2 = table('users', {
       columns: {
         id: column('id', Serial, { primaryKey: true }),
@@ -54,7 +54,7 @@ void describe('Type Inference Runtime Tests', () => {
     assert.strictEqual(user2.nickname, 'test');
   });
 
-  void it('should work with JSONB custom types', () => {
+  it('should work with JSONB custom types', () => {
     const _products = table('products', {
       columns: {
         id: column('id', Serial, { primaryKey: true }),
@@ -73,7 +73,7 @@ void describe('Type Inference Runtime Tests', () => {
     assert.deepStrictEqual(product.metadata, { tags: ['electronics', 'sale'] });
   });
 
-  void it('should work with mixed nullable and non-nullable columns', () => {
+  it('should work with mixed nullable and non-nullable columns', () => {
     const _posts = table('posts', {
       columns: {
         id: column('id', Serial, { primaryKey: true }),
@@ -108,7 +108,7 @@ void describe('Type Inference Runtime Tests', () => {
     assert.strictEqual(publishedPost.viewCount, 42);
   });
 
-  void it('should work with default values (still nullable)', () => {
+  it('should work with default values (still nullable)', () => {
     const _events = table('events', {
       columns: {
         id: column('id', Serial, { primaryKey: true }),
@@ -134,7 +134,7 @@ void describe('Type Inference Runtime Tests', () => {
     assert.strictEqual(event2.createdAt, null);
   });
 
-  void it('example: type-safe query result processing', () => {
+  it('example: type-safe query result processing', () => {
     const _users3 = table('users', {
       columns: {
         id: column('id', Serial, { primaryKey: true }),

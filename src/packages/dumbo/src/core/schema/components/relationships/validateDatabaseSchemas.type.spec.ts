@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { describe, it } from 'vitest';
 import { SQL } from '../../../sql';
 import type { Equals, Expect, IsError } from '../../../testing';
 import type { TypeValidationResult } from '../../../typing';
@@ -9,7 +9,7 @@ import type { ValidateDatabaseSchemas } from './relationshipValidation';
 const { schema, table, column } = dumboSchema;
 const { Integer, BigInteger } = SQL.column.type;
 
-void describe('ValidateDatabaseSchemas', () => {
+describe('ValidateDatabaseSchemas', () => {
   const usersTable = table('users', {
     columns: {
       id: column('id', Integer),
@@ -26,7 +26,7 @@ void describe('ValidateDatabaseSchemas', () => {
     },
   });
 
-  void it('returns success when all schemas are valid', () => {
+  it('returns success when all schemas are valid', () => {
     const _publicSchema = schema('public', {
       users: usersTable,
       posts: postsTable,
@@ -41,7 +41,7 @@ void describe('ValidateDatabaseSchemas', () => {
     type _Then = Expect<Equals<Result, TypeValidationResult<true, undefined>>>;
   });
 
-  void it('collects errors from a single invalid schema', () => {
+  it('collects errors from a single invalid schema', () => {
     const invalidTable = table('invalid', {
       columns: {
         col1: column('col1', Integer),
@@ -96,7 +96,7 @@ void describe('ValidateDatabaseSchemas', () => {
     type _Then = [Expect<IsError<Result>>, Expect<Equals<Result, Expected>>];
   });
 
-  void it('collects errors from multiple invalid schemas', () => {
+  it('collects errors from multiple invalid schemas', () => {
     const invalidTable1 = table('invalid1', {
       columns: {
         col1: column('col1', Integer),
@@ -179,7 +179,7 @@ void describe('ValidateDatabaseSchemas', () => {
     type _Then = [Expect<IsError<Result>>, Expect<Equals<Result, Expected>>];
   });
 
-  void it('returns success when database has no schemas', () => {
+  it('returns success when database has no schemas', () => {
     // eslint-disable-next-line @typescript-eslint/no-empty-object-type
     type EmptySchemas = {};
 

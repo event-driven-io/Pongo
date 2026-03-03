@@ -1,7 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import assert from 'assert';
 import { Miniflare } from 'miniflare';
-import { afterEach, beforeEach, describe, it } from 'node:test';
+import { afterEach, beforeEach, describe, it } from 'vitest';
 import {
   CheckViolationError,
   DumboError,
@@ -14,7 +14,7 @@ import {
 } from '../../../../core';
 import { d1Pool } from '../pool';
 
-void describe('D1 error mapping', () => {
+describe('D1 error mapping', () => {
   let mf: Miniflare;
   let database: D1Database;
 
@@ -31,8 +31,8 @@ void describe('D1 error mapping', () => {
     await mf.dispose();
   });
 
-  void describe('integrity constraint violations', () => {
-    void it('maps unique constraint violation to UniqueConstraintError', async () => {
+  describe('integrity constraint violations', () => {
+    it('maps unique constraint violation to UniqueConstraintError', async () => {
       const pool = d1Pool({ database });
       try {
         await pool.execute.command(
@@ -71,7 +71,7 @@ void describe('D1 error mapping', () => {
       }
     });
 
-    void it('maps NOT NULL violation to NotNullViolationError', async () => {
+    it('maps NOT NULL violation to NotNullViolationError', async () => {
       const pool = d1Pool({ database });
       try {
         await pool.execute.command(
@@ -100,7 +100,7 @@ void describe('D1 error mapping', () => {
       }
     });
 
-    void it('maps foreign key violation to ForeignKeyViolationError', async () => {
+    it('maps foreign key violation to ForeignKeyViolationError', async () => {
       const pool = d1Pool({ database });
       try {
         // SQLite/D1 has foreign keys disabled by default
@@ -135,7 +135,7 @@ void describe('D1 error mapping', () => {
       }
     });
 
-    void it('maps CHECK violation to CheckViolationError', async () => {
+    it('maps CHECK violation to CheckViolationError', async () => {
       const pool = d1Pool({ database });
       try {
         await pool.execute.command(
@@ -165,8 +165,8 @@ void describe('D1 error mapping', () => {
     });
   });
 
-  void describe('syntax and access errors', () => {
-    void it('maps syntax error to InvalidOperationError', async () => {
+  describe('syntax and access errors', () => {
+    it('maps syntax error to InvalidOperationError', async () => {
       const pool = d1Pool({ database });
       try {
         await assert.rejects(
@@ -187,7 +187,7 @@ void describe('D1 error mapping', () => {
       }
     });
 
-    void it('maps undefined table to InvalidOperationError', async () => {
+    it('maps undefined table to InvalidOperationError', async () => {
       const pool = d1Pool({ database });
       try {
         await assert.rejects(
@@ -206,8 +206,8 @@ void describe('D1 error mapping', () => {
     });
   });
 
-  void describe('error mapping in transactions', () => {
-    void it('maps unique constraint violation to UniqueConstraintError inside a session-based transaction', async () => {
+  describe('error mapping in transactions', () => {
+    it('maps unique constraint violation to UniqueConstraintError inside a session-based transaction', async () => {
       const pool = d1Pool({
         database,
         transactionOptions: {
@@ -260,8 +260,8 @@ void describe('D1 error mapping', () => {
     });
   });
 
-  void describe('preserves inner error', () => {
-    void it('wraps original D1 error as innerError', async () => {
+  describe('preserves inner error', () => {
+    it('wraps original D1 error as innerError', async () => {
       const pool = d1Pool({ database });
       try {
         await pool.execute.command(
