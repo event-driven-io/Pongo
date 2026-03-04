@@ -1,5 +1,14 @@
 import type { DatabaseConnectionString } from '../../../all';
-import type { SQLitePragmaOptions } from './index';
+
+export type SQLitePragmaOptions = {
+  journal_mode?: 'DELETE' | 'TRUNCATE' | 'PERSIST' | 'MEMORY' | 'WAL' | 'OFF';
+  synchronous?: 'OFF' | 'NORMAL' | 'FULL' | 'EXTRA';
+  cache_size?: number;
+  foreign_keys?: boolean;
+  temp_store?: 'DEFAULT' | 'FILE' | 'MEMORY';
+  busy_timeout?: number;
+  mmap_size?: number;
+};
 
 export type SQLiteConnectionString = DatabaseConnectionString<
   'SQLite',
