@@ -1,10 +1,4 @@
-import {
-  mapSqliteError,
-  SQLiteConnectionString,
-  sqliteSQLExecutor,
-  type SQLiteDriverType,
-  type SQLiteErrorMapper,
-} from '..';
+import type { SQLiteDriverType } from '..';
 import type { JSONSerializer } from '../../../../core';
 import {
   createAmbientConnection,
@@ -20,7 +14,13 @@ import {
   type SQLCommandOptions,
   type SQLExecutor,
 } from '../../../../core';
+import { mapSqliteError } from '../errors';
+import { sqliteSQLExecutor, type SQLiteErrorMapper } from '../execute';
 import { sqliteTransaction, type SQLiteTransactionMode } from '../transactions';
+import {
+  SQLiteConnectionString,
+  type SQLitePragmaOptions,
+} from './connectionString';
 
 export type SQLiteCommandOptions = SQLCommandOptions & {
   ignoreChangesCount?: boolean;
@@ -369,15 +369,7 @@ export function sqliteConnection<
 export type InMemorySQLiteDatabase = ':memory:';
 export const InMemorySQLiteDatabase = SQLiteConnectionString(':memory:');
 
-export type SQLitePragmaOptions = {
-  journal_mode?: 'DELETE' | 'TRUNCATE' | 'PERSIST' | 'MEMORY' | 'WAL' | 'OFF';
-  synchronous?: 'OFF' | 'NORMAL' | 'FULL' | 'EXTRA';
-  cache_size?: number;
-  foreign_keys?: boolean;
-  temp_store?: 'DEFAULT' | 'FILE' | 'MEMORY';
-  busy_timeout?: number;
-  mmap_size?: number;
-};
+export type { SQLitePragmaOptions } from './connectionString';
 
 export const DEFAULT_SQLITE_PRAGMA_OPTIONS: SQLitePragmaOptions = {
   journal_mode: 'WAL',
