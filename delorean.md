@@ -8,10 +8,12 @@ Lives inside Pongo as a workspace package for now, extractable later.
 
 ## Design philosophy
 
-Everything is a plain object. Phases, guardrails, and steps are exported as factory functions that return typed objects. Users import them, spread them, override properties. No magic string resolution, no hidden registries.
+Everything is a plain object. Phases and hooks are exported as factory functions that return typed objects. Users import them, spread them, override properties. No magic string resolution, no hidden registries.
+
+**One primitive: Hook.** Guardrails, steps, and lifecycle callbacks are all hooks. A guardrail is a hook with `severity: 'error'` (blocks on failure). A git commit is a hook with `when: 'on-success'`. No aliases, no separate concepts. Severity levels (`error`/`warn`/`info`) work like eslint rules.
 
 ```typescript
-import { defineConfig, phases, guardrails } from "@pongo/delorean";
+import { defineConfig, phases, hooks } from "@pongo/delorean";
 
 export default defineConfig({
   phases: [
@@ -21,12 +23,14 @@ export default defineConfig({
     phases.execute({ allowedTools: ["Read", "Edit", "Bash"] }),
     phases.review(),
   ],
-  guardrails: [
-    guardrails.build(),
-    guardrails.lint({ command: "npx biome check" }),
-    guardrails.test({ command: "npm run test:unit" }),
-    guardrails.noTestRegression(),
-    guardrails.diffSizeCheck({ maxDeleteRatio: 3 }),
+  hooks: [
+    hooks.build(), // severity: 'error', when: 'after'
+    hooks.lint({ command: "npx biome check" }), // severity: 'error', when: 'after'
+    hooks.test({ command: "npm run test:unit" }), // severity: 'error', when: 'after'
+    hooks.noTestRegression(), // severity: 'error', when: 'after'
+    hooks.diffSizeCheck({ maxDeleteRatio: 3 }), // severity: 'error', when: 'after'
+    hooks.gitCommit(), // when: 'on-success'
+    hooks.gitContext(), // when: 'before'
   ],
 });
 ```
@@ -36,7 +40,7 @@ export default defineConfig({
 ```
 packages/delorean/
 ├── src/
-│   ├── index.ts              # Public API: defineConfig, phases, guardrails, steps
+│   ├── index.ts              # Public API: defineConfig, phases, hooks
 │   ├── cli.ts                # CLI entry point
 │   ├── types.ts              # All type definitions
 │   ├── phases/
@@ -46,20 +50,19 @@ packages/delorean/
 │   │   ├── plan.ts           # Generate plan → plan.md
 │   │   ├── execute.ts        # Loop execution
 │   │   └── review.ts         # Review phase — validates output quality
-│   ├── steps/
-│   │   ├── index.ts          # Factory functions: gitCommit(), gitContext(), contextGather()
-│   │   ├── git-commit.ts     # Auto-commit after guardrails pass
+│   ├── hooks/
+│   │   ├── index.ts          # Factory functions: build(), test(), gitCommit(), gitContext(), etc.
+│   │   ├── shell.ts          # Shell command runner (used by build, lint, test hooks)
+│   │   ├── git-commit.ts     # Auto-commit after error-severity hooks pass
 │   │   ├── git-context.ts    # Gather git log/diff for prompt preamble
-│   │   └── context-gather.ts # Assemble situation report
+│   │   ├── git-rollback.ts   # Reset to last good commit on regression
+│   │   ├── context-gather.ts # Assemble situation report
+│   │   └── drift.ts          # Test regression + diff size checks
 │   ├── llm/
 │   │   ├── types.ts          # LLM adapter interface
 │   │   ├── claude-cli.ts     # Default: spawns `claude` CLI (uses Pro subscription, no API costs)
 │   │   ├── claude-sdk.ts     # Optional: uses @anthropic-ai/claude-agent-sdk (API credits)
 │   │   └── mock-adapter.ts   # Scriptable mock for testing — exported as createMockAdapter()
-│   ├── guardrails/
-│   │   ├── index.ts          # Factory functions: build(), lint(), test(), noTestRegression(), etc.
-│   │   ├── npm-script.ts     # Guardrail that runs an npm script
-│   │   └── drift.ts          # Test regression + diff size checks
 │   ├── lessons/
 │   │   ├── types.ts          # Lesson strategy interface
 │   │   ├── strategies.ts     # Built-in strategies (recent, budget, digest)
@@ -90,7 +93,7 @@ packages/delorean/
 │   │   ├── brainstorm.test.ts
 │   │   ├── execute-loop.test.ts
 │   │   ├── session-resume.test.ts
-│   │   ├── guardrail-feedback.test.ts
+│   │   ├── hook-feedback.test.ts
 │   │   └── crash-recovery.test.ts
 │   └── e2e/                  # End-to-end — spawns `npx delorean` as child process
 │       ├── cli-flags.test.ts
@@ -106,7 +109,7 @@ Three test layers, all using `createMockAdapter()` — no real LLM calls in CI.
 
 ### Mock adapter
 
-Exported as part of the public API so users can test their custom phases/guardrails too.
+Exported as part of the public API so users can test their custom phases/hooks too.
 
 ```typescript
 import { createMockAdapter } from "@pongo/delorean";
@@ -149,7 +152,7 @@ const fixture = await createFixture({
     // writes delorean.config.ts
     adapter: mockAdapter,
     phases: [phases.execute()],
-    guardrails: [guardrails.build({ command: "echo ok" })],
+    hooks: [hooks.build({ command: "echo ok" })],
   },
   files: {
     // pre-populates files
@@ -206,14 +209,14 @@ const adapter = createMockAdapter({ responses: scenarios.executeWithLessons });
 **Integration tests** — test phase runtimes with mock adapter + real filesystem (temp dirs):
 
 - Brainstorm Q&A loop: mock adapter returns questions, mock interact returns answers → verify qa.md written
-- Execute loop: mock adapter + real guardrails (`echo ok` / `exit 1`) → verify error feedback, lesson accumulation, state progression
+- Execute loop: mock adapter + real hooks (`echo ok` / `exit 1`) → verify error feedback, lesson accumulation, state progression
 - Session resume: mock adapter tracks `sessionId` in options → verify `--resume` passed on subsequent calls
-- Guardrail feedback: guardrail fails → verify error text appears in next iteration's prompt
+- Hook feedback: error hook fails → verify error text appears in next iteration's prompt
 - Crash recovery: write state mid-run → call phase runner with that state → verify it picks up where it left off
 
 **E2E tests** — spawn `npx delorean` as a child process against a fixture directory with a mock adapter config:
 
-- `--dry-run` → verify output lists phases and guardrails, no adapter calls
+- `--dry-run` → verify output lists phases and hooks, no adapter calls
 - `--from execute` → verify pipeline starts at execute
 - `"build a thing"` positional arg → verify brainstorm phase receives idea
 - Full pipeline with mock adapter → verify all artifacts created, state completed
@@ -238,7 +241,7 @@ test("dry-run lists phases without invoking adapter", async () => {
   await fixture.cleanup();
 });
 
-test("execute retries on guardrail failure", async () => {
+test("execute retries on gate hook failure", async () => {
   const adapter = createMockAdapter({
     responses: scenarios.executeFailThenPass,
   });
@@ -246,7 +249,7 @@ test("execute retries on guardrail failure", async () => {
     config: {
       adapter,
       phases: [phases.execute()],
-      guardrails: [guardrails.build({ command: "npm run build" })],
+      hooks: [hooks.build({ command: "npm run build" })],
     },
     files: { "plan.md": "## Task 1\nImplement cache" },
     state: { tasks: [{ id: "1", title: "Cache", prompt: "Implement cache" }] },
@@ -257,7 +260,7 @@ test("execute retries on guardrail failure", async () => {
 
   // Adapter called twice — first attempt failed, second passed
   expect(adapter.callCount).toBe(2);
-  // Second call's prompt contains error from first guardrail failure
+  // Second call's prompt contains error from first hook failure
   expect(adapter.calls[1].prompt).toContain("Errors from previous attempt");
   // State shows completed
   const state = await fixture.readState();
@@ -280,58 +283,205 @@ type Phase = {
   sessionStrategy?: "fresh" | "resume"; // default varies by phase (see below)
   prompt?: string | ((ctx: PhaseContext) => string);
   jsonSchema?: object; // --json-schema for structured output (e.g., plan → Task[])
-  steps?: Step[]; // post-LLM steps (git commit, guardrails, etc.)
+  hooks?: Hook[]; // merges with config-level, phase wins on id collision. severity: error/warn/info
   run?: (ctx: PhaseContext) => Promise<PhaseResult>; // fully custom phase logic
 };
 
 // Built-in factories return plain Phase objects:
-// phases.brainstorm()  → { id: 'brainstorm', produces: 'qa.md', sessionStrategy: 'resume', ... }
-// phases.spec()        → { id: 'spec', produces: 'spec.md', needs: ['qa.md'], sessionStrategy: 'resume', ... }
-// phases.plan()        → { id: 'plan', produces: 'plan.md', needs: ['spec.md'], sessionStrategy: 'resume', jsonSchema: taskArraySchema, ... }
-// phases.execute()     → { id: 'execute', needs: ['plan.md'], sessionStrategy: 'fresh', steps: [gitContext(), gitCommit()], ... }
-// phases.review()      → { id: 'review', sessionStrategy: 'fresh', ... }
+// phases.brainstorm()  → { id: 'brainstorm', produces: 'qa.md', sessionStrategy: 'resume', hooks: [], ... }
+// phases.spec()        → { id: 'spec', produces: 'spec.md', needs: ['qa.md'], sessionStrategy: 'resume', hooks: [], ... }
+// phases.plan()        → { id: 'plan', produces: 'plan.md', needs: ['spec.md'], sessionStrategy: 'resume', jsonSchema: taskArraySchema, hooks: [], ... }
+// phases.execute()     → { id: 'execute', needs: ['plan.md'], sessionStrategy: 'fresh', hooks: [gitContext(), gitCommit()], ... }
+// phases.review()      → { id: 'review', sessionStrategy: 'fresh', hooks: undefined (inherits config), ... }
+//
+// Note: hooks: [] means "no hooks" (opt out). hooks: undefined means "inherit from config level".
+// Phase-level hooks with same id as config-level hooks override them.
 ```
 
-### Step
+### Hook
 
-Steps are units of work within a phase (git commit, context gathering, etc.):
+The single primitive for all non-LLM work. Build checks, git operations, lifecycle callbacks, and custom logic are all hooks. Severity (`error`/`warn`/`info`) controls whether failures block, warn, or just log — like eslint rules.
 
 ```typescript
-type Step = {
+type Hook = {
   id: string;
-  when?: "before" | "after" | "on-success" | "on-failure";
-  run: (ctx: StepContext) => Promise<StepResult>;
+  when:
+    | "before"
+    | "after"
+    | "on-success"
+    | "on-failure"
+    | "before-phase"
+    | "after-phase";
+  severity?: "error" | "warn" | "info"; // default: 'error'. Like eslint rules.
+  command?: string; // shell command shorthand (mutually exclusive with run)
+  run?: (ctx: HookContext) => Promise<HookResult>; // custom logic
 };
 
-// Built-in step factories:
-// steps.gitContext()   → gathers git log/diff, adds to prompt preamble
-// steps.gitCommit()    → commits after guardrails pass
-// steps.gitRollback()  → resets to last good commit on regression
+// Severity levels:
+// 'error' — failure blocks progression (what severity: 'error' used to mean). Errors fed back to next iteration.
+// 'warn'  — failure logged + included in prompt as warning, but does NOT block. LLM sees it, can fix optionally.
+// 'info'  — result logged only. Not fed back to prompt. For telemetry, notifications, etc.
+//
+// Overridable at config, phase, or inline:
+// hooks.lint()                          → severity: 'error' (default)
+// hooks.lint({ severity: 'warn' })      → lint issues logged but don't block
+// phases.execute({ hooks: [hooks.lint({ severity: 'info' })] })  → per-phase
+
+type HookResult = {
+  ok: boolean; // did the hook succeed?
+  output?: string; // captured output (errors, warnings, info)
+  data?: Record<string, unknown>; // arbitrary data for downstream hooks
+};
+
+// How severity + result interact:
+//
+// | severity | ok: true          | ok: false                                    |
+// |----------|-------------------|----------------------------------------------|
+// | 'error'  | continue          | BLOCK: add to <errors>, trigger on-failure   |
+// | 'warn'   | continue          | CONTINUE: add to <warnings> in prompt        |
+// | 'info'   | continue          | CONTINUE: log only, not in prompt            |
+//
+// Shell command hooks (command field): ok = exitCode === 0, output = stdout+stderr
+// Custom run hooks: return { ok, output } directly
+//
+// For custom hooks, just return { ok: false, output: 'why it failed' }:
+const myHook: Hook = {
+  id: "check-coverage",
+  when: "after",
+  severity: "warn",
+  async run(ctx) {
+    const coverage = await parseCoverage(ctx.cwd);
+    if (coverage < 80) {
+      return {
+        ok: false,
+        output: `Coverage ${coverage}% is below 80% threshold`,
+      };
+    }
+    return { ok: true };
+  },
+};
+// With severity: 'warn', a failed result adds to <warnings> but doesn't block.
+// Change to severity: 'error' and same failure blocks the iteration.
+
+type HookContext = {
+  config: DeloreanConfig;
+  state: DeloreanState;
+  phase: Phase;
+  task?: Task; // undefined for phase-level hooks
+  iteration: number;
+  cwd: string;
+  logger: Logger;
+};
 ```
 
-### Guardrail
+**Built-in hook factories**:
 
 ```typescript
-type Guardrail = {
-  name: string;
-  command?: string; // shell command (default: `npm run {name}`)
-  run?: (ctx: RunContext) => Promise<GuardrailResult>; // custom logic
+// Error-severity hooks (severity: 'error', when: 'after') — block on failure:
+hooks.build(); // command: 'npm run build'
+hooks.lint(); // command: 'npm run lint'
+hooks.test(); // command: 'npm run test'
+hooks.noTestRegression(); // custom run: compares test count to previous
+hooks.diffSizeCheck(); // custom run: checks git diff ratio
+
+// Lifecycle hooks (severity: 'info'):
+hooks.gitContext(); // when: 'before' — gathers git log/diff for prompt
+hooks.gitCommit(); // when: 'on-success' — commits after gates pass
+hooks.gitRollback(); // when: 'on-failure' — resets on regression
+hooks.contextGather(); // when: 'before' — assembles situation report
+
+// Override severity or command:
+hooks.build({ command: "npx tsc --noEmit" });
+hooks.lint({ severity: "warn" }); // lint issues don't block, but LLM sees them
+hooks.test({ command: "npm run test:unit -- --reporter=verbose" });
+```
+
+**Custom hooks** — just an object conforming to `Hook`:
+
+```typescript
+// Custom error-severity hook (blocks on failure):
+const securityScan: Hook = {
+  id: "security-scan",
+  when: "after",
+  severity: "error",
+  command: "npx audit-ci --moderate",
 };
 
-type GuardrailResult = {
-  passed: boolean;
-  output: string;
+// Custom warning hook (logged, visible to LLM, doesn't block):
+const bundleSize: Hook = {
+  id: "bundle-size",
+  when: "after",
+  severity: "warn",
+  command: "npx size-limit",
 };
 
-// Built-in factories:
-// guardrails.build()              → { name: 'build', command: 'npm run build' }
-// guardrails.lint()               → { name: 'lint', command: 'npm run lint' }
-// guardrails.test()               → { name: 'test', command: 'npm run test' }
-// guardrails.noTestRegression()   → { name: 'no-test-regression', run: ... }
-// guardrails.diffSizeCheck({ maxDeleteRatio: 3 }) → { name: 'diff-size-check', run: ... }
+// Custom hook with logic:
+const notifySlack: Hook = {
+  id: "notify-slack",
+  when: "after-phase",
+  async run(ctx) {
+    await fetch(SLACK_WEBHOOK, {
+      method: "POST",
+      body: JSON.stringify({ text: `Phase ${ctx.phase.id} completed` }),
+    });
+    return { passed: true };
+  },
+};
 
-// Override via params:
-// guardrails.build({ command: 'npx tsc --noEmit' })
+// Use them:
+defineConfig({
+  hooks: [hooks.build(), hooks.test(), securityScan, notifySlack],
+});
+```
+
+### Hook resolution hierarchy
+
+Hooks can be set at two levels. Phase-level merges with (or overrides) config-level:
+
+```
+1. Config level (defaults for all phases):
+   defineConfig({ hooks: [hooks.build(), hooks.test(), hooks.gitCommit()] })
+
+2. Phase level (merges or overrides per phase):
+   phases.execute({ hooks: [hooks.build(), hooks.gitContext()] })
+```
+
+**Resolution at runtime**: Phase runner collects hooks from both levels. Deduplicates by `id` — phase-level wins when IDs collide. Phases can opt out with `hooks: []`.
+
+**Execution order within an iteration**:
+
+```
+before hooks → LLM invocation → after hooks (severity checked) → on-success/on-failure hooks
+```
+
+Error-severity hooks run during the `after` phase. If any `error` hook fails, execution skips `on-success` and runs `on-failure`. Warning failures are logged and fed to the prompt but don't block.
+
+```typescript
+// Config-level hooks apply to all phases by default:
+defineConfig({
+  hooks: [
+    hooks.build(), // severity: 'error', after
+    hooks.test(), // severity: 'error', after
+    hooks.gitCommit(), // on-success
+  ],
+});
+
+// Phase with no hooks — explicitly empty:
+phases.brainstorm({ hooks: [] });
+
+// Phase with extra hooks — merged with config:
+phases.execute({
+  hooks: [
+    hooks.gitContext(), // before (added)
+    hooks.build({ command: "npx tsc" }), // overrides config's build (same id)
+    hooks.noTestRegression(), // severity: 'error' (added)
+  ],
+});
+
+// Custom hook alongside built-ins:
+phases.review({
+  hooks: [securityScan, notifySlack], // merged with config hooks
+});
 ```
 
 ### Full config
@@ -345,7 +495,7 @@ type DeloreanConfig = {
   timeoutPerIteration?: number; // ms, default: 300_000
 
   phases?: Phase[]; // default: [brainstorm(), spec(), plan(), execute(), review()]
-  guardrails?: Guardrail[]; // default: [build(), lint(), test()]
+  hooks?: Hook[]; // default: [build(), test(), gitCommit()]
   lessonStrategy?: LessonStrategy; // default: 'token-budget'
 
   budget?: {
@@ -355,29 +505,13 @@ type DeloreanConfig = {
   };
 
   git?: {
-    autoCommit?: boolean; // default: true
-    rollbackOnRegression?: boolean; // default: true
     commitPrefix?: string; // default: 'delorean'
   };
 
   stopPoints?: {
     betweenPhases?: boolean; // default: true
-    onGuardrailFailure?: number; // consecutive failures before pause
+    onErrorHookFailure?: number; // consecutive error-severity failures before pause
     tasks?: string[]; // task ids that need human review
-  };
-
-  hooks?: {
-    beforeIteration?: (ctx: HookContext) => Promise<void>;
-    afterIteration?: (
-      ctx: HookContext,
-      result: IterationResult,
-    ) => Promise<void>;
-    beforePhase?: (ctx: HookContext, phase: Phase) => Promise<void>;
-    afterPhase?: (
-      ctx: HookContext,
-      phase: Phase,
-      result: PhaseResult,
-    ) => Promise<void>;
   };
 
   interact?: (question: string) => Promise<string>;
@@ -438,7 +572,7 @@ Prompts are split into **system prompt** (via `--append-system-prompt`) and **us
 <task>           → current work item (index, total, prompt)
 <progress>       → completed tasks, modified files
 <git_context>    → recent log, diff stat
-<errors>         → guardrail failures with raw output (only if previous iteration failed)
+<errors>         → error-severity hook failures with raw output (only if previous iteration failed)
 <prior_attempts> → what was tried and what happened (only after 3+ iterations on same task)
 ```
 
@@ -809,12 +943,12 @@ phases.brainstorm({ prompt: "my custom brainstorm prompt with {idea}" });
 For each task in order:
 
 1. Run `before` steps (git context gathering, hooks)
-2. **Build prompt**: task + selected lessons + guardrail errors from last failure
+2. **Build prompt**: task + selected lessons + hook errors/warnings from last failure
 3. **Invoke LLM** via adapter, stream output, log everything
 4. **Parse lessons** from output (`LESSON: [category] description`)
-5. Run `after` steps + **guardrails** in configured order
-6. Guardrails pass → run `on-success` steps (git commit) → advance
-7. **Guardrails fail** → run `on-failure` steps (capture errors) → retry same task
+5. Run `after` hooks in configured order — check severity on failure
+6. All `error` hooks pass → run `on-success` hooks (git commit) → advance
+7. **Any `error` hook fails** → run `on-failure` hooks (capture errors) → retry same task
 8. Stop point → pause, invoke `interact` hook
 9. Max iterations → fail
 
@@ -824,7 +958,7 @@ For each task in order:
 
 - LLM reviews changes, checks for quality issues
 - Can trigger fix iterations if problems found
-- Runs guardrails one final time
+- Runs hooks one final time
 - Custom stop point tasks pause for human review
 
 ## Error feedback loop
@@ -844,7 +978,7 @@ Iteration N+1 prompt:
                   LLM sees errors, fixes them
 ```
 
-Errors cleared only after the guardrail that produced them passes.
+Errors cleared only after the hook that produced them passes.
 
 ## Lesson selection strategies
 
@@ -859,8 +993,8 @@ All lessons always persisted. Strategy controls what goes into the prompt.
 
 ## Drift protection
 
-- **Test regression** (`guardrails.noTestRegression()`) — fails if test count decreases
-- **Diff size** (`guardrails.diffSizeCheck()`) — flags when deletes >> adds
+- **Test regression** (`hooks.noTestRegression()`) — fails if test count decreases
+- **Diff size** (`hooks.diffSizeCheck()`) — flags when deletes >> adds
 - **Scope anchor** — prompt builder always includes original task description
 
 ## Cost and token tracking
@@ -877,7 +1011,7 @@ Exceeding budget pauses and asks via `interact` hook.
 
 Two parallel streams in `delorean-logs/`:
 
-**JSONL** (`{timestamp}.jsonl`): `prompt-sent`, `response-received`, `guardrail-result`, `lesson-learned`, `error-captured`, `token-usage`, `git-commit`, `phase-transition`, `human-input`, `timeout`, `budget-warning`
+**JSONL** (`{timestamp}.jsonl`): `prompt-sent`, `response-received`, `hook-result`, `lesson-learned`, `error-captured`, `token-usage`, `git-commit`, `phase-transition`, `human-input`, `timeout`, `budget-warning`
 
 **Markdown** (`{timestamp}.md`): human-readable session transcript.
 
@@ -906,7 +1040,7 @@ type DeloreanState = {
   tasks: Task[];
   lessons: Lesson[];
   lessonDigest: string | null;
-  errors: GuardrailError[];
+  errors: HookError[];
   qaHistory: { question: string; answer: string }[];
   sessions: Record<string, string>; // { [phaseId]: sessionId } for --resume
   cost: { total: number; perIteration: Record<number, number> };
@@ -925,7 +1059,7 @@ type DeloreanState = {
 ### Step 2: Core types
 
 **Files**: `packages/delorean/src/types.ts`
-**What**: Define all type definitions: `Phase`, `Step`, `Guardrail`, `GuardrailResult`, `StepContext`, `PhaseContext`, `PhaseResult`, `StepResult`, `LLMAdapter`, `LLMInvokeOptions`, `LLMMessage`, `DeloreanConfig`, `DeloreanState`, `Task`, `Lesson`, `LessonStrategy`, `HookContext`, `IterationResult`. No runtime code — pure types. Export everything from `index.ts`.
+**What**: Define all type definitions: `Phase`, `Hook`, `HookResult`, `HookContext`, `HookError`, `LLMAdapter`, `LLMInvokeOptions`, `LLMMessage`, `DeloreanConfig`, `DeloreanState`, `PhaseContext`, `PhaseResult`, `Task`, `Lesson`, `LessonStrategy`, `IterationResult`. No runtime code — pure types. Export everything from `index.ts`.
 **Dependencies**: Step 1
 **Done when**: Types compile. A test file can import every type without errors.
 
@@ -1097,7 +1231,7 @@ Key detail: `createFixture` writes a real `delorean.config.ts` that imports the 
 - `scenarios.brainstormUserSaysDone` — 2 questions, user exits early
 - `scenarios.specFromQa` — generates spec content from qa context
 - `scenarios.planWith5Tasks` — returns structured `{ tasks: [...] }` via `structured_output`
-- `scenarios.executePassFirstTry` — task passes all guardrails
+- `scenarios.executePassFirstTry` — task passes all hooks
 - `scenarios.executeFailThenPass` — fails build, second try passes
 - `scenarios.executeWithLessons` — response includes `LESSON:` patterns
 - `scenarios.executeTestRegression` — response causes test count to drop
@@ -1123,32 +1257,45 @@ Key detail: `createFixture` writes a real `delorean.config.ts` that imports the 
 **Test**: Unit test with mocked `query()`. Integration test guarded by `ANTHROPIC_API_KEY` env var.
 **Done when**: `createClaudeSdkAdapter()` works as a drop-in replacement for the CLI adapter. Package doesn't crash if `claude-agent-sdk` isn't installed.
 
-### Step 4: Phase, guardrail, and step factories
+### Step 4: Phase and hook factories
 
-**Files**: `packages/delorean/src/phases/index.ts`, `packages/delorean/src/guardrails/index.ts`, `packages/delorean/src/steps/index.ts` (factory functions only — no runtime logic yet)
-**What**: Factory functions that return plain typed objects with sensible defaults:
+**Files**: `packages/delorean/src/phases/index.ts`, `packages/delorean/src/hooks/index.ts` (factory functions only — no runtime logic yet)
+**What**: Factory functions that return plain typed objects with sensible defaults.
 
-- `phases.brainstorm(overrides?)` → `{ id: 'brainstorm', produces: 'qa.md', ... }`
-- `phases.spec(overrides?)` → `{ id: 'spec', produces: 'spec.md', needs: ['qa.md'], ... }`
-- `phases.plan(overrides?)` → `{ id: 'plan', produces: 'plan.md', needs: ['spec.md'], ... }`
-- `phases.execute(overrides?)` → `{ id: 'execute', needs: ['plan.md'], steps: [gitContext(), gitCommit()], ... }`
-- `phases.review(overrides?)` → `{ id: 'review', ... }`
-- `guardrails.build(overrides?)` → `{ name: 'build', command: 'npm run build' }`
-- `guardrails.lint(overrides?)` → `{ name: 'lint', command: 'npm run lint' }`
-- `guardrails.test(overrides?)` → `{ name: 'test', command: 'npm run test' }`
-- `guardrails.noTestRegression(overrides?)` → `{ name: 'no-test-regression', run: ... }`
-- `guardrails.diffSizeCheck(overrides?)` → `{ name: 'diff-size-check', run: ... }`
-- `steps.gitContext(overrides?)`, `steps.gitCommit(overrides?)`, `steps.gitRollback(overrides?)`
+Phase factories:
 
-Each override param is `Partial<Phase>`, `Partial<Guardrail>`, or `Partial<Step>`. The factory merges overrides onto defaults.
+- `phases.brainstorm(overrides?)` → `{ id: 'brainstorm', produces: 'qa.md', sessionStrategy: 'resume', hooks: [], ... }`
+- `phases.spec(overrides?)` → `{ id: 'spec', produces: 'spec.md', needs: ['qa.md'], sessionStrategy: 'resume', hooks: [], ... }`
+- `phases.plan(overrides?)` → `{ id: 'plan', produces: 'plan.md', needs: ['spec.md'], sessionStrategy: 'resume', hooks: [], ... }`
+- `phases.execute(overrides?)` → `{ id: 'execute', needs: ['plan.md'], sessionStrategy: 'fresh', hooks: [gitContext(), gitCommit()], ... }`
+- `phases.review(overrides?)` → `{ id: 'review', sessionStrategy: 'fresh', ... }`
+
+Hook factories (all return `Hook` objects):
+
+- `hooks.build(overrides?)` → `{ id: 'build', when: 'after', severity: 'error', command: 'npm run build' }`
+- `hooks.lint(overrides?)` → `{ id: 'lint', when: 'after', severity: 'error', command: 'npm run lint' }`
+- `hooks.test(overrides?)` → `{ id: 'test', when: 'after', severity: 'error', command: 'npm run test' }`
+- `hooks.noTestRegression(overrides?)` → `{ id: 'no-test-regression', when: 'after', severity: 'error', run: ... }`
+- `hooks.diffSizeCheck(overrides?)` → `{ id: 'diff-size-check', when: 'after', severity: 'error', run: ... }`
+- `hooks.gitContext(overrides?)` → `{ id: 'git-context', when: 'before', run: ... }`
+- `hooks.gitCommit(overrides?)` → `{ id: 'git-commit', when: 'on-success', run: ... }`
+- `hooks.gitRollback(overrides?)` → `{ id: 'git-rollback', when: 'on-failure', run: ... }`
+- `hooks.contextGather(overrides?)` → `{ id: 'context-gather', when: 'before', run: ... }`
+
+Each override param is `Partial<Phase>` or `Partial<Hook>`. The factory merges overrides onto defaults.
 **Dependencies**: Step 2 (needs types)
-**Test**: For each factory: call with no args → assert all required fields present with correct defaults. Call with overrides → assert overrides applied, defaults preserved for unspecified fields. Verify `phases.execute({ allowedTools: ['Read'] })` produces an object with `allowedTools: ['Read']` and still has default `id`, `needs`, `steps`.
-**Done when**: All factories exported from `index.ts`. Every factory produces a valid typed object. Override merging works.
+**Test**: For each factory: call with no args → assert all required fields present with correct defaults. Call with overrides → assert overrides applied, defaults preserved for unspecified fields. Verify:
+
+- `phases.execute({ allowedTools: ['Read'] })` → has `allowedTools: ['Read']` and default hooks
+- `hooks.build({ command: 'npx tsc' })` → has `command: 'npx tsc'` but still `severity: 'error'`, `when: 'after'`
+- `hooks.build()` returns a `Hook` with `severity: 'error'`
+- Custom hook object `{ id: 'custom', when: 'after', severity: 'error', command: 'echo ok' }` passes type check
+  **Done when**: All factories exported from `index.ts`. Every factory produces a valid typed object. Override merging works. Custom hooks conform to the same type.
 
 ### Step 5: Config loader + `defineConfig`
 
 **Files**: `packages/delorean/src/config.ts`
-**What**: `defineConfig(partial)` validates and fills defaults (default phases, guardrails, model, maxIterations, etc.). `loadConfig(cwd)` finds and imports `delorean.config.ts` from the working directory, calls `defineConfig` on it, merges CLI arg overrides. Validation: phases must have unique `id`s, guardrails must have unique `name`s, `produces` fields must not conflict.
+**What**: `defineConfig(partial)` validates and fills defaults (default phases, hooks, model, maxIterations, etc.). `loadConfig(cwd)` finds and imports `delorean.config.ts` from the working directory, calls `defineConfig` on it, merges CLI arg overrides. Validation: phases must have unique `id`s, hooks must have unique `id`s, `produces` fields must not conflict. Hook resolution: phase-level hooks merge with config-level, deduplicated by `id` (phase wins).
 **Dependencies**: Step 2 (types), Step 4 (default factories used for filling defaults)
 **Test**: `defineConfig({})` returns full config with all defaults. `defineConfig({ phases: [phases.execute()] })` keeps only execute. Invalid config (duplicate ids) throws descriptive error. CLI overrides (`{ model: 'claude-opus-4-6' }`) merge correctly.
 **Done when**: `defineConfig` produces a fully resolved `DeloreanConfig`. `loadConfig` can import a real `.ts` config file.
@@ -1188,7 +1335,7 @@ Each override param is `Partial<Phase>`, `Partial<Guardrail>`, or `Partial<Step>
 **Files**: `packages/delorean/src/logging/jsonl.ts`, `packages/delorean/src/logging/markdown.ts`
 **What**: Two logger implementations sharing a `Logger` interface:
 
-- `createJsonlLogger(dir)` → appends structured events: `{ timestamp, type, ... }` per line. Types: `prompt-sent`, `response-received`, `guardrail-result`, `lesson-learned`, `error-captured`, `token-usage`, `git-commit`, `phase-transition`, `human-input`, `timeout`, `budget-warning`
+- `createJsonlLogger(dir)` → appends structured events: `{ timestamp, type, ... }` per line. Types: `prompt-sent`, `response-received`, `hook-result`, `lesson-learned`, `error-captured`, `token-usage`, `git-commit`, `phase-transition`, `human-input`, `timeout`, `budget-warning`
 - `createMarkdownLogger(dir)` → appends human-readable sections with headers, code blocks, timestamps
 
 Both create files in `delorean-logs/` named `{ISO-timestamp}.{jsonl,md}`.
@@ -1250,35 +1397,41 @@ Built-in strategies:
 - Primacy/recency: select 5 lessons → most-violated is first, second-most-violated is last.
 - Lesson parsing: extract from multi-line LLM output containing code, prose, and `LESSON:` lines → only lessons extracted.
 - Edge: no lessons → empty array. Single lesson → returned as-is. Lesson with unknown category → stored normally.
-- Promote: after guardrail failure that matches a lesson's category, that lesson's `lastViolatedAt` updates → it moves to position 1 in next selection.
+- Promote: after error hook failure that matches a lesson's category, that lesson's `lastViolatedAt` updates → it moves to position 1 in next selection.
   **Done when**: Strategies produce correctly ordered subsets. Dedup prevents bloat. Primacy/recency ordering verified. Parser handles realistic LLM output. Violation tracking works.
 
-### Step 10: Built-in guardrails
+### Step 10: Built-in hook implementations
 
-**Files**: `packages/delorean/src/guardrails/npm-script.ts`, `packages/delorean/src/guardrails/drift.ts`
-**What**:
+**Files**: `packages/delorean/src/hooks/shell.ts`, `packages/delorean/src/hooks/drift.ts`, `packages/delorean/src/hooks/git-commit.ts`, `packages/delorean/src/hooks/git-context.ts`, `packages/delorean/src/hooks/git-rollback.ts`, `packages/delorean/src/hooks/context-gather.ts`
+**What**: Runtime implementations for all built-in hooks. Each is a `run` function wired into the corresponding hook factory from Step 4.
 
-- `runNpmScript(command, cwd)` — executes shell command, captures stdout+stderr (last 200 lines), returns `{ passed: exitCode === 0, output }`. Used by `guardrails.build()`, `.lint()`, `.test()`.
-- `noTestRegression` — runs test command, parses test count from output (vitest/jest patterns), compares to previous count stored in state. Fails if count decreased.
-- `diffSizeCheck({ maxDeleteRatio })` — runs `git diff --stat`, parses insertions/deletions, fails if `deletions / insertions > maxDeleteRatio`.
+**Gating hooks** (severity: 'error'):
 
-**Dependencies**: Step 2 (types), Step 4 (guardrail factories wire these as `run` functions)
-**Test**: `runNpmScript` with `echo "ok"` → passes. With `exit 1` → fails, captures output. `noTestRegression`: mock test output with "Tests: 10 passed" then "Tests: 8 passed" → regression detected. `diffSizeCheck`: mock git diff stat with various ratios → passes/fails at threshold.
-**Done when**: Shell command guardrails capture output correctly. Drift checks parse real vitest/jest output formats. All return proper `GuardrailResult`.
+- `shell.ts` — `runShellCommand(command, cwd)`: executes shell command, captures stdout+stderr (last 200 lines), returns `{ ok: exitCode === 0, output }`. Used by `hooks.build()`, `.lint()`, `.test()` — any hook with a `command` field.
+- `drift.ts` — two custom `run` functions:
+  - `noTestRegression`: runs test command, parses test count from output (vitest/jest patterns), compares to previous count in state. Fails if count decreased.
+  - `diffSizeCheck({ maxDeleteRatio })`: runs `git diff --stat`, parses insertions/deletions, fails if ratio exceeded.
 
-### Step 11: Built-in steps
+**Lifecycle hooks** (non-gating):
 
-**Files**: `packages/delorean/src/steps/git-commit.ts`, `packages/delorean/src/steps/git-context.ts`, `packages/delorean/src/steps/context-gather.ts`
-**What**:
+- `git-context.ts` — runs `git log --oneline -10`, `git diff --stat HEAD~1`, returns context string for prompt preamble. Handles fresh repos (no HEAD~1) gracefully.
+- `git-commit.ts` — stages modified/new files, commits with message `delorean: {task summary} (iteration {n})`. Configured via `git.commitPrefix`. Runs `when: 'on-success'`.
+- `git-rollback.ts` — `git checkout .` to discard changes. Runs `when: 'on-failure'`, only when a gating hook with `id: 'no-test-regression'` triggered the failure.
+- `context-gather.ts` — assembles situation report: current task index/total, completed task summaries, modified file tree.
 
-- `gitContext()` — runs `git log --oneline -10`, `git diff --stat HEAD~1`, returns context string for prompt preamble. Handles fresh repos (no HEAD~1) gracefully.
-- `gitCommit()` — stages modified/new files, commits with message `delorean: {task summary} (iteration {n})`. Configured via `git.commitPrefix` in config. Runs only when guardrails pass (`when: 'on-success'`).
-- `gitRollback()` — `git checkout .` to discard changes. Runs on test regression (`when: 'on-failure'` + specific guardrail trigger). Must confirm via state that regression was detected, not just any failure.
-- `contextGather()` — assembles situation report: current task index/total, completed task summaries, modified file tree.
+**Dependencies**: Step 2 (types), Step 4 (hook factories wire these as `run` functions), Step 6 (state)
+**Test**:
 
-**Dependencies**: Step 2 (types), Step 4 (step factories), Step 6 (state for task info)
-**Test**: `gitContext` in a test repo with commits → returns formatted string with log and diff. `gitCommit` in a test repo with staged changes → creates commit with correct prefix. `contextGather` with state containing 3/8 tasks done → includes "Task 4/8" and summaries. `gitRollback` discards working tree changes. Edge: `gitContext` in empty repo → returns graceful fallback.
-**Done when**: Each step produces correct side effects (commits, context strings). Error cases handled without crashes.
+- `runShellCommand` with `echo "ok"` → passes. With `exit 1` → fails, captures output.
+- `noTestRegression`: mock test output "Tests: 10 passed" then "Tests: 8 passed" → regression detected.
+- `diffSizeCheck`: mock git diff stat with various ratios → passes/fails at threshold.
+- `gitContext` in a test repo → returns formatted string with log and diff. Empty repo → graceful fallback.
+- `gitCommit` → creates commit with correct prefix.
+- `gitRollback` → discards working tree changes.
+- `contextGather` with state containing 3/8 tasks → includes "Task 4/8" and summaries.
+- Custom hook with `command: 'echo ok'` → shell runner handles it, returns passed.
+- Custom hook with `run` function → function called with correct `HookContext`.
+  **Done when**: All built-in hooks produce correct results. Shell runner handles any command. Custom hooks work through the same runtime path.
 
 ### Step 12: Prompt builder (context engineering)
 
@@ -1292,7 +1445,7 @@ Returns two strings: `systemPrompt` (passed via `--append-system-prompt`) and `u
 ```xml
 <rules>
 - Make the minimal change needed to complete the task
-- Run guardrails after making changes
+- Run hooks after making changes
 - When you learn something useful, output: LESSON: [category] description
 - When the task is complete, output: {completionPromise}
 </rules>
@@ -1335,13 +1488,20 @@ abc123f Add CacheStore with basic get/set
 def456a Scaffold cache package with types
 </git_context>
 
-<!-- Only present if previous iteration failed guardrails -->
+<!-- Only present if previous iteration had hook failures -->
 <errors>
-<error source="npm run build" exit_code="1">
+<error source="npm run build" exit_code="1" severity="error">
 src/cache/store.ts(42,5): error TS2322: Type 'string | undefined' is not assignable to type 'string'.
 src/cache/store.ts(57,10): error TS2339: Property 'expiresAt' does not exist on type 'CacheEntry'.
 </error>
 </errors>
+
+<!-- Warnings: non-blocking but visible to LLM -->
+<warnings>
+<warning source="npm run lint" exit_code="1" severity="warn">
+src/cache/store.ts:3:8 lint/unused-imports: Remove unused import 'CacheOptions'
+</warning>
+</warnings>
 
 <!-- Only present after 3+ iterations on same task -->
 <prior_attempts>
@@ -1647,7 +1807,7 @@ claude -p "{assembled prompt with task + lessons + errors + context}" \
 2. Build prompt via `buildPrompt()`:
    - Git context (log, diff stat)
    - Task context (index, completed summaries)
-   - Error block (guardrail failures from last attempt, with full stdout/stderr)
+   - Error block (error-severity hook failures from last attempt, with full stdout/stderr)
    - Lessons block (selected via strategy — recent, token-budget, or digest)
    - Task prompt (the actual work to do)
    - Completion signal instruction
@@ -1657,15 +1817,15 @@ claude -p "{assembled prompt with task + lessons + errors + context}" \
    - `result` event → capture final text, session_id (not stored — fresh context), usage
 4. Parse lessons from accumulated response text
 5. Check for completion signal in response
-6. Run guardrails in configured order — each returns `{ passed, output }`
+6. Run `after` hooks — each returns `{ ok, output }`, checked by severity
 7. **All pass** → run `on-success` steps (git commit) → mark task done → advance
-8. **Any fail** → capture errors in `state.errors` (guardrail name + exit code + last 200 lines of output) → run `on-failure` steps (rollback if regression) → increment iteration → retry same task
+8. **Any error hook fails** → capture in `state.errors` (hook id + exit code + last 200 lines) → run `on-failure` hooks (rollback if regression) → retry same task. Warn hook failures go to `state.warnings` instead.
 9. Track token usage → feed to budget manager
 10. Check budget limits — exceeded → invoke `interact` hook
 11. Check max iterations — exceeded → pause with error
 12. Save state to `delorean-state.json` (crash recovery)
 
-**Dependencies**: Step 3 (LLM), Step 6 (state), Step 8 (logging), Step 9 (lessons), Step 10 (guardrails), Step 11 (steps), Step 12 (prompt builder), Step 13 (budget)
+**Dependencies**: Step 3 (LLM), Step 6 (state), Step 8 (logging), Step 9 (lessons), Step 10 (hooks), Step 12 (prompt builder), Step 13 (budget), Step 20 (hook runner)
 **Test**:
 
 - Happy path: 3 tasks, all pass first try → 3 CLI invocations (no `--resume`), 3 commits, state shows completed
@@ -1675,30 +1835,57 @@ claude -p "{assembled prompt with task + lessons + errors + context}" \
 - Budget exceeded: mock adapter reports high token usage → budget check triggers → interact called
 - Crash recovery: state saved after iteration 2, process killed → restart → `detectEntryPhase` finds state → resumes from task 2, iteration 3
 - Streaming: adapter yields events in real-time → lessons parsed mid-stream → markdown log updated live
-  **Done when**: Full loop executes tasks via fresh CLI invocations. Errors feed back correctly. Lessons accumulate and enter prompts. State persists for crash recovery. Budget enforced. Guardrails gate advancement.
+  **Done when**: Full loop executes via fresh CLI invocations. Errors feed back into `<errors>`, warnings into `<warnings>`. Lessons accumulate and enter prompts. State persists for crash recovery. Budget enforced. Severity levels control blocking behavior.
 
 ### Step 19: Review phase runtime
 
 **Files**: `packages/delorean/src/phases/review.ts`
-**What**: LLM reviews all changes made during execute phase. Prompt includes: original spec, git diff from session start, list of completed tasks. LLM can flag issues. If issues found, can trigger fix iterations (re-enter execute for specific tasks). Runs guardrails one final time. Custom stop point tasks pause for human review.
-**Dependencies**: Step 3 (LLM), Step 6 (state), Step 10 (guardrails), Step 11 (steps)
-**Test**: Mock LLM approves → phase passes. Mock LLM flags issue → verify fix iteration triggered. Final guardrails fail → review fails with clear output.
-**Done when**: Review validates changes. Issues trigger fix loops. Final guardrails run.
+**What**: LLM reviews all changes made during execute phase. Prompt includes: original spec, git diff from session start, list of completed tasks. LLM can flag issues. If issues found, can trigger fix iterations (re-enter execute for specific tasks). Runs hooks one final time. Custom stop point tasks pause for human review.
+**Dependencies**: Step 3 (LLM), Step 6 (state), Step 10 (hooks)
+**Test**: Mock LLM approves → phase passes. Mock LLM flags issue → verify fix iteration triggered. Final gate hooks fail → review fails with clear output.
+**Done when**: Review validates changes. Issues trigger fix loops. Final gates run.
 
-### Step 20: Hooks
+### Step 20: Hook runner (phase runner integration)
 
-**Files**: `packages/delorean/src/hooks.ts`
-**What**: Hook runner that invokes user-provided hooks at lifecycle points:
+**Files**: `packages/delorean/src/hooks/runner.ts`
+**What**: The hook runner resolves and executes hooks for each iteration within a phase. This is the runtime that makes the unified hook model work.
 
-- `beforeIteration(ctx)` — before each LLM invocation in execute
-- `afterIteration(ctx, result)` — after each iteration (with guardrail results)
-- `beforePhase(ctx, phase)` — before each phase starts
-- `afterPhase(ctx, phase, result)` — after each phase completes
+**Resolution**: `resolveHooks(config.hooks, phase.hooks)` merges config-level and phase-level hooks. Same `id` → phase wins. `hooks: []` on phase → no hooks. `hooks: undefined` → inherit all from config.
 
-`ctx` includes: config, state, current phase, current task, iteration count. Hooks are optional — missing hooks are no-ops. Hook errors logged but don't crash the pipeline (configurable: `hooksCanFail: true` makes them fatal).
-**Dependencies**: Step 2 (types), Step 8 (logging)
-**Test**: Register all four hooks → run a minimal pipeline → verify each hook called with correct args in correct order. Hook throws → verify logged but pipeline continues. With `hooksCanFail: true` → pipeline aborts.
-**Done when**: All lifecycle hooks fire correctly. Error handling configurable.
+**Execution order**:
+
+1. Collect hooks by `when` value
+2. Run `before` hooks (parallel or sequential, configurable)
+3. Yield control for LLM invocation (caller handles this)
+4. Run `after` hooks sequentially — check severity on failure:
+   - `severity: 'error'` + `ok: false` → mark iteration as failed, collect error output for `<errors>` block
+   - `severity: 'warn'` + `ok: false` → collect output for `<warnings>` block, does NOT block
+   - `severity: 'info'` + `ok: false` → logged only, not fed to prompt
+   - Any severity + `ok: true` → continue
+5. If all `error`-severity hooks passed → run `on-success` hooks
+6. If any `error`-severity hook failed → run `on-failure` hooks (warnings alone don't trigger failure)
+7. Run `before-phase` / `after-phase` hooks at phase boundaries
+
+**Error handling**:
+
+- `warn`/`info` hook throws → logged, pipeline continues.
+- `error` hook throws (not just returns `passed: false`) → treated as failure, error captured.
+- Hook timeout → killed after `timeoutPerIteration`, treated as failure.
+
+**Dependencies**: Step 2 (types), Step 4 (hook factories), Step 8 (logging)
+**Test**:
+
+- Resolve: config has `[build, test]`, phase has `[build({command:'tsc'})]` → resolved has phase's build + config's test.
+- Resolve: phase has `hooks: []` → resolved is empty.
+- Execution order: register hooks with various `when` values → verify execution order matches spec.
+- Error failure: `after` hook with `severity: 'error'` returns `{ ok: false }` → `on-failure` hooks run, `on-success` skipped.
+- Warn failure: `severity: 'warn'` returns `{ ok: false }` → output collected for `<warnings>` block, does NOT trigger failure.
+- All errors pass: → `on-success` hooks run.
+- Info/warn hook throws: logged, pipeline continues.
+- Custom hook with `run` function → receives correct `HookContext`.
+- Custom hook with `command` → shell runner executes it.
+- `before-phase` / `after-phase` hooks fire at correct boundaries.
+  **Done when**: Hook resolution merges correctly. Execution order is deterministic. Severity-based blocking works. Warnings collected separately from errors. Custom hooks integrate seamlessly.
 
 ### Step 21: CLI
 
@@ -1711,7 +1898,7 @@ claude -p "{assembled prompt with task + lessons + errors + context}" \
 - `--resume` — force resume from state
 - `--max-iterations <n>` — override
 - `--model <string>` — override
-- `--dry-run` — preview phases, tasks, guardrails without invoking LLM
+- `--dry-run` — preview phases, tasks, hooks without invoking LLM
 - `--config <path>` — custom config file path
 
 Flow:
@@ -1737,12 +1924,12 @@ Flow:
 ```typescript
 export { defineConfig } from './config';
 export { phases } from './phases';
-export { guardrails } from './guardrails';
+export { hooks } from './hooks';
 export { steps } from './steps';
 export { createClaudeCliAdapter } from './llm/claude-cli';
 export { createClaudeSdkAdapter } from './llm/claude-sdk';
 export { createMockAdapter } from './llm/mock-adapter';
-export type { DeloreanConfig, Phase, Guardrail, Step, LLMAdapter, MockAdapter, ... } from './types';
+export type { DeloreanConfig, Phase, Hook, HookResult, LLMAdapter, MockAdapter, ... } from './types';
 ```
 
 Verify no internal implementation details leak. Tree-shakeable — each export independently importable.
@@ -1773,21 +1960,21 @@ Verify no internal implementation details leak. Tree-shakeable — each export i
 ```typescript
 defineConfig({
   phases: [phases.execute({ allowedTools: ["Read", "Edit", "Bash"] })],
-  guardrails: [
-    guardrails.build({ command: "npx tsc --noEmit" }),
-    guardrails.test({ command: "npm run test:unit -- --reporter=verbose" }),
+  hooks: [
+    hooks.build({ command: "npx tsc --noEmit" }),
+    hooks.test({ command: "npm run test:unit -- --reporter=verbose" }),
   ],
 });
 ```
 
-**Verify**: Execute phase LLM invocation receives `allowedTools: ['Read', 'Edit', 'Bash']`. Build guardrail runs `npx tsc --noEmit` (not `npm run build`). Test guardrail runs the custom test command.
+**Verify**: Execute phase LLM invocation receives `allowedTools: ['Read', 'Edit', 'Bash']`. Build hook runs `npx tsc --noEmit` (not `npm run build`). Test hook runs the custom command.
 
 ### V4: Error feedback loop
 
 **Setup**: Task that writes TypeScript with a deliberate type error.
 **Iteration 1**: LLM writes code → `npx tsc --noEmit` fails → error captured in state.
 **Iteration 2**: Prompt contains "## Errors from previous attempt\n### build (exit code 1)\n{tsc error output}". LLM fixes the type error → build passes → task advances.
-**Verify**: `state.errors` populated after iteration 1, cleared after iteration 2. Prompt builder output contains exact error text. JSONL log shows `error-captured` then `guardrail-result: passed`.
+**Verify**: `state.errors` populated after iteration 1, cleared after iteration 2. Prompt builder output contains exact error text in `<errors>` XML block. JSONL log shows `error-captured` then `hook-result: ok`.
 
 ### V5: Lesson accumulation across iterations
 
@@ -1804,7 +1991,7 @@ defineConfig({
 ### V7: Git auto-commit + rollback on regression
 
 **Setup**: Test repo with 10 passing tests.
-**Iteration 1**: LLM adds feature + test (11 tests) → guardrails pass → auto-commit.
+**Iteration 1**: LLM adds feature + test (11 tests) → hooks pass → auto-commit.
 **Iteration 2**: LLM refactors, accidentally deletes a test (10 tests) → `noTestRegression` fails → `gitRollback` fires → changes discarded → error fed back.
 **Iteration 3**: LLM re-does refactor, keeps all tests (11 tests) → passes → commit.
 **Verify**: Git log shows commit from iteration 1, no commit from iteration 2, commit from iteration 3. State tracks test count. Rollback left working tree clean.
@@ -1872,12 +2059,14 @@ Phases:
   4. execute (needs: plan.md)
   5. review
 
-Guardrails:
-  - build: npm run build
-  - lint: npm run lint
-  - test: npm run test
-  - no-test-regression
-  - diff-size-check
+Hooks:
+  - build (error): npm run build
+  - lint (error): npm run lint
+  - test (error): npm run test
+  - no-test-regression (error)
+  - diff-size-check (error)
+  - git-context (info): before
+  - git-commit (info): on-success
 
 No LLM invocations. Exiting.
 ```
