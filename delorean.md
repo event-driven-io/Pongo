@@ -83,27 +83,31 @@ packages/delorean/
 │   ├── helpers/
 │   │   ├── fixture.ts        # createFixture() — temp dir, config, state, git repo setup
 │   │   └── scenarios.ts      # Canned LLM response scripts for common flows
-│   ├── unit/                 # Unit tests — mock adapter, no filesystem
-│   │   ├── prompt-builder.test.ts
-│   │   ├── lesson-store.test.ts
-│   │   ├── budget.test.ts
-│   │   ├── resume.test.ts
-│   │   └── config.test.ts
-│   ├── integration/          # Integration tests — mock adapter + real filesystem
-│   │   ├── brainstorm.test.ts
-│   │   ├── execute-loop.test.ts
-│   │   ├── session-resume.test.ts
-│   │   ├── hook-feedback.test.ts
-│   │   └── crash-recovery.test.ts
-│   └── e2e/                  # End-to-end — spawns `npx delorean` as child process
-│       ├── cli-flags.test.ts
-│       ├── dry-run.test.ts
-│       └── full-pipeline.test.ts
+│   ├── prompt-builder.unit.spec.ts
+│   ├── lesson-store.unit.spec.ts
+│   ├── budget.unit.spec.ts
+│   ├── resume.unit.spec.ts
+│   ├── config.unit.spec.ts
+│   ├── mock-adapter.unit.spec.ts
+│   ├── hook-factories.unit.spec.ts
+│   ├── hook-runner.unit.spec.ts
+│   ├── state.unit.spec.ts
+│   ├── claude-cli.unit.spec.ts
+│   ├── brainstorm.int.spec.ts
+│   ├── execute-loop.int.spec.ts
+│   ├── session-resume.int.spec.ts
+│   ├── hook-feedback.int.spec.ts
+│   ├── crash-recovery.int.spec.ts
+│   ├── cli-flags.e2e.spec.ts
+│   ├── dry-run.e2e.spec.ts
+│   └── full-pipeline.e2e.spec.ts
 ├── package.json
 └── tsconfig.json
 ```
 
 ## Testing strategy
+
+**TDD throughout**: Every implementation step writes tests first, runs them to see them fail, then implements until green. Tests use vitest with `describe`/`it` syntax and `node:assert` (not vitest's `expect`). File naming follows Pongo convention: `.unit.spec.ts`, `.int.spec.ts`, `.e2e.spec.ts`.
 
 Three test layers, all using `createMockAdapter()` — no real LLM calls in CI.
 
@@ -198,7 +202,7 @@ const adapter = createMockAdapter({ responses: scenarios.executeWithLessons });
 
 ### Test layers
 
-**Unit tests** — test individual functions with mock adapter, no filesystem:
+**Unit tests** (`*.unit.spec.ts`) — test individual functions with mock adapter, no filesystem:
 
 - `buildPrompt()` with various state combinations
 - Lesson selection strategies
@@ -206,7 +210,7 @@ const adapter = createMockAdapter({ responses: scenarios.executeWithLessons });
 - Config validation
 - Resume detection logic
 
-**Integration tests** — test phase runtimes with mock adapter + real filesystem (temp dirs):
+**Integration tests** (`*.int.spec.ts`) — test phase runtimes with mock adapter + real filesystem (temp dirs):
 
 - Brainstorm Q&A loop: mock adapter returns questions, mock interact returns answers → verify qa.md written
 - Execute loop: mock adapter + real hooks (`echo ok` / `exit 1`) → verify error feedback, lesson accumulation, state progression
@@ -214,59 +218,87 @@ const adapter = createMockAdapter({ responses: scenarios.executeWithLessons });
 - Hook feedback: error hook fails → verify error text appears in next iteration's prompt
 - Crash recovery: write state mid-run → call phase runner with that state → verify it picks up where it left off
 
-**E2E tests** — spawn `npx delorean` as a child process against a fixture directory with a mock adapter config:
+**E2E tests** (`*.e2e.spec.ts`) — spawn `npx delorean` as a child process against a fixture directory with a mock adapter config:
 
 - `--dry-run` → verify output lists phases and hooks, no adapter calls
 - `--from execute` → verify pipeline starts at execute
 - `"build a thing"` positional arg → verify brainstorm phase receives idea
 - Full pipeline with mock adapter → verify all artifacts created, state completed
 
+### Test conventions
+
+All tests use `describe`/`it` from vitest and `assert` from `node:assert`:
+
+```typescript
+import assert from "node:assert";
+import { describe, it, beforeAll, afterAll } from "vitest";
+
+describe("FeatureName", () => {
+  describe("methodOrBehavior", () => {
+    it("describes expected outcome", () => {
+      const result = functionUnderTest(input);
+      assert.strictEqual(result, expected);
+    });
+  });
+});
+```
+
 ### E2E test pattern
 
 ```typescript
-test("dry-run lists phases without invoking adapter", async () => {
-  const fixture = await createFixture({
-    config: { adapter: createMockAdapter({ responses: [] }) },
+import assert from "node:assert";
+import { describe, it, afterAll } from "vitest";
+
+describe("CLI", () => {
+  describe("--dry-run", () => {
+    it("lists phases without invoking adapter", async () => {
+      const fixture = await createFixture({
+        config: { adapter: createMockAdapter({ responses: [] }) },
+      });
+
+      const result = await spawn("npx", ["delorean", "--dry-run"], {
+        cwd: fixture.cwd,
+      });
+
+      assert.ok(result.stdout.includes("brainstorm → qa.md"));
+      assert.ok(result.stdout.includes("execute"));
+      assert.strictEqual(result.exitCode, 0);
+      assert.strictEqual(fixture.adapter.callCount, 0);
+
+      await fixture.cleanup();
+    });
   });
 
-  const result = await spawn("npx", ["delorean", "--dry-run"], {
-    cwd: fixture.cwd,
+  describe("execute retry", () => {
+    it("retries on error-severity hook failure", async () => {
+      const adapter = createMockAdapter({
+        responses: scenarios.executeFailThenPass,
+      });
+      const fixture = await createFixture({
+        config: {
+          adapter,
+          phases: [phases.execute()],
+          hooks: [hooks.build({ command: "npm run build" })],
+        },
+        files: { "plan.md": "## Task 1\nImplement cache" },
+        state: {
+          tasks: [{ id: "1", title: "Cache", prompt: "Implement cache" }],
+        },
+        git: true,
+      });
+
+      await spawn("npx", ["delorean"], { cwd: fixture.cwd });
+
+      assert.strictEqual(adapter.callCount, 2);
+      assert.ok(
+        adapter.calls[1].prompt.includes("Errors from previous attempt"),
+      );
+      const state = await fixture.readState();
+      assert.strictEqual(state.status, "completed");
+
+      await fixture.cleanup();
+    });
   });
-
-  expect(result.stdout).toContain("brainstorm → qa.md");
-  expect(result.stdout).toContain("execute");
-  expect(result.exitCode).toBe(0);
-  expect(fixture.adapter.callCount).toBe(0);
-
-  await fixture.cleanup();
-});
-
-test("execute retries on gate hook failure", async () => {
-  const adapter = createMockAdapter({
-    responses: scenarios.executeFailThenPass,
-  });
-  const fixture = await createFixture({
-    config: {
-      adapter,
-      phases: [phases.execute()],
-      hooks: [hooks.build({ command: "npm run build" })],
-    },
-    files: { "plan.md": "## Task 1\nImplement cache" },
-    state: { tasks: [{ id: "1", title: "Cache", prompt: "Implement cache" }] },
-    git: true,
-  });
-
-  await spawn("npx", ["delorean"], { cwd: fixture.cwd });
-
-  // Adapter called twice — first attempt failed, second passed
-  expect(adapter.callCount).toBe(2);
-  // Second call's prompt contains error from first hook failure
-  expect(adapter.calls[1].prompt).toContain("Errors from previous attempt");
-  // State shows completed
-  const state = await fixture.readState();
-  expect(state.status).toBe("completed");
-
-  await fixture.cleanup();
 });
 ```
 
@@ -424,7 +456,7 @@ const notifySlack: Hook = {
       method: "POST",
       body: JSON.stringify({ text: `Phase ${ctx.phase.id} completed` }),
     });
-    return { passed: true };
+    return { ok: true };
   },
 };
 
@@ -1049,19 +1081,75 @@ type DeloreanState = {
 
 ## Implementation steps
 
+**TDD process for every step**: (1) Write test file with `describe`/`it` structure using vitest + `node:assert`. (2) Run tests — confirm they fail. (3) Implement the minimum code to pass. (4) Refactor while green. Tests use Pongo conventions: `.unit.spec.ts`, `.int.spec.ts`, `.e2e.spec.ts`.
+
 ### Step 1: Scaffold package
 
-**Files**: `packages/delorean/package.json`, `packages/delorean/tsconfig.json`, `packages/delorean/src/index.ts`
-**What**: Create the workspace package. No SDK dependency needed — CLI adapter is default. Add to root `package.json` workspaces. Minimal `src/index.ts` that exports nothing yet.
+**Files**: `packages/delorean/package.json`, `packages/delorean/tsconfig.json`, `packages/delorean/vitest.config.ts`, `packages/delorean/src/index.ts`
+**What**: Create the workspace package. No SDK dependency needed — CLI adapter is default. Add to root `package.json` workspaces. Minimal `src/index.ts` that exports nothing yet. Add vitest as dev dependency. Configure vitest to follow Pongo's shared config pattern (reference `src/vitest.shared.ts`).
+
+```typescript
+// packages/delorean/vitest.config.ts
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    environment: "node",
+    include: ["**/*.spec.ts"],
+    exclude: ["**/node_modules/**", "**/dist/**"],
+    hookTimeout: 30_000,
+    testTimeout: 30_000,
+  },
+});
+```
+
 **Dependencies**: None (first step)
-**Done when**: `npm install` succeeds from repo root, `npx tsc --noEmit` passes on the empty package.
+**Done when**: `npm install` succeeds from repo root, `npx tsc --noEmit` passes on the empty package, `vitest run` passes (no tests yet, zero failures).
 
 ### Step 2: Core types
 
-**Files**: `packages/delorean/src/types.ts`
+**Files**: `packages/delorean/src/types.ts`, `packages/delorean/test/types.unit.spec.ts`
 **What**: Define all type definitions: `Phase`, `Hook`, `HookResult`, `HookContext`, `HookError`, `LLMAdapter`, `LLMInvokeOptions`, `LLMMessage`, `DeloreanConfig`, `DeloreanState`, `PhaseContext`, `PhaseResult`, `Task`, `Lesson`, `LessonStrategy`, `IterationResult`. No runtime code — pure types. Export everything from `index.ts`.
 **Dependencies**: Step 1
-**Done when**: Types compile. A test file can import every type without errors.
+
+**TDD**: Write the test file first — it imports every type and asserts they're usable (type-level checks that compile). Then define the types to make it pass.
+
+```typescript
+// test/types.unit.spec.ts — write FIRST
+import assert from "node:assert";
+import { describe, it } from "vitest";
+import type {
+  Phase,
+  Hook,
+  HookResult,
+  DeloreanConfig,
+  DeloreanState,
+  LLMAdapter,
+  Task,
+  Lesson,
+} from "../src/types";
+
+describe("Core types", () => {
+  it("Phase accepts valid shape", () => {
+    const phase: Phase = { id: "test" };
+    assert.strictEqual(phase.id, "test");
+  });
+
+  it("Hook accepts command-based hook", () => {
+    const hook: Hook = { id: "build", when: "after", command: "npm run build" };
+    assert.strictEqual(hook.severity, undefined); // defaults applied at runtime
+  });
+
+  it("HookResult conveys success or failure", () => {
+    const ok: HookResult = { ok: true };
+    const fail: HookResult = { ok: false, output: "error text" };
+    assert.strictEqual(ok.ok, true);
+    assert.strictEqual(fail.ok, false);
+  });
+});
+```
+
+**Done when**: Types compile. Test file imports every type without errors. `vitest run` passes.
 
 ### Step 3: LLM adapter interface + Claude CLI adapter (default)
 
@@ -1157,18 +1245,66 @@ type ClaudeCliAdapterOptions = {
 ```
 
 **Dependencies**: Step 2 (needs `LLMAdapter`, `LLMMessage`, `LLMInvokeOptions` types)
-**Test**:
 
-- Unit: mock child process emitting JSON lines → verify `LLMMessage` objects yielded with correct content, sessionId, tokenUsage
-- Unit: mock child process emitting buffered JSON → verify single LLMMessage with result, sessionId, usage
-- Unit: `--resume` flag passed when `options.sessionId` set, omitted when not
-- Unit: `--json-schema` flag passed when `options.jsonSchema` set
-- Unit: timeout → process killed, error thrown with descriptive message
-- Unit: non-zero exit → error with stderr content
-- Unit: malformed JSON line → warning logged, parsing continues
-- Integration (guarded by `which claude`): invoke `claude -p "say hello" --output-format json` → verify response has `result`, `session_id`, `usage` fields
-- Integration: two sequential calls with `--resume` → verify second call has context from first
-  **Done when**: Both output formats parse correctly. Session IDs captured and re-passed. Timeouts, errors, and malformed output handled gracefully.
+**TDD**: Write `test/claude-cli.unit.spec.ts` first. Mock `child_process.spawn` to emit canned NDJSON/JSON output. All tests fail initially, then implement `createClaudeCliAdapter` to make them green.
+
+```typescript
+// test/claude-cli.unit.spec.ts — write FIRST
+import assert from "node:assert";
+import { describe, it } from "vitest";
+
+describe("createClaudeCliAdapter", () => {
+  describe("stream-json parsing", () => {
+    it("yields LLMMessage from assistant events", async () => {
+      /* ... */
+    });
+    it("captures session_id from init event", async () => {
+      /* ... */
+    });
+    it("yields token usage from result event", async () => {
+      /* ... */
+    });
+    it("skips malformed JSON lines without crashing", async () => {
+      /* ... */
+    });
+  });
+
+  describe("json parsing", () => {
+    it("yields single LLMMessage from buffered output", async () => {
+      /* ... */
+    });
+    it("includes structured_output when json-schema used", async () => {
+      /* ... */
+    });
+  });
+
+  describe("CLI flag assembly", () => {
+    it("passes --resume when sessionId provided", async () => {
+      /* ... */
+    });
+    it("omits --resume when no sessionId", async () => {
+      /* ... */
+    });
+    it("passes --json-schema when jsonSchema provided", async () => {
+      /* ... */
+    });
+    it("passes --allowedTools as comma-separated list", async () => {
+      /* ... */
+    });
+  });
+
+  describe("error handling", () => {
+    it("throws CliAdapterError on non-zero exit", async () => {
+      /* ... */
+    });
+    it("kills process after timeout", async () => {
+      /* ... */
+    });
+  });
+});
+```
+
+**Done when**: Both output formats parse correctly. Session IDs captured and re-passed. Timeouts, errors, and malformed output handled gracefully.
 
 ### Step 3b: Mock adapter + test infrastructure
 
@@ -1237,17 +1373,75 @@ Key detail: `createFixture` writes a real `delorean.config.ts` that imports the 
 - `scenarios.executeTestRegression` — response causes test count to drop
 
 **Dependencies**: Step 2 (types), Step 3 (LLMAdapter interface — mock must conform)
-**Test**: Mock adapter itself needs tests:
 
-- `responses` mode: 3 responses configured → 3 calls work, 4th throws
-- `handler` mode: handler receives correct prompt and options
-- `calls` tracking: after 3 invocations, `callCount === 3`, `lastCall` is most recent
-- `assertCalledWith({ sessionId: 'abc' })` passes when sessionId was passed, throws when not
-- `assertPromptContains('error')` checks prompt text at given call index
-- `reset()` clears call history
-- Fixture: creates temp dir, writes config/state/files, cleanup removes everything
-- Fixture: `readState()` returns parsed state, `fileExists()` checks artifacts
-  **Done when**: Mock adapter passes all assertion tests. Fixture creates/cleans temp dirs. Scenarios produce correctly shaped responses. All three are importable from test helpers.
+**TDD**: Write `test/mock-adapter.unit.spec.ts` first. Define the mock adapter's expected behavior through tests, then implement to satisfy them.
+
+```typescript
+// test/mock-adapter.unit.spec.ts — write FIRST
+import assert from "node:assert";
+import { describe, it } from "vitest";
+
+describe("createMockAdapter", () => {
+  describe("responses mode", () => {
+    it("yields responses in order", async () => {
+      /* ... */
+    });
+    it("throws when responses exhausted", async () => {
+      /* ... */
+    });
+    it("tracks each call in calls array", async () => {
+      /* ... */
+    });
+  });
+
+  describe("handler mode", () => {
+    it("passes prompt and options to handler", async () => {
+      /* ... */
+    });
+    it("returns handler result as LLMMessage", async () => {
+      /* ... */
+    });
+  });
+
+  describe("assertions", () => {
+    it("assertCalledWith passes on matching options", async () => {
+      /* ... */
+    });
+    it("assertCalledWith throws on mismatch", async () => {
+      /* ... */
+    });
+    it("assertPromptContains checks specific call index", async () => {
+      /* ... */
+    });
+  });
+
+  describe("reset", () => {
+    it("clears call history", async () => {
+      /* ... */
+    });
+  });
+});
+
+describe("createFixture", () => {
+  it("creates temp dir with specified files", async () => {
+    /* ... */
+  });
+  it("writes delorean-state.json from state config", async () => {
+    /* ... */
+  });
+  it("initializes git repo when git: true", async () => {
+    /* ... */
+  });
+  it("cleanup removes temp dir", async () => {
+    /* ... */
+  });
+  it("readState parses delorean-state.json", async () => {
+    /* ... */
+  });
+});
+```
+
+**Done when**: Mock adapter passes all assertion tests. Fixture creates/cleans temp dirs. Scenarios produce correctly shaped responses. All three are importable from test helpers.
 
 ### Step 3c (optional): Claude SDK adapter
 
@@ -1284,20 +1478,116 @@ Hook factories (all return `Hook` objects):
 
 Each override param is `Partial<Phase>` or `Partial<Hook>`. The factory merges overrides onto defaults.
 **Dependencies**: Step 2 (needs types)
-**Test**: For each factory: call with no args → assert all required fields present with correct defaults. Call with overrides → assert overrides applied, defaults preserved for unspecified fields. Verify:
 
-- `phases.execute({ allowedTools: ['Read'] })` → has `allowedTools: ['Read']` and default hooks
-- `hooks.build({ command: 'npx tsc' })` → has `command: 'npx tsc'` but still `severity: 'error'`, `when: 'after'`
-- `hooks.build()` returns a `Hook` with `severity: 'error'`
-- Custom hook object `{ id: 'custom', when: 'after', severity: 'error', command: 'echo ok' }` passes type check
-  **Done when**: All factories exported from `index.ts`. Every factory produces a valid typed object. Override merging works. Custom hooks conform to the same type.
+**TDD**: Write `test/hook-factories.unit.spec.ts` and phase factory tests first. Define expected defaults through assertions, then implement factories to pass.
+
+```typescript
+// test/hook-factories.unit.spec.ts — write FIRST
+import assert from "node:assert";
+import { describe, it } from "vitest";
+
+describe("Hook factories", () => {
+  describe("build", () => {
+    it("returns error severity by default", () => {
+      /* ... */
+    });
+    it("uses npm run build as default command", () => {
+      /* ... */
+    });
+    it("merges overrides preserving defaults", () => {
+      // hooks.build({ command: 'npx tsc' }) → severity still 'error'
+    });
+  });
+
+  describe("test", () => {
+    it("returns error severity with npm run test", () => {
+      /* ... */
+    });
+  });
+
+  describe("gitCommit", () => {
+    it("runs on-success", () => {
+      /* ... */
+    });
+  });
+
+  describe("gitContext", () => {
+    it("runs before", () => {
+      /* ... */
+    });
+  });
+});
+
+describe("Phase factories", () => {
+  describe("brainstorm", () => {
+    it("produces qa.md with resume strategy", () => {
+      /* ... */
+    });
+    it("has empty hooks array (opts out)", () => {
+      /* ... */
+    });
+  });
+
+  describe("execute", () => {
+    it("uses fresh session strategy", () => {
+      /* ... */
+    });
+    it("needs plan.md", () => {
+      /* ... */
+    });
+    it("merges allowedTools override", () => {
+      /* ... */
+    });
+  });
+});
+```
+
+**Done when**: All factories exported from `index.ts`. Every factory produces a valid typed object. Override merging works. Custom hooks conform to the same type.
 
 ### Step 5: Config loader + `defineConfig`
 
 **Files**: `packages/delorean/src/config.ts`
 **What**: `defineConfig(partial)` validates and fills defaults (default phases, hooks, model, maxIterations, etc.). `loadConfig(cwd)` finds and imports `delorean.config.ts` from the working directory, calls `defineConfig` on it, merges CLI arg overrides. Validation: phases must have unique `id`s, hooks must have unique `id`s, `produces` fields must not conflict. Hook resolution: phase-level hooks merge with config-level, deduplicated by `id` (phase wins).
 **Dependencies**: Step 2 (types), Step 4 (default factories used for filling defaults)
-**Test**: `defineConfig({})` returns full config with all defaults. `defineConfig({ phases: [phases.execute()] })` keeps only execute. Invalid config (duplicate ids) throws descriptive error. CLI overrides (`{ model: 'claude-opus-4-6' }`) merge correctly.
+
+**TDD**: Write `test/config.unit.spec.ts` first.
+
+```typescript
+// test/config.unit.spec.ts — write FIRST
+import assert from "node:assert";
+import { describe, it } from "vitest";
+
+describe("defineConfig", () => {
+  it("fills all defaults when given empty object", () => {
+    /* ... */
+  });
+  it("preserves user-specified phases", () => {
+    /* ... */
+  });
+  it("throws on duplicate phase ids", () => {
+    /* ... */
+  });
+  it("throws on duplicate hook ids", () => {
+    /* ... */
+  });
+  it("throws on conflicting produces fields", () => {
+    /* ... */
+  });
+  it("merges CLI overrides onto config", () => {
+    /* ... */
+  });
+});
+
+describe("loadConfig", () => {
+  it("imports delorean.config.ts from cwd", async () => {
+    /* ... */
+  });
+  it("throws descriptive error when config missing", async () => {
+    /* ... */
+  });
+});
+```
+
 **Done when**: `defineConfig` produces a fully resolved `DeloreanConfig`. `loadConfig` can import a real `.ts` config file.
 
 ### Step 6: State manager
@@ -1305,7 +1595,44 @@ Each override param is `Partial<Phase>` or `Partial<Hook>`. The factory merges o
 **Files**: `packages/delorean/src/state.ts`
 **What**: `loadState(cwd)` reads `delorean-state.json`, returns `DeloreanState` or `null`. `saveState(cwd, state)` writes atomically (write to `.tmp`, rename). `createInitialState(tasks)` returns a fresh state. State includes: `status`, `currentPhase`, `currentTask`, `iteration`, `tasks`, `lessons`, `errors`, `qaHistory`, `cost`.
 **Dependencies**: Step 2 (needs `DeloreanState` type)
-**Test**: Round-trip: create → save → load → assert equal. Atomic write: verify `.tmp` file doesn't linger. `loadState` on missing file returns `null`. Corrupt JSON throws descriptive error.
+
+**TDD**: Write `test/state.unit.spec.ts` first.
+
+```typescript
+// test/state.unit.spec.ts — write FIRST
+import assert from "node:assert";
+import { describe, it, beforeAll, afterAll } from "vitest";
+
+describe("State manager", () => {
+  describe("createInitialState", () => {
+    it("returns state with idle status", () => {
+      /* ... */
+    });
+    it("includes provided tasks", () => {
+      /* ... */
+    });
+  });
+
+  describe("saveState / loadState", () => {
+    it("round-trips state through JSON", async () => {
+      /* ... */
+    });
+    it("writes atomically (no lingering .tmp)", async () => {
+      /* ... */
+    });
+  });
+
+  describe("loadState", () => {
+    it("returns null when file missing", async () => {
+      /* ... */
+    });
+    it("throws on corrupt JSON", async () => {
+      /* ... */
+    });
+  });
+});
+```
+
 **Done when**: State persists across process restarts. Atomic writes prevent corruption on crash.
 
 ### Step 7: Smart resume
@@ -1320,15 +1647,54 @@ Each override param is `Partial<Phase>` or `Partial<Hook>`. The factory merges o
 
 `--from <phaseId>` override: validate phase exists, check `needs` are satisfied (warn if not, proceed anyway).
 **Dependencies**: Step 5 (config), Step 6 (state)
-**Test**: Create temp dirs with various artifact combinations:
 
-- Empty dir → returns first phase (`brainstorm`)
-- `qa.md` present → returns `spec`
-- `spec.md` present → returns `plan`
-- `plan.md` present → returns `execute`
-- `delorean-state.json` with `currentPhase: 'execute'`, `currentTask: 3` → returns `execute` at task 3
-- `--from plan` with no `spec.md` → warns but returns `plan`
-  **Done when**: All artifact-detection scenarios resolve to correct phase. `--from` override works with validation.
+**TDD**: Write `test/resume.unit.spec.ts` first. Each artifact scenario becomes a test case.
+
+```typescript
+// test/resume.unit.spec.ts — write FIRST
+import assert from "node:assert";
+import { describe, it } from "vitest";
+
+describe("detectEntryPhase", () => {
+  describe("artifact scanning", () => {
+    it("returns brainstorm for empty directory", async () => {
+      /* ... */
+    });
+    it("returns spec when qa.md present", async () => {
+      /* ... */
+    });
+    it("returns plan when spec.md present", async () => {
+      /* ... */
+    });
+    it("returns execute when plan.md present", async () => {
+      /* ... */
+    });
+  });
+
+  describe("state-based resume", () => {
+    it("resumes from state when delorean-state.json exists", async () => {
+      /* ... */
+    });
+    it("restores currentTask from state", async () => {
+      /* ... */
+    });
+    it("ignores completed state", async () => {
+      /* ... */
+    });
+  });
+
+  describe("--from override", () => {
+    it("forces start from specified phase", async () => {
+      /* ... */
+    });
+    it("warns when needs not satisfied", async () => {
+      /* ... */
+    });
+  });
+});
+```
+
+**Done when**: All artifact-detection scenarios resolve to correct phase. `--from` override works with validation.
 
 ### Step 8: Logging
 
@@ -1340,7 +1706,42 @@ Each override param is `Partial<Phase>` or `Partial<Hook>`. The factory merges o
 
 Both create files in `delorean-logs/` named `{ISO-timestamp}.{jsonl,md}`.
 **Dependencies**: Step 2 (event types)
-**Test**: Log a sequence of events → read file back → parse JSONL lines → assert each event has correct shape and timestamp. Markdown logger: log events → read file → assert contains expected headers and content blocks. Verify file creation with correct naming.
+
+**TDD**: Write `test/logging.unit.spec.ts` first.
+
+```typescript
+// test/logging.unit.spec.ts — write FIRST
+import assert from "node:assert";
+import { describe, it } from "vitest";
+
+describe("JSONL logger", () => {
+  it("creates file in delorean-logs/ with ISO timestamp name", async () => {
+    /* ... */
+  });
+  it("appends one JSON object per line", async () => {
+    /* ... */
+  });
+  it("includes timestamp on each event", async () => {
+    /* ... */
+  });
+  it("handles all event types", async () => {
+    /* ... */
+  });
+});
+
+describe("Markdown logger", () => {
+  it("creates .md file in delorean-logs/", async () => {
+    /* ... */
+  });
+  it("formats phase transitions as headers", async () => {
+    /* ... */
+  });
+  it("formats errors as code blocks", async () => {
+    /* ... */
+  });
+});
+```
+
 **Done when**: Both loggers produce parseable, timestamped output. Files appear in `delorean-logs/`.
 
 ### Step 9: Lesson store + strategies
@@ -1389,16 +1790,80 @@ Built-in strategies:
 ```
 
 **Dependencies**: Step 2 (types), Step 6 (state — lessons stored in state)
-**Test**:
 
-- Add 20 lessons across 4 categories. `recent(5)` returns last 5 + category matches (may exceed 5 if matches found).
-- `tokenBudget(200)` returns subset fitting budget, highest-scored lessons first.
-- Dedup: add two lessons with same category and similar description → only one stored, `violationCount: 2`.
-- Primacy/recency: select 5 lessons → most-violated is first, second-most-violated is last.
-- Lesson parsing: extract from multi-line LLM output containing code, prose, and `LESSON:` lines → only lessons extracted.
-- Edge: no lessons → empty array. Single lesson → returned as-is. Lesson with unknown category → stored normally.
-- Promote: after error hook failure that matches a lesson's category, that lesson's `lastViolatedAt` updates → it moves to position 1 in next selection.
-  **Done when**: Strategies produce correctly ordered subsets. Dedup prevents bloat. Primacy/recency ordering verified. Parser handles realistic LLM output. Violation tracking works.
+**TDD**: Write `test/lesson-store.unit.spec.ts` first.
+
+```typescript
+// test/lesson-store.unit.spec.ts — write FIRST
+import assert from "node:assert";
+import { describe, it } from "vitest";
+
+describe("LessonStore", () => {
+  describe("addLesson", () => {
+    it("stores a new lesson", () => {
+      /* ... */
+    });
+    it("deduplicates by category + similar description", () => {
+      /* ... */
+    });
+    it("increments violationCount on dedup", () => {
+      /* ... */
+    });
+  });
+
+  describe("selectForPrompt", () => {
+    describe("recent strategy", () => {
+      it("returns last N lessons", () => {
+        /* ... */
+      });
+      it("includes category matches beyond N", () => {
+        /* ... */
+      });
+    });
+
+    describe("tokenBudget strategy", () => {
+      it("fits lessons within token budget", () => {
+        /* ... */
+      });
+      it("scores by relevance × recency × violationCount", () => {
+        /* ... */
+      });
+    });
+
+    describe("primacy/recency ordering", () => {
+      it("places most-violated lesson first", () => {
+        /* ... */
+      });
+      it("places second-most-violated lesson last", () => {
+        /* ... */
+      });
+    });
+  });
+
+  describe("edge cases", () => {
+    it("returns empty array when no lessons", () => {
+      /* ... */
+    });
+    it("returns single lesson as-is", () => {
+      /* ... */
+    });
+  });
+});
+
+describe("parseLessons", () => {
+  it("extracts LESSON: [category] description from text", () => {
+    /* ... */
+  });
+  it("handles multi-line output with code and prose", () => {
+    /* ... */
+  });
+  it("ignores lines without LESSON: prefix", () => {
+    /* ... */
+  });
+});
+```
+
+**Done when**: Strategies produce correctly ordered subsets. Dedup prevents bloat. Primacy/recency ordering verified. Parser handles realistic LLM output. Violation tracking works.
 
 ### Step 10: Built-in hook implementations
 
@@ -1420,18 +1885,78 @@ Built-in strategies:
 - `context-gather.ts` — assembles situation report: current task index/total, completed task summaries, modified file tree.
 
 **Dependencies**: Step 2 (types), Step 4 (hook factories wire these as `run` functions), Step 6 (state)
-**Test**:
 
-- `runShellCommand` with `echo "ok"` → passes. With `exit 1` → fails, captures output.
-- `noTestRegression`: mock test output "Tests: 10 passed" then "Tests: 8 passed" → regression detected.
-- `diffSizeCheck`: mock git diff stat with various ratios → passes/fails at threshold.
-- `gitContext` in a test repo → returns formatted string with log and diff. Empty repo → graceful fallback.
-- `gitCommit` → creates commit with correct prefix.
-- `gitRollback` → discards working tree changes.
-- `contextGather` with state containing 3/8 tasks → includes "Task 4/8" and summaries.
-- Custom hook with `command: 'echo ok'` → shell runner handles it, returns passed.
-- Custom hook with `run` function → function called with correct `HookContext`.
-  **Done when**: All built-in hooks produce correct results. Shell runner handles any command. Custom hooks work through the same runtime path.
+**TDD**: Write `test/hooks-shell.unit.spec.ts`, `test/hooks-drift.unit.spec.ts`, `test/hooks-git.int.spec.ts` first.
+
+```typescript
+// test/hooks-shell.unit.spec.ts — write FIRST
+import assert from "node:assert";
+import { describe, it } from "vitest";
+
+describe("runShellCommand", () => {
+  it("returns ok: true for exit code 0", async () => {
+    /* ... */
+  });
+  it("returns ok: false for non-zero exit", async () => {
+    /* ... */
+  });
+  it("captures stdout and stderr in output", async () => {
+    /* ... */
+  });
+  it("truncates output beyond 200 lines", async () => {
+    /* ... */
+  });
+});
+
+// test/hooks-drift.unit.spec.ts — write FIRST
+describe("noTestRegression", () => {
+  it("passes when test count stays same", async () => {
+    /* ... */
+  });
+  it("passes when test count increases", async () => {
+    /* ... */
+  });
+  it("fails when test count decreases", async () => {
+    /* ... */
+  });
+  it("parses vitest output format", async () => {
+    /* ... */
+  });
+});
+
+describe("diffSizeCheck", () => {
+  it("passes when delete ratio within threshold", async () => {
+    /* ... */
+  });
+  it("fails when delete ratio exceeds maxDeleteRatio", async () => {
+    /* ... */
+  });
+});
+
+// test/hooks-git.int.spec.ts — write FIRST (needs real git repo)
+describe("gitContext", () => {
+  it("returns formatted log and diff stat", async () => {
+    /* ... */
+  });
+  it("handles fresh repo gracefully", async () => {
+    /* ... */
+  });
+});
+
+describe("gitCommit", () => {
+  it("commits with configured prefix", async () => {
+    /* ... */
+  });
+});
+
+describe("gitRollback", () => {
+  it("discards working tree changes", async () => {
+    /* ... */
+  });
+});
+```
+
+**Done when**: All built-in hooks produce correct results. Shell runner handles any command. Custom hooks work through the same runtime path.
 
 ### Step 12: Prompt builder (context engineering)
 
@@ -1558,18 +2083,76 @@ function buildPrompt(
 }
 ```
 
-**Dependencies**: Step 9 (lesson selection), Step 11 (context steps), Step 6 (state for errors)
-**Test**:
+**Dependencies**: Step 9 (lesson selection), Step 10 (hooks), Step 6 (state for errors)
 
-- Build with errors → `<errors>` block present with raw output, `source` and `exit_code` attributes correct
-- Build after errors cleared → no `<errors>` block
-- Build with 5 lessons across 2 categories → `<lessons>` with `<category>` tags, correct ordering
-- Build at iteration 1 → no `<prior_attempts>`. Build at iteration 4 → `<prior_attempts>` with 3 entries
-- Build with no context (first iteration, first task) → only `<task>` and `<rules>` present
-- Full assembly → verify XML is well-formed, section ordering matches spec
-- Verify most-critical lesson appears first and last in category list
-- Error truncation: 300-line error output → first 50 + "[... 200 lines truncated ...]" + last 50
-  **Done when**: Prompts use XML tags throughout. Error feedback includes raw output with metadata. Lessons are categorized and ordered by criticality. Prior attempts summarized after 3+ iterations.
+**TDD**: Write `test/prompt-builder.unit.spec.ts` first.
+
+```typescript
+// test/prompt-builder.unit.spec.ts — write FIRST
+import assert from "node:assert";
+import { describe, it } from "vitest";
+
+describe("buildPrompt", () => {
+  describe("system prompt", () => {
+    it("includes <rules> block", () => {
+      /* ... */
+    });
+    it("includes <lessons> with categories when lessons exist", () => {
+      /* ... */
+    });
+    it("omits <lessons> when no lessons", () => {
+      /* ... */
+    });
+    it("orders lessons by primacy/recency", () => {
+      /* ... */
+    });
+  });
+
+  describe("user prompt", () => {
+    it("includes <task> with index and total attributes", () => {
+      /* ... */
+    });
+    it("includes <progress> with completed tasks", () => {
+      /* ... */
+    });
+    it("includes <git_context> when provided", () => {
+      /* ... */
+    });
+  });
+
+  describe("error feedback", () => {
+    it("includes <errors> block with source and exit_code", () => {
+      /* ... */
+    });
+    it("omits <errors> when no errors", () => {
+      /* ... */
+    });
+    it("includes <warnings> separately from errors", () => {
+      /* ... */
+    });
+    it("truncates error output beyond 200 lines", () => {
+      /* ... */
+    });
+  });
+
+  describe("prior attempts", () => {
+    it("omits <prior_attempts> before iteration 3", () => {
+      /* ... */
+    });
+    it("includes <prior_attempts> at iteration 3+", () => {
+      /* ... */
+    });
+  });
+
+  describe("section ordering", () => {
+    it("orders: task → progress → git_context → errors → prior_attempts", () => {
+      /* ... */
+    });
+  });
+});
+```
+
+**Done when**: Prompts use XML tags throughout. Error feedback includes raw output with metadata. Lessons are categorized and ordered by criticality. Prior attempts summarized after 3+ iterations.
 
 ### Step 13: Budget manager + token tracking
 
@@ -1612,24 +2195,95 @@ Note: Anthropic has a free `count_tokens` API endpoint (`/v1/messages/count_toke
 - On `exceeded` → throws `BudgetExceededError` (caught by runner, triggers `interact` hook)
 
 **Dependencies**: Step 2 (types)
-**Test**:
 
-- Track 5 iterations with Sonnet pricing → cost accumulates correctly (verify math)
-- Track with Opus pricing → higher costs
-- Hit `warnAt: 0.8` on $5 budget at $4.10 → warning flag set
-- Hit `maxCostPerRun: 5` → exceeded
-- Per-iteration limit: single $12 iteration on $10 limit → exceeded
-- No budget config → never warns/exceeds, still tracks for summary
-- `estimatePromptCost` for 4000-char prompt → roughly 1000 tokens → correct cost estimate
-- Custom pricing override → uses custom prices
-  **Done when**: Actual cost tracking from CLI `usage` is accurate. Pre-send estimation works as rough guide. Budget limits trigger at correct thresholds. Pricing table is current and overridable.
+**TDD**: Write `test/budget.unit.spec.ts` first.
+
+```typescript
+// test/budget.unit.spec.ts — write FIRST
+import assert from "node:assert";
+import { describe, it } from "vitest";
+
+describe("BudgetManager", () => {
+  describe("track", () => {
+    it("accumulates cost across iterations", () => {
+      /* ... */
+    });
+    it("uses correct pricing for sonnet model", () => {
+      /* ... */
+    });
+    it("uses correct pricing for opus model", () => {
+      /* ... */
+    });
+  });
+
+  describe("check", () => {
+    it("returns ok when under budget", () => {
+      /* ... */
+    });
+    it("returns warning at warnAt threshold", () => {
+      /* ... */
+    });
+    it("returns exceeded at maxCostPerRun", () => {
+      /* ... */
+    });
+    it("returns exceeded at maxCostPerIteration", () => {
+      /* ... */
+    });
+    it("never exceeds when no budget configured", () => {
+      /* ... */
+    });
+  });
+
+  describe("estimatePromptCost", () => {
+    it("estimates tokens at chars / 4", () => {
+      /* ... */
+    });
+  });
+
+  describe("summary", () => {
+    it("reports totalCost and per-iteration breakdown", () => {
+      /* ... */
+    });
+    it("reports remainingBudget", () => {
+      /* ... */
+    });
+  });
+});
+```
+
+**Done when**: Actual cost tracking from CLI `usage` is accurate. Pre-send estimation works as rough guide. Budget limits trigger at correct thresholds. Pricing table is current and overridable.
 
 ### Step 14: Interaction handler
 
 **Files**: `packages/delorean/src/interact.ts`
 **What**: Default terminal prompter using `readline`. `createInteractHandler()` returns `(question: string) => Promise<string>`. Config `interact` field overrides this (for programmatic use, testing, or custom UIs). Used by brainstorm phase (Q&A), budget exceeded, stop points.
 **Dependencies**: Step 2 (types)
-**Test**: Provide a mock `interact` that returns canned answers → verify brainstorm phase receives them. Default handler: integration test with piped stdin.
+
+**TDD**: Write `test/interact.unit.spec.ts` first.
+
+```typescript
+// test/interact.unit.spec.ts — write FIRST
+import assert from "node:assert";
+import { describe, it } from "vitest";
+
+describe("createInteractHandler", () => {
+  it("returns answer from readline", async () => {
+    /* ... */
+  });
+  it("handles EOF gracefully", async () => {
+    /* ... */
+  });
+});
+
+describe("custom interact override", () => {
+  it("uses provided function instead of readline", async () => {
+    const interact = async (q: string) => `answer to: ${q}`;
+    const result = await interact("question?");
+    assert.strictEqual(result, "answer to: question?");
+  });
+});
+```
+
 **Done when**: Terminal prompting works. Custom `interact` overrides default. Handles EOF/SIGINT gracefully.
 
 ### Step 15: Brainstorm phase runtime
@@ -1676,13 +2330,51 @@ Invocation N (user says "done" or LLM signals completion):
 **Question extraction**: The LLM's `result` text contains both prose and a question. Extract the question by taking the last sentence ending in `?`. If no `?` found, treat entire result as the question.
 
 **Dependencies**: Step 3 (LLM adapter — needs session support), Step 6 (state), Step 14 (interaction), Step 8 (logging)
-**Test**:
 
-- Mock adapter returns 3 responses with questions, then completion signal. Mock interact returns canned answers. Verify: `qa.md` contains all 3 Q&A pairs, `state.qaHistory` has 3 entries, `state.sessions.brainstorm` has session_id, adapter received `--resume` on calls 2+.
-- User says "done" on question 2 → phase ends with 2 Q&A pairs, qa.md has 2 entries.
-- Adapter error on invocation 3 → state saved with partial progress, resumable.
-- Logger receives `human-input` events for each answer.
-  **Done when**: Full Q&A loop works via sequential `claude -p` calls with `--resume`. qa.md and state stay in sync. Session ID persists for resume after crash.
+**TDD**: Write `test/brainstorm.int.spec.ts` first. Uses mock adapter + mock interact + real filesystem (temp dirs).
+
+```typescript
+// test/brainstorm.int.spec.ts — write FIRST
+import assert from "node:assert";
+import { describe, it } from "vitest";
+
+describe("Brainstorm phase", () => {
+  describe("Q&A loop", () => {
+    it("captures 3 Q&A pairs into qa.md", async () => {
+      /* ... */
+    });
+    it("stores session_id for resume", async () => {
+      /* ... */
+    });
+    it("passes --resume on subsequent calls", async () => {
+      /* ... */
+    });
+  });
+
+  describe("termination", () => {
+    it("ends when user says done", async () => {
+      /* ... */
+    });
+    it("ends on completion signal from LLM", async () => {
+      /* ... */
+    });
+  });
+
+  describe("crash recovery", () => {
+    it("saves partial state on adapter error", async () => {
+      /* ... */
+    });
+  });
+
+  describe("logging", () => {
+    it("logs human-input events for each answer", async () => {
+      /* ... */
+    });
+  });
+});
+```
+
+**Done when**: Full Q&A loop works via sequential `claude -p` calls with `--resume`. qa.md and state stay in sync. Session ID persists for resume after crash.
 
 ### Step 16: Spec phase runtime
 
@@ -1709,13 +2401,43 @@ Invocation N (user says "done" or LLM signals completion):
 
 Triggers stop point for user approval after spec.md is written.
 **Dependencies**: Step 3 (LLM — needs session support), Step 6 (state), Step 8 (logging)
-**Test**:
 
-- With brainstorm session → adapter called with `--resume brainstorm_session_id`, spec.md written.
-- Without brainstorm session → adapter called without `--resume`, reads qa.md, spec.md written.
-- Missing qa.md and no brainstorm session → descriptive error.
-- Stop point fires after spec.md creation.
-  **Done when**: Both modes produce spec.md. Session chaining from brainstorm works.
+**TDD**: Write `test/spec-phase.int.spec.ts` first.
+
+```typescript
+// test/spec-phase.int.spec.ts — write FIRST
+import assert from "node:assert";
+import { describe, it } from "vitest";
+
+describe("Spec phase", () => {
+  describe("with brainstorm session", () => {
+    it("resumes brainstorm session via --resume", async () => {
+      /* ... */
+    });
+    it("writes spec.md", async () => {
+      /* ... */
+    });
+  });
+
+  describe("without brainstorm session", () => {
+    it("reads qa.md from disk", async () => {
+      /* ... */
+    });
+    it("writes spec.md", async () => {
+      /* ... */
+    });
+  });
+
+  it("errors when qa.md missing and no session", async () => {
+    /* ... */
+  });
+  it("triggers stop point after completion", async () => {
+    /* ... */
+  });
+});
+```
+
+**Done when**: Both modes produce spec.md. Session chaining from brainstorm works.
 
 ### Step 17: Plan phase runtime
 
@@ -1772,15 +2494,49 @@ Claude writes `plan.md` (human-readable) via its tools AND returns structured ta
 
 Triggers stop point for user approval.
 **Dependencies**: Step 3 (LLM — needs `--json-schema` support), Step 6 (state), Step 8 (logging)
-**Test**:
 
-- With spec session → adapter called with `--resume spec_session_id` and `--json-schema`, returns `structured_output` with 5 tasks → state.tasks has 5 entries with correct prompts.
-- Without spec session → reads spec.md, same structured output.
-- `structured_output` null (schema not supported) → falls back to regex parsing, warning logged.
-- Unstructured plan → single task with warning.
-- Missing spec.md and no spec session → error.
-- plan.md written with readable content. Stop point fires.
-  **Done when**: Tasks extracted via structured output (primary) or regex (fallback). plan.md and state.tasks both populated.
+**TDD**: Write `test/plan-phase.int.spec.ts` first.
+
+```typescript
+// test/plan-phase.int.spec.ts — write FIRST
+import assert from "node:assert";
+import { describe, it } from "vitest";
+
+describe("Plan phase", () => {
+  describe("structured output", () => {
+    it("extracts tasks from structured_output", async () => {
+      /* ... */
+    });
+    it("populates state.tasks with correct prompts", async () => {
+      /* ... */
+    });
+    it("resumes spec session when available", async () => {
+      /* ... */
+    });
+  });
+
+  describe("fallback parsing", () => {
+    it("falls back to regex when structured_output null", async () => {
+      /* ... */
+    });
+    it("creates single task from unstructured plan", async () => {
+      /* ... */
+    });
+  });
+
+  it("writes plan.md with readable content", async () => {
+    /* ... */
+  });
+  it("errors when spec.md missing and no session", async () => {
+    /* ... */
+  });
+  it("triggers stop point after completion", async () => {
+    /* ... */
+  });
+});
+```
+
+**Done when**: Tasks extracted via structured output (primary) or regex (fallback). plan.md and state.tasks both populated.
 
 ### Step 18: Execute phase runtime (the main loop)
 
@@ -1826,23 +2582,96 @@ claude -p "{assembled prompt with task + lessons + errors + context}" \
 12. Save state to `delorean-state.json` (crash recovery)
 
 **Dependencies**: Step 3 (LLM), Step 6 (state), Step 8 (logging), Step 9 (lessons), Step 10 (hooks), Step 12 (prompt builder), Step 13 (budget), Step 20 (hook runner)
-**Test**:
 
-- Happy path: 3 tasks, all pass first try → 3 CLI invocations (no `--resume`), 3 commits, state shows completed
-- Retry path: task 2 fails build → `state.errors` populated → next invocation's prompt contains error block → passes → errors cleared → advances
-- Lesson flow: iteration 1 response contains `LESSON: [perf] batch inserts` → stored in state → iteration 2 prompt includes it
-- Max iterations: task always fails → hits limit → state shows `status: 'failed'` with last errors
-- Budget exceeded: mock adapter reports high token usage → budget check triggers → interact called
-- Crash recovery: state saved after iteration 2, process killed → restart → `detectEntryPhase` finds state → resumes from task 2, iteration 3
-- Streaming: adapter yields events in real-time → lessons parsed mid-stream → markdown log updated live
-  **Done when**: Full loop executes via fresh CLI invocations. Errors feed back into `<errors>`, warnings into `<warnings>`. Lessons accumulate and enter prompts. State persists for crash recovery. Budget enforced. Severity levels control blocking behavior.
+**TDD**: Write `test/execute-loop.int.spec.ts` first. Uses mock adapter + fixture with real filesystem.
+
+```typescript
+// test/execute-loop.int.spec.ts — write FIRST
+import assert from "node:assert";
+import { describe, it } from "vitest";
+
+describe("Execute phase", () => {
+  describe("happy path", () => {
+    it("completes 3 tasks with 3 invocations", async () => {
+      /* ... */
+    });
+    it("creates git commit per task", async () => {
+      /* ... */
+    });
+    it("sets state to completed", async () => {
+      /* ... */
+    });
+    it("uses fresh sessions (no --resume)", async () => {
+      /* ... */
+    });
+  });
+
+  describe("error retry", () => {
+    it("populates state.errors on hook failure", async () => {
+      /* ... */
+    });
+    it("includes error block in retry prompt", async () => {
+      /* ... */
+    });
+    it("clears errors after hook passes", async () => {
+      /* ... */
+    });
+  });
+
+  describe("lesson accumulation", () => {
+    it("parses LESSON: from response", async () => {
+      /* ... */
+    });
+    it("includes lessons in subsequent prompts", async () => {
+      /* ... */
+    });
+  });
+
+  describe("limits", () => {
+    it("fails after max iterations", async () => {
+      /* ... */
+    });
+    it("triggers interact on budget exceeded", async () => {
+      /* ... */
+    });
+  });
+
+  describe("crash recovery", () => {
+    it("resumes from saved state", async () => {
+      /* ... */
+    });
+  });
+});
+```
+
+**Done when**: Full loop executes via fresh CLI invocations. Errors feed back into `<errors>`, warnings into `<warnings>`. Lessons accumulate and enter prompts. State persists for crash recovery. Budget enforced. Severity levels control blocking behavior.
 
 ### Step 19: Review phase runtime
 
 **Files**: `packages/delorean/src/phases/review.ts`
 **What**: LLM reviews all changes made during execute phase. Prompt includes: original spec, git diff from session start, list of completed tasks. LLM can flag issues. If issues found, can trigger fix iterations (re-enter execute for specific tasks). Runs hooks one final time. Custom stop point tasks pause for human review.
 **Dependencies**: Step 3 (LLM), Step 6 (state), Step 10 (hooks)
-**Test**: Mock LLM approves → phase passes. Mock LLM flags issue → verify fix iteration triggered. Final gate hooks fail → review fails with clear output.
+
+**TDD**: Write `test/review-phase.int.spec.ts` first.
+
+```typescript
+// test/review-phase.int.spec.ts — write FIRST
+import assert from "node:assert";
+import { describe, it } from "vitest";
+
+describe("Review phase", () => {
+  it("passes when LLM approves", async () => {
+    /* ... */
+  });
+  it("triggers fix iteration when LLM flags issue", async () => {
+    /* ... */
+  });
+  it("fails when final hooks fail", async () => {
+    /* ... */
+  });
+});
+```
+
 **Done when**: Review validates changes. Issues trigger fix loops. Final gates run.
 
 ### Step 20: Hook runner (phase runner integration)
@@ -1873,19 +2702,75 @@ claude -p "{assembled prompt with task + lessons + errors + context}" \
 - Hook timeout → killed after `timeoutPerIteration`, treated as failure.
 
 **Dependencies**: Step 2 (types), Step 4 (hook factories), Step 8 (logging)
-**Test**:
 
-- Resolve: config has `[build, test]`, phase has `[build({command:'tsc'})]` → resolved has phase's build + config's test.
-- Resolve: phase has `hooks: []` → resolved is empty.
-- Execution order: register hooks with various `when` values → verify execution order matches spec.
-- Error failure: `after` hook with `severity: 'error'` returns `{ ok: false }` → `on-failure` hooks run, `on-success` skipped.
-- Warn failure: `severity: 'warn'` returns `{ ok: false }` → output collected for `<warnings>` block, does NOT trigger failure.
-- All errors pass: → `on-success` hooks run.
-- Info/warn hook throws: logged, pipeline continues.
-- Custom hook with `run` function → receives correct `HookContext`.
-- Custom hook with `command` → shell runner executes it.
-- `before-phase` / `after-phase` hooks fire at correct boundaries.
-  **Done when**: Hook resolution merges correctly. Execution order is deterministic. Severity-based blocking works. Warnings collected separately from errors. Custom hooks integrate seamlessly.
+**TDD**: Write `test/hook-runner.unit.spec.ts` first.
+
+```typescript
+// test/hook-runner.unit.spec.ts — write FIRST
+import assert from "node:assert";
+import { describe, it } from "vitest";
+
+describe("resolveHooks", () => {
+  it("merges config and phase hooks", () => {
+    /* ... */
+  });
+  it("phase hook overrides config hook with same id", () => {
+    /* ... */
+  });
+  it("returns empty when phase has hooks: []", () => {
+    /* ... */
+  });
+  it("inherits all config hooks when phase has hooks: undefined", () => {
+    /* ... */
+  });
+});
+
+describe("hook execution", () => {
+  describe("ordering", () => {
+    it("runs before → after → on-success in order", async () => {
+      /* ... */
+    });
+    it("runs before → after → on-failure when error hook fails", async () => {
+      /* ... */
+    });
+    it("runs before-phase and after-phase at boundaries", async () => {
+      /* ... */
+    });
+  });
+
+  describe("severity handling", () => {
+    it("blocks on error-severity hook failure", async () => {
+      /* ... */
+    });
+    it("collects warnings without blocking", async () => {
+      /* ... */
+    });
+    it("logs info failures without feeding to prompt", async () => {
+      /* ... */
+    });
+    it("skips on-success when any error hook fails", async () => {
+      /* ... */
+    });
+    it("runs on-success when only warn hooks fail", async () => {
+      /* ... */
+    });
+  });
+
+  describe("hook types", () => {
+    it("runs shell command for command-based hooks", async () => {
+      /* ... */
+    });
+    it("calls run function with correct HookContext", async () => {
+      /* ... */
+    });
+    it("handles hook that throws as failure", async () => {
+      /* ... */
+    });
+  });
+});
+```
+
+**Done when**: Hook resolution merges correctly. Execution order is deterministic. Severity-based blocking works. Warnings collected separately from errors. Custom hooks integrate seamlessly.
 
 ### Step 21: CLI
 
@@ -1913,7 +2798,63 @@ Flow:
 
 `bin` field in package.json points to compiled CLI.
 **Dependencies**: Step 5 (config), Step 7 (resume), everything else for runtime
-**Test**: `--dry-run` with various configs → verify output lists correct phases. `--from plan` → verify pipeline starts at plan. Positional arg → verify idea passed to brainstorm. Missing config file → descriptive error. `--help` → shows usage.
+
+**TDD**: Write `test/cli-flags.e2e.spec.ts` and `test/dry-run.e2e.spec.ts` first.
+
+```typescript
+// test/cli-flags.e2e.spec.ts — write FIRST
+import assert from "node:assert";
+import { describe, it } from "vitest";
+
+describe("CLI", () => {
+  describe("--dry-run", () => {
+    it("lists phases and hooks without invoking LLM", async () => {
+      /* ... */
+    });
+    it("exits with code 0", async () => {
+      /* ... */
+    });
+  });
+
+  describe("--from", () => {
+    it("starts pipeline from specified phase", async () => {
+      /* ... */
+    });
+    it("errors on unknown phase id", async () => {
+      /* ... */
+    });
+  });
+
+  describe("positional idea argument", () => {
+    it("passes idea to brainstorm phase", async () => {
+      /* ... */
+    });
+  });
+
+  describe("--help", () => {
+    it("shows usage information", async () => {
+      /* ... */
+    });
+  });
+
+  describe("error cases", () => {
+    it("shows descriptive error when config missing", async () => {
+      /* ... */
+    });
+  });
+});
+
+// test/full-pipeline.e2e.spec.ts — write FIRST
+describe("Full pipeline", () => {
+  it("creates all artifacts with mock adapter", async () => {
+    /* ... */
+  });
+  it("sets state to completed", async () => {
+    /* ... */
+  });
+});
+```
+
 **Done when**: All CLI flags work. Dry-run produces correct preview. Pipeline runs end-to-end from CLI.
 
 ### Step 22: Public API + index exports
@@ -1934,7 +2875,49 @@ export type { DeloreanConfig, Phase, Hook, HookResult, LLMAdapter, MockAdapter, 
 
 Verify no internal implementation details leak. Tree-shakeable — each export independently importable.
 **Dependencies**: All previous steps
-**Test**: Import each export in isolation → verify it works. `defineConfig` with imported factories → produces valid config. Type-only imports compile without runtime code.
+
+**TDD**: Write `test/public-api.unit.spec.ts` first.
+
+```typescript
+// test/public-api.unit.spec.ts — write FIRST
+import assert from "node:assert";
+import { describe, it } from "vitest";
+
+describe("Public API exports", () => {
+  it("exports defineConfig", async () => {
+    const { defineConfig } = await import("../src/index");
+    assert.strictEqual(typeof defineConfig, "function");
+  });
+
+  it("exports phase factories", async () => {
+    const { phases } = await import("../src/index");
+    assert.strictEqual(typeof phases.brainstorm, "function");
+    assert.strictEqual(typeof phases.execute, "function");
+  });
+
+  it("exports hook factories", async () => {
+    const { hooks } = await import("../src/index");
+    assert.strictEqual(typeof hooks.build, "function");
+    assert.strictEqual(typeof hooks.test, "function");
+  });
+
+  it("exports createMockAdapter", async () => {
+    const { createMockAdapter } = await import("../src/index");
+    assert.strictEqual(typeof createMockAdapter, "function");
+  });
+
+  it("produces valid config from imported factories", async () => {
+    const { defineConfig, phases, hooks } = await import("../src/index");
+    const config = defineConfig({
+      phases: [phases.execute()],
+      hooks: [hooks.build()],
+    });
+    assert.ok(config.phases);
+    assert.ok(config.hooks);
+  });
+});
+```
+
 **Done when**: Clean public API. No internal leaks. All named exports documented in JSDoc.
 
 ## Verification scenarios
