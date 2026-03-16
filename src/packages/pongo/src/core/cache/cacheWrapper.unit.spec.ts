@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { PongoCacheProvider } from './types';
 import { pongoCacheWrapper } from './cacheWrapper';
+import type { PongoCacheProvider } from './types';
 
 import type { PongoDocument } from '../typing';
 

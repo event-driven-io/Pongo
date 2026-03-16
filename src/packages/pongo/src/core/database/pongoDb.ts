@@ -9,8 +9,8 @@ import {
   type SQLCommandOptions,
   type SQLQueryOptions,
 } from '@event-driven-io/dumbo';
-import { pongoCollection, transactionExecutorOrDefault } from '../collection';
 import type { CacheConfig } from '../cache';
+import { pongoCollection, transactionExecutorOrDefault } from '../collection';
 import {
   pongoSchema,
   proxyPongoDbWithSchema,
@@ -110,6 +110,9 @@ export const PongoDatabase = <
         schema: { ...options.schema, ...collectionOptions?.schema },
         serializer,
         errors: { ...options.errors, ...collectionOptions?.errors },
+        ...(collectionOptions?.cache !== undefined
+          ? { cache: collectionOptions.cache }
+          : {}),
       }),
     transaction: () => pool.transaction(),
     withTransaction: (handle) => pool.withTransaction(handle),

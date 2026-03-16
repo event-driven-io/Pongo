@@ -1,4 +1,6 @@
-import type { CacheEventHooks, PongoCacheProvider } from './types';
+import { resolveCacheConfig } from './configResolution';
+import { inMemoryCacheProvider } from './inMemoryProvider';
+import type { CacheConfig, CacheEventHooks, PongoCacheProvider } from './types';
 
 export const pongoCacheWrapper = (options: {
   provider: PongoCacheProvider;
@@ -87,4 +89,26 @@ export const pongoCacheWrapper = (options: {
       await provider.clear();
     },
   };
+};
+
+export const resolveCollectionCacheProvider = (
+  cacheOption: CacheConfig | 'disabled' | PongoCacheProvider | undefined,
+  dbName: string,
+  collectionName: string,
+): PongoCacheProvider | null => {
+  if (cacheOption === 'disabled') return null;
+
+  if (cacheOption !== undefined && typeof (cacheOption as PongoCacheProvider).get === 'function')
+    return cacheOption as PongoCacheProvider;
+
+  const config = resolveCacheConfig(
+    cacheOption === undefined ? undefined : (cacheOption as CacheConfig),
+  );
+  if (config === 'disabled') return null;
+
+  const raw = inMemoryCacheProvider({
+    ...(config.max !== undefined ? { max: config.max } : {}),
+    ...(config.ttl !== undefined ? { ttl: config.ttl } : {}),
+  });
+  return pongoCacheWrapper({ provider: raw, dbName, collectionName });
 };

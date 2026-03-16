@@ -1,4 +1,5 @@
 import { describe, expectTypeOf, it } from 'vitest';
+import type { PongoDocument } from '../typing';
 import type {
   CacheConfig,
   CacheConfigObject,
@@ -6,7 +7,6 @@ import type {
   MaybePromise,
   PongoCacheProvider,
 } from './types';
-import type { PongoDocument } from '../typing';
 
 describe('MaybePromise', () => {
   it('accepts a plain value', () => {

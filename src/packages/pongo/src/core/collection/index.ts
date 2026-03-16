@@ -1,3 +1,4 @@
+export * from './filters';
 export * from './pongoCollection';
 export * from './pongoCollectionSchema';
 export * from './pongoCollectionSchemaComponent';

@@ -81,9 +81,8 @@ describe('inMemoryCacheProvider', () => {
     const cache = inMemoryCacheProvider({ max: 2 });
     cache.set('a', { _id: 'a' });
     cache.set('b', { _id: 'b' });
-    // Access 'a' to make 'b' the least-recently-used
     cache.get('a');
-    cache.set('c', { _id: 'c' }); // should evict 'b'
+    cache.set('c', { _id: 'c' });
     expect(cache.get('a')).toBeDefined();
     expect(cache.get('c')).toBeDefined();
     expect(cache.get('b')).toBeUndefined();
