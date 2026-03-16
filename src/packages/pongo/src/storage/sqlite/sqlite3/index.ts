@@ -1,7 +1,9 @@
-import { dumbo, JSONSerializer } from '@event-driven-io/dumbo';
+import { JSONSerializer } from '@event-driven-io/dumbo';
 import {
   sqlite3DumboDriver as dumboDriver,
   SQLite3DriverType,
+  sqlite3Pool,
+  type SQLite3PoolOptions,
 } from '@event-driven-io/dumbo/sqlite3';
 import {
   PongoCollectionSchemaComponent,
@@ -15,13 +17,10 @@ import {
 } from '../../../core';
 import { pongoCollectionSQLiteMigrations, sqliteSQLBuilder } from '../core';
 
-export type SQLitePongoClientOptions = object;
-
-type SQLiteDatabaseDriverOptions =
-  PongoDriverOptions<SQLitePongoClientOptions> & {
-    databaseName?: string | undefined;
-    connectionString: string;
-  };
+type SQLiteDatabaseDriverOptions = PongoDriverOptions<SQLite3PoolOptions> & {
+  databaseName?: string | undefined;
+  connectionString: string;
+};
 
 const sqlite3PongoDriver: PongoDriver<
   PongoDb<SQLite3DriverType>,
@@ -33,7 +32,7 @@ const sqlite3PongoDriver: PongoDriver<
 
     return PongoDatabase({
       ...options,
-      pool: dumbo({
+      pool: sqlite3Pool({
         connectionString: options.connectionString,
         driver: dumboDriver,
         ...options.connectionOptions,

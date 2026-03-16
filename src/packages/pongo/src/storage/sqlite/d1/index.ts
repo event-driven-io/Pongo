@@ -13,8 +13,6 @@ import {
 } from '../../../core';
 import { pongoCollectionSQLiteMigrations, sqliteSQLBuilder } from '../core';
 
-export type SQLitePongoClientOptions = object;
-
 type D1DatabaseDriverOptions = PongoDriverOptions<never> & D1PoolOptions;
 
 const d1PongoDriver: PongoDriver<
