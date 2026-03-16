@@ -10,6 +10,7 @@ import {
   type SQLQueryOptions,
 } from '@event-driven-io/dumbo';
 import { pongoCollection, transactionExecutorOrDefault } from '../collection';
+import type { CacheConfig } from '../cache';
 import {
   pongoSchema,
   proxyPongoDbWithSchema,
@@ -50,6 +51,7 @@ export type PongoDatabaseOptions<
       }
     | undefined;
   errors?: { throwOnOperationFailures?: boolean } | undefined;
+  cache?: CacheConfig | 'disabled';
 };
 
 export const PongoDatabase = <
