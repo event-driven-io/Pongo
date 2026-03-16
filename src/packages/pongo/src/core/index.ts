@@ -1,3 +1,4 @@
+export * from './cache';
 export * from './collection';
 export * from './database';
 export * from './drivers';
