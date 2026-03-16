@@ -15,8 +15,8 @@ import type {
   WithDatabaseTransactionFactory,
 } from '@event-driven-io/dumbo';
 import { v7 as uuid } from 'uuid';
-import type { PongoCollectionSchemaComponent } from '../collection';
 import type { CacheConfig, PongoCacheProvider } from '../cache';
+import type { PongoCollectionSchemaComponent } from '../collection';
 import type { PongoDatabaseSchemaComponent } from '../database/pongoDatabaseSchemaComponent';
 import type { AnyPongoDriver, ExtractPongoDriverOptions } from '../drivers';
 import { ConcurrencyError } from '../errors';
@@ -53,7 +53,7 @@ export type PongoClientOptions<
             | { autoMigration?: MigrationStyle; definition?: TypedClientSchema }
             | undefined;
           errors?: { throwOnOperationFailures?: boolean } | undefined;
-          cache?: CacheConfig | 'disabled';
+          cache?: CacheConfig | undefined;
         } & JSONSerializationOptions &
           Omit<Options, 'driver'>
       : never

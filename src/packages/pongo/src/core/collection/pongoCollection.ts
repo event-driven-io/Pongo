@@ -16,15 +16,10 @@ import {
 import { v7 as uuid } from 'uuid';
 import type { PongoCollectionSchemaComponent } from '..';
 import {
-  pongoCacheWrapper,
-  inMemoryCacheProvider,
-  resolveCacheConfig,
-  type CacheConfig,
-  type PongoCacheProvider,
-} from '../cache';
-import {
   deepEquals,
   expectedVersionValue,
+  idFromFilter,
+  idsFromInFilter,
   operationResult,
   type CollectionOperationOptions,
   type DeleteManyOptions,
@@ -54,6 +49,11 @@ import {
   type WithoutId,
   type WithVersion,
 } from '..';
+import {
+  resolveCollectionCacheProvider,
+  type CacheConfig,
+  type PongoCacheProvider,
+} from '../cache';
 
 export type PongoCollectionOptions<
   T extends PongoDocument = PongoDocument,
@@ -117,73 +117,11 @@ export const pongoCollection = <
   const SqlFor = schemaComponent.sqlBuilder;
   const sqlExecutor = pool.execute;
 
-  // ── cache setup ─────────────────────────────────────────────────────────────
-  const cacheProvider: PongoCacheProvider | null = (() => {
-    if (cacheOption === 'disabled') return null;
-    if (cacheOption === undefined) {
-      const resolved = resolveCacheConfig();
-      if (resolved === 'disabled') return null;
-      const opts = {
-        ...(resolved.max !== undefined ? { max: resolved.max } : {}),
-        ...(resolved.ttl !== undefined ? { ttl: resolved.ttl } : {}),
-      };
-      const raw = inMemoryCacheProvider(opts);
-      return pongoCacheWrapper({
-        provider: raw,
-        dbName: db.databaseName,
-        collectionName,
-      });
-    }
-    // already a provider instance
-    if (typeof (cacheOption as PongoCacheProvider).get === 'function') {
-      return cacheOption as PongoCacheProvider;
-    }
-    // CacheConfig object
-    const config = cacheOption as CacheConfig;
-    if (config === 'disabled') return null;
-    const resolved = resolveCacheConfig(config);
-    if (resolved === 'disabled') return null;
-    const opts = {
-      ...(resolved.max !== undefined ? { max: resolved.max } : {}),
-      ...(resolved.ttl !== undefined ? { ttl: resolved.ttl } : {}),
-    };
-    const raw = inMemoryCacheProvider(opts);
-    return pongoCacheWrapper({
-      provider: raw,
-      dbName: db.databaseName,
-      collectionName,
-    });
-  })();
-
-  // Helper: does the filter target exactly _id?
-  const isIdFilter = (
-    filter: PongoFilter<T> | SQL | undefined,
-  ): string | null => {
-    if (!filter || typeof filter !== 'object' || Array.isArray(filter))
-      return null;
-    const keys = Object.keys(filter as object);
-    if (keys.length === 1 && keys[0] === '_id') {
-      const id = (filter as Record<string, unknown>)['_id'];
-      if (typeof id === 'string') return id;
-    }
-    return null;
-  };
-
-  // Helper: extract $in id list from filter like { _id: { $in: [...] } }
-  const getInIds = (
-    filter: PongoFilter<T> | SQL | undefined,
-  ): string[] | null => {
-    if (!filter || typeof filter !== 'object') return null;
-    const f = filter as Record<string, unknown>;
-    if (Object.keys(f).length !== 1 || !('_id' in f)) return null;
-    const idVal = f['_id'];
-    if (idVal && typeof idVal === 'object' && '$in' in idVal) {
-      const ids = (idVal as Record<string, unknown>)['$in'];
-      if (Array.isArray(ids) && ids.every((i) => typeof i === 'string'))
-        return ids;
-    }
-    return null;
-  };
+  const cacheProvider = resolveCollectionCacheProvider(
+    cacheOption,
+    db.databaseName,
+    collectionName,
+  );
 
   const columnMapping = {
     mapping: {
@@ -232,6 +170,24 @@ export const pongoCollection = <
 
   const downcast =
     schema?.versioning?.downcast ?? ((doc: T) => doc as unknown as Payload);
+
+  const rowToDoc = (row: { data: T; _version: bigint }): WithIdAndVersion<T> =>
+    upcast({
+      ...row.data,
+      _version: row._version,
+    } as unknown as Payload) as WithIdAndVersion<T>;
+
+  const findOneFromDb = async (
+    filter: PongoFilter<T>,
+    options?: CollectionOperationOptions,
+  ): Promise<WithIdAndVersion<T> | null> => {
+    const result = await query<{ data: T; _version: bigint }>(
+      SqlFor.findOne(filter),
+      options,
+    );
+    const row = result.rows[0];
+    return row ? rowToDoc(row) : null;
+  };
 
   const collection = {
     dbName: db.databaseName,
@@ -339,9 +295,8 @@ export const pongoCollection = <
       );
 
       if (opResult.successful && cacheProvider && !options?.skipCache) {
-        const id = isIdFilter(filter);
+        const id = idFromFilter(filter);
         if (id) {
-          // Evict stale entry; fresh value will be loaded on next findOne
           await cacheProvider.delete(id);
         }
       }
@@ -373,7 +328,7 @@ export const pongoCollection = <
       );
 
       if (opResult.successful && cacheProvider && !options?.skipCache) {
-        const id = isIdFilter(filter);
+        const id = idFromFilter(filter);
         if (id) {
           const newVersion = opResult.nextExpectedVersion;
           await cacheProvider.set(id, {
@@ -430,7 +385,7 @@ export const pongoCollection = <
         !options?.skipCache &&
         filter
       ) {
-        const id = isIdFilter(filter);
+        const id = idFromFilter(filter);
         if (id) await cacheProvider.delete(id);
       }
 
@@ -445,7 +400,7 @@ export const pongoCollection = <
       const result = await command(SqlFor.deleteMany(filter ?? {}), options);
 
       if (cacheProvider && !options?.skipCache && filter) {
-        const ids = getInIds(filter);
+        const ids = idsFromInFilter(filter);
         if (ids) await cacheProvider.deleteMany(ids);
       }
 
@@ -464,48 +419,22 @@ export const pongoCollection = <
     ): Promise<WithIdAndVersion<T> | null> => {
       await ensureCollectionCreated(options);
 
-      // Cache read path: only for _id-only filters
-      if (cacheProvider && !options?.skipCache && filter) {
-        const id = isIdFilter(filter);
-        if (id) {
-          const cached = await cacheProvider.get(id);
-          if (cached !== undefined) {
-            return cached === null
-              ? null
-              : (upcast({
-                  ...cached,
-                } as unknown as Payload) as WithIdAndVersion<T>);
-          }
-          // cache miss — query DB, populate cache
-          const result = await query<{ data: T; _version: bigint }>(
-            SqlFor.findOne(filter),
-            options,
-          );
-          const row = result.rows[0];
-          if (!row) {
-            return null;
-          }
-          const doc = upcast({
-            ...row.data,
-            _version: row._version,
-          } as unknown as Payload) as WithIdAndVersion<T>;
-          await cacheProvider.set(id, doc as PongoDocument);
-          return doc;
-        }
+      const id = filter && !options?.skipCache ? idFromFilter(filter) : null;
+
+      if (id && cacheProvider) {
+        const cached = await cacheProvider.get(id);
+        if (cached !== undefined)
+          return cached === null
+            ? null
+            : (upcast({
+                ...cached,
+              } as unknown as Payload) as WithIdAndVersion<T>);
+        const doc = await findOneFromDb(filter!, options);
+        if (doc) await cacheProvider.set(id, doc as PongoDocument);
+        return doc;
       }
 
-      const result = await query<{ data: T; _version: bigint }>(
-        SqlFor.findOne(filter ?? {}),
-        options,
-      );
-
-      const row = result.rows[0];
-      if (row === undefined || row === null) return null;
-
-      return upcast({
-        ...row.data,
-        _version: row._version,
-      } as unknown as Payload) as WithIdAndVersion<T>;
+      return findOneFromDb(filter ?? {}, options);
     },
     findOneAndDelete: async (
       filter: PongoFilter<T>,
@@ -660,9 +589,8 @@ export const pongoCollection = <
     ): Promise<WithIdAndVersion<T>[]> => {
       await ensureCollectionCreated(options);
 
-      // Cache batch path: { _id: { $in: [...] } }
       if (cacheProvider && !options?.skipCache && filter) {
-        const ids = getInIds(filter);
+        const ids = idsFromInFilter(filter);
         if (ids && ids.length > 0) {
           const cached = await cacheProvider.getMany(ids);
           const results: WithIdAndVersion<T>[] = [];
@@ -671,13 +599,12 @@ export const pongoCollection = <
           for (let i = 0; i < ids.length; i++) {
             const entry = cached[i];
             if (entry !== undefined) {
-              if (entry !== null) {
+              if (entry !== null)
                 results.push(
                   upcast({
                     ...entry,
                   } as unknown as Payload) as WithIdAndVersion<T>,
                 );
-              }
             } else {
               missIds.push(ids[i]!);
             }
@@ -692,10 +619,7 @@ export const pongoCollection = <
             );
             const setEntries: { key: string; value: PongoDocument }[] = [];
             for (const row of dbResult.rows) {
-              const doc = upcast({
-                ...row.data,
-                _version: row._version,
-              } as unknown as Payload) as WithIdAndVersion<T>;
+              const doc = rowToDoc(row);
               results.push(doc);
               setEntries.push({
                 key: (doc as PongoDocument)['_id'] as string,
@@ -712,13 +636,7 @@ export const pongoCollection = <
       const result = await query<{ data: T; _version: bigint }>(
         SqlFor.find(filter ?? {}, options),
       );
-      return result.rows.map(
-        (row) =>
-          upcast({
-            ...row.data,
-            _version: row._version,
-          } as unknown as Payload) as WithIdAndVersion<T>,
-      );
+      return result.rows.map(rowToDoc);
     },
     countDocuments: async (
       filter?: PongoFilter<T>,
