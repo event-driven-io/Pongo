@@ -52,7 +52,7 @@ import {
 import {
   resolveCollectionCacheProvider,
   type CacheConfig,
-  type PongoCacheProvider,
+  type PongoCache,
 } from '../cache';
 
 export type PongoCollectionOptions<
@@ -73,7 +73,7 @@ export type PongoCollectionOptions<
   };
   errors?: { throwOnOperationFailures?: boolean };
   serializer: JSONSerializer;
-  cache?: CacheConfig | 'disabled' | PongoCacheProvider;
+  cache?: CacheConfig | 'disabled' | PongoCache;
 };
 
 const enlistIntoTransactionIfActive = async <
@@ -126,7 +126,6 @@ export const pongoCollection = <
   const columnMapping = {
     mapping: {
       ...mapColumnToJSON('data', serializer),
-      //...mapColumnToJSON('metadata'),
       ...mapColumnToBigint('_version'),
     } satisfies SQLQueryResultColumnMapping,
   };
@@ -216,7 +215,7 @@ export const pongoCollection = <
 
       const successful = (result.rowCount ?? 0) > 0;
 
-      if (successful && cacheProvider && !options?.skipCache) {
+      if (successful && !options?.skipCache) {
         const doc = { ...document, _id, _version } as PongoDocument;
         await cacheProvider.set(_id, doc);
       }
@@ -252,7 +251,7 @@ export const pongoCollection = <
         options,
       );
 
-      if (cacheProvider && !options?.skipCache) {
+      if (!options?.skipCache) {
         await cacheProvider.setMany(
           rows.map((r) => ({
             key: r._id,
@@ -294,7 +293,7 @@ export const pongoCollection = <
         { operationName: 'updateOne', collectionName, serializer, errors },
       );
 
-      if (opResult.successful && cacheProvider && !options?.skipCache) {
+      if (opResult.successful && !options?.skipCache) {
         const id = idFromFilter(filter);
         if (id) {
           await cacheProvider.delete(id);
@@ -327,7 +326,7 @@ export const pongoCollection = <
         { operationName: 'replaceOne', collectionName, serializer, errors },
       );
 
-      if (opResult.successful && cacheProvider && !options?.skipCache) {
+      if (opResult.successful && !options?.skipCache) {
         const id = idFromFilter(filter);
         if (id) {
           const newVersion = opResult.nextExpectedVersion;
@@ -379,12 +378,7 @@ export const pongoCollection = <
         { operationName: 'deleteOne', collectionName, serializer, errors },
       );
 
-      if (
-        opResult.successful &&
-        cacheProvider &&
-        !options?.skipCache &&
-        filter
-      ) {
+      if (opResult.successful && !options?.skipCache && filter) {
         const id = idFromFilter(filter);
         if (id) await cacheProvider.delete(id);
       }
@@ -399,7 +393,7 @@ export const pongoCollection = <
 
       const result = await command(SqlFor.deleteMany(filter ?? {}), options);
 
-      if (cacheProvider && !options?.skipCache && filter) {
+      if (!options?.skipCache && filter) {
         const ids = idsFromInFilter(filter);
         if (ids) await cacheProvider.deleteMany(ids);
       }
@@ -421,7 +415,7 @@ export const pongoCollection = <
 
       const id = filter && !options?.skipCache ? idFromFilter(filter) : null;
 
-      if (id && cacheProvider) {
+      if (id) {
         const cached = await cacheProvider.get(id);
         if (cached !== undefined)
           return cached === null
@@ -535,7 +529,7 @@ export const pongoCollection = <
             expectedVersion: 'DOCUMENT_DOES_NOT_EXIST',
           },
         );
-        if (!insertResult.successful && cacheProvider) {
+        if (!insertResult.successful) {
           await cacheProvider.delete(id);
         }
         return {
@@ -552,7 +546,7 @@ export const pongoCollection = <
           ...operationOptions,
           expectedVersion: expectedVersion ?? 'DOCUMENT_EXISTS',
         });
-        if (!deleteResult.successful && cacheProvider) {
+        if (!deleteResult.successful) {
           await cacheProvider.delete(id);
         }
         return { ...deleteResult, document: null };
@@ -563,7 +557,7 @@ export const pongoCollection = <
           ...operationOptions,
           expectedVersion: expectedVersion ?? 'DOCUMENT_EXISTS',
         });
-        if (!replaceResult.successful && cacheProvider) {
+        if (!replaceResult.successful) {
           await cacheProvider.delete(id);
         }
         return {
@@ -589,7 +583,7 @@ export const pongoCollection = <
     ): Promise<WithIdAndVersion<T>[]> => {
       await ensureCollectionCreated(options);
 
-      if (cacheProvider && !options?.skipCache && filter) {
+      if (!options?.skipCache && filter) {
         const ids = idsFromInFilter(filter);
         if (ids && ids.length > 0) {
           const cached = await cacheProvider.getMany(ids);

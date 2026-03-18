@@ -1,3 +1,4 @@
+import type { CacheConfig, PongoCache } from './cache';
 import { pongoTransaction } from './pongoTransaction';
 import type {
   PongoDbTransaction,
@@ -8,6 +9,7 @@ import type {
 export type PongoSessionOptions = {
   explicit?: boolean;
   defaultTransactionOptions: PongoTransactionOptions;
+  cache?: CacheConfig | 'disabled' | PongoCache;
 };
 
 const isActive = (

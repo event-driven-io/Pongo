@@ -3,19 +3,19 @@ import { pongoClient, type PongoClient } from '..';
 import { sqlite3Driver } from '../../storage/sqlite/sqlite3';
 import { pongoCacheWrapper } from './cacheWrapper';
 import { inMemoryCacheProvider } from './inMemoryProvider';
-import type { PongoCacheProvider } from './types';
+import type { PongoCache } from './types';
 
 type User = { _id?: string; name: string; age?: number };
 
-const makeTrackedCache = (
-  dbName: string,
-  collectionName: string,
-): { cache: PongoCacheProvider; raw: PongoCacheProvider } => {
-  const backing = inMemoryCacheProvider({ max: 100 });
-  const cache = pongoCacheWrapper({ provider: backing, dbName, collectionName });
-  const raw = pongoCacheWrapper({ provider: backing, dbName, collectionName });
-  return { cache, raw };
+const makeTrackedCache = (): { cache: PongoCache; raw: PongoCache } => {
+  const clientCache = inMemoryCacheProvider({ max: 100 });
+  const dbCache = pongoCacheWrapper({ provider: clientCache });
+  const collectionCache = pongoCacheWrapper({ provider: clientCache });
+  return { cache: dbCache, raw: collectionCache };
 };
+
+const dbName = 'db';
+const collectionName = 'users';
 
 describe('pongoCollection cache integration', () => {
   let client: PongoClient;
@@ -34,7 +34,7 @@ describe('pongoCollection cache integration', () => {
 
   describe('findOne', () => {
     it('cache miss → queries DB, populates cache, returns document', async () => {
-      const { cache, raw } = makeTrackedCache('db', 'users');
+      const { cache, raw } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne(
@@ -42,39 +42,39 @@ describe('pongoCollection cache integration', () => {
         { skipCache: true },
       );
 
-      expect(await raw.get(insertedId!)).toBeUndefined();
+      expect(await raw.get(`${dbName}:${collectionName}:${insertedId!}`)).toBeUndefined();
 
       const doc = await col.findOne({ _id: insertedId! });
       expect(doc?.name).toBe('Alice');
 
-      const cached = await raw.get(insertedId!);
+      const cached = await raw.get(`${dbName}:${collectionName}:${insertedId!}`);
       expect((cached as Record<string, unknown>)?.name).toBe('Alice');
     });
 
     it('cache hit → returns cached document without hitting DB', async () => {
-      const { cache } = makeTrackedCache('db', 'users');
+      const { cache } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Bob' });
-      await cache.set(insertedId!, { _id: insertedId!, name: 'CachedBob', _version: 1n });
+      await cache.set(`${dbName}:${collectionName}:${insertedId!}`, { _id: insertedId!, name: 'CachedBob', _version: 1n });
 
       const doc = await col.findOne({ _id: insertedId! });
       expect(doc?.name).toBe('CachedBob');
     });
 
     it('skipCache: true → always queries DB', async () => {
-      const { cache } = makeTrackedCache('db', 'users');
+      const { cache } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Carol' });
-      await cache.set(insertedId!, { _id: insertedId!, name: 'Poisoned', _version: 1n });
+      await cache.set(`${dbName}:${collectionName}:${insertedId!}`, { _id: insertedId!, name: 'Poisoned', _version: 1n });
 
       const doc = await col.findOne({ _id: insertedId! }, { skipCache: true });
       expect(doc?.name).toBe('Carol');
     });
 
     it('non-_id filter → bypasses cache, queries DB', async () => {
-      const { cache } = makeTrackedCache('db', 'users');
+      const { cache } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       await col.insertOne({ name: 'Dave' });
@@ -86,12 +86,12 @@ describe('pongoCollection cache integration', () => {
     });
 
     it('second findOne by _id returns cached version', async () => {
-      const { cache } = makeTrackedCache('db', 'users');
+      const { cache } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Eve' });
       await col.findOne({ _id: insertedId! });
-      await cache.set(insertedId!, { _id: insertedId!, name: 'CachedEve', _version: 1n });
+      await cache.set(`${dbName}:${collectionName}:${insertedId!}`, { _id: insertedId!, name: 'CachedEve', _version: 1n });
 
       const doc = await col.findOne({ _id: insertedId! });
       expect(doc?.name).toBe('CachedEve');
@@ -100,20 +100,20 @@ describe('pongoCollection cache integration', () => {
 
   describe('insertOne', () => {
     it('after insertOne the document is in the cache', async () => {
-      const { cache, raw } = makeTrackedCache('db', 'users');
+      const { cache, raw } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Frank' });
-      const cached = await raw.get(insertedId!);
+      const cached = await raw.get(`${dbName}:${collectionName}:${insertedId!}`);
       expect((cached as Record<string, unknown>)?.name).toBe('Frank');
     });
 
     it('findOne after insertOne returns from cache', async () => {
-      const { cache } = makeTrackedCache('db', 'users');
+      const { cache } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Grace' });
-      await cache.set(insertedId!, { _id: insertedId!, name: 'CachedGrace', _version: 1n });
+      await cache.set(`${dbName}:${collectionName}:${insertedId!}`, { _id: insertedId!, name: 'CachedGrace', _version: 1n });
 
       const doc = await col.findOne({ _id: insertedId! });
       expect(doc?.name).toBe('CachedGrace');
@@ -122,7 +122,7 @@ describe('pongoCollection cache integration', () => {
 
   describe('insertMany', () => {
     it('after insertMany all documents are in the cache', async () => {
-      const { cache, raw } = makeTrackedCache('db', 'users');
+      const { cache, raw } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const result = await col.insertMany([
@@ -133,25 +133,25 @@ describe('pongoCollection cache integration', () => {
       expect(result.insertedIds).toHaveLength(3);
 
       for (const id of result.insertedIds) {
-        expect(await raw.get(id)).toBeDefined();
+        expect(await raw.get(`${dbName}:${collectionName}:${id}`)).toBeDefined();
       }
     });
   });
 
   describe('updateOne', () => {
     it('after updateOne the stale cache entry is evicted', async () => {
-      const { cache, raw } = makeTrackedCache('db', 'users');
+      const { cache, raw } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Ivan', age: 30 });
-      expect(await raw.get(insertedId!)).toBeDefined();
+      expect(await raw.get(`${dbName}:${collectionName}:${insertedId!}`)).toBeDefined();
 
       await col.updateOne({ _id: insertedId! }, { $set: { age: 31 } });
-      expect(await raw.get(insertedId!)).toBeUndefined();
+      expect(await raw.get(`${dbName}:${collectionName}:${insertedId!}`)).toBeUndefined();
     });
 
     it('after updateOne + findOne the cache contains the updated value', async () => {
-      const { cache } = makeTrackedCache('db', 'users');
+      const { cache } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Jane', age: 25 });
@@ -164,7 +164,7 @@ describe('pongoCollection cache integration', () => {
 
   describe('replaceOne', () => {
     it('after replaceOne the cache is updated with the new document state', async () => {
-      const { cache } = makeTrackedCache('db', 'users');
+      const { cache } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Karl', age: 40 });
@@ -178,18 +178,18 @@ describe('pongoCollection cache integration', () => {
 
   describe('deleteOne', () => {
     it('after deleteOne the document is evicted from cache', async () => {
-      const { cache, raw } = makeTrackedCache('db', 'users');
+      const { cache, raw } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Laura' });
-      expect(await raw.get(insertedId!)).toBeDefined();
+      expect(await raw.get(`${dbName}:${collectionName}:${insertedId!}`)).toBeDefined();
 
       await col.deleteOne({ _id: insertedId! });
-      expect(await raw.get(insertedId!)).toBeUndefined();
+      expect(await raw.get(`${dbName}:${collectionName}:${insertedId!}`)).toBeUndefined();
     });
 
     it('findOne after deleteOne returns null', async () => {
-      const { cache } = makeTrackedCache('db', 'users');
+      const { cache } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Mike' });
@@ -201,7 +201,7 @@ describe('pongoCollection cache integration', () => {
 
   describe('deleteMany', () => {
     it('deleteMany with $in filter evicts those ids from cache', async () => {
-      const { cache, raw } = makeTrackedCache('db', 'users');
+      const { cache, raw } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const r1 = await col.insertOne({ name: 'N1' });
@@ -212,32 +212,32 @@ describe('pongoCollection cache integration', () => {
         _id: { $in: [r1.insertedId!, r2.insertedId!] },
       } as unknown as { _id: string });
 
-      expect(await raw.get(r1.insertedId!)).toBeUndefined();
-      expect(await raw.get(r2.insertedId!)).toBeUndefined();
-      expect(await raw.get(r3.insertedId!)).toBeDefined();
+      expect(await raw.get(`${dbName}:${collectionName}:${r1.insertedId!}`)).toBeUndefined();
+      expect(await raw.get(`${dbName}:${collectionName}:${r2.insertedId!}`)).toBeUndefined();
+      expect(await raw.get(`${dbName}:${collectionName}:${r3.insertedId!}`)).toBeDefined();
     });
 
     it('deleteMany with non-id filter does not evict from cache', async () => {
-      const { cache, raw } = makeTrackedCache('db', 'users');
+      const { cache, raw } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Oscar', age: 99 });
       await col.deleteMany({ age: 99 } as unknown as { _id: string });
 
-      expect(await raw.get(insertedId!)).toBeDefined();
+      expect(await raw.get(`${dbName}:${collectionName}:${insertedId!}`)).toBeDefined();
     });
   });
 
   describe('find with $in filter', () => {
     it('returns cached docs for hits, queries DB for misses, populates cache', async () => {
-      const { cache, raw } = makeTrackedCache('db', 'users');
+      const { cache, raw } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const r1 = await col.insertOne({ name: 'P1' });
       const r2 = await col.insertOne({ name: 'P2' });
       const r3 = await col.insertOne({ name: 'P3' });
 
-      await raw.delete(r2.insertedId!);
+      await raw.delete(`${dbName}:${collectionName}:${r2.insertedId!}`);
 
       const docs = await col.find({
         _id: { $in: [r1.insertedId!, r2.insertedId!, r3.insertedId!] },
@@ -245,11 +245,11 @@ describe('pongoCollection cache integration', () => {
 
       expect(docs).toHaveLength(3);
       expect(docs.map((d) => d.name).sort()).toEqual(['P1', 'P2', 'P3']);
-      expect(await raw.get(r2.insertedId!)).toBeDefined();
+      expect(await raw.get(`${dbName}:${collectionName}:${r2.insertedId!}`)).toBeDefined();
     });
 
     it('find with non-_id filter bypasses cache', async () => {
-      const { cache } = makeTrackedCache('db', 'users');
+      const { cache } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       await col.insertOne({ name: 'Q1', age: 50 });
@@ -260,7 +260,7 @@ describe('pongoCollection cache integration', () => {
     });
 
     it('find with skipCache bypasses cache', async () => {
-      const { cache } = makeTrackedCache('db', 'users');
+      const { cache } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'R1' });
@@ -276,11 +276,11 @@ describe('pongoCollection cache integration', () => {
 
   describe('handle', () => {
     it('reads from cache on cache hit', async () => {
-      const { cache } = makeTrackedCache('db', 'users');
+      const { cache } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Sam' });
-      await cache.set(insertedId!, { _id: insertedId!, name: 'CachedSam', _version: 1n });
+      await cache.set(`${dbName}:${collectionName}:${insertedId!}`, { _id: insertedId!, name: 'CachedSam', _version: 1n });
 
       const seen = { doc: null as User | null };
       await col.handle(insertedId!, (doc) => {
@@ -292,18 +292,18 @@ describe('pongoCollection cache integration', () => {
     });
 
     it('after handle inserts a new document, it is in the cache', async () => {
-      const { cache, raw } = makeTrackedCache('db', 'users');
+      const { cache, raw } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const newId = 'handle-insert-id';
       await col.handle(newId, () => ({ name: 'NewViaHandle' }));
 
-      const cached = await raw.get(newId);
+      const cached = await raw.get(`${dbName}:${collectionName}:${newId}`);
       expect((cached as Record<string, unknown>)?.name).toBe('NewViaHandle');
     });
 
     it('after handle updates a document, cache is updated', async () => {
-      const { cache } = makeTrackedCache('db', 'users');
+      const { cache } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Tina', age: 20 });
@@ -314,22 +314,22 @@ describe('pongoCollection cache integration', () => {
     });
 
     it('after handle deletes a document, cache is evicted', async () => {
-      const { cache, raw } = makeTrackedCache('db', 'users');
+      const { cache, raw } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Uma' });
-      expect(await raw.get(insertedId!)).toBeDefined();
+      expect(await raw.get(`${dbName}:${collectionName}:${insertedId!}`)).toBeDefined();
 
       await col.handle(insertedId!, () => null);
-      expect(await raw.get(insertedId!)).toBeUndefined();
+      expect(await raw.get(`${dbName}:${collectionName}:${insertedId!}`)).toBeUndefined();
     });
 
     it('skipCache: true bypasses cache read in handle', async () => {
-      const { cache } = makeTrackedCache('db', 'users');
+      const { cache } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Vera' });
-      await cache.set(insertedId!, { _id: insertedId!, name: 'Poisoned', _version: 1n });
+      await cache.set(`${dbName}:${collectionName}:${insertedId!}`, { _id: insertedId!, name: 'Poisoned', _version: 1n });
 
       const seen = { doc: null as User | null };
       await col.handle(
@@ -357,7 +357,7 @@ describe('pongoCollection cache integration', () => {
 
   describe('updateMany', () => {
     it('updateMany does not interact with cache (known limitation: stale entries remain)', async () => {
-      const { cache, raw } = makeTrackedCache('db', 'users');
+      const { cache, raw } = makeTrackedCache();
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Xavier', age: 10 });
@@ -366,7 +366,7 @@ describe('pongoCollection cache integration', () => {
         { $set: { age: 11 } },
       );
 
-      const cached = await raw.get(insertedId!);
+      const cached = await raw.get(`${dbName}:${collectionName}:${insertedId!}`);
       expect((cached as Record<string, unknown>)?.age).toBe(10);
     });
   });
