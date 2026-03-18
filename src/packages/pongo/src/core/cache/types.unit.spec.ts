@@ -1,11 +1,11 @@
 import { describe, expectTypeOf, it } from 'vitest';
 import type { PongoDocument } from '../typing';
 import type {
-  CacheConfig,
-  CacheConfigObject,
-  CacheOptions,
-  MaybePromise,
-  PongoCacheProvider,
+    CacheConfig,
+    CacheOptions,
+    CacheSettings,
+    MaybePromise,
+    PongoCache,
 } from './types';
 
 describe('MaybePromise', () => {
@@ -20,7 +20,7 @@ describe('MaybePromise', () => {
 
 describe('CacheConfig', () => {
   it('accepts a CacheConfigObject', () => {
-    expectTypeOf<CacheConfigObject>().toMatchTypeOf<CacheConfig>();
+    expectTypeOf<CacheSettings>().toMatchTypeOf<CacheConfig>();
   });
 
   it('accepts the literal "disabled"', () => {
@@ -33,7 +33,7 @@ describe('CacheConfig', () => {
 
   it('narrows to CacheConfigObject after excluding disabled', () => {
     type NotDisabled = Exclude<CacheConfig, 'disabled'>;
-    expectTypeOf<NotDisabled>().toEqualTypeOf<CacheConfigObject>();
+    expectTypeOf<NotDisabled>().toEqualTypeOf<CacheSettings>();
   });
 });
 
@@ -49,43 +49,43 @@ describe('CacheOptions', () => {
 
 describe('PongoCacheProvider', () => {
   it('get signature', () => {
-    expectTypeOf<PongoCacheProvider['get']>().toEqualTypeOf<
+    expectTypeOf<PongoCache['get']>().toEqualTypeOf<
       (key: string) => MaybePromise<PongoDocument | null | undefined>
     >();
   });
 
   it('set signature', () => {
-    expectTypeOf<PongoCacheProvider['set']>().toEqualTypeOf<
+    expectTypeOf<PongoCache['set']>().toEqualTypeOf<
       (key: string, value: PongoDocument, options?: { ttl?: number }) => MaybePromise<void>
     >();
   });
 
   it('delete signature', () => {
-    expectTypeOf<PongoCacheProvider['delete']>().toEqualTypeOf<
+    expectTypeOf<PongoCache['delete']>().toEqualTypeOf<
       (key: string) => MaybePromise<void>
     >();
   });
 
   it('getMany signature', () => {
-    expectTypeOf<PongoCacheProvider['getMany']>().toEqualTypeOf<
+    expectTypeOf<PongoCache['getMany']>().toEqualTypeOf<
       (keys: string[]) => MaybePromise<(PongoDocument | null | undefined)[]>
     >();
   });
 
   it('setMany signature', () => {
-    expectTypeOf<PongoCacheProvider['setMany']>().toEqualTypeOf<
+    expectTypeOf<PongoCache['setMany']>().toEqualTypeOf<
       (entries: { key: string; value: PongoDocument; ttl?: number }[]) => MaybePromise<void>
     >();
   });
 
   it('deleteMany signature', () => {
-    expectTypeOf<PongoCacheProvider['deleteMany']>().toEqualTypeOf<
+    expectTypeOf<PongoCache['deleteMany']>().toEqualTypeOf<
       (keys: string[]) => MaybePromise<void>
     >();
   });
 
   it('clear signature', () => {
-    expectTypeOf<PongoCacheProvider['clear']>().toEqualTypeOf<
+    expectTypeOf<PongoCache['clear']>().toEqualTypeOf<
       () => MaybePromise<void>
     >();
   });
@@ -102,8 +102,8 @@ describe('PongoCacheProvider', () => {
       },
       deleteMany: (keys: string[]) => { for (const key of keys) store.delete(key); },
       clear: () => { store.clear(); },
-    } satisfies PongoCacheProvider;
-    expectTypeOf(provider).toMatchTypeOf<PongoCacheProvider>();
+    } satisfies PongoCache;
+    expectTypeOf(provider).toMatchTypeOf<PongoCache>();
   });
 
   it('async provider satisfies interface', () => {
@@ -118,7 +118,7 @@ describe('PongoCacheProvider', () => {
       },
       deleteMany: async (keys: string[]) => { for (const key of keys) store.delete(key); },
       clear: async () => store.clear(),
-    } satisfies PongoCacheProvider;
-    expectTypeOf(provider).toMatchTypeOf<PongoCacheProvider>();
+    } satisfies PongoCache;
+    expectTypeOf(provider).toMatchTypeOf<PongoCache>();
   });
 });

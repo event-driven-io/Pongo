@@ -15,7 +15,7 @@ import type {
   WithDatabaseTransactionFactory,
 } from '@event-driven-io/dumbo';
 import { v7 as uuid } from 'uuid';
-import type { CacheConfig, PongoCacheProvider } from '../cache';
+import type { CacheConfig, PongoCache } from '../cache';
 import type { PongoCollectionSchemaComponent } from '../collection';
 import type { PongoDatabaseSchemaComponent } from '../database/pongoDatabaseSchemaComponent';
 import type { AnyPongoDriver, ExtractPongoDriverOptions } from '../drivers';
@@ -75,6 +75,7 @@ export interface PongoDbTransaction<
   ) => Promise<DatabaseTransaction<AnyConnection>>;
   commit: () => Promise<void>;
   rollback: (error?: unknown) => Promise<void>;
+  get cacheProvider(): PongoCache | null;
   get sqlExecutor(): SQLExecutor;
   get isStarting(): boolean;
   get isActive(): boolean;
@@ -113,7 +114,7 @@ export type PongoDBCollectionOptions<
     };
   };
   errors?: { throwOnOperationFailures?: boolean };
-  cache?: CacheConfig | 'disabled' | PongoCacheProvider;
+  cache?: CacheConfig | 'disabled' | PongoCache;
 };
 
 export interface PongoDb<

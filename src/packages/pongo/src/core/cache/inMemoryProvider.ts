@@ -1,11 +1,11 @@
 import { LRUCache } from 'lru-cache';
 import type { PongoDocument } from '../typing';
-import type { PongoCacheProvider } from './types';
+import type { PongoCache } from './types';
 
 export const inMemoryCacheProvider = (options?: {
   max?: number;
   ttl?: number;
-}): PongoCacheProvider => {
+}): PongoCache => {
   const max = options?.max ?? 1000;
   const ttl = options?.ttl;
 

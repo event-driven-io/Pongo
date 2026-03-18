@@ -1,16 +1,16 @@
-import type { CacheConfig, CacheConfigObject } from './types';
+import type { CacheConfig, CacheSettings } from './types';
 
-const DEFAULT_CONFIG: CacheConfigObject = { type: 'in-memory', max: 1000 };
+const DEFAULT_CONFIG: CacheSettings = { type: 'in-memory', max: 1000 };
 
 const COMMON_KEYS = new Set(['type', 'max', 'ttl']);
 
 const isTypeSpecificKey = (key: string) => !COMMON_KEYS.has(key);
 
 const mergeConfigs = (
-  parent: CacheConfigObject,
-  child: CacheConfigObject,
-): CacheConfigObject => {
-  const base: CacheConfigObject = { type: child.type };
+  parent: CacheSettings,
+  child: CacheSettings,
+): CacheSettings => {
+  const base: CacheSettings = { type: child.type };
 
   if (parent.max !== undefined) base.max = parent.max;
   if (parent.ttl !== undefined) base.ttl = parent.ttl;
