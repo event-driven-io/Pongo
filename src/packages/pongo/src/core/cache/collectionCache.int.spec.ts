@@ -2,13 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { pongoClient, type PongoClient } from '..';
 import { sqlite3Driver } from '../../storage/sqlite/sqlite3';
 import { pongoCacheWrapper } from './cacheWrapper';
-import { inMemoryCacheProvider } from './inMemoryProvider';
+import { lruCache } from './lruCacheProvider';
 import type { PongoCache } from './types';
 
 type User = { _id?: string; name: string; age?: number };
 
+// TODO: this should
 const makeTrackedCache = (): { cache: PongoCache; raw: PongoCache } => {
-  const clientCache = inMemoryCacheProvider({ max: 100 });
+  const clientCache = lruCache({ max: 100 });
   const dbCache = pongoCacheWrapper({ provider: clientCache });
   const collectionCache = pongoCacheWrapper({ provider: clientCache });
   return { cache: dbCache, raw: collectionCache };
@@ -42,12 +43,16 @@ describe('pongoCollection cache integration', () => {
         { skipCache: true },
       );
 
-      expect(await raw.get(`${dbName}:${collectionName}:${insertedId!}`)).toBeUndefined();
+      expect(
+        await raw.get(`${dbName}:${collectionName}:${insertedId!}`),
+      ).toBeUndefined();
 
       const doc = await col.findOne({ _id: insertedId! });
       expect(doc?.name).toBe('Alice');
 
-      const cached = await raw.get(`${dbName}:${collectionName}:${insertedId!}`);
+      const cached = await raw.get(
+        `${dbName}:${collectionName}:${insertedId!}`,
+      );
       expect((cached as Record<string, unknown>)?.name).toBe('Alice');
     });
 
@@ -56,7 +61,11 @@ describe('pongoCollection cache integration', () => {
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Bob' });
-      await cache.set(`${dbName}:${collectionName}:${insertedId!}`, { _id: insertedId!, name: 'CachedBob', _version: 1n });
+      await cache.set(`${dbName}:${collectionName}:${insertedId!}`, {
+        _id: insertedId!,
+        name: 'CachedBob',
+        _version: 1n,
+      });
 
       const doc = await col.findOne({ _id: insertedId! });
       expect(doc?.name).toBe('CachedBob');
@@ -67,7 +76,11 @@ describe('pongoCollection cache integration', () => {
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Carol' });
-      await cache.set(`${dbName}:${collectionName}:${insertedId!}`, { _id: insertedId!, name: 'Poisoned', _version: 1n });
+      await cache.set(`${dbName}:${collectionName}:${insertedId!}`, {
+        _id: insertedId!,
+        name: 'Poisoned',
+        _version: 1n,
+      });
 
       const doc = await col.findOne({ _id: insertedId! }, { skipCache: true });
       expect(doc?.name).toBe('Carol');
@@ -80,7 +93,9 @@ describe('pongoCollection cache integration', () => {
       await col.insertOne({ name: 'Dave' });
 
       const getSpy = vi.spyOn(cache, 'get');
-      const doc = await col.findOne({ name: 'Dave' } as unknown as { _id: string });
+      const doc = await col.findOne({ name: 'Dave' } as unknown as {
+        _id: string;
+      });
       expect(doc?.name).toBe('Dave');
       expect(getSpy).not.toHaveBeenCalled();
     });
@@ -91,7 +106,11 @@ describe('pongoCollection cache integration', () => {
 
       const { insertedId } = await col.insertOne({ name: 'Eve' });
       await col.findOne({ _id: insertedId! });
-      await cache.set(`${dbName}:${collectionName}:${insertedId!}`, { _id: insertedId!, name: 'CachedEve', _version: 1n });
+      await cache.set(`${dbName}:${collectionName}:${insertedId!}`, {
+        _id: insertedId!,
+        name: 'CachedEve',
+        _version: 1n,
+      });
 
       const doc = await col.findOne({ _id: insertedId! });
       expect(doc?.name).toBe('CachedEve');
@@ -104,7 +123,9 @@ describe('pongoCollection cache integration', () => {
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Frank' });
-      const cached = await raw.get(`${dbName}:${collectionName}:${insertedId!}`);
+      const cached = await raw.get(
+        `${dbName}:${collectionName}:${insertedId!}`,
+      );
       expect((cached as Record<string, unknown>)?.name).toBe('Frank');
     });
 
@@ -113,7 +134,11 @@ describe('pongoCollection cache integration', () => {
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Grace' });
-      await cache.set(`${dbName}:${collectionName}:${insertedId!}`, { _id: insertedId!, name: 'CachedGrace', _version: 1n });
+      await cache.set(`${dbName}:${collectionName}:${insertedId!}`, {
+        _id: insertedId!,
+        name: 'CachedGrace',
+        _version: 1n,
+      });
 
       const doc = await col.findOne({ _id: insertedId! });
       expect(doc?.name).toBe('CachedGrace');
@@ -133,7 +158,9 @@ describe('pongoCollection cache integration', () => {
       expect(result.insertedIds).toHaveLength(3);
 
       for (const id of result.insertedIds) {
-        expect(await raw.get(`${dbName}:${collectionName}:${id}`)).toBeDefined();
+        expect(
+          await raw.get(`${dbName}:${collectionName}:${id}`),
+        ).toBeDefined();
       }
     });
   });
@@ -144,10 +171,14 @@ describe('pongoCollection cache integration', () => {
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Ivan', age: 30 });
-      expect(await raw.get(`${dbName}:${collectionName}:${insertedId!}`)).toBeDefined();
+      expect(
+        await raw.get(`${dbName}:${collectionName}:${insertedId!}`),
+      ).toBeDefined();
 
       await col.updateOne({ _id: insertedId! }, { $set: { age: 31 } });
-      expect(await raw.get(`${dbName}:${collectionName}:${insertedId!}`)).toBeUndefined();
+      expect(
+        await raw.get(`${dbName}:${collectionName}:${insertedId!}`),
+      ).toBeUndefined();
     });
 
     it('after updateOne + findOne the cache contains the updated value', async () => {
@@ -168,7 +199,10 @@ describe('pongoCollection cache integration', () => {
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Karl', age: 40 });
-      await col.replaceOne({ _id: insertedId! }, { name: 'Karl Updated', age: 41 });
+      await col.replaceOne(
+        { _id: insertedId! },
+        { name: 'Karl Updated', age: 41 },
+      );
 
       const doc = await col.findOne({ _id: insertedId! });
       expect(doc?.name).toBe('Karl Updated');
@@ -182,10 +216,14 @@ describe('pongoCollection cache integration', () => {
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Laura' });
-      expect(await raw.get(`${dbName}:${collectionName}:${insertedId!}`)).toBeDefined();
+      expect(
+        await raw.get(`${dbName}:${collectionName}:${insertedId!}`),
+      ).toBeDefined();
 
       await col.deleteOne({ _id: insertedId! });
-      expect(await raw.get(`${dbName}:${collectionName}:${insertedId!}`)).toBeUndefined();
+      expect(
+        await raw.get(`${dbName}:${collectionName}:${insertedId!}`),
+      ).toBeUndefined();
     });
 
     it('findOne after deleteOne returns null', async () => {
@@ -212,9 +250,15 @@ describe('pongoCollection cache integration', () => {
         _id: { $in: [r1.insertedId!, r2.insertedId!] },
       } as unknown as { _id: string });
 
-      expect(await raw.get(`${dbName}:${collectionName}:${r1.insertedId!}`)).toBeUndefined();
-      expect(await raw.get(`${dbName}:${collectionName}:${r2.insertedId!}`)).toBeUndefined();
-      expect(await raw.get(`${dbName}:${collectionName}:${r3.insertedId!}`)).toBeDefined();
+      expect(
+        await raw.get(`${dbName}:${collectionName}:${r1.insertedId!}`),
+      ).toBeUndefined();
+      expect(
+        await raw.get(`${dbName}:${collectionName}:${r2.insertedId!}`),
+      ).toBeUndefined();
+      expect(
+        await raw.get(`${dbName}:${collectionName}:${r3.insertedId!}`),
+      ).toBeDefined();
     });
 
     it('deleteMany with non-id filter does not evict from cache', async () => {
@@ -224,7 +268,9 @@ describe('pongoCollection cache integration', () => {
       const { insertedId } = await col.insertOne({ name: 'Oscar', age: 99 });
       await col.deleteMany({ age: 99 } as unknown as { _id: string });
 
-      expect(await raw.get(`${dbName}:${collectionName}:${insertedId!}`)).toBeDefined();
+      expect(
+        await raw.get(`${dbName}:${collectionName}:${insertedId!}`),
+      ).toBeDefined();
     });
   });
 
@@ -245,7 +291,9 @@ describe('pongoCollection cache integration', () => {
 
       expect(docs).toHaveLength(3);
       expect(docs.map((d) => d.name).sort()).toEqual(['P1', 'P2', 'P3']);
-      expect(await raw.get(`${dbName}:${collectionName}:${r2.insertedId!}`)).toBeDefined();
+      expect(
+        await raw.get(`${dbName}:${collectionName}:${r2.insertedId!}`),
+      ).toBeDefined();
     });
 
     it('find with non-_id filter bypasses cache', async () => {
@@ -280,7 +328,11 @@ describe('pongoCollection cache integration', () => {
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Sam' });
-      await cache.set(`${dbName}:${collectionName}:${insertedId!}`, { _id: insertedId!, name: 'CachedSam', _version: 1n });
+      await cache.set(`${dbName}:${collectionName}:${insertedId!}`, {
+        _id: insertedId!,
+        name: 'CachedSam',
+        _version: 1n,
+      });
 
       const seen = { doc: null as User | null };
       await col.handle(insertedId!, (doc) => {
@@ -307,7 +359,9 @@ describe('pongoCollection cache integration', () => {
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Tina', age: 20 });
-      await col.handle(insertedId!, (doc) => (doc ? { ...doc, age: 21 } : null));
+      await col.handle(insertedId!, (doc) =>
+        doc ? { ...doc, age: 21 } : null,
+      );
 
       const doc = await col.findOne({ _id: insertedId! });
       expect(doc?.age).toBe(21);
@@ -318,10 +372,14 @@ describe('pongoCollection cache integration', () => {
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Uma' });
-      expect(await raw.get(`${dbName}:${collectionName}:${insertedId!}`)).toBeDefined();
+      expect(
+        await raw.get(`${dbName}:${collectionName}:${insertedId!}`),
+      ).toBeDefined();
 
       await col.handle(insertedId!, () => null);
-      expect(await raw.get(`${dbName}:${collectionName}:${insertedId!}`)).toBeUndefined();
+      expect(
+        await raw.get(`${dbName}:${collectionName}:${insertedId!}`),
+      ).toBeUndefined();
     });
 
     it('skipCache: true bypasses cache read in handle', async () => {
@@ -329,7 +387,11 @@ describe('pongoCollection cache integration', () => {
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Vera' });
-      await cache.set(`${dbName}:${collectionName}:${insertedId!}`, { _id: insertedId!, name: 'Poisoned', _version: 1n });
+      await cache.set(`${dbName}:${collectionName}:${insertedId!}`, {
+        _id: insertedId!,
+        name: 'Poisoned',
+        _version: 1n,
+      });
 
       const seen = { doc: null as User | null };
       await col.handle(
@@ -347,7 +409,9 @@ describe('pongoCollection cache integration', () => {
 
   describe('cache disabled', () => {
     it('operations work normally without caching', async () => {
-      const col = client.db('db').collection<User>('users', { cache: 'disabled' });
+      const col = client
+        .db('db')
+        .collection<User>('users', { cache: 'disabled' });
 
       const { insertedId } = await col.insertOne({ name: 'Walter' });
       const doc = await col.findOne({ _id: insertedId! });
@@ -361,12 +425,13 @@ describe('pongoCollection cache integration', () => {
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Xavier', age: 10 });
-      await col.updateMany(
-        { age: 10 } as unknown as { _id: string },
-        { $set: { age: 11 } },
-      );
+      await col.updateMany({ age: 10 } as unknown as { _id: string }, {
+        $set: { age: 11 },
+      });
 
-      const cached = await raw.get(`${dbName}:${collectionName}:${insertedId!}`);
+      const cached = await raw.get(
+        `${dbName}:${collectionName}:${insertedId!}`,
+      );
       expect((cached as Record<string, unknown>)?.age).toBe(10);
     });
   });

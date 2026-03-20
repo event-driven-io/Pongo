@@ -1,6 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { pongoCollection } from '../collection/pongoCollection';
-import { inMemoryCacheProvider } from './inMemoryProvider';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { lruCache } from './lruCacheProvider';
 
 const makeTestCollection = (cacheConfig?: any) => {
   let dbDocs: Record<string, any> = {};
@@ -19,14 +18,18 @@ const makeTestCollection = (cacheConfig?: any) => {
     get(_id: string) {
       return dbDocs[_id] ? { ...dbDocs[_id] } : null;
     },
-    clear() { dbDocs = {}; idSeq = 1; },
+    clear() {
+      dbDocs = {};
+      idSeq = 1;
+    },
   };
-  const cache = inMemoryCacheProvider({ max: 100 });
+  const cache = lruCache({ max: 100 });
   const collection = {
     async insertOne(doc: any, opts: any = {}) {
       const inserted = db.insert(doc);
       if (!opts.session || !opts.session.inTransaction()) {
-        if (!opts.skipCache && cacheConfig !== 'disabled') await cache.set(inserted._id, inserted);
+        if (!opts.skipCache && cacheConfig !== 'disabled')
+          await cache.set(inserted._id, inserted);
       }
       return { insertedId: inserted._id, ...inserted };
     },
@@ -34,7 +37,8 @@ const makeTestCollection = (cacheConfig?: any) => {
       const _id = filter._id;
       const updated = db.update(_id, update);
       if (!opts.session || !opts.session.inTransaction()) {
-        if (!opts.skipCache && cacheConfig !== 'disabled') await cache.set(_id, updated);
+        if (!opts.skipCache && cacheConfig !== 'disabled')
+          await cache.set(_id, updated);
       }
       return { matchedCount: updated ? 1 : 0, ...updated };
     },
@@ -46,7 +50,10 @@ const makeTestCollection = (cacheConfig?: any) => {
       }
       return db.get(_id);
     },
-    async clear() { db.clear(); await cache.clear(); },
+    async clear() {
+      db.clear();
+      await cache.clear();
+    },
     cache,
     db,
   };
@@ -64,7 +71,10 @@ describe('Transaction-integrated cache', () => {
   it('reads within a transaction use the cache (default behavior)', async () => {
     const doc = await collection.insertOne({ name: 'A' });
     const session = { inTransaction: () => true };
-    const result = await collection.findOne({ _id: doc.insertedId }, { session });
+    const result = await collection.findOne(
+      { _id: doc.insertedId },
+      { session },
+    );
     expect(result.name).toBe('A');
   });
 
@@ -76,7 +86,11 @@ describe('Transaction-integrated cache', () => {
   });
 
   it('after transaction commit, cache is updated with all write results', async () => {
-    const session = { inTransaction: () => true, commit: vi.fn(), rollback: vi.fn() };
+    const session = {
+      inTransaction: () => true,
+      commit: vi.fn(),
+      rollback: vi.fn(),
+    };
     const doc = await collection.insertOne({ name: 'C' }, { session });
     await cache.set(doc.insertedId, { ...doc });
     const cached = await cache.get(doc.insertedId);
@@ -84,7 +98,11 @@ describe('Transaction-integrated cache', () => {
   });
 
   it('after transaction rollback, cache is NOT updated', async () => {
-    const session = { inTransaction: () => true, commit: vi.fn(), rollback: vi.fn() };
+    const session = {
+      inTransaction: () => true,
+      commit: vi.fn(),
+      rollback: vi.fn(),
+    };
     const doc = await collection.insertOne({ name: 'D' }, { session });
     const cached = await cache.get(doc.insertedId);
     expect(cached).toBeUndefined();
@@ -98,7 +116,10 @@ describe('Transaction-integrated cache', () => {
   });
 
   it('per-session cache config overrides collection config', async () => {
-    const session = { inTransaction: () => false, cache: { type: 'in-memory', max: 1 } };
+    const session = {
+      inTransaction: () => false,
+      cache: { type: 'in-memory', max: 1 },
+    };
     const doc = await collection.insertOne({ name: 'F' }, { session });
     const cached = await cache.get(doc.insertedId);
     expect(cached.name).toBe('F');

@@ -13,12 +13,20 @@ describe('resolveCacheConfig', () => {
   });
 
   it('client sets config, collection undefined — inherits client config', () => {
-    const result = resolveCacheConfig({ type: 'in-memory', max: 500 }, undefined, undefined);
+    const result = resolveCacheConfig(
+      { type: 'in-memory', max: 500 },
+      undefined,
+      undefined,
+    );
     expect(result).toEqual({ type: 'in-memory', max: 500 });
   });
 
   it('collection sets disabled — resolved is disabled', () => {
-    const result = resolveCacheConfig({ type: 'in-memory', max: 500 }, undefined, 'disabled');
+    const result = resolveCacheConfig(
+      { type: 'in-memory', max: 500 },
+      undefined,
+      'disabled',
+    );
     expect(result).toBe('disabled');
   });
 
@@ -38,7 +46,7 @@ describe('resolveCacheConfig', () => {
 
   it('type-specific params reset when child switches type', () => {
     const result = resolveCacheConfig(
-      { type: 'redis', max: 500, host: 'localhost' },
+      { type: 'redis' as 'in-memory', max: 500, host: 'localhost' },
       undefined,
       { type: 'in-memory' },
     );
