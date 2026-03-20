@@ -1,4 +1,5 @@
 import type { DatabaseTransaction } from '@event-driven-io/dumbo';
+import { pongoTransactionCache } from './cache';
 import type {
   PongoDb,
   PongoDbTransaction,
@@ -14,6 +15,7 @@ export const pongoTransaction = (
   let transaction: DatabaseTransaction | null = null;
 
   return {
+    cache: pongoTransactionCache(),
     enlistDatabase: async (db: PongoDb): Promise<DatabaseTransaction> => {
       if (transaction && databaseName !== db.databaseName)
         throw new Error(

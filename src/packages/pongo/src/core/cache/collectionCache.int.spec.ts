@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { pongoClient, type PongoClient } from '..';
 import { sqlite3Driver } from '../../storage/sqlite/sqlite3';
 import { pongoCacheWrapper } from './cacheWrapper';
-import { lruCache } from './lruCacheProvider';
+import { lruCache } from './providers/lruCache';
 import type { PongoCache } from './types';
 
 type User = { _id?: string; name: string; age?: number };

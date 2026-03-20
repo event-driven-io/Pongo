@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { lruCache } from './lruCacheProvider';
+import { lruCache } from './lruCache';
 
 describe('inMemoryCacheProvider', () => {
   it('returns undefined for missing keys', () => {

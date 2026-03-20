@@ -1,6 +1,6 @@
 import { LRUCache } from 'lru-cache';
-import type { PongoDocument } from '../typing';
-import type { PongoCache } from './types';
+import type { PongoDocument } from '../../typing';
+import type { PongoCache } from '../types';
 
 export const lruCache = (options?: {
   max?: number;
