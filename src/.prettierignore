@@ -1,3 +1,4 @@
 **/dist/
 **/lib/
 **/cache/
+!packages/pongo/src/core/cache

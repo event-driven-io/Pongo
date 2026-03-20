@@ -1,6 +1,6 @@
 import type { PongoDocument } from '../typing';
 import { resolveCacheConfig } from './configResolution';
-import { inMemoryCacheProvider } from './inMemoryProvider';
+import { lruCache } from './lruCacheProvider';
 import type { CacheConfig, CacheHooks, PongoCache } from './types';
 
 export const pongoCacheWrapper = (options: {
@@ -34,7 +34,11 @@ export const pongoCacheWrapper = (options: {
 
     async set(key, value, opts) {
       try {
-        await provider.set(key, value, opts ?? (defaultTtl !== undefined ? { ttl: defaultTtl } : undefined));
+        await provider.set(
+          key,
+          value,
+          opts ?? (defaultTtl !== undefined ? { ttl: defaultTtl } : undefined),
+        );
       } catch (error) {
         onError(error, 'set');
       }
@@ -42,7 +46,11 @@ export const pongoCacheWrapper = (options: {
 
     async update(key, updater, opts) {
       try {
-        await provider.set(key, updater, opts ?? (defaultTtl !== undefined ? { ttl: defaultTtl } : undefined));
+        await provider.set(
+          key,
+          updater,
+          opts ?? (defaultTtl !== undefined ? { ttl: defaultTtl } : undefined),
+        );
       } catch (error) {
         onError(error, 'update');
       }
@@ -89,7 +97,7 @@ export const pongoCacheWrapper = (options: {
             key,
             value: updater,
             ...(opts ?? (defaultTtl !== undefined ? { ttl: defaultTtl } : {})),
-          }))
+          })),
         );
       } catch (error) {
         onError(error, 'updateMany');
@@ -113,24 +121,26 @@ export const pongoCacheWrapper = (options: {
 
 export const noopCacheProvider: PongoCache = {
   type: 'pongo:cache:no-op',
-    get: async () => await Promise.resolve(null),
-    set: () => {},
-    update: () => {},
-    delete: () => {},
-    getMany: () => [],
-    setMany: () => {},
-    updateMany: () => {},
-    deleteMany: () => {},
-    clear: () => {},
-  };
+  get: async () => await Promise.resolve(null),
+  set: () => {},
+  update: () => {},
+  delete: () => {},
+  getMany: () => [],
+  setMany: () => {},
+  updateMany: () => {},
+  deleteMany: () => {},
+  clear: () => {},
+};
 
-export const identityMapCacheProvider = (): PongoCache  => {
+export const identityMapCache = (): PongoCache => {
   const store = new Map<string, PongoDocument>();
 
   return {
     type: 'pongo:cache:identity-map',
     get: (key) => Promise.resolve(store.get(key) ?? null),
-    set: (key, value) => { store.set(key, value); },
+    set: (key, value) => {
+      store.set(key, value);
+    },
     update: (key, _updater) => {
       // TODO: Implement proper update logic instead of just setting the updater as value
       store.delete(key);
@@ -139,9 +149,13 @@ export const identityMapCacheProvider = (): PongoCache  => {
       // const updated = typeof updater === 'function' ? updater(existing) : updater;
       // store.set(key, updated);
     },
-    delete: (key) => { store.delete(key); },
+    delete: (key) => {
+      store.delete(key);
+    },
     getMany: (keys) => Promise.resolve(keys.map((k) => store.get(k) ?? null)),
-    setMany: (entries) => { for (const { key, value } of entries) store.set(key, value); },
+    setMany: (entries) => {
+      for (const { key, value } of entries) store.set(key, value);
+    },
     updateMany: (keys, _updater) => {
       // TODO: Implement proper update logic instead of just setting the updater as value
       for (const key of keys) store.delete(key);
@@ -152,19 +166,24 @@ export const identityMapCacheProvider = (): PongoCache  => {
       //   store.set(key, updated);
       // }
     },
-    deleteMany: (keys) => { for (const key of keys) store.delete(key); },
-    clear: () => { store.clear(); },
+    deleteMany: (keys) => {
+      for (const key of keys) store.delete(key);
+    },
+    clear: () => {
+      store.clear();
+    },
   };
-}
+};
 
 export const resolveCollectionCacheProvider = (
-  cacheOption: CacheConfig | 'disabled' | PongoCache | undefined
+  cacheOption: CacheConfig | 'disabled' | PongoCache | undefined,
 ): PongoCache => {
-  
-
   if (cacheOption === 'disabled') return noopCacheProvider;
 
-  if (cacheOption !== undefined && typeof (cacheOption as PongoCache).get === 'function')
+  if (
+    cacheOption !== undefined &&
+    typeof (cacheOption as PongoCache).get === 'function'
+  )
     return cacheOption as PongoCache;
 
   const config = resolveCacheConfig(
@@ -172,7 +191,7 @@ export const resolveCollectionCacheProvider = (
   );
   if (config === 'disabled') return noopCacheProvider;
 
-  const raw = inMemoryCacheProvider({
+  const raw = lruCache({
     ...(config.max !== undefined ? { max: config.max } : {}),
     ...(config.ttl !== undefined ? { ttl: config.ttl } : {}),
   });

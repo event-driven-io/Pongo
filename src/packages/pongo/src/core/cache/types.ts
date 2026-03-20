@@ -1,69 +1,41 @@
 import type { MaybePromise, PongoDocument, PongoUpdate } from '../typing';
 
-export type PongoDocumentCacheKey = `${string}:${string}:${string}`; 
+export type PongoDocumentCacheKey = `${string}:${string}:${string}`;
 
 export type PongoCacheSetOptions = { ttl?: number };
 
-export type PongoCacheSetEntry = { key: PongoDocumentCacheKey; value: PongoDocument; } & PongoCacheSetOptions;
+export type PongoCacheSetEntry<Doc extends PongoDocument = PongoDocument> = {
+  key: PongoDocumentCacheKey;
+  value: Doc;
+} & PongoCacheSetOptions;
 
 export type PongoCacheType<T extends string = string> = `pongo:cache:${T}`;
 
 export interface PongoCache<T extends string = string> {
   type: PongoCacheType<T>;
   get(key: PongoDocumentCacheKey): MaybePromise<PongoDocument | null>;
-  set(
+  set<Doc extends PongoDocument = PongoDocument>(
     key: PongoDocumentCacheKey,
-    value: PongoDocument,
+    value: Doc,
     options?: PongoCacheSetOptions,
   ): MaybePromise<void>;
-  update(
+  update<Doc extends PongoDocument = PongoDocument>(
     key: PongoDocumentCacheKey,
-    updater: PongoUpdate<T>,
+    updater: PongoUpdate<Doc>,
     options?: PongoCacheSetOptions,
   ): MaybePromise<void>;
   delete(key: PongoDocumentCacheKey): MaybePromise<void>;
   getMany(
     keys: PongoDocumentCacheKey[],
   ): MaybePromise<(PongoDocument | null)[]>;
-  setMany(
-    entries: PongoCacheSetEntry[],
-  ): MaybePromise<void>;
-  updateMany(
-    keys: PongoDocumentCacheKey [],
-    updater: PongoUpdate<T>,
+  setMany(entries: PongoCacheSetEntry[]): MaybePromise<void>;
+  updateMany<Doc extends PongoDocument = PongoDocument>(
+    keys: PongoDocumentCacheKey[],
+    updater: PongoUpdate<Doc>,
     options?: PongoCacheSetOptions,
   ): MaybePromise<void>;
   deleteMany(keys: PongoDocumentCacheKey[]): MaybePromise<void>;
   clear(): MaybePromise<void>;
-}
-
-export type PongoTransactionCacheOperationOptions = {
-  mainCache: PongoCache;
-}
-
-export type PongoTransactionCacheSetOptions = PongoCacheSetOptions & {
-  mainCache: PongoCache;
-};
-
-export interface PongoTransactionCache<T extends string = string> {
-  type: PongoCacheType<T>;
-  get(key: PongoDocumentCacheKey): MaybePromise<PongoDocument | null>;
-  set(
-    key: PongoDocumentCacheKey,
-    value: PongoDocument,
-    options: PongoCacheSetOptions & PongoTransactionCacheOperationOptions,
-  ): MaybePromise<void>;
-  delete(key: PongoDocumentCacheKey, options: PongoTransactionCacheOperationOptions): MaybePromise<void>;
-  getMany(
-    keys: PongoDocumentCacheKey[],
-  ): MaybePromise<(PongoDocument | null)[]>;
-  setMany(
-    entries: PongoCacheSetEntry[],
-    options: PongoTransactionCacheOperationOptions,
-  ): MaybePromise<void>;
-  deleteMany(keys: PongoDocumentCacheKey[], options: PongoTransactionCacheOperationOptions): MaybePromise<void>;
-  clear(): MaybePromise<void>;
-  commit(): Promise<void>;
 }
 
 export type CacheHooks = {
@@ -73,8 +45,10 @@ export type CacheHooks = {
   onError?(error: unknown, operation: string): void;
 };
 
+export type CacheType = 'in-memory';
+
 export type CacheSettings<T extends string = string> = {
-  type: PongoCacheType<T>;
+  type: CacheType;
   max?: number;
   ttl?: number;
   [key: string]: unknown;

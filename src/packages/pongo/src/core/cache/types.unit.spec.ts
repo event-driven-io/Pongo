@@ -1,11 +1,11 @@
 import { describe, expectTypeOf, it } from 'vitest';
 import type { PongoDocument } from '../typing';
 import type {
-    CacheConfig,
-    CacheOptions,
-    CacheSettings,
-    MaybePromise,
-    PongoCache,
+  CacheConfig,
+  CacheOptions,
+  CacheSettings,
+  MaybePromise,
+  PongoCache,
 } from './types';
 
 describe('MaybePromise', () => {
@@ -39,7 +39,9 @@ describe('CacheConfig', () => {
 
 describe('CacheOptions', () => {
   it('skipCache is boolean or undefined', () => {
-    expectTypeOf<CacheOptions['skipCache']>().toEqualTypeOf<boolean | undefined>();
+    expectTypeOf<CacheOptions['skipCache']>().toEqualTypeOf<
+      boolean | undefined
+    >();
   });
 
   it('accepts empty object (all fields optional)', () => {
@@ -56,7 +58,11 @@ describe('PongoCacheProvider', () => {
 
   it('set signature', () => {
     expectTypeOf<PongoCache['set']>().toEqualTypeOf<
-      (key: string, value: PongoDocument, options?: { ttl?: number }) => MaybePromise<void>
+      (
+        key: string,
+        value: PongoDocument,
+        options?: { ttl?: number },
+      ) => MaybePromise<void>
     >();
   });
 
@@ -74,7 +80,9 @@ describe('PongoCacheProvider', () => {
 
   it('setMany signature', () => {
     expectTypeOf<PongoCache['setMany']>().toEqualTypeOf<
-      (entries: { key: string; value: PongoDocument; ttl?: number }[]) => MaybePromise<void>
+      (
+        entries: { key: string; value: PongoDocument; ttl?: number }[],
+      ) => MaybePromise<void>
     >();
   });
 
@@ -94,14 +102,22 @@ describe('PongoCacheProvider', () => {
     const store = new Map<string, PongoDocument>();
     const provider = {
       get: (key: string) => store.get(key) ?? null,
-      set: (key: string, value: PongoDocument) => { store.set(key, value); },
-      delete: (key: string) => { store.delete(key); },
+      set: (key: string, value: PongoDocument) => {
+        store.set(key, value);
+      },
+      delete: (key: string) => {
+        store.delete(key);
+      },
       getMany: (keys: string[]) => keys.map((k) => store.get(k) ?? null),
       setMany: (entries: { key: string; value: PongoDocument }[]) => {
         for (const { key, value } of entries) store.set(key, value);
       },
-      deleteMany: (keys: string[]) => { for (const key of keys) store.delete(key); },
-      clear: () => { store.clear(); },
+      deleteMany: (keys: string[]) => {
+        for (const key of keys) store.delete(key);
+      },
+      clear: () => {
+        store.clear();
+      },
     } satisfies PongoCache;
     expectTypeOf(provider).toMatchTypeOf<PongoCache>();
   });
@@ -110,13 +126,19 @@ describe('PongoCacheProvider', () => {
     const store = new Map<string, PongoDocument>();
     const provider = {
       get: async (key: string) => store.get(key) ?? null,
-      set: async (key: string, value: PongoDocument) => { store.set(key, value); },
-      delete: async (key: string) => { store.delete(key); },
+      set: async (key: string, value: PongoDocument) => {
+        store.set(key, value);
+      },
+      delete: async (key: string) => {
+        store.delete(key);
+      },
       getMany: async (keys: string[]) => keys.map((k) => store.get(k) ?? null),
       setMany: async (entries: { key: string; value: PongoDocument }[]) => {
         for (const { key, value } of entries) store.set(key, value);
       },
-      deleteMany: async (keys: string[]) => { for (const key of keys) store.delete(key); },
+      deleteMany: async (keys: string[]) => {
+        for (const key of keys) store.delete(key);
+      },
       clear: async () => store.clear(),
     } satisfies PongoCache;
     expectTypeOf(provider).toMatchTypeOf<PongoCache>();
