@@ -47,7 +47,7 @@ export type CacheHooks = {
 
 export type CacheType = 'in-memory';
 
-export type CacheSettings<T extends string = string> = {
+export type CacheSettings = {
   type: CacheType;
   max?: number;
   ttl?: number;

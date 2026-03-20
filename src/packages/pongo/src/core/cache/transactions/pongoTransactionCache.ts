@@ -1,13 +1,13 @@
-import type { MaybePromise, PongoUpdate } from '../typing';
-import type { PongoDocument } from '../typing/operations';
-import { identityMapCache } from './cacheWrapper';
+import type { MaybePromise, PongoUpdate } from '../../typing';
+import type { PongoDocument } from '../../typing/operations';
+import { identityMapCache } from '../providers';
 import type {
   PongoCache,
   PongoCacheSetEntry,
   PongoCacheSetOptions,
   PongoCacheType,
   PongoDocumentCacheKey,
-} from './types';
+} from '../types';
 
 export type PongoTransactionCacheOperationOptions = {
   mainCache: PongoCache;
