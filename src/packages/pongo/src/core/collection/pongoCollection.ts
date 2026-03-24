@@ -69,7 +69,7 @@ export type PongoCollectionOptions<
   };
   errors?: { throwOnOperationFailures?: boolean };
   serializer: JSONSerializer;
-  cache?: CacheConfig | 'disabled' | PongoCache;
+  cache?: CacheConfig | 'disabled' | PongoCache | undefined;
 };
 
 const enlistIntoTransactionIfActive = async <
@@ -412,7 +412,7 @@ export const pongoCollection = <
 
       if (id) {
         const cached = await cache.get(cacheKey(id));
-        if (cached !== undefined)
+        if (cached !== null)
           return cached === null
             ? null
             : (upcast({

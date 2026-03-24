@@ -76,7 +76,7 @@ describe('pongoCacheWrapper — error swallowing', () => {
       throw new Error('boom');
     });
     const wrapper = pongoCacheWrapper({ provider });
-    expect(await wrapper.get(`${dbName}:${collectionName}:x`)).toBeUndefined();
+    expect(await wrapper.get(`${dbName}:${collectionName}:x`)).toBeNull();
   });
 
   it('set silently succeeds when provider throws', async () => {
@@ -112,7 +112,7 @@ describe('pongoCacheWrapper — error swallowing', () => {
         `${dbName}:${collectionName}:a`,
         `${dbName}:${collectionName}:b`,
       ]),
-    ).toEqual([undefined, undefined]);
+    ).toEqual([]);
   });
 
   it('setMany silently succeeds when provider throws', async () => {
