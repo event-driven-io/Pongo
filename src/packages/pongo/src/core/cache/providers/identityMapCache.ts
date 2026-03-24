@@ -5,7 +5,7 @@ export const identityMapCache = (): PongoCache => {
   const store = new Map<string, PongoDocument>();
 
   return {
-    type: 'pongo:cache:identity-map',
+    cacheType: 'pongo:cache:identity-map',
     get: (key) => Promise.resolve(store.get(key) ?? null),
     set: (key, value) => {
       store.set(key, value);

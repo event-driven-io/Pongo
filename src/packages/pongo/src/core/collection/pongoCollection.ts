@@ -49,11 +49,7 @@ import {
   type WithoutId,
   type WithVersion,
 } from '..';
-import {
-  resolveCollectionCacheProvider,
-  type CacheConfig,
-  type PongoCache,
-} from '../cache';
+import { pongoCache, type CacheConfig, type PongoCache } from '../cache';
 
 export type PongoCollectionOptions<
   T extends PongoDocument = PongoDocument,
@@ -112,12 +108,12 @@ export const pongoCollection = <
   schema,
   errors,
   serializer,
-  cache: cacheOption,
+  cache: cacheOptions,
 }: PongoCollectionOptions<T, DriverType, Payload>): PongoCollection<T> => {
   const SqlFor = schemaComponent.sqlBuilder;
   const sqlExecutor = pool.execute;
 
-  const cache = resolveCollectionCacheProvider(cacheOption);
+  const cache = pongoCache(cacheOptions);
 
   const columnMapping = {
     mapping: {

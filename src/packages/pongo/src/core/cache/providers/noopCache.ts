@@ -1,7 +1,7 @@
 import type { PongoCache } from '../types';
 
 export const noopCacheProvider: PongoCache = {
-  type: 'pongo:cache:no-op',
+  cacheType: 'pongo:cache:no-op',
   get: async () => await Promise.resolve(null),
   set: () => {},
   update: () => {},

@@ -12,7 +12,7 @@ export type PongoCacheSetEntry<Doc extends PongoDocument = PongoDocument> = {
 export type PongoCacheType<T extends string = string> = `pongo:cache:${T}`;
 
 export interface PongoCache<T extends string = string> {
-  type: PongoCacheType<T>;
+  cacheType: PongoCacheType<T>;
   get(key: PongoDocumentCacheKey): MaybePromise<PongoDocument | null>;
   set<Doc extends PongoDocument = PongoDocument>(
     key: PongoDocumentCacheKey,

@@ -1,6 +1,4 @@
-import { resolveCacheConfig } from './configResolution';
-import { lruCache, noopCacheProvider } from './providers';
-import type { CacheConfig, CacheHooks, PongoCache } from './types';
+import type { CacheHooks, PongoCache } from './types';
 
 export const pongoCacheWrapper = (options: {
   provider: PongoCache;
@@ -14,7 +12,7 @@ export const pongoCacheWrapper = (options: {
   };
 
   return {
-    type: provider.type,
+    cacheType: provider.cacheType,
     async get(key) {
       try {
         const result = await provider.get(key);
@@ -116,27 +114,4 @@ export const pongoCacheWrapper = (options: {
       await provider.clear();
     },
   };
-};
-
-export const resolveCollectionCacheProvider = (
-  cacheOption: CacheConfig | 'disabled' | PongoCache | undefined,
-): PongoCache => {
-  if (cacheOption === 'disabled') return noopCacheProvider;
-
-  if (
-    cacheOption !== undefined &&
-    typeof (cacheOption as PongoCache).get === 'function'
-  )
-    return cacheOption as PongoCache;
-
-  const config = resolveCacheConfig(
-    cacheOption === undefined ? undefined : (cacheOption as CacheConfig),
-  );
-  if (config === 'disabled') return noopCacheProvider;
-
-  const raw = lruCache({
-    ...(config.max !== undefined ? { max: config.max } : {}),
-    ...(config.ttl !== undefined ? { ttl: config.ttl } : {}),
-  });
-  return pongoCacheWrapper({ provider: raw });
 };
