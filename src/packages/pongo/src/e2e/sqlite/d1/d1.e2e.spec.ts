@@ -1160,9 +1160,10 @@ describe('SQLite MongoDB Compatibility Tests', () => {
       const insertResult = await collection.insertOne(originalDoc);
       assert.ok(insertResult.successful);
 
-      const fetchedDoc = await collection.findOne({
-        _id: insertResult.insertedId!,
-      });
+      const fetchedDoc = await collection.findOne(
+        { _id: insertResult.insertedId! },
+        { skipCache: true },
+      );
       assert.ok(fetchedDoc);
       assert.ok(fetchedDoc.date);
 
@@ -1211,9 +1212,10 @@ describe('SQLite MongoDB Compatibility Tests', () => {
       const insertResult = await collection.insertOne(originalDoc);
       assert.ok(insertResult.successful);
 
-      const fetchedDoc = await collection.findOne({
-        _id: insertResult.insertedId!,
-      });
+      const fetchedDoc = await collection.findOne(
+        { _id: insertResult.insertedId! },
+        { skipCache: true },
+      );
       assert.ok(fetchedDoc);
       assert.ok(fetchedDoc.bigInt);
       assert.strictEqual(fetchedDoc.bigInt, '12345678901234567890');
