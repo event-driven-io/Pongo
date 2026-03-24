@@ -1,4 +1,5 @@
 import type { MaybePromise, PongoDocument, PongoUpdate } from '../typing';
+import type { LRUCacheOptions } from './providers';
 
 export type PongoDocumentCacheKey = `${string}:${string}:${string}`;
 
@@ -47,12 +48,13 @@ export type CacheHooks = {
 
 export type CacheType = 'in-memory' | 'identity-map';
 
-export type CacheSettings = {
-  type: CacheType;
-  max?: number;
-  ttl?: number;
-  [key: string]: unknown;
-};
+export type CacheSettings =
+  | ({
+      type: 'in-memory';
+    } & LRUCacheOptions)
+  | {
+      type: 'identity-map';
+    };
 
 export type CacheConfig = CacheSettings | 'disabled';
 

@@ -154,7 +154,9 @@ describe('pongoCollection cache integration', () => {
 
     const makeCollectionPair = (c: PongoClient) => {
       const db = c.db('db');
-      const withCache = db.collection<User>('users');
+      const withCache = db.collection<User>('users', {
+        cache: { type: 'in-memory' },
+      });
       const noCache = db.collection<User>('users', { cache: 'disabled' });
       return { withCache, noCache };
     };

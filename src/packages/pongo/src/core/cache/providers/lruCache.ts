@@ -2,17 +2,13 @@ import { LRUCache } from 'lru-cache';
 import type { PongoDocument } from '../../typing';
 import type { PongoCache } from '../types';
 
-export const lruCache = (options?: {
-  max?: number;
-  ttl?: number;
-}): PongoCache => {
-  const max = options?.max ?? 1000;
-  const ttl = options?.ttl;
+export type LRUCacheOptions = Omit<
+  LRUCache.Options<string, PongoDocument, unknown>,
+  'max'
+> & { max?: number };
 
-  const cache = new LRUCache<string, PongoDocument>({
-    max,
-    ...(ttl !== undefined ? { ttl } : {}),
-  });
+export const lruCache = (options?: LRUCacheOptions): PongoCache => {
+  const cache = new LRUCache<string, PongoDocument>({ max: 1000, ...options });
 
   return {
     cacheType: 'pongo:cache:lru',
