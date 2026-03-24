@@ -32,7 +32,7 @@ export interface PongoClient<
 
   close(): Promise<void>;
 
-  db(dbName?: string): Database;
+  db(dbName?: string, options?: PongoDbOptions): Database;
 
   startSession(): PongoSession<DriverType>;
 
@@ -115,6 +115,10 @@ export type PongoDBCollectionOptions<
   };
   errors?: { throwOnOperationFailures?: boolean };
   cache?: CacheConfig | 'disabled' | PongoCache;
+};
+
+export type PongoDbOptions = {
+  cache?: CacheConfig | PongoCache;
 };
 
 export interface PongoDb<

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { identityMapCache } from './providers';
 import { pongoCache } from './pongoCache';
+import { identityMapCache } from './providers';
 
 describe('pongoCache factory', () => {
   describe("'identity-map' type", () => {
@@ -35,12 +35,12 @@ describe('pongoCache factory', () => {
       expect(cache.cacheType).toBe('pongo:cache:lru');
     });
 
-    it('defaults to in-memory when no config provided', async () => {
+    it('defaults to disabled when no config provided', async () => {
       const cache = pongoCache(undefined);
 
       await cache.set('db:col:1', { _id: '1', name: 'Bob' });
       const result = await cache.get('db:col:1');
-      expect(result).toEqual({ _id: '1', name: 'Bob' });
+      expect(result).toBeNull();
     });
 
     it('in-memory LRU evicts when over max', async () => {
