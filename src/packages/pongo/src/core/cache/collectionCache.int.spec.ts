@@ -231,4 +231,267 @@ describe('pongoCollection cache integration', () => {
       expect(doc?.name).toBe('Karl');
     });
   });
+
+  describe('cache type resolution cascade', () => {
+    it('collection identity-map overrides client in-memory', async () => {
+      client = pongoClient({
+        driver: sqlite3Driver,
+        connectionString: memoryConnectionString(),
+        cache: { type: 'in-memory', max: 5 },
+      });
+      await client.connect();
+
+      const col = client
+        .db('db')
+        .collection<User>('users', { cache: { type: 'identity-map' } });
+
+      const ids: string[] = [];
+      for (let i = 0; i < 10; i++) {
+        const { insertedId } = await col.insertOne({ name: `User${i}` });
+        ids.push(insertedId!);
+      }
+
+      for (const id of ids) {
+        const doc = await col.findOne({ _id: id });
+        expect(doc).not.toBeNull();
+      }
+    });
+
+    it('client identity-map is used by collection with no override', async () => {
+      client = pongoClient({
+        driver: sqlite3Driver,
+        connectionString: memoryConnectionString(),
+        cache: { type: 'identity-map' },
+      });
+      await client.connect();
+
+      const col = client.db('db').collection<User>('users');
+      const ids: string[] = [];
+      for (let i = 0; i < 2000; i++) {
+        const { insertedId } = await col.insertOne({ name: `User${i}` });
+        ids.push(insertedId!);
+      }
+
+      for (const id of ids) {
+        const doc = await col.findOne({ _id: id });
+        expect(doc).not.toBeNull();
+      }
+    });
+
+    it('collection disabled overrides client identity-map', async () => {
+      client = pongoClient({
+        driver: sqlite3Driver,
+        connectionString: memoryConnectionString(),
+        cache: { type: 'identity-map' },
+      });
+      await client.connect();
+
+      const db = client.db('db');
+      const col = db.collection<User>('users', { cache: 'disabled' });
+      const noCache = db.collection<User>('users', { cache: 'disabled' });
+
+      const { insertedId } = await col.insertOne({ name: 'Leo' });
+      await noCache.updateOne(
+        { _id: insertedId! },
+        { $set: { name: 'LeoUpdated' } },
+      );
+
+      const doc = await col.findOne({ _id: insertedId! });
+      expect(doc?.name).toBe('LeoUpdated');
+    });
+
+    it('two collections can use different cache types on the same db', async () => {
+      client = pongoClient({
+        driver: sqlite3Driver,
+        connectionString: memoryConnectionString(),
+      });
+      await client.connect();
+
+      const db = client.db('db');
+      const lruCol = db.collection<User>('users', {
+        cache: { type: 'in-memory', max: 5 },
+      });
+      const idMapCol = db.collection<User>('orders', {
+        cache: { type: 'identity-map' },
+      });
+
+      const lruIds: string[] = [];
+      const idMapIds: string[] = [];
+
+      for (let i = 0; i < 10; i++) {
+        const { insertedId: u } = await lruCol.insertOne({ name: `User${i}` });
+        lruIds.push(u!);
+        const { insertedId: o } = await idMapCol.insertOne({
+          name: `Order${i}`,
+        });
+        idMapIds.push(o!);
+      }
+
+      // LRU with max 5: oldest 5 should be evicted from cache (reads go to DB)
+      // identity-map: all 10 present in cache
+      for (const id of idMapIds) {
+        const doc = await idMapCol.findOne({ _id: id });
+        expect(doc).not.toBeNull();
+      }
+
+      // At least the most-recent LRU entries should still be in cache
+      const recent = lruIds.slice(-5);
+      for (const id of recent) {
+        const doc = await lruCol.findOne({ _id: id });
+        expect(doc).not.toBeNull();
+      }
+    });
+  });
+
+  describe('transaction cache integration', () => {
+    beforeEach(async () => {
+      client = pongoClient({
+        driver: sqlite3Driver,
+        connectionString: memoryConnectionString(),
+      });
+      await client.connect();
+    });
+
+    it('insertOne within transaction does NOT populate collection cache until commit', async () => {
+      const { cache, spies } = spyCache('col');
+      const col = client.db('db').collection<User>('users', { cache });
+
+      const session = client.startSession();
+      session.startTransaction();
+      await col.insertOne({ name: 'Alice' }, { session });
+
+      expect(spies.set).not.toHaveBeenCalled();
+
+      await session.commitTransaction();
+      await session.endSession();
+
+      expect(spies.set).toHaveBeenCalled();
+    });
+
+    it('findOne within transaction returns doc from transaction cache', async () => {
+      const { cache, spies } = spyCache('col');
+      const col = client.db('db').collection<User>('users', { cache });
+
+      const session = client.startSession();
+      session.startTransaction();
+      const { insertedId } = await col.insertOne(
+        { name: 'Carol' },
+        { session },
+      );
+
+      const doc = await col.findOne({ _id: insertedId! }, { session });
+      expect(doc?.name).toBe('Carol');
+      // should have hit tx cache, not collection cache get
+      expect(spies.get).not.toHaveBeenCalled();
+
+      await session.abortTransaction();
+      await session.endSession();
+    });
+
+    it('findOne within transaction falls through to collection cache on tx miss', async () => {
+      const { cache } = spyCache('col');
+      const col = client.db('db').collection<User>('users', { cache });
+
+      const { insertedId } = await col.insertOne({ name: 'Dave' });
+
+      const session = client.startSession();
+      session.startTransaction();
+      const doc = await col.findOne({ _id: insertedId! }, { session });
+      expect(doc?.name).toBe('Dave');
+
+      await session.abortTransaction();
+      await session.endSession();
+    });
+
+    it('rollback discards buffered cache ops — collection cache stays clean', async () => {
+      const { cache, spies } = spyCache('col');
+      const col = client.db('db').collection<User>('users', { cache });
+
+      const session = client.startSession();
+      session.startTransaction();
+      await col.insertOne({ name: 'Bob' }, { session });
+      await session.abortTransaction();
+      await session.endSession();
+
+      expect(spies.set).not.toHaveBeenCalled();
+    });
+
+    it('deleteOne within transaction does NOT evict from collection cache until commit', async () => {
+      const { cache, spies } = spyCache('col');
+      const col = client.db('db').collection<User>('users', { cache });
+
+      const { insertedId } = await col.insertOne({ name: 'Eve' });
+      spies.delete.mockClear();
+
+      const session = client.startSession();
+      session.startTransaction();
+      await col.deleteOne({ _id: insertedId! }, { session });
+
+      expect(spies.delete).not.toHaveBeenCalled();
+
+      await session.commitTransaction();
+      await session.endSession();
+
+      expect(spies.delete).toHaveBeenCalled();
+    });
+
+    it('updateOne within transaction does NOT evict from collection cache until commit', async () => {
+      const { cache, spies } = spyCache('col');
+      const col = client.db('db').collection<User>('users', { cache });
+
+      const { insertedId } = await col.insertOne({ name: 'Frank' });
+      spies.delete.mockClear();
+
+      const session = client.startSession();
+      session.startTransaction();
+      await col.updateOne(
+        { _id: insertedId! },
+        { $set: { name: 'Updated' } },
+        { session },
+      );
+
+      expect(spies.delete).not.toHaveBeenCalled();
+
+      // reading without session should still return cached 'Frank'
+      const doc = await col.findOne({ _id: insertedId! });
+      expect(doc?.name).toBe('Frank');
+
+      await session.commitTransaction();
+      await session.endSession();
+
+      expect(spies.delete).toHaveBeenCalled();
+    });
+
+    it('replaceOne within transaction buffers cache set until commit', async () => {
+      const { cache, spies } = spyCache('col');
+      const col = client.db('db').collection<User>('users', { cache });
+
+      const { insertedId } = await col.insertOne({ name: 'Grace' });
+      spies.set.mockClear();
+
+      const session = client.startSession();
+      session.startTransaction();
+      await col.replaceOne(
+        { _id: insertedId! },
+        { name: 'Replaced' },
+        { session },
+      );
+
+      expect(spies.set).not.toHaveBeenCalled();
+
+      await session.commitTransaction();
+      await session.endSession();
+
+      expect(spies.set).toHaveBeenCalled();
+    });
+
+    it('without transaction, operations update collection cache directly', async () => {
+      const { cache, spies } = spyCache('col');
+      const col = client.db('db').collection<User>('users', { cache });
+
+      await col.insertOne({ name: 'Hank' });
+
+      expect(spies.set).toHaveBeenCalled();
+    });
+  });
 });

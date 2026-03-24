@@ -21,12 +21,13 @@ export const idFromFilter = <T>(
   return typeof f['_id'] === 'string' ? f['_id'] : null;
 };
 
-export const idsFromInFilter = <T>(
+export const getIdsFromIdOnlyFilter = <T>(
   filter: PongoFilter<T> | SQL | undefined,
 ): string[] | null => {
   const f = asPlainObjectWithSingleKey(filter, '_id');
   if (!f) return null;
   const idVal = f['_id'];
+  if (typeof idVal === 'string') return [idVal];
   if (!idVal || typeof idVal !== 'object' || !('$in' in idVal)) return null;
   const ids = (idVal as PlainObject)['$in'];
   if (!Array.isArray(ids) || ids.some((i) => typeof i !== 'string'))

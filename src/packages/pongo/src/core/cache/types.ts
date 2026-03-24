@@ -45,7 +45,7 @@ export type CacheHooks = {
   onError?(error: unknown, operation: string): void;
 };
 
-export type CacheType = 'in-memory';
+export type CacheType = 'in-memory' | 'identity-map';
 
 export type CacheSettings = {
   type: CacheType;
