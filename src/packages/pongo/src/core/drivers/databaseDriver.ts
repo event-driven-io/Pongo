@@ -4,6 +4,7 @@ import type {
   JSONSerializer,
   MigrationStyle,
 } from '@event-driven-io/dumbo';
+import type { CacheConfig, PongoCache } from '../cache';
 import type { PongoCollectionSchema, PongoDbSchema } from '../schema';
 import type { AnyPongoDb, PongoDb } from '../typing';
 
@@ -30,6 +31,7 @@ export type PongoDatabaseFactoryOptions<
     | undefined;
   serializer: JSONSerializer;
   errors?: { throwOnOperationFailures?: boolean } | undefined;
+  cache?: CacheConfig | 'disabled' | PongoCache | undefined;
 } & DriverOptions;
 
 export interface PongoDriver<

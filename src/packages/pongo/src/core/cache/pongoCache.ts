@@ -1,7 +1,8 @@
 import { pongoCacheWrapper } from './cacheWrapper';
-import { resolveCacheConfig } from './configResolution';
 import { noopCacheProvider, lruCache } from './providers';
-import type { CacheConfig, PongoCache } from './types';
+import type { CacheConfig, CacheSettings, PongoCache } from './types';
+
+const DEFAULT_CONFIG: CacheSettings = { type: 'in-memory', max: 1000 };
 
 export const pongoCache = (
   options: CacheConfig | 'disabled' | PongoCache | undefined,
@@ -11,9 +12,7 @@ export const pongoCache = (
   if (options !== undefined && 'cacheType' in options)
     return options as PongoCache;
 
-  const config = resolveCacheConfig(options);
-
-  if (config === 'disabled') return noopCacheProvider;
+  const config = options ?? DEFAULT_CONFIG;
 
   const raw = lruCache({
     ...(config.max !== undefined ? { max: config.max } : {}),

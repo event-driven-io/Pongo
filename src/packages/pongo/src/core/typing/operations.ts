@@ -53,7 +53,7 @@ export type PongoClientOptions<
             | { autoMigration?: MigrationStyle; definition?: TypedClientSchema }
             | undefined;
           errors?: { throwOnOperationFailures?: boolean } | undefined;
-          cache?: CacheConfig | undefined;
+          cache?: CacheConfig | PongoCache | undefined;
         } & JSONSerializationOptions &
           Omit<Options, 'driver'>
       : never

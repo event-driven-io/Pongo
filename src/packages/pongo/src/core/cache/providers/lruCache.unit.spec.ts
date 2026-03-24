@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { lruCache } from './lruCache';
 
 describe('inMemoryCacheProvider', () => {
-  it('returns undefined for missing keys', () => {
+  it('returns null for missing keys', () => {
     const cache = lruCache();
-    expect(cache.get('db:collection:missing')).toBeUndefined();
+    expect(cache.get('db:collection:missing')).toBeNull();
   });
 
   it('set then get returns the stored document', () => {
@@ -19,14 +19,14 @@ describe('inMemoryCacheProvider', () => {
     cache.set('db:collection:x', { _id: 'x' });
     expect(cache.get('db:collection:x')).toBeDefined();
     await new Promise((r) => setTimeout(r, 100));
-    expect(cache.get('db:collection:x')).toBeUndefined();
+    expect(cache.get('db:collection:x')).toBeNull();
   });
 
   it('delete removes a cached entry', () => {
     const cache = lruCache();
     cache.set('db:collection:a', { _id: 'a' });
     cache.delete('db:collection:a');
-    expect(cache.get('db:collection:a')).toBeUndefined();
+    expect(cache.get('db:collection:a')).toBeNull();
   });
 
   it('getMany returns documents for found keys and undefined for missing', () => {
@@ -39,7 +39,7 @@ describe('inMemoryCacheProvider', () => {
       'db:collection:k2',
     ]) as (Record<string, unknown> | null | undefined)[];
     expect(results[0]).toEqual({ _id: 'k1' });
-    expect(results[1]).toBeUndefined();
+    expect(results[1]).toBeNull();
     expect(results[2]).toEqual({ _id: 'k2' });
   });
 
@@ -61,8 +61,8 @@ describe('inMemoryCacheProvider', () => {
       { key: 'db:collection:c', value: { _id: 'c' } },
     ]);
     cache.deleteMany(['db:collection:a', 'db:collection:b']);
-    expect(cache.get('db:collection:a')).toBeUndefined();
-    expect(cache.get('db:collection:b')).toBeUndefined();
+    expect(cache.get('db:collection:a')).toBeNull();
+    expect(cache.get('db:collection:b')).toBeNull();
     expect(cache.get('db:collection:c')).toEqual({ _id: 'c' });
   });
 
@@ -73,8 +73,8 @@ describe('inMemoryCacheProvider', () => {
       { key: 'db:collection:b', value: { _id: 'b' } },
     ]);
     cache.clear();
-    expect(cache.get('db:collection:a')).toBeUndefined();
-    expect(cache.get('db:collection:b')).toBeUndefined();
+    expect(cache.get('db:collection:a')).toBeNull();
+    expect(cache.get('db:collection:b')).toBeNull();
   });
 
   it('respects max — LRU entry is evicted when full', () => {
@@ -85,7 +85,7 @@ describe('inMemoryCacheProvider', () => {
     cache.set('db:collection:c', { _id: 'c' });
     expect(cache.get('db:collection:a')).toBeDefined();
     expect(cache.get('db:collection:c')).toBeDefined();
-    expect(cache.get('db:collection:b')).toBeUndefined();
+    expect(cache.get('db:collection:b')).toBeNull();
   });
 
   it('returns values synchronously (not wrapped in Promises)', () => {
