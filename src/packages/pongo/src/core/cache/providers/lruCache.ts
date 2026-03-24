@@ -15,7 +15,7 @@ export const lruCache = (options?: {
   });
 
   return {
-    type: 'pongo:cache:lru',
+    cacheType: 'pongo:cache:lru',
     get: (key) => cache.get(key) ?? null,
     set: (key, value, opts) => {
       cache.set(
