@@ -20,7 +20,7 @@ export const pongoCacheWrapper = (options: {
     cacheType: provider.cacheType,
     async get<Doc extends PongoDocument = PongoDocument>(
       key: PongoDocumentCacheKey,
-    ) {
+    ): Promise<Doc | null | undefined> {
       try {
         const result = await provider.get<Doc>(key);
         if (result !== undefined) {
