@@ -96,4 +96,15 @@ describe('inMemoryCacheProvider', () => {
     expect(result).not.toBeInstanceOf(Promise);
     expect(result).toEqual({ _id: 'a' });
   });
+
+  it('close clears all entries', () => {
+    const cache = lruCache();
+    cache.setMany([
+      { key: 'db:collection:a', value: { _id: 'a' } },
+      { key: 'db:collection:b', value: { _id: 'b' } },
+    ]);
+    cache.close();
+    expect(cache.get('db:collection:a')).toBeUndefined();
+    expect(cache.get('db:collection:b')).toBeUndefined();
+  });
 });

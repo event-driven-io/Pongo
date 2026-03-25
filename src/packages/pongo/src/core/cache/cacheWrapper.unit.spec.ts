@@ -140,6 +140,25 @@ describe('pongoCacheWrapper — error swallowing', () => {
   });
 });
 
+describe('pongoCacheWrapper — close', () => {
+  it('close delegates to provider close', () => {
+    const provider = identityMapCache();
+    const spy = vi.spyOn(provider, 'close');
+    const wrapper = pongoCacheWrapper({ provider });
+    wrapper.close();
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+
+  it('close is idempotent — provider close called only once on repeated calls', () => {
+    const provider = identityMapCache();
+    const spy = vi.spyOn(provider, 'close');
+    const wrapper = pongoCacheWrapper({ provider });
+    wrapper.close();
+    wrapper.close();
+    expect(spy).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('pongoCacheWrapper — event hooks', () => {
   it('onHit called when get returns a value', async () => {
     const provider = identityMapCache();
