@@ -309,6 +309,55 @@ describe('pongoCollection cache integration', () => {
       expect((await col.findOne({ _id: 'future-id' }))?.name).toBe('Alice');
     });
 
+    it('deleteOne caches null — subsequent findOne skips DB', async () => {
+      const { cache, spies } = spyCache('col');
+      const col = client.db('db').collection<User>('users', { cache });
+
+      const { insertedId } = await col.insertOne({ name: 'Neg' });
+      await col.deleteOne({ _id: insertedId! });
+      spies.set.mockClear();
+
+      const doc = await col.findOne({ _id: insertedId! });
+      expect(doc).toBeNull();
+      expect(spies.set).not.toHaveBeenCalled();
+    });
+
+    it('deleteMany caches null for all deleted IDs', async () => {
+      const col = client
+        .db('db')
+        .collection<User>('users', { cache: { type: 'in-memory' } });
+
+      const ids: string[] = [];
+      for (const name of ['A', 'B', 'C']) {
+        const { insertedId } = await col.insertOne({ name });
+        ids.push(insertedId!);
+      }
+      await col.deleteMany({ _id: { $in: ids } } as unknown as {
+        _id: string;
+      });
+
+      for (const id of ids) {
+        expect(await col.findOne({ _id: id })).toBeNull();
+      }
+    });
+
+    it('find with $in caches null for IDs not in DB', async () => {
+      const { cache, spies } = spyCache('col');
+      const col = client.db('db').collection<User>('users', { cache });
+
+      const { insertedId } = await col.insertOne({ name: 'Real' });
+      const ghostId = 'ghost-999';
+
+      await col.find({ _id: { $in: [insertedId!, ghostId] } } as unknown as {
+        _id: string;
+      });
+
+      spies.set.mockClear();
+      const result = await col.findOne({ _id: ghostId });
+      expect(result).toBeNull();
+      expect(spies.set).not.toHaveBeenCalled();
+    });
+
     it('default behavior (no cache config) works', async () => {
       const col = client.db('db').collection<User>('users');
 
@@ -502,23 +551,26 @@ describe('pongoCollection cache integration', () => {
       expect(spies.set).not.toHaveBeenCalled();
     });
 
-    it('deleteOne within transaction does NOT evict from collection cache until commit', async () => {
+    it('deleteOne within transaction does NOT update collection cache until commit', async () => {
       const { cache, spies } = spyCache('col');
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Eve' });
-      spies.delete.mockClear();
+      spies.set.mockClear();
 
       const session = client.startSession();
       session.startTransaction();
       await col.deleteOne({ _id: insertedId! }, { session });
 
-      expect(spies.delete).not.toHaveBeenCalled();
+      expect(spies.set).not.toHaveBeenCalled();
 
       await session.commitTransaction();
       await session.endSession();
 
-      expect(spies.delete).toHaveBeenCalled();
+      expect(spies.set).toHaveBeenCalledWith(
+        expect.stringContaining(insertedId!),
+        null,
+      );
     });
 
     it('updateOne within transaction does NOT evict from collection cache until commit', async () => {
