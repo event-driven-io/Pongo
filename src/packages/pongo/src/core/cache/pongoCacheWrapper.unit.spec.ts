@@ -19,11 +19,7 @@ describe('pongoCacheWrapper — key prefixing', () => {
     const spy = vi.spyOn(provider, 'set');
     const wrapper = pongoCacheWrapper({ provider });
     wrapper.set(`${dbName}:${collectionName}:doc1`, { _id: 'doc1' });
-    expect(spy).toHaveBeenCalledWith(
-      'mydb:users:doc1',
-      { _id: 'doc1' },
-      undefined,
-    );
+    expect(spy).toHaveBeenCalledWith('mydb:users:doc1', { _id: 'doc1' });
   });
 
   it('delete prefixes key', () => {
