@@ -5,7 +5,7 @@ import type { CacheConfig, CacheSettings, PongoCache } from './types';
 const DEFAULT_CONFIG: CacheSettings = { type: 'in-memory' };
 
 export const pongoCache = (
-  options: CacheConfig | 'disabled' | PongoCache | undefined,
+  options?: CacheConfig | 'disabled' | PongoCache | undefined,
 ): PongoCache => {
   if (options === undefined || options === 'disabled') return noopCacheProvider;
 

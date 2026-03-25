@@ -189,11 +189,11 @@ export const pongoCollection = <
   const resolveFromCache = async (
     key: PongoDocumentCacheKey,
     options: CollectionOperationOptions | undefined,
-  ): Promise<PongoDocument | null> => {
+  ): Promise<PongoDocument | undefined> => {
     const txCache = txCacheFor(options);
     if (txCache) {
       const cached = await txCache.get(key);
-      if (cached !== null) return cached;
+      if (cached !== undefined) return cached;
     }
     return cache.get(key);
   };
@@ -206,17 +206,20 @@ export const pongoCollection = <
 
     if (!txCache) {
       const results = await cache.getMany(keys);
-      return results.filter((d): d is PongoDocument => d !== null);
+      return results.filter((d): d is PongoDocument => d !== undefined);
     }
 
     const txResults = await txCache.getMany(keys);
-    const hits = txResults.filter((d): d is PongoDocument => d !== null);
-    const missKeys = keys.filter((_, i) => txResults[i] === null);
+    const hits = txResults.filter((d): d is PongoDocument => d !== undefined);
+    const missKeys = keys.filter((_, i) => txResults[i] === undefined);
 
     if (missKeys.length === 0) return hits;
 
     const fallback = await cache.getMany(missKeys);
-    return [...hits, ...fallback.filter((d): d is PongoDocument => d !== null)];
+    return [
+      ...hits,
+      ...fallback.filter((d): d is PongoDocument => d !== undefined),
+    ];
   };
 
   const cacheDeleteByIdFilter = (
@@ -533,7 +536,7 @@ export const pongoCollection = <
 
       if (id) {
         const cached = await resolveFromCache(cacheKey(id), options);
-        if (cached !== null)
+        if (cached !== undefined)
           return upcast({
             ...cached,
           } as unknown as Payload) as WithIdAndVersion<T>;
