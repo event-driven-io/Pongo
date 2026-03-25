@@ -33,7 +33,7 @@ export const pongoClient = <
     driver,
     schema,
     errors,
-    cache: cacheConfig,
+    cache: cacheOptions,
     serialization,
     ...connectionOptions
   } = options;
@@ -46,9 +46,9 @@ export const pongoClient = <
   const serializer = JSONSerializer.from(options);
 
   const cache =
-    cacheConfig === 'disabled' || cacheConfig === undefined
+    cacheOptions === 'disabled' || cacheOptions === undefined
       ? 'disabled'
-      : pongoCache(cacheConfig);
+      : pongoCache(cacheOptions);
 
   const pongoClient: PongoClient<
     DatabaseDriver['driverType'],

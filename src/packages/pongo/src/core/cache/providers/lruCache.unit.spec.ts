@@ -29,7 +29,7 @@ describe('inMemoryCacheProvider', () => {
     expect(cache.get('db:collection:a')).toBeNull();
   });
 
-  it('getMany returns documents for found keys and undefined for missing', () => {
+  it('getMany returns documents for found keys and nothing for missing', () => {
     const cache = lruCache();
     cache.set('db:collection:k1', { _id: 'k1' });
     cache.set('db:collection:k2', { _id: 'k2' });
@@ -38,9 +38,9 @@ describe('inMemoryCacheProvider', () => {
       'db:collection:missing',
       'db:collection:k2',
     ]) as (Record<string, unknown> | null | undefined)[];
+    expect(results).toHaveLength(2); // Only returns found entries
     expect(results[0]).toEqual({ _id: 'k1' });
-    expect(results[1]).toBeNull();
-    expect(results[2]).toEqual({ _id: 'k2' });
+    expect(results[1]).toEqual({ _id: 'k2' });
   });
 
   it('setMany stores multiple documents retrievable via get', () => {

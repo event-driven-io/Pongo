@@ -7,8 +7,16 @@ export type LRUCacheOptions = Omit<
   'max'
 > & { max?: number };
 
+const defaultLRUCacheOptions: LRUCache.Options<string, PongoDocument, unknown> =
+  {
+    max: 1000,
+  };
+
 export const lruCache = (options?: LRUCacheOptions): PongoCache => {
-  const cache = new LRUCache<string, PongoDocument>({ max: 1000, ...options });
+  const cache = new LRUCache<string, PongoDocument>({
+    ...defaultLRUCacheOptions,
+    ...options,
+  });
 
   return {
     cacheType: 'pongo:cache:lru',
@@ -32,7 +40,8 @@ export const lruCache = (options?: LRUCacheOptions): PongoCache => {
       //   cache.set(key, updated, opts?.ttl !== undefined ? { ttl: opts.ttl } : undefined);
       // }
     },
-    getMany: (keys) => keys.map((k) => cache.get(k) ?? null),
+    getMany: (keys) =>
+      keys.map((k) => cache.get(k)).filter((v) => v !== undefined),
     setMany: (entries) => {
       for (const { key, value, ttl: entryTtl } of entries) {
         cache.set(
@@ -57,6 +66,9 @@ export const lruCache = (options?: LRUCacheOptions): PongoCache => {
       for (const key of keys) cache.delete(key);
     },
     clear: () => {
+      cache.clear();
+    },
+    close: () => {
       cache.clear();
     },
   };

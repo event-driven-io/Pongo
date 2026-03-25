@@ -18,8 +18,8 @@ import type { PongoCollectionSchemaComponent, PongoDocumentCacheKey } from '..';
 import {
   deepEquals,
   expectedVersionValue,
-  idFromFilter,
   getIdsFromIdOnlyFilter,
+  idFromFilter,
   operationResult,
   type CollectionOperationOptions,
   type DeleteManyOptions,
@@ -198,29 +198,68 @@ export const pongoCollection = <
     return cache.get(key);
   };
 
-  const resolveManyFromCache = async (
+  const findManyFromCache = async (
     keys: PongoDocumentCacheKey[],
     options: CollectionOperationOptions | undefined,
-  ): Promise<(PongoDocument | null)[]> => {
+  ): Promise<PongoDocument[]> => {
     const txCache = txCacheFor(options);
-    if (!txCache) return cache.getMany(keys);
+
+    if (!txCache) {
+      const results = await cache.getMany(keys);
+      return results.filter((d): d is PongoDocument => d !== null);
+    }
 
     const txResults = await txCache.getMany(keys);
-    const missKeys: PongoDocumentCacheKey[] = [];
-    const missIndices: number[] = [];
-    for (let i = 0; i < keys.length; i++) {
-      if (txResults[i] === null) {
-        missKeys.push(keys[i]!);
-        missIndices.push(i);
-      }
-    }
-    if (missKeys.length > 0) {
-      const fallback = await cache.getMany(missKeys);
-      for (let j = 0; j < missIndices.length; j++) {
-        txResults[missIndices[j]!] = fallback[j] ?? null;
-      }
-    }
-    return txResults;
+    const hits = txResults.filter((d): d is PongoDocument => d !== null);
+    const missKeys = keys.filter((_, i) => txResults[i] === null);
+
+    if (missKeys.length === 0) return hits;
+
+    const fallback = await cache.getMany(missKeys);
+    return [...hits, ...fallback.filter((d): d is PongoDocument => d !== null)];
+  };
+
+  const cacheDeleteByIdFilter = (
+    filter: PongoFilter<T>,
+    options: CollectionOperationOptions | undefined,
+  ) => {
+    if (options?.skipCache) return Promise.resolve();
+    const id = idFromFilter(filter);
+    return id ? cacheDelete(cacheKey(id), options) : Promise.resolve();
+  };
+
+  const findManyByIds = async (
+    ids: string[],
+    options: FindOptions | undefined,
+  ): Promise<WithIdAndVersion<T>[]> => {
+    const cached = await findManyFromCache(ids.map(cacheKey), options);
+    const hits = cached.map(
+      (e) => upcast({ ...e } as unknown as Payload) as WithIdAndVersion<T>,
+    );
+
+    const cachedIds = new Set(cached.map((d) => d['_id'] as string));
+    const missIds = ids.filter((id) => !cachedIds.has(id));
+
+    if (missIds.length === 0) return hits;
+
+    const dbResult = await query<{ data: T; _version: bigint }>(
+      SqlFor.find(
+        { _id: { $in: missIds } } as unknown as PongoFilter<T>,
+        options,
+      ),
+    );
+    const dbDocs = dbResult.rows.map(rowToDoc);
+
+    if (dbDocs.length > 0)
+      await cacheSetMany(
+        dbDocs.map((doc) => ({
+          key: cacheKey((doc as PongoDocument)['_id'] as string),
+          value: doc as PongoDocument,
+        })),
+        options,
+      );
+
+    return [...hits, ...dbDocs];
   };
 
   const cacheSet = (
@@ -516,10 +555,7 @@ export const pongoCollection = <
       if (existingDoc === null) return null;
 
       await collection.deleteOne(filter, options);
-      if (!options?.skipCache && filter) {
-        const id = idFromFilter(filter);
-        if (id) await cacheDelete(cacheKey(id), options);
-      }
+      await cacheDeleteByIdFilter(filter, options);
       return existingDoc;
     },
     findOneAndReplace: async (
@@ -534,12 +570,7 @@ export const pongoCollection = <
       if (existingDoc === null) return null;
 
       await collection.replaceOne(filter, replacement, options);
-
-      if (!options?.skipCache && filter) {
-        const id = idFromFilter(filter);
-        if (id) await cacheDelete(cacheKey(id), options);
-      }
-
+      await cacheDeleteByIdFilter(filter, options);
       return existingDoc;
     },
     findOneAndUpdate: async (
@@ -554,12 +585,7 @@ export const pongoCollection = <
       if (existingDoc === null) return null;
 
       await collection.updateOne(filter, update, options);
-
-      if (!options?.skipCache && filter) {
-        const id = idFromFilter(filter);
-        if (id) await cacheDelete(cacheKey(id), options);
-      }
-
+      await cacheDeleteByIdFilter(filter, options);
       return existingDoc;
     },
     handle: async (
@@ -674,49 +700,7 @@ export const pongoCollection = <
 
       if (!options?.skipCache && filter) {
         const ids = getIdsFromIdOnlyFilter(filter);
-        if (ids && ids.length > 0) {
-          const cached = await resolveManyFromCache(ids.map(cacheKey), options);
-          const results: WithIdAndVersion<T>[] = [];
-          const missIds: string[] = [];
-
-          for (let i = 0; i < ids.length; i++) {
-            const entry = cached[i];
-            if (entry !== undefined) {
-              if (entry !== null)
-                results.push(
-                  upcast({
-                    ...entry,
-                  } as unknown as Payload) as WithIdAndVersion<T>,
-                );
-            } else {
-              missIds.push(ids[i]!);
-            }
-          }
-
-          if (missIds.length > 0) {
-            const missFilter = {
-              _id: { $in: missIds },
-            } as unknown as PongoFilter<T>;
-            const dbResult = await query<{ data: T; _version: bigint }>(
-              SqlFor.find(missFilter, options),
-            );
-            const setEntries: {
-              key: PongoDocumentCacheKey;
-              value: PongoDocument;
-            }[] = [];
-            for (const row of dbResult.rows) {
-              const doc = rowToDoc(row);
-              results.push(doc);
-              setEntries.push({
-                key: cacheKey((doc as PongoDocument)['_id'] as string),
-                value: doc as PongoDocument,
-              });
-            }
-            if (setEntries.length > 0) await cacheSetMany(setEntries, options);
-          }
-
-          return results;
-        }
+        if (ids && ids.length > 0) return findManyByIds(ids, options);
       }
 
       const result = await query<{ data: T; _version: bigint }>(
@@ -749,6 +733,7 @@ export const pongoCollection = <
       collectionName = newName;
       return collection;
     },
+    close: () => cache.close(),
 
     sql: {
       async query<Result extends QueryResultRow = QueryResultRow>(

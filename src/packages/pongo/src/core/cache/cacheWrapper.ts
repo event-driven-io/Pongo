@@ -10,6 +10,7 @@ export const pongoCacheWrapper = (options: {
   const onError = (error: unknown, operation: string) => {
     hooks?.onError?.(error, operation);
   };
+  let isClosed = false;
 
   return {
     cacheType: provider.cacheType,
@@ -110,8 +111,15 @@ export const pongoCacheWrapper = (options: {
       }
     },
 
-    async clear() {
-      await provider.clear();
+    clear() {
+      return provider.clear();
+    },
+
+    close() {
+      if (isClosed) return;
+
+      isClosed = true;
+      return provider.close();
     },
   };
 };

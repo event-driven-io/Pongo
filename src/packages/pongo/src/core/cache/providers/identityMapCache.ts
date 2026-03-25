@@ -21,7 +21,8 @@ export const identityMapCache = (): PongoCache => {
     delete: (key) => {
       store.delete(key);
     },
-    getMany: (keys) => Promise.resolve(keys.map((k) => store.get(k) ?? null)),
+    getMany: (keys) =>
+      keys.map((k) => store.get(k)).filter((v) => v !== undefined),
     setMany: (entries) => {
       for (const { key, value } of entries) store.set(key, value);
     },
@@ -39,6 +40,9 @@ export const identityMapCache = (): PongoCache => {
       for (const key of keys) store.delete(key);
     },
     clear: () => {
+      store.clear();
+    },
+    close: () => {
       store.clear();
     },
   };
