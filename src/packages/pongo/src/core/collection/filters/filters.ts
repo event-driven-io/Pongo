@@ -1,12 +1,10 @@
 import type { SQL } from '@event-driven-io/dumbo';
 import type { PongoFilter } from '../../typing';
 
-type PlainObject = Record<string, unknown>;
-
 const asPlainObjectWithSingleKey = <T>(
   filter: PongoFilter<T> | SQL | undefined,
   key: string,
-): PlainObject | undefined =>
+): Record<string, unknown> | undefined =>
   filter &&
   typeof filter === 'object' &&
   !Array.isArray(filter) &&

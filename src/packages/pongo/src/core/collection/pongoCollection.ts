@@ -189,7 +189,7 @@ export const pongoCollection = <
   const resolveFromCache = async (
     key: PongoDocumentCacheKey,
     options: CollectionOperationOptions | undefined,
-  ): Promise<PongoDocument | undefined> => {
+  ): Promise<T | undefined> => {
     const txCache = txCacheFor(options);
     if (txCache) {
       const cached = await txCache.get<T>(key);
@@ -201,7 +201,7 @@ export const pongoCollection = <
   const findManyFromCache = async (
     keys: PongoDocumentCacheKey[],
     options: CollectionOperationOptions | undefined,
-  ): Promise<PongoDocument[]> => {
+  ): Promise<T[]> => {
     const txCache = txCacheFor(options);
 
     if (!txCache) {
