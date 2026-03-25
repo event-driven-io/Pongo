@@ -192,10 +192,10 @@ export const pongoCollection = <
   ): Promise<PongoDocument | undefined> => {
     const txCache = txCacheFor(options);
     if (txCache) {
-      const cached = await txCache.get(key);
+      const cached = await txCache.get<T>(key);
       if (cached !== undefined) return cached;
     }
-    return cache.get(key);
+    return cache.get<T>(key);
   };
 
   const findManyFromCache = async (
@@ -205,21 +205,18 @@ export const pongoCollection = <
     const txCache = txCacheFor(options);
 
     if (!txCache) {
-      const results = await cache.getMany(keys);
-      return results.filter((d): d is PongoDocument => d !== undefined);
+      const results = await cache.getMany<T>(keys);
+      return results.filter((d) => d !== undefined);
     }
 
-    const txResults = await txCache.getMany(keys);
-    const hits = txResults.filter((d): d is PongoDocument => d !== undefined);
+    const txResults = await txCache.getMany<T>(keys);
+    const hits = txResults.filter((d) => d !== undefined);
     const missKeys = keys.filter((_, i) => txResults[i] === undefined);
 
     if (missKeys.length === 0) return hits;
 
-    const fallback = await cache.getMany(missKeys);
-    return [
-      ...hits,
-      ...fallback.filter((d): d is PongoDocument => d !== undefined),
-    ];
+    const fallback = await cache.getMany<T>(missKeys);
+    return [...hits, ...fallback.filter((d) => d !== undefined)];
   };
 
   const cacheDeleteByIdFilter = (
