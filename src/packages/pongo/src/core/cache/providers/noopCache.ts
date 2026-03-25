@@ -11,4 +11,5 @@ export const noopCacheProvider: PongoCache = {
   updateMany: () => {},
   deleteMany: () => {},
   clear: () => {},
+  close: () => {},
 };
