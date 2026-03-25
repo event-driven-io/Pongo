@@ -56,6 +56,43 @@ describe('pongoCollection cache integration', () => {
       expect(spies.get).toHaveBeenCalled();
     });
 
+    it('db-level cache flows to collection', async () => {
+      const { cache, spies } = spyCache('db');
+      client = pongoClient({
+        driver: sqlite3Driver,
+        connectionString: memoryConnectionString(),
+      });
+      await client.connect();
+
+      const col = client.db('db', { cache }).collection<User>('users');
+      const { insertedId } = await col.insertOne({ name: 'Alice' });
+      await col.findOne({ _id: insertedId! });
+
+      expect(spies.set).toHaveBeenCalled();
+      expect(spies.get).toHaveBeenCalled();
+    });
+
+    it('db-level cache overrides client-level', async () => {
+      const { cache: clientCache, spies: clientSpies } = spyCache('client');
+      const { cache: dbCache, spies: dbSpies } = spyCache('db');
+
+      client = pongoClient({
+        driver: sqlite3Driver,
+        connectionString: memoryConnectionString(),
+        cache: clientCache,
+      });
+      await client.connect();
+
+      const col = client.db('db', { cache: dbCache }).collection<User>('users');
+      const { insertedId } = await col.insertOne({ name: 'Carol' });
+      await col.findOne({ _id: insertedId! });
+
+      expect(dbSpies.set).toHaveBeenCalled();
+      expect(dbSpies.get).toHaveBeenCalled();
+      expect(clientSpies.set).not.toHaveBeenCalled();
+      expect(clientSpies.get).not.toHaveBeenCalled();
+    });
+
     it('collection-level cache overrides client-level', async () => {
       const { cache: clientCache, spies: clientSpies } = spyCache('client');
       const { cache: colCache, spies: colSpies } = spyCache('collection');
@@ -77,6 +114,28 @@ describe('pongoCollection cache integration', () => {
       expect(colSpies.get).toHaveBeenCalled();
       expect(clientSpies.set).not.toHaveBeenCalled();
       expect(clientSpies.get).not.toHaveBeenCalled();
+    });
+
+    it('collection-level cache overrides db-level', async () => {
+      const { cache: dbCache, spies: dbSpies } = spyCache('db');
+      const { cache: colCache, spies: colSpies } = spyCache('collection');
+
+      client = pongoClient({
+        driver: sqlite3Driver,
+        connectionString: memoryConnectionString(),
+      });
+      await client.connect();
+
+      const col = client
+        .db('db', { cache: dbCache })
+        .collection<User>('users', { cache: colCache });
+      const { insertedId } = await col.insertOne({ name: 'Bob' });
+      await col.findOne({ _id: insertedId! });
+
+      expect(colSpies.set).toHaveBeenCalled();
+      expect(colSpies.get).toHaveBeenCalled();
+      expect(dbSpies.set).not.toHaveBeenCalled();
+      expect(dbSpies.get).not.toHaveBeenCalled();
     });
 
     it("'disabled' at client, enabled at collection", async () => {
@@ -493,6 +552,75 @@ describe('pongoCollection cache integration', () => {
       await col.insertOne({ name: 'Hank' });
 
       expect(spies.set).toHaveBeenCalled();
+    });
+
+    it('commit flushes to inherited client-level cache', async () => {
+      const { cache, spies } = spyCache('client');
+      await client.close();
+      client = pongoClient({
+        driver: sqlite3Driver,
+        connectionString: memoryConnectionString(),
+        cache,
+      });
+      await client.connect();
+
+      const col = client.db('db').collection<User>('users');
+
+      const session = client.startSession();
+      session.startTransaction();
+      await col.insertOne({ name: 'Ivy' }, { session });
+
+      expect(spies.set).not.toHaveBeenCalled();
+
+      await session.commitTransaction();
+      await session.endSession();
+
+      expect(spies.set).toHaveBeenCalled();
+    });
+
+    it('rollback does not populate inherited client-level cache', async () => {
+      const { cache, spies } = spyCache('client');
+      await client.close();
+      client = pongoClient({
+        driver: sqlite3Driver,
+        connectionString: memoryConnectionString(),
+        cache,
+      });
+      await client.connect();
+
+      const col = client.db('db').collection<User>('users');
+
+      const session = client.startSession();
+      session.startTransaction();
+      await col.insertOne({ name: 'Jack' }, { session });
+      await session.abortTransaction();
+      await session.endSession();
+
+      expect(spies.set).not.toHaveBeenCalled();
+    });
+
+    it('commit flushes to db-level cache, not client-level', async () => {
+      const { cache: clientCache, spies: clientSpies } = spyCache('client');
+      const { cache: dbCache, spies: dbSpies } = spyCache('db');
+
+      await client.close();
+      client = pongoClient({
+        driver: sqlite3Driver,
+        connectionString: memoryConnectionString(),
+        cache: clientCache,
+      });
+      await client.connect();
+
+      const col = client.db('db', { cache: dbCache }).collection<User>('users');
+
+      const session = client.startSession();
+      session.startTransaction();
+      await col.insertOne({ name: 'Kim' }, { session });
+      await session.commitTransaction();
+      await session.endSession();
+
+      expect(dbSpies.set).toHaveBeenCalled();
+      expect(clientSpies.set).not.toHaveBeenCalled();
     });
   });
 });

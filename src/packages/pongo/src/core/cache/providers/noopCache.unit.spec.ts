@@ -21,10 +21,10 @@ describe('noopCacheProvider', () => {
     expect(await noopCacheProvider.get('db:collection:a')).toBeUndefined();
   });
 
-  it('getMany returns undefined for every key', () => {
+  it('getMany returns undefined for every key', async () => {
     noopCacheProvider.set('db:collection:k1', { _id: 'k1' });
     noopCacheProvider.set('db:collection:k2', { _id: 'k2' });
-    const results = noopCacheProvider.getMany([
+    const results = await noopCacheProvider.getMany([
       'db:collection:k1',
       'db:collection:missing',
       'db:collection:k2',
@@ -36,7 +36,7 @@ describe('noopCacheProvider', () => {
   });
 
   it('setMany then get still returns undefined', async () => {
-    noopCacheProvider.setMany([
+    await noopCacheProvider.setMany([
       { key: 'db:collection:a', value: { _id: 'a' } },
       { key: 'db:collection:b', value: { _id: 'b' } },
     ]);
@@ -45,7 +45,7 @@ describe('noopCacheProvider', () => {
   });
 
   it('updateMany does nothing', async () => {
-    noopCacheProvider.updateMany(['db:collection:a', 'db:collection:b'], {
+    await noopCacheProvider.updateMany(['db:collection:a', 'db:collection:b'], {
       $set: { name: 'updated' },
     });
     expect(await noopCacheProvider.get('db:collection:a')).toBeUndefined();
