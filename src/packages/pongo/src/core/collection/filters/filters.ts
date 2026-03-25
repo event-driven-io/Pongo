@@ -6,31 +6,37 @@ type PlainObject = Record<string, unknown>;
 const asPlainObjectWithSingleKey = <T>(
   filter: PongoFilter<T> | SQL | undefined,
   key: string,
-): PlainObject | null => {
-  if (!filter || typeof filter !== 'object' || Array.isArray(filter))
-    return null;
-  const f = filter as PlainObject;
-  return Object.keys(f).length === 1 && key in f ? f : null;
-};
+): PlainObject | undefined =>
+  filter &&
+  typeof filter === 'object' &&
+  !Array.isArray(filter) &&
+  Object.keys(filter).length === 1 &&
+  key in filter
+    ? filter
+    : undefined;
 
 export const idFromFilter = <T>(
   filter: PongoFilter<T> | SQL | undefined,
-): string | null => {
-  const f = asPlainObjectWithSingleKey(filter, '_id');
-  if (!f) return null;
-  return typeof f['_id'] === 'string' ? f['_id'] : null;
+): string | undefined => {
+  const idFilter = asPlainObjectWithSingleKey(filter, '_id');
+  return typeof idFilter?.['_id'] === 'string' ? idFilter['_id'] : undefined;
 };
 
 export const getIdsFromIdOnlyFilter = <T>(
   filter: PongoFilter<T> | SQL | undefined,
-): string[] | null => {
-  const f = asPlainObjectWithSingleKey(filter, '_id');
-  if (!f) return null;
-  const idVal = f['_id'];
-  if (typeof idVal === 'string') return [idVal];
-  if (!idVal || typeof idVal !== 'object' || !('$in' in idVal)) return null;
-  const ids = (idVal as PlainObject)['$in'];
-  if (!Array.isArray(ids) || ids.some((i) => typeof i !== 'string'))
-    return null;
-  return ids as string[];
+): string[] | undefined => {
+  const idFilter = asPlainObjectWithSingleKey(filter, '_id');
+  if (!idFilter) return undefined;
+
+  const idValue = idFilter['_id'];
+  if (typeof idValue === 'string') return [idValue];
+
+  const $in =
+    idValue && typeof idValue === 'object' && '$in' in idValue
+      ? idValue['$in']
+      : undefined;
+
+  return Array.isArray($in) && $in.every((i) => typeof i === 'string')
+    ? $in
+    : undefined;
 };

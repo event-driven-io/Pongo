@@ -6,25 +6,27 @@ describe('idFromFilter', () => {
     expect(idFromFilter({ _id: 'abc' })).toBe('abc');
   });
 
-  it('returns null when filter has extra keys', () => {
-    expect(idFromFilter({ _id: 'abc', name: 'Alice' } as never)).toBeNull();
+  it('returns undefined when filter has extra keys', () => {
+    expect(
+      idFromFilter({ _id: 'abc', name: 'Alice' } as never),
+    ).toBeUndefined();
   });
 
-  it('returns null when _id is not a string', () => {
-    expect(idFromFilter({ _id: { $ne: 'abc' } })).toBeNull();
+  it('returns undefined when _id is not a string', () => {
+    expect(idFromFilter({ _id: { $ne: 'abc' } })).toBeUndefined();
   });
 
-  it('returns null for undefined', () => {
-    expect(idFromFilter(undefined)).toBeNull();
+  it('returns undefined for undefined', () => {
+    expect(idFromFilter(undefined)).toBeUndefined();
   });
 
-  it('returns null for a raw SQL string', () => {
+  it('returns undefined for a raw SQL string', () => {
     const sql = 'SELECT 1' as Parameters<typeof idFromFilter>[0];
-    expect(idFromFilter(sql)).toBeNull();
+    expect(idFromFilter(sql)).toBeUndefined();
   });
 
-  it('returns null for an empty filter', () => {
-    expect(idFromFilter({})).toBeNull();
+  it('returns undefined for an empty filter', () => {
+    expect(idFromFilter({})).toBeUndefined();
   });
 });
 
@@ -41,20 +43,20 @@ describe('getIdsFromIdOnlyFilter', () => {
     expect(getIdsFromIdOnlyFilter({ _id: 'abc' })).toEqual(['abc']);
   });
 
-  it('returns null when filter has extra keys', () => {
+  it('returns undefined when filter has extra keys', () => {
     expect(
       getIdsFromIdOnlyFilter({ _id: { $in: ['a'] }, name: 'x' } as never),
-    ).toBeNull();
+    ).toBeUndefined();
   });
 
-  it('returns null when $in contains non-strings', () => {
+  it('returns undefined when $in contains non-strings', () => {
     expect(
       getIdsFromIdOnlyFilter({ _id: { $in: ['a', 2] } } as never),
-    ).toBeNull();
+    ).toBeUndefined();
   });
 
-  it('returns null for undefined', () => {
-    expect(getIdsFromIdOnlyFilter(undefined)).toBeNull();
+  it('returns undefined for undefined', () => {
+    expect(getIdsFromIdOnlyFilter(undefined)).toBeUndefined();
   });
 
   it('returns an empty array for { _id: { $in: [] } }', () => {
