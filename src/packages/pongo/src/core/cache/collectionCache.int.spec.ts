@@ -283,6 +283,32 @@ describe('pongoCollection cache integration', () => {
       expect(await withCache.findOne({ _id: insertedId! })).toBeNull();
     });
 
+    it('findOne for non-existent document caches null — second call skips DB', async () => {
+      const { cache, spies } = spyCache('col');
+      const col = client.db('db').collection<User>('users', { cache });
+
+      const result1 = await col.findOne({ _id: 'ghost-id' });
+      expect(result1).toBeNull();
+      expect(spies.set).toHaveBeenCalledWith('db:users:ghost-id', null);
+
+      spies.set.mockClear();
+      const result2 = await col.findOne({ _id: 'ghost-id' });
+      expect(result2).toBeNull();
+      expect(spies.set).not.toHaveBeenCalled();
+    });
+
+    it('cached null is overwritten when document is later inserted', async () => {
+      const col = client
+        .db('db')
+        .collection<User>('users', { cache: { type: 'in-memory' } });
+
+      expect(await col.findOne({ _id: 'future-id' })).toBeNull();
+
+      await col.insertOne({ _id: 'future-id', name: 'Alice' });
+
+      expect((await col.findOne({ _id: 'future-id' }))?.name).toBe('Alice');
+    });
+
     it('default behavior (no cache config) works', async () => {
       const col = client.db('db').collection<User>('users');
 

@@ -3,17 +3,20 @@ import type { MaybePromise, PongoDocument } from '../../typing';
 import type { PongoCache, PongoDocumentCacheKey } from '../pongoCache';
 
 export type LRUCacheOptions = Omit<
-  LRUCache.Options<string, PongoDocument, unknown>,
+  LRUCache.Options<string, { doc: PongoDocument | null }, unknown>,
   'max'
 > & { max?: number };
 
-const defaultLRUCacheOptions: LRUCache.Options<string, PongoDocument, unknown> =
-  {
-    max: 1000,
-  };
+const defaultLRUCacheOptions: LRUCache.Options<
+  string,
+  { doc: PongoDocument | null },
+  unknown
+> = {
+  max: 1000,
+};
 
 export const lruCache = (options?: LRUCacheOptions): PongoCache => {
-  const cache = new LRUCache<string, PongoDocument>({
+  const cache = new LRUCache<string, { doc: PongoDocument | null }>({
     ...defaultLRUCacheOptions,
     ...options,
   });
@@ -22,10 +25,13 @@ export const lruCache = (options?: LRUCacheOptions): PongoCache => {
     cacheType: 'pongo:cache:lru',
     get: <Doc extends PongoDocument = PongoDocument>(
       key: PongoDocumentCacheKey,
-    ): MaybePromise<Doc | undefined> =>
-      cache.get(key) as MaybePromise<Doc | undefined>,
+    ): MaybePromise<Doc | null | undefined> => {
+      const entry = cache.get(key);
+      if (entry === undefined) return undefined;
+      return entry.doc as Doc | null;
+    },
     set: (key, value) => {
-      cache.set(key, value);
+      cache.set(key, { doc: value });
     },
     delete: (key) => {
       cache.delete(key);
@@ -41,10 +47,15 @@ export const lruCache = (options?: LRUCacheOptions): PongoCache => {
     },
     getMany: <Doc extends PongoDocument = PongoDocument>(
       keys: PongoDocumentCacheKey[],
-    ): (Doc | undefined)[] => keys.map((k) => cache.get(k) as Doc | undefined),
+    ): (Doc | null | undefined)[] =>
+      keys.map((k) => {
+        const entry = cache.get(k);
+        if (entry === undefined) return undefined;
+        return entry.doc as Doc | null;
+      }),
     setMany: (entries) => {
       for (const { key, value } of entries) {
-        cache.set(key, value);
+        cache.set(key, { doc: value });
       }
     },
     updateMany(keys, _updater) {

@@ -189,7 +189,7 @@ export const pongoCollection = <
   const resolveFromCache = async (
     key: PongoDocumentCacheKey,
     options: CollectionOperationOptions | undefined,
-  ): Promise<T | undefined> => {
+  ): Promise<T | null | undefined> => {
     const txCache = txCacheFor(options);
     if (txCache) {
       const cached = await txCache.get<T>(key);
@@ -201,22 +201,18 @@ export const pongoCollection = <
   const findManyFromCache = async (
     keys: PongoDocumentCacheKey[],
     options: CollectionOperationOptions | undefined,
-  ): Promise<T[]> => {
+  ): Promise<(T | null | undefined)[]> => {
     const txCache = txCacheFor(options);
 
     if (!txCache) {
-      const results = await cache.getMany<T>(keys);
-      return results.filter((d) => d !== undefined);
+      return cache.getMany<T>(keys);
     }
 
     const txResults = await txCache.getMany<T>(keys);
-    const hits = txResults.filter((d) => d !== undefined);
-    const missKeys = keys.filter((_, i) => txResults[i] === undefined);
-
-    if (missKeys.length === 0) return hits;
-
-    const fallback = await cache.getMany<T>(missKeys);
-    return [...hits, ...fallback.filter((d) => d !== undefined)];
+    const mainResults = await cache.getMany<T>(keys);
+    return keys.map((_, i) =>
+      txResults[i] !== undefined ? txResults[i] : mainResults[i],
+    );
   };
 
   const cacheDeleteByIdFilter = (
@@ -232,13 +228,15 @@ export const pongoCollection = <
     ids: string[],
     options: FindOptions | undefined,
   ): Promise<WithIdAndVersion<T>[]> => {
-    const cached = await findManyFromCache(ids.map(cacheKey), options);
-    const hits = cached.map(
-      (e) => upcast({ ...e } as unknown as Payload) as WithIdAndVersion<T>,
-    );
+    const cachedResults = await findManyFromCache(ids.map(cacheKey), options);
 
-    const cachedIds = new Set(cached.map((d) => d['_id'] as string));
-    const missIds = ids.filter((id) => !cachedIds.has(id));
+    const hits = cachedResults
+      .filter((c): c is T => c !== undefined && c !== null)
+      .map(
+        (c) => upcast({ ...c } as unknown as Payload) as WithIdAndVersion<T>,
+      );
+
+    const missIds = ids.filter((_, i) => cachedResults[i] === undefined);
 
     if (missIds.length === 0) return hits;
 
@@ -250,21 +248,23 @@ export const pongoCollection = <
     );
     const dbDocs = dbResult.rows.map(rowToDoc);
 
-    if (dbDocs.length > 0)
-      await cacheSetMany(
-        dbDocs.map((doc) => ({
-          key: cacheKey((doc as PongoDocument)['_id'] as string),
-          value: doc as PongoDocument,
-        })),
-        options,
-      );
+    const dbDocsById = new Map(
+      dbDocs.map((d) => [(d as PongoDocument)['_id'] as string, d]),
+    );
+    await cacheSetMany(
+      missIds.map((id) => ({
+        key: cacheKey(id),
+        value: (dbDocsById.get(id) as PongoDocument) ?? null,
+      })),
+      options,
+    );
 
     return [...hits, ...dbDocs];
   };
 
   const cacheSet = (
     key: PongoDocumentCacheKey,
-    value: PongoDocument,
+    value: PongoDocument | null,
     options: CollectionOperationOptions | undefined,
   ) => {
     const txCache = txCacheFor(options);
@@ -273,7 +273,7 @@ export const pongoCollection = <
   };
 
   const cacheSetMany = (
-    entries: { key: PongoDocumentCacheKey; value: PongoDocument }[],
+    entries: { key: PongoDocumentCacheKey; value: PongoDocument | null }[],
     options: CollectionOperationOptions | undefined,
   ) => {
     const txCache = txCacheFor(options);
@@ -534,11 +534,13 @@ export const pongoCollection = <
       if (id) {
         const cached = await resolveFromCache(cacheKey(id), options);
         if (cached !== undefined)
-          return upcast({
-            ...cached,
-          } as unknown as Payload) as WithIdAndVersion<T>;
+          return cached !== null
+            ? (upcast({
+                ...cached,
+              } as unknown as Payload) as WithIdAndVersion<T>)
+            : null;
         const doc = await findOneFromDb(filter!, options);
-        if (doc) await cacheSet(cacheKey(id), doc as PongoDocument, options);
+        await cacheSet(cacheKey(id), doc as PongoDocument | null, options);
         return doc;
       }
 

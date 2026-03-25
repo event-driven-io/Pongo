@@ -89,6 +89,47 @@ describe('inMemoryCacheProvider', () => {
     expect(cache.get('db:collection:b')).toBeUndefined();
   });
 
+  it('set null then get returns null', () => {
+    const cache = lruCache();
+    cache.set('db:collection:a', null);
+    expect(cache.get('db:collection:a')).toBeNull();
+  });
+
+  it('set null is distinguishable from missing key', () => {
+    const cache = lruCache();
+    cache.set('db:collection:a', null);
+    expect(cache.get('db:collection:a')).toBeNull();
+    expect(cache.get('db:collection:missing')).toBeUndefined();
+  });
+
+  it('getMany returns null for null-cached keys and undefined for missing', async () => {
+    const cache = lruCache();
+    cache.set('db:collection:a', null);
+    const results = await cache.getMany([
+      'db:collection:a',
+      'db:collection:missing',
+    ]);
+    expect(results[0]).toBeNull();
+    expect(results[1]).toBeUndefined();
+  });
+
+  it('setMany with null values — get returns null', async () => {
+    const cache = lruCache();
+    await cache.setMany([
+      { key: 'db:collection:a', value: null },
+      { key: 'db:collection:b', value: { _id: 'b' } },
+    ]);
+    expect(cache.get('db:collection:a')).toBeNull();
+    expect(cache.get('db:collection:b')).toEqual({ _id: 'b' });
+  });
+
+  it('delete removes a null-cached entry', () => {
+    const cache = lruCache();
+    cache.set('db:collection:a', null);
+    cache.delete('db:collection:a');
+    expect(cache.get('db:collection:a')).toBeUndefined();
+  });
+
   it('returns values synchronously (not wrapped in Promises)', () => {
     const cache = lruCache();
     cache.set('db:collection:a', { _id: 'a' });

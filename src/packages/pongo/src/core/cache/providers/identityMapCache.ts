@@ -2,14 +2,16 @@ import type { PongoDocument } from '../../typing';
 import type { PongoCache, PongoDocumentCacheKey } from '../pongoCache';
 
 export const identityMapCache = (): PongoCache => {
-  const store = new Map<string, PongoDocument>();
+  const store = new Map<string, PongoDocument | null>();
 
   return {
     cacheType: 'pongo:cache:identity-map',
     get: <Doc extends PongoDocument = PongoDocument>(
       key: PongoDocumentCacheKey,
-    ): Promise<Doc | undefined> =>
-      Promise.resolve(store.get(key) as Doc | undefined),
+    ): Promise<Doc | null | undefined> =>
+      Promise.resolve(
+        store.has(key) ? (store.get(key) as Doc | null) : undefined,
+      ),
     set: (key, value) => {
       store.set(key, value);
     },
@@ -26,7 +28,10 @@ export const identityMapCache = (): PongoCache => {
     },
     getMany: <Doc extends PongoDocument = PongoDocument>(
       keys: PongoDocumentCacheKey[],
-    ): (Doc | undefined)[] => keys.map((k) => store.get(k) as Doc | undefined),
+    ): (Doc | null | undefined)[] =>
+      keys.map((k) =>
+        store.has(k) ? (store.get(k) as Doc | null) : undefined,
+      ),
     setMany: (entries) => {
       for (const { key, value } of entries) store.set(key, value);
     },

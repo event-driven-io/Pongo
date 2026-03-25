@@ -7,7 +7,7 @@ export type PongoDocumentCacheKey = `${string}:${string}:${string}`;
 
 export type PongoCacheSetEntry<Doc extends PongoDocument = PongoDocument> = {
   key: PongoDocumentCacheKey;
-  value: Doc;
+  value: Doc | null;
 };
 
 export type PongoCacheType<T extends string = string> = `pongo:cache:${T}`;
@@ -16,10 +16,10 @@ export interface PongoCache<T extends string = string> {
   cacheType: PongoCacheType<T>;
   get<Doc extends PongoDocument = PongoDocument>(
     key: PongoDocumentCacheKey,
-  ): MaybePromise<Doc | undefined>;
+  ): MaybePromise<Doc | null | undefined>;
   set<Doc extends PongoDocument = PongoDocument>(
     key: PongoDocumentCacheKey,
-    value: Doc,
+    value: Doc | null,
   ): MaybePromise<void>;
   update<Doc extends PongoDocument = PongoDocument>(
     key: PongoDocumentCacheKey,
@@ -28,7 +28,7 @@ export interface PongoCache<T extends string = string> {
   delete(key: PongoDocumentCacheKey): MaybePromise<void>;
   getMany<Doc extends PongoDocument = PongoDocument>(
     keys: PongoDocumentCacheKey[],
-  ): MaybePromise<(Doc | undefined)[]>;
+  ): MaybePromise<(Doc | null | undefined)[]>;
   setMany(entries: PongoCacheSetEntry[]): MaybePromise<void>;
   updateMany<Doc extends PongoDocument = PongoDocument>(
     keys: PongoDocumentCacheKey[],

@@ -81,6 +81,47 @@ describe('identityMapCache', () => {
     expect(await cache.get('db:collection:b')).toBeUndefined();
   });
 
+  it('set null then get returns null', async () => {
+    const cache = identityMapCache();
+    cache.set('db:collection:a', null);
+    expect(await cache.get('db:collection:a')).toBeNull();
+  });
+
+  it('set null is distinguishable from missing key', async () => {
+    const cache = identityMapCache();
+    cache.set('db:collection:a', null);
+    expect(await cache.get('db:collection:a')).toBeNull();
+    expect(await cache.get('db:collection:missing')).toBeUndefined();
+  });
+
+  it('getMany returns null for null-cached keys and undefined for missing', () => {
+    const cache = identityMapCache();
+    cache.set('db:collection:a', null);
+    const results = cache.getMany([
+      'db:collection:a',
+      'db:collection:missing',
+    ]) as (Record<string, unknown> | null | undefined)[];
+    expect(results[0]).toBeNull();
+    expect(results[1]).toBeUndefined();
+  });
+
+  it('setMany with null values — get returns null', async () => {
+    const cache = identityMapCache();
+    cache.setMany([
+      { key: 'db:collection:a', value: null },
+      { key: 'db:collection:b', value: { _id: 'b' } },
+    ]);
+    expect(await cache.get('db:collection:a')).toBeNull();
+    expect(await cache.get('db:collection:b')).toEqual({ _id: 'b' });
+  });
+
+  it('delete removes a null-cached entry', async () => {
+    const cache = identityMapCache();
+    cache.set('db:collection:a', null);
+    cache.delete('db:collection:a');
+    expect(await cache.get('db:collection:a')).toBeUndefined();
+  });
+
   it('has no max size — stores unlimited entries', async () => {
     const cache = identityMapCache();
     const count = 2000;
