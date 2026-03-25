@@ -1,12 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import type { PongoDocument } from '../../typing/operations';
-import { identityMapCache } from '../providers';
+import type { PongoCache, PongoDocumentCacheKey } from '../pongoCache';
 import { lruCache } from '../providers/lruCache';
 import {
   pongoTransactionCache,
   type PongoTransactionCache,
 } from './pongoTransactionCache';
-import type { PongoCache, PongoDocumentCacheKey } from '../types';
 
 const key = (id: string): PongoDocumentCacheKey => `db:users:${id}`;
 
@@ -320,29 +319,6 @@ describe('pongoTransactionCache', () => {
         name: 'ForOther',
       });
       expect(await mainCache.get(key('2'))).toBeUndefined();
-    });
-  });
-
-  describe('set with options forwarding', () => {
-    it('forwards ttl option to mainCache on commit', async () => {
-      const setSpy = vi.fn();
-      const spyMainCache: PongoCache = {
-        ...identityMapCache(),
-        set: setSpy,
-      };
-
-      await txCache.set(
-        key('1'),
-        { _id: '1' },
-        { mainCache: spyMainCache, ttl: 5000 },
-      );
-      await txCache.commit();
-
-      expect(setSpy).toHaveBeenCalledWith(
-        key('1'),
-        { _id: '1' },
-        { ttl: 5000 },
-      );
     });
   });
 

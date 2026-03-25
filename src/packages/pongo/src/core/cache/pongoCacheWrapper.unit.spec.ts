@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { pongoCacheWrapper } from './cacheWrapper';
+import { pongoCacheWrapper } from './pongoCacheWrapper';
 import { identityMapCache } from './providers';
 
 const dbName = 'mydb';

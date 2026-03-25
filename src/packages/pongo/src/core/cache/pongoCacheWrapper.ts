@@ -1,12 +1,15 @@
 import type { PongoDocument } from '../typing';
-import type { CacheHooks, PongoCache, PongoDocumentCacheKey } from './types';
+import type {
+  CacheHooks,
+  PongoCache,
+  PongoDocumentCacheKey,
+} from './pongoCache';
 
 export const pongoCacheWrapper = (options: {
   provider: PongoCache;
   hooks?: CacheHooks;
-  defaultTtl?: number;
 }): PongoCache => {
-  const { provider, hooks, defaultTtl } = options;
+  const { provider, hooks } = options;
 
   const onError = (error: unknown, operation: string) => {
     hooks?.onError?.(error, operation);
@@ -33,25 +36,17 @@ export const pongoCacheWrapper = (options: {
       }
     },
 
-    async set(key, value, opts) {
+    async set(key, value) {
       try {
-        await provider.set(
-          key,
-          value,
-          opts ?? (defaultTtl !== undefined ? { ttl: defaultTtl } : undefined),
-        );
+        await provider.set(key, value);
       } catch (error) {
         onError(error, 'set');
       }
     },
 
-    async update(key, updater, opts) {
+    async update(key, updater) {
       try {
-        await provider.set(
-          key,
-          updater,
-          opts ?? (defaultTtl !== undefined ? { ttl: defaultTtl } : undefined),
-        );
+        await provider.update(key, updater);
       } catch (error) {
         onError(error, 'update');
       }
@@ -77,29 +72,15 @@ export const pongoCacheWrapper = (options: {
 
     async setMany(entries) {
       try {
-        const resolved = defaultTtl;
-        await provider.setMany(
-          entries.map((e) => {
-            const ttl = e.ttl ?? resolved;
-            return ttl !== undefined
-              ? { key: e.key, value: e.value, ttl }
-              : { key: e.key, value: e.value };
-          }),
-        );
+        await provider.setMany(entries);
       } catch (error) {
         onError(error, 'setMany');
       }
     },
 
-    async updateMany(keys, updater, opts) {
+    async updateMany(keys, updater) {
       try {
-        await provider.setMany(
-          keys.map((key) => ({
-            key,
-            value: updater,
-            ...(opts ?? (defaultTtl !== undefined ? { ttl: defaultTtl } : {})),
-          })),
-        );
+        await provider.updateMany(keys, updater);
       } catch (error) {
         onError(error, 'updateMany');
       }

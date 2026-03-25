@@ -7,10 +7,9 @@ import {
   vi,
   type Mock,
 } from 'vitest';
-import { pongoClient, type PongoClient } from '..';
+import { pongoClient, type PongoCache, type PongoClient } from '..';
 import { sqlite3Driver } from '../../storage/sqlite/sqlite3';
-import { lruCache } from './providers/lruCache';
-import type { PongoCache } from './types';
+import { lruCache } from './providers';
 
 type User = { _id?: string; name: string; age?: number };
 

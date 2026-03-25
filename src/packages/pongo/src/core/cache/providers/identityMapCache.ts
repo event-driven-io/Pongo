@@ -1,5 +1,5 @@
 import type { PongoDocument } from '../../typing';
-import type { PongoCache, PongoDocumentCacheKey } from '../types';
+import type { PongoCache, PongoDocumentCacheKey } from '../pongoCache';
 
 export const identityMapCache = (): PongoCache => {
   const store = new Map<string, PongoDocument>();
