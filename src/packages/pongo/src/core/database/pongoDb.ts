@@ -127,8 +127,8 @@ export const PongoDatabase = <
         schema: { ...options.schema, ...collectionOptions?.schema },
         serializer,
         errors: { ...options.errors, ...collectionOptions?.errors },
-        ...((collectionOptions?.cache ?? options.cache) !== undefined
-          ? { cache: collectionOptions?.cache ?? options.cache }
+        ...(collectionOptions?.cache !== undefined
+          ? { cache: collectionOptions?.cache ?? cache }
           : {}),
       }),
     transaction: () => pool.transaction(),
