@@ -1,4 +1,5 @@
-import type { CacheHooks, PongoCache } from './types';
+import type { PongoDocument } from '../typing';
+import type { CacheHooks, PongoCache, PongoDocumentCacheKey } from './types';
 
 export const pongoCacheWrapper = (options: {
   provider: PongoCache;
@@ -14,10 +15,12 @@ export const pongoCacheWrapper = (options: {
 
   return {
     cacheType: provider.cacheType,
-    async get(key) {
+    async get<Doc extends PongoDocument = PongoDocument>(
+      key: PongoDocumentCacheKey,
+    ) {
       try {
-        const result = await provider.get(key);
-        if (result != null) {
+        const result = await provider.get<Doc>(key);
+        if (result !== undefined) {
           hooks?.onHit?.(key);
         } else {
           hooks?.onMiss?.(key);
@@ -26,7 +29,7 @@ export const pongoCacheWrapper = (options: {
       } catch (error) {
         onError(error, 'get');
         hooks?.onMiss?.(key);
-        return null;
+        return undefined;
       }
     },
 

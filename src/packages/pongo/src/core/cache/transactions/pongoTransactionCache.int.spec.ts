@@ -26,8 +26,8 @@ describe('pongoTransactionCache', () => {
   });
 
   describe('get / set', () => {
-    it('returns null for a key that was never set', async () => {
-      expect(await txCache.get(key('missing'))).toBeNull();
+    it('returns undefined for a key that was never set', async () => {
+      expect(await txCache.get(key('missing'))).toBeUndefined();
     });
 
     it('returns the document after set', async () => {
@@ -41,7 +41,7 @@ describe('pongoTransactionCache', () => {
       const doc: PongoDocument = { _id: '1', name: 'Alice' };
       await txCache.set(key('1'), doc, { mainCache });
 
-      expect(await mainCache.get(key('1'))).toBeNull();
+      expect(await mainCache.get(key('1'))).toBeUndefined();
     });
   });
 
@@ -51,7 +51,7 @@ describe('pongoTransactionCache', () => {
       await txCache.set(key('1'), doc, { mainCache });
       await txCache.delete(key('1'), { mainCache });
 
-      expect(await txCache.get(key('1'))).toBeNull();
+      expect(await txCache.get(key('1'))).toBeUndefined();
     });
 
     it('does not delete from mainCache until commit', async () => {
@@ -72,7 +72,7 @@ describe('pongoTransactionCache', () => {
       await txCache.update(key('1'), { $set: { name: 'Bob' } }, { mainCache });
 
       // identityMapCache's update deletes the key (TODO behavior)
-      expect(await txCache.get(key('1'))).toBeNull();
+      expect(await txCache.get(key('1'))).toBeUndefined();
     });
 
     it('does not apply update to mainCache until commit', async () => {
@@ -87,9 +87,9 @@ describe('pongoTransactionCache', () => {
   });
 
   describe('getMany / setMany', () => {
-    it('returns null for all missing keys', async () => {
+    it('returns undefined for all missing keys', async () => {
       const results = await txCache.getMany([key('a'), key('b')]);
-      expect(results).toEqual([null, null]);
+      expect(results).toEqual([undefined, undefined]);
     });
 
     it('stores and retrieves multiple documents', async () => {
@@ -112,7 +112,7 @@ describe('pongoTransactionCache', () => {
         { mainCache },
       );
 
-      expect(await mainCache.get(key('a'))).toBeNull();
+      expect(await mainCache.get(key('a'))).toBeUndefined();
     });
   });
 
@@ -133,7 +133,7 @@ describe('pongoTransactionCache', () => {
 
       // identityMapCache's updateMany deletes keys (TODO behavior)
       const results = await txCache.getMany([key('a'), key('b')]);
-      expect(results).toEqual([null, null]);
+      expect(results).toEqual([undefined, undefined]);
     });
 
     it('does not apply updateMany to mainCache until commit', async () => {
@@ -160,7 +160,7 @@ describe('pongoTransactionCache', () => {
       await txCache.deleteMany([key('a'), key('b')], { mainCache });
 
       const results = await txCache.getMany([key('a'), key('b')]);
-      expect(results).toEqual([null, null]);
+      expect(results).toEqual([undefined, undefined]);
     });
 
     it('does not delete from mainCache until commit', async () => {
@@ -178,7 +178,7 @@ describe('pongoTransactionCache', () => {
       await txCache.set(key('1'), { _id: '1', name: 'Alice' }, { mainCache });
       await txCache.clear();
 
-      expect(await txCache.get(key('1'))).toBeNull();
+      expect(await txCache.get(key('1'))).toBeUndefined();
     });
 
     it('discards all buffered operations so commit becomes a no-op', async () => {
@@ -186,7 +186,7 @@ describe('pongoTransactionCache', () => {
       await txCache.clear();
       await txCache.commit();
 
-      expect(await mainCache.get(key('1'))).toBeNull();
+      expect(await mainCache.get(key('1'))).toBeUndefined();
     });
 
     it('does not affect mainCache', async () => {
@@ -231,7 +231,7 @@ describe('pongoTransactionCache', () => {
       await txCache.delete(key('1'), { mainCache });
       await txCache.commit();
 
-      expect(await mainCache.get(key('1'))).toBeNull();
+      expect(await mainCache.get(key('1'))).toBeUndefined();
     });
 
     it('replays deleteMany operations to mainCache', async () => {
@@ -240,8 +240,8 @@ describe('pongoTransactionCache', () => {
       await txCache.deleteMany([key('a'), key('b')], { mainCache });
       await txCache.commit();
 
-      expect(await mainCache.get(key('a'))).toBeNull();
-      expect(await mainCache.get(key('b'))).toBeNull();
+      expect(await mainCache.get(key('a'))).toBeUndefined();
+      expect(await mainCache.get(key('b'))).toBeUndefined();
     });
 
     it('replays update operations to mainCache', async () => {
@@ -250,7 +250,7 @@ describe('pongoTransactionCache', () => {
       await txCache.commit();
 
       // lruCache's update deletes the key (TODO behavior)
-      expect(await mainCache.get(key('1'))).toBeNull();
+      expect(await mainCache.get(key('1'))).toBeUndefined();
     });
 
     it('replays updateMany operations to mainCache', async () => {
@@ -264,8 +264,8 @@ describe('pongoTransactionCache', () => {
       await txCache.commit();
 
       // lruCache's updateMany deletes keys (TODO behavior)
-      expect(await mainCache.get(key('a'))).toBeNull();
-      expect(await mainCache.get(key('b'))).toBeNull();
+      expect(await mainCache.get(key('a'))).toBeUndefined();
+      expect(await mainCache.get(key('b'))).toBeUndefined();
     });
 
     it('replays operations in order across mixed types', async () => {
@@ -287,7 +287,7 @@ describe('pongoTransactionCache', () => {
       await txCache.set(key('1'), { _id: '1', name: 'Alice' }, { mainCache });
       await txCache.commit();
 
-      expect(await txCache.get(key('1'))).toBeNull();
+      expect(await txCache.get(key('1'))).toBeUndefined();
     });
 
     it('clears the operation buffer after commit (second commit is a no-op)', async () => {
@@ -297,7 +297,7 @@ describe('pongoTransactionCache', () => {
       await mainCache.delete(key('1'));
       await txCache.commit();
 
-      expect(await mainCache.get(key('1'))).toBeNull();
+      expect(await mainCache.get(key('1'))).toBeUndefined();
     });
 
     it('can commit to different mainCaches per operation', async () => {
@@ -319,7 +319,7 @@ describe('pongoTransactionCache', () => {
         _id: '2',
         name: 'ForOther',
       });
-      expect(await mainCache.get(key('2'))).toBeNull();
+      expect(await mainCache.get(key('2'))).toBeUndefined();
     });
   });
 
@@ -369,7 +369,7 @@ describe('pongoTransactionCache', () => {
       await txCache.delete(key('1'), { mainCache });
       await txCache.commit();
 
-      expect(await mainCache.get(key('1'))).toBeNull();
+      expect(await mainCache.get(key('1'))).toBeUndefined();
     });
 
     it('delete → set: doc present after commit', async () => {
@@ -407,7 +407,7 @@ describe('pongoTransactionCache', () => {
       await txCache.delete(key('1'), { mainCache });
       await txCache.commit();
 
-      expect(await mainCache.get(key('1'))).toBeNull();
+      expect(await mainCache.get(key('1'))).toBeUndefined();
     });
 
     it('set → set → delete → set: last set wins after commit', async () => {
@@ -434,8 +434,8 @@ describe('pongoTransactionCache', () => {
       await txCache.deleteMany([key('a'), key('b')], { mainCache });
       await txCache.commit();
 
-      expect(await mainCache.get(key('a'))).toBeNull();
-      expect(await mainCache.get(key('b'))).toBeNull();
+      expect(await mainCache.get(key('a'))).toBeUndefined();
+      expect(await mainCache.get(key('b'))).toBeUndefined();
     });
 
     it('deleteMany → setMany: docs present after commit', async () => {
@@ -489,7 +489,7 @@ describe('pongoTransactionCache', () => {
       await txCache.delete(key('a'), { mainCache });
       await txCache.commit();
 
-      expect(await mainCache.get(key('a'))).toBeNull();
+      expect(await mainCache.get(key('a'))).toBeUndefined();
       expect(await mainCache.get(key('b'))).toEqual({ _id: 'b', name: 'B' });
     });
 

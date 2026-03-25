@@ -76,7 +76,7 @@ describe('pongoCacheWrapper — error swallowing', () => {
       throw new Error('boom');
     });
     const wrapper = pongoCacheWrapper({ provider });
-    expect(await wrapper.get(`${dbName}:${collectionName}:x`)).toBeNull();
+    expect(await wrapper.get(`${dbName}:${collectionName}:x`)).toBeUndefined();
   });
 
   it('set silently succeeds when provider throws', async () => {
@@ -150,7 +150,7 @@ describe('pongoCacheWrapper — event hooks', () => {
     expect(onHit).toHaveBeenCalledWith(`${dbName}:${collectionName}:x`);
   });
 
-  it('onMiss called when get returns null/undefined', async () => {
+  it('onMiss called when get returns undefined', async () => {
     const provider = identityMapCache();
     const onMiss = vi.fn();
     const wrapper = pongoCacheWrapper({ provider, hooks: { onMiss } });

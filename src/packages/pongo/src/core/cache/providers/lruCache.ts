@@ -1,6 +1,6 @@
 import { LRUCache } from 'lru-cache';
-import type { PongoDocument } from '../../typing';
-import type { PongoCache } from '../types';
+import type { MaybePromise, PongoDocument } from '../../typing';
+import type { PongoCache, PongoDocumentCacheKey } from '../types';
 
 export type LRUCacheOptions = Omit<
   LRUCache.Options<string, PongoDocument, unknown>,
@@ -20,7 +20,10 @@ export const lruCache = (options?: LRUCacheOptions): PongoCache => {
 
   return {
     cacheType: 'pongo:cache:lru',
-    get: (key) => cache.get(key) ?? null,
+    get: <Doc extends PongoDocument = PongoDocument>(
+      key: PongoDocumentCacheKey,
+    ): MaybePromise<Doc | undefined> =>
+      cache.get(key) as MaybePromise<Doc | undefined>,
     set: (key, value, opts) => {
       cache.set(
         key,
@@ -40,8 +43,9 @@ export const lruCache = (options?: LRUCacheOptions): PongoCache => {
       //   cache.set(key, updated, opts?.ttl !== undefined ? { ttl: opts.ttl } : undefined);
       // }
     },
-    getMany: (keys) =>
-      keys.map((k) => cache.get(k)).filter((v) => v !== undefined),
+    getMany: <Doc extends PongoDocument = PongoDocument>(
+      keys: PongoDocumentCacheKey[],
+    ): (Doc | undefined)[] => keys.map((k) => cache.get(k) as Doc | undefined),
     setMany: (entries) => {
       for (const { key, value, ttl: entryTtl } of entries) {
         cache.set(

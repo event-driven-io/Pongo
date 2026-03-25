@@ -48,7 +48,9 @@ type CacheOperation =
 
 export interface PongoTransactionCache<T extends string = string> {
   type: PongoCacheType<T>;
-  get(key: PongoDocumentCacheKey): MaybePromise<PongoDocument | null>;
+  get<Doc extends PongoDocument = PongoDocument>(
+    key: PongoDocumentCacheKey,
+  ): MaybePromise<Doc | undefined>;
   set(
     key: PongoDocumentCacheKey,
     value: PongoDocument,
@@ -63,9 +65,9 @@ export interface PongoTransactionCache<T extends string = string> {
     key: PongoDocumentCacheKey,
     options: PongoTransactionCacheOperationOptions,
   ): MaybePromise<void>;
-  getMany(
+  getMany<Doc extends PongoDocument = PongoDocument>(
     keys: PongoDocumentCacheKey[],
-  ): MaybePromise<(PongoDocument | null)[]>;
+  ): MaybePromise<(Doc | undefined)[]>;
   setMany(
     entries: PongoCacheSetEntry[],
     options: PongoTransactionCacheOperationOptions,

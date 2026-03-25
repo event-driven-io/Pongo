@@ -36,11 +36,11 @@ describe('pongoCache factory', () => {
     });
 
     it('defaults to disabled when no config provided', async () => {
-      const cache = pongoCache(undefined);
+      const cache = pongoCache();
 
       await cache.set('db:col:1', { _id: '1', name: 'Bob' });
       const result = await cache.get('db:col:1');
-      expect(result).toBeNull();
+      expect(result).toBeUndefined();
     });
 
     it('in-memory LRU evicts when over max', async () => {
@@ -52,7 +52,7 @@ describe('pongoCache factory', () => {
 
       // Oldest entry should be evicted
       const first = await cache.get('db:col:0');
-      expect(first).toBeNull();
+      expect(first).toBeUndefined();
     });
   });
 
@@ -62,7 +62,7 @@ describe('pongoCache factory', () => {
 
       await cache.set('db:col:1', { _id: '1', name: 'Carol' });
       const result = await cache.get('db:col:1');
-      expect(result).toBeNull();
+      expect(result).toBeUndefined();
     });
   });
 
