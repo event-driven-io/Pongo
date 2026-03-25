@@ -1,6 +1,6 @@
 import { LRUCache } from 'lru-cache';
 import type { MaybePromise, PongoDocument } from '../../typing';
-import type { PongoCache, PongoDocumentCacheKey } from '../types';
+import type { PongoCache, PongoDocumentCacheKey } from '../pongoCache';
 
 export type LRUCacheOptions = Omit<
   LRUCache.Options<string, PongoDocument, unknown>,
@@ -24,17 +24,13 @@ export const lruCache = (options?: LRUCacheOptions): PongoCache => {
       key: PongoDocumentCacheKey,
     ): MaybePromise<Doc | undefined> =>
       cache.get(key) as MaybePromise<Doc | undefined>,
-    set: (key, value, opts) => {
-      cache.set(
-        key,
-        value,
-        opts?.ttl !== undefined ? { ttl: opts.ttl } : undefined,
-      );
+    set: (key, value) => {
+      cache.set(key, value);
     },
     delete: (key) => {
       cache.delete(key);
     },
-    update: (key, _updater, _opts) => {
+    update: (key, _updater) => {
       cache.delete(key);
       // TODO: Add updater using mingo
       // const existing = cache.get(key);
@@ -47,22 +43,18 @@ export const lruCache = (options?: LRUCacheOptions): PongoCache => {
       keys: PongoDocumentCacheKey[],
     ): (Doc | undefined)[] => keys.map((k) => cache.get(k) as Doc | undefined),
     setMany: (entries) => {
-      for (const { key, value, ttl: entryTtl } of entries) {
-        cache.set(
-          key,
-          value,
-          entryTtl !== undefined ? { ttl: entryTtl } : undefined,
-        );
+      for (const { key, value } of entries) {
+        cache.set(key, value);
       }
     },
-    updateMany(keys, _updater, _options) {
+    updateMany(keys, _updater) {
       for (const key of keys) {
         cache.delete(key);
         // TODO: Add updater using mingo
         // const existing = cache.get(key);
         // if (existing) {
         //   const updated = updater(existing);
-        //   cache.set(key, updated, options?.ttl !== undefined ? { ttl: options.ttl } : undefined);
+        //   cache.set(key, updated);
         // }
       }
     },

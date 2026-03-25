@@ -1,4 +1,4 @@
-import type { PongoCache } from '../types';
+import type { PongoCache } from '../pongoCache';
 
 export const noopCacheProvider: PongoCache = {
   cacheType: 'pongo:cache:no-op',
