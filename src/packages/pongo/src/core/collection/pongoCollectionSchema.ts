@@ -33,6 +33,14 @@ export type PongoCollectionSQLBuilder = {
     options?: DeleteOneOptions,
   ) => SQL;
   deleteMany: <T>(filter: PongoFilter<T> | SQL) => SQL;
+  replaceMany: <T>(
+    documents: Array<{
+      _id: string;
+      document: WithoutId<T>;
+      _version?: bigint;
+    }>,
+  ) => SQL;
+  deleteManyByIds: (ids: Array<{ _id: string; _version?: bigint }>) => SQL;
   findOne: <T>(filter: PongoFilter<T> | SQL) => SQL;
   find: <T>(filter: PongoFilter<T> | SQL, options?: FindOptions) => SQL;
   countDocuments: <T>(filter: PongoFilter<T> | SQL) => SQL;
