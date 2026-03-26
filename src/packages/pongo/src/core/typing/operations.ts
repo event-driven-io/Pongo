@@ -192,6 +192,10 @@ export type HandleOptions = {
   expectedVersion?: ExpectedDocumentVersion;
 } & CollectionOperationOptions;
 
+export type BatchHandleOptions = {
+  skipConcurrencyCheck?: boolean;
+} & CollectionOperationOptions;
+
 export type ReplaceOneOptions = {
   expectedVersion?: Exclude<ExpectedDocumentVersion, 'DOCUMENT_DOES_NOT_EXIST'>;
 } & CollectionOperationOptions;
@@ -283,6 +287,23 @@ export interface PongoCollection<T extends PongoDocument> {
     handle: DocumentHandler<T>,
     options?: HandleOptions,
   ): Promise<PongoHandleResult<T>>;
+  handle(
+    id: string[],
+    handle: DocumentHandler<T>,
+    options?: BatchHandleOptions,
+  ): Promise<PongoHandleResult<T>[]>;
+  replaceMany(
+    documents: Array<{
+      _id: string;
+      document: WithoutId<T>;
+      _version?: bigint;
+    }>,
+    options?: CollectionOperationOptions,
+  ): Promise<PongoReplaceManyResult>;
+  deleteManyByIds(
+    ids: Array<{ _id: string; _version?: bigint }>,
+    options?: CollectionOperationOptions,
+  ): Promise<PongoDeleteResult & { deletedIds: Set<string> }>;
   readonly schema: Readonly<{
     component: PongoCollectionSchemaComponent;
     migrate(options?: PongoMigrationOptions): Promise<RunSQLMigrationsResult>;
@@ -577,6 +598,13 @@ export interface PongoDeleteResult extends OperationResult {
 
 export interface PongoDeleteManyResult extends OperationResult {
   deletedCount: number;
+}
+
+export interface PongoReplaceManyResult extends OperationResult {
+  modifiedCount: number;
+  matchedCount: number;
+  modifiedIds: Set<string>;
+  versions: Map<string, bigint>;
 }
 
 export type PongoHandleResult<T> =

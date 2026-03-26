@@ -176,6 +176,87 @@ export const sqliteSQLBuilder = (
 
     return SQL`DELETE FROM ${SQL.identifier(collectionName)} ${where(filterQuery)} RETURNING _id`;
   },
+  replaceMany: <T>(
+    documents: Array<{
+      _id: string;
+      document: WithoutId<T>;
+      _version?: bigint;
+    }>,
+  ): SQL => {
+    const hasVersions = documents.some((d) => d._version !== undefined);
+
+    if (hasVersions) {
+      const values = SQL.merge(
+        documents.map(
+          (d) =>
+            SQL`(${d._id}, ${serializer.serialize(d.document)}, ${d._version ?? 0n})`,
+        ),
+        ',',
+      );
+
+      return SQL`
+        WITH replacements(_id, data, expected_version) AS (
+          VALUES ${values}
+        )
+        UPDATE ${SQL.identifier(collectionName)}
+        SET
+          data = json_patch(r.data, json_object('_id', ${SQL.identifier(collectionName)}._id, '_version', cast(${SQL.identifier(collectionName)}._version + 1 as TEXT))),
+          _version = ${SQL.identifier(collectionName)}._version + 1,
+          _updated = datetime('now')
+        FROM replacements r
+        WHERE ${SQL.identifier(collectionName)}._id = r._id AND ${SQL.identifier(collectionName)}._version = r.expected_version
+        RETURNING ${SQL.identifier(collectionName)}._id, cast(${SQL.identifier(collectionName)}._version as TEXT) as version;`;
+    }
+
+    const values = SQL.merge(
+      documents.map(
+        (d) => SQL`(${d._id}, ${serializer.serialize(d.document)})`,
+      ),
+      ',',
+    );
+
+    return SQL`
+      WITH replacements(_id, data) AS (
+        VALUES ${values}
+      )
+      UPDATE ${SQL.identifier(collectionName)}
+      SET
+        data = json_patch(r.data, json_object('_id', ${SQL.identifier(collectionName)}._id, '_version', cast(${SQL.identifier(collectionName)}._version + 1 as TEXT))),
+        _version = ${SQL.identifier(collectionName)}._version + 1,
+        _updated = datetime('now')
+      FROM replacements r
+      WHERE ${SQL.identifier(collectionName)}._id = r._id
+      RETURNING ${SQL.identifier(collectionName)}._id, cast(${SQL.identifier(collectionName)}._version as TEXT) as version;`;
+  },
+  deleteManyByIds: (ids: Array<{ _id: string; _version?: bigint }>): SQL => {
+    const hasVersions = ids.some((d) => d._version !== undefined);
+
+    if (hasVersions) {
+      const values = SQL.merge(
+        ids.map((d) => SQL`(${d._id}, ${d._version ?? 0n})`),
+        ',',
+      );
+
+      return SQL`
+        WITH targets(_id, expected_version) AS (
+          VALUES ${values}
+        )
+        DELETE FROM ${SQL.identifier(collectionName)}
+        WHERE _id IN (SELECT _id FROM targets)
+          AND _version = (SELECT expected_version FROM targets WHERE targets._id = ${SQL.identifier(collectionName)}._id)
+        RETURNING _id;`;
+    }
+
+    const idList = SQL.merge(
+      ids.map((d) => SQL`${d._id}`),
+      ',',
+    );
+
+    return SQL`
+      DELETE FROM ${SQL.identifier(collectionName)}
+      WHERE _id IN (${idList})
+      RETURNING _id;`;
+  },
   findOne: <T>(filter: PongoFilter<T> | SQL): SQL => {
     const filterQuery = isSQL(filter)
       ? filter

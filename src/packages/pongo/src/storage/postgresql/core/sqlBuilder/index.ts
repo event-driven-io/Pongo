@@ -202,6 +202,120 @@ export const postgresSQLBuilder = (
 
     return SQL`DELETE FROM ${SQL.identifier(collectionName)} ${where(filterQuery)}`;
   },
+  replaceMany: <T>(
+    documents: Array<{
+      _id: string;
+      document: WithoutId<T>;
+      _version?: bigint;
+    }>,
+  ): SQL => {
+    const hasVersions = documents.some((d) => d._version !== undefined);
+
+    if (hasVersions) {
+      const values = SQL.merge(
+        documents.map(
+          (d) =>
+            SQL`(${d._id}::text, ${serializer.serialize(d.document)}::jsonb, ${d._version ?? 0n}::bigint)`,
+        ),
+        ',',
+      );
+
+      return SQL`
+        WITH replacements(_id, data, expected_version) AS (
+          VALUES ${values}
+        ),
+        updated AS (
+          UPDATE ${SQL.identifier(collectionName)} t
+          SET
+            data = r.data
+              || jsonb_build_object('_id', t._id)
+              || jsonb_build_object('_version', (t._version + 1)::text),
+            _version = t._version + 1
+          FROM replacements r
+          WHERE t._id = r._id AND t._version = r.expected_version
+          RETURNING t._id, t._version
+        )
+        SELECT r._id,
+          CASE WHEN u._id IS NOT NULL THEN 1 ELSE 0 END as modified,
+          COALESCE(u._version, r.expected_version) as version
+        FROM replacements r
+        LEFT JOIN updated u ON r._id = u._id;`;
+    }
+
+    const values = SQL.merge(
+      documents.map(
+        (d) =>
+          SQL`(${d._id}::text, ${serializer.serialize(d.document)}::jsonb)`,
+      ),
+      ',',
+    );
+
+    return SQL`
+      WITH replacements(_id, data) AS (
+        VALUES ${values}
+      ),
+      updated AS (
+        UPDATE ${SQL.identifier(collectionName)} t
+        SET
+          data = r.data
+            || jsonb_build_object('_id', t._id)
+            || jsonb_build_object('_version', (t._version + 1)::text),
+          _version = t._version + 1
+        FROM replacements r
+        WHERE t._id = r._id
+        RETURNING t._id, t._version
+      )
+      SELECT r._id,
+        CASE WHEN u._id IS NOT NULL THEN 1 ELSE 0 END as modified,
+        COALESCE(u._version, 0) as version
+      FROM replacements r
+      LEFT JOIN updated u ON r._id = u._id;`;
+  },
+  deleteManyByIds: (ids: Array<{ _id: string; _version?: bigint }>): SQL => {
+    const hasVersions = ids.some((d) => d._version !== undefined);
+
+    if (hasVersions) {
+      const values = SQL.merge(
+        ids.map((d) => SQL`(${d._id}::text, ${d._version ?? 0n}::bigint)`),
+        ',',
+      );
+
+      return SQL`
+        WITH targets(_id, expected_version) AS (
+          VALUES ${values}
+        ),
+        deleted AS (
+          DELETE FROM ${SQL.identifier(collectionName)} t
+          USING targets r
+          WHERE t._id = r._id AND t._version = r.expected_version
+          RETURNING t._id
+        )
+        SELECT r._id,
+          CASE WHEN d._id IS NOT NULL THEN 1 ELSE 0 END as deleted
+        FROM targets r
+        LEFT JOIN deleted d ON r._id = d._id;`;
+    }
+
+    const values = SQL.merge(
+      ids.map((d) => SQL`(${d._id}::text)`),
+      ',',
+    );
+
+    return SQL`
+      WITH targets(_id) AS (
+        VALUES ${values}
+      ),
+      deleted AS (
+        DELETE FROM ${SQL.identifier(collectionName)} t
+        USING targets r
+        WHERE t._id = r._id
+        RETURNING t._id
+      )
+      SELECT r._id,
+        CASE WHEN d._id IS NOT NULL THEN 1 ELSE 0 END as deleted
+      FROM targets r
+      LEFT JOIN deleted d ON r._id = d._id;`;
+  },
   findOne: <T>(filter: PongoFilter<T> | SQL): SQL => {
     const filterQuery = isSQL(filter)
       ? filter
