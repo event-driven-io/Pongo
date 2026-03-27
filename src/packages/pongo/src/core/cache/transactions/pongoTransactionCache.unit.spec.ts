@@ -322,6 +322,33 @@ describe('pongoTransactionCache', () => {
     });
   });
 
+  describe('replaceMany', () => {
+    it('buffers in inner cache and does not write to mainCache until commit', async () => {
+      const entries = [
+        { key: key('a'), value: { _id: 'a', name: 'A' } },
+        { key: key('b'), value: null as null },
+      ];
+      await txCache.replaceMany(entries, { mainCache });
+
+      expect(await txCache.get(key('a'))).toEqual({ _id: 'a', name: 'A' });
+      expect(await txCache.get(key('b'))).toBeNull();
+      expect(await mainCache.get(key('a'))).toBeUndefined();
+      expect(await mainCache.get(key('b'))).toBeUndefined();
+    });
+
+    it('replays replaceMany to mainCache on commit', async () => {
+      const entries = [
+        { key: key('a'), value: { _id: 'a', name: 'A' } },
+        { key: key('b'), value: null as null },
+      ];
+      await txCache.replaceMany(entries, { mainCache });
+      await txCache.commit();
+
+      expect(await mainCache.get(key('a'))).toEqual({ _id: 'a', name: 'A' });
+      expect(await mainCache.get(key('b'))).toBeNull();
+    });
+  });
+
   describe('custom inner cache', () => {
     it('accepts a custom cache provider for the inner buffer', async () => {
       const customInner = lruCache({ max: 10 });

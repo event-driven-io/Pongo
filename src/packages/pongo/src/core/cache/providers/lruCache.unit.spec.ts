@@ -138,6 +138,18 @@ describe('inMemoryCacheProvider', () => {
     expect(result).toEqual({ _id: 'a' });
   });
 
+  it('replaceMany sets each entry by key, including null values', async () => {
+    const cache = lruCache();
+    cache.set('db:collection:a', { _id: 'a', name: 'old' });
+    await cache.replaceMany([
+      { key: 'db:collection:a', value: { _id: 'a', name: 'new' } },
+      { key: 'db:collection:b', value: null },
+    ]);
+    expect(cache.get('db:collection:a')).toEqual({ _id: 'a', name: 'new' });
+    expect(cache.get('db:collection:b')).toBeNull();
+    expect(cache.get('db:collection:missing')).toBeUndefined();
+  });
+
   it('close clears all entries', () => {
     const cache = lruCache();
     cache.setMany([

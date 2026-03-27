@@ -78,6 +78,14 @@ export const pongoCacheWrapper = (options: {
       }
     },
 
+    async replaceMany(entries) {
+      try {
+        await provider.replaceMany(entries);
+      } catch (error) {
+        onError(error, 'replaceMany');
+      }
+    },
+
     async updateMany(keys, updater) {
       try {
         await provider.updateMany(keys, updater);

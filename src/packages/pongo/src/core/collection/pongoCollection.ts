@@ -30,6 +30,7 @@ import {
   type HandleOptions,
   type InsertManyOptions,
   type InsertOneOptions,
+  type OperationResult,
   type OptionalUnlessRequiredIdAndVersion,
   type PongoCollection,
   type PongoDb,
@@ -37,7 +38,6 @@ import {
   type PongoDocument,
   type PongoFilter,
   type PongoHandleResult,
-  type OperationResult,
   type PongoInsertManyResult,
   type PongoInsertOneResult,
   type PongoMigrationOptions,
@@ -45,6 +45,7 @@ import {
   type PongoUpdate,
   type PongoUpdateManyResult,
   type PongoUpdateResult,
+  type ReplaceManyOptions,
   type ReplaceOneOptions,
   type UpdateManyOptions,
   type UpdateOneOptions,
@@ -293,6 +294,61 @@ export const pongoCollection = <
     return cache.delete(key);
   };
 
+  const cacheReplaceMany = (
+    entries: { key: PongoDocumentCacheKey; value: PongoDocument | null }[],
+    options: CollectionOperationOptions | undefined,
+  ) => {
+    const txCache = txCacheFor(options);
+    if (txCache) return txCache.replaceMany(entries, { mainCache: cache });
+    return cache.replaceMany(entries);
+  };
+
+  const cacheDeleteMany = (
+    ids: string[],
+    options: CollectionOperationOptions | undefined,
+  ) =>
+    cacheSetMany(
+      ids.map((id) => ({ key: cacheKey(id), value: null })),
+      options,
+    );
+
+  const deleteManyByIds = async (
+    ids: Array<{ _id: string; _version?: bigint }>,
+    options?: CollectionOperationOptions,
+  ): Promise<PongoDeleteResult & { deletedIds: Set<string> }> => {
+    await ensureCollectionCreated(options);
+
+    const result = await command<{ _id: string; deleted?: bigint }>(
+      SqlFor.deleteManyByIds(ids),
+      options,
+    );
+
+    const deletedIds = new Set(
+      result.rows
+        .filter((row) => row.deleted === undefined || Number(row.deleted) > 0)
+        .map((row) => row._id),
+    );
+
+    if (!options?.skipCache) {
+      await cacheDeleteMany([...deletedIds], options);
+    }
+
+    return operationResult<PongoDeleteResult & { deletedIds: Set<string> }>(
+      {
+        successful: deletedIds.size > 0,
+        deletedCount: deletedIds.size,
+        matchedCount: ids.length,
+        deletedIds,
+      },
+      {
+        operationName: 'deleteManyByIds',
+        collectionName,
+        serializer,
+        errors,
+      },
+    );
+  };
+
   const collection = {
     dbName: db.databaseName,
     collectionName,
@@ -499,18 +555,16 @@ export const pongoCollection = <
       filter?: PongoFilter<T>,
       options?: DeleteManyOptions,
     ): Promise<PongoDeleteResult> => {
+      const ids = filter ? getIdsFromIdOnlyFilter(filter) : null;
+      if (ids)
+        return deleteManyByIds(
+          ids.map((id) => ({ _id: id })),
+          options,
+        );
+
       await ensureCollectionCreated(options);
 
       const result = await command(SqlFor.deleteMany(filter ?? {}), options);
-
-      if (!options?.skipCache && filter) {
-        const ids = getIdsFromIdOnlyFilter(filter);
-        if (ids)
-          await cacheSetMany(
-            ids.map((id) => ({ key: cacheKey(id), value: null })),
-            options,
-          );
-      }
 
       return operationResult<PongoDeleteResult>(
         {
@@ -537,6 +591,7 @@ export const pongoCollection = <
                 ...cached,
               } as unknown as Payload) as WithIdAndVersion<T>)
             : null;
+
         const doc = await findOneFromDb(filter!, options);
         await cacheSet(cacheKey(id), doc as PongoDocument | null, options);
         return doc;
@@ -591,7 +646,7 @@ export const pongoCollection = <
         document: WithoutId<T>;
         _version?: bigint;
       }>,
-      options?: CollectionOperationOptions,
+      options?: ReplaceManyOptions,
     ): Promise<PongoReplaceManyResult> => {
       await ensureCollectionCreated(options);
 
@@ -607,39 +662,38 @@ export const pongoCollection = <
 
       const result = await command<{
         _id: string;
-        modified?: bigint;
-        version?: bigint;
+        version?: bigint | string | number;
       }>(SqlFor.replaceMany(downcasted), options);
 
-      const versions = new Map(
-        result.rows
-          .filter(
-            (row) => row.modified === undefined || Number(row.modified) > 0,
-          )
-          .map((row) => [
-            row._id,
-            row.version != null ? BigInt(row.version) : 1n,
-          ]),
-      );
-      const modifiedIds = new Set(versions.keys());
+      const modifiedIds = new Set<string>();
+      const conflictIds = new Set<string>();
+      const versions = new Map<string, bigint>();
+
+      for (const row of result.rows) {
+        modifiedIds.add(row._id);
+        versions.set(row._id, row.version != null ? BigInt(row.version) : 1n);
+      }
+
+      for (const d of downcasted) {
+        if (!modifiedIds.has(d._id)) conflictIds.add(d._id);
+      }
 
       if (!options?.skipCache) {
-        await cacheSetMany(
-          downcasted
-            .filter((d) => modifiedIds.has(d._id))
-            .map((d) => ({
-              key: cacheKey(d._id),
-              value: {
-                ...(d.document as PongoDocument),
-                _id: d._id,
-                _version: versions.get(d._id) ?? 1n,
-              },
-            })),
-          options,
-        );
-        for (const d of downcasted.filter((d) => !modifiedIds.has(d._id))) {
-          await cacheDelete(cacheKey(d._id), options);
-        }
+        const cacheEntries = [...modifiedIds].map((id) => {
+          const d = downcasted.find((x) => x._id === id)!;
+          return {
+            key: cacheKey(id),
+            value: {
+              ...(d.document as PongoDocument),
+              _id: id,
+              _version: versions.get(id) ?? 1n,
+            },
+          };
+        });
+        if (cacheEntries.length > 0)
+          await cacheReplaceMany(cacheEntries, options);
+
+        for (const id of conflictIds) await cacheDelete(cacheKey(id), options);
       }
 
       return operationResult<PongoReplaceManyResult>(
@@ -648,51 +702,10 @@ export const pongoCollection = <
           modifiedCount: modifiedIds.size,
           matchedCount: documents.length,
           modifiedIds,
+          conflictIds,
           versions,
         },
         { operationName: 'replaceMany', collectionName, serializer, errors },
-      );
-    },
-    deleteManyByIds: async (
-      ids: Array<{ _id: string; _version?: bigint }>,
-      options?: CollectionOperationOptions,
-    ): Promise<PongoDeleteResult & { deletedIds: Set<string> }> => {
-      await ensureCollectionCreated(options);
-
-      const result = await command<{ _id: string; deleted?: bigint }>(
-        SqlFor.deleteManyByIds(ids),
-        options,
-      );
-
-      const deletedIds = new Set(
-        result.rows
-          .filter((row) => row.deleted === undefined || Number(row.deleted) > 0)
-          .map((row) => row._id),
-      );
-
-      if (!options?.skipCache) {
-        await cacheSetMany(
-          [...deletedIds].map((id) => ({ key: cacheKey(id), value: null })),
-          options,
-        );
-        for (const d of ids.filter((d) => !deletedIds.has(d._id))) {
-          await cacheDelete(cacheKey(d._id), options);
-        }
-      }
-
-      return operationResult<PongoDeleteResult & { deletedIds: Set<string> }>(
-        {
-          successful: deletedIds.size > 0,
-          deletedCount: deletedIds.size,
-          matchedCount: ids.length,
-          deletedIds,
-        },
-        {
-          operationName: 'deleteManyByIds',
-          collectionName,
-          serializer,
-          errors,
-        },
       );
     },
     handle: async (
@@ -825,10 +838,7 @@ export const pongoCollection = <
       }
 
       if (toDelete.length > 0) {
-        const deleteResult = await collection.deleteManyByIds(
-          toDelete,
-          operationOptions,
-        );
+        const deleteResult = await deleteManyByIds(toDelete, operationOptions);
         deletedIds = deleteResult.deletedIds;
       }
 

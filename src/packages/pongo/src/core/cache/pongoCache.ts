@@ -30,6 +30,7 @@ export interface PongoCache<T extends string = string> {
     keys: PongoDocumentCacheKey[],
   ): MaybePromise<(Doc | null | undefined)[]>;
   setMany(entries: PongoCacheSetEntry[]): MaybePromise<void>;
+  replaceMany(entries: PongoCacheSetEntry[]): MaybePromise<void>;
   updateMany<Doc extends PongoDocument = PongoDocument>(
     keys: PongoDocumentCacheKey[],
     updater: PongoUpdate<Doc>,

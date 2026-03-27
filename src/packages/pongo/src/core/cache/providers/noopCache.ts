@@ -8,6 +8,7 @@ export const noopCacheProvider: PongoCache = {
   delete: () => {},
   getMany: (keys) => keys.map(() => undefined),
   setMany: () => {},
+  replaceMany: () => {},
   updateMany: () => {},
   deleteMany: () => {},
   clear: () => {},

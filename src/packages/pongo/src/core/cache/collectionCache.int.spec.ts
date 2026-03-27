@@ -15,11 +15,22 @@ type User = { _id?: string; name: string; age?: number };
 
 const spyCache = (
   _label: string,
-): { cache: PongoCache; spies: { get: Mock; set: Mock; delete: Mock } } => {
+): {
+  cache: PongoCache;
+  spies: {
+    get: Mock;
+    set: Mock;
+    setMany: Mock;
+    replaceMany: Mock;
+    delete: Mock;
+  };
+} => {
   const raw = lruCache({ max: 100 });
   const spies = {
     get: vi.fn(raw.get.bind(raw)),
     set: vi.fn(raw.set.bind(raw)),
+    setMany: vi.fn(raw.setMany.bind(raw)),
+    replaceMany: vi.fn(raw.replaceMany.bind(raw)),
     delete: vi.fn(raw.delete.bind(raw)),
   };
   return {
@@ -339,6 +350,84 @@ describe('pongoCollection cache integration', () => {
       for (const id of ids) {
         expect(await col.findOne({ _id: id })).toBeNull();
       }
+    });
+
+    it('deleteMany with $in filter caches null for each deleted ID via deleteManyByIds routing', async () => {
+      const { cache, spies } = spyCache('col');
+      const col = client.db('db').collection<User>('users', { cache });
+
+      const ids: string[] = [];
+      for (const name of ['X', 'Y']) {
+        const { insertedId } = await col.insertOne({ name });
+        ids.push(insertedId!);
+      }
+      spies.setMany.mockClear();
+
+      await col.deleteMany({ _id: { $in: ids } } as unknown as { _id: string });
+
+      expect(spies.setMany).toHaveBeenCalledWith(
+        expect.arrayContaining(
+          ids.map((id) =>
+            expect.objectContaining({
+              key: expect.stringContaining(id),
+              value: null,
+            }),
+          ),
+        ),
+      );
+    });
+
+    it('replaceMany updates cache with new version for modified docs', async () => {
+      const { cache, spies } = spyCache('col');
+      const col = client.db('db').collection<User>('users', { cache });
+
+      const { insertedId } = await col.insertOne({ name: 'Before' });
+      spies.replaceMany.mockClear();
+
+      await col.replaceMany([
+        { _id: insertedId!, document: { name: 'After' } },
+      ]);
+
+      expect(spies.replaceMany).toHaveBeenCalledWith(
+        expect.arrayContaining([
+          expect.objectContaining({
+            key: expect.stringContaining(insertedId!),
+            value: expect.objectContaining({ name: 'After', _version: 2n }),
+          }),
+        ]),
+      );
+    });
+
+    it('replaceMany evicts from cache for not-found doc', async () => {
+      const { cache, spies } = spyCache('col');
+      const col = client.db('db').collection<User>('users', { cache });
+
+      const ghostId = 'ghost-replace-1';
+      const result = await col.replaceMany([
+        { _id: ghostId, document: { name: 'Ghost' } },
+      ]);
+
+      expect(result.conflictIds.has(ghostId)).toBe(true);
+      expect(spies.delete).toHaveBeenCalledWith(
+        expect.stringContaining(ghostId),
+      );
+    });
+
+    it('replaceMany with version mismatch evicts from cache (not null)', async () => {
+      const { cache, spies } = spyCache('col');
+      const col = client.db('db').collection<User>('users', { cache });
+
+      const { insertedId } = await col.insertOne({ name: 'Original' });
+      spies.delete.mockClear();
+
+      const result = await col.replaceMany([
+        { _id: insertedId!, document: { name: 'Conflict' }, _version: 999n },
+      ]);
+
+      expect(result.conflictIds.has(insertedId!)).toBe(true);
+      expect(spies.delete).toHaveBeenCalledWith(
+        expect.stringContaining(insertedId!),
+      );
     });
 
     it('find with $in caches null for IDs not in DB', async () => {

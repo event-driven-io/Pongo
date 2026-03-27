@@ -183,6 +183,7 @@ export const sqliteSQLBuilder = (
       _version?: bigint;
     }>,
   ): SQL => {
+    const col = SQL.identifier(collectionName);
     const hasVersions = documents.some((d) => d._version !== undefined);
 
     if (hasVersions) {
@@ -193,19 +194,18 @@ export const sqliteSQLBuilder = (
         ),
         ',',
       );
-
       return SQL`
         WITH replacements(_id, data, expected_version) AS (
           VALUES ${values}
         )
-        UPDATE ${SQL.identifier(collectionName)}
+        UPDATE ${col}
         SET
-          data = json_patch(r.data, json_object('_id', ${SQL.identifier(collectionName)}._id, '_version', cast(${SQL.identifier(collectionName)}._version + 1 as TEXT))),
-          _version = ${SQL.identifier(collectionName)}._version + 1,
+          data = json_patch(r.data, json_object('_id', ${col}._id, '_version', cast(${col}._version + 1 as TEXT))),
+          _version = ${col}._version + 1,
           _updated = datetime('now')
         FROM replacements r
-        WHERE ${SQL.identifier(collectionName)}._id = r._id AND ${SQL.identifier(collectionName)}._version = r.expected_version
-        RETURNING ${SQL.identifier(collectionName)}._id, cast(${SQL.identifier(collectionName)}._version as TEXT) as version;`;
+        WHERE ${col}._id = r._id AND ${col}._version = r.expected_version
+        RETURNING ${col}._id, cast(${col}._version as TEXT) as version;`;
     }
 
     const values = SQL.merge(
@@ -214,19 +214,18 @@ export const sqliteSQLBuilder = (
       ),
       ',',
     );
-
     return SQL`
       WITH replacements(_id, data) AS (
         VALUES ${values}
       )
-      UPDATE ${SQL.identifier(collectionName)}
+      UPDATE ${col}
       SET
-        data = json_patch(r.data, json_object('_id', ${SQL.identifier(collectionName)}._id, '_version', cast(${SQL.identifier(collectionName)}._version + 1 as TEXT))),
-        _version = ${SQL.identifier(collectionName)}._version + 1,
+        data = json_patch(r.data, json_object('_id', ${col}._id, '_version', cast(${col}._version + 1 as TEXT))),
+        _version = ${col}._version + 1,
         _updated = datetime('now')
       FROM replacements r
-      WHERE ${SQL.identifier(collectionName)}._id = r._id
-      RETURNING ${SQL.identifier(collectionName)}._id, cast(${SQL.identifier(collectionName)}._version as TEXT) as version;`;
+      WHERE ${col}._id = r._id
+      RETURNING ${col}._id, cast(${col}._version as TEXT) as version;`;
   },
   deleteManyByIds: (ids: Array<{ _id: string; _version?: bigint }>): SQL => {
     const hasVersions = ids.some((d) => d._version !== undefined);
