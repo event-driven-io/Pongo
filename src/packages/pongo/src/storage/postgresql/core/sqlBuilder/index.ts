@@ -219,27 +219,19 @@ export const postgresSQLBuilder = (
         ),
         ',',
       );
-
       return SQL`
         WITH replacements(_id, data, expected_version) AS (
           VALUES ${values}
-        ),
-        updated AS (
-          UPDATE ${SQL.identifier(collectionName)} t
-          SET
-            data = r.data
-              || jsonb_build_object('_id', t._id)
-              || jsonb_build_object('_version', (t._version + 1)::text),
-            _version = t._version + 1
-          FROM replacements r
-          WHERE t._id = r._id AND t._version = r.expected_version
-          RETURNING t._id, t._version
         )
-        SELECT r._id,
-          CASE WHEN u._id IS NOT NULL THEN 1 ELSE 0 END as modified,
-          COALESCE(u._version, r.expected_version) as version
+        UPDATE ${SQL.identifier(collectionName)} t
+        SET
+          data = r.data
+            || jsonb_build_object('_id', t._id)
+            || jsonb_build_object('_version', (t._version + 1)::text),
+          _version = t._version + 1
         FROM replacements r
-        LEFT JOIN updated u ON r._id = u._id;`;
+        WHERE t._id = r._id AND t._version = r.expected_version
+        RETURNING t._id, t._version AS version;`;
     }
 
     const values = SQL.merge(
@@ -249,27 +241,19 @@ export const postgresSQLBuilder = (
       ),
       ',',
     );
-
     return SQL`
       WITH replacements(_id, data) AS (
         VALUES ${values}
-      ),
-      updated AS (
-        UPDATE ${SQL.identifier(collectionName)} t
-        SET
-          data = r.data
-            || jsonb_build_object('_id', t._id)
-            || jsonb_build_object('_version', (t._version + 1)::text),
-          _version = t._version + 1
-        FROM replacements r
-        WHERE t._id = r._id
-        RETURNING t._id, t._version
       )
-      SELECT r._id,
-        CASE WHEN u._id IS NOT NULL THEN 1 ELSE 0 END as modified,
-        COALESCE(u._version, 0) as version
+      UPDATE ${SQL.identifier(collectionName)} t
+      SET
+        data = r.data
+          || jsonb_build_object('_id', t._id)
+          || jsonb_build_object('_version', (t._version + 1)::text),
+        _version = t._version + 1
       FROM replacements r
-      LEFT JOIN updated u ON r._id = u._id;`;
+      WHERE t._id = r._id
+      RETURNING t._id, t._version AS version;`;
   },
   deleteManyByIds: (ids: Array<{ _id: string; _version?: bigint }>): SQL => {
     const hasVersions = ids.some((d) => d._version !== undefined);

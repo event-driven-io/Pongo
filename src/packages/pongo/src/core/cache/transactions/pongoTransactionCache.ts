@@ -21,6 +21,11 @@ type CacheOperation =
     }
   | { type: 'setMany'; entries: PongoCacheSetEntry[]; mainCache: PongoCache }
   | {
+      type: 'replaceMany';
+      entries: PongoCacheSetEntry[];
+      mainCache: PongoCache;
+    }
+  | {
       type: 'update';
       key: PongoDocumentCacheKey;
       updater: PongoUpdate<PongoDocument>;
@@ -62,6 +67,10 @@ export interface PongoTransactionCache<T extends string = string> {
     keys: PongoDocumentCacheKey[],
   ): MaybePromise<(Doc | null | undefined)[]>;
   setMany(
+    entries: PongoCacheSetEntry[],
+    options: PongoTransactionCacheOperationOptions,
+  ): MaybePromise<void>;
+  replaceMany(
     entries: PongoCacheSetEntry[],
     options: PongoTransactionCacheOperationOptions,
   ): MaybePromise<void>;
@@ -145,6 +154,18 @@ export const pongoTransactionCache = (options?: {
       });
     },
 
+    replaceMany(
+      entries: PongoCacheSetEntry[],
+      options: PongoTransactionCacheOperationOptions,
+    ) {
+      innerCache.replaceMany(entries);
+      operations.push({
+        type: 'replaceMany',
+        entries,
+        mainCache: options.mainCache,
+      });
+    },
+
     updateMany<Doc extends PongoDocument = PongoDocument>(
       keys: PongoDocumentCacheKey[],
       updater: PongoUpdate<Doc>,
@@ -185,6 +206,9 @@ export const pongoTransactionCache = (options?: {
             break;
           case 'setMany':
             await op.mainCache.setMany(op.entries);
+            break;
+          case 'replaceMany':
+            await op.mainCache.replaceMany(op.entries);
             break;
           case 'update':
             await op.mainCache.update(

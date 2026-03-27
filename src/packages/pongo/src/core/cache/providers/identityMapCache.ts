@@ -35,6 +35,9 @@ export const identityMapCache = (): PongoCache => {
     setMany: (entries) => {
       for (const { key, value } of entries) store.set(key, value);
     },
+    replaceMany: (entries) => {
+      for (const { key, value } of entries) store.set(key, value);
+    },
     updateMany: (keys, _updater) => {
       // TODO: Implement proper update logic instead of just setting the updater as value
       for (const key of keys) store.delete(key);

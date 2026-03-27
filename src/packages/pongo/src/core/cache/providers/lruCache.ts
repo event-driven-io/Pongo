@@ -58,6 +58,11 @@ export const lruCache = (options?: LRUCacheOptions): PongoCache => {
         cache.set(key, { doc: value });
       }
     },
+    replaceMany: (entries) => {
+      for (const { key, value } of entries) {
+        cache.set(key, { doc: value });
+      }
+    },
     updateMany(keys, _updater) {
       for (const key of keys) {
         cache.delete(key);

@@ -204,6 +204,8 @@ export type DeleteOneOptions = {
   expectedVersion?: Exclude<ExpectedDocumentVersion, 'DOCUMENT_DOES_NOT_EXIST'>;
 } & CollectionOperationOptions;
 
+export type ReplaceManyOptions = CollectionOperationOptions;
+
 export type DeleteManyOptions = {
   expectedVersion?: Extract<
     ExpectedDocumentVersion,
@@ -298,12 +300,8 @@ export interface PongoCollection<T extends PongoDocument> {
       document: WithoutId<T>;
       _version?: bigint;
     }>,
-    options?: CollectionOperationOptions,
+    options?: ReplaceManyOptions,
   ): Promise<PongoReplaceManyResult>;
-  deleteManyByIds(
-    ids: Array<{ _id: string; _version?: bigint }>,
-    options?: CollectionOperationOptions,
-  ): Promise<PongoDeleteResult & { deletedIds: Set<string> }>;
   readonly schema: Readonly<{
     component: PongoCollectionSchemaComponent;
     migrate(options?: PongoMigrationOptions): Promise<RunSQLMigrationsResult>;
@@ -604,6 +602,7 @@ export interface PongoReplaceManyResult extends OperationResult {
   modifiedCount: number;
   matchedCount: number;
   modifiedIds: Set<string>;
+  conflictIds: Set<string>;
   versions: Map<string, bigint>;
 }
 

@@ -526,6 +526,51 @@ describe('MongoDB Compatibility Tests', () => {
     });
   });
 
+  describe('replaceMany Operations', () => {
+    it('replaceMany returns correct result sets for updates and conflicts', async () => {
+      // Given: one existing doc at version 1, one that will have a version mismatch
+      const existingUser = { ...user, _id: ObjectId() };
+      const conflictUser = { ...user, _id: ObjectId() };
+      await users.insertOne(existingUser);
+      await users.insertOne(conflictUser);
+
+      // When
+      const result = await users.replaceMany([
+        { _id: existingUser._id, document: { name: 'Updated', age: 30 } },
+        {
+          _id: conflictUser._id,
+          document: { name: 'Conflict', age: 30 },
+          _version: 999n,
+        },
+      ]);
+
+      // Then
+      assert(result.modifiedIds.has(existingUser._id));
+      assert(result.conflictIds.has(conflictUser._id));
+
+      const updated = await users.findOne({ _id: existingUser._id });
+      assert.strictEqual(updated?.name, 'Updated');
+
+      const unchanged = await users.findOne({ _id: conflictUser._id });
+      assert.strictEqual(unchanged?.name, conflictUser.name);
+    });
+
+    it('replaceMany treats not-found doc as conflict', async () => {
+      const ghostId = ObjectId();
+      const existing = { ...user, _id: ObjectId() };
+      await users.insertOne(existing);
+
+      const result = await users.replaceMany([
+        { _id: existing._id, document: { name: 'Updated', age: 30 } },
+        { _id: ghostId, document: { name: 'Ghost', age: 30 } },
+      ]);
+
+      assert(result.modifiedIds.has(existing._id));
+      assert(result.conflictIds.has(ghostId));
+      assert(!result.modifiedIds.has(ghostId));
+    });
+  });
+
   describe('Delete Operations', () => {
     describe('deleteOne', () => {
       it('deletes a document WITHOUT passing expected version', async () => {
