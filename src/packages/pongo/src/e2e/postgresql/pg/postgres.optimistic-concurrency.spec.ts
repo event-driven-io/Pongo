@@ -536,10 +536,11 @@ describe('MongoDB Compatibility Tests', () => {
 
       // When
       const result = await users.replaceMany([
-        { _id: existingUser._id, document: { name: 'Updated', age: 30 } },
+        { _id: existingUser._id, name: 'Updated', age: 30 },
         {
           _id: conflictUser._id,
-          document: { name: 'Conflict', age: 30 },
+          name: 'Conflict',
+          age: 30,
           _version: 999n,
         },
       ]);
@@ -561,8 +562,8 @@ describe('MongoDB Compatibility Tests', () => {
       await users.insertOne(existing);
 
       const result = await users.replaceMany([
-        { _id: existing._id, document: { name: 'Updated', age: 30 } },
-        { _id: ghostId, document: { name: 'Ghost', age: 30 } },
+        { _id: existing._id, name: 'Updated', age: 30 },
+        { _id: ghostId, name: 'Ghost', age: 30 },
       ]);
 
       assert(result.modifiedIds.has(existing._id));

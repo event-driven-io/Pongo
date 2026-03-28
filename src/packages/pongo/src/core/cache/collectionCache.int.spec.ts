@@ -384,9 +384,7 @@ describe('pongoCollection cache integration', () => {
       const { insertedId } = await col.insertOne({ name: 'Before' });
       spies.replaceMany.mockClear();
 
-      await col.replaceMany([
-        { _id: insertedId!, document: { name: 'After' } },
-      ]);
+      await col.replaceMany([{ _id: insertedId!, name: 'After' }]);
 
       expect(spies.replaceMany).toHaveBeenCalledWith(
         expect.arrayContaining([
@@ -403,9 +401,7 @@ describe('pongoCollection cache integration', () => {
       const col = client.db('db').collection<User>('users', { cache });
 
       const ghostId = 'ghost-replace-1';
-      const result = await col.replaceMany([
-        { _id: ghostId, document: { name: 'Ghost' } },
-      ]);
+      const result = await col.replaceMany([{ _id: ghostId, name: 'Ghost' }]);
 
       expect(result.conflictIds.has(ghostId)).toBe(true);
       expect(spies.delete).toHaveBeenCalledWith(
@@ -421,7 +417,7 @@ describe('pongoCollection cache integration', () => {
       spies.delete.mockClear();
 
       const result = await col.replaceMany([
-        { _id: insertedId!, document: { name: 'Conflict' }, _version: 999n },
+        { _id: insertedId!, name: 'Conflict', _version: 999n },
       ]);
 
       expect(result.conflictIds.has(insertedId!)).toBe(true);

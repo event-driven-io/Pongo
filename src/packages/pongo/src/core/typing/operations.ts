@@ -295,11 +295,7 @@ export interface PongoCollection<T extends PongoDocument> {
     options?: BatchHandleOptions,
   ): Promise<PongoHandleResult<T>[]>;
   replaceMany(
-    documents: Array<{
-      _id: string;
-      document: WithoutId<T>;
-      _version?: bigint;
-    }>,
+    documents: Array<WithId<T> | WithIdAndVersion<T>>,
     options?: ReplaceManyOptions,
   ): Promise<PongoReplaceManyResult>;
   readonly schema: Readonly<{
