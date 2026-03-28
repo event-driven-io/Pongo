@@ -1,4 +1,5 @@
 import type { DatabaseTransaction } from '@event-driven-io/dumbo';
+import { pongoTransactionCache } from './cache';
 import type {
   PongoDb,
   PongoDbTransaction,
@@ -12,8 +13,10 @@ export const pongoTransaction = (
   let isRolledBack = false;
   let databaseName: string | null = null;
   let transaction: DatabaseTransaction | null = null;
+  const cache = pongoTransactionCache();
 
   return {
+    cache,
     enlistDatabase: async (db: PongoDb): Promise<DatabaseTransaction> => {
       if (transaction && databaseName !== db.databaseName)
         throw new Error(
@@ -29,26 +32,28 @@ export const pongoTransaction = (
       return transaction;
     },
     commit: async () => {
-      if (!transaction) throw new Error('No database transaction started!');
       if (isCommitted) return;
       if (isRolledBack) throw new Error('Transaction is not active!');
 
       isCommitted = true;
 
-      await transaction.commit();
-
-      transaction = null;
+      if (transaction) {
+        await transaction.commit();
+        transaction = null;
+      }
+      await cache.commit();
     },
     rollback: async (error?: unknown) => {
-      if (!transaction) throw new Error('No database transaction started!');
       if (isCommitted) throw new Error('Cannot rollback commited transaction!');
       if (isRolledBack) return;
 
       isRolledBack = true;
 
-      await transaction.rollback(error);
-
-      transaction = null;
+      if (transaction) {
+        await transaction.rollback(error);
+        transaction = null;
+      }
+      cache.clear();
     },
     databaseName,
     isStarting: false,

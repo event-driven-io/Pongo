@@ -9,6 +9,7 @@ import {
   type SQLCommandOptions,
   type SQLQueryOptions,
 } from '@event-driven-io/dumbo';
+import { pongoCache, type CacheConfig, type PongoCache } from '../cache';
 import { pongoCollection, transactionExecutorOrDefault } from '../collection';
 import {
   pongoSchema,
@@ -50,6 +51,7 @@ export type PongoDatabaseOptions<
       }
     | undefined;
   errors?: { throwOnOperationFailures?: boolean } | undefined;
+  cache?: CacheConfig | 'disabled' | PongoCache | undefined;
 };
 
 export const PongoDatabase = <
@@ -63,7 +65,18 @@ export const PongoDatabase = <
 >(
   options: PongoDatabaseOptions<DumboType>,
 ): Database => {
-  const { databaseName, schemaComponent, pool, serializer } = options;
+  const {
+    databaseName,
+    schemaComponent,
+    pool,
+    cache: cacheOptions,
+    serializer,
+  } = options;
+
+  const cache =
+    cacheOptions === 'disabled' || cacheOptions === undefined
+      ? 'disabled'
+      : pongoCache(cacheOptions);
 
   const collections = new Map<string, PongoCollection<Document>>();
 
@@ -90,7 +103,13 @@ export const PongoDatabase = <
     driverType,
     databaseName,
     connect: () => Promise.resolve(),
-    close: () => pool.close(),
+    close: async () => {
+      await Promise.allSettled([
+        pool.close(),
+        cache !== 'disabled' ? cache.close() : Promise.resolve(),
+        ...collections.values().map((collection) => collection.close()),
+      ]);
+    },
 
     collections: () => [...collections.values()],
     collection: <T extends Document, Payload extends Document = T>(
@@ -108,6 +127,10 @@ export const PongoDatabase = <
         schema: { ...options.schema, ...collectionOptions?.schema },
         serializer,
         errors: { ...options.errors, ...collectionOptions?.errors },
+        cache:
+          collectionOptions?.cache !== undefined
+            ? collectionOptions.cache
+            : cache,
       }),
     transaction: () => pool.transaction(),
     withTransaction: (handle) => pool.withTransaction(handle),

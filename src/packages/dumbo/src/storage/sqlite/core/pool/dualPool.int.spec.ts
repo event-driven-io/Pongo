@@ -307,6 +307,7 @@ describe('SQLite Dual Connection Pool', () => {
           return error;
         } finally {
           await pool.close();
+          cleanupDb(parallelFileName);
         }
       });
 

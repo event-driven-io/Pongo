@@ -15,6 +15,8 @@ import type {
   WithDatabaseTransactionFactory,
 } from '@event-driven-io/dumbo';
 import { v7 as uuid } from 'uuid';
+import type { MaybePromise } from '.';
+import type { CacheConfig, PongoCache, PongoTransactionCache } from '../cache';
 import type { PongoCollectionSchemaComponent } from '../collection';
 import type { PongoDatabaseSchemaComponent } from '../database/pongoDatabaseSchemaComponent';
 import type { AnyPongoDriver, ExtractPongoDriverOptions } from '../drivers';
@@ -31,7 +33,7 @@ export interface PongoClient<
 
   close(): Promise<void>;
 
-  db(dbName?: string): Database;
+  db(dbName?: string, options?: PongoDbOptions): Database;
 
   startSession(): PongoSession<DriverType>;
 
@@ -52,6 +54,7 @@ export type PongoClientOptions<
             | { autoMigration?: MigrationStyle; definition?: TypedClientSchema }
             | undefined;
           errors?: { throwOnOperationFailures?: boolean } | undefined;
+          cache?: CacheConfig | PongoCache | undefined;
         } & JSONSerializationOptions &
           Omit<Options, 'driver'>
       : never
@@ -73,6 +76,7 @@ export interface PongoDbTransaction<
   ) => Promise<DatabaseTransaction<AnyConnection>>;
   commit: () => Promise<void>;
   rollback: (error?: unknown) => Promise<void>;
+  get cache(): PongoTransactionCache | null;
   get sqlExecutor(): SQLExecutor;
   get isStarting(): boolean;
   get isActive(): boolean;
@@ -111,6 +115,11 @@ export type PongoDBCollectionOptions<
     };
   };
   errors?: { throwOnOperationFailures?: boolean };
+  cache?: CacheConfig | 'disabled' | PongoCache;
+};
+
+export type PongoDbOptions = {
+  cache?: CacheConfig | PongoCache;
 };
 
 export interface PongoDb<
@@ -151,6 +160,7 @@ export type PongoMigrationOptions = {
 
 export type CollectionOperationOptions = {
   session?: PongoSession;
+  skipCache?: boolean;
 };
 
 export type InsertOneOptions = {
@@ -182,6 +192,10 @@ export type HandleOptions = {
   expectedVersion?: ExpectedDocumentVersion;
 } & CollectionOperationOptions;
 
+export type BatchHandleOptions = {
+  skipConcurrencyCheck?: boolean;
+} & CollectionOperationOptions;
+
 export type ReplaceOneOptions = {
   expectedVersion?: Exclude<ExpectedDocumentVersion, 'DOCUMENT_DOES_NOT_EXIST'>;
 } & CollectionOperationOptions;
@@ -189,6 +203,8 @@ export type ReplaceOneOptions = {
 export type DeleteOneOptions = {
   expectedVersion?: Exclude<ExpectedDocumentVersion, 'DOCUMENT_DOES_NOT_EXIST'>;
 } & CollectionOperationOptions;
+
+export type ReplaceManyOptions = CollectionOperationOptions;
 
 export type DeleteManyOptions = {
   expectedVersion?: Extract<
@@ -273,10 +289,20 @@ export interface PongoCollection<T extends PongoDocument> {
     handle: DocumentHandler<T>,
     options?: HandleOptions,
   ): Promise<PongoHandleResult<T>>;
+  handle(
+    id: string[],
+    handle: DocumentHandler<T>,
+    options?: BatchHandleOptions,
+  ): Promise<PongoHandleResult<T>[]>;
+  replaceMany(
+    documents: Array<WithId<T> | WithIdAndVersion<T>>,
+    options?: ReplaceManyOptions,
+  ): Promise<PongoReplaceManyResult>;
   readonly schema: Readonly<{
     component: PongoCollectionSchemaComponent;
     migrate(options?: PongoMigrationOptions): Promise<RunSQLMigrationsResult>;
   }>;
+  close: () => MaybePromise<void>;
   sql: {
     query<Result extends QueryResultRow = QueryResultRow>(
       sql: SQL,
@@ -343,7 +369,7 @@ export declare type WithVersion<TSchema> = EnhancedOmit<TSchema, '_version'> & {
 };
 export type WithoutVersion<T> = Omit<T, '_version'>;
 
-export type WithIdAndVersion<T> = WithId<WithVersion<T>>;
+export type WithIdAndVersion<T> = WithId<T> & WithVersion<T>;
 export type WithoutIdAndVersion<T> = WithoutId<WithoutVersion<T>>;
 
 /** @public */
@@ -566,6 +592,14 @@ export interface PongoDeleteResult extends OperationResult {
 
 export interface PongoDeleteManyResult extends OperationResult {
   deletedCount: number;
+}
+
+export interface PongoReplaceManyResult extends OperationResult {
+  modifiedCount: number;
+  matchedCount: number;
+  modifiedIds: Set<string>;
+  conflictIds: Set<string>;
+  versions: Map<string, bigint>;
 }
 
 export type PongoHandleResult<T> =

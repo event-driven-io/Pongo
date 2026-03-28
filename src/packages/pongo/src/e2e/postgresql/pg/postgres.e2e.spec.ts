@@ -1244,6 +1244,137 @@ describe('MongoDB Compatibility Tests', () => {
     });
   });
 
+  describe('Batch Handle Operations', () => {
+    it('should pass null to handle for non-existing documents', async () => {
+      const collection = pongoDb.collection<User>('batchHandleCollection');
+      const nonExistingId = uuid();
+
+      let receivedDoc: User | null = undefined as unknown as User | null;
+      await collection.handle([nonExistingId], (existing) => {
+        receivedDoc = existing;
+        return null;
+      });
+
+      assert.strictEqual(receivedDoc, null);
+    });
+
+    it('should insert new documents for non-existing ids', async () => {
+      const collection = pongoDb.collection<User>('batchHandleCollection');
+      const id1 = uuid();
+      const id2 = uuid();
+
+      const results = await collection.handle([id1, id2], (_existing) => ({
+        name: 'Batch User',
+        age: 10,
+      }));
+
+      assert(results.every((r) => r.successful));
+
+      const doc1 = await collection.findOne({ _id: id1 });
+      const doc2 = await collection.findOne({ _id: id2 });
+
+      assert.strictEqual(doc1?.name, 'Batch User');
+      assert.strictEqual(doc2?.name, 'Batch User');
+    });
+
+    it('should replace existing documents', async () => {
+      const collection = pongoDb.collection<User>('batchHandleCollection');
+
+      const doc: User = { name: 'Original', age: 1 };
+      const insertResult = await collection.insertOne(doc);
+      const id = insertResult.insertedId!;
+
+      const results = await collection.handle([id], (existing) =>
+        existing ? { ...existing, age: 99 } : null,
+      );
+
+      assert(results[0]?.successful);
+
+      const updated = await collection.findOne({ _id: id });
+      assert.strictEqual(updated?.age, 99);
+      assert.strictEqual(updated?._version, 2n);
+    });
+
+    it('should delete existing documents when handler returns null', async () => {
+      const collection = pongoDb.collection<User>('batchHandleCollection');
+
+      const doc1: User = { name: 'ToDelete1', age: 1 };
+      const doc2: User = { name: 'ToDelete2', age: 2 };
+      const r1 = await collection.insertOne(doc1);
+      const r2 = await collection.insertOne(doc2);
+
+      const results = await collection.handle(
+        [r1.insertedId!, r2.insertedId!],
+        () => null,
+      );
+
+      assert(results.every((r) => r.successful));
+      assert(results.every((r) => r.document === null));
+
+      assert.strictEqual(
+        await collection.findOne({ _id: r1.insertedId! }),
+        null,
+      );
+      assert.strictEqual(
+        await collection.findOne({ _id: r2.insertedId! }),
+        null,
+      );
+    });
+
+    it('should do nothing for unchanged documents', async () => {
+      const collection = pongoDb.collection<User>('batchHandleCollection');
+
+      const doc: User = { name: 'Unchanged', age: 5 };
+      const insertResult = await collection.insertOne(doc);
+      const id = insertResult.insertedId!;
+
+      const results = await collection.handle([id], (existing) => existing);
+
+      assert(results[0]?.successful);
+
+      const found = await collection.findOne({ _id: id });
+      assert.strictEqual(found?._version, 1n);
+    });
+
+    it('should preserve result order matching input id order', async () => {
+      const collection = pongoDb.collection<User>('batchHandleCollection');
+
+      const ids = [uuid(), uuid(), uuid()];
+
+      const results = await collection.handle(ids, (_existing) => ({
+        name: 'Ordered',
+        age: 0,
+      }));
+
+      assert.strictEqual(results.length, 3);
+      for (let i = 0; i < ids.length; i++) {
+        assert.strictEqual(results[i]?.document?._id, ids[i]);
+      }
+    });
+
+    it('should make changes when handler modifies existing documents', async () => {
+      const collection = pongoDb.collection<User>('batchHandleCollection');
+
+      const doc: User = { name: 'Mutable', age: 10 };
+      const insertResult = await collection.insertOne(doc);
+      const id = insertResult.insertedId!;
+
+      const results = await collection.handle([id], (existing) => {
+        if (!existing) return null;
+        return { ...existing, name: 'Modified', age: existing.age * 2 };
+      });
+
+      assert(results[0]?.successful);
+      assert.strictEqual(results[0]?.document?.name, 'Modified');
+      assert.strictEqual(results[0]?.document?.age, 20);
+
+      const persisted = await collection.findOne({ _id: id });
+      assert.strictEqual(persisted?.name, 'Modified');
+      assert.strictEqual(persisted?.age, 20);
+      assert.strictEqual(persisted?._version, 2n);
+    });
+  });
+
   describe('No filter', () => {
     it('should filter and count without filter specified', async () => {
       const pongoCollection = pongoDb.collection<User>('nofilter');
@@ -1369,9 +1500,10 @@ describe('MongoDB Compatibility Tests', () => {
       const insertResult = await collection.insertOne(originalDoc);
       assert.ok(insertResult.successful);
 
-      const fetchedDoc = await collection.findOne({
-        _id: insertResult.insertedId!,
-      });
+      const fetchedDoc = await collection.findOne(
+        { _id: insertResult.insertedId! },
+        { skipCache: true },
+      );
       assert.ok(fetchedDoc);
       assert.ok(fetchedDoc.date);
 
@@ -1420,9 +1552,10 @@ describe('MongoDB Compatibility Tests', () => {
       const insertResult = await collection.insertOne(originalDoc);
       assert.ok(insertResult.successful);
 
-      const fetchedDoc = await collection.findOne({
-        _id: insertResult.insertedId!,
-      });
+      const fetchedDoc = await collection.findOne(
+        { _id: insertResult.insertedId! },
+        { skipCache: true },
+      );
       assert.ok(fetchedDoc);
       assert.ok(fetchedDoc.bigInt);
       assert.strictEqual(fetchedDoc.bigInt, '12345678901234567890');

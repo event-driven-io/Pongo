@@ -526,6 +526,52 @@ describe('MongoDB Compatibility Tests', () => {
     });
   });
 
+  describe('replaceMany Operations', () => {
+    it('replaceMany returns correct result sets for updates and conflicts', async () => {
+      // Given: one existing doc at version 1, one that will have a version mismatch
+      const existingUser = { ...user, _id: ObjectId() };
+      const conflictUser = { ...user, _id: ObjectId() };
+      await users.insertOne(existingUser);
+      await users.insertOne(conflictUser);
+
+      // When
+      const result = await users.replaceMany([
+        { _id: existingUser._id, name: 'Updated', age: 30 },
+        {
+          _id: conflictUser._id,
+          name: 'Conflict',
+          age: 30,
+          _version: 999n,
+        },
+      ]);
+
+      // Then
+      assert(result.modifiedIds.has(existingUser._id));
+      assert(result.conflictIds.has(conflictUser._id));
+
+      const updated = await users.findOne({ _id: existingUser._id });
+      assert.strictEqual(updated?.name, 'Updated');
+
+      const unchanged = await users.findOne({ _id: conflictUser._id });
+      assert.strictEqual(unchanged?.name, conflictUser.name);
+    });
+
+    it('replaceMany treats not-found doc as conflict', async () => {
+      const ghostId = ObjectId();
+      const existing = { ...user, _id: ObjectId() };
+      await users.insertOne(existing);
+
+      const result = await users.replaceMany([
+        { _id: existing._id, name: 'Updated', age: 30 },
+        { _id: ghostId, name: 'Ghost', age: 30 },
+      ]);
+
+      assert(result.modifiedIds.has(existing._id));
+      assert(result.conflictIds.has(ghostId));
+      assert(!result.modifiedIds.has(ghostId));
+    });
+  });
+
   describe('Delete Operations', () => {
     describe('deleteOne', () => {
       it('deletes a document WITHOUT passing expected version', async () => {
@@ -870,6 +916,202 @@ describe('MongoDB Compatibility Tests', () => {
         _id: pongoInsertResult.insertedId!,
         _version: 1n,
       });
+    });
+  });
+
+  describe('Batch Handle Operations', () => {
+    it('should process multiple ids and return results per document', async () => {
+      const existingDoc: User = { _id: ObjectId(), name: 'Alice', age: 30 };
+      const nonExistingId = ObjectId() as unknown as ObjectId;
+
+      await users.insertOne(existingDoc);
+
+      const results = await users.handle(
+        [existingDoc._id!, nonExistingId as unknown as string],
+        (existing) =>
+          existing ? { ...existing, age: existing.age + 1 } : null,
+      );
+
+      assert(results.length === 2);
+
+      const existingResult = results.find(
+        (r) => r.document?._id === existingDoc._id,
+      );
+      const missingResult = results.find((r) => r.document === null);
+
+      assert(existingResult?.successful === true);
+      assert(existingResult?.document?.age === (existingDoc.age ?? 0) + 1);
+      assert(missingResult?.successful === true);
+    });
+
+    it('should insert documents for non-existing ids when handler returns a value', async () => {
+      const newId1 = ObjectId() as unknown as string;
+      const newId2 = ObjectId() as unknown as string;
+
+      const results = await users.handle([newId1, newId2], (_existing) => ({
+        name: 'New User',
+        age: 20,
+      }));
+
+      assert(results.length === 2);
+      assert(results.every((r) => r.successful === true));
+
+      const doc1 = await users.findOne({ _id: newId1 });
+      const doc2 = await users.findOne({ _id: newId2 });
+
+      assert(doc1?.name === 'New User');
+      assert(doc2?.name === 'New User');
+    });
+
+    it('should delete documents for existing ids when handler returns null', async () => {
+      const doc1: User = { _id: ObjectId(), name: 'Bob', age: 25 };
+      const doc2: User = { _id: ObjectId(), name: 'Carol', age: 35 };
+
+      await users.insertOne(doc1);
+      await users.insertOne(doc2);
+
+      const results = await users.handle(
+        [doc1._id!, doc2._id!],
+        (_existing) => null,
+      );
+
+      assert(results.length === 2);
+      assert(results.every((r) => r.successful === true));
+      assert(results.every((r) => r.document === null));
+
+      const found1 = await users.findOne({ _id: doc1._id! });
+      const found2 = await users.findOne({ _id: doc2._id! });
+
+      assert(found1 === null);
+      assert(found2 === null);
+    });
+
+    it('should load cache hits and only fetch misses from DB in one query', async () => {
+      const cachedDoc: User = { _id: ObjectId(), name: 'Dave', age: 40 };
+      const uncachedId = ObjectId() as unknown as string;
+
+      await users.insertOne(cachedDoc);
+      await users.findOne({ _id: cachedDoc._id! });
+
+      const results = await users.handle(
+        [cachedDoc._id!, uncachedId],
+        (existing) =>
+          existing ? { ...existing, age: existing.age + 1 } : null,
+      );
+
+      assert(results.length === 2);
+      const cachedResult = results.find(
+        (r) => r.document?._id === cachedDoc._id,
+      );
+      assert(cachedResult?.successful === true);
+      assert(cachedResult?.document?.age === cachedDoc.age + 1);
+    });
+
+    it('should use per-document OC and reject concurrent modifications', async () => {
+      const doc1: User = { _id: ObjectId(), name: 'Eve', age: 20 };
+      const doc2: User = { _id: ObjectId(), name: 'Frank', age: 21 };
+
+      await users.insertOne(doc1);
+      await users.insertOne(doc2);
+
+      // Modify doc1 externally between our read and write
+      await users.updateOne({ _id: doc1._id! }, { $set: { age: 99 } });
+
+      const results = await users.handle([doc1._id!, doc2._id!], (existing) => {
+        if (!existing) return null;
+        return { ...existing, age: existing.age + 1 };
+      });
+
+      // doc2 should succeed; doc1 will fail because its version changed
+      const doc2Result = results.find((r) => r.document?._id === doc2._id);
+      assert(doc2Result?.successful === true);
+      assert(doc2Result?.document?.age === doc2.age + 1);
+    });
+
+    it('should skip OC when skipConcurrencyCheck is true', async () => {
+      const doc1: User = { _id: ObjectId(), name: 'Grace', age: 30 };
+      const doc2: User = { _id: ObjectId(), name: 'Hank', age: 31 };
+
+      await users.insertOne(doc1);
+      await users.insertOne(doc2);
+
+      // Modify doc1 externally between our read and write
+      await users.updateOne({ _id: doc1._id! }, { $set: { age: 99 } });
+
+      const results = await users.handle(
+        [doc1._id!, doc2._id!],
+        (existing) =>
+          existing ? { ...existing, age: existing.age + 1 } : null,
+        { skipConcurrencyCheck: true },
+      );
+
+      assert(results.length === 2);
+      assert(results.every((r) => r.successful === true));
+
+      const updated1 = await users.findOne({ _id: doc1._id! });
+      const updated2 = await users.findOne({ _id: doc2._id! });
+
+      // doc1 was externally changed to age=99 before handle ran,
+      // so the handler saw 99 and wrote 100
+      assert(updated1 !== null);
+      assert(updated2?.age === doc2.age + 1);
+    });
+
+    it('should handle mixed operations (insert, replace, delete) in one batch', async () => {
+      const existing1: User = { _id: ObjectId(), name: 'Ivan', age: 40 };
+      const existing2: User = { _id: ObjectId(), name: 'Judy', age: 41 };
+      const newId = ObjectId() as unknown as string;
+
+      await users.insertOne(existing1);
+      await users.insertOne(existing2);
+
+      const results = await users.handle(
+        [existing1._id!, existing2._id!, newId],
+        (existing) => {
+          if (!existing) return { name: 'New', age: 1 };
+          if (existing._id === existing1._id) return null;
+          return { ...existing, age: existing.age + 10 };
+        },
+      );
+
+      assert(results.length === 3);
+
+      const deleteResult = results.find(
+        (r) => r.document === null && r.successful,
+      );
+      assert(deleteResult?.successful === true);
+
+      const replaceResult = results.find(
+        (r) => r.document?._id === existing2._id,
+      );
+      assert(replaceResult?.successful === true);
+      assert(replaceResult?.document?.age === existing2.age + 10);
+
+      const insertResult = results.find((r) => r.document?._id === newId);
+      assert(insertResult?.successful === true);
+      assert(insertResult?.document?.name === 'New');
+    });
+
+    it('should do nothing if the handler returns documents unchanged', async () => {
+      const doc1: User = { _id: ObjectId(), name: 'Karl', age: 50 };
+      const doc2: User = { _id: ObjectId(), name: 'Lena', age: 51 };
+
+      await users.insertOne(doc1);
+      await users.insertOne(doc2);
+
+      const results = await users.handle(
+        [doc1._id!, doc2._id!],
+        (existing) => existing,
+      );
+
+      assert(results.length === 2);
+      assert(results.every((r) => r.successful === true));
+
+      const found1 = await users.findOne({ _id: doc1._id! });
+      const found2 = await users.findOne({ _id: doc2._id! });
+
+      assert(found1?._version === 1n);
+      assert(found2?._version === 1n);
     });
   });
 });

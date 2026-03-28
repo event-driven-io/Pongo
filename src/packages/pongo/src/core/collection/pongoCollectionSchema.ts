@@ -7,6 +7,8 @@ import type {
   PongoUpdate,
   ReplaceOneOptions,
   UpdateOneOptions,
+  WithId,
+  WithIdAndVersion,
   WithoutId,
 } from '../typing';
 
@@ -33,6 +35,8 @@ export type PongoCollectionSQLBuilder = {
     options?: DeleteOneOptions,
   ) => SQL;
   deleteMany: <T>(filter: PongoFilter<T> | SQL) => SQL;
+  replaceMany: <T>(documents: Array<WithIdAndVersion<T> | WithId<T>>) => SQL;
+  deleteManyByIds: (ids: Array<{ _id: string; _version?: bigint }>) => SQL;
   findOne: <T>(filter: PongoFilter<T> | SQL) => SQL;
   find: <T>(filter: PongoFilter<T> | SQL, options?: FindOptions) => SQL;
   countDocuments: <T>(filter: PongoFilter<T> | SQL) => SQL;

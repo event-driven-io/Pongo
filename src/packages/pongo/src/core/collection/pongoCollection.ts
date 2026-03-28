@@ -14,11 +14,18 @@ import {
   type SQLQueryResultColumnMapping,
 } from '@event-driven-io/dumbo';
 import { v7 as uuid } from 'uuid';
-import type { PongoCollectionSchemaComponent } from '..';
+import type {
+  PongoCollectionSchemaComponent,
+  PongoDocumentCacheKey,
+  WithId,
+} from '..';
 import {
   deepEquals,
   expectedVersionValue,
+  getIdsFromIdOnlyFilter,
+  idFromFilter,
   operationResult,
+  type BatchHandleOptions,
   type CollectionOperationOptions,
   type DeleteManyOptions,
   type DeleteOneOptions,
@@ -27,6 +34,7 @@ import {
   type HandleOptions,
   type InsertManyOptions,
   type InsertOneOptions,
+  type OperationResult,
   type OptionalUnlessRequiredIdAndVersion,
   type PongoCollection,
   type PongoDb,
@@ -37,16 +45,18 @@ import {
   type PongoInsertManyResult,
   type PongoInsertOneResult,
   type PongoMigrationOptions,
+  type PongoReplaceManyResult,
   type PongoUpdate,
   type PongoUpdateManyResult,
   type PongoUpdateResult,
+  type ReplaceManyOptions,
   type ReplaceOneOptions,
   type UpdateManyOptions,
   type UpdateOneOptions,
   type WithIdAndVersion,
   type WithoutId,
-  type WithVersion,
 } from '..';
+import { pongoCache, type CacheConfig, type PongoCache } from '../cache';
 
 export type PongoCollectionOptions<
   T extends PongoDocument = PongoDocument,
@@ -66,6 +76,7 @@ export type PongoCollectionOptions<
   };
   errors?: { throwOnOperationFailures?: boolean };
   serializer: JSONSerializer;
+  cache?: CacheConfig | 'disabled' | PongoCache | undefined;
 };
 
 const enlistIntoTransactionIfActive = async <
@@ -104,14 +115,16 @@ export const pongoCollection = <
   schema,
   errors,
   serializer,
+  cache: cacheOptions,
 }: PongoCollectionOptions<T, DriverType, Payload>): PongoCollection<T> => {
   const SqlFor = schemaComponent.sqlBuilder;
   const sqlExecutor = pool.execute;
 
+  const cache = pongoCache(cacheOptions);
+
   const columnMapping = {
     mapping: {
       ...mapColumnToJSON('data', serializer),
-      //...mapColumnToJSON('metadata'),
       ...mapColumnToBigint('_version'),
     } satisfies SQLQueryResultColumnMapping,
   };
@@ -156,6 +169,191 @@ export const pongoCollection = <
   const downcast =
     schema?.versioning?.downcast ?? ((doc: T) => doc as unknown as Payload);
 
+  const rowToDoc = (row: { data: T; _version: bigint }): WithIdAndVersion<T> =>
+    upcast({
+      ...row.data,
+      _version: row._version,
+    } as unknown as Payload) as WithIdAndVersion<T>;
+
+  const findOneFromDb = async (
+    filter: PongoFilter<T>,
+    options?: CollectionOperationOptions,
+  ): Promise<WithIdAndVersion<T> | null> => {
+    const result = await query<{ data: T; _version: bigint }>(
+      SqlFor.findOne(filter),
+      options,
+    );
+    const row = result.rows[0];
+    return row ? rowToDoc(row) : null;
+  };
+
+  const cacheKey = (id: string): PongoDocumentCacheKey =>
+    `${db.databaseName}:${collectionName}:${id}`;
+
+  const txCacheFor = (options: CollectionOperationOptions | undefined) =>
+    options?.session?.transaction?.cache ?? null;
+
+  const resolveFromCache = async (
+    key: PongoDocumentCacheKey,
+    options: CollectionOperationOptions | undefined,
+  ): Promise<T | null | undefined> => {
+    const txCache = txCacheFor(options);
+    if (txCache) {
+      const cached = await txCache.get<T>(key);
+      if (cached !== undefined) return cached;
+    }
+    return cache.get<T>(key);
+  };
+
+  const findManyFromCache = async (
+    keys: PongoDocumentCacheKey[],
+    options: CollectionOperationOptions | undefined,
+  ): Promise<(T | null | undefined)[]> => {
+    const txCache = txCacheFor(options);
+
+    if (!txCache) {
+      return cache.getMany<T>(keys);
+    }
+
+    const txResults = await txCache.getMany<T>(keys);
+    const mainResults = await cache.getMany<T>(keys);
+    return keys.map((_, i) =>
+      txResults[i] !== undefined ? txResults[i] : mainResults[i],
+    );
+  };
+
+  const fetchByIds = async (
+    ids: string[],
+    options: CollectionOperationOptions | undefined,
+  ): Promise<(WithIdAndVersion<T> | null)[]> => {
+    const cachedResults = await findManyFromCache(ids.map(cacheKey), options);
+
+    const missIds = ids.filter((_, i) => cachedResults[i] === undefined);
+
+    let dbDocsById = new Map<string, WithIdAndVersion<T>>();
+    if (missIds.length > 0) {
+      const dbResult = await query<{ data: T; _version: bigint }>(
+        SqlFor.find(
+          { _id: { $in: missIds } } as unknown as PongoFilter<T>,
+          options,
+        ),
+      );
+      const dbDocs = dbResult.rows.map(rowToDoc);
+      dbDocsById = new Map(
+        dbDocs.map((d) => [(d as PongoDocument)['_id'] as string, d]),
+      );
+      await cacheSetMany(
+        missIds.map((id) => ({
+          key: cacheKey(id),
+          value: (dbDocsById.get(id) as PongoDocument) ?? null,
+        })),
+        options,
+      );
+    }
+
+    return ids.map((id, i) => {
+      const cached = cachedResults[i];
+      if (cached !== undefined) {
+        return cached !== null
+          ? (upcast({ ...cached } as unknown as Payload) as WithIdAndVersion<T>)
+          : null;
+      }
+      return dbDocsById.get(id) ?? null;
+    });
+  };
+
+  const findManyByIds = async (
+    ids: string[],
+    options: FindOptions | undefined,
+  ): Promise<WithIdAndVersion<T>[]> => {
+    const results = await fetchByIds(ids, options);
+    return results.filter((doc): doc is WithIdAndVersion<T> => doc !== null);
+  };
+
+  const cacheSet = (
+    value: WithId<T>,
+    options: CollectionOperationOptions | undefined,
+  ) => {
+    const key = cacheKey(value._id);
+    const txCache = txCacheFor(options);
+
+    if (txCache) return txCache.set(key, value, { mainCache: cache });
+
+    return cache.set(key, value);
+  };
+
+  const cacheSetMany = (
+    entries: { key: PongoDocumentCacheKey; value: PongoDocument | null }[],
+    options: CollectionOperationOptions | undefined,
+  ) => {
+    const txCache = txCacheFor(options);
+    if (txCache) return txCache.setMany(entries, { mainCache: cache });
+    return cache.setMany(entries);
+  };
+
+  const cacheDelete = (
+    id: string,
+    options: CollectionOperationOptions | undefined,
+  ) => {
+    const key = cacheKey(id);
+    const txCache = txCacheFor(options);
+    if (txCache) return txCache.delete(key, { mainCache: cache });
+    return cache.delete(key);
+  };
+
+  const cacheReplaceMany = (
+    entries: { key: PongoDocumentCacheKey; value: PongoDocument | null }[],
+    options: CollectionOperationOptions | undefined,
+  ) => {
+    const txCache = txCacheFor(options);
+    if (txCache) return txCache.replaceMany(entries, { mainCache: cache });
+    return cache.replaceMany(entries);
+  };
+
+  const cacheDeleteMany = (
+    ids: string[],
+    options: CollectionOperationOptions | undefined,
+  ) =>
+    cacheSetMany(
+      ids.map((id) => ({ key: cacheKey(id), value: null })),
+      options,
+    );
+
+  const deleteManyByIds = async (
+    ids: Array<{ _id: string; _version?: bigint }>,
+    options?: CollectionOperationOptions,
+  ): Promise<PongoDeleteResult & { deletedIds: Set<string> }> => {
+    await ensureCollectionCreated(options);
+
+    const result = await command<{ _id: string; deleted?: number }>(
+      SqlFor.deleteManyByIds(ids),
+      options,
+    );
+
+    const deletedIds = new Set(
+      result.rows.filter((row) => (row.deleted ?? 0) > 0).map((row) => row._id),
+    );
+
+    if (!options?.skipCache) {
+      await cacheDeleteMany([...deletedIds], options);
+    }
+
+    return operationResult<PongoDeleteResult & { deletedIds: Set<string> }>(
+      {
+        successful: deletedIds.size > 0,
+        deletedCount: deletedIds.size,
+        matchedCount: ids.length,
+        deletedIds,
+      },
+      {
+        operationName: 'deleteManyByIds',
+        collectionName,
+        serializer,
+        errors,
+      },
+    );
+  };
+
   const collection = {
     dbName: db.databaseName,
     collectionName,
@@ -182,6 +380,11 @@ export const pongoCollection = <
       );
 
       const successful = (result.rowCount ?? 0) > 0;
+
+      if (successful && !options?.skipCache) {
+        const doc = { ...document, _id, _version } as WithId<T>;
+        await cacheSet(doc, options);
+      }
 
       return operationResult<PongoInsertOneResult>(
         {
@@ -214,6 +417,16 @@ export const pongoCollection = <
         options,
       );
 
+      if (!options?.skipCache) {
+        await cacheSetMany(
+          rows.map((r) => ({
+            key: cacheKey(r._id),
+            value: r as PongoDocument,
+          })),
+          options,
+        );
+      }
+
       return operationResult<PongoInsertManyResult>(
         {
           successful: result.rowCount === rows.length,
@@ -235,7 +448,7 @@ export const pongoCollection = <
         options,
       );
 
-      return operationResult<PongoUpdateResult>(
+      const opResult = operationResult<PongoUpdateResult>(
         {
           successful:
             result.rows.length > 0 &&
@@ -246,6 +459,13 @@ export const pongoCollection = <
         },
         { operationName: 'updateOne', collectionName, serializer, errors },
       );
+
+      if (opResult.successful && !options?.skipCache) {
+        const id = idFromFilter(filter);
+        if (id) await cacheDelete(id, options);
+      }
+
+      return opResult;
     },
     replaceOne: async (
       filter: PongoFilter<T>,
@@ -260,7 +480,8 @@ export const pongoCollection = <
         SqlFor.replaceOne(filter, downcasted, options),
         options,
       );
-      return operationResult<PongoUpdateResult>(
+
+      const opResult = operationResult<PongoUpdateResult>(
         {
           successful: result.rows.length > 0 && result.rows[0]!.modified > 0,
           modifiedCount: Number(result.rows[0]?.modified ?? 0),
@@ -269,6 +490,22 @@ export const pongoCollection = <
         },
         { operationName: 'replaceOne', collectionName, serializer, errors },
       );
+
+      if (opResult.successful && !options?.skipCache) {
+        const _id = idFromFilter(filter);
+        if (_id) {
+          await cacheSet(
+            {
+              ...document,
+              _id,
+              _version: opResult.nextExpectedVersion,
+            } as unknown as WithId<T>,
+            options,
+          );
+        }
+      }
+
+      return opResult;
     },
     updateMany: async (
       filter: PongoFilter<T>,
@@ -277,6 +514,7 @@ export const pongoCollection = <
     ): Promise<PongoUpdateManyResult> => {
       await ensureCollectionCreated(options);
 
+      // TODO: add a similar filter checking if filter is not ids only
       const result = await command(SqlFor.updateMany(filter, update), options);
 
       return operationResult<PongoUpdateManyResult>(
@@ -298,7 +536,8 @@ export const pongoCollection = <
         SqlFor.deleteOne(filter ?? {}, options),
         options,
       );
-      return operationResult<PongoDeleteResult>(
+
+      const opResult = operationResult<PongoDeleteResult>(
         {
           successful: result.rows.length > 0 && result.rows[0]!.deleted! > 0,
           deletedCount: Number(result.rows[0]?.deleted ?? 0),
@@ -306,11 +545,25 @@ export const pongoCollection = <
         },
         { operationName: 'deleteOne', collectionName, serializer, errors },
       );
+
+      if (opResult.successful && !options?.skipCache && filter) {
+        const id = idFromFilter(filter);
+        if (id) await cacheDelete(id, options);
+      }
+
+      return opResult;
     },
     deleteMany: async (
       filter?: PongoFilter<T>,
       options?: DeleteManyOptions,
     ): Promise<PongoDeleteResult> => {
+      const ids = filter ? getIdsFromIdOnlyFilter(filter) : null;
+      if (ids)
+        return deleteManyByIds(
+          ids.map((id) => ({ _id: id })),
+          options,
+        );
+
       await ensureCollectionCreated(options);
 
       const result = await command(SqlFor.deleteMany(filter ?? {}), options);
@@ -330,18 +583,24 @@ export const pongoCollection = <
     ): Promise<WithIdAndVersion<T> | null> => {
       await ensureCollectionCreated(options);
 
-      const result = await query<{ data: T; _version: bigint }>(
-        SqlFor.findOne(filter ?? {}),
-        options,
-      );
+      const id = filter && !options?.skipCache ? idFromFilter(filter) : null;
 
-      const row = result.rows[0];
-      if (row === undefined || row === null) return null;
+      if (id) {
+        const cached = await resolveFromCache(cacheKey(id), options);
+        if (cached !== undefined)
+          return cached !== null
+            ? (upcast({
+                ...cached,
+              } as unknown as Payload) as WithIdAndVersion<T>)
+            : null;
 
-      return upcast({
-        ...row.data,
-        _version: row._version,
-      } as unknown as Payload) as WithIdAndVersion<T>;
+        const doc = await findOneFromDb(filter!, options);
+        if (doc) await cacheSet(doc, options);
+        else await cacheDelete(id, options);
+        return doc;
+      }
+
+      return findOneFromDb(filter ?? {}, options);
     },
     findOneAndDelete: async (
       filter: PongoFilter<T>,
@@ -368,7 +627,6 @@ export const pongoCollection = <
       if (existingDoc === null) return null;
 
       await collection.replaceOne(filter, replacement, options);
-
       return existingDoc;
     },
     findOneAndUpdate: async (
@@ -383,103 +641,274 @@ export const pongoCollection = <
       if (existingDoc === null) return null;
 
       await collection.updateOne(filter, update, options);
-
       return existingDoc;
     },
-    handle: async (
-      id: string,
-      handle: DocumentHandler<T>,
-      options?: HandleOptions,
-    ): Promise<PongoHandleResult<T>> => {
-      const { expectedVersion: version, ...operationOptions } = options ?? {};
+    replaceMany: async (
+      documents: Array<WithIdAndVersion<T> | WithId<T>>,
+      options?: ReplaceManyOptions,
+    ): Promise<PongoReplaceManyResult> => {
       await ensureCollectionCreated(options);
 
-      const byId: PongoFilter<T> = { _id: id };
-
-      const existing = (await collection.findOne(
-        byId,
-        options,
-      )) as WithVersion<T> | null;
-
-      const expectedVersion = expectedVersionValue(version);
-
-      if (
-        (existing == null && version === 'DOCUMENT_EXISTS') ||
-        (existing == null && expectedVersion != null) ||
-        (existing != null && version === 'DOCUMENT_DOES_NOT_EXIST') ||
-        (existing != null &&
-          expectedVersion !== null &&
-          existing._version !== expectedVersion)
-      ) {
-        return operationResult<PongoHandleResult<T>>(
-          {
-            successful: false,
-            document: existing as T,
-          },
-          { operationName: 'handle', collectionName, serializer, errors },
-        );
-      }
-
-      const result = await handle(
-        existing !== null ? ({ ...existing } as T) : null,
+      const downcasted = documents.map(
+        (d) =>
+          ({
+            _id: d._id,
+            _version: d._version,
+            ...downcast(d as T),
+          }) as unknown as WithIdAndVersion<T>,
       );
 
-      if (deepEquals(existing as T | null, result))
-        return operationResult<PongoHandleResult<T>>(
-          {
-            successful: true,
-            document: existing as T | null,
-          },
-          { operationName: 'handle', collectionName, serializer, errors },
-        );
+      const result = await command<{
+        _id: string;
+        version?: bigint | string | number;
+      }>(SqlFor.replaceMany(downcasted), options);
 
-      if (!existing && result) {
-        const newDoc = { ...result, _id: id };
-        const insertResult = await collection.insertOne(
-          { ...newDoc, _id: id } as OptionalUnlessRequiredIdAndVersion<T>,
-          {
-            ...operationOptions,
-            expectedVersion: 'DOCUMENT_DOES_NOT_EXIST',
-          },
-        );
-        return {
-          ...insertResult,
-          document: {
-            ...newDoc,
-            _version: insertResult.nextExpectedVersion,
-          } as T,
-        };
+      const modifiedIds = new Set<string>();
+      const conflictIds = new Set<string>();
+      const versions = new Map<string, bigint>();
+
+      for (const row of result.rows) {
+        modifiedIds.add(row._id);
+        versions.set(row._id, row.version != null ? BigInt(row.version) : 1n);
       }
 
-      if (existing && !result) {
-        const deleteResult = await collection.deleteOne(byId, {
-          ...operationOptions,
-          expectedVersion: expectedVersion ?? 'DOCUMENT_EXISTS',
+      for (const d of downcasted) {
+        if (!modifiedIds.has(d._id)) conflictIds.add(d._id);
+      }
+
+      if (!options?.skipCache) {
+        const cacheEntries = [...modifiedIds].map((id) => {
+          const d = downcasted.find((x) => x._id === id)!;
+          return {
+            key: cacheKey(id),
+            value: {
+              ...d,
+              _id: id,
+              _version: versions.get(id) ?? 1n,
+            },
+          };
         });
-        return { ...deleteResult, document: null };
+        if (cacheEntries.length > 0)
+          await cacheReplaceMany(cacheEntries, options);
+
+        await cacheDeleteMany([...conflictIds], options);
       }
 
-      if (existing && result) {
-        const replaceResult = await collection.replaceOne(byId, result, {
-          ...operationOptions,
-          expectedVersion: expectedVersion ?? 'DOCUMENT_EXISTS',
-        });
-        return {
-          ...replaceResult,
-          document: {
-            ...result,
-            _version: replaceResult.nextExpectedVersion,
-          } as T,
-        };
-      }
-
-      return operationResult<PongoHandleResult<T>>(
+      return operationResult<PongoReplaceManyResult>(
         {
-          successful: true,
-          document: existing as T,
+          successful: modifiedIds.size > 0,
+          modifiedCount: modifiedIds.size,
+          matchedCount: documents.length,
+          modifiedIds,
+          conflictIds,
+          versions,
         },
-        { operationName: 'handle', collectionName, serializer, errors },
+        { operationName: 'replaceMany', collectionName, serializer, errors },
       );
+    },
+    handle: async (
+      id: string | string[],
+      handle: DocumentHandler<T>,
+      options?: HandleOptions & BatchHandleOptions,
+    ): Promise<PongoHandleResult<T> | PongoHandleResult<T>[]> => {
+      const isBatch = Array.isArray(id);
+      const ids: string[] = isBatch ? id : [id];
+      const {
+        expectedVersion: version,
+        skipConcurrencyCheck,
+        ...operationOptions
+      } = options ?? {};
+
+      await ensureCollectionCreated(options);
+
+      const docs = await fetchByIds(ids, operationOptions);
+
+      type OpClassify =
+        | { type: 'skip'; existing: WithIdAndVersion<T> | null }
+        | { type: 'noop'; existing: WithIdAndVersion<T> | null }
+        | { type: 'insert'; newDoc: WithoutId<T> }
+        | { type: 'replace'; result: WithoutId<T>; _version?: bigint }
+        | { type: 'delete'; _version?: bigint };
+
+      const ops: OpClassify[] = await Promise.all(
+        ids.map(async (docId, i) => {
+          const existing = docs[i] ?? null;
+
+          if (!isBatch) {
+            const expectedVersion = expectedVersionValue(version);
+            if (
+              (existing == null && version === 'DOCUMENT_EXISTS') ||
+              (existing == null && expectedVersion != null) ||
+              (existing != null && version === 'DOCUMENT_DOES_NOT_EXIST') ||
+              (existing != null &&
+                expectedVersion !== null &&
+                existing._version !== expectedVersion)
+            ) {
+              return { type: 'skip' as const, existing };
+            }
+          }
+
+          const result = await handle(
+            existing !== null ? ({ ...existing } as T) : null,
+          );
+
+          if (deepEquals(existing as T | null, result)) {
+            return { type: 'noop' as const, existing };
+          }
+
+          if (!existing && result) {
+            return {
+              type: 'insert' as const,
+              newDoc: { ...result, _id: docId } as WithoutId<T>,
+            };
+          }
+
+          if (existing && !result) {
+            const op: OpClassify = skipConcurrencyCheck
+              ? { type: 'delete' as const }
+              : {
+                  type: 'delete' as const,
+                  _version: existing._version,
+                };
+            return op;
+          }
+
+          const op: OpClassify = skipConcurrencyCheck
+            ? { type: 'replace' as const, result: result as WithoutId<T> }
+            : {
+                type: 'replace' as const,
+                result: result as WithoutId<T>,
+                _version: existing!._version,
+              };
+          return op;
+        }),
+      );
+
+      const toInsert = ids.flatMap((docId, i) => {
+        const op = ops[i]!;
+        if (op.type !== 'insert') return [];
+        return [
+          { _id: docId, ...op.newDoc } as OptionalUnlessRequiredIdAndVersion<T>,
+        ];
+      });
+
+      const toReplace = [...ids].sort().flatMap((docId) => {
+        const i = ids.indexOf(docId);
+        const op = ops[i]!;
+        if (op.type !== 'replace') return [];
+        return [
+          op._version !== undefined
+            ? { ...op.result, _id: docId, _version: op._version }
+            : { ...op.result, _id: docId },
+        ];
+      });
+
+      const toDelete = [...ids].sort().flatMap((docId) => {
+        const i = ids.indexOf(docId);
+        const op = ops[i]!;
+        if (op.type !== 'delete') return [];
+        const entry = { _id: docId };
+        return [
+          op._version !== undefined
+            ? { ...entry, _version: op._version }
+            : entry,
+        ];
+      });
+
+      let insertedIds = new Set<string>();
+      let replaceResult: PongoReplaceManyResult | null = null;
+      let deletedIds = new Set<string>();
+
+      if (toInsert.length > 0) {
+        const insertResult = await collection.insertMany(
+          toInsert,
+          operationOptions,
+        );
+        insertedIds = new Set(insertResult.insertedIds);
+      }
+
+      if (toReplace.length > 0) {
+        replaceResult = await collection.replaceMany(
+          toReplace as Array<WithIdAndVersion<T>>,
+          operationOptions,
+        );
+      }
+
+      if (toDelete.length > 0) {
+        const deleteResult = await deleteManyByIds(toDelete, operationOptions);
+        deletedIds = deleteResult.deletedIds;
+      }
+
+      const results: PongoHandleResult<T>[] = ids.map((docId, i) => {
+        const op = ops[i]!;
+        const existing =
+          op.type !== 'insert' && 'existing' in op ? op.existing : null;
+
+        if (op.type === 'skip' || op.type === 'noop') {
+          return {
+            ...operationResult<OperationResult>(
+              { successful: op.type === 'noop' },
+              { operationName: 'handle', collectionName, serializer, errors },
+            ),
+            document: existing as T | null,
+          } as unknown as PongoHandleResult<T>;
+        }
+
+        if (op.type === 'insert') {
+          const succeeded = insertedIds.has(docId);
+          if (!succeeded) {
+            //TODO: this is not acceptable
+            void cacheDelete(docId, options);
+          }
+          return {
+            ...operationResult<PongoInsertOneResult>(
+              {
+                successful: succeeded,
+                insertedId: succeeded ? docId : null,
+                nextExpectedVersion: 1n,
+              },
+              { operationName: 'handle', collectionName, serializer, errors },
+            ),
+            document: succeeded
+              ? ({ ...op.newDoc, _id: docId, _version: 1n } as unknown as T)
+              : null,
+          } as unknown as PongoHandleResult<T>;
+        }
+
+        if (op.type === 'delete') {
+          const succeeded = deletedIds.has(docId);
+          return {
+            ...operationResult<PongoDeleteResult>(
+              {
+                successful: succeeded,
+                deletedCount: succeeded ? 1 : 0,
+                matchedCount: 1,
+              },
+              { operationName: 'handle', collectionName, serializer, errors },
+            ),
+            document: null,
+          } as unknown as PongoHandleResult<T>;
+        }
+
+        const succeeded = replaceResult?.modifiedIds.has(docId) ?? false;
+        const newVersion = replaceResult?.versions.get(docId) ?? 0n;
+        return {
+          ...operationResult<PongoUpdateResult>(
+            {
+              successful: succeeded,
+              modifiedCount: succeeded ? 1 : 0,
+              matchedCount: 1,
+              nextExpectedVersion: newVersion,
+            },
+            { operationName: 'handle', collectionName, serializer, errors },
+          ),
+          document: succeeded
+            ? ({ ...op.result, _version: newVersion } as unknown as T)
+            : (existing as T | null),
+        } as unknown as PongoHandleResult<T>;
+      });
+
+      return isBatch ? results : results[0]!;
     },
     find: async (
       filter?: PongoFilter<T>,
@@ -487,16 +916,15 @@ export const pongoCollection = <
     ): Promise<WithIdAndVersion<T>[]> => {
       await ensureCollectionCreated(options);
 
+      if (!options?.skipCache && filter) {
+        const ids = getIdsFromIdOnlyFilter(filter);
+        if (ids && ids.length > 0) return findManyByIds(ids, options);
+      }
+
       const result = await query<{ data: T; _version: bigint }>(
         SqlFor.find(filter ?? {}, options),
       );
-      return result.rows.map(
-        (row) =>
-          upcast({
-            ...row.data,
-            _version: row._version,
-          } as unknown as Payload) as WithIdAndVersion<T>,
-      );
+      return result.rows.map(rowToDoc);
     },
     countDocuments: async (
       filter?: PongoFilter<T>,
@@ -521,8 +949,9 @@ export const pongoCollection = <
       await ensureCollectionCreated(options);
       await command(SqlFor.rename(newName));
       collectionName = newName;
-      return collection;
+      return collection as unknown as PongoCollection<T>;
     },
+    close: () => cache.close(),
 
     sql: {
       async query<Result extends QueryResultRow = QueryResultRow>(
@@ -550,7 +979,7 @@ export const pongoCollection = <
     },
   };
 
-  return collection;
+  return collection as unknown as PongoCollection<T>;
 };
 
 type UpdateSqlResult = {
