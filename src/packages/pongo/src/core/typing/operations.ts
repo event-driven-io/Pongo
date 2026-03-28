@@ -369,7 +369,7 @@ export declare type WithVersion<TSchema> = EnhancedOmit<TSchema, '_version'> & {
 };
 export type WithoutVersion<T> = Omit<T, '_version'>;
 
-export type WithIdAndVersion<T> = WithId<WithVersion<T>>;
+export type WithIdAndVersion<T> = WithId<T> & WithVersion<T>;
 export type WithoutIdAndVersion<T> = WithoutId<WithoutVersion<T>>;
 
 /** @public */
