@@ -10,6 +10,8 @@ import {
   type PongoUpdate,
   type ReplaceOneOptions,
   type UpdateOneOptions,
+  type WithId,
+  type WithIdAndVersion,
   type WithoutId,
 } from '../../../../core';
 import { constructFilterQuery } from './filter';
@@ -176,21 +178,17 @@ export const sqliteSQLBuilder = (
 
     return SQL`DELETE FROM ${SQL.identifier(collectionName)} ${where(filterQuery)} RETURNING _id`;
   },
-  replaceMany: <T>(
-    documents: Array<{
-      _id: string;
-      document: WithoutId<T>;
-      _version?: bigint;
-    }>,
-  ): SQL => {
+  replaceMany: <T>(documents: Array<WithIdAndVersion<T> | WithId<T>>): SQL => {
     const col = SQL.identifier(collectionName);
-    const hasVersions = documents.some((d) => d._version !== undefined);
+    const hasVersions = documents.some(
+      (d) => '_version' in d && d._version !== undefined,
+    );
 
     if (hasVersions) {
       const values = SQL.merge(
         documents.map(
           (d) =>
-            SQL`(${d._id}, ${serializer.serialize(d.document)}, ${d._version ?? 0n})`,
+            SQL`(${d._id}, ${serializer.serialize(d)}, ${(d as WithIdAndVersion<T>)._version ?? 0n})`,
         ),
         ',',
       );
@@ -209,9 +207,7 @@ export const sqliteSQLBuilder = (
     }
 
     const values = SQL.merge(
-      documents.map(
-        (d) => SQL`(${d._id}, ${serializer.serialize(d.document)})`,
-      ),
+      documents.map((d) => SQL`(${d._id}, ${serializer.serialize(d)})`),
       ',',
     );
     return SQL`

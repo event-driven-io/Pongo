@@ -14,7 +14,11 @@ import {
   type SQLQueryResultColumnMapping,
 } from '@event-driven-io/dumbo';
 import { v7 as uuid } from 'uuid';
-import type { PongoCollectionSchemaComponent, PongoDocumentCacheKey } from '..';
+import type {
+  PongoCollectionSchemaComponent,
+  PongoDocumentCacheKey,
+  WithId,
+} from '..';
 import {
   deepEquals,
   expectedVersionValue,
@@ -641,24 +645,19 @@ export const pongoCollection = <
       return existingDoc;
     },
     replaceMany: async (
-      documents: Array<{
-        _id: string;
-        document: WithoutId<T>;
-        _version?: bigint;
-      }>,
+      documents: Array<WithIdAndVersion<T> | WithId<T>>,
       options?: ReplaceManyOptions,
     ): Promise<PongoReplaceManyResult> => {
       await ensureCollectionCreated(options);
 
-      const downcasted = documents.map((d) => {
-        const base = {
-          _id: d._id,
-          document: downcast(d.document as T) as unknown as WithoutId<T>,
-        };
-        return d._version !== undefined
-          ? { ...base, _version: d._version }
-          : base;
-      });
+      const downcasted = documents.map(
+        (d) =>
+          ({
+            _id: d._id,
+            _version: d._version,
+            ...downcast(d as T),
+          }) as unknown as WithIdAndVersion<T>,
+      );
 
       const result = await command<{
         _id: string;
@@ -684,7 +683,7 @@ export const pongoCollection = <
           return {
             key: cacheKey(id),
             value: {
-              ...(d.document as PongoDocument),
+              ...d,
               _id: id,
               _version: versions.get(id) ?? 1n,
             },
@@ -798,11 +797,10 @@ export const pongoCollection = <
         const i = ids.indexOf(docId);
         const op = ops[i]!;
         if (op.type !== 'replace') return [];
-        const entry = { _id: docId, document: op.result };
         return [
           op._version !== undefined
-            ? { ...entry, _version: op._version }
-            : entry,
+            ? { ...op.result, _id: docId, _version: op._version }
+            : { ...op.result, _id: docId },
         ];
       });
 
@@ -832,7 +830,7 @@ export const pongoCollection = <
 
       if (toReplace.length > 0) {
         replaceResult = await collection.replaceMany(
-          toReplace,
+          toReplace as Array<WithIdAndVersion<T>>,
           operationOptions,
         );
       }
