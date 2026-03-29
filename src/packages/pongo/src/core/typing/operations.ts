@@ -194,6 +194,7 @@ export type HandleOptions = {
 
 export type BatchHandleOptions = {
   skipConcurrencyCheck?: boolean;
+  parallel?: boolean;
 } & CollectionOperationOptions;
 
 export type ReplaceOneOptions = {
