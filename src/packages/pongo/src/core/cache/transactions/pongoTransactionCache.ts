@@ -70,10 +70,6 @@ export interface PongoTransactionCache<T extends string = string> {
     entries: PongoCacheSetEntry[],
     options: PongoTransactionCacheOperationOptions,
   ): MaybePromise<void>;
-  replaceMany(
-    entries: PongoCacheSetEntry[],
-    options: PongoTransactionCacheOperationOptions,
-  ): MaybePromise<void>;
   updateMany<Doc extends PongoDocument = PongoDocument>(
     keys: PongoDocumentCacheKey[],
     updater: PongoUpdate<Doc>,
@@ -154,18 +150,6 @@ export const pongoTransactionCache = (options?: {
       });
     },
 
-    replaceMany(
-      entries: PongoCacheSetEntry[],
-      options: PongoTransactionCacheOperationOptions,
-    ) {
-      innerCache.replaceMany(entries);
-      operations.push({
-        type: 'replaceMany',
-        entries,
-        mainCache: options.mainCache,
-      });
-    },
-
     updateMany<Doc extends PongoDocument = PongoDocument>(
       keys: PongoDocumentCacheKey[],
       updater: PongoUpdate<Doc>,
@@ -206,9 +190,6 @@ export const pongoTransactionCache = (options?: {
             break;
           case 'setMany':
             await op.mainCache.setMany(op.entries);
-            break;
-          case 'replaceMany':
-            await op.mainCache.replaceMany(op.entries);
             break;
           case 'update':
             await op.mainCache.update(

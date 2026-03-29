@@ -17,24 +17,23 @@ export interface PongoCache<T extends string = string> {
   get<Doc extends PongoDocument = PongoDocument>(
     key: PongoDocumentCacheKey,
   ): MaybePromise<Doc | null | undefined>;
+  getMany<Doc extends PongoDocument = PongoDocument>(
+    keys: PongoDocumentCacheKey[],
+  ): MaybePromise<(Doc | null | undefined)[]>;
   set<Doc extends PongoDocument = PongoDocument>(
     key: PongoDocumentCacheKey,
     value: Doc | null,
   ): MaybePromise<void>;
+  setMany(entries: PongoCacheSetEntry[]): MaybePromise<void>;
   update<Doc extends PongoDocument = PongoDocument>(
     key: PongoDocumentCacheKey,
     updater: PongoUpdate<Doc>,
   ): MaybePromise<void>;
-  delete(key: PongoDocumentCacheKey): MaybePromise<void>;
-  getMany<Doc extends PongoDocument = PongoDocument>(
-    keys: PongoDocumentCacheKey[],
-  ): MaybePromise<(Doc | null | undefined)[]>;
-  setMany(entries: PongoCacheSetEntry[]): MaybePromise<void>;
-  replaceMany(entries: PongoCacheSetEntry[]): MaybePromise<void>;
   updateMany<Doc extends PongoDocument = PongoDocument>(
     keys: PongoDocumentCacheKey[],
     updater: PongoUpdate<Doc>,
   ): MaybePromise<void>;
+  delete(key: PongoDocumentCacheKey): MaybePromise<void>;
   deleteMany(keys: PongoDocumentCacheKey[]): MaybePromise<void>;
   clear(): MaybePromise<void>;
   close(): MaybePromise<void>;
