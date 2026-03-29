@@ -597,9 +597,9 @@ export interface PongoDeleteManyResult extends OperationResult {
 export interface PongoReplaceManyResult extends OperationResult {
   modifiedCount: number;
   matchedCount: number;
-  modifiedIds: Set<string>;
-  conflictIds: Set<string>;
-  versions: Map<string, bigint>;
+  modifiedIds: string[];
+  conflictIds: string[];
+  nextExpectedVersions: Map<string, bigint>;
 }
 
 export type PongoHandleResult<T> =

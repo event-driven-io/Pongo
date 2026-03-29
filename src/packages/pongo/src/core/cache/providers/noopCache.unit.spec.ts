@@ -63,15 +63,6 @@ describe('noopCacheProvider', () => {
     expect(await noopCacheProvider.get('db:collection:a')).toBeUndefined();
   });
 
-  it('replaceMany does nothing', async () => {
-    await noopCacheProvider.replaceMany([
-      { key: 'db:collection:a', value: { _id: 'a' } },
-      { key: 'db:collection:b', value: null },
-    ]);
-    expect(await noopCacheProvider.get('db:collection:a')).toBeUndefined();
-    expect(await noopCacheProvider.get('db:collection:b')).toBeUndefined();
-  });
-
   it('close does nothing', async () => {
     noopCacheProvider.close();
     expect(await noopCacheProvider.get('db:collection:a')).toBeUndefined();

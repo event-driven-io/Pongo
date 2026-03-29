@@ -63,17 +63,6 @@ describe('pongoCacheWrapper — key prefixing', () => {
     ]);
     expect(spy).toHaveBeenCalledWith(['mydb:users:a', 'mydb:users:b']);
   });
-
-  it('replaceMany delegates to provider', async () => {
-    const provider = identityMapCache();
-    const spy = vi.spyOn(provider, 'replaceMany');
-    const wrapper = pongoCacheWrapper({ provider });
-    const entries = [
-      { key: `${dbName}:${collectionName}:a` as const, value: { _id: 'a' } },
-    ];
-    await wrapper.replaceMany(entries);
-    expect(spy).toHaveBeenCalledWith(entries);
-  });
 });
 
 describe('pongoCacheWrapper — error swallowing', () => {
@@ -143,19 +132,6 @@ describe('pongoCacheWrapper — error swallowing', () => {
     const wrapper = pongoCacheWrapper({ provider });
     await expect(
       wrapper.deleteMany([`${dbName}:${collectionName}:x`]),
-    ).resolves.toBeUndefined();
-  });
-
-  it('replaceMany silently succeeds when provider throws', async () => {
-    const provider = identityMapCache();
-    vi.spyOn(provider, 'replaceMany').mockImplementation(() => {
-      throw new Error('boom');
-    });
-    const wrapper = pongoCacheWrapper({ provider });
-    await expect(
-      wrapper.replaceMany([
-        { key: `${dbName}:${collectionName}:x` as const, value: { _id: 'x' } },
-      ]),
     ).resolves.toBeUndefined();
   });
 });

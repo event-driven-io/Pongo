@@ -122,21 +122,6 @@ describe('identityMapCache', () => {
     expect(await cache.get('db:collection:a')).toBeUndefined();
   });
 
-  it('replaceMany sets each entry by key, including null values', async () => {
-    const cache = identityMapCache();
-    cache.set('db:collection:a', { _id: 'a', name: 'old' });
-    await cache.replaceMany([
-      { key: 'db:collection:a', value: { _id: 'a', name: 'new' } },
-      { key: 'db:collection:b', value: null },
-    ]);
-    expect(await cache.get('db:collection:a')).toEqual({
-      _id: 'a',
-      name: 'new',
-    });
-    expect(await cache.get('db:collection:b')).toBeNull();
-    expect(await cache.get('db:collection:missing')).toBeUndefined();
-  });
-
   it('has no max size — stores unlimited entries', async () => {
     const cache = identityMapCache();
     const count = 2000;

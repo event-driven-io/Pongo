@@ -546,8 +546,8 @@ describe('MongoDB Compatibility Tests', () => {
       ]);
 
       // Then
-      assert(result.modifiedIds.has(existingUser._id));
-      assert(result.conflictIds.has(conflictUser._id));
+      assert(result.modifiedIds.includes(existingUser._id));
+      assert(result.conflictIds.includes(conflictUser._id));
 
       const updated = await users.findOne({ _id: existingUser._id });
       assert.strictEqual(updated?.name, 'Updated');
@@ -566,9 +566,9 @@ describe('MongoDB Compatibility Tests', () => {
         { _id: ghostId, name: 'Ghost', age: 30 },
       ]);
 
-      assert(result.modifiedIds.has(existing._id));
-      assert(result.conflictIds.has(ghostId));
-      assert(!result.modifiedIds.has(ghostId));
+      assert(result.modifiedIds.includes(existing._id));
+      assert(result.conflictIds.includes(ghostId));
+      assert(!result.modifiedIds.includes(ghostId));
     });
   });
 

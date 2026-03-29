@@ -36,37 +36,20 @@ export const pongoCacheWrapper = (options: {
       }
     },
 
-    async set(key, value) {
-      try {
-        await provider.set(key, value);
-      } catch (error) {
-        onError(error, 'set');
-      }
-    },
-
-    async update(key, updater) {
-      try {
-        await provider.update(key, updater);
-      } catch (error) {
-        onError(error, 'update');
-      }
-    },
-
-    async delete(key) {
-      try {
-        await provider.delete(key);
-        hooks?.onEvict?.(key);
-      } catch (error) {
-        onError(error, 'delete');
-      }
-    },
-
     async getMany(keys) {
       try {
         return await provider.getMany(keys);
       } catch (error) {
         onError(error, 'getMany');
         return [];
+      }
+    },
+
+    async set(key, value) {
+      try {
+        await provider.set(key, value);
+      } catch (error) {
+        onError(error, 'set');
       }
     },
 
@@ -78,11 +61,11 @@ export const pongoCacheWrapper = (options: {
       }
     },
 
-    async replaceMany(entries) {
+    async update(key, updater) {
       try {
-        await provider.replaceMany(entries);
+        await provider.update(key, updater);
       } catch (error) {
-        onError(error, 'replaceMany');
+        onError(error, 'update');
       }
     },
 
@@ -91,6 +74,15 @@ export const pongoCacheWrapper = (options: {
         await provider.updateMany(keys, updater);
       } catch (error) {
         onError(error, 'updateMany');
+      }
+    },
+
+    async delete(key) {
+      try {
+        await provider.delete(key);
+        hooks?.onEvict?.(key);
+      } catch (error) {
+        onError(error, 'delete');
       }
     },
 

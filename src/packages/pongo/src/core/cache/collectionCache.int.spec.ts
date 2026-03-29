@@ -21,7 +21,7 @@ const spyCache = (
     get: Mock;
     set: Mock;
     setMany: Mock;
-    replaceMany: Mock;
+    deleteMany: Mock;
     delete: Mock;
   };
 } => {
@@ -30,7 +30,7 @@ const spyCache = (
     get: vi.fn(raw.get.bind(raw)),
     set: vi.fn(raw.set.bind(raw)),
     setMany: vi.fn(raw.setMany.bind(raw)),
-    replaceMany: vi.fn(raw.replaceMany.bind(raw)),
+    deleteMany: vi.fn(raw.deleteMany.bind(raw)),
     delete: vi.fn(raw.delete.bind(raw)),
   };
   return {
@@ -300,7 +300,7 @@ describe('pongoCollection cache integration', () => {
 
       const result1 = await col.findOne({ _id: 'ghost-id' });
       expect(result1).toBeNull();
-      expect(spies.set).toHaveBeenCalledWith('db:users:ghost-id', null);
+      expect(spies.delete).toHaveBeenCalledWith('db:users:ghost-id');
 
       spies.set.mockClear();
       const result2 = await col.findOne({ _id: 'ghost-id' });
@@ -365,15 +365,8 @@ describe('pongoCollection cache integration', () => {
 
       await col.deleteMany({ _id: { $in: ids } } as unknown as { _id: string });
 
-      expect(spies.setMany).toHaveBeenCalledWith(
-        expect.arrayContaining(
-          ids.map((id) =>
-            expect.objectContaining({
-              key: expect.stringContaining(id),
-              value: null,
-            }),
-          ),
-        ),
+      expect(spies.deleteMany).toHaveBeenCalledWith(
+        expect.arrayContaining(ids.map((id) => `db:users:${id}`)),
       );
     });
 
@@ -382,15 +375,19 @@ describe('pongoCollection cache integration', () => {
       const col = client.db('db').collection<User>('users', { cache });
 
       const { insertedId } = await col.insertOne({ name: 'Before' });
-      spies.replaceMany.mockClear();
+      spies.setMany.mockClear();
 
       await col.replaceMany([{ _id: insertedId!, name: 'After' }]);
 
-      expect(spies.replaceMany).toHaveBeenCalledWith(
+      expect(spies.setMany).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({
-            key: expect.stringContaining(insertedId!),
-            value: expect.objectContaining({ name: 'After', _version: 2n }),
+            key: `db:users:${insertedId!}`,
+            value: {
+              _id: insertedId!,
+              name: 'After',
+              _version: 2n,
+            },
           }),
         ]),
       );
@@ -403,9 +400,9 @@ describe('pongoCollection cache integration', () => {
       const ghostId = 'ghost-replace-1';
       const result = await col.replaceMany([{ _id: ghostId, name: 'Ghost' }]);
 
-      expect(result.conflictIds.has(ghostId)).toBe(true);
-      expect(spies.delete).toHaveBeenCalledWith(
-        expect.stringContaining(ghostId),
+      expect(result.conflictIds.includes(ghostId)).toBe(true);
+      expect(spies.deleteMany).toHaveBeenCalledWith(
+        expect.arrayContaining([`db:users:${ghostId}`]),
       );
     });
 
@@ -420,9 +417,9 @@ describe('pongoCollection cache integration', () => {
         { _id: insertedId!, name: 'Conflict', _version: 999n },
       ]);
 
-      expect(result.conflictIds.has(insertedId!)).toBe(true);
-      expect(spies.delete).toHaveBeenCalledWith(
-        expect.stringContaining(insertedId!),
+      expect(result.conflictIds.includes(insertedId!)).toBe(true);
+      expect(spies.deleteMany).toHaveBeenCalledWith(
+        expect.arrayContaining([`db:users:${insertedId!}`]),
       );
     });
 
@@ -652,9 +649,8 @@ describe('pongoCollection cache integration', () => {
       await session.commitTransaction();
       await session.endSession();
 
-      expect(spies.set).toHaveBeenCalledWith(
+      expect(spies.delete).toHaveBeenCalledWith(
         expect.stringContaining(insertedId!),
-        null,
       );
     });
 
