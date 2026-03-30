@@ -17,7 +17,12 @@ import type {
   WithId,
   WithIdAndVersion,
 } from '..';
-import { deepEquals, expectedVersionValue, operationResult } from '..';
+import {
+  deepEquals,
+  expectedVersionValue,
+  mapAsync,
+  operationResult,
+} from '..';
 
 export type DocumentCommandHandlerOptions<T extends PongoDocument> = {
   collectionName: string;
@@ -299,44 +304,37 @@ async function handleDocuments<T extends PongoDocument>(
   await storage.ensureCollectionCreated(operationOptions);
   const docs = await storage.fetchByIds(ids, operationOptions);
 
-  const prepareDoc = (doc: WithIdAndVersion<T> | null): T | null =>
-    doc !== null ? ({ ...doc } as T) : null;
+  const handleDocument = (item: {
+    existing: WithIdAndVersion<T> | null;
+    expectedVersion: ExpectedDocumentVersion | undefined;
+  }): Promise<T | null> => {
+    const { existing, expectedVersion } = item;
+    if (hasVersionMismatch(existing, expectedVersion))
+      return Promise.resolve(existing as T | null);
 
-  const versionMismatches = new Set<number>();
-  let handlerResults: (T | null)[];
+    return Promise.resolve(handler(existing ? ({ ...existing } as T) : null));
+  };
 
-  if (parallel) {
-    handlerResults = await Promise.all(
-      items.map((item, i) => {
-        const existing = docs[i] ?? null;
-        if (hasVersionMismatch(existing, item.expectedVersion)) {
-          versionMismatches.add(i);
-          return Promise.resolve(existing as T | null);
-        }
-        return Promise.resolve(handler(prepareDoc(existing)));
-      }),
-    );
-  } else {
-    handlerResults = [];
-    for (let i = 0; i < items.length; i++) {
-      const existing = docs[i] ?? null;
-      if (hasVersionMismatch(existing, items[i]!.expectedVersion)) {
-        versionMismatches.add(i);
-        handlerResults.push(existing as T | null);
-      } else {
-        handlerResults.push(await handler(prepareDoc(existing)));
-      }
-    }
-  }
+  const results = await mapAsync(
+    items.map((item, i) => ({
+      existing: docs[i] ?? null,
+      expectedVersion: item.expectedVersion,
+    })),
+    handleDocument,
+    { parallel },
+  );
 
   const changes = ids.map((id, i) => {
     const change = toDocumentChange(
       id,
       docs[i] ?? null,
-      handlerResults[i]!,
+      results[i]!,
       skipConcurrencyCheck,
     );
-    if (change.type === 'noop' && versionMismatches.has(i))
+    if (
+      change.type === 'noop' &&
+      hasVersionMismatch(docs[i] ?? null, items[i]!.expectedVersion)
+    )
       return { ...change, versionMismatch: true };
     return change;
   });
