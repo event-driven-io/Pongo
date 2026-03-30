@@ -10,8 +10,8 @@ import {
 import assert from 'assert';
 import type { Db as MongoDb, ObjectId } from 'mongodb';
 import { MongoClient as OriginalMongoClient } from 'mongodb';
-import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v7 as uuid } from 'uuid';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import { pgDriver, usePgPongoDriver } from '../../../pg';
 import { MongoClient, type Db } from '../../../shim';
 
@@ -1073,6 +1073,7 @@ describe('MongoDB Compatibility Tests', () => {
       assert(resultPongo.successful);
       assert.deepStrictEqual(resultPongo.document, {
         ...updatedDoc,
+        _id: pongoInsertResult.insertedId,
         _version: 2n,
       });
 

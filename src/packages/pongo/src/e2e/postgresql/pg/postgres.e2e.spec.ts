@@ -6,8 +6,8 @@ import {
 } from '@testcontainers/postgresql';
 import assert from 'assert';
 import console from 'console';
-import { afterAll, beforeAll, describe, it } from 'vitest';
 import { v7 as uuid } from 'uuid';
+import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
   pongoClient,
   type ObjectId,
@@ -1136,6 +1136,7 @@ describe('MongoDB Compatibility Tests', () => {
       assert(resultPongo.successful);
       assert.deepStrictEqual(resultPongo.document, {
         ...updatedDoc,
+        _id: pongoInsertResult.insertedId!,
         _version: 2n,
       });
 
