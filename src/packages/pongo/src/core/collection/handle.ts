@@ -11,9 +11,7 @@ import type {
   PongoDocument,
   PongoHandleResult,
   PongoInsertManyResult,
-  PongoInsertOneResult,
   PongoReplaceManyResult,
-  PongoUpdateResult,
   WithId,
   WithIdAndVersion,
 } from '..';
@@ -102,18 +100,7 @@ type DocumentChange<T extends PongoDocument> =
     }
   | { type: 'delete'; docId: string; _version?: bigint };
 
-type StorageResults = {
-  insertedIds: Set<string>;
-  replaceResult: PongoReplaceManyResult | null;
-  deletedIds: Set<string>;
-};
-
-function normalizeInput(input: DocumentInput): {
-  _id: string;
-  expectedVersion?: ExpectedDocumentVersion;
-} {
-  return typeof input === 'string' ? { _id: input } : input;
-}
+type DocumentHandlerResult = { succeeded: boolean; newVersion?: bigint };
 
 function hasVersionMismatch<T extends PongoDocument>(
   existing: WithIdAndVersion<T> | null,
@@ -144,29 +131,25 @@ function toDocumentChange<T extends PongoDocument>(
     };
 
   if (existing && !result)
-    return skipConcurrencyCheck
-      ? { type: 'delete', docId }
-      : { type: 'delete', docId, _version: existing._version };
+    return {
+      type: 'delete',
+      docId,
+      ...(!skipConcurrencyCheck && { _version: existing._version }),
+    };
 
-  return skipConcurrencyCheck
-    ? {
-        type: 'replace',
-        existing: existing!,
-        result: { ...result, _id: docId } as WithId<T>,
-      }
-    : {
-        type: 'replace',
-        existing: existing!,
-        result: { ...result, _id: docId } as WithId<T>,
-        _version: existing!._version,
-      };
+  return {
+    type: 'replace',
+    existing: existing!,
+    result: { ...result, _id: docId } as WithId<T>,
+    ...(!skipConcurrencyCheck && { _version: existing!._version }),
+  };
 }
 
 async function executeStorageChanges<T extends PongoDocument>(
   storage: DocumentCommandHandlerOptions<T>['storage'],
   changes: DocumentChange<T>[],
   operationOptions?: CollectionOperationOptions,
-): Promise<StorageResults> {
+): Promise<{ change: DocumentChange<T>; outcome: DocumentHandlerResult }[]> {
   const toInsert = changes.flatMap((c) =>
     c.type === 'insert' ? [c.doc as OptionalUnlessRequiredIdAndVersion<T>] : [],
   );
@@ -191,100 +174,112 @@ async function executeStorageChanges<T extends PongoDocument>(
       : [],
   );
 
-  let insertedIds = new Set<string>();
-  let replaceResult: PongoReplaceManyResult | null = null;
-  let deletedIds = new Set<string>();
+  const insertedIds =
+    toInsert.length > 0
+      ? new Set(
+          (await storage.insertMany(toInsert, operationOptions)).insertedIds,
+        )
+      : new Set<string>();
 
-  if (toInsert.length > 0) {
-    const result = await storage.insertMany(toInsert, operationOptions);
-    insertedIds = new Set(result.insertedIds);
-  }
+  const replaceResult =
+    toReplace.length > 0
+      ? await storage.replaceMany(toReplace, operationOptions)
+      : null;
 
-  if (toReplace.length > 0) {
-    replaceResult = await storage.replaceMany(toReplace, operationOptions);
-  }
+  const deletedIds =
+    toDelete.length > 0
+      ? (await storage.deleteManyByIds(toDelete, operationOptions)).deletedIds
+      : new Set<string>();
 
-  if (toDelete.length > 0) {
-    const result = await storage.deleteManyByIds(toDelete, operationOptions);
-    deletedIds = result.deletedIds;
-  }
+  const toOutcome = (change: DocumentChange<T>): DocumentHandlerResult => {
+    if (change.type === 'noop') return { succeeded: !change.versionMismatch };
+    if (change.type === 'insert')
+      return { succeeded: insertedIds.has(change.doc._id), newVersion: 1n };
+    if (change.type === 'delete')
+      return { succeeded: deletedIds.has(change.docId) };
 
-  return { insertedIds, replaceResult, deletedIds };
+    const id = change.result._id;
+    return {
+      succeeded: replaceResult?.modifiedIds.includes(id) ?? false,
+      newVersion: replaceResult?.nextExpectedVersions.get(id) ?? 0n,
+    };
+  };
+
+  return changes.map((change) => ({
+    change,
+    outcome: toOutcome(change),
+  }));
 }
 
 function toHandleResult<T extends PongoDocument>(
   deps: DocumentCommandHandlerOptions<T>,
   change: DocumentChange<T>,
-  results: StorageResults,
+  { succeeded, newVersion }: DocumentHandlerResult,
 ): PongoHandleResult<T> {
-  const { collectionName, serializer, errors } = deps;
   const opMeta = {
     operationName: 'handle',
-    collectionName,
-    serializer,
-    errors,
+    collectionName: deps.collectionName,
+    serializer: deps.serializer,
+    errors: deps.errors,
   };
+  const toResult = (
+    op: Record<string, unknown>,
+    document: T | null,
+  ): PongoHandleResult<T> =>
+    ({
+      ...operationResult(op as OperationResult, opMeta),
+      document,
+    }) as unknown as PongoHandleResult<T>;
 
-  if (change.type === 'noop') {
-    return {
-      ...operationResult<OperationResult>(
-        { successful: !change.versionMismatch },
-        opMeta,
-      ),
-      document: change.existing as T | null,
-    } as unknown as PongoHandleResult<T>;
-  }
+  if (change.type === 'noop')
+    return toResult({ successful: succeeded }, change.existing as T | null);
 
-  if (change.type === 'insert') {
-    const succeeded = results.insertedIds.has(change.doc._id);
-    return {
-      ...operationResult<PongoInsertOneResult>(
-        {
-          successful: succeeded,
-          insertedId: succeeded ? change.doc._id : null,
-          nextExpectedVersion: 1n,
-        },
-        opMeta,
-      ),
-      document: succeeded
-        ? ({ ...change.doc, _version: 1n } as unknown as T)
-        : null,
-    } as unknown as PongoHandleResult<T>;
-  }
-
-  if (change.type === 'delete') {
-    const succeeded = results.deletedIds.has(change.docId);
-    return {
-      ...operationResult<PongoDeleteResult>(
-        {
-          successful: succeeded,
-          deletedCount: succeeded ? 1 : 0,
-          matchedCount: 1,
-        },
-        opMeta,
-      ),
-      document: null,
-    } as unknown as PongoHandleResult<T>;
-  }
-
-  const succeeded =
-    results.replaceResult?.modifiedIds.includes(change.result._id) ?? false;
-  const newVersion =
-    results.replaceResult?.nextExpectedVersions.get(change.result._id) ?? 0n;
-  return {
-    ...operationResult<PongoUpdateResult>(
+  if (change.type === 'insert')
+    return toResult(
       {
         successful: succeeded,
-        modifiedCount: succeeded ? 1 : 0,
-        matchedCount: 1,
-        nextExpectedVersion: newVersion,
+        insertedId: succeeded ? change.doc._id : null,
+        nextExpectedVersion: 1n,
       },
-      opMeta,
-    ),
-    document: succeeded
+      succeeded ? ({ ...change.doc, _version: 1n } as unknown as T) : null,
+    );
+
+  if (change.type === 'delete')
+    return toResult(
+      {
+        successful: succeeded,
+        deletedCount: succeeded ? 1 : 0,
+        matchedCount: 1,
+      },
+      null,
+    );
+
+  return toResult(
+    {
+      successful: succeeded,
+      modifiedCount: succeeded ? 1 : 0,
+      matchedCount: 1,
+      nextExpectedVersion: newVersion ?? 0n,
+    },
+    succeeded
       ? ({ ...change.result, _version: newVersion } as unknown as T)
       : (change.existing as T | null),
-  } as unknown as PongoHandleResult<T>;
+  );
+}
+
+async function handleDocument<T extends PongoDocument>(
+  id: string,
+  existing: WithIdAndVersion<T> | null,
+  handler: DocumentHandler<T>,
+  expectedVersion: ExpectedDocumentVersion | undefined,
+  skipConcurrencyCheck?: boolean,
+): Promise<DocumentChange<T>> {
+  if (hasVersionMismatch(existing, expectedVersion))
+    return { type: 'noop', existing, versionMismatch: true };
+
+  const result = await handler(existing ? ({ ...existing } as T) : null);
+
+  return toDocumentChange(id, existing, result, skipConcurrencyCheck);
 }
 
 async function handleDocuments<T extends PongoDocument>(
@@ -297,53 +292,41 @@ async function handleDocuments<T extends PongoDocument>(
 
   const { storage } = deps;
   const { skipConcurrencyCheck, parallel, ...operationOptions } = options ?? {};
-
-  const items = inputs.map(normalizeInput);
-  const ids = items.map((i) => i._id);
+  const items = inputs.map((input) =>
+    typeof input === 'string' ? { _id: input } : input,
+  );
 
   await storage.ensureCollectionCreated(operationOptions);
-  const docs = await storage.fetchByIds(ids, operationOptions);
+  const docs = await storage.fetchByIds(
+    items.map((i) => i._id),
+    operationOptions,
+  );
 
-  const handleDocument = (item: {
-    existing: WithIdAndVersion<T> | null;
-    expectedVersion: ExpectedDocumentVersion | undefined;
-  }): Promise<T | null> => {
-    const { existing, expectedVersion } = item;
-    if (hasVersionMismatch(existing, expectedVersion))
-      return Promise.resolve(existing as T | null);
+  const itemsWithDocs = items.map((item, i) => ({
+    ...item,
+    existing: docs[i] ?? null,
+  }));
 
-    return Promise.resolve(handler(existing ? ({ ...existing } as T) : null));
-  };
-
-  const results = await mapAsync(
-    items.map((item, i) => ({
-      existing: docs[i] ?? null,
-      expectedVersion: item.expectedVersion,
-    })),
-    handleDocument,
+  const changes = await mapAsync(
+    itemsWithDocs,
+    ({ _id, existing, expectedVersion }) =>
+      handleDocument(
+        _id,
+        existing,
+        handler,
+        expectedVersion,
+        skipConcurrencyCheck,
+      ),
     { parallel },
   );
 
-  const changes = ids.map((id, i) => {
-    const change = toDocumentChange(
-      id,
-      docs[i] ?? null,
-      results[i]!,
-      skipConcurrencyCheck,
-    );
-    if (
-      change.type === 'noop' &&
-      hasVersionMismatch(docs[i] ?? null, items[i]!.expectedVersion)
-    )
-      return { ...change, versionMismatch: true };
-    return change;
-  });
-
-  const storageResults = await executeStorageChanges(
+  const outcomes = await executeStorageChanges(
     storage,
     changes,
     operationOptions,
   );
 
-  return changes.map((change) => toHandleResult(deps, change, storageResults));
+  return outcomes.map(({ change, outcome }) =>
+    toHandleResult(deps, change, outcome),
+  );
 }
