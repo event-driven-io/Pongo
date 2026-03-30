@@ -74,7 +74,7 @@ function makeDeps(
 }
 
 describe('handle — single document', () => {
-  it('calls insertMany when doc does not exist and handler returns new doc', async () => {
+  it('inserts a new document when none exists', async () => {
     const deps = makeDeps({
       fetchByIds: vi.fn().mockResolvedValue([null]),
       insertMany: vi.fn().mockResolvedValue(insertResult(['id-1'])),
@@ -91,7 +91,7 @@ describe('handle — single document', () => {
     expect((result.document as TestDoc).name).toBe('Alice');
   });
 
-  it('calls replaceMany when doc exists and handler returns modified doc', async () => {
+  it('updates an existing document', async () => {
     const deps = makeDeps({
       fetchByIds: vi.fn().mockResolvedValue([doc('id-1', 'Alice')]),
       replaceMany: vi.fn().mockResolvedValue(replaceResult(['id-1'])),
@@ -108,7 +108,7 @@ describe('handle — single document', () => {
     expect((result.document as TestDoc).name).toBe('Bob');
   });
 
-  it('calls deleteManyByIds when doc exists and handler returns null', async () => {
+  it('deletes a document when handler returns null', async () => {
     const deps = makeDeps({
       fetchByIds: vi.fn().mockResolvedValue([doc('id-1', 'Alice')]),
       deleteManyByIds: vi.fn().mockResolvedValue(deleteResult(['id-1'])),
@@ -125,7 +125,7 @@ describe('handle — single document', () => {
     expect(result.document).toBeNull();
   });
 
-  it('calls no storage write when handler returns same doc (noop)', async () => {
+  it('succeeds without writing when handler returns document unchanged', async () => {
     const existing = doc('id-1', 'Alice');
     const deps = makeDeps({
       fetchByIds: vi.fn().mockResolvedValue([existing]),
@@ -137,10 +137,10 @@ describe('handle — single document', () => {
     expect(deps.storage.insertMany).not.toHaveBeenCalled();
     expect(deps.storage.replaceMany).not.toHaveBeenCalled();
     expect(deps.storage.deleteManyByIds).not.toHaveBeenCalled();
-    expect(result.successful).toBe(false);
+    expect(result.successful).toBe(true);
   });
 
-  it('passes null to handler when doc does not exist', async () => {
+  it('gives handler null when document does not exist', async () => {
     const deps = makeDeps({ fetchByIds: vi.fn().mockResolvedValue([null]) });
     const handle = DocumentCommandHandler(deps);
     const handler = vi.fn().mockReturnValue(null);
@@ -150,7 +150,7 @@ describe('handle — single document', () => {
     expect(handler).toHaveBeenCalledWith(null);
   });
 
-  it('passes a copy to the handler, not the original reference', async () => {
+  it('gives handler a copy of the document, not the original reference', async () => {
     const original = doc('id-1', 'Alice');
     const deps = makeDeps({
       fetchByIds: vi.fn().mockResolvedValue([original]),
@@ -167,7 +167,7 @@ describe('handle — single document', () => {
     expect(received).toEqual(original);
   });
 
-  it('handles an async handler', async () => {
+  it('works with an async handler', async () => {
     const deps = makeDeps({
       fetchByIds: vi.fn().mockResolvedValue([null]),
       insertMany: vi.fn().mockResolvedValue(insertResult(['id-1'])),
@@ -183,7 +183,7 @@ describe('handle — single document', () => {
 });
 
 describe('handle — single document version checking', () => {
-  it('skips when DOCUMENT_EXISTS but doc is missing', async () => {
+  it('does not handle when document is expected to exist but is missing', async () => {
     const deps = makeDeps({ fetchByIds: vi.fn().mockResolvedValue([null]) });
     const handle = DocumentCommandHandler(deps);
 
@@ -195,7 +195,7 @@ describe('handle — single document version checking', () => {
     expect(result.successful).toBe(false);
   });
 
-  it('skips when numeric version given but doc is missing', async () => {
+  it('does not handle when expected version is set but document does not exist', async () => {
     const deps = makeDeps({ fetchByIds: vi.fn().mockResolvedValue([null]) });
     const handle = DocumentCommandHandler(deps);
 
@@ -207,7 +207,7 @@ describe('handle — single document version checking', () => {
     expect(result.successful).toBe(false);
   });
 
-  it('skips when DOCUMENT_DOES_NOT_EXIST but doc exists', async () => {
+  it('does not handle when document is expected not to exist but already does', async () => {
     const deps = makeDeps({
       fetchByIds: vi.fn().mockResolvedValue([doc('id-1', 'Alice')]),
     });
@@ -221,7 +221,7 @@ describe('handle — single document version checking', () => {
     expect(result.successful).toBe(false);
   });
 
-  it('skips when version does not match', async () => {
+  it('does not handle when expected version does not match', async () => {
     const deps = makeDeps({
       fetchByIds: vi.fn().mockResolvedValue([doc('id-1', 'Alice', 1n)]),
     });
@@ -235,7 +235,20 @@ describe('handle — single document version checking', () => {
     expect(result.successful).toBe(false);
   });
 
-  it('replaces when version matches', async () => {
+  it('does not handle when version mismatches even if the handler would return the same document', async () => {
+    const existing = doc('id-1', 'Alice', 1n);
+    const deps = makeDeps({
+      fetchByIds: vi.fn().mockResolvedValue([existing]),
+    });
+    const handle = DocumentCommandHandler(deps);
+
+    const result = await handle('id-1', (d) => d, { expectedVersion: 99n });
+
+    expect(deps.storage.replaceMany).not.toHaveBeenCalled();
+    expect(result.successful).toBe(false);
+  });
+
+  it('updates when expected version matches', async () => {
     const deps = makeDeps({
       fetchByIds: vi.fn().mockResolvedValue([doc('id-1', 'Alice', 5n)]),
       replaceMany: vi.fn().mockResolvedValue(replaceResult(['id-1'])),
@@ -253,7 +266,7 @@ describe('handle — single document version checking', () => {
     expect(result.successful).toBe(true);
   });
 
-  it('deletes when version matches and handler returns null', async () => {
+  it('deletes when expected version matches and handler returns null', async () => {
     const deps = makeDeps({
       fetchByIds: vi.fn().mockResolvedValue([doc('id-1', 'Alice', 5n)]),
       deleteManyByIds: vi.fn().mockResolvedValue(deleteResult(['id-1'])),
@@ -272,7 +285,7 @@ describe('handle — single document version checking', () => {
 });
 
 describe('handle — batch operations', () => {
-  it('handles mixed existing and non-existing docs', async () => {
+  it('handles a mix of new and existing documents', async () => {
     const deps = makeDeps({
       fetchByIds: vi.fn().mockResolvedValue([doc('id-1', 'Alice'), null]),
       insertMany: vi.fn().mockResolvedValue(insertResult(['id-2'])),
@@ -289,7 +302,7 @@ describe('handle — batch operations', () => {
     expect(results[1]!.successful).toBe(true);
   });
 
-  it('calls insertMany once for all new docs', async () => {
+  it('batches all inserts into a single storage call', async () => {
     const deps = makeDeps({
       fetchByIds: vi.fn().mockResolvedValue([null, null, null]),
       insertMany: vi
@@ -311,7 +324,7 @@ describe('handle — batch operations', () => {
     );
   });
 
-  it('calls deleteManyByIds once for all docs to delete', async () => {
+  it('batches all deletes into a single storage call', async () => {
     const deps = makeDeps({
       fetchByIds: vi
         .fn()
@@ -328,7 +341,7 @@ describe('handle — batch operations', () => {
     expect(results.every((r) => r.successful)).toBe(true);
   });
 
-  it('handles mixed insert + replace + delete in one call', async () => {
+  it('batches inserts, updates, and deletes in a single round trip', async () => {
     const deps = makeDeps({
       fetchByIds: vi
         .fn()
@@ -360,21 +373,22 @@ describe('handle — batch operations', () => {
     expect(results[2]!.successful).toBe(true);
   });
 
-  it('calls no write operations for noop docs', async () => {
+  it('succeeds without writing when all documents are unchanged', async () => {
     const existing = doc('id-1', 'Alice');
     const deps = makeDeps({
       fetchByIds: vi.fn().mockResolvedValue([existing]),
     });
     const handle = DocumentCommandHandler(deps);
 
-    await handle(['id-1'], (d) => d);
+    const results = await handle(['id-1'], (d) => d);
 
     expect(deps.storage.insertMany).not.toHaveBeenCalled();
     expect(deps.storage.replaceMany).not.toHaveBeenCalled();
     expect(deps.storage.deleteManyByIds).not.toHaveBeenCalled();
+    expect(results[0]!.successful).toBe(true);
   });
 
-  it('returns results in input ID order', async () => {
+  it('preserves input order in results', async () => {
     const deps = makeDeps({
       fetchByIds: vi
         .fn()
@@ -408,7 +422,7 @@ describe('handle — batch operations', () => {
 });
 
 describe('handle — batch concurrency', () => {
-  it('does not call replaceMany when version conflicts', async () => {
+  it('does not update when storage rejects due to version conflict', async () => {
     const deps = makeDeps({
       fetchByIds: vi.fn().mockResolvedValue([doc('id-1', 'Alice', 1n)]),
       replaceMany: vi.fn().mockResolvedValue(replaceResult([])),
@@ -424,7 +438,7 @@ describe('handle — batch concurrency', () => {
     expect(result[0]!.successful).toBe(false);
   });
 
-  it('omits _version from replaceMany call when skipConcurrencyCheck: true', async () => {
+  it('skips version check in storage when skipConcurrencyCheck is true', async () => {
     const deps = makeDeps({
       fetchByIds: vi.fn().mockResolvedValue([doc('id-1', 'Alice', 5n)]),
       replaceMany: vi.fn().mockResolvedValue(replaceResult(['id-1'])),
@@ -443,7 +457,7 @@ describe('handle — batch concurrency', () => {
 });
 
 describe('handle — parallel option', () => {
-  it('calls all handlers before any storage write when parallel: true', async () => {
+  it('invokes all handlers concurrently when parallel is true', async () => {
     const callOrder: string[] = [];
     const handler = vi.fn((d: TestDoc | null) => {
       callOrder.push('handler:' + (d?.name ?? 'null'));
@@ -462,7 +476,7 @@ describe('handle — parallel option', () => {
     expect(handler).toHaveBeenCalledTimes(2);
   });
 
-  it('calls handlers sequentially by default', async () => {
+  it('invokes handlers sequentially by default', async () => {
     let activeCount = 0;
     let maxConcurrent = 0;
 
@@ -484,7 +498,7 @@ describe('handle — parallel option', () => {
     expect(maxConcurrent).toBe(1);
   });
 
-  it('allows concurrent handlers when parallel: true', async () => {
+  it('runs handlers concurrently when parallel is true', async () => {
     let activeCount = 0;
     let maxConcurrent = 0;
 
@@ -513,7 +527,7 @@ describe('handle — parallel option', () => {
 
 describe('handle — concurrent write conflicts', () => {
   describe('insert', () => {
-    it('returns unsuccessful when another process inserts the same document first (single)', async () => {
+    it('fails when another process already inserted the document', async () => {
       const deps = makeDeps({
         fetchByIds: vi.fn().mockResolvedValue([null]),
         insertMany: vi.fn().mockResolvedValue(insertResult([])),
@@ -526,7 +540,7 @@ describe('handle — concurrent write conflicts', () => {
       expect(result.document).toBeNull();
     });
 
-    it('marks only the conflicting inserts as unsuccessful (batch)', async () => {
+    it('marks only the conflicting inserts as failed in a batch', async () => {
       const deps = makeDeps({
         fetchByIds: vi.fn().mockResolvedValue([null, null]),
         insertMany: vi.fn().mockResolvedValue(insertResult(['id-1'])),
@@ -541,7 +555,7 @@ describe('handle — concurrent write conflicts', () => {
   });
 
   describe('replace', () => {
-    it('returns unsuccessful when storage rejects the write due to concurrent modification (single)', async () => {
+    it('fails when storage rejects the update due to concurrent modification', async () => {
       const deps = makeDeps({
         fetchByIds: vi.fn().mockResolvedValue([doc('id-1', 'Alice')]),
         replaceMany: vi.fn().mockResolvedValue(replaceResult([])),
@@ -554,7 +568,7 @@ describe('handle — concurrent write conflicts', () => {
       expect((result.document as TestDoc).name).toBe('Alice');
     });
 
-    it('marks only the conflicting replaces as unsuccessful (batch)', async () => {
+    it('marks only the conflicting updates as failed in a batch', async () => {
       const deps = makeDeps({
         fetchByIds: vi
           .fn()
@@ -575,7 +589,7 @@ describe('handle — concurrent write conflicts', () => {
   });
 
   describe('delete', () => {
-    it('returns unsuccessful when storage rejects the delete due to concurrent modification (single)', async () => {
+    it('fails when storage rejects the delete due to concurrent modification', async () => {
       const deps = makeDeps({
         fetchByIds: vi.fn().mockResolvedValue([doc('id-1', 'Alice')]),
         deleteManyByIds: vi.fn().mockResolvedValue(deleteResult([])),
@@ -587,7 +601,7 @@ describe('handle — concurrent write conflicts', () => {
       expect(result.successful).toBe(false);
     });
 
-    it('marks only the conflicting deletes as unsuccessful (batch)', async () => {
+    it('marks only the conflicting deletes as failed in a batch', async () => {
       const deps = makeDeps({
         fetchByIds: vi
           .fn()
@@ -605,7 +619,7 @@ describe('handle — concurrent write conflicts', () => {
 });
 
 describe('handle — edge cases', () => {
-  it('returns empty array for empty ID array', async () => {
+  it('returns empty result for empty input', async () => {
     const deps = makeDeps();
     const handle = DocumentCommandHandler(deps);
 
@@ -615,7 +629,7 @@ describe('handle — edge cases', () => {
     expect(deps.storage.fetchByIds).not.toHaveBeenCalled();
   });
 
-  it('returns single-element array (not unwrapped) for single-element array', async () => {
+  it('always returns an array when called with array input', async () => {
     const deps = makeDeps({
       fetchByIds: vi.fn().mockResolvedValue([null]),
       insertMany: vi.fn().mockResolvedValue(insertResult(['id-1'])),

@@ -83,7 +83,11 @@ type DocumentInput =
   | { _id: string; expectedVersion?: ExpectedDocumentVersion };
 
 type DocumentChange<T extends PongoDocument> =
-  | { type: 'noop'; existing: WithIdAndVersion<T> | null }
+  | {
+      type: 'noop';
+      existing: WithIdAndVersion<T> | null;
+      versionMismatch?: boolean;
+    }
   | { type: 'insert'; docId: string; doc: WithoutId<T> }
   | {
       type: 'replace';
@@ -225,7 +229,10 @@ function toHandleResult<T extends PongoDocument>(
 
   if (change.type === 'noop') {
     return {
-      ...operationResult<OperationResult>({ successful: false }, opMeta),
+      ...operationResult<OperationResult>(
+        { successful: !change.versionMismatch },
+        opMeta,
+      ),
       document: change.existing as T | null,
     } as unknown as PongoHandleResult<T>;
   }
@@ -306,14 +313,17 @@ async function handleDocuments<T extends PongoDocument>(
   const prepareDoc = (doc: WithIdAndVersion<T> | null): T | null =>
     doc !== null ? ({ ...doc } as T) : null;
 
+  const versionMismatches = new Set<number>();
   let handlerResults: (T | null)[];
 
   if (parallel) {
     handlerResults = await Promise.all(
       items.map((item, i) => {
         const existing = docs[i] ?? null;
-        if (hasVersionMismatch(existing, item.expectedVersion))
+        if (hasVersionMismatch(existing, item.expectedVersion)) {
+          versionMismatches.add(i);
           return Promise.resolve(existing as T | null);
+        }
         return Promise.resolve(handler(prepareDoc(existing)));
       }),
     );
@@ -322,6 +332,7 @@ async function handleDocuments<T extends PongoDocument>(
     for (let i = 0; i < items.length; i++) {
       const existing = docs[i] ?? null;
       if (hasVersionMismatch(existing, items[i]!.expectedVersion)) {
+        versionMismatches.add(i);
         handlerResults.push(existing as T | null);
       } else {
         handlerResults.push(await handler(prepareDoc(existing)));
@@ -329,14 +340,17 @@ async function handleDocuments<T extends PongoDocument>(
     }
   }
 
-  const changes = ids.map((id, i) =>
-    toDocumentChange(
+  const changes = ids.map((id, i) => {
+    const change = toDocumentChange(
       id,
       docs[i] ?? null,
       handlerResults[i]!,
       skipConcurrencyCheck,
-    ),
-  );
+    );
+    if (change.type === 'noop' && versionMismatches.has(i))
+      return { ...change, versionMismatch: true };
+    return change;
+  });
 
   const storageResults = await executeStorageChanges(
     storage,

@@ -405,7 +405,11 @@ export const pongoCollection = <
             } as WithIdAndVersion<T>),
       );
 
-      const rows = documentsWithMetadata.map((d) => downcast(d as T));
+      const rows = documentsWithMetadata.map((d) => ({
+        ...downcast(d as T),
+        _id: d._id,
+        _version: d._version,
+      }));
 
       const result = await command(
         SqlFor.insertMany(
