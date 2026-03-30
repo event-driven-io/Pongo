@@ -14,8 +14,8 @@ import type {
   PongoInsertOneResult,
   PongoReplaceManyResult,
   PongoUpdateResult,
+  WithId,
   WithIdAndVersion,
-  WithoutId,
 } from '..';
 import { deepEquals, expectedVersionValue, operationResult } from '..';
 
@@ -88,12 +88,11 @@ type DocumentChange<T extends PongoDocument> =
       existing: WithIdAndVersion<T> | null;
       versionMismatch?: boolean;
     }
-  | { type: 'insert'; docId: string; doc: WithoutId<T> }
+  | { type: 'insert'; doc: WithId<T> }
   | {
       type: 'replace';
-      docId: string;
       existing: WithIdAndVersion<T>;
-      result: WithoutId<T>;
+      result: WithId<T>;
       _version?: bigint;
     }
   | { type: 'delete'; docId: string; _version?: bigint };
@@ -136,8 +135,7 @@ function toDocumentChange<T extends PongoDocument>(
   if (!existing && result)
     return {
       type: 'insert',
-      docId,
-      doc: { ...result, _id: docId } as WithoutId<T>,
+      doc: { ...result, _id: docId } as WithId<T>,
     };
 
   if (existing && !result)
@@ -148,15 +146,13 @@ function toDocumentChange<T extends PongoDocument>(
   return skipConcurrencyCheck
     ? {
         type: 'replace',
-        docId,
         existing: existing!,
-        result: result as WithoutId<T>,
+        result: { ...result, _id: docId } as WithId<T>,
       }
     : {
         type: 'replace',
-        docId,
         existing: existing!,
-        result: result as WithoutId<T>,
+        result: { ...result, _id: docId } as WithId<T>,
         _version: existing!._version,
       };
 }
@@ -167,19 +163,16 @@ async function executeStorageChanges<T extends PongoDocument>(
   operationOptions?: CollectionOperationOptions,
 ): Promise<StorageResults> {
   const toInsert = changes.flatMap((c) =>
-    c.type === 'insert'
-      ? [{ _id: c.docId, ...c.doc } as OptionalUnlessRequiredIdAndVersion<T>]
-      : [],
+    c.type === 'insert' ? [c.doc as OptionalUnlessRequiredIdAndVersion<T>] : [],
   );
 
   const toReplace = changes.flatMap((c): Array<WithIdAndVersion<T>> => {
     if (c.type !== 'replace') return [];
     const { _version: _, ...cleanResult } = c.result as Record<string, unknown>;
-    const base = { ...cleanResult, _id: c.docId };
     return [
       (c._version !== undefined
-        ? { ...base, _version: c._version }
-        : base) as WithIdAndVersion<T>,
+        ? { ...cleanResult, _version: c._version }
+        : cleanResult) as WithIdAndVersion<T>,
     ];
   });
 
@@ -238,22 +231,18 @@ function toHandleResult<T extends PongoDocument>(
   }
 
   if (change.type === 'insert') {
-    const succeeded = results.insertedIds.has(change.docId);
+    const succeeded = results.insertedIds.has(change.doc._id);
     return {
       ...operationResult<PongoInsertOneResult>(
         {
           successful: succeeded,
-          insertedId: succeeded ? change.docId : null,
+          insertedId: succeeded ? change.doc._id : null,
           nextExpectedVersion: 1n,
         },
         opMeta,
       ),
       document: succeeded
-        ? ({
-            ...change.doc,
-            _id: change.docId,
-            _version: 1n,
-          } as unknown as T)
+        ? ({ ...change.doc, _version: 1n } as unknown as T)
         : null,
     } as unknown as PongoHandleResult<T>;
   }
@@ -274,9 +263,9 @@ function toHandleResult<T extends PongoDocument>(
   }
 
   const succeeded =
-    results.replaceResult?.modifiedIds.includes(change.docId) ?? false;
+    results.replaceResult?.modifiedIds.includes(change.result._id) ?? false;
   const newVersion =
-    results.replaceResult?.nextExpectedVersions.get(change.docId) ?? 0n;
+    results.replaceResult?.nextExpectedVersions.get(change.result._id) ?? 0n;
   return {
     ...operationResult<PongoUpdateResult>(
       {
