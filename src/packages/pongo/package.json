@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/pongo",
-  "version": "0.17.0-beta.33",
+  "version": "0.17.0-beta.34",
   "description": "Pongo - Mongo with strong consistency on top of PostgreSQL",
   "type": "module",
   "scripts": {
@@ -132,7 +132,7 @@
     "pongo": "dist/cli.js"
   },
   "dependencies": {
-    "@event-driven-io/dumbo": "0.13.0-beta.33",
+    "@event-driven-io/dumbo": "0.13.0-beta.34",
     "@types/mongodb": "^4.0.7",
     "ansis": "^4.2.0",
     "cli-table3": "^0.6.5",
