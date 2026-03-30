@@ -94,15 +94,139 @@ export function DocumentCommandHandler<T extends PongoDocument>(
     handler: DocumentHandler<T>,
     options?: HandleOptions | BatchHandleOptions,
   ): Promise<PongoHandleResult<T> | PongoHandleResult<T>[]> => {
-    const result = await handleDocuments(
-      deps,
+    const changes = await handleDocuments(
+      deps.storage,
       normalizeInput(input),
       handler,
       options,
     );
-    return Array.isArray(input) ? result : result[0]!;
+
+    const results = changes.map(({ change, result: outcome }) =>
+      toHandleResult(deps, change, outcome),
+    );
+
+    return Array.isArray(input) ? results : results[0]!;
   };
   return fn as ReturnType<typeof DocumentCommandHandler<T>>;
+}
+
+async function handleDocuments<T extends PongoDocument>(
+  storage: DocumentCommandHandlerOptions<T>['storage'],
+  inputs: DocumentCommandHandlerInput[],
+  handler: DocumentHandler<T>,
+  options?: BatchHandleOptions,
+): Promise<{ change: DocumentChange<T>; result: DocumentHandlerResult }[]> {
+  if (inputs.length === 0) return [];
+
+  const { parallel, ...operationOptions } = options ?? {};
+
+  await storage.ensureCollectionCreated(operationOptions);
+
+  const docs = await storage.fetchByIds(
+    inputs.map((i) => i._id),
+    operationOptions,
+  );
+
+  const changes = await mapAsync(
+    inputs,
+    (item, i) =>
+      handleDocument(
+        {
+          ...item,
+          existing: docs[i] ?? null,
+        },
+        handler,
+      ),
+    { parallel },
+  );
+
+  return await executeStorageChanges(storage, changes, operationOptions);
+}
+
+async function handleDocument<T extends PongoDocument>(
+  item: {
+    _id: string;
+    expectedVersion?: ExpectedDocumentVersion | undefined;
+    existing: WithIdAndVersion<T> | null;
+  },
+  handler: DocumentHandler<T>,
+): Promise<DocumentChange<T>> {
+  const { _id: id, existing, expectedVersion } = item;
+
+  if (hasVersionMismatch(existing, expectedVersion))
+    return { type: 'noop', existing, versionMismatch: true };
+
+  const result = await handler(existing ? ({ ...existing } as T) : null);
+
+  return toDocumentChange(id, existing, result);
+}
+
+async function executeStorageChanges<T extends PongoDocument>(
+  storage: DocumentCommandHandlerOptions<T>['storage'],
+  changes: DocumentChange<T>[],
+  operationOptions?: CollectionOperationOptions,
+): Promise<{ change: DocumentChange<T>; result: DocumentHandlerResult }[]> {
+  const toInsert = changes.flatMap((c) =>
+    c.type === 'insert' ? [c.doc as OptionalUnlessRequiredIdAndVersion<T>] : [],
+  );
+
+  const toReplace = changes.flatMap((c): Array<WithIdAndVersion<T>> => {
+    if (c.type !== 'replace') return [];
+    const { _version: _, ...cleanResult } = c.result as Record<string, unknown>;
+    return [
+      (c._version !== undefined
+        ? { ...cleanResult, _version: c._version }
+        : cleanResult) as WithIdAndVersion<T>,
+    ];
+  });
+
+  const toDelete = changes.flatMap((c) =>
+    c.type === 'delete'
+      ? [
+          c._version !== undefined
+            ? { _id: c.docId, _version: c._version }
+            : { _id: c.docId },
+        ]
+      : [],
+  );
+
+  const insertedIds =
+    toInsert.length > 0
+      ? new Set(
+          (await storage.insertMany(toInsert, operationOptions)).insertedIds,
+        )
+      : new Set<string>();
+
+  const replaceResult =
+    toReplace.length > 0
+      ? await storage.replaceMany(toReplace, operationOptions)
+      : null;
+
+  const deletedIds =
+    toDelete.length > 0
+      ? (await storage.deleteManyByIds(toDelete, operationOptions)).deletedIds
+      : new Set<string>();
+
+  const toDocumentHandlerResult = (
+    change: DocumentChange<T>,
+  ): DocumentHandlerResult => {
+    if (change.type === 'noop') return { succeeded: !change.versionMismatch };
+    if (change.type === 'insert')
+      return { succeeded: insertedIds.has(change.doc._id), newVersion: 1n };
+    if (change.type === 'delete')
+      return { succeeded: deletedIds.has(change.docId) };
+
+    const id = change.result._id;
+    return {
+      succeeded: replaceResult?.modifiedIds.includes(id) ?? false,
+      newVersion: replaceResult?.nextExpectedVersions.get(id) ?? 0n,
+    };
+  };
+
+  return changes.map((change) => ({
+    change,
+    result: toDocumentHandlerResult(change),
+  }));
 }
 
 function normalizeInput(
@@ -161,72 +285,6 @@ function toDocumentChange<T extends PongoDocument>(
   };
 }
 
-async function executeStorageChanges<T extends PongoDocument>(
-  storage: DocumentCommandHandlerOptions<T>['storage'],
-  changes: DocumentChange<T>[],
-  operationOptions?: CollectionOperationOptions,
-): Promise<{ change: DocumentChange<T>; outcome: DocumentHandlerResult }[]> {
-  const toInsert = changes.flatMap((c) =>
-    c.type === 'insert' ? [c.doc as OptionalUnlessRequiredIdAndVersion<T>] : [],
-  );
-
-  const toReplace = changes.flatMap((c): Array<WithIdAndVersion<T>> => {
-    if (c.type !== 'replace') return [];
-    const { _version: _, ...cleanResult } = c.result as Record<string, unknown>;
-    return [
-      (c._version !== undefined
-        ? { ...cleanResult, _version: c._version }
-        : cleanResult) as WithIdAndVersion<T>,
-    ];
-  });
-
-  const toDelete = changes.flatMap((c) =>
-    c.type === 'delete'
-      ? [
-          c._version !== undefined
-            ? { _id: c.docId, _version: c._version }
-            : { _id: c.docId },
-        ]
-      : [],
-  );
-
-  const insertedIds =
-    toInsert.length > 0
-      ? new Set(
-          (await storage.insertMany(toInsert, operationOptions)).insertedIds,
-        )
-      : new Set<string>();
-
-  const replaceResult =
-    toReplace.length > 0
-      ? await storage.replaceMany(toReplace, operationOptions)
-      : null;
-
-  const deletedIds =
-    toDelete.length > 0
-      ? (await storage.deleteManyByIds(toDelete, operationOptions)).deletedIds
-      : new Set<string>();
-
-  const toOutcome = (change: DocumentChange<T>): DocumentHandlerResult => {
-    if (change.type === 'noop') return { succeeded: !change.versionMismatch };
-    if (change.type === 'insert')
-      return { succeeded: insertedIds.has(change.doc._id), newVersion: 1n };
-    if (change.type === 'delete')
-      return { succeeded: deletedIds.has(change.docId) };
-
-    const id = change.result._id;
-    return {
-      succeeded: replaceResult?.modifiedIds.includes(id) ?? false,
-      newVersion: replaceResult?.nextExpectedVersions.get(id) ?? 0n,
-    };
-  };
-
-  return changes.map((change) => ({
-    change,
-    outcome: toOutcome(change),
-  }));
-}
-
 function toHandleResult<T extends PongoDocument>(
   deps: DocumentCommandHandlerOptions<T>,
   change: DocumentChange<T>,
@@ -280,62 +338,5 @@ function toHandleResult<T extends PongoDocument>(
     succeeded
       ? ({ ...change.result, _version: newVersion } as unknown as T)
       : (change.existing as T | null),
-  );
-}
-
-async function handleDocument<T extends PongoDocument>(
-  id: string,
-  existing: WithIdAndVersion<T> | null,
-  handler: DocumentHandler<T>,
-  expectedVersion: ExpectedDocumentVersion | undefined,
-): Promise<DocumentChange<T>> {
-  if (hasVersionMismatch(existing, expectedVersion))
-    return { type: 'noop', existing, versionMismatch: true };
-
-  const result = await handler(existing ? ({ ...existing } as T) : null);
-
-  return toDocumentChange(id, existing, result);
-}
-
-async function handleDocuments<T extends PongoDocument>(
-  deps: DocumentCommandHandlerOptions<T>,
-  inputs: DocumentCommandHandlerInput[],
-  handler: DocumentHandler<T>,
-  options?: BatchHandleOptions,
-): Promise<PongoHandleResult<T>[]> {
-  if (inputs.length === 0) return [];
-
-  const { storage } = deps;
-  const { parallel, ...operationOptions } = options ?? {};
-  const items = inputs.map((input) =>
-    typeof input === 'string' ? { _id: input } : input,
-  );
-
-  await storage.ensureCollectionCreated(operationOptions);
-  const docs = await storage.fetchByIds(
-    items.map((i) => i._id),
-    operationOptions,
-  );
-
-  const itemsWithDocs = items.map((item, i) => ({
-    ...item,
-    existing: docs[i] ?? null,
-  }));
-
-  const changes = await mapAsync(
-    itemsWithDocs,
-    ({ _id, existing, expectedVersion }) =>
-      handleDocument(_id, existing, handler, expectedVersion),
-    { parallel },
-  );
-
-  const outcomes = await executeStorageChanges(
-    storage,
-    changes,
-    operationOptions,
-  );
-
-  return outcomes.map(({ change, outcome }) =>
-    toHandleResult(deps, change, outcome),
   );
 }
