@@ -187,9 +187,10 @@ describe('handle — single document version checking', () => {
     const deps = makeDeps({ fetchByIds: vi.fn().mockResolvedValue([null]) });
     const handle = DocumentCommandHandler(deps);
 
-    const result = await handle('id-1', () => ({ name: 'X' }), {
-      expectedVersion: 'DOCUMENT_EXISTS',
-    });
+    const result = await handle(
+      { _id: 'id-1', expectedVersion: 'DOCUMENT_EXISTS' },
+      () => ({ name: 'X' }),
+    );
 
     expect(deps.storage.insertMany).not.toHaveBeenCalled();
     expect(result.successful).toBe(false);
@@ -199,9 +200,9 @@ describe('handle — single document version checking', () => {
     const deps = makeDeps({ fetchByIds: vi.fn().mockResolvedValue([null]) });
     const handle = DocumentCommandHandler(deps);
 
-    const result = await handle('id-1', () => ({ name: 'X' }), {
-      expectedVersion: 1n,
-    });
+    const result = await handle({ _id: 'id-1', expectedVersion: 1n }, () => ({
+      name: 'X',
+    }));
 
     expect(deps.storage.insertMany).not.toHaveBeenCalled();
     expect(result.successful).toBe(false);
@@ -213,9 +214,10 @@ describe('handle — single document version checking', () => {
     });
     const handle = DocumentCommandHandler(deps);
 
-    const result = await handle('id-1', (d) => ({ ...d!, name: 'X' }), {
-      expectedVersion: 'DOCUMENT_DOES_NOT_EXIST',
-    });
+    const result = await handle(
+      { _id: 'id-1', expectedVersion: 'DOCUMENT_DOES_NOT_EXIST' },
+      (d) => ({ ...d!, name: 'X' }),
+    );
 
     expect(deps.storage.replaceMany).not.toHaveBeenCalled();
     expect(result.successful).toBe(false);
@@ -227,9 +229,10 @@ describe('handle — single document version checking', () => {
     });
     const handle = DocumentCommandHandler(deps);
 
-    const result = await handle('id-1', (d) => ({ ...d!, name: 'X' }), {
-      expectedVersion: 333n,
-    });
+    const result = await handle(
+      { _id: 'id-1', expectedVersion: 333n },
+      (d) => ({ ...d!, name: 'X' }),
+    );
 
     expect(deps.storage.replaceMany).not.toHaveBeenCalled();
     expect(result.successful).toBe(false);
@@ -242,7 +245,10 @@ describe('handle — single document version checking', () => {
     });
     const handle = DocumentCommandHandler(deps);
 
-    const result = await handle('id-1', (d) => d, { expectedVersion: 99n });
+    const result = await handle(
+      { _id: 'id-1', expectedVersion: 99n },
+      (d) => d,
+    );
 
     expect(deps.storage.replaceMany).not.toHaveBeenCalled();
     expect(result.successful).toBe(false);
@@ -255,9 +261,10 @@ describe('handle — single document version checking', () => {
     });
     const handle = DocumentCommandHandler(deps);
 
-    const result = await handle('id-1', (d) => ({ ...d!, name: 'Bob' }), {
-      expectedVersion: 5n,
-    });
+    const result = await handle({ _id: 'id-1', expectedVersion: 5n }, (d) => ({
+      ...d!,
+      name: 'Bob',
+    }));
 
     expect(deps.storage.replaceMany).toHaveBeenCalledWith(
       [expect.objectContaining({ _id: 'id-1', _version: 5n })],
@@ -273,7 +280,10 @@ describe('handle — single document version checking', () => {
     });
     const handle = DocumentCommandHandler(deps);
 
-    const result = await handle('id-1', () => null, { expectedVersion: 5n });
+    const result = await handle(
+      { _id: 'id-1', expectedVersion: 5n },
+      () => null,
+    );
 
     expect(deps.storage.deleteManyByIds).toHaveBeenCalledWith(
       [expect.objectContaining({ _id: 'id-1', _version: 5n })],
@@ -438,19 +448,17 @@ describe('handle — batch concurrency', () => {
     expect(result[0]!.successful).toBe(false);
   });
 
-  it('skips version check in storage when skipConcurrencyCheck is true', async () => {
+  it('skips version check in storage when no version is provided', async () => {
     const deps = makeDeps({
       fetchByIds: vi.fn().mockResolvedValue([doc('id-1', 'Alice', 5n)]),
       replaceMany: vi.fn().mockResolvedValue(replaceResult(['id-1'])),
     });
     const handle = DocumentCommandHandler(deps);
 
-    await handle(['id-1'], (d) => ({ ...d!, name: 'Forced' }), {
-      skipConcurrencyCheck: true,
-    });
+    await handle([{ _id: 'id-1' }], (d) => ({ ...d!, name: 'Forced' }));
 
     expect(deps.storage.replaceMany).toHaveBeenCalledWith(
-      [{ _id: 'id-1', name: 'Forced' }],
+      [{ _id: 'id-1', name: 'Forced', _version: 5n }],
       expect.anything(),
     );
   });

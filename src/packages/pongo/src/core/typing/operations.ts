@@ -17,7 +17,10 @@ import type {
 import { v7 as uuid } from 'uuid';
 import type { MaybePromise } from '.';
 import type { CacheConfig, PongoCache, PongoTransactionCache } from '../cache';
-import type { PongoCollectionSchemaComponent } from '../collection';
+import type {
+  DocumentCommandHandlerInput,
+  PongoCollectionSchemaComponent,
+} from '../collection';
 import type { PongoDatabaseSchemaComponent } from '../database/pongoDatabaseSchemaComponent';
 import type { AnyPongoDriver, ExtractPongoDriverOptions } from '../drivers';
 import { ConcurrencyError } from '../errors';
@@ -188,12 +191,9 @@ export type UpdateManyOptions = {
   >;
 } & CollectionOperationOptions;
 
-export type HandleOptions = {
-  expectedVersion?: ExpectedDocumentVersion;
-} & CollectionOperationOptions;
+export type HandleOptions = CollectionOperationOptions;
 
 export type BatchHandleOptions = {
-  skipConcurrencyCheck?: boolean;
   parallel?: boolean;
 } & CollectionOperationOptions;
 
@@ -286,12 +286,12 @@ export interface PongoCollection<T extends PongoDocument> {
     options?: CollectionOperationOptions,
   ): Promise<PongoCollection<T>>;
   handle(
-    id: string,
+    id: string | DocumentCommandHandlerInput,
     handle: DocumentHandler<T>,
     options?: HandleOptions,
   ): Promise<PongoHandleResult<T>>;
   handle(
-    id: string[],
+    id: string[] | DocumentCommandHandlerInput[],
     handle: DocumentHandler<T>,
     options?: BatchHandleOptions,
   ): Promise<PongoHandleResult<T>[]>;

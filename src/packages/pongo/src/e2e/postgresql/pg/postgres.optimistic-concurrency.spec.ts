@@ -696,9 +696,13 @@ describe('MongoDB Compatibility Tests', () => {
 
       const handle = (_existing: User | null) => newDoc;
 
-      const resultPongo = await users.handle(nonExistingId, handle, {
-        expectedVersion: 'DOCUMENT_EXISTS',
-      });
+      const resultPongo = await users.handle(
+        {
+          _id: nonExistingId,
+          expectedVersion: 'DOCUMENT_EXISTS',
+        },
+        handle,
+      );
       assert(resultPongo.successful === false);
       assert(resultPongo.document === null);
 
@@ -716,9 +720,13 @@ describe('MongoDB Compatibility Tests', () => {
 
       const handle = (_existing: User | null) => newDoc;
 
-      const resultPongo = await users.handle(nonExistingId, handle, {
-        expectedVersion: 1n,
-      });
+      const resultPongo = await users.handle(
+        {
+          _id: nonExistingId,
+          expectedVersion: 1n,
+        },
+        handle,
+      );
       assert(resultPongo.successful === false);
       assert(resultPongo.document === null);
 
@@ -738,11 +746,8 @@ describe('MongoDB Compatibility Tests', () => {
       const handle = (_existing: User | null) => updatedDoc;
 
       const resultPongo = await users.handle(
-        pongoInsertResult.insertedId!,
+        { _id: pongoInsertResult.insertedId!, expectedVersion: 1n },
         handle,
-        {
-          expectedVersion: 1n,
-        },
       );
 
       assert(resultPongo.successful === true);
@@ -771,11 +776,11 @@ describe('MongoDB Compatibility Tests', () => {
       const handle = (_existing: User | null) => updatedDoc;
 
       const resultPongo = await users.handle(
-        pongoInsertResult.insertedId!,
-        handle,
         {
+          _id: pongoInsertResult.insertedId!,
           expectedVersion: 'DOCUMENT_DOES_NOT_EXIST',
         },
+        handle,
       );
 
       assert(resultPongo.successful === false);
@@ -804,11 +809,11 @@ describe('MongoDB Compatibility Tests', () => {
       const handle = (_existing: User | null) => updatedDoc;
 
       const resultPongo = await users.handle(
-        pongoInsertResult.insertedId!,
-        handle,
         {
+          _id: pongoInsertResult.insertedId!,
           expectedVersion: 333n,
         },
+        handle,
       );
 
       assert(resultPongo.successful === false);
@@ -836,11 +841,8 @@ describe('MongoDB Compatibility Tests', () => {
       const handle = (_existing: User | null) => null;
 
       const resultPongo = await users.handle(
-        pongoInsertResult.insertedId!,
+        { _id: pongoInsertResult.insertedId!, expectedVersion: 1n },
         handle,
-        {
-          expectedVersion: 1n,
-        },
       );
       assert(resultPongo.successful === true);
 
@@ -860,11 +862,11 @@ describe('MongoDB Compatibility Tests', () => {
       const handle = (_existing: User | null) => null;
 
       const resultPongo = await users.handle(
-        pongoInsertResult.insertedId!,
-        handle,
         {
+          _id: pongoInsertResult.insertedId!,
           expectedVersion: 'DOCUMENT_DOES_NOT_EXIST',
         },
+        handle,
       );
       assert(resultPongo.successful === false);
 
@@ -893,11 +895,11 @@ describe('MongoDB Compatibility Tests', () => {
       const handle = (_existing: User | null) => null;
 
       const resultPongo = await users.handle(
-        pongoInsertResult.insertedId!,
-        handle,
         {
+          _id: pongoInsertResult.insertedId!,
           expectedVersion: 333n,
         },
+        handle,
       );
       assert(resultPongo.successful === false);
 
@@ -1028,7 +1030,7 @@ describe('MongoDB Compatibility Tests', () => {
       assert(doc2Result?.document?.age === doc2.age + 1);
     });
 
-    it('should skip OC when skipConcurrencyCheck is true', async () => {
+    it('should skip OC when expected versions are not provided', async () => {
       const doc1: User = { _id: ObjectId(), name: 'Grace', age: 30 };
       const doc2: User = { _id: ObjectId(), name: 'Hank', age: 31 };
 
@@ -1038,11 +1040,8 @@ describe('MongoDB Compatibility Tests', () => {
       // Modify doc1 externally between our read and write
       await users.updateOne({ _id: doc1._id! }, { $set: { age: 99 } });
 
-      const results = await users.handle(
-        [doc1._id!, doc2._id!],
-        (existing) =>
-          existing ? { ...existing, age: existing.age + 1 } : null,
-        { skipConcurrencyCheck: true },
+      const results = await users.handle([doc1._id!, doc2._id!], (existing) =>
+        existing ? { ...existing, age: existing.age + 1 } : null,
       );
 
       assert(results.length === 2);

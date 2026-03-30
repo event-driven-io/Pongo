@@ -927,6 +927,7 @@ describe('SQLite MongoDB Compatibility Tests', () => {
       assert(resultPongo.successful);
       assert.deepStrictEqual(resultPongo.document, {
         ...updatedDoc,
+        _id: pongoInsertResult.insertedId,
         _version: 2n,
       });
 

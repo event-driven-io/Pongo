@@ -49,41 +49,10 @@ export type DocumentCommandHandlerOptions<T extends PongoDocument> = {
   };
 };
 
-export function DocumentCommandHandler<T extends PongoDocument>(
-  deps: DocumentCommandHandlerOptions<T>,
-): {
-  (
-    id: string,
-    handler: DocumentHandler<T>,
-    options?: HandleOptions & BatchHandleOptions,
-  ): Promise<PongoHandleResult<T>>;
-  (
-    ids: string[],
-    handler: DocumentHandler<T>,
-    options?: HandleOptions & BatchHandleOptions,
-  ): Promise<PongoHandleResult<T>[]>;
-} {
-  const fn = async (
-    id: string | string[],
-    handler: DocumentHandler<T>,
-    options?: HandleOptions & BatchHandleOptions,
-  ): Promise<PongoHandleResult<T> | PongoHandleResult<T>[]> => {
-    if (Array.isArray(id)) {
-      return handleDocuments(deps, id, handler, options);
-    }
-    const { expectedVersion, ...batchOptions } = options ?? {};
-    const input: DocumentInput[] = expectedVersion
-      ? [{ _id: id, expectedVersion }]
-      : [id];
-    const [result] = await handleDocuments(deps, input, handler, batchOptions);
-    return result!;
-  };
-  return fn as ReturnType<typeof DocumentCommandHandler<T>>;
-}
-
-type DocumentInput =
-  | string
-  | { _id: string; expectedVersion?: ExpectedDocumentVersion };
+export type DocumentCommandHandlerInput = {
+  _id: string;
+  expectedVersion?: ExpectedDocumentVersion;
+};
 
 type DocumentChange<T extends PongoDocument> =
   | {
@@ -102,6 +71,54 @@ type DocumentChange<T extends PongoDocument> =
 
 type DocumentHandlerResult = { succeeded: boolean; newVersion?: bigint };
 
+export function DocumentCommandHandler<T extends PongoDocument>(
+  deps: DocumentCommandHandlerOptions<T>,
+): {
+  (
+    id: string | DocumentCommandHandlerInput,
+    handler: DocumentHandler<T>,
+    options?: HandleOptions,
+  ): Promise<PongoHandleResult<T>>;
+  (
+    ids: string[] | DocumentCommandHandlerInput[],
+    handler: DocumentHandler<T>,
+    options?: HandleOptions & BatchHandleOptions,
+  ): Promise<PongoHandleResult<T>[]>;
+} {
+  const fn = async (
+    input:
+      | string
+      | string[]
+      | DocumentCommandHandlerInput
+      | DocumentCommandHandlerInput[],
+    handler: DocumentHandler<T>,
+    options?: HandleOptions | BatchHandleOptions,
+  ): Promise<PongoHandleResult<T> | PongoHandleResult<T>[]> => {
+    const result = await handleDocuments(
+      deps,
+      normalizeInput(input),
+      handler,
+      options,
+    );
+    return Array.isArray(input) ? result : result[0]!;
+  };
+  return fn as ReturnType<typeof DocumentCommandHandler<T>>;
+}
+
+function normalizeInput(
+  input:
+    | string
+    | string[]
+    | DocumentCommandHandlerInput
+    | DocumentCommandHandlerInput[],
+): DocumentCommandHandlerInput[] {
+  if (typeof input === 'string') return [{ _id: input }];
+
+  if (!Array.isArray(input)) return [input];
+
+  return input.map((item) => (typeof item === 'string' ? { _id: item } : item));
+}
+
 function hasVersionMismatch<T extends PongoDocument>(
   existing: WithIdAndVersion<T> | null,
   version?: ExpectedDocumentVersion,
@@ -119,7 +136,6 @@ function toDocumentChange<T extends PongoDocument>(
   docId: string,
   existing: WithIdAndVersion<T> | null,
   result: T | null,
-  skipConcurrencyCheck?: boolean,
 ): DocumentChange<T> {
   if (deepEquals(existing as T | null, result))
     return { type: 'noop', existing };
@@ -134,14 +150,14 @@ function toDocumentChange<T extends PongoDocument>(
     return {
       type: 'delete',
       docId,
-      ...(!skipConcurrencyCheck && { _version: existing._version }),
+      _version: existing._version,
     };
 
   return {
     type: 'replace',
     existing: existing!,
     result: { ...result, _id: docId } as WithId<T>,
-    ...(!skipConcurrencyCheck && { _version: existing!._version }),
+    _version: existing!._version,
   };
 }
 
@@ -272,26 +288,25 @@ async function handleDocument<T extends PongoDocument>(
   existing: WithIdAndVersion<T> | null,
   handler: DocumentHandler<T>,
   expectedVersion: ExpectedDocumentVersion | undefined,
-  skipConcurrencyCheck?: boolean,
 ): Promise<DocumentChange<T>> {
   if (hasVersionMismatch(existing, expectedVersion))
     return { type: 'noop', existing, versionMismatch: true };
 
   const result = await handler(existing ? ({ ...existing } as T) : null);
 
-  return toDocumentChange(id, existing, result, skipConcurrencyCheck);
+  return toDocumentChange(id, existing, result);
 }
 
 async function handleDocuments<T extends PongoDocument>(
   deps: DocumentCommandHandlerOptions<T>,
-  inputs: DocumentInput[],
+  inputs: DocumentCommandHandlerInput[],
   handler: DocumentHandler<T>,
   options?: BatchHandleOptions,
 ): Promise<PongoHandleResult<T>[]> {
   if (inputs.length === 0) return [];
 
   const { storage } = deps;
-  const { skipConcurrencyCheck, parallel, ...operationOptions } = options ?? {};
+  const { parallel, ...operationOptions } = options ?? {};
   const items = inputs.map((input) =>
     typeof input === 'string' ? { _id: input } : input,
   );
@@ -310,13 +325,7 @@ async function handleDocuments<T extends PongoDocument>(
   const changes = await mapAsync(
     itemsWithDocs,
     ({ _id, existing, expectedVersion }) =>
-      handleDocument(
-        _id,
-        existing,
-        handler,
-        expectedVersion,
-        skipConcurrencyCheck,
-      ),
+      handleDocument(_id, existing, handler, expectedVersion),
     { parallel },
   );
 
