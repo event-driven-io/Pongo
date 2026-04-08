@@ -156,7 +156,7 @@ async function handleDocument<T extends PongoDocument>(
   if (hasVersionMismatch(existing, expectedVersion))
     return { type: 'noop', existing, versionMismatch: true };
 
-  const result = await handler(existing ? ({ ...existing } as T) : null);
+  const result = await handler(existing ? ({ ...existing } as T) : null, id);
 
   return toDocumentChange(id, existing, result);
 }
