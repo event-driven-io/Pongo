@@ -612,5 +612,5 @@ export type PongoHandleResult<T> =
 export type PongoDocument = Record<string, unknown>;
 
 export type DocumentHandler<T extends PongoDocument> =
-  | ((document: T | null) => T | null)
-  | ((document: T | null) => Promise<T | null>);
+  | ((document: T | null, id: string) => T | null)
+  | ((document: T | null, id: string) => Promise<T | null>);

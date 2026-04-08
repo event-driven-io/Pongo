@@ -81,7 +81,11 @@ describe('handle — single document', () => {
     });
     const handle = DocumentCommandHandler(deps);
 
-    const result = await handle('id-1', () => ({ name: 'Alice' }));
+    const result = await handle('id-1', (doc, id) => {
+      expect(doc).toBeNull();
+      expect(id).toBe('id-1');
+      return { name: 'Alice' };
+    });
 
     expect(deps.storage.insertMany).toHaveBeenCalledWith(
       [expect.objectContaining({ _id: 'id-1', name: 'Alice' })],
@@ -98,7 +102,11 @@ describe('handle — single document', () => {
     });
     const handle = DocumentCommandHandler(deps);
 
-    const result = await handle('id-1', (d) => ({ ...d!, name: 'Bob' }));
+    const result = await handle('id-1', (d, id) => {
+      expect(d).toEqual(doc('id-1', 'Alice'));
+      expect(id).toBe('id-1');
+      return { ...d!, name: 'Bob' };
+    });
 
     expect(deps.storage.replaceMany).toHaveBeenCalledWith(
       [expect.objectContaining({ _id: 'id-1', name: 'Bob' })],
@@ -147,7 +155,7 @@ describe('handle — single document', () => {
 
     await handle('id-1', handler);
 
-    expect(handler).toHaveBeenCalledWith(null);
+    expect(handler).toHaveBeenCalledWith(null, 'id-1');
   });
 
   it('gives handler a copy of the document, not the original reference', async () => {
@@ -303,10 +311,13 @@ describe('handle — batch operations', () => {
     });
     const handle = DocumentCommandHandler(deps);
 
-    const results = await handle(['id-1', 'id-2'], (d) =>
-      d ? { ...d, name: 'Updated' } : { name: 'New' },
-    );
+    const ids: string[] = [];
+    const results = await handle(['id-1', 'id-2'], (d, id) => {
+      ids.push(id);
+      return d ? { ...d, name: 'Updated' } : { name: 'New' };
+    });
 
+    expect(ids).toEqual(['id-1', 'id-2']);
     expect(results).toHaveLength(2);
     expect(results[0]!.successful).toBe(true);
     expect(results[1]!.successful).toBe(true);
