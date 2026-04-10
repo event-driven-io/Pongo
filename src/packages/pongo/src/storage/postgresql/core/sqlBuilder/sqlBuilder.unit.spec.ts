@@ -80,7 +80,9 @@ describe('find() sort option', () => {
     const query = builder.find({}, { sort: { age: -1, name: 1 } });
     const { query: sql } = SQL.format(query, pgFormatter);
     assert.ok(
-      sql.includes(`ORDER BY data -> 'age' DESC,data -> 'name' ASC`),
+      sql.includes(
+        `ORDER BY data -> 'age' DESC NULLS LAST,data -> 'name' ASC NULLS FIRST`,
+      ),
       `got: ${sql}`,
     );
   });
@@ -98,5 +100,31 @@ describe('find() sort option', () => {
     const query = builder.find({}, { sort: { 'a.b.c': -1 } });
     const { query: sql } = SQL.format(query, pgFormatter);
     assert.ok(sql.includes(`ORDER BY data #> '{a,b,c}' DESC`), `got: ${sql}`);
+  });
+
+  it('places documents with missing field first on ASC sort (NULLS FIRST)', () => {
+    const query = builder.find({}, { sort: { age: 1 } });
+    const { query: sql } = SQL.format(query, pgFormatter);
+    assert.ok(sql.includes(`ASC NULLS FIRST`), `got: ${sql}`);
+  });
+
+  it('places documents with missing field last on DESC sort (NULLS LAST)', () => {
+    const query = builder.find({}, { sort: { age: -1 } });
+    const { query: sql } = SQL.format(query, pgFormatter);
+    assert.ok(sql.includes(`DESC NULLS LAST`), `got: ${sql}`);
+  });
+
+  it('sorts by _id using the native column, not the JSON field', () => {
+    const query = builder.find({}, { sort: { _id: 1 } });
+    const { query: sql } = SQL.format(query, pgFormatter);
+    assert.ok(sql.includes('ORDER BY _id ASC'), `got: ${sql}`);
+    assert.ok(!sql.includes('data ->'), `got: ${sql}`);
+  });
+
+  it('sorts by _version using the native column, not the JSON field', () => {
+    const query = builder.find({}, { sort: { _version: -1 } });
+    const { query: sql } = SQL.format(query, pgFormatter);
+    assert.ok(sql.includes('ORDER BY _version DESC'), `got: ${sql}`);
+    assert.ok(!sql.includes('data ->'), `got: ${sql}`);
   });
 });

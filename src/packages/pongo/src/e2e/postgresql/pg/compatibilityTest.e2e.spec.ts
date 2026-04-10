@@ -1169,6 +1169,62 @@ describe('MongoDB Compatibility Tests', () => {
         mongoDocs.map((d) => d.age),
       );
     });
+
+    it('sort by _id produces same order in Pongo and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>('sortByIdCollection');
+      const mongoCollection = mongoDb.collection<User>('sortByIdCollection');
+      const docs = [
+        { name: 'Charlie', age: 30 },
+        { name: 'Alice', age: 25 },
+        { name: 'Bob', age: 28 },
+      ];
+
+      await pongoCollection.insertMany(docs);
+      await mongoCollection.insertMany(docs);
+
+      const pongoDocs = await pongoCollection
+        .find({}, { sort: { _id: 1 } })
+        .toArray();
+      const mongoDocs = await mongoCollection
+        .find({}, { sort: { _id: 1 } })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => d.name),
+        mongoDocs.map((d) => d.name),
+      );
+    });
+
+    it('documents with missing sort field sort first on ASC, matching MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>(
+        'sortNullsFirstCollection',
+      );
+      const mongoCollection = mongoDb.collection<User>(
+        'sortNullsFirstCollection',
+      );
+      // 'Alice' has no age — should appear first in both ASC results
+      const docs = [
+        { name: 'Bob', age: 30 },
+        { name: 'Alice', age: undefined },
+        { name: 'Charlie', age: 20 },
+      ] as User[];
+
+      await pongoCollection.insertMany(docs);
+      await mongoCollection.insertMany(docs);
+
+      const pongoDocs = await pongoCollection
+        .find({}, { sort: { age: 1 } })
+        .toArray();
+      const mongoDocs = await mongoCollection
+        .find({}, { sort: { age: 1 } })
+        .toArray();
+
+      assert.strictEqual(pongoDocs[0]!.name, 'Alice');
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => d.name),
+        mongoDocs.map((d) => d.name),
+      );
+    });
   });
 
   describe('Handle Operations', () => {
