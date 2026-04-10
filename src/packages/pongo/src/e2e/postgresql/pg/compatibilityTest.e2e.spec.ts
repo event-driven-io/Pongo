@@ -1025,6 +1025,58 @@ describe('MongoDB Compatibility Tests', () => {
         mongoDocs.map((d) => ({ name: d.name, age: d.age })),
       );
     });
+
+    it('sort ASC produces same order in Pongo and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>('sortAscCollection');
+      const mongoCollection = mongoDb.collection<User>('sortAscCollection');
+      const docs = [
+        { name: 'Charlie', age: 30 },
+        { name: 'Alice', age: 25 },
+        { name: 'Bob', age: 28 },
+      ];
+
+      await pongoCollection.insertMany(docs);
+      await mongoCollection.insertMany(docs);
+
+      const pongoDocs = await pongoCollection
+        .find({}, { sort: { name: 1 } })
+        .toArray();
+      const mongoDocs = await mongoCollection
+        .find({}, { sort: { name: 1 } })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => d.name),
+        ['Alice', 'Bob', 'Charlie'],
+      );
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => d.name),
+        mongoDocs.map((d) => d.name),
+      );
+    });
+
+    it('sort DESC + limit + skip produces same result in Pongo and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>('sortDescLimitCollection');
+      const mongoCollection = mongoDb.collection<User>('sortDescLimitCollection');
+      const docs = [
+        { name: 'A', age: 40 },
+        { name: 'B', age: 45 },
+        { name: 'C', age: 50 },
+        { name: 'D', age: 35 },
+      ];
+
+      await pongoCollection.insertMany(docs);
+      await mongoCollection.insertMany(docs);
+
+      const opts = { sort: { age: -1 as const }, limit: 2, skip: 1 };
+      const pongoDocs = await pongoCollection.find({}, opts).toArray();
+      const mongoDocs = await mongoCollection.find({}, opts).toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => d.age),
+        mongoDocs.map((d) => d.age),
+      );
+    });
   });
 
   describe('Handle Operations', () => {

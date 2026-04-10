@@ -316,6 +316,15 @@ export const postgresSQLBuilder = (
 
     query.push(where(filterQuery));
 
+    if (options?.sort) {
+      const clauses = Object.entries(options.sort).map(([field, dir]) =>
+        dir === 1
+          ? SQL`data ->> '${SQL.plain(field)}' ASC`
+          : SQL`data ->> '${SQL.plain(field)}' DESC`,
+      );
+      query.push(SQL`ORDER BY ${SQL.merge(clauses, ',')}`);
+    }
+
     if (options?.limit) {
       query.push(SQL`LIMIT ${options.limit}`);
     }

@@ -66,6 +66,30 @@ describe('sqliteSQLBuilder', () => {
       assert.ok(query.includes('LIMIT'));
       assert.ok(query.includes('OFFSET'));
     });
+
+    it('sorts ASC by a single field', () => {
+      const result = builder.find({}, { sort: { name: 1 } });
+      const { query } = SQL.format(result, sqliteFormatter);
+      assert.ok(query.includes(`ORDER BY json_extract(data, '$.name') ASC`), `got: ${query}`);
+    });
+
+    it('sorts DESC by a single field', () => {
+      const result = builder.find({}, { sort: { created_at: -1 } });
+      const { query } = SQL.format(result, sqliteFormatter);
+      assert.ok(query.includes(`ORDER BY json_extract(data, '$.created_at') DESC`), `got: ${query}`);
+    });
+
+    it('ORDER BY appears before LIMIT', () => {
+      const result = builder.find({}, { sort: { name: 1 }, limit: 10 });
+      const { query } = SQL.format(result, sqliteFormatter);
+      assert.ok(query.indexOf('ORDER BY') < query.indexOf('LIMIT'), `got: ${query}`);
+    });
+
+    it('sort + limit + skip produces correct clause order', () => {
+      const result = builder.find({}, { sort: { name: 1 }, limit: 10, skip: 5 });
+      const { query } = SQL.format(result, sqliteFormatter);
+      assert.ok(/ORDER BY.*LIMIT.*OFFSET/s.test(query), `got: ${query}`);
+    });
   });
 
   describe('update operations', () => {
