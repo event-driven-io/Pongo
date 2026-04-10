@@ -1056,8 +1056,12 @@ describe('MongoDB Compatibility Tests', () => {
     });
 
     it('sort DESC + limit + skip produces same result in Pongo and MongoDB', async () => {
-      const pongoCollection = pongoDb.collection<User>('sortDescLimitCollection');
-      const mongoCollection = mongoDb.collection<User>('sortDescLimitCollection');
+      const pongoCollection = pongoDb.collection<User>(
+        'sortDescLimitCollection',
+      );
+      const mongoCollection = mongoDb.collection<User>(
+        'sortDescLimitCollection',
+      );
       const docs = [
         { name: 'A', age: 40 },
         { name: 'B', age: 45 },
