@@ -51,7 +51,10 @@ describe('find() sort option', () => {
   it('sorts DESC by a single field', () => {
     const query = builder.find({}, { sort: { created_at: -1 } });
     const { query: sql } = SQL.format(query, pgFormatter);
-    assert.ok(sql.includes(`ORDER BY data ->> 'created_at' DESC`), `got: ${sql}`);
+    assert.ok(
+      sql.includes(`ORDER BY data ->> 'created_at' DESC`),
+      `got: ${sql}`,
+    );
   });
 
   it('ORDER BY appears before LIMIT', () => {

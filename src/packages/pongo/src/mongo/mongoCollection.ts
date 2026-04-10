@@ -85,7 +85,12 @@ const toCollectionOperationOptions = (
 const toFindOptions = (
   options: FindOptions | undefined,
 ): PongoFindOptions | undefined => {
-  if (!options?.session && !options?.limit && !options?.skip && !options?.sort) {
+  if (
+    !options?.session &&
+    !options?.limit &&
+    !options?.skip &&
+    !options?.sort
+  ) {
     return undefined;
   }
 
