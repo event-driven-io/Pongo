@@ -316,6 +316,27 @@ export const postgresSQLBuilder = (
 
     query.push(where(filterQuery));
 
+    if (options?.sort && Object.keys(options.sort).length > 0) {
+      const clauses = Object.entries(options.sort).map(([field, dir]) => {
+        const isMetadata = field === '_id' || field === '_version';
+        const isNested = !isMetadata && field.includes('.');
+        // _id and _version are native columns, not JSON fields.
+        // Use -> / #> (returns jsonb) rather than ->> / #>> (returns text) so
+        // that numeric fields are sorted numerically, not lexicographically.
+        const accessor = isMetadata
+          ? SQL`${SQL.plain(field)}`
+          : isNested
+            ? SQL`data #> '${SQL.plain(`{${field.split('.').join(',')}}`)}'`
+            : SQL`data -> '${SQL.plain(field)}'`;
+        // Match MongoDB's null ordering: missing/null values sort first on ASC,
+        // last on DESC. PostgreSQL's default is the opposite for ASC (NULLS LAST).
+        return dir === 1
+          ? SQL`${accessor} ASC NULLS FIRST`
+          : SQL`${accessor} DESC NULLS LAST`;
+      });
+      query.push(SQL`ORDER BY ${SQL.merge(clauses, ',')}`);
+    }
+
     if (options?.limit) {
       query.push(SQL`LIMIT ${options.limit}`);
     }

@@ -217,6 +217,7 @@ export type DeleteManyOptions = {
 export type FindOptions = {
   limit?: number;
   skip?: number;
+  sort?: { [field: string]: 1 | -1 };
 } & CollectionOperationOptions;
 
 export interface PongoCollection<T extends PongoDocument> {

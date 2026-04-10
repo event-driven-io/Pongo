@@ -66,6 +66,91 @@ describe('sqliteSQLBuilder', () => {
       assert.ok(query.includes('LIMIT'));
       assert.ok(query.includes('OFFSET'));
     });
+
+    it('empty sort object produces no ORDER BY clause', () => {
+      const result = builder.find({}, { sort: {} });
+      const { query } = SQL.format(result, sqliteFormatter);
+      assert.ok(!query.includes('ORDER BY'), `got: ${query}`);
+    });
+
+    it('sorts ASC by a single field', () => {
+      const result = builder.find({}, { sort: { name: 1 } });
+      const { query } = SQL.format(result, sqliteFormatter);
+      assert.ok(
+        query.includes(`ORDER BY json_extract(data, '$.name') ASC`),
+        `got: ${query}`,
+      );
+    });
+
+    it('sorts DESC by a single field', () => {
+      const result = builder.find({}, { sort: { created_at: -1 } });
+      const { query } = SQL.format(result, sqliteFormatter);
+      assert.ok(
+        query.includes(`ORDER BY json_extract(data, '$.created_at') DESC`),
+        `got: ${query}`,
+      );
+    });
+
+    it('ORDER BY appears before LIMIT', () => {
+      const result = builder.find({}, { sort: { name: 1 }, limit: 10 });
+      const { query } = SQL.format(result, sqliteFormatter);
+      assert.ok(
+        query.indexOf('ORDER BY') < query.indexOf('LIMIT'),
+        `got: ${query}`,
+      );
+    });
+
+    it('sort + limit + skip produces correct clause order', () => {
+      const result = builder.find(
+        {},
+        { sort: { name: 1 }, limit: 10, skip: 5 },
+      );
+      const { query } = SQL.format(result, sqliteFormatter);
+      assert.ok(/ORDER BY.*LIMIT.*OFFSET/s.test(query), `got: ${query}`);
+    });
+
+    it('sorts by multiple fields', () => {
+      const result = builder.find({}, { sort: { age: -1, name: 1 } });
+      const { query } = SQL.format(result, sqliteFormatter);
+      assert.ok(
+        query.includes(
+          `ORDER BY json_extract(data, '$.age') DESC,json_extract(data, '$.name') ASC`,
+        ),
+        `got: ${query}`,
+      );
+    });
+
+    it('sorts by a nested field', () => {
+      const result = builder.find({}, { sort: { 'address.city': 1 } });
+      const { query } = SQL.format(result, sqliteFormatter);
+      assert.ok(
+        query.includes(`ORDER BY json_extract(data, '$.address.city') ASC`),
+        `got: ${query}`,
+      );
+    });
+
+    it('sorts by a deeply nested field (3 levels)', () => {
+      const result = builder.find({}, { sort: { 'a.b.c': -1 } });
+      const { query } = SQL.format(result, sqliteFormatter);
+      assert.ok(
+        query.includes(`ORDER BY json_extract(data, '$.a.b.c') DESC`),
+        `got: ${query}`,
+      );
+    });
+
+    it('sorts by _id using the native column, not the JSON field', () => {
+      const result = builder.find({}, { sort: { _id: 1 } });
+      const { query } = SQL.format(result, sqliteFormatter);
+      assert.ok(query.includes('ORDER BY _id ASC'), `got: ${query}`);
+      assert.ok(!query.includes('json_extract'), `got: ${query}`);
+    });
+
+    it('sorts by _version using the native column, not the JSON field', () => {
+      const result = builder.find({}, { sort: { _version: -1 } });
+      const { query } = SQL.format(result, sqliteFormatter);
+      assert.ok(query.includes('ORDER BY _version DESC'), `got: ${query}`);
+      assert.ok(!query.includes('json_extract'), `got: ${query}`);
+    });
   });
 
   describe('update operations', () => {

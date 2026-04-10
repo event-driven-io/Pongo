@@ -1025,6 +1025,206 @@ describe('MongoDB Compatibility Tests', () => {
         mongoDocs.map((d) => ({ name: d.name, age: d.age })),
       );
     });
+
+    it('sort ASC produces same order in Pongo and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>('sortAscCollection');
+      const mongoCollection = mongoDb.collection<User>('sortAscCollection');
+      const docs = [
+        { name: 'Charlie', age: 30 },
+        { name: 'Alice', age: 25 },
+        { name: 'Bob', age: 28 },
+      ];
+
+      await pongoCollection.insertMany(docs);
+      await mongoCollection.insertMany(docs);
+
+      const pongoDocs = await pongoCollection
+        .find({}, { sort: { name: 1 } })
+        .toArray();
+      const mongoDocs = await mongoCollection
+        .find({}, { sort: { name: 1 } })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => d.name),
+        ['Alice', 'Bob', 'Charlie'],
+      );
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => d.name),
+        mongoDocs.map((d) => d.name),
+      );
+    });
+
+    it('sort DESC + limit + skip produces same result in Pongo and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>(
+        'sortDescLimitCollection',
+      );
+      const mongoCollection = mongoDb.collection<User>(
+        'sortDescLimitCollection',
+      );
+      const docs = [
+        { name: 'A', age: 40 },
+        { name: 'B', age: 45 },
+        { name: 'C', age: 50 },
+        { name: 'D', age: 35 },
+      ];
+
+      await pongoCollection.insertMany(docs);
+      await mongoCollection.insertMany(docs);
+
+      const opts = { sort: { age: -1 as const }, limit: 2, skip: 1 };
+      const pongoDocs = await pongoCollection.find({}, opts).toArray();
+      const mongoDocs = await mongoCollection.find({}, opts).toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => d.age),
+        mongoDocs.map((d) => d.age),
+      );
+    });
+
+    it('multi-field sort produces same order in Pongo and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>(
+        'sortMultiFieldCollection',
+      );
+      const mongoCollection = mongoDb.collection<User>(
+        'sortMultiFieldCollection',
+      );
+      const docs = [
+        { name: 'Alice', age: 30 },
+        { name: 'Bob', age: 30 },
+        { name: 'Alice', age: 25 },
+      ];
+
+      await pongoCollection.insertMany(docs);
+      await mongoCollection.insertMany(docs);
+
+      const opts = { sort: { name: 1 as const, age: -1 as const } };
+      const pongoDocs = await pongoCollection.find({}, opts).toArray();
+      const mongoDocs = await mongoCollection.find({}, opts).toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({ name: d.name, age: d.age })),
+        mongoDocs.map((d) => ({ name: d.name, age: d.age })),
+      );
+    });
+
+    it('nested field sort produces same order in Pongo and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>(
+        'sortNestedFieldCollection',
+      );
+      const mongoCollection = mongoDb.collection<User>(
+        'sortNestedFieldCollection',
+      );
+      const docs = [
+        { name: 'Charlie', age: 30, address: { city: 'Warsaw' } },
+        { name: 'Alice', age: 25, address: { city: 'Lisbon' } },
+        { name: 'Bob', age: 28, address: { city: 'Madrid' } },
+      ];
+
+      await pongoCollection.insertMany(docs);
+      await mongoCollection.insertMany(docs);
+
+      const opts = { sort: { 'address.city': 1 as const } };
+      const pongoDocs = await pongoCollection.find({}, opts).toArray();
+      const mongoDocs = await mongoCollection.find({}, opts).toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => d.name),
+        ['Alice', 'Bob', 'Charlie'],
+      );
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => d.name),
+        mongoDocs.map((d) => d.name),
+      );
+    });
+    it('numeric field sort respects numeric order, not lexicographic', async () => {
+      const pongoCollection = pongoDb.collection<User>('sortNumericCollection');
+      const mongoCollection = mongoDb.collection<User>('sortNumericCollection');
+      // Deliberately use values with different digit counts so that
+      // lexicographic order (['10','2','20','9'] ASC) differs from
+      // numeric order ([2,9,10,20] ASC).
+      const docs = [
+        { name: 'D', age: 9 },
+        { name: 'A', age: 10 },
+        { name: 'C', age: 2 },
+        { name: 'B', age: 20 },
+      ];
+
+      await pongoCollection.insertMany(docs);
+      await mongoCollection.insertMany(docs);
+
+      const pongoDocs = await pongoCollection
+        .find({}, { sort: { age: 1 } })
+        .toArray();
+      const mongoDocs = await mongoCollection
+        .find({}, { sort: { age: 1 } })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => d.age),
+        [2, 9, 10, 20],
+      );
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => d.age),
+        mongoDocs.map((d) => d.age),
+      );
+    });
+
+    it('sort by _id produces same order in Pongo and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>('sortByIdCollection');
+      const mongoCollection = mongoDb.collection<User>('sortByIdCollection');
+      const docs = [
+        { name: 'Charlie', age: 30 },
+        { name: 'Alice', age: 25 },
+        { name: 'Bob', age: 28 },
+      ];
+
+      await pongoCollection.insertMany(docs);
+      await mongoCollection.insertMany(docs);
+
+      const pongoDocs = await pongoCollection
+        .find({}, { sort: { _id: 1 } })
+        .toArray();
+      const mongoDocs = await mongoCollection
+        .find({}, { sort: { _id: 1 } })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => d.name),
+        mongoDocs.map((d) => d.name),
+      );
+    });
+
+    it('documents with missing sort field sort first on ASC, matching MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>(
+        'sortNullsFirstCollection',
+      );
+      const mongoCollection = mongoDb.collection<User>(
+        'sortNullsFirstCollection',
+      );
+      // 'Alice' has no age — should appear first in both ASC results
+      const docs = [
+        { name: 'Bob', age: 30 },
+        { name: 'Alice', age: undefined },
+        { name: 'Charlie', age: 20 },
+      ] as User[];
+
+      await pongoCollection.insertMany(docs);
+      await mongoCollection.insertMany(docs);
+
+      const pongoDocs = await pongoCollection
+        .find({}, { sort: { age: 1 } })
+        .toArray();
+      const mongoDocs = await mongoCollection
+        .find({}, { sort: { age: 1 } })
+        .toArray();
+
+      assert.strictEqual(pongoDocs[0]!.name, 'Alice');
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => d.name),
+        mongoDocs.map((d) => d.name),
+      );
+    });
   });
 
   describe('Handle Operations', () => {
