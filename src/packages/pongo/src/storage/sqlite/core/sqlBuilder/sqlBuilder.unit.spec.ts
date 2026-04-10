@@ -137,6 +137,20 @@ describe('sqliteSQLBuilder', () => {
         `got: ${query}`,
       );
     });
+
+    it('sorts by _id using the native column, not the JSON field', () => {
+      const result = builder.find({}, { sort: { _id: 1 } });
+      const { query } = SQL.format(result, sqliteFormatter);
+      assert.ok(query.includes('ORDER BY _id ASC'), `got: ${query}`);
+      assert.ok(!query.includes('json_extract'), `got: ${query}`);
+    });
+
+    it('sorts by _version using the native column, not the JSON field', () => {
+      const result = builder.find({}, { sort: { _version: -1 } });
+      const { query } = SQL.format(result, sqliteFormatter);
+      assert.ok(query.includes('ORDER BY _version DESC'), `got: ${query}`);
+      assert.ok(!query.includes('json_extract'), `got: ${query}`);
+    });
   });
 
   describe('update operations', () => {

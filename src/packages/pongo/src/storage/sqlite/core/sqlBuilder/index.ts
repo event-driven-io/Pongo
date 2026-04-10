@@ -272,11 +272,14 @@ export const sqliteSQLBuilder = (
     query.push(where(filterQuery));
 
     if (options?.sort && Object.keys(options.sort).length > 0) {
-      const clauses = Object.entries(options.sort).map(([field, dir]) =>
-        dir === 1
-          ? SQL`json_extract(data, '${SQL.plain(`$.${field}`)}') ASC`
-          : SQL`json_extract(data, '${SQL.plain(`$.${field}`)}') DESC`,
-      );
+      const clauses = Object.entries(options.sort).map(([field, dir]) => {
+        // _id and _version are native columns, not JSON fields.
+        const isMetadata = field === '_id' || field === '_version';
+        const accessor = isMetadata
+          ? SQL`${SQL.plain(field)}`
+          : SQL`json_extract(data, '${SQL.plain(`$.${field}`)}')`;
+        return dir === 1 ? SQL`${accessor} ASC` : SQL`${accessor} DESC`;
+      });
       query.push(SQL`ORDER BY ${SQL.merge(clauses, ',')}`);
     }
 
