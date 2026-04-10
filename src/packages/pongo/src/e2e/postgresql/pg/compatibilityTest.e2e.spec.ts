@@ -1081,6 +1081,62 @@ describe('MongoDB Compatibility Tests', () => {
         mongoDocs.map((d) => d.age),
       );
     });
+
+    it('multi-field sort produces same order in Pongo and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>(
+        'sortMultiFieldCollection',
+      );
+      const mongoCollection = mongoDb.collection<User>(
+        'sortMultiFieldCollection',
+      );
+      const docs = [
+        { name: 'Alice', age: 30 },
+        { name: 'Bob', age: 30 },
+        { name: 'Alice', age: 25 },
+      ];
+
+      await pongoCollection.insertMany(docs);
+      await mongoCollection.insertMany(docs);
+
+      const opts = { sort: { name: 1 as const, age: -1 as const } };
+      const pongoDocs = await pongoCollection.find({}, opts).toArray();
+      const mongoDocs = await mongoCollection.find({}, opts).toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({ name: d.name, age: d.age })),
+        mongoDocs.map((d) => ({ name: d.name, age: d.age })),
+      );
+    });
+
+    it('nested field sort produces same order in Pongo and MongoDB', async () => {
+      const pongoCollection = pongoDb.collection<User>(
+        'sortNestedFieldCollection',
+      );
+      const mongoCollection = mongoDb.collection<User>(
+        'sortNestedFieldCollection',
+      );
+      const docs = [
+        { name: 'Charlie', age: 30, address: { city: 'Warsaw' } },
+        { name: 'Alice', age: 25, address: { city: 'Lisbon' } },
+        { name: 'Bob', age: 28, address: { city: 'Madrid' } },
+      ];
+
+      await pongoCollection.insertMany(docs);
+      await mongoCollection.insertMany(docs);
+
+      const opts = { sort: { 'address.city': 1 as const } };
+      const pongoDocs = await pongoCollection.find({}, opts).toArray();
+      const mongoDocs = await mongoCollection.find({}, opts).toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => d.name),
+        ['Alice', 'Bob', 'Charlie'],
+      );
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => d.name),
+        mongoDocs.map((d) => d.name),
+      );
+    });
   });
 
   describe('Handle Operations', () => {
