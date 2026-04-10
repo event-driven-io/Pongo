@@ -271,7 +271,7 @@ export const sqliteSQLBuilder = (
 
     query.push(where(filterQuery));
 
-    if (options?.sort) {
+    if (options?.sort && Object.keys(options.sort).length > 0) {
       const clauses = Object.entries(options.sort).map(([field, dir]) =>
         dir === 1
           ? SQL`json_extract(data, '${SQL.plain(`$.${field}`)}') ASC`

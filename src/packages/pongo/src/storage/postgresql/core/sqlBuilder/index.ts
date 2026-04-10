@@ -316,12 +316,14 @@ export const postgresSQLBuilder = (
 
     query.push(where(filterQuery));
 
-    if (options?.sort) {
+    if (options?.sort && Object.keys(options.sort).length > 0) {
       const clauses = Object.entries(options.sort).map(([field, dir]) => {
         const isNested = field.includes('.');
+        // Use -> / #> (returns jsonb) rather than ->> / #>> (returns text) so
+        // that numeric fields are sorted numerically, not lexicographically.
         const accessor = isNested
-          ? SQL`data #>> '${SQL.plain(`{${field.split('.').join(',')}}`)}'`
-          : SQL`data ->> '${SQL.plain(field)}'`;
+          ? SQL`data #> '${SQL.plain(`{${field.split('.').join(',')}}`)}'`
+          : SQL`data -> '${SQL.plain(field)}'`;
         return dir === 1 ? SQL`${accessor} ASC` : SQL`${accessor} DESC`;
       });
       query.push(SQL`ORDER BY ${SQL.merge(clauses, ',')}`);

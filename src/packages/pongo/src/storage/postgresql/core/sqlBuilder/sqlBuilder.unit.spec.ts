@@ -45,14 +45,14 @@ describe('find() sort option', () => {
   it('sorts ASC by a single field', () => {
     const query = builder.find({}, { sort: { name: 1 } });
     const { query: sql } = SQL.format(query, pgFormatter);
-    assert.ok(sql.includes(`ORDER BY data ->> 'name' ASC`), `got: ${sql}`);
+    assert.ok(sql.includes(`ORDER BY data -> 'name' ASC`), `got: ${sql}`);
   });
 
   it('sorts DESC by a single field', () => {
     const query = builder.find({}, { sort: { created_at: -1 } });
     const { query: sql } = SQL.format(query, pgFormatter);
     assert.ok(
-      sql.includes(`ORDER BY data ->> 'created_at' DESC`),
+      sql.includes(`ORDER BY data -> 'created_at' DESC`),
       `got: ${sql}`,
     );
   });
@@ -70,11 +70,17 @@ describe('find() sort option', () => {
     assert.deepStrictEqual(params, [10, 5]);
   });
 
+  it('empty sort object produces no ORDER BY clause', () => {
+    const query = builder.find({}, { sort: {} });
+    const { query: sql } = SQL.format(query, pgFormatter);
+    assert.ok(!sql.includes('ORDER BY'), `got: ${sql}`);
+  });
+
   it('sorts by multiple fields', () => {
     const query = builder.find({}, { sort: { age: -1, name: 1 } });
     const { query: sql } = SQL.format(query, pgFormatter);
     assert.ok(
-      sql.includes(`ORDER BY data ->> 'age' DESC,data ->> 'name' ASC`),
+      sql.includes(`ORDER BY data -> 'age' DESC,data -> 'name' ASC`),
       `got: ${sql}`,
     );
   });
@@ -83,8 +89,14 @@ describe('find() sort option', () => {
     const query = builder.find({}, { sort: { 'address.city': 1 } });
     const { query: sql } = SQL.format(query, pgFormatter);
     assert.ok(
-      sql.includes(`ORDER BY data #>> '{address,city}' ASC`),
+      sql.includes(`ORDER BY data #> '{address,city}' ASC`),
       `got: ${sql}`,
     );
+  });
+
+  it('sorts by a deeply nested field (3 levels)', () => {
+    const query = builder.find({}, { sort: { 'a.b.c': -1 } });
+    const { query: sql } = SQL.format(query, pgFormatter);
+    assert.ok(sql.includes(`ORDER BY data #> '{a,b,c}' DESC`), `got: ${sql}`);
   });
 });

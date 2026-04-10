@@ -1137,6 +1137,38 @@ describe('MongoDB Compatibility Tests', () => {
         mongoDocs.map((d) => d.name),
       );
     });
+    it('numeric field sort respects numeric order, not lexicographic', async () => {
+      const pongoCollection = pongoDb.collection<User>('sortNumericCollection');
+      const mongoCollection = mongoDb.collection<User>('sortNumericCollection');
+      // Deliberately use values with different digit counts so that
+      // lexicographic order (['10','2','20','9'] ASC) differs from
+      // numeric order ([2,9,10,20] ASC).
+      const docs = [
+        { name: 'D', age: 9 },
+        { name: 'A', age: 10 },
+        { name: 'C', age: 2 },
+        { name: 'B', age: 20 },
+      ];
+
+      await pongoCollection.insertMany(docs);
+      await mongoCollection.insertMany(docs);
+
+      const pongoDocs = await pongoCollection
+        .find({}, { sort: { age: 1 } })
+        .toArray();
+      const mongoDocs = await mongoCollection
+        .find({}, { sort: { age: 1 } })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => d.age),
+        [2, 9, 10, 20],
+      );
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => d.age),
+        mongoDocs.map((d) => d.age),
+      );
+    });
   });
 
   describe('Handle Operations', () => {

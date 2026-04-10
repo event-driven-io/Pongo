@@ -67,6 +67,12 @@ describe('sqliteSQLBuilder', () => {
       assert.ok(query.includes('OFFSET'));
     });
 
+    it('empty sort object produces no ORDER BY clause', () => {
+      const result = builder.find({}, { sort: {} });
+      const { query } = SQL.format(result, sqliteFormatter);
+      assert.ok(!query.includes('ORDER BY'), `got: ${query}`);
+    });
+
     it('sorts ASC by a single field', () => {
       const result = builder.find({}, { sort: { name: 1 } });
       const { query } = SQL.format(result, sqliteFormatter);
@@ -119,6 +125,15 @@ describe('sqliteSQLBuilder', () => {
       const { query } = SQL.format(result, sqliteFormatter);
       assert.ok(
         query.includes(`ORDER BY json_extract(data, '$.address.city') ASC`),
+        `got: ${query}`,
+      );
+    });
+
+    it('sorts by a deeply nested field (3 levels)', () => {
+      const result = builder.find({}, { sort: { 'a.b.c': -1 } });
+      const { query } = SQL.format(result, sqliteFormatter);
+      assert.ok(
+        query.includes(`ORDER BY json_extract(data, '$.a.b.c') DESC`),
         `got: ${query}`,
       );
     });
