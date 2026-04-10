@@ -102,6 +102,26 @@ describe('sqliteSQLBuilder', () => {
       const { query } = SQL.format(result, sqliteFormatter);
       assert.ok(/ORDER BY.*LIMIT.*OFFSET/s.test(query), `got: ${query}`);
     });
+
+    it('sorts by multiple fields', () => {
+      const result = builder.find({}, { sort: { age: -1, name: 1 } });
+      const { query } = SQL.format(result, sqliteFormatter);
+      assert.ok(
+        query.includes(
+          `ORDER BY json_extract(data, '$.age') DESC,json_extract(data, '$.name') ASC`,
+        ),
+        `got: ${query}`,
+      );
+    });
+
+    it('sorts by a nested field', () => {
+      const result = builder.find({}, { sort: { 'address.city': 1 } });
+      const { query } = SQL.format(result, sqliteFormatter);
+      assert.ok(
+        query.includes(`ORDER BY json_extract(data, '$.address.city') ASC`),
+        `got: ${query}`,
+      );
+    });
   });
 
   describe('update operations', () => {

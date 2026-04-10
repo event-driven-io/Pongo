@@ -69,4 +69,22 @@ describe('find() sort option', () => {
     assert.ok(/ORDER BY.*LIMIT.*OFFSET/s.test(sql), `got: ${sql}`);
     assert.deepStrictEqual(params, [10, 5]);
   });
+
+  it('sorts by multiple fields', () => {
+    const query = builder.find({}, { sort: { age: -1, name: 1 } });
+    const { query: sql } = SQL.format(query, pgFormatter);
+    assert.ok(
+      sql.includes(`ORDER BY data ->> 'age' DESC,data ->> 'name' ASC`),
+      `got: ${sql}`,
+    );
+  });
+
+  it('sorts by a nested field', () => {
+    const query = builder.find({}, { sort: { 'address.city': 1 } });
+    const { query: sql } = SQL.format(query, pgFormatter);
+    assert.ok(
+      sql.includes(`ORDER BY data #>> '{address,city}' ASC`),
+      `got: ${sql}`,
+    );
+  });
 });
