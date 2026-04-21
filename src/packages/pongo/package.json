@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/pongo",
-  "version": "0.17.0-beta.35",
+  "version": "0.17.0-beta.36",
   "description": "Pongo - Mongo with strong consistency on top of PostgreSQL",
   "type": "module",
   "scripts": {
@@ -132,19 +132,19 @@
     "pongo": "dist/cli.js"
   },
   "dependencies": {
-    "@event-driven-io/dumbo": "0.13.0-beta.35",
+    "@event-driven-io/dumbo": "0.13.0-beta.36",
     "@types/mongodb": "^4.0.7",
     "ansis": "^4.2.0",
     "cli-table3": "^0.6.5",
-    "commander": "^14.0.2",
-    "lru-cache": "^11.2.7",
-    "uuid": "^13.0.0"
+    "commander": "^14.0.3",
+    "lru-cache": "^11.3.5",
+    "uuid": "^14.0.0"
   },
   "peerDependencies": {
-    "@cloudflare/workers-types": "^4.20260127.0",
-    "@types/pg": "^8.16.0",
-    "pg": "^8.17.2",
-    "sqlite3": "^5.1.7"
+    "@cloudflare/workers-types": "^4.20260421.1",
+    "@types/pg": "^8.20.0",
+    "pg": "^8.20.0",
+    "sqlite3": "^6.0.1"
   },
   "peerDependenciesMeta": {
     "@types/pg": {
@@ -161,10 +161,10 @@
     }
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260127.0",
-    "@types/node": "^24.5.2",
-    "@types/pg": "^8.16.0",
-    "pg": "^8.17.2",
-    "sqlite3": "^5.1.7"
+    "@cloudflare/workers-types": "^4.20260421.1",
+    "@types/node": "^25.6.0",
+    "@types/pg": "^8.20.0",
+    "pg": "^8.20.0",
+    "sqlite3": "^6.0.1"
   }
 }
