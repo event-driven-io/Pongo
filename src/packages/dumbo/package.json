@@ -4,7 +4,7 @@
   "description": "Dumbo - tools for dealing with Relational Databases",
   "type": "module",
   "scripts": {
-    "build": "tsup",
+    "build": "tsdown",
     "build:ts": "tsc -b",
     "build:ts:watch": "tsc -b --watch",
     "test": "run-s test:unit test:int test:e2e",

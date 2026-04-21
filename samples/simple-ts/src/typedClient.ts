@@ -1,12 +1,15 @@
 import { prettyJson } from '@event-driven-io/dumbo';
 import { ObjectId, pongoClient } from '@event-driven-io/pongo';
+import { pgDriver } from '@event-driven-io/pongo/pg';
 import config from './pongo.config';
 
 const connectionString =
   'postgresql://postgres:postgres@localhost:5432/postgres';
 // 'postgresql://root@localhost:26000/defaultdb?sslmode=disable'; // cockroachdb
 
-const pongo = pongoClient(connectionString, {
+const pongo = pongoClient({
+  connectionString,
+  driver: pgDriver,
   schema: { definition: config.schema, autoMigration: 'None' },
 });
 const pongoDb = pongo.database;
