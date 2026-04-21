@@ -5,7 +5,7 @@
   "description": "Simple sample using Pongo ",
   "scripts": {
     "setup": "cat .nvmrc | nvm install; nvm use",
-    "build": "tsup",
+    "build": "tsdown",
     "build:ts": "tsc",
     "build:ts:watch": "tsc -b --watch",
     "start": "tsx ./src/index.ts",
@@ -52,7 +52,7 @@
     "npm-run-all2": "^8.0.4",
     "prettier": "3.6.2",
     "tsconfig-paths": "4.2.0",
-    "tsup": "8.5.0",
+    "tsdown": "^0.21.9",
     "tsx": "4.20.6",
     "typescript": "5.9.2"
   },
@@ -63,6 +63,6 @@
     "dist"
   ],
   "dependencies": {
-    "@event-driven-io/pongo": "0.17.0-alpha.6"
+    "@event-driven-io/pongo": "0.17.0-beta.35"
   }
 }

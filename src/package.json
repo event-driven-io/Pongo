@@ -101,7 +101,7 @@
     "testcontainers": "^11.14.0",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "tsup": "^8.5.1",
+    "tsdown": "^0.21.9",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3",
     "uuid": "^14.0.0",
