@@ -133,7 +133,6 @@ const columnFactory: typeof SQLColumnToken.from & {
 } = SQLColumnToken.from as unknown as typeof SQLColumnToken.from & {
   type: typeof SQLColumnTypeTokensFactory;
 };
-columnFactory.type =
-  SQLColumnTypeTokensFactory as unknown as typeof SQLColumnTypeTokensFactory;
+columnFactory.type = SQLColumnTypeTokensFactory;
 
 SQL.column = columnFactory;

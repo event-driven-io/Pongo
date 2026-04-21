@@ -929,7 +929,7 @@ describe('MongoDB Compatibility Tests', () => {
       await users.insertOne(existingDoc);
 
       const results = await users.handle(
-        [existingDoc._id!, nonExistingId as unknown as string],
+        [existingDoc._id!, nonExistingId],
         (existing) =>
           existing ? { ...existing, age: existing.age + 1 } : null,
       );
@@ -947,8 +947,8 @@ describe('MongoDB Compatibility Tests', () => {
     });
 
     it('should insert documents for non-existing ids when handler returns a value', async () => {
-      const newId1 = ObjectId() as unknown as string;
-      const newId2 = ObjectId() as unknown as string;
+      const newId1 = ObjectId();
+      const newId2 = ObjectId();
 
       const results = await users.handle([newId1, newId2], (_existing) => ({
         name: 'New User',
@@ -990,7 +990,7 @@ describe('MongoDB Compatibility Tests', () => {
 
     it('should load cache hits and only fetch misses from DB in one query', async () => {
       const cachedDoc: User = { _id: ObjectId(), name: 'Dave', age: 40 };
-      const uncachedId = ObjectId() as unknown as string;
+      const uncachedId = ObjectId();
 
       await users.insertOne(cachedDoc);
       await users.findOne({ _id: cachedDoc._id! });
@@ -1059,7 +1059,7 @@ describe('MongoDB Compatibility Tests', () => {
     it('should handle mixed operations (insert, replace, delete) in one batch', async () => {
       const existing1: User = { _id: ObjectId(), name: 'Ivan', age: 40 };
       const existing2: User = { _id: ObjectId(), name: 'Judy', age: 41 };
-      const newId = ObjectId() as unknown as string;
+      const newId = ObjectId();
 
       await users.insertOne(existing1);
       await users.insertOne(existing2);

@@ -21,8 +21,7 @@ declare global {
 }
 
 const defaultMigratorOptions = (globalThis.defaultMigratorOptions =
-  globalThis.defaultMigratorOptions ??
-  ({} as Record<DatabaseType, MigratorOptions>));
+  globalThis.defaultMigratorOptions ?? {});
 
 export const registerDefaultMigratorOptions = (
   databaseType: DatabaseType,

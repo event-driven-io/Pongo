@@ -745,7 +745,7 @@ export const pongoCollection = <
       await ensureCollectionCreated(options);
       await command(SqlFor.rename(newName));
       collectionName = newName;
-      return collection as unknown as PongoCollection<T>;
+      return collection;
     },
     close: () => cache.close(),
 
@@ -775,7 +775,7 @@ export const pongoCollection = <
     },
   };
 
-  return collection as unknown as PongoCollection<T>;
+  return collection;
 };
 
 type UpdateSqlResult = {

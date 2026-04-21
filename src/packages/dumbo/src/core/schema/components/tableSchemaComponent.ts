@@ -119,7 +119,5 @@ export const tableSchemaComponent = <
     },
     addColumn: (column: AnyColumnSchemaComponent) => base.addComponent(column),
     addIndex: (index: IndexSchemaComponent) => base.addComponent(index),
-  } as TableSchemaComponent<Columns, TableName, Relationships> & {
-    relationships: Relationships;
   };
 };

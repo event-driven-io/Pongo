@@ -1,14 +1,11 @@
 import assert from 'assert';
 import fs from 'fs';
-import { afterEach, describe, it } from 'vitest';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { afterEach, describe, it } from 'vitest';
 import { sqlite3Pool } from '..';
 import { SQL } from '../../../../core';
-import {
-  InMemorySQLiteDatabase,
-  type SQLiteTransactionOptions,
-} from '../../core';
+import { InMemorySQLiteDatabase } from '../../core';
 
 describe('SQLite3 Transactions', () => {
   const inMemoryfileName: string = InMemorySQLiteDatabase;
@@ -595,7 +592,7 @@ describe('SQLite3 Transactions', () => {
               SQL`INSERT INTO test_table (id, value) VALUES (1, "test")`,
             );
           },
-          { mode: 'DEFERRED' } as SQLiteTransactionOptions,
+          { mode: 'DEFERRED' },
         );
 
         const rows = await connection.execute.query<{ count: number }>(
@@ -623,7 +620,7 @@ describe('SQLite3 Transactions', () => {
               SQL`INSERT INTO test_table (id, value) VALUES (1, "test")`,
             );
           },
-          { mode: 'EXCLUSIVE' } as SQLiteTransactionOptions,
+          { mode: 'EXCLUSIVE' },
         );
 
         const rows = await connection.execute.query<{ count: number }>(
@@ -682,7 +679,7 @@ describe('SQLite3 Transactions', () => {
               SQL`INSERT INTO test_table (id, value) VALUES (1, "test")`,
             );
           },
-          { mode: 'IMMEDIATE' } as SQLiteTransactionOptions,
+          { mode: 'IMMEDIATE' },
         );
 
         const rows = await connection.execute.query<{ count: number }>(

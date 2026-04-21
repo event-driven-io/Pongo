@@ -78,6 +78,7 @@
   ],
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260421.1",
+    "@eslint/js": "^10.0.1",
     "@faker-js/faker": "^10.4.0",
     "@testcontainers/mongodb": "^11.14.0",
     "@testcontainers/postgresql": "^11.14.0",
@@ -92,6 +93,7 @@
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
     "glob-bin": "^1.1.0",
+    "globals": "^17.5.0",
     "miniflare": "^4.20260124.0",
     "mitata": "^1.0.34",
     "npm-run-all2": "^8.0.4",

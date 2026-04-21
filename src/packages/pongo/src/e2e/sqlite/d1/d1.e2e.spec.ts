@@ -441,9 +441,7 @@ describe('SQLite MongoDB Compatibility Tests', () => {
 
       const pongoInsertResult = await pongoCollection.insertOne(doc);
       const mongoInsertResult = await mongoCollection.insertOne(doc);
-      let pongoDoc = await pongoCollection.findOne({
-        _id: pongoInsertResult.insertedId!,
-      });
+
       // Push to non existing
       let updateResult = await pongoCollection.updateOne(
         { _id: pongoInsertResult.insertedId! },
@@ -455,9 +453,6 @@ describe('SQLite MongoDB Compatibility Tests', () => {
         { _id: mongoInsertResult.insertedId },
         { $push: { tags: 'tag1' } },
       );
-      pongoDoc = await pongoCollection.findOne({
-        _id: pongoInsertResult.insertedId!,
-      });
 
       // Push to existing
       updateResult = await pongoCollection.updateOne(
@@ -470,7 +465,7 @@ describe('SQLite MongoDB Compatibility Tests', () => {
         { $push: { tags: 'tag2' } },
       );
 
-      pongoDoc = await pongoCollection.findOne({
+      const pongoDoc = await pongoCollection.findOne({
         _id: pongoInsertResult.insertedId!,
       });
       const mongoDoc = await mongoCollection.findOne({

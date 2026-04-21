@@ -124,6 +124,5 @@ export const sqliteTransaction =
       _transactionOptions: options ?? {},
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-return
     return transaction as InferTransactionFromConnection<ConnectionType>;
   };

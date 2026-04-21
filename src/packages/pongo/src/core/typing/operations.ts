@@ -516,9 +516,7 @@ export const expectedVersionValue = (
 export const expectedVersion = (
   version: number | bigint | string | undefined | null,
 ): ExpectedDocumentVersion => {
-  return version
-    ? (BigInt(version) as ExpectedDocumentVersion)
-    : NO_CONCURRENCY_CHECK;
+  return version ? BigInt(version) : NO_CONCURRENCY_CHECK;
 };
 
 export type PongoUpdate<T> = {

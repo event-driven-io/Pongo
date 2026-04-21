@@ -83,7 +83,7 @@ declare global {
 }
 
 const dumboSQLFormatters = (globalThis.dumboSQLFormatters =
-  globalThis.dumboSQLFormatters ?? ({} as Record<string, SQLFormatter>));
+  globalThis.dumboSQLFormatters ?? {});
 
 export const registerFormatter = (
   dialect: string,
