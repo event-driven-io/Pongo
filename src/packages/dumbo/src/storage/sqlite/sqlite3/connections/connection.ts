@@ -8,7 +8,6 @@ import {
   type QueryResultRow,
   type SQLQueryOptions,
 } from '../../../../core';
-import { mapSqliteError } from '../../core/errors/errorMapper';
 import type {
   SQLiteClient,
   SQLiteClientOrPoolClient,
@@ -32,6 +31,7 @@ import {
   buildDatabasePragmaStatements,
   mergePragmaOptions,
 } from '../../core/connections/pragmas';
+import { mapSqliteError } from '../../core/errors/errorMapper';
 import { sqliteFormatter } from '../../core/sql/formatter';
 
 export type SQLite3DriverType = SQLiteDriverType<'sqlite3'>;
@@ -168,7 +168,7 @@ export const sqlite3Client = (
 
             // Apply connection-level pragmas first (busy_timeout is first)
           } catch (error) {
-            reject(error as Error);
+            reject(error instanceof Error ? error : new Error(String(error)));
           }
         });
 
@@ -187,7 +187,7 @@ export const sqlite3Client = (
           resolve(result);
         });
       } catch (error) {
-        reject(error as Error);
+        reject(error instanceof Error ? error : new Error(String(error)));
       }
     });
 
@@ -260,7 +260,7 @@ export const sqlite3Client = (
           );
         });
       } catch (error) {
-        reject(error as Error);
+        reject(error instanceof Error ? error : new Error(String(error)));
       }
     });
 

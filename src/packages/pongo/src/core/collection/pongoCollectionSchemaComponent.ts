@@ -31,13 +31,12 @@ export const PongoCollectionSchemaComponent = <
   definition,
   migrationsOrSchemaComponents,
   sqlBuilder,
-}: PongoCollectionSchemaComponentOptions<DriverType>): PongoCollectionSchemaComponent =>
-  ({
-    ...schemaComponent(
-      `sc:pongo:collection:${definition.name}`,
-      migrationsOrSchemaComponents,
-    ),
-    sqlBuilder,
-    definition,
-    collectionName: definition.name,
-  }) as PongoCollectionSchemaComponent;
+}: PongoCollectionSchemaComponentOptions<DriverType>): PongoCollectionSchemaComponent => ({
+  ...schemaComponent(
+    `sc:pongo:collection:${definition.name}`,
+    migrationsOrSchemaComponents,
+  ),
+  sqlBuilder,
+  definition,
+  collectionName: definition.name,
+});

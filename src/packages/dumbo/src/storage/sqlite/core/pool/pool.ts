@@ -65,9 +65,7 @@ export const sqliteAmbientConnectionPool = <
   return createAmbientConnectionPool<SQLiteConnectionType>({
     driverType,
     connection: connection,
-  }) as unknown as SQLiteAmbientConnectionPool<
-    SQLiteConnectionType['driverType']
-  >;
+  });
 };
 
 type SQLiteSingletonConnectionPoolOptions<
@@ -105,7 +103,7 @@ export const sqliteSingletonConnectionPool = <
   return createSingletonConnectionPool<SQLiteConnectionType>({
     driverType,
     getConnection: () => sqliteConnectionFactory(connectionOptions),
-  }) as unknown as SQLiteSingletonConnectionPool<SQLiteConnectionType>;
+  });
 };
 
 type SQLiteAlwaysNewPoolOptions<
@@ -140,7 +138,7 @@ export const sqliteAlwaysNewConnectionPool = <
   return createAlwaysNewConnectionPool<SQLiteConnectionType>({
     driverType,
     getConnection: () => sqliteConnectionFactory(connectionOptions),
-  }) as unknown as SQLiteAlwaysNewConnectionPool<SQLiteConnectionType>;
+  });
 };
 
 export type SQLitePoolOptions<

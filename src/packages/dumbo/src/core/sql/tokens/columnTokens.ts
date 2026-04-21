@@ -94,7 +94,7 @@ export const ColumnTypeToken = <
     let props: Omit<SQLTokenType, 'sqlTokenType' | '__brand' | 'jsTypeName'>;
 
     if (map !== undefined) {
-      props = map(input) as SQLTokenType;
+      props = map(input);
     } else if (input === undefined || input === null) {
       props = {} as Omit<
         SQLTokenType,

@@ -41,7 +41,7 @@ export const sqlite3Pool = (options: SQLite3DumboOptions) =>
       ...('connection' in options
         ? {}
         : {
-            connectionOptions: options as SQLite3ConnectionOptions,
+            connectionOptions: options,
             sqliteConnectionFactory: (opts: SQLite3ConnectionOptions) =>
               sqlite3Connection({
                 ...opts,

@@ -64,7 +64,7 @@ export const PongoDatabaseCache = <
         },
       });
       dbClients.set(dbName, newDb);
-      return newDb as unknown as Database;
+      return newDb;
     },
 
     all: (): Database[] => Array.from(dbClients.values()) as Database[],

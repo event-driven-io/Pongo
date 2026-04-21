@@ -213,7 +213,7 @@ function dumboDatabase<Schemas extends DatabaseSchemas = DatabaseSchemas>(
     databaseName,
     schemas: schemaMap as Schemas,
     ...dbOptions,
-  }) as ValidatedDatabaseSchemaComponent<Schemas>;
+  });
 }
 
 dumboDatabase.from = <Schemas extends DatabaseSchemas = DatabaseSchemas>(
