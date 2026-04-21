@@ -68,7 +68,11 @@ export class MongoClient<
       ...(options ?? {}),
       ...{ connectionString: connectionStringOrOptions },
       driver,
-    });
+    } as unknown as PongoClientOptions<
+      PongoClientOptions<DatabaseDriverType, TypedClientSchema>['driver'] &
+        AnyPongoDriver,
+      TypedClientSchema
+    >);
   }
 
   async connect() {
