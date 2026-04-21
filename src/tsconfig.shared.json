@@ -48,8 +48,7 @@
     // "noPropertyAccessFromIndexSignature": true,  /* Require undeclared properties from index signatures to use element accesses. */
 
     /* Module Resolution Options */
-    "moduleResolution": "node" /* Specify module resolution strategy: 'node' (Node.js) or 'classic' (TypeScript pre-1.6). */,
-    "baseUrl": "./" /* Base directory to resolve non-absolute module names. */,
+    "moduleResolution": "bundler" /* Use bundler module resolution (tsup/esbuild-compatible). */,
     // "rootDirs": [],                              /* List of root folders whose combined content represents the structure of the project at runtime. */
     // "typeRoots": [],                             /* List of folders to include type definitions from. */
     // "types": [],                                 /* Type declaration files to be included in compilation. */
@@ -72,6 +71,7 @@
     // "emitDecoratorMetadata": true,               /* Enables experimental support for emitting type metadata for decorators. */
 
     /* Advanced Options */
+    "types": ["node"] /* Explicitly include @types/node globals. */,
     "skipLibCheck": true /* Skip type checking of declaration files. */,
     "forceConsistentCasingInFileNames": true /* Disallow inconsistently-cased references to the same file. */
   }
