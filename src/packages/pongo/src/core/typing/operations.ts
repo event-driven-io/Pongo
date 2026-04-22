@@ -411,16 +411,21 @@ export declare type AlternativeType<T> =
 export declare type Condition<T> =
   AlternativeType<T> | PongoFilterOperator<AlternativeType<T>>;
 
-export declare type PongoFilter<TSchema> =
-  | {
-      [P in keyof WithId<TSchema>]?: Condition<WithId<TSchema>[P]>;
-    }
-  | HasId; // TODO: & RootFilterOperators<WithId<TSchema>>;
-
-export declare interface RootFilterOperators<TSchema> extends Document {
+export declare interface LogicalRootFilterOperators<TSchema> extends Document {
   $and?: PongoFilter<TSchema>[];
   $nor?: PongoFilter<TSchema>[];
   $or?: PongoFilter<TSchema>[];
+}
+
+export declare type PongoFilter<TSchema> =
+  | ({
+      [P in keyof WithId<TSchema>]?: Condition<WithId<TSchema>[P]>;
+    } & LogicalRootFilterOperators<WithId<TSchema>>)
+  | (HasId & LogicalRootFilterOperators<WithId<TSchema>>);
+
+export declare interface RootFilterOperators<
+  TSchema,
+> extends LogicalRootFilterOperators<TSchema> {
   $text?: {
     $search: string;
     $language?: string;
