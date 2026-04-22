@@ -1,5 +1,5 @@
 import { JSONSerializer, SQL } from '@event-driven-io/dumbo';
-import { sqliteFormatter } from '@event-driven-io/dumbo/sqlite3';
+import { sqliteFormatter } from '@event-driven-io/dumbo/sqlite';
 import { randomUUID } from 'crypto';
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
@@ -216,6 +216,62 @@ describe('sqliteSQLBuilder', () => {
 
       assert.ok(query.includes('SELECT COUNT(1) as count'));
       assert.ok(query.includes('WHERE'));
+    });
+  });
+
+  describe('logical operators', () => {
+    it('supports top-level $or', () => {
+      const result = builder.find<{ flag: boolean }>({
+        $or: [{ flag: true }, { flag: false }],
+      });
+      const { query } = SQL.format(result, sqliteFormatter);
+
+      assert.ok(query.includes(' OR '), `got: ${query}`);
+      assert.ok(!query.includes('$.$or'), `got: ${query}`);
+    });
+
+    it('ANDs normal fields with $or blocks', () => {
+      const result = builder.find<{ flag: boolean; status: string }>({
+        status: 'active',
+        $or: [{ flag: true }, { flag: false }],
+      });
+      const { query } = SQL.format(result, sqliteFormatter);
+
+      assert.ok(query.includes(' AND '), `got: ${query}`);
+      assert.ok(query.includes(' OR '), `got: ${query}`);
+    });
+
+    it('supports nested logical operators', () => {
+      const result = builder.find<{ flag: boolean; status: string }>({
+        $and: [
+          { status: 'active' },
+          { $or: [{ flag: true }, { flag: false }] },
+        ],
+      });
+      const { query } = SQL.format(result, sqliteFormatter);
+
+      assert.ok(query.includes(' AND '), `got: ${query}`);
+      assert.ok(query.includes(' OR '), `got: ${query}`);
+    });
+
+    it('treats empty $or as match-nothing', () => {
+      const result = builder.find<{ flag: boolean }>({
+        $or: [],
+      });
+      const { query } = SQL.format(result, sqliteFormatter);
+
+      assert.ok(/WHERE\s+1 = 0/.test(query), `got: ${query}`);
+    });
+
+    it('throws for unsupported root operators instead of treating them as fields', () => {
+      assert.throws(
+        () =>
+          builder.find({
+            $text: { $search: 'active' },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          } as any),
+        /Unsupported root operator: \$text/,
+      );
     });
   });
 });

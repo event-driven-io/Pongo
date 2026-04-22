@@ -128,3 +128,58 @@ describe('find() sort option', () => {
     assert.ok(!sql.includes('data ->'), `got: ${sql}`);
   });
 });
+
+describe('find() logical operators', () => {
+  const builder = postgresSQLBuilder('users', JSONSerializer);
+
+  it('supports top-level $or', () => {
+    const query = builder.find<{ flag: boolean }>({
+      $or: [{ flag: true }, { flag: false }],
+    });
+    const { query: sql } = SQL.format(query, pgFormatter);
+
+    assert.ok(sql.includes(' OR '), `got: ${sql}`);
+    assert.ok(!sql.includes('$.$or'), `got: ${sql}`);
+  });
+
+  it('ANDs normal fields with $or blocks', () => {
+    const query = builder.find<{ flag: boolean; status: string }>({
+      status: 'active',
+      $or: [{ flag: true }, { flag: false }],
+    });
+    const { query: sql } = SQL.format(query, pgFormatter);
+
+    assert.ok(sql.includes(' AND '), `got: ${sql}`);
+    assert.ok(sql.includes(' OR '), `got: ${sql}`);
+  });
+
+  it('supports nested logical operators', () => {
+    const query = builder.find<{ flag: boolean; status: string }>({
+      $and: [{ status: 'active' }, { $or: [{ flag: true }, { flag: false }] }],
+    });
+    const { query: sql } = SQL.format(query, pgFormatter);
+
+    assert.ok(sql.includes(' AND '), `got: ${sql}`);
+    assert.ok(sql.includes(' OR '), `got: ${sql}`);
+  });
+
+  it('treats empty $or as match-nothing', () => {
+    const query = builder.find<{ flag: boolean }>({
+      $or: [],
+    });
+    const { query: sql } = SQL.format(query, pgFormatter);
+
+    assert.ok(/WHERE\s+1 = 0/.test(sql), `got: ${sql}`);
+  });
+
+  it('throws for unsupported root operators instead of treating them as fields', () => {
+    assert.throws(
+      () =>
+        builder.find({
+          $text: { $search: 'active' },
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any),
+      /Unsupported root operator: \$text/,
+    );
+  });
+});
