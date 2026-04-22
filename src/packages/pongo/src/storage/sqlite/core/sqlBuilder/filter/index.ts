@@ -4,7 +4,7 @@ import {
   hasOperators,
   objectEntries,
   QueryOperators,
-  type LogicalRootFilterOperators,
+  type RootFilterOperators,
   type PongoFilter,
 } from '../../../../../core';
 import { handleOperator } from './queryOperators';
@@ -23,7 +23,7 @@ export const constructFilterQuery = <T>(
   ensureSupportedRootOperators(filter as Record<string, unknown>);
 
   const { $or, $and, $nor, ...rest } = filter as PongoFilter<T> &
-    LogicalRootFilterOperators<T>;
+    Pick<RootFilterOperators<T>, '$and' | '$nor' | '$or'>;
   const parts: SQL[] = [];
 
   const fieldFilterQuery = constructFieldFilterQuery(rest, serializer);
