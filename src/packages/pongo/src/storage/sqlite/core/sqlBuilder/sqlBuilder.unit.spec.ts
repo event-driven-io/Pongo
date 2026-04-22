@@ -228,6 +228,8 @@ describe('sqliteSQLBuilder', () => {
 
       assert.ok(query.includes(' OR '), `got: ${query}`);
       assert.ok(!query.includes('$.$or'), `got: ${query}`);
+      assert.ok(!query.includes('1 = 0'), `got: ${query}`);
+      assert.ok(!query.includes('1 = 1'), `got: ${query}`);
     });
 
     it('ANDs normal fields with $or blocks', () => {
@@ -252,24 +254,17 @@ describe('sqliteSQLBuilder', () => {
 
       assert.ok(query.includes(' AND '), `got: ${query}`);
       assert.ok(query.includes(' OR '), `got: ${query}`);
-    });
-
-    it('treats empty $or as match-nothing', () => {
-      const result = builder.find<{ flag: boolean }>({
-        $or: [],
-      });
-      const { query } = SQL.format(result, sqliteFormatter);
-
-      assert.ok(/WHERE\s+1 = 0/.test(query), `got: ${query}`);
+      assert.ok(!query.includes('1 = 0'), `got: ${query}`);
+      assert.ok(!query.includes('1 = 1'), `got: ${query}`);
     });
 
     it('throws for unsupported root operators instead of treating them as fields', () => {
+      const unsupportedFilter = {
+        $text: { $search: 'active' },
+      } as unknown as Parameters<typeof builder.find>[0];
+
       assert.throws(
-        () =>
-          builder.find({
-            $text: { $search: 'active' },
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any),
+        () => builder.find(unsupportedFilter),
         /Unsupported root operator: \$text/,
       );
     });

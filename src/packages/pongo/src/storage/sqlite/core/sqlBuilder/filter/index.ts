@@ -4,7 +4,6 @@ import {
   hasOperators,
   objectEntries,
   QueryOperators,
-  type RootFilterOperators,
   type PongoFilter,
 } from '../../../../../core';
 import { handleOperator } from './queryOperators';
@@ -20,28 +19,29 @@ export const constructFilterQuery = <T>(
   filter: PongoFilter<T>,
   serializer: JSONSerializer,
 ): SQL => {
-  ensureSupportedRootOperators(filter as Record<string, unknown>);
-
-  const { $or, $and, $nor, ...rest } = filter as PongoFilter<T> &
-    Pick<RootFilterOperators<T>, '$and' | '$nor' | '$or'>;
+  ensureSupportedRootOperators(filter);
   const parts: SQL[] = [];
 
-  const fieldFilterQuery = constructFieldFilterQuery(rest, serializer);
+  const fieldFilterQuery = constructFieldFilterQuery(filter, serializer);
   if (!SQL.check.isEmpty(fieldFilterQuery)) {
     parts.push(fieldFilterQuery);
   }
 
-  const orFilterQuery = constructLogicalFilterQuery($or, OR, serializer);
+  const orFilterQuery = constructLogicalFilterQuery(filter.$or, OR, serializer);
   if (!SQL.check.isEmpty(orFilterQuery)) {
     parts.push(orFilterQuery);
   }
 
-  const andFilterQuery = constructLogicalFilterQuery($and, AND, serializer);
+  const andFilterQuery = constructLogicalFilterQuery(
+    filter.$and,
+    AND,
+    serializer,
+  );
   if (!SQL.check.isEmpty(andFilterQuery)) {
     parts.push(andFilterQuery);
   }
 
-  const norFilterQuery = constructNorFilterQuery($nor, serializer);
+  const norFilterQuery = constructNorFilterQuery(filter.$nor, serializer);
   if (!SQL.check.isEmpty(norFilterQuery)) {
     parts.push(norFilterQuery);
   }
@@ -49,15 +49,19 @@ export const constructFilterQuery = <T>(
   return SQL.merge(parts, ` ${AND} `);
 };
 
-const constructFieldFilterQuery = (
-  filter: Record<string, unknown>,
+const constructFieldFilterQuery = <T>(
+  filter: PongoFilter<T>,
   serializer: JSONSerializer,
 ): SQL =>
   SQL.merge(
-    Object.entries(filter).map(([key, value]) =>
-      isRecord(value)
-        ? constructComplexFilterQuery(key, value, serializer)
-        : handleOperator(key, QueryOperators.$eq, value, serializer),
+    objectEntries(filter).flatMap(([key, value]) =>
+      isLogicalRootOperator(key)
+        ? []
+        : [
+            isRecord(value)
+              ? constructComplexFilterQuery(key, value, serializer)
+              : handleOperator(key, QueryOperators.$eq, value, serializer),
+          ],
     ),
     ` ${AND} `,
   );
@@ -67,31 +71,46 @@ const constructLogicalFilterQuery = <T>(
   joinOperator: typeof AND | typeof OR,
   serializer: JSONSerializer,
 ): SQL => {
-  if (!filters) {
+  if (!filters?.length) {
     return SQL.EMPTY;
   }
 
-  if (filters.length === 0) {
-    return joinOperator === OR ? SQL`1 = 0` : SQL.EMPTY;
+  const subFilterQueries = filters.reduce<SQL[]>((queries, filter) => {
+    const query = constructFilterQuery(filter, serializer);
+    if (!SQL.check.isEmpty(query)) {
+      queries.push(query);
+    }
+
+    return queries;
+  }, []);
+
+  if (subFilterQueries.length === 0) {
+    return SQL.EMPTY;
   }
 
-  return SQL`(${SQL.merge(
-    filters.map((filter) =>
-      wrapFilterQuery(constructFilterQuery(filter, serializer)),
-    ),
-    ` ${joinOperator} `,
-  )})`;
+  if (subFilterQueries.length === 1) {
+    return wrapFilterQuery(subFilterQueries[0]!);
+  }
+
+  return SQL`(${SQL.merge(subFilterQueries.map(wrapFilterQuery), ` ${joinOperator} `)})`;
 };
 
 const constructNorFilterQuery = <T>(
   filters: PongoFilter<T>[] | undefined,
   serializer: JSONSerializer,
 ): SQL => {
-  if (!filters || filters.length === 0) {
+  if (!filters?.length) {
     return SQL.EMPTY;
   }
 
-  return SQL`NOT ${constructLogicalFilterQuery(filters, OR, serializer)}`;
+  const logicalFilterQuery = constructLogicalFilterQuery(
+    filters,
+    OR,
+    serializer,
+  );
+  return SQL.check.isEmpty(logicalFilterQuery)
+    ? SQL.EMPTY
+    : SQL`NOT ${logicalFilterQuery}`;
 };
 
 const constructComplexFilterQuery = (
@@ -116,18 +135,18 @@ const constructComplexFilterQuery = (
   );
 };
 
-const wrapFilterQuery = (filterQuery: SQL): SQL =>
-  SQL.check.isEmpty(filterQuery) ? SQL`(1 = 1)` : SQL`(${filterQuery})`;
+const wrapFilterQuery = (filterQuery: SQL): SQL => SQL`(${filterQuery})`;
 
-const ensureSupportedRootOperators = (
-  filter: Record<string, unknown>,
-): void => {
+const ensureSupportedRootOperators = (filter: object): void => {
   for (const operator of unsupportedRootOperators) {
     if (operator in filter) {
       throw new Error(`Unsupported root operator: ${operator}`);
     }
   }
 };
+
+const isLogicalRootOperator = (key: string): key is '$and' | '$nor' | '$or' =>
+  key === '$and' || key === '$nor' || key === '$or';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
