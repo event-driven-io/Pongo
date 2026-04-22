@@ -10,7 +10,7 @@ const asPlainObjectWithSingleKey = <T>(
   !Array.isArray(filter) &&
   Object.keys(filter).length === 1 &&
   key in filter
-    ? filter
+    ? { [key]: (filter as Record<string, unknown>)[key] }
     : undefined;
 
 export const idFromFilter = <T>(

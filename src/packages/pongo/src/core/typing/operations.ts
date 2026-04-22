@@ -411,7 +411,7 @@ export declare type AlternativeType<T> =
 export declare type Condition<T> =
   AlternativeType<T> | PongoFilterOperator<AlternativeType<T>>;
 
-export declare interface LogicalRootFilterOperators<TSchema> extends Document {
+export declare interface LogicalRootFilterOperators<TSchema> {
   $and?: PongoFilter<TSchema>[];
   $nor?: PongoFilter<TSchema>[];
   $or?: PongoFilter<TSchema>[];
