@@ -716,6 +716,110 @@ describe('MongoDB Compatibility Tests', () => {
       );
     });
 
+    it('should find documents with a top-level $or filter', async () => {
+      const pongoCollection = pongoDb.collection<User>('findWithTopLevelOr');
+      const mongoCollection = mongoDb.collection<User>(
+        'shimfindWithTopLevelOr',
+      );
+      const docs = [
+        { name: 'David', age: 40 },
+        { name: 'Eve', age: 45 },
+        { name: 'Frank', age: 50 },
+      ];
+
+      await pongoCollection.insertOne(docs[0]!);
+      await pongoCollection.insertOne(docs[1]!);
+      await pongoCollection.insertOne(docs[2]!);
+
+      await mongoCollection.insertOne(docs[0]!);
+      await mongoCollection.insertOne(docs[1]!);
+      await mongoCollection.insertOne(docs[2]!);
+
+      const pongoDocs = await pongoCollection.find({
+        $or: [{ age: 40 }, { age: 50 }],
+      });
+      const mongoDocs = await mongoCollection
+        .find({
+          $or: [{ age: 40 }, { age: 50 }],
+        })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({ name: d.name, age: d.age })),
+        mongoDocs.map((d) => ({ name: d.name, age: d.age })),
+      );
+    });
+
+    it('should find documents with nested $and and $or filters', async () => {
+      const pongoCollection = pongoDb.collection<User>(
+        'findWithNestedLogicalOperators',
+      );
+      const mongoCollection = mongoDb.collection<User>(
+        'shimfindWithNestedLogicalOperators',
+      );
+      const docs = [
+        { name: 'Anita', age: 25 },
+        { name: 'Roger', age: 30 },
+        { name: 'Cruella', age: 35 },
+      ];
+
+      await pongoCollection.insertOne(docs[0]!);
+      await pongoCollection.insertOne(docs[1]!);
+      await pongoCollection.insertOne(docs[2]!);
+
+      await mongoCollection.insertOne(docs[0]!);
+      await mongoCollection.insertOne(docs[1]!);
+      await mongoCollection.insertOne(docs[2]!);
+
+      const pongoDocs = await pongoCollection.find({
+        $and: [{ age: { $gte: 30 } }, { $or: [{ name: 'Roger' }] }],
+      });
+      const mongoDocs = await mongoCollection
+        .find({
+          $and: [{ age: { $gte: 30 } }, { $or: [{ name: 'Roger' }] }],
+        })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({ name: d.name, age: d.age })),
+        mongoDocs.map((d) => ({ name: d.name, age: d.age })),
+      );
+    });
+
+    it('should find documents with a top-level $nor filter', async () => {
+      const pongoCollection = pongoDb.collection<User>('findWithTopLevelNor');
+      const mongoCollection = mongoDb.collection<User>(
+        'shimfindWithTopLevelNor',
+      );
+      const docs = [
+        { name: 'Anita', age: 25 },
+        { name: 'Roger', age: 30 },
+        { name: 'Cruella', age: 35 },
+      ];
+
+      await pongoCollection.insertOne(docs[0]!);
+      await pongoCollection.insertOne(docs[1]!);
+      await pongoCollection.insertOne(docs[2]!);
+
+      await mongoCollection.insertOne(docs[0]!);
+      await mongoCollection.insertOne(docs[1]!);
+      await mongoCollection.insertOne(docs[2]!);
+
+      const pongoDocs = await pongoCollection.find({
+        $nor: [{ age: 25 }, { age: 35 }],
+      });
+      const mongoDocs = await mongoCollection
+        .find({
+          $nor: [{ age: 25 }, { age: 35 }],
+        })
+        .toArray();
+
+      assert.deepStrictEqual(
+        pongoDocs.map((d) => ({ name: d.name, age: d.age })),
+        mongoDocs.map((d) => ({ name: d.name, age: d.age })),
+      );
+    });
+
     it('should find one document with a filter', async () => {
       const pongoCollection = pongoDb.collection<User>('testCollection');
       const mongoCollection = mongoDb.collection<User>('shimtestCollection');

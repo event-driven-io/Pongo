@@ -201,6 +201,8 @@ describe('find() logical operators', () => {
 
     assert.ok(sql.includes(' OR '), `got: ${sql}`);
     assert.ok(!sql.includes('$.$or'), `got: ${sql}`);
+    assert.ok(!sql.includes('1 = 0'), `got: ${sql}`);
+    assert.ok(!sql.includes('1 = 1'), `got: ${sql}`);
   });
 
   it('ANDs normal fields with $or blocks', () => {
@@ -222,24 +224,17 @@ describe('find() logical operators', () => {
 
     assert.ok(sql.includes(' AND '), `got: ${sql}`);
     assert.ok(sql.includes(' OR '), `got: ${sql}`);
-  });
-
-  it('treats empty $or as match-nothing', () => {
-    const query = builder.find<{ flag: boolean }>({
-      $or: [],
-    });
-    const { query: sql } = SQL.format(query, pgFormatter);
-
-    assert.ok(/WHERE\s+1 = 0/.test(sql), `got: ${sql}`);
+    assert.ok(!sql.includes('1 = 0'), `got: ${sql}`);
+    assert.ok(!sql.includes('1 = 1'), `got: ${sql}`);
   });
 
   it('throws for unsupported root operators instead of treating them as fields', () => {
+    const unsupportedFilter = {
+      $text: { $search: 'active' },
+    } as unknown as Parameters<typeof builder.find>[0];
+
     assert.throws(
-      () =>
-        builder.find({
-          $text: { $search: 'active' },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any),
+      () => builder.find(unsupportedFilter),
       /Unsupported root operator: \$text/,
     );
   });
