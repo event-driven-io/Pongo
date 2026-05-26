@@ -22,6 +22,7 @@ import {
   type SQLite3Connection,
   type SQLite3ConnectionOptions,
 } from './connections';
+import { serializeSqlite3WriterPool } from './serializeWriter';
 
 export type SQLite3DumboOptions = Omit<
   SQLitePoolOptions<SQLite3Connection, SQLite3ConnectionOptions>,
@@ -33,8 +34,8 @@ export type SQLite3PoolOptions = SQLite3DumboOptions;
 
 export type Sqlite3Pool = SQLitePool<SQLite3Connection>;
 
-export const sqlite3Pool = (options: SQLite3DumboOptions) =>
-  sqlitePool(
+export const sqlite3Pool = (options: SQLite3DumboOptions) => {
+  const pool = sqlitePool(
     toSqlitePoolOptions({
       ...options,
       driverType: SQLite3DriverType,
@@ -50,6 +51,17 @@ export const sqlite3Pool = (options: SQLite3DumboOptions) =>
           }),
     }),
   );
+
+  // Ambient pools wrap a connection the caller already holds; serialising on
+  // top of them would double-lock and defeat the purpose. Anything else gets
+  // wrapped so writer-bound calls (withConnection, withTransaction, command,
+  // batchCommand) serialise through a single TaskProcessor, with ALS-based
+  // reentrancy so nested calls from inside an active writer task bypass the
+  // queue instead of deadlocking.
+  if ('connection' in options && options.connection) return pool;
+
+  return serializeSqlite3WriterPool(pool);
+};
 
 const tryParseConnectionString = (connectionString: string) => {
   try {
