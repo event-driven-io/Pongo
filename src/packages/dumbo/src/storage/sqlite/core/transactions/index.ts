@@ -85,21 +85,18 @@ export const sqliteTransaction =
       commit: async function () {
         const client = (await getClient) as SQLiteClientOrPoolClient;
 
-        try {
-          if (allowNestedTransactions) {
-            if (transactionCounter.level > 1) {
-              if (options?.useSavepoints) {
-                await client.command(
-                  SQL`RELEASE transaction${SQL.plain(transactionCounter.level.toString())}`,
-                );
-              }
-              transactionCounter.decrement();
-
-              return;
-            }
-
-            transactionCounter.reset();
+        if (allowNestedTransactions && transactionCounter.level > 1) {
+          if (options?.useSavepoints) {
+            await client.command(
+              SQL`RELEASE transaction${SQL.plain(transactionCounter.level.toString())}`,
+            );
           }
+          transactionCounter.decrement();
+          return;
+        }
+
+        try {
+          if (allowNestedTransactions) transactionCounter.reset();
           hasBegun = false;
           await client.command(SQL`COMMIT`);
         } finally {
@@ -111,14 +108,13 @@ export const sqliteTransaction =
       },
       rollback: async function (error?: unknown) {
         const client = (await getClient) as SQLiteClientOrPoolClient;
-        try {
-          if (allowNestedTransactions) {
-            if (transactionCounter.level > 1) {
-              transactionCounter.decrement();
-              return;
-            }
-          }
 
+        if (allowNestedTransactions && transactionCounter.level > 1) {
+          transactionCounter.decrement();
+          return;
+        }
+
+        try {
           hasBegun = false;
           await client.command(SQL`ROLLBACK`);
         } finally {

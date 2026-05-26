@@ -90,16 +90,13 @@ export const d1Transaction =
       commit: async function () {
         const client = await getDatabaseClient();
 
+        if (allowNestedTransactions && transactionCounter.level > 1) {
+          transactionCounter.decrement();
+          return;
+        }
+
         try {
-          if (allowNestedTransactions) {
-            if (transactionCounter.level > 1) {
-              transactionCounter.decrement();
-
-              return;
-            }
-
-            transactionCounter.reset();
-          }
+          if (allowNestedTransactions) transactionCounter.reset();
           sessionClient = null;
         } finally {
           if (options?.close) await options?.close(client);
@@ -107,14 +104,13 @@ export const d1Transaction =
       },
       rollback: async function (error?: unknown) {
         const client = await getDatabaseClient();
-        try {
-          if (allowNestedTransactions) {
-            if (transactionCounter.level > 1) {
-              transactionCounter.decrement();
-              return;
-            }
-          }
 
+        if (allowNestedTransactions && transactionCounter.level > 1) {
+          transactionCounter.decrement();
+          return;
+        }
+
+        try {
           sessionClient = null;
         } finally {
           if (options?.close) await options?.close(client, error);

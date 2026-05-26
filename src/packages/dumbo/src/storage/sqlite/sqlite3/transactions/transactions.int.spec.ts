@@ -76,6 +76,44 @@ describe('SQLite3 Transactions', () => {
           await pool.close();
         }
       });
+      it('keeps the outer transaction open after a sibling nested transaction commits', async () => {
+        const pool = sqlite3Pool({
+          fileName,
+          transactionOptions: { allowNestedTransactions: true },
+        });
+
+        try {
+          await pool.execute.command(
+            SQL`CREATE TABLE test_table (id INTEGER PRIMARY KEY, value TEXT)`,
+          );
+
+          await pool.withTransaction(async (outerTx) => {
+            await pool.withTransaction(async (innerTx) => {
+              await innerTx.execute.command(
+                SQL`INSERT INTO test_table (id, value) VALUES (1, 'first')`,
+              );
+            });
+
+            await pool.withTransaction(async (innerTx) => {
+              await innerTx.execute.command(
+                SQL`INSERT INTO test_table (id, value) VALUES (2, 'second')`,
+              );
+            });
+
+            await outerTx.execute.command(
+              SQL`INSERT INTO test_table (id, value) VALUES (3, 'outer')`,
+            );
+          });
+
+          const rows = await pool.execute.query<{ count: number }>(
+            SQL`SELECT COUNT(*) as count FROM test_table`,
+          );
+          assert.strictEqual(rows.rows[0]?.count, 3);
+        } finally {
+          await pool.close();
+        }
+      });
+
       it('should fail with an error if transaction nested is false', async () => {
         const pool = sqlite3Pool({
           fileName,
