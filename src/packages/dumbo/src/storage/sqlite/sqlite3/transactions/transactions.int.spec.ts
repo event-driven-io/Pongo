@@ -107,7 +107,7 @@ describe('SQLite3 Transactions', () => {
         } catch (error) {
           assert.strictEqual(
             (error as Error).message,
-            'SQLITE_ERROR: cannot start a transaction within a transaction',
+            'Cannot start a nested transaction: allowNestedTransactions is false. Set transactionOptions: { allowNestedTransactions: true } on your pool or connection.',
           );
         } finally {
           await connection.close();
