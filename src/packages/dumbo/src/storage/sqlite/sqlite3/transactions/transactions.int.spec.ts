@@ -552,66 +552,106 @@ describe('SQLite3 Transactions', () => {
         }
       });
 
-      // TODO: parallel pool.withTransaction calls share one underlying SQLite
-      // transaction on the singleton writer connection. A rollback in one
-      // sibling rolls back the other's writes. Fix requires a writer queue
-      // (one real BEGIN/COMMIT per call), not just the finally-block tweak.
-      it.fails(
-        `isolates a failing parallel transaction from a successful one with ${testName} database`,
-        async () => {
-          const pool = sqlite3Pool({
-            fileName,
-            transactionOptions: { allowNestedTransactions: true },
+      it(`keeps a plain command outside of an open transaction with ${testName} database`, async () => {
+        const pool = sqlite3Pool({
+          fileName,
+          transactionOptions: { allowNestedTransactions: true },
+        });
+
+        try {
+          await pool.execute.command(
+            SQL`CREATE TABLE plain_isolation (id INTEGER PRIMARY KEY, value TEXT)`,
+          );
+
+          let releaseTx: () => void = () => {};
+          let plainMayStart: () => void = () => {};
+          const txMayProceed = new Promise<void>((r) => {
+            releaseTx = r;
+          });
+          const plainCanStart = new Promise<void>((r) => {
+            plainMayStart = r;
           });
 
-          try {
-            await pool.execute.command(
-              SQL`CREATE TABLE isolation_test (id INTEGER PRIMARY KEY, value TEXT)`,
+          const txPromise = pool.withTransaction(async (tx) => {
+            await tx.execute.command(
+              SQL`INSERT INTO plain_isolation (id, value) VALUES (1, 'tx-row')`,
             );
+            plainMayStart();
+            await txMayProceed;
+            throw new Error('tx intentional rollback');
+          });
 
-            let releaseA: () => void = () => {};
-            let releaseB: () => void = () => {};
-            const aMayProceed = new Promise<void>((r) => {
-              releaseA = r;
-            });
-            const bMayProceed = new Promise<void>((r) => {
-              releaseB = r;
-            });
+          await plainCanStart;
 
-            const a = pool.withTransaction(async (tx) => {
-              await tx.execute.command(
-                SQL`INSERT INTO isolation_test (id, value) VALUES (1, 'a-commits')`,
-              );
-              releaseB();
-              await aMayProceed;
-            });
+          const plainPromise = pool.execute.command(
+            SQL`INSERT INTO plain_isolation (id, value) VALUES (2, 'plain-row')`,
+          );
 
-            const b = pool.withTransaction(async (tx) => {
-              await bMayProceed;
-              await tx.execute.command(
-                SQL`INSERT INTO isolation_test (id, value) VALUES (2, 'b-rolls-back')`,
-              );
-              throw new Error('B intentional failure');
-            });
+          releaseTx();
 
-            await assert.rejects(b, /B intentional failure/);
-            releaseA();
-            await a;
+          await assert.rejects(txPromise, /tx intentional rollback/);
+          await plainPromise;
 
-            const rows = await pool.execute.query<{
-              id: number;
-              value: string;
-            }>(SQL`SELECT id, value FROM isolation_test ORDER BY id`);
+          const rows = await pool.execute.query<{
+            id: number;
+            value: string;
+          }>(SQL`SELECT id, value FROM plain_isolation ORDER BY id`);
 
-            assert.deepStrictEqual(
-              rows.rows.map((r) => r.value),
-              ['a-commits'],
+          assert.deepStrictEqual(
+            rows.rows.map((r) => r.value),
+            ['plain-row'],
+          );
+        } finally {
+          await pool.close();
+        }
+      });
+
+      it(`isolates a failing parallel transaction from a successful one with ${testName} database`, async () => {
+        const pool = sqlite3Pool({
+          fileName,
+          transactionOptions: { allowNestedTransactions: true },
+        });
+
+        try {
+          await pool.execute.command(
+            SQL`CREATE TABLE isolation_test (id INTEGER PRIMARY KEY, value TEXT)`,
+          );
+
+          const a = pool.withTransaction(async (tx) => {
+            await tx.execute.command(
+              SQL`INSERT INTO isolation_test (id, value) VALUES (1, 'a-commits')`,
             );
-          } finally {
-            await pool.close();
-          }
-        },
-      );
+          });
+
+          const b = pool.withTransaction(async (tx) => {
+            await tx.execute.command(
+              SQL`INSERT INTO isolation_test (id, value) VALUES (2, 'b-rolls-back')`,
+            );
+            throw new Error('B intentional failure');
+          });
+
+          const results = await Promise.allSettled([a, b]);
+
+          assert.strictEqual(results[0]?.status, 'fulfilled');
+          assert.strictEqual(results[1]?.status, 'rejected');
+          assert.match(
+            (results[1].reason as Error).message,
+            /B intentional failure/,
+          );
+
+          const rows = await pool.execute.query<{
+            id: number;
+            value: string;
+          }>(SQL`SELECT id, value FROM isolation_test ORDER BY id`);
+
+          assert.deepStrictEqual(
+            rows.rows.map((r) => r.value),
+            ['a-commits'],
+          );
+        } finally {
+          await pool.close();
+        }
+      });
 
       it(`serializes concurrent withConnection writes with ${testName} database`, async () => {
         const pool = sqlite3Pool({
