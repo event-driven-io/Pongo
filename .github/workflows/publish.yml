@@ -8,6 +8,10 @@ defaults:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
     steps:
       - name: Check Out Repo
         uses: actions/checkout@v6
@@ -17,6 +21,9 @@ jobs:
         with:
           registry-url: "https://registry.npmjs.org"
           node-version-file: ./src/.nvmrc
+
+      - name: Ensure specific npm version
+        run: npm install -g npm@11.9.0
 
       - name: Install dependencies
         run: npm ci
@@ -50,20 +57,24 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_ENV: production
 
-      - name: Publish Pongo package on NPM 📦
+      - name: Publish packages on NPM 📦
         run: |
-          VERSION=$(node -p "require('./package.json').version")
-          if [[ $VERSION == *"beta"* ]]; then
-            TAG="beta"
-          elif [[ $VERSION == *"alpha"* ]]; then
-            TAG="alpha"
-          elif [[ $VERSION == *"rc"* ]]; then
-            TAG="rc"
-          else
-            TAG="latest"
-          fi
-          npm publish --w @event-driven-io/pongo --tag $TAG
-        continue-on-error: true
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NODE_ENV: production
+          for pkg_dir in packages/*/; do
+            [ -f "${pkg_dir}package.json" ] || { echo "⏭  ${pkg_dir} has no package.json — skipping"; continue; }
+
+            read -r pkg_name pkg_version pkg_private < <(node -p "
+              const p = require('./${pkg_dir}package.json');
+              [p.name, p.version, p.private ?? false].join(' ')
+            ")
+
+            [ "$pkg_private" = "true" ] && { echo "⏭  ${pkg_name}@${pkg_version} is private — skipping"; continue; }
+
+            tag=$(echo "$pkg_version" | sed -E 's/.*-(beta|alpha|rc)\..*/\1/; t; s/.*/latest/')
+
+            if npm view "${pkg_name}@${pkg_version}" version >/dev/null 2>&1; then
+              echo "⏭  ${pkg_name}@${pkg_version} already published — skipping"
+            else
+              echo "📦 Publishing ${pkg_name}@${pkg_version}"
+              npm publish -w "${pkg_dir}" --tag "$tag" --access public --provenance
+            fi
+          done
