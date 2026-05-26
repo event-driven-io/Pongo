@@ -552,6 +552,67 @@ describe('SQLite3 Transactions', () => {
         }
       });
 
+      // TODO: parallel pool.withTransaction calls share one underlying SQLite
+      // transaction on the singleton writer connection. A rollback in one
+      // sibling rolls back the other's writes. Fix requires a writer queue
+      // (one real BEGIN/COMMIT per call), not just the finally-block tweak.
+      it.fails(
+        `isolates a failing parallel transaction from a successful one with ${testName} database`,
+        async () => {
+          const pool = sqlite3Pool({
+            fileName,
+            transactionOptions: { allowNestedTransactions: true },
+          });
+
+          try {
+            await pool.execute.command(
+              SQL`CREATE TABLE isolation_test (id INTEGER PRIMARY KEY, value TEXT)`,
+            );
+
+            let releaseA: () => void = () => {};
+            let releaseB: () => void = () => {};
+            const aMayProceed = new Promise<void>((r) => {
+              releaseA = r;
+            });
+            const bMayProceed = new Promise<void>((r) => {
+              releaseB = r;
+            });
+
+            const a = pool.withTransaction(async (tx) => {
+              await tx.execute.command(
+                SQL`INSERT INTO isolation_test (id, value) VALUES (1, 'a-commits')`,
+              );
+              releaseB();
+              await aMayProceed;
+            });
+
+            const b = pool.withTransaction(async (tx) => {
+              await bMayProceed;
+              await tx.execute.command(
+                SQL`INSERT INTO isolation_test (id, value) VALUES (2, 'b-rolls-back')`,
+              );
+              throw new Error('B intentional failure');
+            });
+
+            await assert.rejects(b, /B intentional failure/);
+            releaseA();
+            await a;
+
+            const rows = await pool.execute.query<{
+              id: number;
+              value: string;
+            }>(SQL`SELECT id, value FROM isolation_test ORDER BY id`);
+
+            assert.deepStrictEqual(
+              rows.rows.map((r) => r.value),
+              ['a-commits'],
+            );
+          } finally {
+            await pool.close();
+          }
+        },
+      );
+
       it(`serializes concurrent withConnection writes with ${testName} database`, async () => {
         const pool = sqlite3Pool({
           fileName,
