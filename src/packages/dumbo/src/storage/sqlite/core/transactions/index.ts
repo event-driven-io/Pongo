@@ -3,6 +3,7 @@ import type {
   JSONSerializer,
 } from '../../../../core';
 import {
+  InvalidOperationError,
   SQL,
   sqlExecutor,
   type DatabaseTransaction,
@@ -50,6 +51,8 @@ export const sqliteTransaction =
     allowNestedTransactions =
       options?.allowNestedTransactions ?? allowNestedTransactions;
 
+    let hasBegun = false;
+
     const transaction: DatabaseTransaction<ConnectionType> = {
       connection: connection(),
       driverType,
@@ -68,8 +71,14 @@ export const sqliteTransaction =
           }
 
           transactionCounter.increment();
+        } else if (hasBegun) {
+          throw new InvalidOperationError(
+            'Cannot start a nested transaction: allowNestedTransactions is false. ' +
+              'Set transactionOptions: { allowNestedTransactions: true } on your pool or connection.',
+          );
         }
 
+        hasBegun = true;
         const mode = options?.mode ?? defaultTransactionMode ?? 'IMMEDIATE';
         await client.command(SQL`BEGIN ${SQL.plain(mode)} TRANSACTION`);
       },
@@ -91,6 +100,7 @@ export const sqliteTransaction =
 
             transactionCounter.reset();
           }
+          hasBegun = false;
           await client.command(SQL`COMMIT`);
         } finally {
           if (options?.close)
@@ -109,6 +119,7 @@ export const sqliteTransaction =
             }
           }
 
+          hasBegun = false;
           await client.command(SQL`ROLLBACK`);
         } finally {
           if (options?.close)
@@ -121,7 +132,10 @@ export const sqliteTransaction =
       execute: sqlExecutor(sqliteSQLExecutor(driverType, serializer), {
         connect: () => getClient,
       }),
-      _transactionOptions: options ?? {},
+      _transactionOptions: {
+        ...options,
+        allowNestedTransactions,
+      },
     };
 
     return transaction as InferTransactionFromConnection<ConnectionType>;

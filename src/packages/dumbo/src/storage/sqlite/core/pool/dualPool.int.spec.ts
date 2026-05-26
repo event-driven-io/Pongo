@@ -1,7 +1,7 @@
 import assert from 'node:assert';
 import * as fs from 'node:fs';
 import { afterAll, beforeAll, describe, it } from 'vitest';
-import { SQL } from '../../../../core';
+import { InvalidOperationError, SQL } from '../../../../core';
 import { sqlite3Pool } from '../../sqlite3';
 
 const withDeadline = { timeout: 30000 };
@@ -314,6 +314,89 @@ describe('SQLite Dual Connection Pool', () => {
       const results = await Promise.all(readPromises);
 
       assert.equal(results.filter((r) => r instanceof Error).length, 0);
+    },
+  );
+
+  it(
+    'respects allowNestedTransactions from connectionOptions in dual pool writer',
+    withDeadline,
+    async () => {
+      const nestedTxFileName = 'nested-tx-test.db';
+
+      const pool = sqlite3Pool({
+        fileName: nestedTxFileName,
+        transactionOptions: { allowNestedTransactions: true },
+      });
+
+      try {
+        await pool.execute.command(
+          SQL`CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT)`,
+        );
+
+        await pool.withTransaction(async (outerTx) => {
+          await outerTx.execute.command(
+            SQL`INSERT INTO test (value) VALUES ('outer')`,
+          );
+
+          await pool.withTransaction(async (innerTx) => {
+            await innerTx.execute.command(
+              SQL`INSERT INTO test (value) VALUES ('inner')`,
+            );
+          });
+        });
+
+        const result = await pool.execute.query(
+          SQL`SELECT COUNT(*) as count FROM test`,
+        );
+        assert.equal(result.rows[0]?.count, 2, 'Both rows should be present');
+      } finally {
+        await pool.close();
+        cleanupDb(nestedTxFileName);
+      }
+    },
+  );
+
+  it(
+    'dual pool writer: throws actionable error on nested withTransaction when allowNestedTransactions is false',
+    withDeadline,
+    async () => {
+      const nestedTxFileName = 'nested-tx-no-opts-test.db';
+
+      const pool = sqlite3Pool({ fileName: nestedTxFileName });
+
+      try {
+        await pool.execute.command(
+          SQL`CREATE TABLE test (id INTEGER PRIMARY KEY, value TEXT)`,
+        );
+
+        await assert.rejects(
+          () =>
+            pool.withTransaction(async (outerTx) => {
+              await outerTx.execute.command(
+                SQL`INSERT INTO test (value) VALUES ('outer')`,
+              );
+              await pool.withTransaction(async (innerTx) => {
+                await innerTx.execute.command(
+                  SQL`INSERT INTO test (value) VALUES ('inner')`,
+                );
+              });
+            }),
+          (err: unknown) => {
+            assert.ok(
+              err instanceof InvalidOperationError,
+              `Expected InvalidOperationError, got ${String(err)}`,
+            );
+            assert.ok(
+              err.message.includes('allowNestedTransactions'),
+              `Error message should mention allowNestedTransactions, got: ${err.message}`,
+            );
+            return true;
+          },
+        );
+      } finally {
+        await pool.close();
+        cleanupDb(nestedTxFileName);
+      }
     },
   );
 });
