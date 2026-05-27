@@ -1,16 +1,14 @@
 import { cpus } from 'os';
-import {
-  createBoundedConnectionPool,
-  createSingletonConnectionPool,
-} from '../../../../core';
+import { createBoundedConnectionPool } from '../../../../core';
 import { guardInitializedOnce } from '../../../../core/taskProcessing';
 import type {
   AnySQLiteConnection,
   SQLiteConnectionFactory,
   SQLiteConnectionOptions,
-} from '../connections';
-import { mapSqliteError } from '../errors';
-import type { SQLitePool } from './pool';
+  SQLitePool,
+} from '../../core';
+import { mapSqliteError } from '../../core/errors';
+import { sqlite3SingletonPool } from './singletonPool';
 
 export type SQLiteDualPoolOptions<
   SQLiteConnectionType extends AnySQLiteConnection,
@@ -89,7 +87,7 @@ export const sqliteDualConnectionPool = <
     return connection;
   };
 
-  const writerPool = createSingletonConnectionPool({
+  const writerPool = sqlite3SingletonPool<SQLiteConnectionType>({
     driverType: options.driverType,
     getConnection: () => wrappedConnectionFactory(false, connectionOptions),
   });

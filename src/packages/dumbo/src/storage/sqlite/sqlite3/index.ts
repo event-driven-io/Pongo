@@ -8,6 +8,7 @@ import {
 } from '../../../core';
 import {
   DefaultSQLiteMigratorOptions,
+  isInMemoryDatabase,
   SQLiteConnectionString,
   sqliteFormatter,
   sqliteMetadata,
@@ -22,7 +23,8 @@ import {
   type SQLite3Connection,
   type SQLite3ConnectionOptions,
 } from './connections';
-import { serializeSqlite3WriterPool } from './serializeWriter';
+import { sqliteDualConnectionPool } from './pool/dualPool';
+import { sqlite3SingletonPool } from './pool/singletonPool';
 
 export type SQLite3DumboOptions = Omit<
   SQLitePoolOptions<SQLite3Connection, SQLite3ConnectionOptions>,
@@ -34,33 +36,50 @@ export type SQLite3PoolOptions = SQLite3DumboOptions;
 
 export type Sqlite3Pool = SQLitePool<SQLite3Connection>;
 
-export const sqlite3Pool = (options: SQLite3DumboOptions) => {
-  const pool = sqlitePool(
-    toSqlitePoolOptions({
-      ...options,
+export const sqlite3Pool = (
+  options: SQLite3DumboOptions,
+): SQLitePool<SQLite3Connection> => {
+  // Ambient: caller-managed connection. No acquisition, no serialisation.
+  if ('connection' in options && options.connection) {
+    return sqlitePool(
+      toSqlitePoolOptions({
+        ...options,
+        driverType: SQLite3DriverType,
+      }),
+    );
+  }
+
+  const sqliteConnectionFactory = (opts: SQLite3ConnectionOptions) =>
+    sqlite3Connection({
+      ...opts,
+      serializer: options.serializer ?? JSONSerializer,
+    });
+
+  // Singleton-shaped: in-memory DBs, an explicit client, or `singleton: true`.
+  // One connection shared across callers — wrap it so concurrent callers
+  // serialise through a single-slot TaskProcessor with ALS-based reentrancy.
+  const isSingleton =
+    isInMemoryDatabase(options) ||
+    ('client' in options && Boolean(options.client)) ||
+    options.singleton === true;
+
+  if (isSingleton) {
+    return sqlite3SingletonPool<SQLite3Connection>({
       driverType: SQLite3DriverType,
-      ...('connection' in options
-        ? {}
-        : {
-            connectionOptions: options,
-            sqliteConnectionFactory: (opts: SQLite3ConnectionOptions) =>
-              sqlite3Connection({
-                ...opts,
-                serializer: options.serializer ?? JSONSerializer,
-              }),
-          }),
-    }),
-  );
+      getConnection: () => sqliteConnectionFactory(options),
+    });
+  }
 
-  // Ambient pools wrap a connection the caller already holds; serialising on
-  // top of them would double-lock and defeat the purpose. Anything else gets
-  // wrapped so writer-bound calls (withConnection, withTransaction, command,
-  // batchCommand) serialise through a single TaskProcessor, with ALS-based
-  // reentrancy so nested calls from inside an active writer task bypass the
-  // queue instead of deadlocking.
-  if ('connection' in options && options.connection) return pool;
-
-  return serializeSqlite3WriterPool(pool);
+  // Default: file-backed dual pool. Its writer side is serialised inside
+  // sqliteDualConnectionPool via the same primitive.
+  const readerPoolSize = (options as { readerPoolSize?: number })
+    .readerPoolSize;
+  return sqliteDualConnectionPool({
+    driverType: SQLite3DriverType,
+    sqliteConnectionFactory,
+    connectionOptions: options,
+    ...(readerPoolSize !== undefined ? { readerPoolSize } : {}),
+  });
 };
 
 const tryParseConnectionString = (connectionString: string) => {
