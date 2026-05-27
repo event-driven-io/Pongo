@@ -653,6 +653,161 @@ describe('SQLite3 Transactions', () => {
         }
       });
 
+      // Reentrancy: a writer-bound call from inside an already-active writer
+      // task (same async stack) must bypass the queue instead of deadlocking.
+      // These tests exercise the patterns emmett relies on (workflow processor
+      // calling messageStore.appendToStream inside its tx handler).
+      it(
+        `allows pool.withConnection reentry from inside pool.withTransaction with ${testName} database`,
+        { timeout: 5000 },
+        async () => {
+          const pool = sqlite3Pool({
+            fileName,
+            transactionOptions: { allowNestedTransactions: true },
+          });
+
+          try {
+            await pool.execute.command(
+              SQL`CREATE TABLE reentry_with_conn (id INTEGER PRIMARY KEY, value TEXT)`,
+            );
+
+            await pool.withTransaction(async (tx) => {
+              await tx.execute.command(
+                SQL`INSERT INTO reentry_with_conn (id, value) VALUES (1, 'outer')`,
+              );
+
+              await pool.withConnection(async (conn) => {
+                await conn.execute.command(
+                  SQL`INSERT INTO reentry_with_conn (id, value) VALUES (2, 'inner')`,
+                );
+              });
+            });
+
+            const rows = await pool.execute.query<{ count: number }>(
+              SQL`SELECT COUNT(*) as count FROM reentry_with_conn`,
+            );
+            assert.strictEqual(rows.rows[0]?.count, 2);
+          } finally {
+            await pool.close();
+          }
+        },
+      );
+
+      it(
+        `allows pool.execute.command reentry from inside pool.withTransaction with ${testName} database`,
+        { timeout: 5000 },
+        async () => {
+          const pool = sqlite3Pool({
+            fileName,
+            transactionOptions: { allowNestedTransactions: true },
+          });
+
+          try {
+            await pool.execute.command(
+              SQL`CREATE TABLE reentry_with_cmd (id INTEGER PRIMARY KEY, value TEXT)`,
+            );
+
+            await pool.withTransaction(async (tx) => {
+              await tx.execute.command(
+                SQL`INSERT INTO reentry_with_cmd (id, value) VALUES (1, 'outer')`,
+              );
+
+              await pool.execute.command(
+                SQL`INSERT INTO reentry_with_cmd (id, value) VALUES (2, 'inner-plain')`,
+              );
+            });
+
+            const rows = await pool.execute.query<{ count: number }>(
+              SQL`SELECT COUNT(*) as count FROM reentry_with_cmd`,
+            );
+            assert.strictEqual(rows.rows[0]?.count, 2);
+          } finally {
+            await pool.close();
+          }
+        },
+      );
+
+      it(
+        `allows nested pool.withTransaction reentry with ${testName} database`,
+        { timeout: 5000 },
+        async () => {
+          const pool = sqlite3Pool({
+            fileName,
+            transactionOptions: { allowNestedTransactions: true },
+          });
+
+          try {
+            await pool.execute.command(
+              SQL`CREATE TABLE reentry_nested_tx (id INTEGER PRIMARY KEY, value TEXT)`,
+            );
+
+            await pool.withTransaction(async (outerTx) => {
+              await outerTx.execute.command(
+                SQL`INSERT INTO reentry_nested_tx (id, value) VALUES (1, 'outer')`,
+              );
+
+              await pool.withTransaction(async (innerTx) => {
+                await innerTx.execute.command(
+                  SQL`INSERT INTO reentry_nested_tx (id, value) VALUES (2, 'inner')`,
+                );
+              });
+            });
+
+            const rows = await pool.execute.query<{ count: number }>(
+              SQL`SELECT COUNT(*) as count FROM reentry_nested_tx`,
+            );
+            assert.strictEqual(rows.rows[0]?.count, 2);
+          } finally {
+            await pool.close();
+          }
+        },
+      );
+
+      // Mirrors the emmett workflow scenario: outer pool.withConnection holds
+      // the writer, the workflow opens connection.withTransaction on it, then
+      // an inner messageStore.appendToStream re-enters pool.withConnection,
+      // which itself opens connection.withTransaction. That's the exact stack
+      // that deadlocked the LLMAgentWorkflow.
+      it(
+        `survives nested pool.withConnection inside connection.withTransaction with ${testName} database`,
+        { timeout: 5000 },
+        async () => {
+          const pool = sqlite3Pool({
+            fileName,
+            transactionOptions: { allowNestedTransactions: true },
+          });
+
+          try {
+            await pool.execute.command(
+              SQL`CREATE TABLE reentry_emmett (id INTEGER PRIMARY KEY, value TEXT)`,
+            );
+
+            await pool.withConnection(async (outerConn) => {
+              await outerConn.withTransaction(async (outerTx) => {
+                await outerTx.execute.command(
+                  SQL`INSERT INTO reentry_emmett (id, value) VALUES (1, 'outer-tx')`,
+                );
+
+                await pool.withConnection(async (innerConn) => {
+                  await innerConn.withTransaction(async (innerTx) => {
+                    await innerTx.execute.command(
+                      SQL`INSERT INTO reentry_emmett (id, value) VALUES (2, 'inner-tx')`,
+                    );
+                  });
+                });
+              });
+            });
+
+            const rows = await pool.execute.query<{ count: number }>(
+              SQL`SELECT COUNT(*) as count FROM reentry_emmett`,
+            );
+            assert.strictEqual(rows.rows[0]?.count, 2);
+          } finally {
+            await pool.close();
+          }
+        },
+      );
+
       it(`serializes concurrent withConnection writes with ${testName} database`, async () => {
         const pool = sqlite3Pool({
           fileName,
