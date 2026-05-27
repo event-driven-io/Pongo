@@ -12,10 +12,6 @@ import {
   createSingletonConnectionPool,
   type ConnectionPool,
 } from '../../../../core';
-import {
-  sqliteDualConnectionPool,
-  type SQLiteDualPoolOptions,
-} from './dualPool';
 
 export type SQLiteFileNameOrConnectionString =
   | {
@@ -151,7 +147,6 @@ export type SQLitePoolOptions<
       ConnectionOptions
     >
   | SQLiteAmbientConnectionPoolOptions<SQLiteConnectionType>
-  | SQLiteDualPoolOptions<SQLiteConnectionType, ConnectionOptions>
 ) & {
   driverType: SQLiteConnectionType['driverType'];
   serializer?: JSONSerializer;
@@ -204,10 +199,7 @@ export const toSqlitePoolOptions = <
     >;
   }
 
-  return { ...rest, dual: true } as SQLitePoolOptions<
-    SQLiteConnectionType,
-    ConnectionOptions
-  >;
+  return rest as SQLitePoolOptions<SQLiteConnectionType, ConnectionOptions>;
 };
 
 export function sqlitePool<
@@ -233,12 +225,6 @@ export function sqlitePool<
         }
       ).connection,
     });
-
-  if ('dual' in options && options.dual) {
-    return sqliteDualConnectionPool(
-      options as SQLiteDualPoolOptions<SQLiteConnectionType, ConnectionOptions>,
-    );
-  }
 
   if (
     options.singleton === true &&
