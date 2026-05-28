@@ -13,13 +13,17 @@ export type TaskProcessorOptions = {
   maxActiveTasks: number;
   maxQueueSize: number;
   maxTaskIdleTime?: number;
+  abortController?: AbortController;
 };
 
 export type Task<T> = (context: TaskContext) => Promise<T>;
 
-export type TaskContext = {
-  ack: () => void;
+export type OperationContext = {
   signal: AbortSignal;
+};
+
+export type TaskContext = OperationContext & {
+  ack: () => void;
 };
 
 export type EnqueueTaskOptions = { taskGroupId?: string };
@@ -31,14 +35,11 @@ export class TaskProcessor {
   private activeGroups: Set<string> = new Set();
   private options: TaskProcessorOptions;
   private stopped = false;
-  private abortController = new AbortController();
+  private abortController: AbortController;
 
   constructor(options: TaskProcessorOptions) {
     this.options = options;
-  }
-
-  get signal(): AbortSignal {
-    return this.abortController.signal;
+    this.abortController = options.abortController ?? new AbortController();
   }
 
   enqueue<T>(task: Task<T>, options?: EnqueueTaskOptions): Promise<T> {

@@ -6,7 +6,7 @@ import {
   sqlExecutorInNewConnection,
   type WithSQLExecutor,
 } from '../execute';
-import { guardBoundedAccess } from '../taskProcessing';
+import { guardBoundedAccess, type OperationContext } from '../taskProcessing';
 import type {
   AnyConnection,
   InferDbClientFromConnection,
@@ -95,7 +95,11 @@ export const createSingletonConnectionPool = <
   const { driverType, getConnection } = options;
 
   let connectionPromise: Promise<ConnectionType> | null = null;
-  const lifecycle = openCloseLifecycle('Singleton connection pool');
+  const closeController = new AbortController();
+  const lifecycle = openCloseLifecycle(
+    'Singleton connection pool',
+    closeController,
+  );
 
   const getExistingOrNewConnection = () => {
     if (!connectionPromise) {
@@ -136,13 +140,13 @@ export const createSingletonConnectionPool = <
     withConnection: <Result>(
       handle: (
         connection: ConnectionType,
-        ctx: { signal: AbortSignal },
+        ctx: OperationContext,
       ) => Promise<Result>,
       _options?: WithConnectionOptions,
     ) =>
       lifecycle.runTracked(() =>
         executeInAmbientConnection<ConnectionType, Result>(
-          (conn) => handle(conn, { signal: lifecycle.signal }),
+          (conn) => handle(conn, { signal: closeController.signal }),
           { connection: getExistingOrNewConnection },
         ),
       ),
@@ -153,7 +157,7 @@ export const createSingletonConnectionPool = <
     withTransaction: (handle, transactionOptions) =>
       lifecycle.runTracked(() =>
         innerTransaction.withTransaction(
-          (tx) => handle(tx, { signal: lifecycle.signal }),
+          (tx) => handle(tx, { signal: closeController.signal }),
           transactionOptions,
         ),
       ),
@@ -189,7 +193,6 @@ const resolveCloseOptions = (
 };
 
 type OpenCloseLifecycle = {
-  signal: AbortSignal;
   assertOpen: () => void;
   runTracked: <T>(op: () => Promise<T>) => Promise<T>;
   close: (
@@ -198,10 +201,12 @@ type OpenCloseLifecycle = {
   ) => Promise<void>;
 };
 
-const openCloseLifecycle = (resourceName: string): OpenCloseLifecycle => {
+const openCloseLifecycle = (
+  resourceName: string,
+  abortController: AbortController = new AbortController(),
+): OpenCloseLifecycle => {
   let closed = false;
   const inFlight = new Set<Promise<unknown>>();
-  const abortController = new AbortController();
 
   const closedError = () => new DumboError(`${resourceName} has been closed`);
 
@@ -234,9 +239,6 @@ const openCloseLifecycle = (resourceName: string): OpenCloseLifecycle => {
   };
 
   return {
-    get signal() {
-      return abortController.signal;
-    },
     assertOpen,
     runTracked,
     close,
@@ -284,23 +286,22 @@ export const createBoundedConnectionPool = <
 ): ConnectionPool<ConnectionType> => {
   const { driverType, maxConnections } = options;
 
+  const closeController = new AbortController();
   const guardMaxConnections = guardBoundedAccess(options.getConnection, {
     maxResources: maxConnections,
     reuseResources: true,
     closeResource: (conn) => conn.close(),
+    abortController: closeController,
   });
 
   let closed = false;
 
   const executeWithPooling = async <Result>(
-    operation: (
-      conn: ConnectionType,
-      ctx: { signal: AbortSignal },
-    ) => Promise<Result>,
+    operation: (conn: ConnectionType, ctx: OperationContext) => Promise<Result>,
   ): Promise<Result> => {
     const conn = await guardMaxConnections.acquire();
     try {
-      return await operation(conn, { signal: guardMaxConnections.signal });
+      return await operation(conn, { signal: closeController.signal });
     } finally {
       guardMaxConnections.release(conn);
     }
@@ -334,7 +335,7 @@ export const createBoundedConnectionPool = <
     transaction: innerTransactionFactory.transaction,
     withTransaction: (handle, transactionOptions) =>
       innerTransactionFactory.withTransaction(
-        (tx) => handle(tx, { signal: guardMaxConnections.signal }),
+        (tx) => handle(tx, { signal: closeController.signal }),
         transactionOptions,
       ),
     close: async (closeOptions) => {
@@ -426,7 +427,7 @@ export const createConnectionPool = <ConnectionType extends AnyConnection>(
       : <Result>(
           handle: (
             connection: ConnectionType,
-            ctx: { signal: AbortSignal },
+            ctx: OperationContext,
           ) => Promise<Result>,
           _options?: WithConnectionOptions,
         ) =>

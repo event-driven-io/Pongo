@@ -1,4 +1,5 @@
 import type { WithSQLExecutor } from '../execute';
+import type { OperationContext } from '../taskProcessing';
 import type {
   AnyConnection,
   InferDbClientFromConnection,
@@ -43,7 +44,7 @@ export interface WithDatabaseTransactionFactory<
   withTransaction: <Result = never>(
     handle: (
       transaction: InferTransactionFromConnection<ConnectionType>,
-      ctx: { signal: AbortSignal },
+      ctx: OperationContext,
     ) => Promise<TransactionResult<Result> | Result>,
     options?: InferTransactionOptionsFromConnection<ConnectionType>,
   ) => Promise<Result>;
