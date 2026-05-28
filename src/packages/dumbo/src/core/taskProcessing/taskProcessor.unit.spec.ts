@@ -2,6 +2,8 @@ import assert from 'assert';
 import { beforeEach, describe, it } from 'vitest';
 import { TaskProcessor, type Task } from './taskProcessor';
 
+const flushMicrotasks = () => new Promise((resolve) => setImmediate(resolve));
+
 describe('TaskProcessor', () => {
   let taskProcessor: TaskProcessor;
 
@@ -405,6 +407,151 @@ describe('TaskProcessor', () => {
       'Ungrouped Task 1',
       'Group 1 - Task 2',
     ]);
+  });
+
+  describe('stop()', () => {
+    it('rejects queued tasks that never got the chance to run', async () => {
+      const processor = new TaskProcessor({
+        maxActiveTasks: 1,
+        maxQueueSize: 10,
+      });
+
+      const active = processor.enqueue(async ({ ack }) => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        ack();
+      });
+
+      const queuedA = processor.enqueue(async ({ ack }) => {
+        ack();
+        return Promise.resolve();
+      });
+      const queuedB = processor.enqueue(async ({ ack }) => {
+        ack();
+        return Promise.resolve();
+      });
+
+      // Make sure the queued items have been scheduled (executor ran).
+      await flushMicrotasks();
+
+      await processor.stop({ force: true });
+
+      await assert.rejects(() => queuedA, /TaskProcessor has been stopped/);
+      await assert.rejects(() => queuedB, /TaskProcessor has been stopped/);
+      await active; // active task still completes
+    });
+
+    it('without force waits for active tasks but cancels queued ones', async () => {
+      const processor = new TaskProcessor({
+        maxActiveTasks: 1,
+        maxQueueSize: 10,
+      });
+
+      let activeCompleted = false;
+      const active = processor.enqueue(async ({ ack }) => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        activeCompleted = true;
+        ack();
+      });
+
+      const queued = processor.enqueue(async ({ ack }) => {
+        ack();
+        return Promise.resolve();
+      });
+
+      await flushMicrotasks();
+
+      await processor.stop();
+
+      assert.strictEqual(
+        activeCompleted,
+        true,
+        'Active task should finish before stop returns',
+      );
+      await assert.rejects(() => queued, /TaskProcessor has been stopped/);
+      await active;
+    });
+  });
+
+  describe('maxTaskIdleTime', () => {
+    it('rejects a queued task that waits longer than the configured timeout', async () => {
+      const processor = new TaskProcessor({
+        maxActiveTasks: 1,
+        maxQueueSize: 10,
+        maxTaskIdleTime: 30,
+      });
+
+      // Hold the only slot
+      const blocker = processor.enqueue(async ({ ack }) => {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        ack();
+        return Promise.resolve();
+      });
+
+      const queued = processor.enqueue(async ({ ack }) => {
+        ack();
+        return Promise.resolve();
+      });
+
+      await assert.rejects(
+        () => queued,
+        /Task was not started within the maximum waiting time/,
+      );
+
+      await blocker;
+      await processor.stop({ force: true });
+    });
+
+    it('does not reject when a task gets to run within the timeout', async () => {
+      const processor = new TaskProcessor({
+        maxActiveTasks: 1,
+        maxQueueSize: 10,
+        maxTaskIdleTime: 200,
+      });
+
+      const result = await processor.enqueue(({ ack }) => {
+        ack();
+        return Promise.resolve('ok');
+      });
+
+      assert.strictEqual(result, 'ok');
+      await processor.stop({ force: true });
+    });
+
+    it('without a configured timeout waits indefinitely (until stop)', async () => {
+      const processor = new TaskProcessor({
+        maxActiveTasks: 1,
+        maxQueueSize: 10,
+      });
+
+      const blocker = processor.enqueue(async ({ ack }) => {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        ack();
+      });
+
+      const queued = processor.enqueue(async ({ ack }) => {
+        ack();
+        return Promise.resolve();
+      });
+
+      // Wait longer than what any "sane" default would be, to assert there is
+      // no built-in fallback rejecting the queued task.
+      const racer = new Promise<'timeout-fired'>((resolve) =>
+        setTimeout(() => resolve('timeout-fired'), 200),
+      );
+      const winner = await Promise.race([
+        queued.then(() => 'queued-resolved' as const),
+        racer,
+      ]);
+
+      assert.strictEqual(
+        winner,
+        'queued-resolved',
+        'Queued task should resolve once the blocker finishes',
+      );
+
+      await blocker;
+      await processor.stop({ force: true });
+    });
   });
 
   it('should ensure blocked tasks from an active group are eventually processed', async () => {

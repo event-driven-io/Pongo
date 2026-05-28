@@ -20,6 +20,8 @@ export type SQLiteDualPoolOptions<
   pooled?: true;
   connection?: never;
   readerPoolSize?: number;
+  maxTaskIdleTime?: number;
+  closeDeadline?: number;
   sqliteConnectionFactory: SQLiteConnectionFactory<
     SQLiteConnectionType,
     ConnectionOptions
@@ -90,12 +92,21 @@ export const sqliteDualConnectionPool = <
   const writerPool = sqlite3SingletonPool<SQLiteConnectionType>({
     driverType: options.driverType,
     getConnection: () => wrappedConnectionFactory(false, connectionOptions),
+    ...(options.maxTaskIdleTime !== undefined
+      ? { maxTaskIdleTime: options.maxTaskIdleTime }
+      : {}),
+    ...(options.closeDeadline !== undefined
+      ? { closeDeadline: options.closeDeadline }
+      : {}),
   });
 
   const readerPool = createBoundedConnectionPool({
     driverType: options.driverType,
     getConnection: () => wrappedConnectionFactory(true, connectionOptions),
     maxConnections: readerPoolSize,
+    ...(options.closeDeadline !== undefined
+      ? { closeDeadline: options.closeDeadline }
+      : {}),
   });
 
   return {

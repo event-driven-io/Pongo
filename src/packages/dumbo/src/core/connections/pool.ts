@@ -1,3 +1,4 @@
+import { DumboError } from '../errors';
 import {
   executeInAmbientConnection,
   executeInNewConnection,
@@ -19,6 +20,11 @@ import {
   type WithDatabaseTransactionFactory,
 } from './transaction';
 
+export type PoolCloseOptions = {
+  force?: boolean;
+  closeDeadline?: number;
+};
+
 export interface ConnectionPool<
   ConnectionType extends AnyConnection = AnyConnection,
 >
@@ -27,7 +33,7 @@ export interface ConnectionPool<
     WithConnectionFactory<ConnectionType>,
     WithDatabaseTransactionFactory<ConnectionType> {
   driverType: ConnectionType['driverType'];
-  close: () => Promise<void>;
+  close: (options?: PoolCloseOptions) => Promise<void>;
 }
 
 const wrapPooledConnection = <ConnectionType extends AnyConnection>(
@@ -76,6 +82,7 @@ export type SingletonConnectionPoolOptions<
   driverType: ConnectionType['driverType'];
   getConnection: () => ConnectionType | Promise<ConnectionType>;
   closeConnection?: (connection: ConnectionType) => void | Promise<void>;
+  closeDeadline?: number;
   connectionOptions?: never;
 };
 
@@ -87,6 +94,7 @@ export const createSingletonConnectionPool = <
   const { driverType, getConnection } = options;
 
   let connectionPromise: Promise<ConnectionType> | null = null;
+  const lifecycle = openCloseLifecycle('Singleton connection pool');
 
   const getExistingOrNewConnection = () => {
     if (!connectionPromise) {
@@ -95,37 +103,146 @@ export const createSingletonConnectionPool = <
     return connectionPromise;
   };
 
+  const ambientExecutor = sqlExecutorInAmbientConnection({
+    driverType,
+    connection: getExistingOrNewConnection,
+  });
+
+  const innerTransaction = transactionFactoryWithAsyncAmbientConnection(
+    options.driverType,
+    getExistingOrNewConnection,
+    options.closeConnection,
+  );
+
   const result: ConnectionPool<ConnectionType> = {
     driverType,
     connection: () =>
-      getExistingOrNewConnection().then((conn) =>
-        wrapPooledConnection(conn, () => Promise.resolve()),
+      lifecycle.runTracked(() =>
+        getExistingOrNewConnection().then((conn) =>
+          wrapPooledConnection(conn, () => Promise.resolve()),
+        ),
       ),
-    execute: sqlExecutorInAmbientConnection({
-      driverType,
-      connection: getExistingOrNewConnection,
-    }),
+    execute: {
+      query: (sql, opts) =>
+        lifecycle.runTracked(() => ambientExecutor.query(sql, opts)),
+      batchQuery: (sqls, opts) =>
+        lifecycle.runTracked(() => ambientExecutor.batchQuery(sqls, opts)),
+      command: (sql, opts) =>
+        lifecycle.runTracked(() => ambientExecutor.command(sql, opts)),
+      batchCommand: (sqls, opts) =>
+        lifecycle.runTracked(() => ambientExecutor.batchCommand(sqls, opts)),
+    },
     withConnection: <Result>(
       handle: (connection: ConnectionType) => Promise<Result>,
       _options?: WithConnectionOptions,
     ) =>
-      executeInAmbientConnection<ConnectionType, Result>(handle, {
-        connection: getExistingOrNewConnection,
-      }),
-    ...transactionFactoryWithAsyncAmbientConnection(
-      options.driverType,
-      getExistingOrNewConnection,
-      options.closeConnection,
-    ),
-    close: async () => {
-      if (!connectionPromise) return;
-      const connection = await connectionPromise;
-      await connection.close();
+      lifecycle.runTracked(() =>
+        executeInAmbientConnection<ConnectionType, Result>(handle, {
+          connection: getExistingOrNewConnection,
+        }),
+      ),
+    transaction: (transactionOptions) => {
+      lifecycle.assertOpen();
+      return innerTransaction.transaction(transactionOptions);
     },
+    withTransaction: (handle, transactionOptions) =>
+      lifecycle.runTracked(() =>
+        innerTransaction.withTransaction(handle, transactionOptions),
+      ),
+    close: (closeOptions) =>
+      lifecycle.close(
+        async () => {
+          if (!connectionPromise) return;
+          const connection = await connectionPromise;
+          await connection.close();
+        },
+        resolveCloseOptions(closeOptions, options.closeDeadline),
+      ),
   };
 
   return result;
 };
+
+const resolveCloseOptions = (
+  perCall: PoolCloseOptions | undefined,
+  configuredDeadline: number | undefined,
+): { force?: boolean; closeDeadline?: number } | undefined => {
+  const force = perCall?.force;
+  const closeDeadline =
+    perCall?.closeDeadline !== undefined
+      ? perCall.closeDeadline
+      : configuredDeadline;
+
+  if (force === undefined && closeDeadline === undefined) return undefined;
+  return {
+    ...(force !== undefined ? { force } : {}),
+    ...(closeDeadline !== undefined ? { closeDeadline } : {}),
+  };
+};
+
+type OpenCloseLifecycle = {
+  assertOpen: () => void;
+  runTracked: <T>(op: () => Promise<T>) => Promise<T>;
+  close: (
+    teardown: () => Promise<void>,
+    options?: PoolCloseOptions,
+  ) => Promise<void>;
+};
+
+const openCloseLifecycle = (resourceName: string): OpenCloseLifecycle => {
+  let closed = false;
+  const inFlight = new Set<Promise<unknown>>();
+
+  const closedError = () => new DumboError(`${resourceName} has been closed`);
+
+  const assertOpen = () => {
+    if (closed) throw closedError();
+  };
+
+  const runTracked = <T>(op: () => Promise<T>): Promise<T> => {
+    if (closed) return Promise.reject(closedError());
+    const tracked = op();
+    inFlight.add(tracked);
+    const cleanup = () => {
+      inFlight.delete(tracked);
+    };
+    tracked.then(cleanup, cleanup);
+    return tracked;
+  };
+
+  const close = async (
+    teardown: () => Promise<void>,
+    options?: PoolCloseOptions,
+  ): Promise<void> => {
+    if (closed) return;
+    closed = true;
+    if (!options?.force) {
+      await drainInFlight(inFlight, options?.closeDeadline);
+    }
+    await teardown();
+  };
+
+  return { assertOpen, runTracked, close };
+};
+
+const drainInFlight = async (
+  inFlight: Set<Promise<unknown>>,
+  closeDeadline: number | undefined,
+): Promise<void> => {
+  if (inFlight.size === 0) return;
+  const drained = Promise.allSettled([...inFlight]);
+  if (closeDeadline === undefined) {
+    await drained;
+    return;
+  }
+  await Promise.race([drained, delay(closeDeadline)]);
+};
+
+const delay = (ms: number): Promise<void> =>
+  new Promise((resolve) => {
+    const handle = setTimeout(resolve, ms);
+    handle.unref();
+  });
 
 export type CreateBoundedConnectionPoolOptions<
   ConnectionType extends AnyConnection,
@@ -133,6 +250,7 @@ export type CreateBoundedConnectionPoolOptions<
   driverType: ConnectionType['driverType'];
   getConnection: () => ConnectionType | Promise<ConnectionType>;
   maxConnections: number;
+  closeDeadline?: number;
 };
 
 export const createBoundedConnectionPool = <
@@ -145,6 +263,7 @@ export const createBoundedConnectionPool = <
   const guardMaxConnections = guardBoundedAccess(options.getConnection, {
     maxResources: maxConnections,
     reuseResources: true,
+    closeResource: (conn) => conn.close(),
   });
 
   let closed = false;
@@ -184,11 +303,13 @@ export const createBoundedConnectionPool = <
       guardMaxConnections.acquire,
       guardMaxConnections.release,
     ),
-    close: async () => {
+    close: async (closeOptions) => {
       if (closed) return;
       closed = true;
 
-      await guardMaxConnections.stop({ force: true });
+      await guardMaxConnections.stop(
+        resolveCloseOptions(closeOptions, options.closeDeadline),
+      );
     },
   };
 };

@@ -4,7 +4,10 @@ import { TaskProcessor } from './taskProcessor';
 export type ExclusiveAccessGuard = {
   execute: <Result>(operation: () => Promise<Result>) => Promise<Result>;
   waitForIdle: () => Promise<void>;
-  stop: (options?: { force?: boolean }) => Promise<void>;
+  stop: (options?: {
+    force?: boolean;
+    closeDeadline?: number;
+  }) => Promise<void>;
 };
 
 export const guardExclusiveAccess = (options?: {
@@ -36,7 +39,10 @@ export type BoundedAccessGuard<Resource> = {
     operation: (resource: Resource) => Promise<Result>,
   ) => Promise<Result>;
   waitForIdle: () => Promise<void>;
-  stop: (options?: { force?: boolean }) => Promise<void>;
+  stop: (options?: {
+    force?: boolean;
+    closeDeadline?: number;
+  }) => Promise<void>;
 };
 
 export const guardBoundedAccess = <Resource>(
@@ -110,6 +116,9 @@ export const guardBoundedAccess = <Resource>(
     stop: async (stopOptions) => {
       if (isStopped) return;
       isStopped = true;
+
+      await taskProcessor.stop(stopOptions);
+
       if (options?.closeResource) {
         const resources = [...allResources];
         allResources.clear();
@@ -120,8 +129,6 @@ export const guardBoundedAccess = <Resource>(
           ),
         );
       }
-
-      await taskProcessor.stop(stopOptions);
     },
   };
 };
@@ -129,7 +136,10 @@ export const guardBoundedAccess = <Resource>(
 export type InitializedOnceGuard<T> = {
   ensureInitialized: () => Promise<T>;
   reset: () => void;
-  stop: (options?: { force?: boolean }) => Promise<void>;
+  stop: (options?: {
+    force?: boolean;
+    closeDeadline?: number;
+  }) => Promise<void>;
 };
 
 export const guardInitializedOnce = <T>(

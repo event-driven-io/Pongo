@@ -77,6 +77,23 @@ describe('Task Processing Guards', () => {
       const result = await operationPromise;
       assert.strictEqual(result, 42);
     });
+
+    it('rejects queued operations on stop instead of leaving them pending', async () => {
+      const guard = guardExclusiveAccess();
+
+      const active = guard.execute(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        return 1;
+      });
+      const queued = guard.execute(() => Promise.resolve(2));
+
+      await new Promise((resolve) => setImmediate(resolve));
+
+      await guard.stop({ force: true });
+
+      await assert.rejects(() => queued, /TaskProcessor has been stopped/);
+      await active;
+    });
   });
 
   describe('guardBoundedAccess', () => {
@@ -195,6 +212,69 @@ describe('Task Processing Guards', () => {
       );
       const result = await operationPromise;
       assert.strictEqual(result, 1);
+    });
+
+    it('rejects queued acquires on stop', async () => {
+      const guard = guardBoundedAccess(() => ({ id: 1 }), {
+        maxResources: 1,
+        reuseResources: false,
+      });
+
+      const acquired = await guard.acquire();
+      const queuedAcquire = guard.acquire();
+
+      await new Promise((resolve) => setImmediate(resolve));
+
+      await guard.stop({ force: true });
+
+      await assert.rejects(
+        () => queuedAcquire,
+        /TaskProcessor has been stopped/,
+      );
+
+      guard.release(acquired);
+    });
+
+    it('closes resources via closeResource on stop', async () => {
+      let closed = 0;
+      const guard = guardBoundedAccess(() => ({ id: ++closed }), {
+        maxResources: 2,
+        reuseResources: true,
+        closeResource: () => {
+          // count via outer closure
+        },
+      });
+
+      const closedIds: number[] = [];
+      const guardWithClose = guardBoundedAccess(
+        () => {
+          const id = closedIds.length;
+          return { id };
+        },
+        {
+          maxResources: 2,
+          reuseResources: true,
+          closeResource: (r: { id: number }) => {
+            closedIds.push(r.id);
+          },
+        },
+      );
+
+      await Promise.all([
+        guardWithClose.execute((r) => Promise.resolve(r.id)),
+        guardWithClose.execute((r) => Promise.resolve(r.id)),
+      ]);
+
+      await guardWithClose.stop();
+
+      assert.strictEqual(
+        closedIds.length,
+        2,
+        'closeResource should be called for every resource at stop',
+      );
+
+      // Unused first guard kept just to demonstrate inert closeResource path
+      void guard;
     });
   });
 
