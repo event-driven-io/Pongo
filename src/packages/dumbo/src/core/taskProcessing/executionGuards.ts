@@ -1,51 +1,14 @@
-import { DumboError } from '../errors';
 import { v7 as uuid } from 'uuid';
+import type { AbortOptions } from './abort';
+import { ResourcePool } from './resourcePool';
+import type { OperationContext } from './taskProcessor';
 import { TaskProcessor } from './taskProcessor';
 
 export type ExclusiveAccessGuard = {
-  execute: <Result>(operation: () => Promise<Result>) => Promise<Result>;
-  waitForIdle: () => Promise<void>;
-  stop: (options?: {
-    force?: boolean;
-    closeDeadline?: number;
-  }) => Promise<void>;
-};
-
-export const guardExclusiveAccess = (options?: {
-  maxQueueSize?: number;
-  abortController?: AbortController;
-}): ExclusiveAccessGuard => {
-  const abortController = options?.abortController ?? new AbortController();
-  const taskProcessor = new TaskProcessor({
-    maxActiveTasks: 1,
-    maxQueueSize: options?.maxQueueSize ?? 1000,
-    abortController,
-  });
-
-  return {
-    execute: <Result>(operation: () => Promise<Result>): Promise<Result> =>
-      taskProcessor.enqueue(async ({ ack }) => {
-        try {
-          return await operation();
-        } finally {
-          ack();
-        }
-      }),
-    waitForIdle: () => taskProcessor.waitForEndOfProcessing(),
-    stop: async (stopOptions) => {
-      abortController.abort(
-        new DumboError('Exclusive access guard has been stopped'),
-      );
-      await taskProcessor.stop(stopOptions);
-    },
-  };
-};
-
-export type BoundedAccessGuard<Resource> = {
-  acquire: () => Promise<Resource>;
-  release: (resource: Resource) => void;
+  readonly stopped: boolean;
   execute: <Result>(
-    operation: (resource: Resource) => Promise<Result>,
+    operation: (ctx: OperationContext) => Promise<Result>,
+    options?: AbortOptions,
   ) => Promise<Result>;
   waitForIdle: () => Promise<void>;
   stop: (options?: {
@@ -54,42 +17,82 @@ export type BoundedAccessGuard<Resource> = {
   }) => Promise<void>;
 };
 
-export const guardBoundedAccess = <Resource>(
+const exclusiveAccess = (options?: {
+  maxQueueSize?: number;
+  signal?: AbortSignal | undefined;
+  stoppedError?: (() => Error) | undefined;
+}): ExclusiveAccessGuard => {
+  const taskProcessor = new TaskProcessor({
+    maxActiveTasks: 1,
+    maxQueueSize: options?.maxQueueSize ?? 1000,
+    signal: options?.signal,
+    stoppedError: options?.stoppedError,
+  });
+
+  return {
+    get stopped() {
+      return taskProcessor.stopped;
+    },
+    execute: <Result>(
+      operation: (ctx: OperationContext) => Promise<Result>,
+      operationOptions?: AbortOptions,
+    ): Promise<Result> =>
+      taskProcessor.enqueue(async ({ ack, signal }) => {
+        try {
+          return await operation({ signal });
+        } finally {
+          ack();
+        }
+      }, operationOptions),
+    waitForIdle: () => taskProcessor.waitForEndOfProcessing(),
+    stop: (stopOptions) => taskProcessor.stop(stopOptions),
+  };
+};
+
+export type BoundedAccessGuard<Resource> = {
+  readonly stopped: boolean;
+  acquire: () => Promise<Resource>;
+  release: (resource: Resource) => void;
+  execute: <Result>(
+    operation: (resource: Resource, ctx: OperationContext) => Promise<Result>,
+    options?: AbortOptions,
+  ) => Promise<Result>;
+  waitForIdle: () => Promise<void>;
+  stop: (options?: {
+    force?: boolean;
+    closeDeadline?: number;
+  }) => Promise<void>;
+};
+
+const boundedAccess = <Resource>(
   getResource: () => Resource | Promise<Resource>,
   options: {
     maxResources: number;
     maxQueueSize?: number;
     reuseResources?: boolean;
     closeResource?: (resource: Resource) => void | Promise<void>;
-    abortController?: AbortController;
+    signal?: AbortSignal | undefined;
+    stoppedError?: (() => Error) | undefined;
   },
 ): BoundedAccessGuard<Resource> => {
-  let isStopped = false;
-  const abortController = options.abortController ?? new AbortController();
   const taskProcessor = new TaskProcessor({
     maxActiveTasks: options.maxResources,
     maxQueueSize: options.maxQueueSize ?? 1000,
-    abortController,
+    signal: options.signal,
+    stoppedError: options.stoppedError,
   });
 
-  const resourcePool: Resource[] = [];
-  const allResources = new Set<Resource>();
+  const resourcePool = ResourcePool.create<Resource>(getResource, {
+    reuseResources: options.reuseResources,
+    closeResource: options.closeResource,
+  });
+
   const ackCallbacks = new Map<Resource, () => void>();
 
   const acquire = async (): Promise<Resource> =>
     taskProcessor.enqueue(async ({ ack }) => {
       try {
-        let resource: Resource | undefined;
-
-        if (options.reuseResources) {
-          resource = resourcePool.pop();
-        }
-
-        if (!resource) {
-          resource = await getResource();
-          allResources.add(resource);
-        }
-
+        const resource = await resourcePool.acquire();
         ackCallbacks.set(resource, ack);
         return resource;
       } catch (e) {
@@ -102,53 +105,44 @@ export const guardBoundedAccess = <Resource>(
     const ack = ackCallbacks.get(resource);
     if (ack) {
       ackCallbacks.delete(resource);
-      if (options.reuseResources) {
-        resourcePool.push(resource);
-      }
+      resourcePool.release(resource);
       ack();
     }
   };
 
-  const execute = async <Result>(
-    operation: (resource: Resource) => Promise<Result>,
-  ): Promise<Result> => {
-    const resource = await acquire();
-    try {
-      return await operation(resource);
-    } finally {
-      release(resource);
-    }
-  };
+  const execute = <Result>(
+    operation: (resource: Resource, ctx: OperationContext) => Promise<Result>,
+    operationOptions?: AbortOptions,
+  ): Promise<Result> =>
+    taskProcessor.enqueue(async ({ ack, signal }) => {
+      let resource: Resource | undefined;
+      try {
+        resource = await resourcePool.acquire();
+        return await operation(resource, { signal });
+      } finally {
+        if (resource) resourcePool.release(resource);
+        ack();
+      }
+    }, operationOptions);
 
   return {
+    get stopped() {
+      return taskProcessor.stopped;
+    },
     acquire,
     release,
     execute,
     waitForIdle: () => taskProcessor.waitForEndOfProcessing(),
     stop: async (stopOptions) => {
-      if (isStopped) return;
-      isStopped = true;
-
-      abortController.abort(
-        new DumboError('Bounded access guard has been stopped'),
-      );
+      if (taskProcessor.stopped) return;
       await taskProcessor.stop(stopOptions);
-
-      if (options?.closeResource) {
-        const resources = [...allResources];
-        allResources.clear();
-        resourcePool.length = 0;
-        await Promise.all(
-          resources.map(
-            async (resource) => await options.closeResource!(resource),
-          ),
-        );
-      }
+      await resourcePool.close();
     },
   };
 };
 
 export type InitializedOnceGuard<T> = {
+  readonly stopped: boolean;
   ensureInitialized: () => Promise<T>;
   reset: () => void;
   stop: (options?: {
@@ -157,21 +151,22 @@ export type InitializedOnceGuard<T> = {
   }) => Promise<void>;
 };
 
-export const guardInitializedOnce = <T>(
+const initializedOnce = <T>(
   initialize: () => Promise<T>,
   options?: {
     maxQueueSize?: number;
     maxRetries?: number;
-    abortController?: AbortController;
+    signal?: AbortSignal | undefined;
+    stoppedError?: (() => Error) | undefined;
   },
 ): InitializedOnceGuard<T> => {
   let initPromise: Promise<T> | null = null;
-  const abortController = options?.abortController ?? new AbortController();
 
   const taskProcessor = new TaskProcessor({
     maxActiveTasks: 1,
     maxQueueSize: options?.maxQueueSize ?? 1000,
-    abortController,
+    signal: options?.signal,
+    stoppedError: options?.stoppedError,
   });
 
   const ensureInitialized = async (retryCount = 0): Promise<T> => {
@@ -207,15 +202,19 @@ export const guardInitializedOnce = <T>(
   };
 
   return {
+    get stopped() {
+      return taskProcessor.stopped;
+    },
     ensureInitialized,
     reset: () => {
       initPromise = null;
     },
-    stop: async (stopOptions) => {
-      abortController.abort(
-        new DumboError('Initialized-once guard has been stopped'),
-      );
-      await taskProcessor.stop(stopOptions);
-    },
+    stop: (stopOptions) => taskProcessor.stop(stopOptions),
   };
 };
+
+export const Guard = {
+  exclusiveAccess,
+  boundedAccess,
+  initializedOnce,
+} as const;

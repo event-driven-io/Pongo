@@ -655,4 +655,238 @@ describe('TaskProcessor', () => {
       'Group 1 - Task 2',
     ]);
   });
+
+  describe('per-task signal / timeout', () => {
+    it('fires TaskContext.signal when a per-task signal aborts (parent stays open)', async () => {
+      const processor = new TaskProcessor({
+        maxActiveTasks: 1,
+        maxQueueSize: 10,
+      });
+      const perTask = new AbortController();
+      const sawAbort = Promise.withResolvers<boolean>();
+
+      const task = processor.enqueue(
+        async ({ ack, signal }) => {
+          signal.addEventListener('abort', () => sawAbort.resolve(true));
+          await new Promise<void>((resolve) => {
+            if (signal.aborted) return resolve();
+            signal.addEventListener('abort', () => resolve(), { once: true });
+          });
+          ack();
+        },
+        { signal: perTask.signal },
+      );
+
+      await flushMicrotasks();
+      perTask.abort(new Error('per-task'));
+
+      assert.strictEqual(await sawAbort.promise, true);
+      await task;
+      await processor.stop({ force: true });
+    });
+
+    it('fires TaskContext.signal after timeoutMs elapses', async () => {
+      const processor = new TaskProcessor({
+        maxActiveTasks: 1,
+        maxQueueSize: 10,
+      });
+
+      const task = processor.enqueue(
+        async ({ ack, signal }) => {
+          await new Promise<void>((resolve) => {
+            if (signal.aborted) return resolve();
+            signal.addEventListener('abort', () => resolve(), { once: true });
+          });
+          ack();
+          return signal.reason instanceof Error ? signal.reason.message : null;
+        },
+        { timeoutMs: 20 },
+      );
+
+      const reasonMsg = await task;
+      assert.match(String(reasonMsg), /timed out/i);
+      await processor.stop({ force: true });
+    });
+
+    it('fires TaskContext.signal as soon as either the processor stops OR per-task source aborts (whichever is first)', async () => {
+      const processor = new TaskProcessor({
+        maxActiveTasks: 1,
+        maxQueueSize: 10,
+      });
+      const perTask = new AbortController();
+
+      const task = processor.enqueue(
+        async ({ ack, signal }) => {
+          await new Promise<void>((resolve) => {
+            if (signal.aborted) return resolve();
+            signal.addEventListener('abort', () => resolve(), { once: true });
+          });
+          ack();
+          return signal.reason instanceof Error
+            ? signal.reason.message
+            : 'no-reason';
+        },
+        { signal: perTask.signal },
+      );
+
+      await flushMicrotasks();
+      perTask.abort(new Error('per-task fired first'));
+
+      const reason = await task;
+      assert.strictEqual(reason, 'per-task fired first');
+      await processor.stop({ force: true });
+    });
+
+    it('fails fast on enqueue when per-task signal is already aborted (does not invoke task)', async () => {
+      const processor = new TaskProcessor({
+        maxActiveTasks: 1,
+        maxQueueSize: 10,
+      });
+      const perTask = new AbortController();
+      const preReason = new Error('pre-aborted');
+      perTask.abort(preReason);
+
+      let taskRan = false;
+      await assert.rejects(
+        () =>
+          processor.enqueue(
+            ({ ack }) => {
+              taskRan = true;
+              ack();
+              return Promise.resolve();
+            },
+            { signal: perTask.signal },
+          ),
+        (err) => err === preReason,
+      );
+      assert.strictEqual(taskRan, false);
+      await processor.stop({ force: true });
+    });
+
+    it('parent abort (constructor signal) fires TaskContext.signal of in-flight tasks', async () => {
+      const parent = new AbortController();
+      const processor = new TaskProcessor({
+        maxActiveTasks: 1,
+        maxQueueSize: 10,
+        signal: parent.signal,
+      });
+
+      const sawAbort = Promise.withResolvers<unknown>();
+
+      const task = processor.enqueue(async ({ ack, signal }) => {
+        signal.addEventListener('abort', () => sawAbort.resolve(signal.reason));
+        await new Promise<void>((resolve) => {
+          if (signal.aborted) return resolve();
+          signal.addEventListener('abort', () => resolve(), { once: true });
+        });
+        ack();
+      });
+
+      await flushMicrotasks();
+      const parentReason = new Error('parent fired');
+      parent.abort(parentReason);
+
+      assert.strictEqual(await sawAbort.promise, parentReason);
+      await task;
+      await processor.stop({ force: true });
+    });
+
+    it('fails fast on enqueue when the constructor signal is already aborted', async () => {
+      const parent = new AbortController();
+      const preReason = new Error('parent pre-aborted');
+      parent.abort(preReason);
+
+      const processor = new TaskProcessor({
+        maxActiveTasks: 1,
+        maxQueueSize: 10,
+        signal: parent.signal,
+      });
+
+      let taskRan = false;
+      await assert.rejects(
+        () =>
+          processor.enqueue(({ ack }) => {
+            taskRan = true;
+            ack();
+            return Promise.resolve();
+          }),
+        (err) => err === preReason,
+      );
+      assert.strictEqual(taskRan, false);
+      await processor.stop({ force: true });
+    });
+
+    it('parent abort wins over timeout when parent fires first', async () => {
+      const parent = new AbortController();
+      const processor = new TaskProcessor({
+        maxActiveTasks: 1,
+        maxQueueSize: 10,
+        signal: parent.signal,
+      });
+
+      const task = processor.enqueue<unknown>(
+        async ({ ack, signal }) => {
+          await new Promise<void>((resolve) => {
+            if (signal.aborted) return resolve();
+            signal.addEventListener('abort', () => resolve(), { once: true });
+          });
+          ack();
+          return signal.reason as unknown;
+        },
+        { timeoutMs: 5_000 },
+      );
+
+      await flushMicrotasks();
+      const parentReason = new Error('parent first');
+      parent.abort(parentReason);
+
+      assert.strictEqual(await task, parentReason);
+      await processor.stop({ force: true });
+    });
+
+    it('per-call signal wins over timeout when it fires first', async () => {
+      const processor = new TaskProcessor({
+        maxActiveTasks: 1,
+        maxQueueSize: 10,
+      });
+      const perTask = new AbortController();
+
+      const task = processor.enqueue<unknown>(
+        async ({ ack, signal }) => {
+          await new Promise<void>((resolve) => {
+            if (signal.aborted) return resolve();
+            signal.addEventListener('abort', () => resolve(), { once: true });
+          });
+          ack();
+          return signal.reason as unknown;
+        },
+        { signal: perTask.signal, timeoutMs: 5_000 },
+      );
+
+      await flushMicrotasks();
+      const perCallReason = new Error('per-call first');
+      perTask.abort(perCallReason);
+
+      assert.strictEqual(await task, perCallReason);
+      await processor.stop({ force: true });
+    });
+
+    it('lifecycle signal does NOT abort tasks finishing before parent fires', async () => {
+      const parent = new AbortController();
+      const processor = new TaskProcessor({
+        maxActiveTasks: 1,
+        maxQueueSize: 10,
+        signal: parent.signal,
+      });
+
+      const finished = await processor.enqueue(({ ack, signal }) => {
+        ack();
+        return Promise.resolve(signal.aborted);
+      });
+
+      assert.strictEqual(finished, false);
+      parent.abort(new Error('after task already done'));
+      await processor.stop({ force: true });
+    });
+  });
 });

@@ -6,7 +6,12 @@ import {
   sqlExecutorInNewConnection,
   type WithSQLExecutor,
 } from '../execute';
-import { guardBoundedAccess, type OperationContext } from '../taskProcessing';
+import {
+  Guard,
+  TaskProcessor,
+  type AbortOptions,
+  type OperationContext,
+} from '../taskProcessing';
 import type {
   AnyConnection,
   InferDbClientFromConnection,
@@ -84,6 +89,7 @@ export type SingletonConnectionPoolOptions<
   getConnection: () => ConnectionType | Promise<ConnectionType>;
   closeConnection?: (connection: ConnectionType) => void | Promise<void>;
   closeDeadline?: number;
+  signal?: AbortSignal;
   connectionOptions?: never;
 };
 
@@ -95,11 +101,28 @@ export const createSingletonConnectionPool = <
   const { driverType, getConnection } = options;
 
   let connectionPromise: Promise<ConnectionType> | null = null;
-  const closeController = new AbortController();
-  const lifecycle = openCloseLifecycle(
-    'Singleton connection pool',
-    closeController,
-  );
+
+  const closedError = () =>
+    new DumboError('Singleton connection pool has been closed');
+
+  const processor = new TaskProcessor({
+    maxActiveTasks: Number.MAX_SAFE_INTEGER,
+    maxQueueSize: Number.MAX_SAFE_INTEGER,
+    signal: options.signal,
+    stoppedError: closedError,
+  });
+
+  const run = <Result>(
+    op: (ctx: OperationContext) => Promise<Result>,
+    opts?: AbortOptions,
+  ): Promise<Result> =>
+    processor.enqueue(async ({ ack, signal }) => {
+      try {
+        return await op({ signal });
+      } finally {
+        ack();
+      }
+    }, opts);
 
   const getExistingOrNewConnection = () => {
     if (!connectionPromise) {
@@ -121,55 +144,62 @@ export const createSingletonConnectionPool = <
 
   const result: ConnectionPool<ConnectionType> = {
     driverType,
-    connection: () =>
-      lifecycle.runTracked(() =>
-        getExistingOrNewConnection().then((conn) =>
-          wrapPooledConnection(conn, () => Promise.resolve()),
-        ),
+    connection: (connectionOptions) =>
+      run(
+        (_ctx) =>
+          getExistingOrNewConnection().then((conn) =>
+            wrapPooledConnection(conn, () => Promise.resolve()),
+          ),
+        connectionOptions,
       ),
     execute: {
       query: (sql, opts) =>
-        lifecycle.runTracked(() => ambientExecutor.query(sql, opts)),
+        run((_ctx) => ambientExecutor.query(sql, opts), opts),
       batchQuery: (sqls, opts) =>
-        lifecycle.runTracked(() => ambientExecutor.batchQuery(sqls, opts)),
+        run((_ctx) => ambientExecutor.batchQuery(sqls, opts), opts),
       command: (sql, opts) =>
-        lifecycle.runTracked(() => ambientExecutor.command(sql, opts)),
+        run((_ctx) => ambientExecutor.command(sql, opts), opts),
       batchCommand: (sqls, opts) =>
-        lifecycle.runTracked(() => ambientExecutor.batchCommand(sqls, opts)),
+        run((_ctx) => ambientExecutor.batchCommand(sqls, opts), opts),
     },
     withConnection: <Result>(
       handle: (
         connection: ConnectionType,
         ctx: OperationContext,
       ) => Promise<Result>,
-      _options?: WithConnectionOptions,
+      withConnectionOpts?: WithConnectionOptions,
     ) =>
-      lifecycle.runTracked(() =>
-        executeInAmbientConnection<ConnectionType, Result>(
-          (conn) => handle(conn, { signal: closeController.signal }),
-          { connection: getExistingOrNewConnection },
-        ),
+      run(
+        (ctx) =>
+          executeInAmbientConnection<ConnectionType, Result>(
+            (conn) => handle(conn, ctx),
+            { connection: getExistingOrNewConnection },
+          ),
+        withConnectionOpts,
       ),
     transaction: (transactionOptions) => {
-      lifecycle.assertOpen();
+      if (processor.stopped) throw closedError();
       return innerTransaction.transaction(transactionOptions);
     },
     withTransaction: (handle, transactionOptions) =>
-      lifecycle.runTracked(() =>
-        innerTransaction.withTransaction(
-          (tx) => handle(tx, { signal: closeController.signal }),
-          transactionOptions,
-        ),
+      run(
+        (ctx) =>
+          innerTransaction.withTransaction(
+            (tx) => handle(tx, ctx),
+            transactionOptions,
+          ),
+        transactionOptions,
       ),
-    close: (closeOptions) =>
-      lifecycle.close(
-        async () => {
-          if (!connectionPromise) return;
-          const connection = await connectionPromise;
-          await connection.close();
-        },
+    close: async (closeOptions) => {
+      if (processor.stopped) return;
+      await processor.stop(
         resolveCloseOptions(closeOptions, options.closeDeadline),
-      ),
+      );
+      if (!connectionPromise) return;
+      const connection = await connectionPromise;
+      connectionPromise = null;
+      await connection.close();
+    },
   };
 
   return result;
@@ -192,78 +222,6 @@ const resolveCloseOptions = (
   };
 };
 
-type OpenCloseLifecycle = {
-  assertOpen: () => void;
-  runTracked: <T>(op: () => Promise<T>) => Promise<T>;
-  close: (
-    teardown: () => Promise<void>,
-    options?: PoolCloseOptions,
-  ) => Promise<void>;
-};
-
-const openCloseLifecycle = (
-  resourceName: string,
-  abortController: AbortController = new AbortController(),
-): OpenCloseLifecycle => {
-  let closed = false;
-  const inFlight = new Set<Promise<unknown>>();
-
-  const closedError = () => new DumboError(`${resourceName} has been closed`);
-
-  const assertOpen = () => {
-    if (closed) throw closedError();
-  };
-
-  const runTracked = <T>(op: () => Promise<T>): Promise<T> => {
-    if (closed) return Promise.reject(closedError());
-    const tracked = op();
-    inFlight.add(tracked);
-    const cleanup = () => {
-      inFlight.delete(tracked);
-    };
-    tracked.then(cleanup, cleanup);
-    return tracked;
-  };
-
-  const close = async (
-    teardown: () => Promise<void>,
-    options?: PoolCloseOptions,
-  ): Promise<void> => {
-    if (closed) return;
-    closed = true;
-    abortController.abort(closedError());
-    if (!options?.force) {
-      await drainInFlight(inFlight, options?.closeDeadline);
-    }
-    await teardown();
-  };
-
-  return {
-    assertOpen,
-    runTracked,
-    close,
-  };
-};
-
-const drainInFlight = async (
-  inFlight: Set<Promise<unknown>>,
-  closeDeadline: number | undefined,
-): Promise<void> => {
-  if (inFlight.size === 0) return;
-  const drained = Promise.allSettled([...inFlight]);
-  if (closeDeadline === undefined) {
-    await drained;
-    return;
-  }
-  await Promise.race([drained, delay(closeDeadline)]);
-};
-
-const delay = (ms: number): Promise<void> =>
-  new Promise((resolve) => {
-    const handle = setTimeout(resolve, ms);
-    handle.unref();
-  });
-
 // Signal used by pool variants that have no shutdown semantics of their own
 // (ambient/caller-managed connections, generic createConnectionPool). User
 // handles still receive a real AbortSignal that simply never aborts.
@@ -277,6 +235,7 @@ export type CreateBoundedConnectionPoolOptions<
   getConnection: () => ConnectionType | Promise<ConnectionType>;
   maxConnections: number;
   closeDeadline?: number;
+  signal?: AbortSignal | undefined;
 };
 
 export const createBoundedConnectionPool = <
@@ -286,26 +245,19 @@ export const createBoundedConnectionPool = <
 ): ConnectionPool<ConnectionType> => {
   const { driverType, maxConnections } = options;
 
-  const closeController = new AbortController();
-  const guardMaxConnections = guardBoundedAccess(options.getConnection, {
-    maxResources: maxConnections,
-    reuseResources: true,
-    closeResource: (conn) => conn.close(),
-    abortController: closeController,
-  });
+  const closedError = () =>
+    new DumboError('Bounded connection pool has been closed');
 
-  let closed = false;
-
-  const executeWithPooling = async <Result>(
-    operation: (conn: ConnectionType, ctx: OperationContext) => Promise<Result>,
-  ): Promise<Result> => {
-    const conn = await guardMaxConnections.acquire();
-    try {
-      return await operation(conn, { signal: closeController.signal });
-    } finally {
-      guardMaxConnections.release(conn);
-    }
-  };
+  const guardMaxConnections = Guard.boundedAccess<ConnectionType>(
+    options.getConnection,
+    {
+      maxResources: maxConnections,
+      reuseResources: true,
+      closeResource: (conn) => conn.close(),
+      signal: options.signal,
+      stoppedError: closedError,
+    },
+  );
 
   const innerTransactionFactory = transactionFactoryWithAsyncAmbientConnection(
     driverType,
@@ -323,29 +275,39 @@ export const createBoundedConnectionPool = <
     },
     execute: {
       query: (sql, opts) =>
-        executeWithPooling((c) => c.execute.query(sql, opts)),
+        guardMaxConnections.execute((c) => c.execute.query(sql, opts), opts),
       batchQuery: (sqls, opts) =>
-        executeWithPooling((c) => c.execute.batchQuery(sqls, opts)),
+        guardMaxConnections.execute(
+          (c) => c.execute.batchQuery(sqls, opts),
+          opts,
+        ),
       command: (sql, opts) =>
-        executeWithPooling((c) => c.execute.command(sql, opts)),
+        guardMaxConnections.execute((c) => c.execute.command(sql, opts), opts),
       batchCommand: (sqls, opts) =>
-        executeWithPooling((c) => c.execute.batchCommand(sqls, opts)),
+        guardMaxConnections.execute(
+          (c) => c.execute.batchCommand(sqls, opts),
+          opts,
+        ),
     },
-    withConnection: executeWithPooling,
-    transaction: innerTransactionFactory.transaction,
-    withTransaction: (handle, transactionOptions) =>
-      innerTransactionFactory.withTransaction(
-        (tx) => handle(tx, { signal: closeController.signal }),
-        transactionOptions,
+    withConnection: (handle, withConnectionOpts) =>
+      guardMaxConnections.execute(
+        (conn, ctx) => handle(conn, ctx),
+        withConnectionOpts,
       ),
-    close: async (closeOptions) => {
-      if (closed) return;
-      closed = true;
-
-      await guardMaxConnections.stop(
-        resolveCloseOptions(closeOptions, options.closeDeadline),
-      );
+    transaction: (transactionOptions) => {
+      if (guardMaxConnections.stopped) throw closedError();
+      return innerTransactionFactory.transaction(transactionOptions);
     },
+    withTransaction: (handle, transactionOptions) =>
+      guardMaxConnections.execute((conn, ctx) => {
+        const withTx =
+          conn.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
+        return withTx((tx) => handle(tx, ctx), transactionOptions);
+      }, transactionOptions),
+    close: (closeOptions) =>
+      guardMaxConnections.stop(
+        resolveCloseOptions(closeOptions, options.closeDeadline),
+      ),
   };
 };
 

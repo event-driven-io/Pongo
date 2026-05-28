@@ -1,6 +1,6 @@
 import { cpus } from 'os';
 import { createBoundedConnectionPool } from '../../../../core';
-import { guardInitializedOnce } from '../../../../core/taskProcessing';
+import { Guard } from '../../../../core/taskProcessing';
 import type {
   AnySQLiteConnection,
   SQLiteConnectionFactory,
@@ -40,7 +40,7 @@ export const sqliteDualConnectionPool = <
 
   let databaseInitPromise: Promise<void> | null = null;
 
-  const guardSingleConnection = guardInitializedOnce(async () => {
+  const guardSingleConnection = Guard.initializedOnce(async () => {
     if (databaseInitPromise !== null) {
       return databaseInitPromise;
     }

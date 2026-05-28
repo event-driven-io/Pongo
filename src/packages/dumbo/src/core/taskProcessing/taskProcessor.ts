@@ -1,4 +1,5 @@
 import { DumboError, TransientDatabaseError } from '../errors';
+import { Abort } from './abort';
 
 export type TaskQueue = TaskQueueItem[];
 
@@ -12,8 +13,9 @@ export type TaskQueueItem = {
 export type TaskProcessorOptions = {
   maxActiveTasks: number;
   maxQueueSize: number;
-  maxTaskIdleTime?: number;
-  abortController?: AbortController;
+  maxTaskIdleTime?: number | undefined;
+  signal?: AbortSignal | undefined;
+  stoppedError?: (() => Error) | undefined;
 };
 
 export type Task<T> = (context: TaskContext) => Promise<T>;
@@ -26,7 +28,11 @@ export type TaskContext = OperationContext & {
   ack: () => void;
 };
 
-export type EnqueueTaskOptions = { taskGroupId?: string };
+export type EnqueueTaskOptions = {
+  taskGroupId?: string | undefined;
+  signal?: AbortSignal | undefined;
+  timeoutMs?: number | undefined;
+};
 
 export class TaskProcessor {
   private queue: TaskQueue = [];
@@ -34,17 +40,29 @@ export class TaskProcessor {
   private activeTasks = 0;
   private activeGroups: Set<string> = new Set();
   private options: TaskProcessorOptions;
-  private stopped = false;
+  private isStopped = false;
   private abortController: AbortController;
+  private idleWaiters: Array<() => void> = [];
 
   constructor(options: TaskProcessorOptions) {
     this.options = options;
-    this.abortController = options.abortController ?? new AbortController();
+    this.abortController = Abort.source(options.signal);
+  }
+
+  get stopped(): boolean {
+    return this.isStopped;
+  }
+
+  private buildStoppedError(): Error {
+    return (
+      this.options.stoppedError?.() ??
+      new DumboError('TaskProcessor has been stopped')
+    );
   }
 
   enqueue<T>(task: Task<T>, options?: EnqueueTaskOptions): Promise<T> {
-    if (this.stopped) {
-      return Promise.reject(new DumboError('TaskProcessor has been stopped'));
+    if (this.isStopped) {
+      return Promise.reject(this.buildStoppedError());
     }
 
     if (this.queue.length >= this.options.maxQueueSize) {
@@ -55,22 +73,40 @@ export class TaskProcessor {
       );
     }
 
-    return this.schedule(task, options);
+    const taskSignal =
+      options?.timeoutMs !== undefined
+        ? Abort.after(
+            options.timeoutMs,
+            this.abortController.signal,
+            options.signal,
+          )
+        : Abort.link(this.abortController.signal, options?.signal);
+
+    if (taskSignal.aborted) {
+      return Promise.reject(Abort.reason(taskSignal));
+    }
+
+    return this.schedule(task, taskSignal, options);
   }
 
   waitForEndOfProcessing(): Promise<void> {
-    return this.schedule(({ ack }) => Promise.resolve(ack()));
+    if (this.activeTasks === 0 && this.queue.length === 0) {
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve) => {
+      this.idleWaiters.push(resolve);
+    });
   }
 
   async stop(options?: {
     force?: boolean;
     closeDeadline?: number;
   }): Promise<void> {
-    if (this.stopped) return;
-    this.stopped = true;
+    if (this.isStopped) return;
+    this.isStopped = true;
     const cancelled = this.queue.splice(0);
     this.activeGroups.clear();
-    const reason = new DumboError('TaskProcessor has been stopped');
+    const reason = this.buildStoppedError();
     for (const item of cancelled) item.reject(reason);
 
     // Signal cooperative tasks to wrap up before we wait for them. Honest user
@@ -78,9 +114,15 @@ export class TaskProcessor {
     // to the closeDeadline race below.
     this.abortController.abort(reason);
 
-    if (options?.force) return;
+    if (options?.force) {
+      // Force-stop releases waiters even if active tasks haven't completed —
+      // callers asked us not to drain.
+      const waiters = this.idleWaiters.splice(0);
+      for (const w of waiters) w();
+      return;
+    }
 
-    const drained = this.waitForEndOfProcessing().catch(() => undefined);
+    const drained = this.waitForEndOfProcessing();
     if (options?.closeDeadline !== undefined) {
       await Promise.race([drained, delay(options.closeDeadline)]);
     } else {
@@ -88,7 +130,11 @@ export class TaskProcessor {
     }
   }
 
-  private schedule<T>(task: Task<T>, options?: EnqueueTaskOptions): Promise<T> {
+  private schedule<T>(
+    task: Task<T>,
+    taskSignal: AbortSignal,
+    options?: EnqueueTaskOptions,
+  ): Promise<T> {
     const { promise, resolve, reject } = Promise.withResolvers<T>();
     silenceUnhandledRejection(promise);
 
@@ -101,7 +147,7 @@ export class TaskProcessor {
       new Promise<void>((resolveTask, failTask) => {
         const taskPromise = task({
           ack: resolveTask,
-          signal: this.abortController.signal,
+          signal: taskSignal,
         });
 
         taskPromise
@@ -179,6 +225,10 @@ export class TaskProcessor {
       await item.task();
     } finally {
       this.activeTasks--;
+      if (this.activeTasks === 0 && this.queue.length === 0) {
+        const waiters = this.idleWaiters.splice(0);
+        for (const w of waiters) w();
+      }
 
       // Mark the group as inactive after task completion
       if (item.options && item.options.taskGroupId) {

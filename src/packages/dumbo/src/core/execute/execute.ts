@@ -4,6 +4,7 @@ import { DumboError } from '../errors';
 import type { QueryResult, QueryResultRow } from '../query';
 import type { JSONDeserializeOptions, JSONSerializer } from '../serializer';
 import type { SQL, SQLFormatter } from '../sql';
+import type { AbortOptions } from '../taskProcessing';
 
 export const mapColumnToJSON = (
   column: string,
@@ -66,13 +67,11 @@ export type SQLQueryResultColumnMapping = {
   [column: string]: (value: unknown) => unknown;
 };
 
-export type SQLQueryOptions = {
-  timeoutMs?: number | undefined;
+export type SQLQueryOptions = AbortOptions & {
   mapping?: SQLQueryResultColumnMapping;
 };
 
-export type SQLCommandOptions = {
-  timeoutMs?: number | undefined;
+export type SQLCommandOptions = AbortOptions & {
   mapping?: SQLQueryResultColumnMapping;
 };
 
