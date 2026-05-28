@@ -67,7 +67,8 @@ export const createAmbientConnectionPool = <
       connection.transaction(
         options,
       ) as InferTransactionFromConnection<ConnectionType>,
-    withConnection: (handle, _options?) => handle(connection),
+    withConnection: (handle, _options?) =>
+      handle(connection, { signal: ambientNeverAbortSignal }),
     withTransaction: (handle, options) => {
       const withTx =
         connection.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
@@ -133,13 +134,17 @@ export const createSingletonConnectionPool = <
         lifecycle.runTracked(() => ambientExecutor.batchCommand(sqls, opts)),
     },
     withConnection: <Result>(
-      handle: (connection: ConnectionType) => Promise<Result>,
+      handle: (
+        connection: ConnectionType,
+        ctx: { signal: AbortSignal },
+      ) => Promise<Result>,
       _options?: WithConnectionOptions,
     ) =>
       lifecycle.runTracked(() =>
-        executeInAmbientConnection<ConnectionType, Result>(handle, {
-          connection: getExistingOrNewConnection,
-        }),
+        executeInAmbientConnection<ConnectionType, Result>(
+          (conn) => handle(conn, { signal: lifecycle.signal }),
+          { connection: getExistingOrNewConnection },
+        ),
       ),
     transaction: (transactionOptions) => {
       lifecycle.assertOpen();
@@ -147,7 +152,10 @@ export const createSingletonConnectionPool = <
     },
     withTransaction: (handle, transactionOptions) =>
       lifecycle.runTracked(() =>
-        innerTransaction.withTransaction(handle, transactionOptions),
+        innerTransaction.withTransaction(
+          (tx) => handle(tx, { signal: lifecycle.signal }),
+          transactionOptions,
+        ),
       ),
     close: (closeOptions) =>
       lifecycle.close(
@@ -181,6 +189,7 @@ const resolveCloseOptions = (
 };
 
 type OpenCloseLifecycle = {
+  signal: AbortSignal;
   assertOpen: () => void;
   runTracked: <T>(op: () => Promise<T>) => Promise<T>;
   close: (
@@ -192,6 +201,7 @@ type OpenCloseLifecycle = {
 const openCloseLifecycle = (resourceName: string): OpenCloseLifecycle => {
   let closed = false;
   const inFlight = new Set<Promise<unknown>>();
+  const abortController = new AbortController();
 
   const closedError = () => new DumboError(`${resourceName} has been closed`);
 
@@ -216,13 +226,21 @@ const openCloseLifecycle = (resourceName: string): OpenCloseLifecycle => {
   ): Promise<void> => {
     if (closed) return;
     closed = true;
+    abortController.abort(closedError());
     if (!options?.force) {
       await drainInFlight(inFlight, options?.closeDeadline);
     }
     await teardown();
   };
 
-  return { assertOpen, runTracked, close };
+  return {
+    get signal() {
+      return abortController.signal;
+    },
+    assertOpen,
+    runTracked,
+    close,
+  };
 };
 
 const drainInFlight = async (
@@ -243,6 +261,12 @@ const delay = (ms: number): Promise<void> =>
     const handle = setTimeout(resolve, ms);
     handle.unref();
   });
+
+// Signal used by pool variants that have no shutdown semantics of their own
+// (ambient/caller-managed connections, generic createConnectionPool). User
+// handles still receive a real AbortSignal that simply never aborts.
+export const ambientNeverAbortSignal: AbortSignal = new AbortController()
+  .signal;
 
 export type CreateBoundedConnectionPoolOptions<
   ConnectionType extends AnyConnection,
@@ -269,15 +293,24 @@ export const createBoundedConnectionPool = <
   let closed = false;
 
   const executeWithPooling = async <Result>(
-    operation: (conn: ConnectionType) => Promise<Result>,
+    operation: (
+      conn: ConnectionType,
+      ctx: { signal: AbortSignal },
+    ) => Promise<Result>,
   ): Promise<Result> => {
     const conn = await guardMaxConnections.acquire();
     try {
-      return await operation(conn);
+      return await operation(conn, { signal: guardMaxConnections.signal });
     } finally {
       guardMaxConnections.release(conn);
     }
   };
+
+  const innerTransactionFactory = transactionFactoryWithAsyncAmbientConnection(
+    driverType,
+    guardMaxConnections.acquire,
+    guardMaxConnections.release,
+  );
 
   return {
     driverType,
@@ -298,11 +331,12 @@ export const createBoundedConnectionPool = <
         executeWithPooling((c) => c.execute.batchCommand(sqls, opts)),
     },
     withConnection: executeWithPooling,
-    ...transactionFactoryWithAsyncAmbientConnection(
-      driverType,
-      guardMaxConnections.acquire,
-      guardMaxConnections.release,
-    ),
+    transaction: innerTransactionFactory.transaction,
+    withTransaction: (handle, transactionOptions) =>
+      innerTransactionFactory.withTransaction(
+        (tx) => handle(tx, { signal: guardMaxConnections.signal }),
+        transactionOptions,
+      ),
     close: async (closeOptions) => {
       if (closed) return;
       closed = true;
@@ -390,12 +424,16 @@ export const createConnectionPool = <ConnectionType extends AnyConnection>(
     'withConnection' in pool
       ? pool.withConnection
       : <Result>(
-          handle: (connection: ConnectionType) => Promise<Result>,
+          handle: (
+            connection: ConnectionType,
+            ctx: { signal: AbortSignal },
+          ) => Promise<Result>,
           _options?: WithConnectionOptions,
         ) =>
-          executeInNewConnection<ConnectionType, Result>(handle, {
-            connection,
-          });
+          executeInNewConnection<ConnectionType, Result>(
+            (conn) => handle(conn, { signal: ambientNeverAbortSignal }),
+            { connection },
+          );
 
   const close = 'close' in pool ? pool.close : () => Promise.resolve();
 

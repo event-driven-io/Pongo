@@ -2,6 +2,7 @@ import { v7 as uuid } from 'uuid';
 import { TaskProcessor } from './taskProcessor';
 
 export type ExclusiveAccessGuard = {
+  signal: AbortSignal;
   execute: <Result>(operation: () => Promise<Result>) => Promise<Result>;
   waitForIdle: () => Promise<void>;
   stop: (options?: {
@@ -19,6 +20,9 @@ export const guardExclusiveAccess = (options?: {
   });
 
   return {
+    get signal() {
+      return taskProcessor.signal;
+    },
     execute: <Result>(operation: () => Promise<Result>): Promise<Result> =>
       taskProcessor.enqueue(async ({ ack }) => {
         try {
@@ -33,6 +37,7 @@ export const guardExclusiveAccess = (options?: {
 };
 
 export type BoundedAccessGuard<Resource> = {
+  signal: AbortSignal;
   acquire: () => Promise<Resource>;
   release: (resource: Resource) => void;
   execute: <Result>(
@@ -109,6 +114,9 @@ export const guardBoundedAccess = <Resource>(
   };
 
   return {
+    get signal() {
+      return taskProcessor.signal;
+    },
     acquire,
     release,
     execute,
@@ -134,6 +142,7 @@ export const guardBoundedAccess = <Resource>(
 };
 
 export type InitializedOnceGuard<T> = {
+  signal: AbortSignal;
   ensureInitialized: () => Promise<T>;
   reset: () => void;
   stop: (options?: {
@@ -189,6 +198,9 @@ export const guardInitializedOnce = <T>(
   };
 
   return {
+    get signal() {
+      return taskProcessor.signal;
+    },
     ensureInitialized,
     reset: () => {
       initPromise = null;

@@ -19,6 +19,7 @@ export type Task<T> = (context: TaskContext) => Promise<T>;
 
 export type TaskContext = {
   ack: () => void;
+  signal: AbortSignal;
 };
 
 export type EnqueueTaskOptions = { taskGroupId?: string };
@@ -30,9 +31,14 @@ export class TaskProcessor {
   private activeGroups: Set<string> = new Set();
   private options: TaskProcessorOptions;
   private stopped = false;
+  private abortController = new AbortController();
 
   constructor(options: TaskProcessorOptions) {
     this.options = options;
+  }
+
+  get signal(): AbortSignal {
+    return this.abortController.signal;
   }
 
   enqueue<T>(task: Task<T>, options?: EnqueueTaskOptions): Promise<T> {
@@ -66,6 +72,11 @@ export class TaskProcessor {
     const reason = new DumboError('TaskProcessor has been stopped');
     for (const item of cancelled) item.reject(reason);
 
+    // Signal cooperative tasks to wrap up before we wait for them. Honest user
+    // code listening for abort can return early; uncooperative tasks fall back
+    // to the closeDeadline race below.
+    this.abortController.abort(reason);
+
     if (options?.force) return;
 
     const drained = this.waitForEndOfProcessing().catch(() => undefined);
@@ -87,7 +98,10 @@ export class TaskProcessor {
 
     const taskWithContext = () =>
       new Promise<void>((resolveTask, failTask) => {
-        const taskPromise = task({ ack: resolveTask });
+        const taskPromise = task({
+          ack: resolveTask,
+          signal: this.abortController.signal,
+        });
 
         taskPromise
           .then((value) => {

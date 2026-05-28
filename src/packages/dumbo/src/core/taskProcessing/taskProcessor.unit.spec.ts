@@ -472,6 +472,73 @@ describe('TaskProcessor', () => {
     });
   });
 
+  describe('AbortSignal cooperation', () => {
+    it("exposes a signal on the task's context", async () => {
+      const processor = new TaskProcessor({
+        maxActiveTasks: 1,
+        maxQueueSize: 10,
+      });
+
+      const seen = await processor.enqueue(({ ack, signal }) => {
+        ack();
+        return Promise.resolve(signal instanceof AbortSignal);
+      });
+
+      assert.strictEqual(seen, true);
+      await processor.stop({ force: true });
+    });
+
+    it('aborts the signal of in-flight tasks when stop() is called', async () => {
+      const processor = new TaskProcessor({
+        maxActiveTasks: 1,
+        maxQueueSize: 10,
+      });
+
+      const sawAbort = Promise.withResolvers<boolean>();
+
+      const active = processor.enqueue(async ({ ack, signal }) => {
+        signal.addEventListener('abort', () => sawAbort.resolve(true));
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        ack();
+      });
+
+      await flushMicrotasks();
+      await processor.stop({ force: true });
+
+      const aborted = await sawAbort.promise;
+      assert.strictEqual(aborted, true);
+      await active;
+    });
+
+    it('aborts before draining so cooperative tasks can wrap up', async () => {
+      const processor = new TaskProcessor({
+        maxActiveTasks: 1,
+        maxQueueSize: 10,
+      });
+
+      let exitedCleanly = false;
+
+      const active = processor.enqueue(async ({ ack, signal }) => {
+        await new Promise<void>((resolve) => {
+          if (signal.aborted) return resolve();
+          signal.addEventListener('abort', () => resolve(), { once: true });
+        });
+        exitedCleanly = true;
+        ack();
+      });
+
+      await flushMicrotasks();
+      await processor.stop();
+
+      assert.strictEqual(
+        exitedCleanly,
+        true,
+        'cooperative task should be allowed to finish after receiving abort',
+      );
+      await active;
+    });
+  });
+
   describe('maxTaskIdleTime', () => {
     it('rejects a queued task that waits longer than the configured timeout', async () => {
       const processor = new TaskProcessor({

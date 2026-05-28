@@ -43,6 +43,7 @@ export interface WithDatabaseTransactionFactory<
   withTransaction: <Result = never>(
     handle: (
       transaction: InferTransactionFromConnection<ConnectionType>,
+      ctx: { signal: AbortSignal },
     ) => Promise<TransactionResult<Result> | Result>,
     options?: InferTransactionOptionsFromConnection<ConnectionType>,
   ) => Promise<Result>;
@@ -119,9 +120,13 @@ export const transactionFactoryWithDbClient = <
   return {
     transaction: getOrInitCurrentTransaction,
     withTransaction: (handle, options) =>
-      executeInTransaction(getOrInitCurrentTransaction(options), handle),
+      executeInTransaction(getOrInitCurrentTransaction(options), (tx) =>
+        handle(tx, { signal: neverAbortSignal }),
+      ),
   };
 };
+
+const neverAbortSignal: AbortSignal = new AbortController().signal;
 
 const wrapInConnectionClosure = async <
   ConnectionType extends AnyConnection = AnyConnection,
@@ -160,7 +165,9 @@ export const transactionFactoryWithNewConnection = <
     const connection = connect();
     const withTx =
       connection.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
-    return wrapInConnectionClosure(connection, () => withTx(handle, options));
+    return wrapInConnectionClosure(connection, () =>
+      withTx((tx, ctx) => handle(tx, ctx), options),
+    );
   },
 });
 

@@ -69,13 +69,20 @@ export type WithConnectionOptions = {
   readonly?: boolean;
 };
 
+export type ConnectionContext = {
+  signal: AbortSignal;
+};
+
 export interface WithConnectionFactory<
   ConnectionType extends AnyConnection = AnyConnection,
 > {
   connection: (options?: WithConnectionOptions) => Promise<ConnectionType>;
 
   withConnection: <Result = unknown>(
-    handle: (connection: ConnectionType) => Promise<Result>,
+    handle: (
+      connection: ConnectionType,
+      ctx: ConnectionContext,
+    ) => Promise<Result>,
     options?: WithConnectionOptions,
   ) => Promise<Result>;
 }

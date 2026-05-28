@@ -218,4 +218,57 @@ describe('createSingletonConnectionPool', () => {
       /closed/i,
     );
   });
+
+  it('exposes an abort signal that fires when close() is called', async () => {
+    const conn = makeFakeConnection(1);
+
+    const pool = createSingletonConnectionPool<FakeConnection>({
+      driverType: fakeDriverType,
+      getConnection: () => conn,
+    });
+
+    const sawAbort = Promise.withResolvers<boolean>();
+
+    const inFlight = pool.withConnection(async (_c, { signal }) => {
+      signal.addEventListener('abort', () => sawAbort.resolve(true));
+      await new Promise<void>((resolve) => {
+        if (signal.aborted) return resolve();
+        signal.addEventListener('abort', () => resolve(), { once: true });
+      });
+    });
+
+    await new Promise((resolve) => setImmediate(resolve));
+    await pool.close();
+
+    const aborted = await sawAbort.promise;
+    assert.strictEqual(aborted, true);
+    await inFlight;
+  });
+});
+
+describe('createBoundedConnectionPool AbortSignal', () => {
+  it('exposes an abort signal that fires when close() is called', async () => {
+    const pool = createBoundedConnectionPool<FakeConnection>({
+      driverType: fakeDriverType,
+      maxConnections: 1,
+      getConnection: () => makeFakeConnection(1),
+    });
+
+    const sawAbort = Promise.withResolvers<boolean>();
+
+    const inFlight = pool.withConnection(async (_c, { signal }) => {
+      signal.addEventListener('abort', () => sawAbort.resolve(true));
+      await new Promise<void>((resolve) => {
+        if (signal.aborted) return resolve();
+        signal.addEventListener('abort', () => resolve(), { once: true });
+      });
+    });
+
+    await new Promise((resolve) => setImmediate(resolve));
+    await pool.close();
+
+    const aborted = await sawAbort.promise;
+    assert.strictEqual(aborted, true);
+    await inFlight;
+  });
 });
