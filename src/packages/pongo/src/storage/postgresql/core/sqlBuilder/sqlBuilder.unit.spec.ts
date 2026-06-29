@@ -11,7 +11,7 @@ describe('find() query options', () => {
       { limit: 4 },
     );
     assert.deepStrictEqual(SQL.format(query, pgFormatter), {
-      query: 'SELECT data, _version FROM users LIMIT $1 ;',
+      query: 'SELECT data, _id, _version FROM users LIMIT $1 ;',
       params: [4],
     });
   });
@@ -22,7 +22,7 @@ describe('find() query options', () => {
       { skip: 123 },
     );
     assert.deepStrictEqual(SQL.format(query, pgFormatter), {
-      query: 'SELECT data, _version FROM users OFFSET $1 ;',
+      query: 'SELECT data, _id, _version FROM users OFFSET $1 ;',
       params: [123],
     });
   });
@@ -33,7 +33,7 @@ describe('find() query options', () => {
       { limit: 20, skip: 123 },
     );
     assert.deepStrictEqual(SQL.format(query, pgFormatter), {
-      query: 'SELECT data, _version FROM users LIMIT $1 OFFSET $2 ;',
+      query: 'SELECT data, _id, _version FROM users LIMIT $1 OFFSET $2 ;',
       params: [20, 123],
     });
   });

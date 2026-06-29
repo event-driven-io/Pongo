@@ -302,7 +302,7 @@ export const postgresSQLBuilder = (
       ? filter
       : constructFilterQuery(filter, serializer);
 
-    return SQL`SELECT data, _version FROM ${SQL.identifier(collectionName)} ${where(filterQuery)} LIMIT 1;`;
+    return SQL`SELECT data, _id, _version FROM ${SQL.identifier(collectionName)} ${where(filterQuery)} LIMIT 1;`;
   },
   find: <T>(filter: PongoFilter<T> | SQL, options?: FindOptions): SQL => {
     const filterQuery = isSQL(filter)
@@ -311,7 +311,7 @@ export const postgresSQLBuilder = (
     const query: SQL[] = [];
 
     query.push(
-      SQL`SELECT data, _version FROM ${SQL.identifier(collectionName)}`,
+      SQL`SELECT data, _id, _version FROM ${SQL.identifier(collectionName)}`,
     );
 
     query.push(where(filterQuery));

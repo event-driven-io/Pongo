@@ -46,7 +46,7 @@ describe('sqliteSQLBuilder', () => {
       const result = builder.find({});
       const { query } = SQL.format(result, sqliteFormatter);
 
-      assert.ok(query.includes('SELECT data, _version FROM'));
+      assert.ok(query.includes('SELECT data, _id, _version FROM'));
       assert.ok(!query.includes('WHERE'));
     });
 
@@ -155,7 +155,7 @@ describe('sqliteSQLBuilder', () => {
 
   describe('update operations', () => {
     it('should handle $set operator', () => {
-      const result = builder.updateOne(
+      const result = builder.updateOne<{ name: string }>(
         { _id: 'test-id' },
         { $set: { name: 'Updated' } },
       );
@@ -166,7 +166,7 @@ describe('sqliteSQLBuilder', () => {
     });
 
     it('should handle $inc operator', () => {
-      const result = builder.updateOne(
+      const result = builder.updateOne<{ count: number }>(
         { _id: 'test-id' },
         { $inc: { count: 1 } },
       );
@@ -177,7 +177,7 @@ describe('sqliteSQLBuilder', () => {
     });
 
     it('should handle $push operator', () => {
-      const result = builder.updateOne(
+      const result = builder.updateOne<{ tags: string }>(
         { _id: 'test-id' },
         { $push: { tags: 'new-tag' } },
       );
