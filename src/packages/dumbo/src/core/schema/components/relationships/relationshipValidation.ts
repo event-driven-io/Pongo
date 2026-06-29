@@ -64,9 +64,7 @@ export type RelationshipReferencesLengthMismatchError<
 
 export type ColumnReferenceExistanceError<
   ErrorCode extends 'missing_schema' | 'missing_table' | 'missing_column' =
-    | 'missing_schema'
-    | 'missing_table'
-    | 'missing_column',
+    'missing_schema' | 'missing_table' | 'missing_column',
   ColumnPath extends SchemaColumnName = SchemaColumnName,
 > = {
   valid: false;
@@ -93,8 +91,7 @@ export type ColumnReferenceTypeMismatchError<
 export type NoError = TypeValidationSuccess;
 
 export type ColumnReferenceError =
-  | ColumnReferenceExistanceError
-  | ColumnReferenceTypeMismatchError;
+  ColumnReferenceExistanceError | ColumnReferenceTypeMismatchError;
 
 export type RelationshipValidationError =
   | RelationshipColumnsMismatchError
@@ -182,8 +179,7 @@ export type ValidateColumnReference<
 
 export type ValidateColumnTypeMatch<
   RefColumnType extends AnyColumnTypeToken | string =
-    | AnyColumnTypeToken
-    | string,
+    AnyColumnTypeToken | string,
   ColumnType extends AnyColumnTypeToken | string = AnyColumnTypeToken | string,
   Reference extends SchemaColumnName = SchemaColumnName,
 > =

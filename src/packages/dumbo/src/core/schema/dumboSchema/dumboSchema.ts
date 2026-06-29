@@ -29,8 +29,7 @@ const DEFAULT_DATABASE_SCHEMA_NAME = '__default_database_schema__';
 
 const dumboColumn = <
   const ColumnType extends AnyColumnTypeToken | string =
-    | AnyColumnTypeToken
-    | string,
+    AnyColumnTypeToken | string,
   const TOptions extends SchemaComponentOptions &
     Omit<SQLColumnToken<ColumnType>, 'name' | 'type' | 'sqlTokenType'> = Omit<
     ColumnSchemaComponentOptions<ColumnType>,
@@ -180,9 +179,7 @@ function dumboDatabase<Schemas extends DatabaseSchemas = DatabaseSchemas>(
 function dumboDatabase<Schemas extends DatabaseSchemas = DatabaseSchemas>(
   nameOrSchemas: string | DatabaseSchemaSchemaComponent | Schemas,
   schemasOrOptions?:
-    | DatabaseSchemaSchemaComponent
-    | Schemas
-    | SchemaComponentOptions,
+    DatabaseSchemaSchemaComponent | Schemas | SchemaComponentOptions,
   options?: SchemaComponentOptions,
 ): ValidatedDatabaseSchemaComponent<Schemas> {
   const databaseName =

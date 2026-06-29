@@ -47,12 +47,7 @@ export const parsePragmasFromConnectionString = (
   const journalMode = params.get('journal_mode');
   if (journalMode !== null) {
     pragmas.journal_mode = journalMode as
-      | 'DELETE'
-      | 'TRUNCATE'
-      | 'PERSIST'
-      | 'MEMORY'
-      | 'WAL'
-      | 'OFF';
+      'DELETE' | 'TRUNCATE' | 'PERSIST' | 'MEMORY' | 'WAL' | 'OFF';
   }
 
   const synchronous = params.get('synchronous');
@@ -74,9 +69,7 @@ export const parsePragmasFromConnectionString = (
   const tempStore = params.get('temp_store');
   if (tempStore !== null) {
     pragmas.temp_store = tempStore.toUpperCase() as
-      | 'DEFAULT'
-      | 'FILE'
-      | 'MEMORY';
+      'DEFAULT' | 'FILE' | 'MEMORY';
   }
 
   const busyTimeout = params.get('busy_timeout');

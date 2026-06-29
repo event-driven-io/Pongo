@@ -88,8 +88,7 @@ export const pgPoolClientConnection = (
 };
 
 export type PgConnectionOptions =
-  | PgPoolClientConnectionOptions
-  | PgClientConnectionOptions;
+  PgPoolClientConnectionOptions | PgClientConnectionOptions;
 
 export function pgConnection(
   options: PgPoolClientConnectionOptions,

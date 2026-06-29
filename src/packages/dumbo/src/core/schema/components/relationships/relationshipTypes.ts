@@ -44,13 +44,13 @@ export type ExtractColumnTypeName<T> =
     : never;
 
 export type AllColumnTypes<Schemas extends DatabaseSchemas> = {
-  [SchemaName in keyof Schemas]: Schemas[SchemaName] extends DatabaseSchemaSchemaComponent<
-    infer Tables
-  >
+  [
+    SchemaName in keyof Schemas
+  ]: Schemas[SchemaName] extends DatabaseSchemaSchemaComponent<infer Tables>
     ? Writable<{
-        [TableName in keyof Tables]: Tables[TableName] extends TableSchemaComponent<
-          infer Columns
-        >
+        [
+          TableName in keyof Tables
+        ]: Tables[TableName] extends TableSchemaComponent<infer Columns>
           ? Writable<{
               [ColumnName in keyof Columns]: {
                 columnTypeName: ExtractColumnTypeName<
@@ -64,13 +64,13 @@ export type AllColumnTypes<Schemas extends DatabaseSchemas> = {
 };
 
 export type AllColumnReferences<Schemas extends DatabaseSchemas> = {
-  [SchemaName in keyof Schemas]: Schemas[SchemaName] extends DatabaseSchemaSchemaComponent<
-    infer Tables
-  >
+  [
+    SchemaName in keyof Schemas
+  ]: Schemas[SchemaName] extends DatabaseSchemaSchemaComponent<infer Tables>
     ? {
-        [TableName in keyof Tables]: Tables[TableName] extends TableSchemaComponent<
-          infer Columns
-        >
+        [
+          TableName in keyof Tables
+        ]: Tables[TableName] extends TableSchemaComponent<infer Columns>
           ? {
               [ColumnName in keyof Columns]: `${SchemaName &
                 string}.${TableName & string}.${ColumnName & string}`;
@@ -85,9 +85,9 @@ export type AllColumnTypesInSchema<
 > =
   Schema extends DatabaseSchemaSchemaComponent<infer Tables>
     ? {
-        [TableName in keyof Tables]: Tables[TableName] extends TableSchemaComponent<
-          infer Columns
-        >
+        [
+          TableName in keyof Tables
+        ]: Tables[TableName] extends TableSchemaComponent<infer Columns>
           ? {
               [ColumnName in keyof Columns]: {
                 columnTypeName: ExtractColumnTypeName<
@@ -105,11 +105,13 @@ export type AllColumnReferencesInSchema<
 > =
   Schema extends DatabaseSchemaSchemaComponent<infer Tables>
     ? {
-        [TableName in keyof Tables]: Tables[TableName] extends TableSchemaComponent<
-          infer Columns
-        >
+        [
+          TableName in keyof Tables
+        ]: Tables[TableName] extends TableSchemaComponent<infer Columns>
           ? {
-              [ColumnName in keyof Columns]: `${SchemaName & string}.${TableName &
+              [
+                ColumnName in keyof Columns
+              ]: `${SchemaName & string}.${TableName &
                 string}.${ColumnName & string}`;
             }[keyof Columns]
           : never;
@@ -207,10 +209,7 @@ export type LookupColumnType<AllTypes, Path extends string> =
     : never;
 
 export type RelationshipType =
-  | 'one-to-one'
-  | 'one-to-many'
-  | 'many-to-one'
-  | 'many-to-many';
+  'one-to-one' | 'one-to-many' | 'many-to-one' | 'many-to-many';
 
 export type RelationshipDefinition<
   Columns extends string = string,

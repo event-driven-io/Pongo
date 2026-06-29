@@ -22,8 +22,7 @@ import {
 } from '../core';
 
 export type PgPongoClientOptions =
-  | PooledPongoClientOptions
-  | NotPooledPongoOptions;
+  PooledPongoClientOptions | NotPooledPongoOptions;
 
 export type PooledPongoClientOptions =
   | {

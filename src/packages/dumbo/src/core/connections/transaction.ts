@@ -100,8 +100,7 @@ export const transactionFactoryWithDbClient = <
   ) => InferTransactionFromConnection<ConnectionType>,
 ): WithDatabaseTransactionFactory<ConnectionType> => {
   let currentTransaction:
-    | InferTransactionFromConnection<ConnectionType>
-    | undefined = undefined;
+    InferTransactionFromConnection<ConnectionType> | undefined = undefined;
 
   const getOrInitCurrentTransaction = (
     options?: InferTransactionOptionsFromConnection<ConnectionType>,

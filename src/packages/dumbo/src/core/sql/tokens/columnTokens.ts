@@ -1,12 +1,7 @@
 import { SQLToken } from './sqlToken';
 
 export type JSONValueType =
-  | Record<string, unknown>
-  | Array<unknown>
-  | string
-  | number
-  | boolean
-  | null;
+  Record<string, unknown> | Array<unknown> | string | number | boolean | null;
 
 export type JSONValueTypeName =
   | 'value_type:json:object'
@@ -39,25 +34,27 @@ export type JavaScriptValueTypeName =
   | 'value_type:js:bigint';
 
 export type JavaScriptValueTypeToNameMap = {
-  [K in JavaScriptValueType as K extends Record<string, unknown>
-    ? 'value_type:js:object'
-    : K extends Array<unknown>
-      ? 'value_type:js:array'
-      : K extends string
-        ? 'value_type:js:string'
-        : K extends number
-          ? 'value_type:js:number'
-          : K extends boolean
-            ? 'value_type:js:boolean'
-            : K extends null
-              ? 'value_type:js:null'
-              : K extends undefined
-                ? 'value_type:js:undefined'
-                : K extends Date
-                  ? 'value_type:js:date'
-                  : K extends bigint
-                    ? 'value_type:js:bigint'
-                    : never]: K;
+  [
+    K in JavaScriptValueType as K extends Record<string, unknown>
+      ? 'value_type:js:object'
+      : K extends Array<unknown>
+        ? 'value_type:js:array'
+        : K extends string
+          ? 'value_type:js:string'
+          : K extends number
+            ? 'value_type:js:number'
+            : K extends boolean
+              ? 'value_type:js:boolean'
+              : K extends null
+                ? 'value_type:js:null'
+                : K extends undefined
+                  ? 'value_type:js:undefined'
+                  : K extends Date
+                    ? 'value_type:js:date'
+                    : K extends bigint
+                      ? 'value_type:js:bigint'
+                      : never
+  ]: K;
 };
 
 // TODO: Use URNs for sqltoken
@@ -65,8 +62,7 @@ export type ColumnTypeToken<
   JSValueTypeName extends JavaScriptValueTypeName = JavaScriptValueTypeName,
   ColumnTypeName extends string = string,
   TProps extends Omit<Record<string, unknown>, 'sqlTokenType'> | undefined =
-    | Omit<Record<string, unknown>, 'sqlTokenType'>
-    | undefined,
+    Omit<Record<string, unknown>, 'sqlTokenType'> | undefined,
   ValueType = undefined,
 > = SQLToken<`SQL_COLUMN_${ColumnTypeName}`, TProps> & {
   __brand: ValueType extends undefined

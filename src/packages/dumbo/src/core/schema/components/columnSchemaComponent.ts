@@ -37,8 +37,7 @@ export type ColumnSchemaComponentOptions<
 
 export const columnSchemaComponent = <
   const ColumnType extends AnyColumnTypeToken | string =
-    | AnyColumnTypeToken
-    | string,
+    AnyColumnTypeToken | string,
   const TOptions extends ColumnSchemaComponentOptions<ColumnType> =
     ColumnSchemaComponentOptions<ColumnType>,
   const ColumnName extends string = string,

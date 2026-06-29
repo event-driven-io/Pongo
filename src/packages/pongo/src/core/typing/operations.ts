@@ -404,8 +404,7 @@ export declare type AlternativeType<T> =
   T extends ReadonlyArray<infer U> ? T | RegExpOrString<U> : RegExpOrString<T>;
 
 export declare type Condition<T> =
-  | AlternativeType<T>
-  | PongoFilterOperator<AlternativeType<T>>;
+  AlternativeType<T> | PongoFilterOperator<AlternativeType<T>>;
 
 export declare type PongoFilter<TSchema> =
   | {
@@ -481,16 +480,12 @@ export type $inc<T> = { [P in keyof T]?: number | bigint };
 export type $push<T> = { [P in keyof T]?: T[P] };
 
 export type ExpectedDocumentVersionGeneral =
-  | 'DOCUMENT_EXISTS'
-  | 'DOCUMENT_DOES_NOT_EXIST'
-  | 'NO_CONCURRENCY_CHECK';
+  'DOCUMENT_EXISTS' | 'DOCUMENT_DOES_NOT_EXIST' | 'NO_CONCURRENCY_CHECK';
 
 export type ExpectedDocumentVersionValue = bigint & { __brand: 'sql' };
 
 export type ExpectedDocumentVersion =
-  | (bigint & { __brand: 'sql' })
-  | bigint
-  | ExpectedDocumentVersionGeneral;
+  (bigint & { __brand: 'sql' }) | bigint | ExpectedDocumentVersionGeneral;
 
 export const DOCUMENT_EXISTS =
   'DOCUMENT_EXISTS' as ExpectedDocumentVersionGeneral;
