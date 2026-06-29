@@ -361,12 +361,12 @@ export declare type OptionalUnlessRequiredVersion<TSchema> = TSchema extends {
 export declare type OptionalUnlessRequiredIdAndVersion<TSchema> =
   OptionalUnlessRequiredId<TSchema> & OptionalUnlessRequiredVersion<TSchema>;
 
-export declare type WithId<TSchema> = EnhancedOmit<TSchema, '_id'> & {
+export declare type WithId<TSchema> = TSchema & {
   _id: string | ObjectId;
 };
 export type WithoutId<T> = Omit<T, '_id'>;
 
-export declare type WithVersion<TSchema> = EnhancedOmit<TSchema, '_version'> & {
+export declare type WithVersion<TSchema> = TSchema & {
   _version: bigint;
 };
 export type WithoutVersion<T> = Omit<T, '_version'>;
