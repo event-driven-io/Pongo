@@ -41,6 +41,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Ensure specific npm version
+        run: npm install -g npm@11.9.0
+
       # - name: Install Playwright chromium browser
       #   working-directory: ./src/e2e/browser
       #   run: npx playwright install chromium
