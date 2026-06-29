@@ -407,12 +407,6 @@ export declare type Condition<T> =
   | AlternativeType<T>
   | PongoFilterOperator<AlternativeType<T>>;
 
-export declare type PongoFilter<TSchema> =
-  | {
-      [P in keyof WithId<TSchema>]?: Condition<WithId<TSchema>[P]>;
-    }
-  | HasId; // TODO: & RootFilterOperators<WithId<TSchema>>;
-
 export declare interface RootFilterOperators<TSchema> extends Document {
   $and?: PongoFilter<TSchema>[];
   $nor?: PongoFilter<TSchema>[];
@@ -426,6 +420,13 @@ export declare interface RootFilterOperators<TSchema> extends Document {
   $where?: string | ((this: TSchema) => boolean);
   $comment?: string | Document;
 }
+
+export declare type PongoFilter<TSchema> =
+  | ({
+      [P in keyof WithId<TSchema>]?: Condition<WithId<TSchema>[P]>;
+    } & Pick<RootFilterOperators<WithId<TSchema>>, '$and' | '$nor' | '$or'>)
+  | (HasId &
+      Pick<RootFilterOperators<WithId<TSchema>>, '$and' | '$nor' | '$or'>);
 
 export declare interface PongoFilterOperator<
   TValue,

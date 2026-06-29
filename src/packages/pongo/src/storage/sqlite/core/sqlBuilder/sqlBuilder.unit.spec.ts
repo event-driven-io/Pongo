@@ -1,5 +1,5 @@
 import { JSONSerializer, SQL } from '@event-driven-io/dumbo';
-import { sqliteFormatter } from '@event-driven-io/dumbo/sqlite3';
+import { sqliteFormatter } from '@event-driven-io/dumbo/sqlite';
 import { randomUUID } from 'crypto';
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
@@ -216,6 +216,57 @@ describe('sqliteSQLBuilder', () => {
 
       assert.ok(query.includes('SELECT COUNT(1) as count'));
       assert.ok(query.includes('WHERE'));
+    });
+  });
+
+  describe('logical operators', () => {
+    it('supports top-level $or', () => {
+      const result = builder.find<{ flag: boolean }>({
+        $or: [{ flag: true }, { flag: false }],
+      });
+      const { query } = SQL.format(result, sqliteFormatter);
+
+      assert.ok(query.includes(' OR '), `got: ${query}`);
+      assert.ok(!query.includes('$.$or'), `got: ${query}`);
+      assert.ok(!query.includes('1 = 0'), `got: ${query}`);
+      assert.ok(!query.includes('1 = 1'), `got: ${query}`);
+    });
+
+    it('ANDs normal fields with $or blocks', () => {
+      const result = builder.find<{ flag: boolean; status: string }>({
+        status: 'active',
+        $or: [{ flag: true }, { flag: false }],
+      });
+      const { query } = SQL.format(result, sqliteFormatter);
+
+      assert.ok(query.includes(' AND '), `got: ${query}`);
+      assert.ok(query.includes(' OR '), `got: ${query}`);
+    });
+
+    it('supports nested logical operators', () => {
+      const result = builder.find<{ flag: boolean; status: string }>({
+        $and: [
+          { status: 'active' },
+          { $or: [{ flag: true }, { flag: false }] },
+        ],
+      });
+      const { query } = SQL.format(result, sqliteFormatter);
+
+      assert.ok(query.includes(' AND '), `got: ${query}`);
+      assert.ok(query.includes(' OR '), `got: ${query}`);
+      assert.ok(!query.includes('1 = 0'), `got: ${query}`);
+      assert.ok(!query.includes('1 = 1'), `got: ${query}`);
+    });
+
+    it('throws for unsupported root operators instead of treating them as fields', () => {
+      const unsupportedFilter = {
+        $text: { $search: 'active' },
+      } as unknown as Parameters<typeof builder.find>[0];
+
+      assert.throws(
+        () => builder.find(unsupportedFilter),
+        /Unsupported root operator: \$text/,
+      );
     });
   });
 });
