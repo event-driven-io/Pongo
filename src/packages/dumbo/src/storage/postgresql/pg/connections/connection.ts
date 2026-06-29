@@ -49,23 +49,31 @@ export type PgClientOptions = {
 
 export type PgClientConnectionOptions = PgClientOptions & {
   serializer: JSONSerializer;
+  transactionOptions?: PgTransactionOptions;
 };
 
 export type PgPoolClientConnectionOptions = PgPoolClientOptions & {
   serializer: JSONSerializer;
+  transactionOptions?: PgTransactionOptions;
 };
 
 export const pgClientConnection = (
   options: PgClientConnectionOptions,
 ): PgClientConnection => {
-  const { connect, close } = options;
+  const { connect, close, transactionOptions } = options;
 
   return createConnection({
     driverType: PgDriverType,
     connect,
     close,
-    initTransaction: (connection) =>
-      pgTransaction(connection, options.serializer),
+    initTransaction: (connection) => {
+      const txFactory = pgTransaction(connection, options.serializer);
+      return (client, perCallOptions) =>
+        txFactory(client, {
+          ...(transactionOptions ?? {}),
+          ...(perCallOptions ?? ({} as Parameters<typeof txFactory>[1])),
+        } as Parameters<typeof txFactory>[1]);
+    },
     executor: pgSQLExecutor,
     serializer: options.serializer,
   });
@@ -74,14 +82,20 @@ export const pgClientConnection = (
 export const pgPoolClientConnection = (
   options: PgPoolClientConnectionOptions,
 ): PgPoolClientConnection => {
-  const { connect, close } = options;
+  const { connect, close, transactionOptions } = options;
 
   return createConnection({
     driverType: PgDriverType,
     connect,
     close,
-    initTransaction: (connection) =>
-      pgTransaction(connection, options.serializer),
+    initTransaction: (connection) => {
+      const txFactory = pgTransaction(connection, options.serializer);
+      return (client, perCallOptions) =>
+        txFactory(client, {
+          ...(transactionOptions ?? {}),
+          ...(perCallOptions ?? ({} as Parameters<typeof txFactory>[1])),
+        } as Parameters<typeof txFactory>[1]);
+    },
     executor: pgSQLExecutor,
     serializer: options.serializer,
   });

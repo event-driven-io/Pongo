@@ -3,7 +3,7 @@ import type {
   JSONSerializer,
 } from '../../../../core';
 import {
-  InvalidOperationError,
+  databaseTransaction,
   SQL,
   sqlExecutor,
   type DatabaseTransaction,
@@ -11,10 +11,9 @@ import {
   type InferDbClientFromConnection,
 } from '../../../../core';
 import { sqliteSQLExecutor } from '../../core/execute';
-import {
-  transactionNestingCounter,
-  type AnySQLiteConnection,
-  type SQLiteClientOrPoolClient,
+import type {
+  AnySQLiteConnection,
+  SQLiteClientOrPoolClient,
 } from '../connections';
 
 export type SQLiteTransaction<
@@ -47,84 +46,62 @@ export const sqliteTransaction =
       ) => Promise<void>;
     } & SQLiteTransactionOptions,
   ): InferTransactionFromConnection<ConnectionType> => {
-    const transactionCounter = transactionNestingCounter();
     allowNestedTransactions =
       options?.allowNestedTransactions ?? allowNestedTransactions;
+    const useSavepoints = options?.useSavepoints ?? false;
 
-    let hasBegun = false;
+    const tx = databaseTransaction(
+      {
+        begin: async () => {
+          const client = (await getClient) as SQLiteClientOrPoolClient;
+          const mode = options?.mode ?? defaultTransactionMode ?? 'IMMEDIATE';
+          await client.command(SQL`BEGIN ${SQL.plain(mode)} TRANSACTION`);
+        },
+        commit: async () => {
+          const client = (await getClient) as SQLiteClientOrPoolClient;
+          try {
+            await client.command(SQL`COMMIT`);
+          } finally {
+            if (options?.close)
+              await options.close(
+                client as InferDbClientFromConnection<ConnectionType>,
+              );
+          }
+        },
+        rollback: async (error?: unknown) => {
+          const client = (await getClient) as SQLiteClientOrPoolClient;
+          try {
+            await client.command(SQL`ROLLBACK`);
+          } finally {
+            if (options?.close)
+              await options.close(
+                client as InferDbClientFromConnection<ConnectionType>,
+                error,
+              );
+          }
+        },
+        savepoint: async (level) => {
+          const client = (await getClient) as SQLiteClientOrPoolClient;
+          await client.command(
+            SQL`SAVEPOINT transaction${SQL.plain(level.toString())}`,
+          );
+        },
+        releaseSavepoint: async (level) => {
+          const client = (await getClient) as SQLiteClientOrPoolClient;
+          await client.command(
+            SQL`RELEASE transaction${SQL.plain(level.toString())}`,
+          );
+        },
+      },
+      { allowNestedTransactions, useSavepoints },
+    );
 
     const transaction: DatabaseTransaction<ConnectionType> = {
       connection: connection(),
       driverType,
-      begin: async function () {
-        const client = (await getClient) as SQLiteClientOrPoolClient;
-
-        if (allowNestedTransactions) {
-          if (transactionCounter.level >= 1) {
-            transactionCounter.increment();
-            if (options?.useSavepoints) {
-              await client.command(
-                SQL`SAVEPOINT transaction${SQL.plain(transactionCounter.level.toString())}`,
-              );
-            }
-            return;
-          }
-
-          transactionCounter.increment();
-        } else if (hasBegun) {
-          throw new InvalidOperationError(
-            'Cannot start a nested transaction: allowNestedTransactions is false. ' +
-              'Set transactionOptions: { allowNestedTransactions: true } on your pool or connection.',
-          );
-        }
-
-        hasBegun = true;
-        const mode = options?.mode ?? defaultTransactionMode ?? 'IMMEDIATE';
-        await client.command(SQL`BEGIN ${SQL.plain(mode)} TRANSACTION`);
-      },
-      commit: async function () {
-        const client = (await getClient) as SQLiteClientOrPoolClient;
-
-        if (allowNestedTransactions && transactionCounter.level > 1) {
-          if (options?.useSavepoints) {
-            await client.command(
-              SQL`RELEASE transaction${SQL.plain(transactionCounter.level.toString())}`,
-            );
-          }
-          transactionCounter.decrement();
-          return;
-        }
-
-        try {
-          if (allowNestedTransactions) transactionCounter.reset();
-          hasBegun = false;
-          await client.command(SQL`COMMIT`);
-        } finally {
-          if (options?.close)
-            await options?.close(
-              client as InferDbClientFromConnection<ConnectionType>,
-            );
-        }
-      },
-      rollback: async function (error?: unknown) {
-        const client = (await getClient) as SQLiteClientOrPoolClient;
-
-        if (allowNestedTransactions && transactionCounter.level > 1) {
-          transactionCounter.decrement();
-          return;
-        }
-
-        try {
-          hasBegun = false;
-          await client.command(SQL`ROLLBACK`);
-        } finally {
-          if (options?.close)
-            await options?.close(
-              client as InferDbClientFromConnection<ConnectionType>,
-              error,
-            );
-        }
-      },
+      begin: tx.begin,
+      commit: tx.commit,
+      rollback: tx.rollback,
       execute: sqlExecutor(sqliteSQLExecutor(driverType, serializer), {
         connect: () => getClient,
       }),

@@ -2,10 +2,11 @@ import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
+import assert from 'node:assert';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import pg from 'pg';
 import { pgPool } from '.';
-import { SQL } from '../../../../core';
+import { InvalidOperationError, SQL } from '../../../../core';
 import { pgConnection } from './connection';
 import { endPgPool, getPgPool } from './pool';
 
@@ -372,6 +373,180 @@ describe('pg', () => {
         );
 
         await pool.execute.command(SQL`DROP TABLE test_iso_readonly`);
+      } finally {
+        await pool.close();
+      }
+    });
+
+    it('respects allowNestedTransactions from pool options', async () => {
+      const pool = pgPool({
+        connectionString,
+        transactionOptions: { allowNestedTransactions: true },
+      });
+
+      try {
+        await pool.execute.command(
+          SQL`CREATE TABLE IF NOT EXISTS test_nested_tx (id SERIAL PRIMARY KEY, value TEXT)`,
+        );
+        await pool.execute.command(SQL`TRUNCATE test_nested_tx`);
+
+        await pool.withTransaction(async (outerTx) => {
+          await outerTx.execute.command(
+            SQL`INSERT INTO test_nested_tx (value) VALUES ('outer')`,
+          );
+
+          await pool.withTransaction(async (innerTx) => {
+            await innerTx.execute.command(
+              SQL`INSERT INTO test_nested_tx (value) VALUES ('inner')`,
+            );
+          });
+        });
+
+        const result = await pool.execute.query<{ count: string }>(
+          SQL`SELECT COUNT(*)::text as count FROM test_nested_tx`,
+        );
+        assert.strictEqual(
+          result.rows[0]?.count,
+          '2',
+          'Both outer and inner rows should be persisted',
+        );
+
+        await pool.execute.command(SQL`DROP TABLE test_nested_tx`);
+      } finally {
+        await pool.close();
+      }
+    });
+
+    it('throws actionable InvalidOperationError on nested withTransaction when allowNestedTransactions is false', async () => {
+      const pool = pgPool({ connectionString });
+
+      try {
+        await pool.execute.command(
+          SQL`CREATE TABLE IF NOT EXISTS test_nested_tx_fail (id SERIAL PRIMARY KEY, value TEXT)`,
+        );
+        await pool.execute.command(SQL`TRUNCATE test_nested_tx_fail`);
+
+        await assert.rejects(
+          () =>
+            pool.withTransaction(async (outerTx) => {
+              await outerTx.execute.command(
+                SQL`INSERT INTO test_nested_tx_fail (value) VALUES ('outer')`,
+              );
+              await pool.withTransaction(async (innerTx) => {
+                await innerTx.execute.command(
+                  SQL`INSERT INTO test_nested_tx_fail (value) VALUES ('inner')`,
+                );
+              });
+            }),
+          (err: unknown) => {
+            assert.ok(
+              err instanceof InvalidOperationError,
+              `Expected InvalidOperationError, got ${String(err)}`,
+            );
+            assert.ok(
+              err.message.includes('allowNestedTransactions'),
+              `Error message should mention allowNestedTransactions, got: ${err.message}`,
+            );
+            return true;
+          },
+        );
+
+        await pool.execute.command(SQL`DROP TABLE test_nested_tx_fail`);
+      } finally {
+        await pool.close();
+      }
+    });
+
+    it('nested rollback rolls back outer when allowNestedTransactions is true (no savepoints)', async () => {
+      const pool = pgPool({
+        connectionString,
+        transactionOptions: { allowNestedTransactions: true },
+      });
+
+      try {
+        await pool.execute.command(
+          SQL`CREATE TABLE IF NOT EXISTS test_nested_rollback (id SERIAL PRIMARY KEY, value TEXT)`,
+        );
+        await pool.execute.command(SQL`TRUNCATE test_nested_rollback`);
+
+        await assert.rejects(
+          () =>
+            pool.withTransaction(async (outerTx) => {
+              await outerTx.execute.command(
+                SQL`INSERT INTO test_nested_rollback (value) VALUES ('outer')`,
+              );
+              await pool.withTransaction(async (innerTx) => {
+                await innerTx.execute.command(
+                  SQL`INSERT INTO test_nested_rollback (value) VALUES ('inner')`,
+                );
+                throw new Error('inner failure');
+              });
+            }),
+          /inner failure/,
+        );
+
+        const result = await pool.execute.query<{ count: string }>(
+          SQL`SELECT COUNT(*)::text as count FROM test_nested_rollback`,
+        );
+        assert.strictEqual(
+          result.rows[0]?.count,
+          '0',
+          'Nested failure must roll back outer transaction (no savepoint isolation)',
+        );
+
+        await pool.execute.command(SQL`DROP TABLE test_nested_rollback`);
+      } finally {
+        await pool.close();
+      }
+    });
+
+    it('useSavepoints isolates nested rollback so outer can still commit', async () => {
+      const pool = pgPool({
+        connectionString,
+        transactionOptions: {
+          allowNestedTransactions: true,
+          useSavepoints: true,
+        },
+      });
+
+      try {
+        await pool.execute.command(
+          SQL`CREATE TABLE IF NOT EXISTS test_savepoint (id SERIAL PRIMARY KEY, value TEXT)`,
+        );
+        await pool.execute.command(SQL`TRUNCATE test_savepoint`);
+
+        await pool.withTransaction(async (outerTx) => {
+          await outerTx.execute.command(
+            SQL`INSERT INTO test_savepoint (value) VALUES ('outer')`,
+          );
+
+          try {
+            await pool.withTransaction(async (innerTx) => {
+              await innerTx.execute.command(
+                SQL`INSERT INTO test_savepoint (value) VALUES ('inner')`,
+              );
+              throw new Error('inner failure');
+            });
+          } catch (err) {
+            assert.ok((err as Error).message.includes('inner failure'));
+          }
+
+          await outerTx.execute.command(
+            SQL`INSERT INTO test_savepoint (value) VALUES ('after-rollback')`,
+          );
+        });
+
+        const result = await pool.execute.query<{
+          value: string;
+        }>(SQL`SELECT value FROM test_savepoint ORDER BY id`);
+
+        assert.deepStrictEqual(
+          result.rows.map((r) => r.value),
+          ['outer', 'after-rollback'],
+          'Inner savepoint must roll back without taking outer with it',
+        );
+
+        await pool.execute.command(SQL`DROP TABLE test_savepoint`);
       } finally {
         await pool.close();
       }

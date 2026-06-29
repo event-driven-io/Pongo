@@ -1,6 +1,6 @@
 import { cpus } from 'os';
 import { createBoundedConnectionPool } from '../../../../core';
-import { guardInitializedOnce } from '../../../../core/taskProcessing';
+import { Guard } from '../../../../core/taskProcessing';
 import type {
   AnySQLiteConnection,
   SQLiteConnectionFactory,
@@ -20,6 +20,8 @@ export type SQLiteDualPoolOptions<
   pooled?: true;
   connection?: never;
   readerPoolSize?: number;
+  maxTaskIdleTime?: number;
+  closeDeadline?: number;
   sqliteConnectionFactory: SQLiteConnectionFactory<
     SQLiteConnectionType,
     ConnectionOptions
@@ -38,7 +40,7 @@ export const sqliteDualConnectionPool = <
 
   let databaseInitPromise: Promise<void> | null = null;
 
-  const guardSingleConnection = guardInitializedOnce(async () => {
+  const guardSingleConnection = Guard.initializedOnce(async () => {
     if (databaseInitPromise !== null) {
       return databaseInitPromise;
     }
@@ -90,12 +92,21 @@ export const sqliteDualConnectionPool = <
   const writerPool = sqlite3SingletonPool<SQLiteConnectionType>({
     driverType: options.driverType,
     getConnection: () => wrappedConnectionFactory(false, connectionOptions),
+    ...(options.maxTaskIdleTime !== undefined
+      ? { maxTaskIdleTime: options.maxTaskIdleTime }
+      : {}),
+    ...(options.closeDeadline !== undefined
+      ? { closeDeadline: options.closeDeadline }
+      : {}),
   });
 
   const readerPool = createBoundedConnectionPool({
     driverType: options.driverType,
     getConnection: () => wrappedConnectionFactory(true, connectionOptions),
     maxConnections: readerPoolSize,
+    ...(options.closeDeadline !== undefined
+      ? { closeDeadline: options.closeDeadline }
+      : {}),
   });
 
   return {

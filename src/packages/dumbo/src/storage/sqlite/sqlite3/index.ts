@@ -63,10 +63,13 @@ export const sqlite3Pool = (
     ('client' in options && Boolean(options.client)) ||
     options.singleton === true;
 
+  const lifecycleOptions = extractLifecycleOptions(options);
+
   if (isSingleton) {
     return sqlite3SingletonPool<SQLite3Connection>({
       driverType: SQLite3DriverType,
       getConnection: () => sqliteConnectionFactory(options),
+      ...lifecycleOptions,
     });
   }
 
@@ -79,7 +82,25 @@ export const sqlite3Pool = (
     sqliteConnectionFactory,
     connectionOptions: options,
     ...(readerPoolSize !== undefined ? { readerPoolSize } : {}),
+    ...lifecycleOptions,
   });
+};
+
+const extractLifecycleOptions = (
+  options: SQLite3DumboOptions,
+): { maxTaskIdleTime?: number; closeDeadline?: number } => {
+  const lifecycle = options as {
+    maxTaskIdleTime?: number;
+    closeDeadline?: number;
+  };
+  return {
+    ...(lifecycle.maxTaskIdleTime !== undefined
+      ? { maxTaskIdleTime: lifecycle.maxTaskIdleTime }
+      : {}),
+    ...(lifecycle.closeDeadline !== undefined
+      ? { closeDeadline: lifecycle.closeDeadline }
+      : {}),
+  };
 };
 
 const tryParseConnectionString = (connectionString: string) => {
