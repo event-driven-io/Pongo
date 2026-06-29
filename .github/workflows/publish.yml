@@ -39,24 +39,6 @@ jobs:
       - name: Set public publishing
         run: npm config set access public
 
-      - name: Publish Dumbo package on NPM 📦
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          if [[ $VERSION == *"beta"* ]]; then
-            TAG="beta"
-          elif [[ $VERSION == *"alpha"* ]]; then
-            TAG="alpha"
-          elif [[ $VERSION == *"rc"* ]]; then
-            TAG="rc"
-          else
-            TAG="latest"
-          fi
-          npm publish --w @event-driven-io/dumbo --tag $TAG
-        continue-on-error: true
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NODE_ENV: production
-
       - name: Publish packages on NPM 📦
         run: |
           for pkg_dir in packages/*/; do
