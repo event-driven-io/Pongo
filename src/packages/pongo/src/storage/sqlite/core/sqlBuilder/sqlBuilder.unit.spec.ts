@@ -3,6 +3,7 @@ import { sqliteFormatter } from '@event-driven-io/dumbo/sqlite3';
 import { randomUUID } from 'crypto';
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
+import type { ExpectedDocumentVersion } from '../../../../core';
 import { sqliteSQLBuilder } from './index';
 
 describe('sqliteSQLBuilder', () => {
@@ -236,6 +237,36 @@ describe('sqliteSQLBuilder', () => {
       const { query } = SQL.format(result, sqliteFormatter);
 
       assert.ok(query.includes('_version'));
+    });
+  });
+
+  describe('expected version markers', () => {
+    const queryFor = (
+      expectedVersion: Exclude<
+        ExpectedDocumentVersion,
+        'DOCUMENT_DOES_NOT_EXIST'
+      >,
+    ) =>
+      SQL.format(
+        builder.deleteOne({ _id: 'test-id' }, { expectedVersion }),
+        sqliteFormatter,
+      ).query;
+
+    it('adds no version check for DOCUMENT_EXISTS (existence enforced by the row match)', () => {
+      assert.equal(
+        queryFor('DOCUMENT_EXISTS'),
+        queryFor('NO_CONCURRENCY_CHECK'),
+      );
+    });
+
+    it('adds no version check for NO_CONCURRENCY_CHECK', () => {
+      assert.ok(!queryFor('NO_CONCURRENCY_CHECK').includes('AND _version'));
+    });
+
+    it('adds a _version check for a concrete expected version', () => {
+      const pinned = queryFor(2n);
+      assert.ok(pinned.includes('AND _version'), `got: ${pinned}`);
+      assert.notEqual(pinned, queryFor('NO_CONCURRENCY_CHECK'));
     });
   });
 
