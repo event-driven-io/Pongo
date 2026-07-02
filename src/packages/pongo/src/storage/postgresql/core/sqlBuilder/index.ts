@@ -1,8 +1,9 @@
 import type { JSONSerializer } from '@event-driven-io/dumbo';
 import { isSQL, SQL, sqlMigration } from '@event-driven-io/dumbo';
 import {
-  expectedVersionValue,
+  expectedVersionPredicate,
   type DeleteOneOptions,
+  type ExpectedDocumentVersion,
   type FindOptions,
   type OptionalUnlessRequiredIdAndVersion,
   type PongoCollectionSQLBuilder,
@@ -16,6 +17,17 @@ import {
 } from '../../../../core';
 import { constructFilterQuery } from './filter';
 import { buildUpdateQuery } from './update';
+
+const versionCheckClause = (
+  collectionName: string,
+  expectedVersion: ExpectedDocumentVersion | undefined,
+): SQL => {
+  const col = SQL.identifier(collectionName);
+  const predicate = expectedVersionPredicate(expectedVersion);
+  return predicate.operator === 'none'
+    ? SQL``
+    : SQL`AND ${col}._version = ${predicate.value}`;
+};
 
 const createCollection = (collectionName: string): SQL =>
   SQL`
@@ -89,11 +101,10 @@ export const postgresSQLBuilder = (
     update: PongoUpdate<T> | SQL,
     options?: UpdateOneOptions,
   ): SQL => {
-    const expectedVersion = expectedVersionValue(options?.expectedVersion);
-    const expectedVersionUpdate =
-      expectedVersion != null
-        ? SQL`AND ${SQL.identifier(collectionName)}._version = ${expectedVersion}`
-        : SQL``;
+    const expectedVersionUpdate = versionCheckClause(
+      collectionName,
+      options?.expectedVersion,
+    );
 
     const filterQuery = isSQL(filter)
       ? filter
@@ -131,11 +142,10 @@ export const postgresSQLBuilder = (
     document: WithoutId<T>,
     options?: ReplaceOneOptions,
   ): SQL => {
-    const expectedVersion = expectedVersionValue(options?.expectedVersion);
-    const expectedVersionUpdate =
-      expectedVersion != null
-        ? SQL`AND ${SQL.identifier(collectionName)}._version = ${expectedVersion}`
-        : SQL``;
+    const expectedVersionUpdate = versionCheckClause(
+      collectionName,
+      options?.expectedVersion,
+    );
 
     const filterQuery = isSQL(filter)
       ? filter
@@ -187,11 +197,10 @@ export const postgresSQLBuilder = (
     filter: PongoFilter<T> | SQL,
     options?: DeleteOneOptions,
   ): SQL => {
-    const expectedVersion = expectedVersionValue(options?.expectedVersion);
-    const expectedVersionUpdate =
-      expectedVersion != null
-        ? SQL`AND ${SQL.identifier(collectionName)}._version = ${expectedVersion}`
-        : SQL``;
+    const expectedVersionUpdate = versionCheckClause(
+      collectionName,
+      options?.expectedVersion,
+    );
 
     const filterQuery = isSQL(filter)
       ? filter

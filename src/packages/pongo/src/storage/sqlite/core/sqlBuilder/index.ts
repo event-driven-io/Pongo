@@ -1,8 +1,9 @@
 import type { JSONSerializer } from '@event-driven-io/dumbo';
 import { isSQL, SQL, sqlMigration } from '@event-driven-io/dumbo';
 import {
-  expectedVersionValue,
+  expectedVersionPredicate,
   type DeleteOneOptions,
+  type ExpectedDocumentVersion,
   type FindOptions,
   type OptionalUnlessRequiredIdAndVersion,
   type PongoCollectionSQLBuilder,
@@ -16,6 +17,15 @@ import {
 } from '../../../../core';
 import { constructFilterQuery } from './filter';
 import { buildUpdateQuery } from './update';
+
+const versionCheckClause = (
+  expectedVersion: ExpectedDocumentVersion | undefined,
+): SQL => {
+  const predicate = expectedVersionPredicate(expectedVersion);
+  return predicate.operator === 'none'
+    ? SQL``
+    : SQL`AND _version = ${predicate.value}`;
+};
 
 const createCollection = (collectionName: string): SQL =>
   SQL`
@@ -87,9 +97,7 @@ export const sqliteSQLBuilder = (
     update: PongoUpdate<T> | SQL,
     options?: UpdateOneOptions,
   ): SQL => {
-    const expectedVersion = expectedVersionValue(options?.expectedVersion);
-    const expectedVersionCheck =
-      expectedVersion != null ? SQL`AND _version = ${expectedVersion}` : SQL``;
+    const expectedVersionCheck = versionCheckClause(options?.expectedVersion);
 
     const filterQuery = isSQL(filter)
       ? filter
@@ -120,9 +128,7 @@ export const sqliteSQLBuilder = (
     document: WithoutId<T>,
     options?: ReplaceOneOptions,
   ): SQL => {
-    const expectedVersion = expectedVersionValue(options?.expectedVersion);
-    const expectedVersionCheck =
-      expectedVersion != null ? SQL`AND _version = ${expectedVersion}` : SQL``;
+    const expectedVersionCheck = versionCheckClause(options?.expectedVersion);
 
     const filterQuery = isSQL(filter)
       ? filter
@@ -169,9 +175,7 @@ export const sqliteSQLBuilder = (
     filter: PongoFilter<T> | SQL,
     options?: DeleteOneOptions,
   ): SQL => {
-    const expectedVersion = expectedVersionValue(options?.expectedVersion);
-    const expectedVersionCheck =
-      expectedVersion != null ? SQL`AND _version = ${expectedVersion}` : SQL``;
+    const expectedVersionCheck = versionCheckClause(options?.expectedVersion);
 
     const filterQuery = isSQL(filter)
       ? filter

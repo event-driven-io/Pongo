@@ -513,6 +513,23 @@ export const expectedVersionValue = (
     ? null
     : (version as ExpectedDocumentVersionValue);
 
+export type ExpectedVersionPredicate =
+  { operator: 'none' } | { operator: '='; value: bigint };
+
+export const expectedVersionPredicate = (
+  version: ExpectedDocumentVersion | undefined,
+): ExpectedVersionPredicate => {
+  if (version === undefined) return { operator: 'none' };
+  if (isGeneralExpectedDocumentVersion(version)) {
+    // DOCUMENT_EXISTS and NO_CONCURRENCY_CHECK accept a write against any
+    // existing row; existence is enforced by the row match, not by a version.
+    return version === DOCUMENT_DOES_NOT_EXIST
+      ? { operator: '=', value: 0n }
+      : { operator: 'none' };
+  }
+  return { operator: '=', value: version };
+};
+
 export const expectedVersion = (
   version: number | bigint | string | undefined | null,
 ): ExpectedDocumentVersion => {

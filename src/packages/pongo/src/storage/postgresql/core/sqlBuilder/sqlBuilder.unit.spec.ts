@@ -2,6 +2,7 @@ import { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import { pgFormatter } from '@event-driven-io/dumbo/pg';
 import assert from 'assert';
 import { describe, it } from 'vitest';
+import type { ExpectedDocumentVersion } from '../../../../core';
 import { postgresSQLBuilder } from '.';
 
 describe('insertOrReplace()', () => {
@@ -157,5 +158,34 @@ describe('find() sort option', () => {
     const { query: sql } = SQL.format(query, pgFormatter);
     assert.ok(sql.includes('ORDER BY _version DESC'), `got: ${sql}`);
     assert.ok(!sql.includes('data ->'), `got: ${sql}`);
+  });
+});
+
+describe('expected version markers', () => {
+  const builder = postgresSQLBuilder('users', JSONSerializer);
+
+  const queryFor = (
+    expectedVersion: Exclude<
+      ExpectedDocumentVersion,
+      'DOCUMENT_DOES_NOT_EXIST'
+    >,
+  ) =>
+    SQL.format(
+      builder.deleteOne({ _id: 'test-id' }, { expectedVersion }),
+      pgFormatter,
+    ).query;
+
+  it('adds no version check for DOCUMENT_EXISTS (existence enforced by the row match)', () => {
+    assert.equal(queryFor('DOCUMENT_EXISTS'), queryFor('NO_CONCURRENCY_CHECK'));
+  });
+
+  it('adds no version check for NO_CONCURRENCY_CHECK', () => {
+    assert.ok(!queryFor('NO_CONCURRENCY_CHECK').includes('_version'));
+  });
+
+  it('adds a _version check for a concrete expected version', () => {
+    const pinned = queryFor(2n);
+    assert.ok(pinned.includes('_version'), `got: ${pinned}`);
+    assert.notEqual(pinned, queryFor('NO_CONCURRENCY_CHECK'));
   });
 });
