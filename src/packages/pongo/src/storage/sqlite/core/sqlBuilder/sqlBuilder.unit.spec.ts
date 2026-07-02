@@ -41,6 +41,37 @@ describe('sqliteSQLBuilder', () => {
     });
   });
 
+  describe('insertOrReplace', () => {
+    it('inserts at version 1 and bumps on conflict in a single statement', () => {
+      const result = builder.insertOrReplace([
+        { _id: randomUUID(), name: 'Test', age: 30 },
+      ]);
+      const { query } = SQL.format(result, sqliteFormatter);
+
+      assert.ok(query.includes('INSERT INTO'));
+      assert.ok(query.includes('(_id, data, _version)'));
+      assert.ok(query.includes('ON CONFLICT(_id) DO UPDATE SET'));
+      assert.ok(query.includes('json_patch(excluded.data'));
+      assert.ok(query.includes(`"${collectionName}"._version + 1`));
+      assert.ok(
+        query.includes('RETURNING _id, cast(_version as TEXT) as version'),
+      );
+      // No writable CTE and no DO NOTHING.
+      assert.ok(!query.includes('DO NOTHING'));
+    });
+
+    it('emits one VALUES row per document', () => {
+      const result = builder.insertOrReplace([
+        { _id: 'a', name: 'A' },
+        { _id: 'b', name: 'B' },
+      ]);
+      const { params } = SQL.format(result, sqliteFormatter);
+      // two ids + two serialized docs
+      assert.ok(params.includes('a'));
+      assert.ok(params.includes('b'));
+    });
+  });
+
   describe('find operations', () => {
     it('should handle empty filter', () => {
       const result = builder.find({});

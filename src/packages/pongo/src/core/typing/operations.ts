@@ -171,6 +171,7 @@ export type InsertOneOptions = {
     ExpectedDocumentVersion,
     'DOCUMENT_DOES_NOT_EXIST' | 'NO_CONCURRENCY_CHECK'
   >;
+  upsert?: boolean;
 } & CollectionOperationOptions;
 
 export type InsertManyOptions = {
@@ -178,6 +179,7 @@ export type InsertManyOptions = {
     ExpectedDocumentVersion,
     'DOCUMENT_DOES_NOT_EXIST' | 'NO_CONCURRENCY_CHECK'
   >;
+  upsert?: boolean;
 } & CollectionOperationOptions;
 
 export type UpdateOneOptions = {
@@ -199,13 +201,16 @@ export type BatchHandleOptions = {
 
 export type ReplaceOneOptions = {
   expectedVersion?: Exclude<ExpectedDocumentVersion, 'DOCUMENT_DOES_NOT_EXIST'>;
+  upsert?: boolean;
 } & CollectionOperationOptions;
 
 export type DeleteOneOptions = {
   expectedVersion?: Exclude<ExpectedDocumentVersion, 'DOCUMENT_DOES_NOT_EXIST'>;
 } & CollectionOperationOptions;
 
-export type ReplaceManyOptions = CollectionOperationOptions;
+export type ReplaceManyOptions = {
+  upsert?: boolean;
+} & CollectionOperationOptions;
 
 export type DeleteManyOptions = {
   expectedVersion?: Extract<
@@ -230,7 +235,7 @@ export interface PongoCollection<T extends PongoDocument> {
   ): Promise<PongoInsertOneResult>;
   insertMany(
     documents: OptionalUnlessRequiredId<T>[],
-    options?: CollectionOperationOptions,
+    options?: InsertManyOptions,
   ): Promise<PongoInsertManyResult>;
   updateOne(
     filter: PongoFilter<T> | SQL,
@@ -297,7 +302,7 @@ export interface PongoCollection<T extends PongoDocument> {
     options?: BatchHandleOptions,
   ): Promise<PongoHandleResult<T>[]>;
   replaceMany(
-    documents: Array<WithId<T> | WithIdAndVersion<T>>,
+    documents: Array<WithIdAndVersion<T>> | Array<WithId<T>>,
     options?: ReplaceManyOptions,
   ): Promise<PongoReplaceManyResult>;
   readonly schema: Readonly<{
@@ -572,6 +577,8 @@ export interface PongoInsertManyResult extends OperationResult {
 export interface PongoUpdateResult extends OperationResult {
   matchedCount: number;
   modifiedCount: number;
+  upsertedId: string | null;
+  upsertedCount: number;
   nextExpectedVersion: bigint;
 }
 
