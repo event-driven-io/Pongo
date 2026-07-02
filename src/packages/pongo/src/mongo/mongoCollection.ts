@@ -199,22 +199,33 @@ export class Collection<T extends Document> implements MongoCollection<T> {
 
     return {
       acknowledged: result.acknowledged,
-      matchedCount: result.modifiedCount,
+      matchedCount: result.matchedCount,
       modifiedCount: result.modifiedCount,
-      upsertedCount: result.modifiedCount,
-      upsertedId: null,
+      upsertedCount: result.upsertedCount,
+      upsertedId: result.upsertedId as unknown as InferIdType<T>,
     };
   }
-  replaceOne(
+  async replaceOne(
     filter: Filter<T>,
     document: WithoutId<T>,
     options?: ReplaceOptions,
   ): Promise<UpdateResult<T>> {
-    return this.collection.replaceOne(
+    const result = await this.collection.replaceOne(
       filter as unknown as PongoFilter<T>,
       document,
-      toCollectionOperationOptions(options),
-    ) as unknown as Promise<UpdateResult<T>>;
+      {
+        ...toCollectionOperationOptions(options),
+        upsert: options?.upsert ?? false,
+      },
+    );
+
+    return {
+      acknowledged: result.acknowledged,
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+      upsertedCount: result.upsertedCount,
+      upsertedId: result.upsertedId as unknown as InferIdType<T>,
+    };
   }
   async updateMany(
     filter: Filter<T>,
@@ -229,9 +240,9 @@ export class Collection<T extends Document> implements MongoCollection<T> {
 
     return {
       acknowledged: result.acknowledged,
-      matchedCount: result.modifiedCount,
+      matchedCount: result.matchedCount,
       modifiedCount: result.modifiedCount,
-      upsertedCount: result.modifiedCount,
+      upsertedCount: 0,
       upsertedId: null,
     };
   }

@@ -16,6 +16,7 @@ export type PongoCollectionSQLBuilder = {
   createCollection: () => SQL;
   insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>) => SQL;
   insertMany: <T>(documents: OptionalUnlessRequiredIdAndVersion<T>[]) => SQL;
+  insertOrReplace: <T>(documents: Array<WithId<T>>) => SQL;
   updateOne: <T>(
     filter: PongoFilter<T> | SQL,
     update: PongoUpdate<T> | SQL,
@@ -35,7 +36,9 @@ export type PongoCollectionSQLBuilder = {
     options?: DeleteOneOptions,
   ) => SQL;
   deleteMany: <T>(filter: PongoFilter<T> | SQL) => SQL;
-  replaceMany: <T>(documents: Array<WithIdAndVersion<T> | WithId<T>>) => SQL;
+  replaceMany: <T>(
+    documents: Array<WithIdAndVersion<T>> | Array<WithId<T>>,
+  ) => SQL;
   deleteManyByIds: (ids: Array<{ _id: string; _version?: bigint }>) => SQL;
   findOne: <T>(filter: PongoFilter<T> | SQL) => SQL;
   find: <T>(filter: PongoFilter<T> | SQL, options?: FindOptions) => SQL;

@@ -4,7 +4,7 @@ import assert from 'assert';
 import { Miniflare } from 'miniflare';
 import { v7 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
-import type { ObjectId } from '../../..';
+import type { ObjectId, WithId } from '../../..';
 import {
   pongoClient,
   pongoSchema,
@@ -1511,6 +1511,224 @@ describe('SQLite MongoDB Compatibility Tests', () => {
       assert.strictEqual(persisted?.name, 'Modified');
       assert.strictEqual(persisted?.age, 20);
       assert.strictEqual(persisted?._version, 2n);
+    });
+  });
+
+  describe('upsert', () => {
+    it('insertOne with absent id inserts at version 1n', async () => {
+      const users = pongoDb.collection<User>('upsertInsertOne');
+      const _id = uuid();
+
+      const result = await users.insertOne(
+        { _id, name: 'Anita', age: 25 },
+        { upsert: true },
+      );
+
+      assert.strictEqual(result.successful, true);
+      assert.strictEqual(result.insertedId, _id);
+
+      const doc = await users.findOne({ _id });
+      assert.strictEqual(doc?.name, 'Anita');
+      assert.strictEqual(doc?._version, 1n);
+    });
+
+    it('insertOne with existing id replaces and bumps version', async () => {
+      const users = pongoDb.collection<User>('upsertInsertOneReplace');
+      const _id = uuid();
+
+      await users.insertOne({ _id, name: 'Anita', age: 25 }, { upsert: true });
+
+      const result = await users.insertOne(
+        { _id, name: 'Roger', age: 40 },
+        { upsert: true },
+      );
+
+      assert.strictEqual(result.successful, true);
+
+      const doc = await users.findOne({ _id });
+      assert.strictEqual(doc?.name, 'Roger');
+      assert.strictEqual(doc?.age, 40);
+      assert.strictEqual(doc?._version, 2n);
+
+      const count = await users.countDocuments({ _id });
+      assert.strictEqual(count, 1);
+    });
+
+    it('insertMany writes a batch mixing a new and an existing id', async () => {
+      const users = pongoDb.collection<User>('upsertInsertMany');
+      const existingId = uuid();
+      const newId = uuid();
+
+      await users.insertOne(
+        { _id: existingId, name: 'Anita', age: 25 },
+        { upsert: true },
+      );
+
+      const result = await users.insertMany(
+        [
+          { _id: existingId, name: 'Anita Updated', age: 26 },
+          { _id: newId, name: 'Roger', age: 40 },
+        ],
+        { upsert: true },
+      );
+
+      assert.strictEqual(result.insertedCount, 2);
+      assert.ok(result.insertedIds.includes(existingId));
+      assert.ok(result.insertedIds.includes(newId));
+
+      const existing = await users.findOne({ _id: existingId });
+      assert.strictEqual(existing?.name, 'Anita Updated');
+      assert.strictEqual(existing?._version, 2n);
+
+      const created = await users.findOne({ _id: newId });
+      assert.strictEqual(created?.name, 'Roger');
+      assert.strictEqual(created?._version, 1n);
+
+      const count = await users.countDocuments({
+        _id: { $in: [existingId, newId] },
+      });
+      assert.strictEqual(count, 2);
+    });
+
+    it('replaceOne without expectedVersion inserts an absent doc at version 1n', async () => {
+      const users = pongoDb.collection<User>('upsertReplaceOneInsert');
+      const _id = uuid();
+
+      const result = await users.replaceOne(
+        { _id },
+        { name: 'Anita', age: 25 },
+        { upsert: true },
+      );
+
+      assert.strictEqual(result.matchedCount, 0);
+      assert.strictEqual(result.modifiedCount, 0);
+      assert.strictEqual(result.upsertedCount, 1);
+      assert.strictEqual(result.upsertedId, _id);
+      assert.strictEqual(result.nextExpectedVersion, 1n);
+
+      const doc = await users.findOne({ _id });
+      assert.strictEqual(doc?.name, 'Anita');
+      assert.strictEqual(doc?._version, 1n);
+    });
+
+    it('replaceOne without expectedVersion replaces a present doc', async () => {
+      const users = pongoDb.collection<User>('upsertReplaceOneReplace');
+      const _id = uuid();
+
+      await users.insertOne({ _id, name: 'Anita', age: 25 }, { upsert: true });
+
+      const result = await users.replaceOne(
+        { _id },
+        { name: 'Roger', age: 40 },
+        { upsert: true },
+      );
+
+      assert.strictEqual(result.matchedCount, 1);
+      assert.strictEqual(result.modifiedCount, 1);
+      assert.strictEqual(result.upsertedCount, 0);
+      assert.strictEqual(result.upsertedId, null);
+
+      const doc = await users.findOne({ _id });
+      assert.strictEqual(doc?.name, 'Roger');
+      assert.strictEqual(doc?._version, 2n);
+    });
+
+    it('replaceOne with expectedVersion against an absent doc conflicts and inserts nothing', async () => {
+      const users = pongoDb.collection<User>('upsertReplaceOneConflictAbsent');
+      const _id = uuid();
+
+      const result = await users.replaceOne(
+        { _id },
+        { name: 'Anita', age: 25 },
+        { upsert: true, expectedVersion: 1n },
+      );
+
+      assert.strictEqual(result.successful, false);
+
+      const doc = await users.findOne({ _id });
+      assert.strictEqual(doc, null);
+    });
+
+    it('replaceOne with a wrong expectedVersion conflicts and leaves the row untouched', async () => {
+      const users = pongoDb.collection<User>('upsertReplaceOneConflictWrong');
+      const _id = uuid();
+
+      await users.insertOne({ _id, name: 'Anita', age: 25 }, { upsert: true });
+
+      const result = await users.replaceOne(
+        { _id },
+        { name: 'Roger', age: 40 },
+        { upsert: true, expectedVersion: 99n },
+      );
+
+      assert.strictEqual(result.successful, false);
+
+      const doc = await users.findOne({ _id });
+      assert.strictEqual(doc?.name, 'Anita');
+      assert.strictEqual(doc?._version, 1n);
+
+      const count = await users.countDocuments({ _id });
+      assert.strictEqual(count, 1);
+    });
+
+    it('replaceOne with the matching expectedVersion replaces successfully', async () => {
+      const users = pongoDb.collection<User>('upsertReplaceOneMatch');
+      const _id = uuid();
+
+      await users.insertOne({ _id, name: 'Anita', age: 25 }, { upsert: true });
+
+      const result = await users.replaceOne(
+        { _id },
+        { name: 'Roger', age: 40 },
+        { upsert: true, expectedVersion: 1n },
+      );
+
+      assert.strictEqual(result.successful, true);
+
+      const doc = await users.findOne({ _id });
+      assert.strictEqual(doc?.name, 'Roger');
+      assert.strictEqual(doc?._version, 2n);
+    });
+
+    it('replaceMany writes a versionless batch mixing new and existing ids', async () => {
+      const users = pongoDb.collection<User>('upsertReplaceMany');
+      const existingId = uuid();
+      const newId = uuid();
+
+      await users.insertOne(
+        { _id: existingId, name: 'Anita', age: 25 },
+        { upsert: true },
+      );
+
+      const docs: Array<WithId<User>> = [
+        { _id: existingId, name: 'Anita Updated', age: 26 },
+        { _id: newId, name: 'Roger', age: 40 },
+      ];
+
+      const result = await users.replaceMany(docs, { upsert: true });
+
+      assert.strictEqual(result.successful, true);
+      assert.ok(result.modifiedIds.includes(existingId));
+      assert.ok(result.modifiedIds.includes(newId));
+      assert.strictEqual(result.conflictIds.length, 0);
+
+      const count = await users.countDocuments({
+        _id: { $in: [existingId, newId] },
+      });
+      assert.strictEqual(count, 2);
+    });
+
+    it('replaceMany throws when a batch mixes versioned and versionless documents', async () => {
+      const users = pongoDb.collection<User>('upsertReplaceManyMixed');
+      const versionedId = uuid();
+      const versionlessId = uuid();
+
+      const docs = [
+        { _id: versionedId, name: 'Anita', age: 25, _version: 1n },
+        { _id: versionlessId, name: 'Roger', age: 40 },
+      ] as unknown as Array<WithId<User>>;
+
+      await assert.rejects(() => users.replaceMany(docs, { upsert: true }));
     });
   });
 });

@@ -4,6 +4,37 @@ import assert from 'assert';
 import { describe, it } from 'vitest';
 import { postgresSQLBuilder } from '.';
 
+describe('insertOrReplace()', () => {
+  const builder = postgresSQLBuilder('users', JSONSerializer);
+
+  it('inserts at version 1 and bumps on conflict in a single statement', () => {
+    const query = builder.insertOrReplace([{ _id: 'u1', name: 'Alice' }]);
+    const { query: sql } = SQL.format(query, pgFormatter);
+
+    assert.ok(sql.includes('INSERT INTO'), `got: ${sql}`);
+    assert.ok(sql.includes('(_id, data, _version)'), `got: ${sql}`);
+    assert.ok(sql.includes('ON CONFLICT(_id) DO UPDATE SET'), `got: ${sql}`);
+    assert.ok(sql.includes('EXCLUDED.data'), `got: ${sql}`);
+    assert.ok(sql.includes('users._version + 1'), `got: ${sql}`);
+    assert.ok(
+      sql.includes('RETURNING _id, _version AS version'),
+      `got: ${sql}`,
+    );
+    // No writable CTE, no DO NOTHING.
+    assert.ok(!sql.includes('DO NOTHING'), `got: ${sql}`);
+  });
+
+  it('emits one VALUES row per document', () => {
+    const query = builder.insertOrReplace([
+      { _id: 'a', name: 'A' },
+      { _id: 'b', name: 'B' },
+    ]);
+    const { params } = SQL.format(query, pgFormatter);
+    assert.ok(params.includes('a'));
+    assert.ok(params.includes('b'));
+  });
+});
+
 describe('find() query options', () => {
   it('should apply limit correctly', () => {
     const query = postgresSQLBuilder('users', JSONSerializer).find(

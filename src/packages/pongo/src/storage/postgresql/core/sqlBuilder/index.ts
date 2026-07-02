@@ -64,6 +64,26 @@ export const postgresSQLBuilder = (
       ON CONFLICT(_id) DO NOTHING
       RETURNING _id;`;
   },
+  insertOrReplace: <T>(documents: Array<WithId<T>>): SQL => {
+    const col = SQL.identifier(collectionName);
+    const values = SQL.merge(
+      documents.map(
+        (d) =>
+          SQL`(${d._id}::text, ${serializer.serialize(d)}::jsonb || jsonb_build_object('_id', ${d._id}::text) || jsonb_build_object('_version', '1'::text), 1::bigint)`,
+      ),
+      ',',
+    );
+
+    return SQL`
+      INSERT INTO ${col} (_id, data, _version)
+      VALUES ${values}
+      ON CONFLICT(_id) DO UPDATE SET
+        data = EXCLUDED.data
+          || jsonb_build_object('_id', ${col}._id)
+          || jsonb_build_object('_version', (${col}._version + 1)::text),
+        _version = ${col}._version + 1
+      RETURNING _id, _version AS version;`;
+  },
   updateOne: <T>(
     filter: PongoFilter<T> | SQL,
     update: PongoUpdate<T> | SQL,
@@ -204,17 +224,21 @@ export const postgresSQLBuilder = (
 
     return SQL`DELETE FROM ${SQL.identifier(collectionName)} ${where(filterQuery)}`;
   },
-  replaceMany: <T>(documents: Array<WithIdAndVersion<T> | WithId<T>>): SQL => {
+  replaceMany: <T>(
+    documents: Array<WithIdAndVersion<T>> | Array<WithId<T>>,
+  ): SQL => {
     const hasVersions = documents.some(
       (d) => '_version' in d && d._version !== undefined,
     );
 
     if (hasVersions) {
       const values = SQL.merge(
-        documents.map(
-          (d) =>
-            SQL`(${d._id}::text, ${serializer.serialize(d)}::jsonb, ${(d as WithIdAndVersion<T>)._version ?? 0n}::bigint)`,
-        ),
+        documents.map((d) => {
+          const expectedVersion = (d as WithIdAndVersion<T>)._version;
+          return expectedVersion !== undefined
+            ? SQL`(${d._id}::text, ${serializer.serialize(d)}::jsonb, ${expectedVersion}::bigint)`
+            : SQL`(${d._id}::text, ${serializer.serialize(d)}::jsonb, NULL::bigint)`;
+        }),
         ',',
       );
       return SQL`
@@ -228,7 +252,7 @@ export const postgresSQLBuilder = (
             || jsonb_build_object('_version', (t._version + 1)::text),
           _version = t._version + 1
         FROM replacements r
-        WHERE t._id = r._id AND t._version = r.expected_version
+        WHERE t._id = r._id AND (r.expected_version IS NULL OR t._version = r.expected_version)
         RETURNING t._id, t._version AS version;`;
     }
 

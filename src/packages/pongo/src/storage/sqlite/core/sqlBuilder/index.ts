@@ -64,6 +64,24 @@ export const sqliteSQLBuilder = (
       INSERT OR IGNORE INTO ${SQL.identifier(collectionName)} (_id, data, _version) VALUES ${values}
       RETURNING _id;`;
   },
+  insertOrReplace: <T>(documents: Array<WithId<T>>): SQL => {
+    const col = SQL.identifier(collectionName);
+    const values = SQL.merge(
+      documents.map(
+        (d) =>
+          SQL`(${d._id}, json_patch(${serializer.serialize(d)}, json_object('_id', ${d._id}, '_version', '1')), 1)`,
+      ),
+      ',',
+    );
+
+    return SQL`
+      INSERT INTO ${col} (_id, data, _version)
+      VALUES ${values}
+      ON CONFLICT(_id) DO UPDATE SET
+        data = json_patch(excluded.data, json_object('_id', ${col}._id, '_version', cast(${col}._version + 1 as TEXT))),
+        _version = ${col}._version + 1
+      RETURNING _id, cast(_version as TEXT) as version;`;
+  },
   updateOne: <T>(
     filter: PongoFilter<T> | SQL,
     update: PongoUpdate<T> | SQL,
@@ -178,7 +196,9 @@ export const sqliteSQLBuilder = (
 
     return SQL`DELETE FROM ${SQL.identifier(collectionName)} ${where(filterQuery)} RETURNING _id`;
   },
-  replaceMany: <T>(documents: Array<WithIdAndVersion<T> | WithId<T>>): SQL => {
+  replaceMany: <T>(
+    documents: Array<WithIdAndVersion<T>> | Array<WithId<T>>,
+  ): SQL => {
     const col = SQL.identifier(collectionName);
     const hasVersions = documents.some(
       (d) => '_version' in d && d._version !== undefined,
@@ -186,10 +206,12 @@ export const sqliteSQLBuilder = (
 
     if (hasVersions) {
       const values = SQL.merge(
-        documents.map(
-          (d) =>
-            SQL`(${d._id}, ${serializer.serialize(d)}, ${(d as WithIdAndVersion<T>)._version ?? 0n})`,
-        ),
+        documents.map((d) => {
+          const expectedVersion = (d as WithIdAndVersion<T>)._version;
+          return expectedVersion !== undefined
+            ? SQL`(${d._id}, ${serializer.serialize(d)}, ${expectedVersion})`
+            : SQL`(${d._id}, ${serializer.serialize(d)}, NULL)`;
+        }),
         ',',
       );
       return SQL`
@@ -202,7 +224,7 @@ export const sqliteSQLBuilder = (
           _version = ${col}._version + 1,
           _updated = datetime('now')
         FROM replacements r
-        WHERE ${col}._id = r._id AND ${col}._version = r.expected_version
+        WHERE ${col}._id = r._id AND (r.expected_version IS NULL OR ${col}._version = r.expected_version)
         RETURNING ${col}._id, cast(${col}._version as TEXT) as version;`;
     }
 
