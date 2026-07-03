@@ -87,11 +87,11 @@ describe('MongoDB Compatibility Tests', () => {
   describe('Insert Operations', () => {
     describe('insertOne', () => {
       it('inserts a document with id', async () => {
-        // Given
-        // When
+        // given
+        // when
         const pongoInsertResult = await users.insertOne(user);
 
-        // Then
+        // then
         assert(pongoInsertResult.successful);
         assert(pongoInsertResult.insertedId);
 
@@ -106,15 +106,15 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('inserts a document with id and version', async () => {
-        // Given
+        // given
         const nonDefaultVersion = 495n;
-        // When
+        // when
         const pongoInsertResult = await users.insertOne({
           ...user,
           _version: nonDefaultVersion,
         });
 
-        // Then
+        // then
         assert(pongoInsertResult.successful);
         assert(pongoInsertResult.insertedId);
 
@@ -129,7 +129,7 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('Does NOT insert a document with the same id as the existing document', async () => {
-        // Given
+        // given
         await users.insertOne(user);
 
         const userWithTheSameId: User = {
@@ -137,10 +137,10 @@ describe('MongoDB Compatibility Tests', () => {
           name: 'Cruella',
           age: 40,
         };
-        // When
+        // when
         const pongoInsertResult = await users.insertOne(userWithTheSameId);
 
-        // Then
+        // then
         assert(pongoInsertResult.successful === false);
         assert(pongoInsertResult.insertedId === null);
 
@@ -155,12 +155,12 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('inserts when expected DOCUMENT_DOES_NOT_EXIST and the document is absent', async () => {
-        // When
+        // when
         const pongoInsertResult = await users.insertOne(user, {
           expectedVersion: 'DOCUMENT_DOES_NOT_EXIST',
         });
 
-        // Then
+        // then
         assert(pongoInsertResult.successful);
         assert(pongoInsertResult.insertedId);
 
@@ -169,16 +169,16 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('does NOT insert when expected DOCUMENT_DOES_NOT_EXIST and the document is present', async () => {
-        // Given
+        // given
         await users.insertOne(user);
 
-        // When
+        // when
         const pongoInsertResult = await users.insertOne(
           { _id: user._id!, name: 'Cruella', age: 40 },
           { expectedVersion: 'DOCUMENT_DOES_NOT_EXIST' },
         );
 
-        // Then
+        // then
         assert(pongoInsertResult.successful === false);
         assert(pongoInsertResult.insertedId === null);
 
@@ -189,13 +189,13 @@ describe('MongoDB Compatibility Tests', () => {
 
     describe('insertMany', () => {
       it('inserts a document with id', async () => {
-        // Given
+        // given
         const otherUser = { ...user, _id: ObjectId() };
 
-        // When
+        // when
         const pongoInsertResult = await users.insertMany([user, otherUser]);
 
-        // Then
+        // then
         assert(pongoInsertResult.successful);
         assert(pongoInsertResult.insertedIds.includes(user._id!));
         assert(pongoInsertResult.insertedIds.includes(otherUser._id));
@@ -215,14 +215,14 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('inserts a document with id and version', async () => {
-        // Given
+        // given
         const nonDefaultVersion = 495n;
         const otherUser = {
           ...user,
           _id: ObjectId(),
           _version: nonDefaultVersion,
         };
-        // When
+        // when
         const pongoInsertResult = await users.insertMany([
           {
             ...user,
@@ -231,7 +231,7 @@ describe('MongoDB Compatibility Tests', () => {
           otherUser,
         ]);
 
-        // Then
+        // then
         assert(pongoInsertResult.successful);
         assert(pongoInsertResult.insertedIds.includes(user._id!));
         assert(pongoInsertResult.insertedIds.includes(otherUser._id));
@@ -251,7 +251,7 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('Does NOT insert a document with the same id as the existing document', async () => {
-        // Given
+        // given
         await users.insertOne(user);
 
         const userWithTheSameId: User = {
@@ -260,13 +260,13 @@ describe('MongoDB Compatibility Tests', () => {
           age: 40,
         };
         const otherUser = { ...user, _id: ObjectId() };
-        // When
+        // when
         const pongoInsertResult = await users.insertMany([
           userWithTheSameId,
           otherUser,
         ]);
 
-        // Then
+        // then
         assert(pongoInsertResult.successful === false);
         assert(!pongoInsertResult.insertedIds.includes(user._id!));
         assert(pongoInsertResult.insertedIds.includes(otherUser._id));
@@ -291,32 +291,32 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('inserts all when expected DOCUMENT_DOES_NOT_EXIST and all are absent', async () => {
-        // Given
+        // given
         const otherUser = { ...user, _id: ObjectId() };
 
-        // When
+        // when
         const pongoInsertResult = await users.insertMany([user, otherUser], {
           expectedVersion: 'DOCUMENT_DOES_NOT_EXIST',
         });
 
-        // Then
+        // then
         assert(pongoInsertResult.successful);
         assert(pongoInsertResult.insertedIds.includes(user._id!));
         assert(pongoInsertResult.insertedIds.includes(otherUser._id));
       });
 
       it('does NOT insert the present one when expected DOCUMENT_DOES_NOT_EXIST', async () => {
-        // Given
+        // given
         await users.insertOne(user);
         const otherUser = { ...user, _id: ObjectId() };
 
-        // When
+        // when
         const pongoInsertResult = await users.insertMany(
           [{ _id: user._id!, name: 'Cruella', age: 40 }, otherUser],
           { expectedVersion: 'DOCUMENT_DOES_NOT_EXIST' },
         );
 
-        // Then
+        // then
         assert(pongoInsertResult.successful === false);
         assert(!pongoInsertResult.insertedIds.includes(user._id!));
         assert(pongoInsertResult.insertedIds.includes(otherUser._id));
@@ -330,10 +330,10 @@ describe('MongoDB Compatibility Tests', () => {
   describe('Update Operations', () => {
     describe('updateOne', () => {
       it('updates a document WITHOUT passing expected version', async () => {
-        // Given
+        // given
         await users.insertOne(user);
 
-        // When
+        // when
         const updateResult = await users.updateOne(
           { _id: user._id! },
           { $set: { age: 31 } },
@@ -356,10 +356,10 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('updates a document with correct expected version', async () => {
-        // Given
+        // given
         await users.insertOne(user);
 
-        // When
+        // when
         const updateResult = await users.updateOne(
           { _id: user._id! },
           { $set: { age: 31 } },
@@ -385,7 +385,7 @@ describe('MongoDB Compatibility Tests', () => {
       it('overrides the document version with autoincremented document version', async () => {
         await users.insertOne(user);
 
-        // When
+        // when
         const updateResult = await users.updateOne(
           { _id: user._id! },
           { $set: { age: 31, _version: 333n } },
@@ -409,10 +409,10 @@ describe('MongoDB Compatibility Tests', () => {
 
       [0n, 2n, -1n, 3n].map((incorrectVersion) => {
         it(`does NOT update a document with incorrect ${incorrectVersion} expected version`, async () => {
-          // Given
+          // given
           await users.insertOne(user);
 
-          // When
+          // when
           const updateResult = await users.updateOne(
             { _id: user._id! },
             { $set: { age: 31 } },
@@ -436,17 +436,17 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('updates an existing document when expected DOCUMENT_EXISTS', async () => {
-        // Given
+        // given
         await users.insertOne(user);
 
-        // When
+        // when
         const updateResult = await users.updateOne(
           { _id: user._id! },
           { $set: { age: 31 } },
           { expectedVersion: 'DOCUMENT_EXISTS' },
         );
 
-        // Then
+        // then
         assert(updateResult.successful);
         assert(updateResult.modifiedCount === 1);
         assert(updateResult.matchedCount === 1);
@@ -460,16 +460,16 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('does NOT update a missing document when expected DOCUMENT_EXISTS', async () => {
-        // Given a document that was never inserted
+        // given
 
-        // When
+        // when
         const updateResult = await users.updateOne(
           { _id: user._id! },
           { $set: { age: 31 } },
           { expectedVersion: 'DOCUMENT_EXISTS' },
         );
 
-        // Then
+        // then
         assert(updateResult.successful === false);
         assert(updateResult.modifiedCount === 0);
         assert(updateResult.matchedCount === 0);
@@ -484,7 +484,7 @@ describe('MongoDB Compatibility Tests', () => {
         const otherUser = { ...user, _id: ObjectId() };
         await users.insertMany([user, otherUser, { ...user, _id: ObjectId() }]);
 
-        // When
+        // when
         const updateResult = await users.updateMany(
           { _id: { $in: [user._id!, otherUser._id] } },
           { $set: { age: 31 } },
@@ -517,14 +517,14 @@ describe('MongoDB Compatibility Tests', () => {
         const otherUser = { ...user, _id: ObjectId() };
         await users.insertMany([user, otherUser]);
 
-        // When
+        // when
         const updateResult = await users.updateMany(
           { _id: { $in: [user._id!, otherUser._id] } },
           { $set: { age: 31 } },
           { expectedVersion: 'DOCUMENT_EXISTS' },
         );
 
-        // Then
+        // then
         assert(updateResult.successful);
         assert(updateResult.modifiedCount === 2);
         assert(updateResult.matchedCount === 2);
@@ -543,7 +543,7 @@ describe('MongoDB Compatibility Tests', () => {
       const otherUser = { ...user, _id: ObjectId() };
       await users.insertMany([{ ...user }, otherUser]);
 
-      // When
+      // when
       const updateResult = await users.updateMany(
         { _id: { $in: [user._id!, otherUser._id] } },
         { $set: { age: 31, _version: 333n } },
@@ -576,10 +576,10 @@ describe('MongoDB Compatibility Tests', () => {
   describe('Replace Operations', () => {
     describe('replaceOne', () => {
       it('replaces a document WITHOUT passing expected version', async () => {
-        // Given
+        // given
         await users.insertOne(user);
 
-        // When
+        // when
         const updateResult = await users.replaceOne(
           { _id: user._id! },
           { ...user, age: 31 },
@@ -602,10 +602,10 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('replaces a document with correct expected version', async () => {
-        // Given
+        // given
         await users.insertOne(user);
 
-        // When
+        // when
         const updateResult = await users.replaceOne(
           { _id: user._id! },
           { ...user, age: 31 },
@@ -630,10 +630,10 @@ describe('MongoDB Compatibility Tests', () => {
 
       [0n, 2n, -1n, 3n].map((incorrectVersion) => {
         it(`does NOT replace a document with incorrect ${incorrectVersion} expected version`, async () => {
-          // Given
+          // given
           await users.insertOne(user);
 
-          // When
+          // when
           const updateResult = await users.replaceOne(
             { _id: user._id! },
             { ...user, age: 31 },
@@ -657,17 +657,17 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('replaces an existing document when expected DOCUMENT_EXISTS', async () => {
-        // Given
+        // given
         await users.insertOne(user);
 
-        // When
+        // when
         const updateResult = await users.replaceOne(
           { _id: user._id! },
           { ...user, age: 31 },
           { expectedVersion: 'DOCUMENT_EXISTS' },
         );
 
-        // Then
+        // then
         assert(updateResult.successful);
         assert(updateResult.modifiedCount === 1);
         assert(updateResult.matchedCount === 1);
@@ -681,16 +681,16 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('does NOT replace a missing document when expected DOCUMENT_EXISTS', async () => {
-        // Given a document that was never inserted
+        // given
 
-        // When
+        // when
         const updateResult = await users.replaceOne(
           { _id: user._id! },
           { ...user, age: 31 },
           { expectedVersion: 'DOCUMENT_EXISTS' },
         );
 
-        // Then
+        // then
         assert(updateResult.successful === false);
         assert(updateResult.modifiedCount === 0);
         assert(updateResult.matchedCount === 0);
@@ -703,13 +703,13 @@ describe('MongoDB Compatibility Tests', () => {
 
   describe('replaceMany Operations', () => {
     it('replaceMany returns correct result sets for updates and conflicts', async () => {
-      // Given: one existing doc at version 1, one that will have a version mismatch
+      // given: one existing doc at version 1, one that will have a version mismatch
       const existingUser = { ...user, _id: ObjectId() };
       const conflictUser = { ...user, _id: ObjectId() };
       await users.insertOne(existingUser);
       await users.insertOne(conflictUser);
 
-      // When
+      // when
       const result = await users.replaceMany([
         { _id: existingUser._id, name: 'Updated', age: 30 },
         {
@@ -720,7 +720,7 @@ describe('MongoDB Compatibility Tests', () => {
         },
       ]);
 
-      // Then
+      // then
       assert(result.modifiedIds.includes(existingUser._id));
       assert(result.conflictIds.includes(conflictUser._id));
 
@@ -747,18 +747,18 @@ describe('MongoDB Compatibility Tests', () => {
     });
 
     it('replaces every document when each expected version matches', async () => {
-      // Given
+      // given
       const first = { ...user, _id: ObjectId() };
       const second = { ...user, _id: ObjectId() };
       await users.insertMany([first, second]);
 
-      // When
+      // when
       const result = await users.replaceMany([
         { _id: first._id, name: 'First', age: 30, _version: 1n },
         { _id: second._id, name: 'Second', age: 30, _version: 1n },
       ]);
 
-      // Then
+      // then
       assert(result.successful);
       assert(result.modifiedIds.includes(first._id));
       assert(result.modifiedIds.includes(second._id));
@@ -773,18 +773,18 @@ describe('MongoDB Compatibility Tests', () => {
     });
 
     it('replaces every version-less document without a concurrency check', async () => {
-      // Given
+      // given
       const first = { ...user, _id: ObjectId() };
       const second = { ...user, _id: ObjectId() };
       await users.insertMany([first, second]);
 
-      // When
+      // when
       const result = await users.replaceMany([
         { _id: first._id, name: 'First', age: 30 },
         { _id: second._id, name: 'Second', age: 30 },
       ]);
 
-      // Then
+      // then
       assert(result.successful);
       assert(result.modifiedIds.includes(first._id));
       assert(result.modifiedIds.includes(second._id));
@@ -799,18 +799,18 @@ describe('MongoDB Compatibility Tests', () => {
     });
 
     it('replaces matching and conflicts mismatched documents per expected version', async () => {
-      // Given
+      // given
       const matching = { ...user, _id: ObjectId() };
       const mismatched = { ...user, _id: ObjectId() };
       await users.insertMany([matching, mismatched]);
 
-      // When
+      // when
       const result = await users.replaceMany([
         { _id: matching._id, name: 'Matching', age: 30, _version: 1n },
         { _id: mismatched._id, name: 'Mismatched', age: 30, _version: 999n },
       ]);
 
-      // Then
+      // then
       assert(result.successful === false);
       assert(result.modifiedIds.includes(matching._id));
       assert(result.conflictIds.includes(mismatched._id));
@@ -827,10 +827,10 @@ describe('MongoDB Compatibility Tests', () => {
   describe('Delete Operations', () => {
     describe('deleteOne', () => {
       it('deletes a document WITHOUT passing expected version', async () => {
-        // Given
+        // given
         await users.insertOne(user);
 
-        // When
+        // when
         const deleteResult = await users.deleteOne({ _id: user._id! });
 
         //Then
@@ -846,10 +846,10 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('deletes a document with correct expected version', async () => {
-        // Given
+        // given
         await users.insertOne(user);
 
-        // When
+        // when
         const deleteResult = await users.deleteOne(
           { _id: user._id! },
           { expectedVersion: 1n },
@@ -869,10 +869,10 @@ describe('MongoDB Compatibility Tests', () => {
 
       [0n, 2n, -1n, 3n].map((incorrectVersion) => {
         it(`does NOT delete a document with incorrect ${incorrectVersion} expected version`, async () => {
-          // Given
+          // given
           await users.insertOne(user);
 
-          // When
+          // when
           const deleteResult = await users.deleteOne(
             { _id: user._id! },
             { expectedVersion: incorrectVersion },
@@ -895,16 +895,16 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('deletes an existing document when expected DOCUMENT_EXISTS', async () => {
-        // Given
+        // given
         await users.insertOne(user);
 
-        // When
+        // when
         const deleteResult = await users.deleteOne(
           { _id: user._id! },
           { expectedVersion: 'DOCUMENT_EXISTS' },
         );
 
-        // Then
+        // then
         assert(deleteResult.successful);
         assert(deleteResult.deletedCount === 1);
         assert(deleteResult.matchedCount === 1);
@@ -914,15 +914,15 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('does NOT delete a missing document when expected DOCUMENT_EXISTS', async () => {
-        // Given a document that was never inserted
+        // given
 
-        // When
+        // when
         const deleteResult = await users.deleteOne(
           { _id: user._id! },
           { expectedVersion: 'DOCUMENT_EXISTS' },
         );
 
-        // Then
+        // then
         assert(deleteResult.successful === false);
         assert(deleteResult.deletedCount === 0);
         assert(deleteResult.matchedCount === 0);
@@ -934,7 +934,7 @@ describe('MongoDB Compatibility Tests', () => {
         const otherUser = { ...user, _id: ObjectId() };
         await users.insertMany([user, otherUser, { ...user, _id: ObjectId() }]);
 
-        // When
+        // when
         const deleteResult = await users.deleteMany({
           _id: { $in: [user._id!, otherUser._id] },
         });
@@ -955,13 +955,13 @@ describe('MongoDB Compatibility Tests', () => {
         const otherUser = { ...user, _id: ObjectId() };
         await users.insertMany([user, otherUser]);
 
-        // When
+        // when
         const deleteResult = await users.deleteMany(
           { _id: { $in: [user._id!, otherUser._id] } },
           { expectedVersion: 'DOCUMENT_EXISTS' },
         );
 
-        // Then
+        // then
         assert(deleteResult.successful);
         assert(deleteResult.deletedCount === 2);
         assert(deleteResult.matchedCount === 2);
@@ -977,7 +977,7 @@ describe('MongoDB Compatibility Tests', () => {
       const otherUser = { ...user, _id: ObjectId() };
       await users.insertMany([{ ...user }, otherUser]);
 
-      // When
+      // when
       const deleteResult = await users.deleteMany({
         _id: { $in: [user._id!, otherUser._id] },
       });
@@ -998,14 +998,14 @@ describe('MongoDB Compatibility Tests', () => {
   describe('Upsert Operations', () => {
     describe('replaceOne with upsert', () => {
       it('inserts a new document at version 1 when absent', async () => {
-        // When
+        // when
         const result = await users.replaceOne(
           { _id: user._id! },
           { ...user, age: 31 },
           { upsert: true },
         );
 
-        // Then
+        // then
         assert(result.successful);
         assert(result.upsertedCount === 1);
         assert(result.upsertedId === user._id!);
@@ -1016,17 +1016,17 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('replaces an existing document and bumps version when present', async () => {
-        // Given
+        // given
         await users.insertOne(user);
 
-        // When
+        // when
         const result = await users.replaceOne(
           { _id: user._id! },
           { ...user, age: 31 },
           { upsert: true },
         );
 
-        // Then
+        // then
         assert(result.successful);
         assert(result.upsertedCount === 0);
         assert(result.upsertedId === null);
@@ -1037,14 +1037,14 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('does NOT insert when absent and expected DOCUMENT_EXISTS', async () => {
-        // When
+        // when
         const result = await users.replaceOne(
           { _id: user._id! },
           { ...user, age: 31 },
           { upsert: true, expectedVersion: 'DOCUMENT_EXISTS' },
         );
 
-        // Then
+        // then
         assert(result.successful === false);
         assert(result.upsertedCount === 0);
         assert(result.matchedCount === 0);
@@ -1054,17 +1054,17 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('replaces when present and expected DOCUMENT_EXISTS', async () => {
-        // Given
+        // given
         await users.insertOne(user);
 
-        // When
+        // when
         const result = await users.replaceOne(
           { _id: user._id! },
           { ...user, age: 31 },
           { upsert: true, expectedVersion: 'DOCUMENT_EXISTS' },
         );
 
-        // Then
+        // then
         assert(result.successful);
         assert(result.modifiedCount === 1);
 
@@ -1073,14 +1073,14 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('does NOT insert when absent and an exact expected version is given', async () => {
-        // When
+        // when
         const result = await users.replaceOne(
           { _id: user._id! },
           { ...user, age: 31 },
           { upsert: true, expectedVersion: 1n },
         );
 
-        // Then
+        // then
         assert(result.successful === false);
         assert(result.upsertedCount === 0);
         assert(result.matchedCount === 0);
@@ -1090,17 +1090,17 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('replaces when present and the exact expected version matches', async () => {
-        // Given
+        // given
         await users.insertOne(user);
 
-        // When
+        // when
         const result = await users.replaceOne(
           { _id: user._id! },
           { ...user, age: 31 },
           { upsert: true, expectedVersion: 1n },
         );
 
-        // Then
+        // then
         assert(result.successful);
         assert(result.modifiedCount === 1);
 
@@ -1109,17 +1109,17 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('does NOT replace when present and the exact expected version mismatches', async () => {
-        // Given
+        // given
         await users.insertOne(user);
 
-        // When
+        // when
         const result = await users.replaceOne(
           { _id: user._id! },
           { ...user, age: 31 },
           { upsert: true, expectedVersion: 333n },
         );
 
-        // Then
+        // then
         assert(result.successful === false);
         assert(result.modifiedCount === 0);
         assert(result.matchedCount === matchedCountOnConflict);
@@ -1131,12 +1131,12 @@ describe('MongoDB Compatibility Tests', () => {
 
     describe('replaceMany with upsert', () => {
       it('inserts absent and replaces present documents in one batch', async () => {
-        // Given
+        // given
         const present = { ...user, _id: ObjectId() };
         const absent = { ...user, _id: ObjectId() };
         await users.insertOne(present);
 
-        // When
+        // when
         const result = await users.replaceMany(
           [
             { _id: present._id, name: 'Present', age: 30 },
@@ -1145,7 +1145,7 @@ describe('MongoDB Compatibility Tests', () => {
           { upsert: true },
         );
 
-        // Then
+        // then
         assert(result.successful);
         assert(result.modifiedIds.includes(present._id));
         assert(result.modifiedIds.includes(absent._id));
@@ -1158,13 +1158,13 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('does NOT insert an absent versioned document (conflict, no ghost)', async () => {
-        // Given a versioned batch: one present, one absent — a versioned upsert
+        // given a versioned batch: one present, one absent — a versioned upsert
         // never fabricates a document, so the absent one must conflict.
         const present = { ...user, _id: ObjectId() };
         const absent = { ...user, _id: ObjectId() };
         await users.insertOne(present);
 
-        // When
+        // when
         const result = await users.replaceMany(
           [
             { _id: present._id, name: 'Present', age: 30, _version: 1n },
@@ -1173,7 +1173,7 @@ describe('MongoDB Compatibility Tests', () => {
           { upsert: true },
         );
 
-        // Then
+        // then
         assert(result.successful === false);
         assert(result.modifiedIds.includes(present._id));
         assert(result.conflictIds.includes(absent._id));
@@ -1185,17 +1185,17 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('conflicts a versioned document whose expected version mismatches', async () => {
-        // Given
+        // given
         const doc = { ...user, _id: ObjectId() };
         await users.insertOne(doc);
 
-        // When
+        // when
         const result = await users.replaceMany(
           [{ _id: doc._id, name: 'Nope', age: 30, _version: 999n }],
           { upsert: true },
         );
 
-        // Then
+        // then
         assert(result.successful === false);
         assert(result.conflictIds.includes(doc._id));
 
@@ -1205,12 +1205,12 @@ describe('MongoDB Compatibility Tests', () => {
       });
 
       it('throws when mixing versioned and version-less documents', async () => {
-        // Given
+        // given
         const a = { ...user, _id: ObjectId() };
         const b = { ...user, _id: ObjectId() };
         await users.insertMany([a, b]);
 
-        // When / Then
+        // when / Then
         await assert.rejects(
           users.replaceMany(
             [
@@ -1225,12 +1225,12 @@ describe('MongoDB Compatibility Tests', () => {
 
     describe('insertMany with upsert', () => {
       it('inserts absent and replaces present documents in one batch', async () => {
-        // Given
+        // given
         const present = { ...user, _id: ObjectId() };
         const absent = { ...user, _id: ObjectId() };
         await users.insertOne(present);
 
-        // When
+        // when
         const result = await users.insertMany(
           [
             { _id: present._id, name: 'Present', age: 30 },
@@ -1239,7 +1239,7 @@ describe('MongoDB Compatibility Tests', () => {
           { upsert: true },
         );
 
-        // Then
+        // then
         assert(result.successful);
         assert(result.insertedIds.includes(present._id));
         assert(result.insertedIds.includes(absent._id));

@@ -362,6 +362,31 @@ export const pongoCollection = <
     );
   };
 
+  const executeUpsert = async (
+    storedRows: WithId<Payload>[],
+    options?: CollectionOperationOptions,
+  ): Promise<{ writtenIds: string[]; versions: Map<string, bigint> }> => {
+    const result = await command<UpsertSqlResult>(
+      SqlFor.insertOrReplace(storedRows),
+      options,
+    );
+
+    const writtenIds = result.rows.map((r) => r._id);
+    const versions = new Map<string, bigint>(
+      result.rows.map((r) => [r._id, BigInt(r.version ?? 1n)]),
+    );
+
+    if (!options?.skipCache) {
+      const writtenSet = new Set(writtenIds);
+      const cacheEntries = storedRows
+        .filter((r) => writtenSet.has(r._id))
+        .map((r) => ({ ...r, _version: versions.get(r._id) ?? 1n }));
+      if (cacheEntries.length > 0) await cacheSetMany(cacheEntries, options);
+    }
+
+    return { writtenIds, versions };
+  };
+
   const collection: PongoCollection<T> = {
     dbName: db.databaseName,
     collectionName,
@@ -383,18 +408,10 @@ export const pongoCollection = <
       });
 
       if (options?.upsert) {
-        const result = await command<UpsertSqlResult>(
-          SqlFor.insertOrReplace([stored]),
-          options,
-        );
+        const { writtenIds, versions } = await executeUpsert([stored], options);
 
-        const row = result.rows[0];
-        const successful = row != null;
-        const nextExpectedVersion = BigInt(row?.version ?? _version);
-
-        if (successful && !options?.skipCache) {
-          await cacheSet({ ...stored, _version: nextExpectedVersion }, options);
-        }
+        const successful = writtenIds.length > 0;
+        const nextExpectedVersion = versions.get(_id) ?? _version;
 
         return operationResult<PongoInsertOneResult>(
           {
@@ -449,25 +466,7 @@ export const pongoCollection = <
       );
 
       if (options?.upsert) {
-        const result = await command<UpsertSqlResult>(
-          SqlFor.insertOrReplace(rows),
-          options,
-        );
-
-        const writtenIds = result.rows.map((r) => r._id);
-        const versions = new Map(
-          result.rows.map((r) => [r._id, BigInt(r.version ?? 1n)]),
-        );
-
-        if (!options?.skipCache) {
-          const writtenSet = new Set(writtenIds);
-          await cacheSetMany(
-            rows
-              .filter((r) => writtenSet.has(r._id))
-              .map((r) => ({ ...r, _version: versions.get(r._id) ?? 1n })),
-            options,
-          );
-        }
+        const { writtenIds } = await executeUpsert(rows, options);
 
         return operationResult<PongoInsertManyResult>(
           {
@@ -555,32 +554,23 @@ export const pongoCollection = <
           _version: 1n,
         });
 
-        const result = await command<UpsertSqlResult>(
-          SqlFor.insertOrReplace([stored]),
-          options,
-        );
+        const { writtenIds, versions } = await executeUpsert([stored], options);
 
-        const row = result.rows[0];
-        const nextExpectedVersion = BigInt(row?.version ?? 1n);
-        const inserted = row != null && nextExpectedVersion === 1n;
+        const written = writtenIds.length > 0;
+        const nextExpectedVersion = versions.get(_id) ?? 1n;
+        const inserted = written && nextExpectedVersion === 1n;
 
-        const opResult = operationResult<PongoUpdateResult>(
+        return operationResult<PongoUpdateResult>(
           {
-            successful: row != null,
-            modifiedCount: row != null && !inserted ? 1 : 0,
-            matchedCount: row != null && !inserted ? 1 : 0,
+            successful: written,
+            modifiedCount: written && !inserted ? 1 : 0,
+            matchedCount: written && !inserted ? 1 : 0,
             upsertedId: inserted ? _id : null,
             upsertedCount: inserted ? 1 : 0,
             nextExpectedVersion,
           },
           { operationName: 'replaceOne', collectionName, serializer, errors },
         );
-
-        if (row != null && !options?.skipCache) {
-          await cacheSet({ ...stored, _version: nextExpectedVersion }, options);
-        }
-
-        return opResult;
       }
 
       const downcasted = downcast(document as T);
@@ -777,27 +767,10 @@ export const pongoCollection = <
           );
 
         if (!hasVersions) {
-          const result = await command<UpsertSqlResult>(
-            SqlFor.insertOrReplace(rows),
-            options,
-          );
-
-          const writtenIds = result.rows.map((row) => row._id);
-          const versions = new Map<string, bigint>(
-            result.rows.map((row) => [row._id, BigInt(row.version ?? 1n)]),
-          );
+          const { writtenIds, versions } = await executeUpsert(rows, options);
           const conflictIds = documents
             .map((d) => d._id)
             .filter((id) => !writtenIds.includes(id));
-
-          if (!options?.skipCache) {
-            const writtenSet = new Set(writtenIds);
-            const cacheEntries = rows
-              .filter((r) => writtenSet.has(r._id))
-              .map((r) => ({ ...r, _version: versions.get(r._id) ?? 1n }));
-            if (cacheEntries.length > 0)
-              await cacheSetMany(cacheEntries, options);
-          }
 
           return operationResult<PongoReplaceManyResult>(
             {

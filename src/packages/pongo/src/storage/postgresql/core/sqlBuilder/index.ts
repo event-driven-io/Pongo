@@ -25,7 +25,7 @@ const versionCheckClause = (
   const col = SQL.identifier(collectionName);
   const predicate = expectedVersionPredicate(expectedVersion);
   return predicate.operator === 'none'
-    ? SQL``
+    ? SQL.EMPTY
     : SQL`AND ${col}._version = ${predicate.value}`;
 };
 

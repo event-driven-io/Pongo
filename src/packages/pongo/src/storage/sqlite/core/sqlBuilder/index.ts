@@ -23,7 +23,7 @@ const versionCheckClause = (
 ): SQL => {
   const predicate = expectedVersionPredicate(expectedVersion);
   return predicate.operator === 'none'
-    ? SQL``
+    ? SQL.EMPTY
     : SQL`AND _version = ${predicate.value}`;
 };
 
