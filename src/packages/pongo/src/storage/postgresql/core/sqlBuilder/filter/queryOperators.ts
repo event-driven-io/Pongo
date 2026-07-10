@@ -17,10 +17,7 @@ export const handleOperator = (
     case '$eq': {
       const field = PostgreSQLJSON.field(SQL`data`, path);
       const serializedValue = JSONParam.value(value, serializer);
-      const serializedArrayValue = JSONParam.arrayContaining(
-        value,
-        serializer,
-      );
+      const serializedArrayValue = JSONParam.arrayContaining(value, serializer);
 
       return SQL`(${field} = ${serializedValue}::jsonb OR ${field} @> ${serializedArrayValue}::jsonb)`;
     }
