@@ -567,11 +567,29 @@ describe('mapD1Error', () => {
 
     it('returns the same generic DumboError', () => {
       const original = new DumboError({
-        errorCode: 500,
+        errorCode: 409,
         message: 'already mapped',
       });
       const result = mapD1Error(original);
       assert.strictEqual(result, original);
     });
+
+    it('returns the same custom DumboError', () => {
+      const original = new CustomDumboError('dunno!');
+      const result = mapD1Error(original);
+      assert.strictEqual(result, original);
+    });
   });
 });
+
+export class CustomDumboError extends DumboError {
+  constructor(reason: string) {
+    super({
+      errorCode: 409,
+      message: `CUSTOM ERROR: ${reason}`,
+    });
+    this.name = 'CustomDumboError';
+
+    Object.setPrototypeOf(this, CustomDumboError.prototype);
+  }
+}

@@ -49,6 +49,22 @@ describe('batchCommand with assertChanges', () => {
     }
   });
 
+  it('reports the conflict with a dedicated error type distinct from a generic database failure', async () => {
+    await assert.rejects(
+      () =>
+        client.batchCommand(
+          [SQL`UPDATE test_items SET value = 'updated' WHERE id = 999`],
+          { assertChanges: true },
+        ),
+      (error) => {
+        assert.ok(error instanceof BatchCommandNoChangesError);
+        assert.strictEqual(error.errorType, 'BatchCommandNoChangesError');
+        assert.strictEqual(error.errorCode, 409);
+        return true;
+      },
+    );
+  });
+
   it('stops executing subsequent commands after assertChanges failure', async () => {
     try {
       await client.batchCommand(
