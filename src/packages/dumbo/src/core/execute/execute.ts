@@ -81,11 +81,15 @@ export type BatchSQLCommandOptions = SQLCommandOptions & {
 };
 
 export class BatchCommandNoChangesError extends DumboError {
+  static readonly ErrorCode: number = 409;
+  static readonly ErrorType: string = 'BatchCommandNoChangesError';
+
   readonly statementIndex: number;
 
   constructor(statementIndex: number) {
     super({
-      errorCode: 409,
+      errorCode: BatchCommandNoChangesError.ErrorCode,
+      errorType: BatchCommandNoChangesError.ErrorType,
       message: `Batch command at index ${statementIndex} affected no rows`,
     });
     this.name = 'BatchCommandNoChangesError';
