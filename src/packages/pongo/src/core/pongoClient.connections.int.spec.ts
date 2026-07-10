@@ -8,6 +8,7 @@ import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
+import assert from 'assert';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import pg from 'pg';
@@ -106,6 +107,34 @@ describe('Pongo collection', () => {
           const users = pongo.db().collection<User>('connections');
           await users.insertOne({ name: randomUUID() });
           await users.insertOne({ name: randomUUID() });
+        });
+      } finally {
+        await pool.close();
+      }
+    });
+
+    it('reuses the connection passed through connectionOptions', async () => {
+      const pool = dumbo({ connectionString });
+
+      try {
+        await pool.withConnection(async (connection) => {
+          const collectionName = `connections_${randomUUID().replaceAll('-', '')}`;
+
+          const pongo = pongoClient({
+            driver: pongoDriver,
+            connectionString,
+            connectionOptions: {
+              connection,
+              pooled: false,
+            },
+          });
+
+          const users = pongo.db().collection<User>(collectionName);
+          await users.insertOne({ name: randomUUID() });
+          await users.insertOne({ name: randomUUID() });
+
+          const count = await users.countDocuments({});
+          assert.strictEqual(Number(count), 2);
         });
       } finally {
         await pool.close();
