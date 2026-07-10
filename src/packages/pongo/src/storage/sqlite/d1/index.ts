@@ -15,7 +15,8 @@ import { pongoCollectionSQLiteMigrations, sqliteSQLBuilder } from '../core';
 
 export type SQLitePongoClientOptions = object;
 
-type D1DatabaseDriverOptions = PongoDriverOptions<never> & D1PoolOptions;
+type D1DatabaseDriverOptions = PongoDriverOptions<Partial<D1PoolOptions>> &
+  Partial<D1PoolOptions>;
 
 const d1PongoDriver: PongoDriver<
   PongoDb<D1DriverType>,
@@ -27,7 +28,10 @@ const d1PongoDriver: PongoDriver<
 
     return PongoDatabase({
       ...options,
-      pool: d1Pool(options),
+      pool: d1Pool({
+        ...options,
+        ...options.connectionOptions,
+      } as D1PoolOptions),
       schemaComponent: PongoDatabaseSchemaComponent({
         driverType: D1DriverType,
         collectionFactory: (schema) =>
