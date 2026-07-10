@@ -12,7 +12,7 @@ const arrayElement = (value: string): string =>
 
 const pathArrayLiteral = (values: string[]): string => {
   const arrayValue = `{${values.map(arrayElement).join(',')}}`;
-  return SQL.stringLiteral(arrayValue).value;
+  return SQL.literal(arrayValue).value;
 };
 
 const path = (path: string) => SQL.plain(pathArrayLiteral(pathParts(path)));
@@ -21,7 +21,7 @@ const field = (source: SQL, path: string): SQL => {
   const parts = pathParts(path);
 
   return parts.length === 1
-    ? SQL`${source} -> ${SQL.stringLiteral(parts[0]!)}`
+    ? SQL`${source} -> ${SQL.literal(parts[0]!)}`
     : SQL`${source} #> ${PostgreSQLJSON.path(path)}`;
 };
 
@@ -29,7 +29,7 @@ const textField = (source: SQL, path: string): SQL => {
   const parts = pathParts(path);
 
   return parts.length === 1
-    ? SQL`${source} ->> ${SQL.stringLiteral(parts[0]!)}`
+    ? SQL`${source} ->> ${SQL.literal(parts[0]!)}`
     : SQL`${source} #>> ${PostgreSQLJSON.path(path)}`;
 };
 
