@@ -60,6 +60,30 @@ describe('SQL template', () => {
     });
   });
 
+  describe('columnN', () => {
+    it('creates a schema column token through SQL', () => {
+      const column = SQL.columnN('created_at', SQL.columnN.type.Timestamp, {
+        notNull: true,
+      });
+
+      assert.deepStrictEqual(column, {
+        schemaComponentKey: 'sc:dumbo:column:created_at',
+        components: new Map(),
+        migrations: [],
+        addComponent: column.addComponent,
+        addMigration: column.addMigration,
+        columnName: 'created_at',
+        notNull: true,
+        unique: undefined,
+        primaryKey: undefined,
+        defaultValue: undefined,
+        sqlTokenType: 'SQL_COLUMN',
+        name: 'created_at',
+        type: SQL.columnN.type.Timestamp,
+      });
+    });
+  });
+
   describe('isEmpty function', () => {
     it('should correctly identify empty SQL', () => {
       const empty1 = SQL``;

@@ -71,14 +71,11 @@ describe('mapSQLParamValue', () => {
   it('maps nested arrays through the same JSON serialization rules', () => {
     const firstObject = { title: "director's cut" };
     const nestedObject = { note: "owner's copy" };
-    const value = [
-      firstObject,
-      ["nested user's value", nestedObject],
-    ];
+    const value = [firstObject, ["nested user's value", nestedObject]];
 
     assert.deepStrictEqual(mapSQLParamValue(value, JSONSerializer), [
       JSONSerializer.serialize(firstObject),
-      ['nested user\'s value', JSONSerializer.serialize(nestedObject)],
+      ["nested user's value", JSONSerializer.serialize(nestedObject)],
     ]);
   });
 

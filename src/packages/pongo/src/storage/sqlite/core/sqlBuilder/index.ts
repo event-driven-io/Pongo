@@ -1,5 +1,6 @@
 import type { JSONSerializer } from '@event-driven-io/dumbo';
 import { isSQL, JSONParam, SQL, sqlMigration } from '@event-driven-io/dumbo';
+import { SQLiteJSON } from '@event-driven-io/dumbo/sqlite';
 import {
   expectedVersionPredicate,
   type DeleteOneOptions,
@@ -304,8 +305,8 @@ export const sqliteSQLBuilder = (
         // _id and _version are native columns, not JSON fields.
         const isMetadata = field === '_id' || field === '_version';
         const accessor = isMetadata
-          ? SQL`${SQL.plain(field)}`
-          : SQL`json_extract(data, '${SQL.plain(`$.${field}`)}')`;
+          ? SQL`${SQL.identifier(field)}`
+          : SQL`json_extract(data, ${SQLiteJSON.path(field)})`;
         return dir === 1 ? SQL`${accessor} ASC` : SQL`${accessor} DESC`;
       });
       query.push(SQL`ORDER BY ${SQL.merge(clauses, ',')}`);
