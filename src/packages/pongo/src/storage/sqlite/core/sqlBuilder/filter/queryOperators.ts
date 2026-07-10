@@ -1,8 +1,7 @@
 import type { JSONSerializer } from '@event-driven-io/dumbo';
-import { SQL } from '@event-driven-io/dumbo';
+import { JSONParam, SQL } from '@event-driven-io/dumbo';
+import { SQLiteJSON } from '@event-driven-io/dumbo/sqlite';
 import { objectEntries, OperatorMap } from '../../../../../core';
-import { JsonParam } from '../../../../core/jsonParam';
-import { sqliteJsonPathLiteral } from '../jsonPath';
 
 export const handleOperator = (
   path: string,
@@ -16,7 +15,7 @@ export const handleOperator = (
 
   switch (operator) {
     case '$eq': {
-      const jsonPath = sqliteJsonPathLiteral(path);
+      const jsonPath = SQLiteJSON.path(path);
 
       return SQL`(
         json_extract(data, ${jsonPath}) = ${value}
@@ -34,12 +33,12 @@ export const handleOperator = (
     case '$lt':
     case '$lte':
     case '$ne': {
-      const jsonPath = sqliteJsonPathLiteral(path);
+      const jsonPath = SQLiteJSON.path(path);
 
       return SQL`json_extract(data, ${jsonPath}) ${SQL.plain(OperatorMap[operator])} ${value}`;
     }
     case '$in': {
-      const jsonPath = sqliteJsonPathLiteral(path);
+      const jsonPath = SQLiteJSON.path(path);
       const values = value as unknown[];
       const inClause = SQL.merge(
         values.map((v) => SQL`${v}`),
@@ -49,7 +48,7 @@ export const handleOperator = (
       return SQL`json_extract(data, ${jsonPath}) IN (${inClause})`;
     }
     case '$nin': {
-      const jsonPath = sqliteJsonPathLiteral(path);
+      const jsonPath = SQLiteJSON.path(path);
       const values = value as unknown[];
       const inClause = SQL.merge(
         values.map((v) => SQL`${v}`),
@@ -61,20 +60,20 @@ export const handleOperator = (
     case '$elemMatch': {
       const subConditions = objectEntries(value as Record<string, unknown>).map(
         ([subKey, subValue]) =>
-          SQL`json_extract(value, ${sqliteJsonPathLiteral(subKey)}) = json(${JsonParam.serialize(serializer, subValue)})`,
+          SQL`json_extract(value, ${SQLiteJSON.path(subKey)}) = json(${JSONParam.value(subValue, serializer)})`,
       );
 
-      const jsonPath = sqliteJsonPathLiteral(path);
+      const jsonPath = SQLiteJSON.path(path);
       return SQL`EXISTS(SELECT 1 FROM json_each(data, ${jsonPath}) WHERE ${SQL.merge(subConditions, ' AND ')})`;
     }
     case '$all': {
-      const jsonPath = sqliteJsonPathLiteral(path);
-      const serializedValue = JsonParam.serialize(serializer, value);
+      const jsonPath = SQLiteJSON.path(path);
+      const serializedValue = JSONParam.value(value, serializer);
 
       return SQL`(SELECT COUNT(*) FROM json_each(json(${serializedValue})) WHERE json_each.value NOT IN (SELECT value FROM json_each(data, ${jsonPath}))) = 0`;
     }
     case '$size': {
-      const jsonPath = sqliteJsonPathLiteral(path);
+      const jsonPath = SQLiteJSON.path(path);
 
       return SQL`json_array_length(json_extract(data, ${jsonPath})) = ${value}`;
     }

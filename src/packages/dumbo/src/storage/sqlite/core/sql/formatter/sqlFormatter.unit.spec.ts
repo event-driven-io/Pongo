@@ -1,6 +1,7 @@
 import assert from 'assert';
 import { describe, it } from 'vitest';
 import { sqliteFormatter } from '.';
+import { SQLiteJSON } from '..';
 import { SQL, isSQL, isTokenizedSQL } from '../../../../../core/sql';
 
 describe('SQLite SQL Tagged Template Literal', () => {
@@ -35,6 +36,15 @@ describe('SQLite SQL Tagged Template Literal', () => {
     // Plain string without escaping
     assert.deepStrictEqual(SQL.format(query, sqliteFormatter), {
       query: "SELECT some'unsafe;",
+      params: [],
+    });
+  });
+
+  it('formats SQLite JSON paths as escaped inline string literals', () => {
+    const query = SQL`SELECT json_extract(data, ${SQLiteJSON.path("director's.title")});`;
+
+    assert.deepStrictEqual(SQL.format(query, sqliteFormatter), {
+      query: `SELECT json_extract(data, '$.director''s.title');`,
       params: [],
     });
   });

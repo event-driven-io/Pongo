@@ -1,5 +1,5 @@
 import type { JSONSerializer } from '@event-driven-io/dumbo';
-import { isSQL, SQL, sqlMigration } from '@event-driven-io/dumbo';
+import { isSQL, JSONParam, SQL, sqlMigration } from '@event-driven-io/dumbo';
 import {
   expectedVersionPredicate,
   type DeleteOneOptions,
@@ -15,7 +15,6 @@ import {
   type WithIdAndVersion,
   type WithoutId,
 } from '../../../../core';
-import { JsonParam } from '../../../core/jsonParam';
 import { constructFilterQuery } from './filter';
 import { buildUpdateQuery } from './update';
 
@@ -53,7 +52,7 @@ export const sqliteSQLBuilder = (
 ): PongoCollectionSQLBuilder => ({
   createCollection: (): SQL => createCollection(collectionName),
   insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
-    const serialized = JsonParam.serialize(serializer, document);
+    const serialized = JSONParam.document(document, serializer);
     const id = document._id;
     const version = document._version ?? 1n;
 
@@ -66,7 +65,7 @@ export const sqliteSQLBuilder = (
     const values = SQL.merge(
       documents.map(
         (doc) =>
-          SQL`(${doc._id}, ${JsonParam.serialize(serializer, doc)}, ${doc._version ?? 1n})`,
+          SQL`(${doc._id}, ${JSONParam.document(doc, serializer)}, ${doc._version ?? 1n})`,
       ),
       ',',
     );
@@ -80,7 +79,7 @@ export const sqliteSQLBuilder = (
     const values = SQL.merge(
       documents.map(
         (d) =>
-          SQL`(${d._id}, json_patch(${JsonParam.serialize(serializer, d)}, json_object('_id', ${d._id}, '_version', '1')), 1)`,
+          SQL`(${d._id}, json_patch(${JSONParam.document(d, serializer)}, json_object('_id', ${d._id}, '_version', '1')), 1)`,
       ),
       ',',
     );
@@ -138,7 +137,7 @@ export const sqliteSQLBuilder = (
     return SQL`
       UPDATE ${SQL.identifier(collectionName)}
       SET
-        data = json_patch(${JsonParam.serialize(serializer, document)}, json_object('_id', _id, '_version', cast(_version + 1 as TEXT))),
+        data = json_patch(${JSONParam.document(document, serializer)}, json_object('_id', _id, '_version', cast(_version + 1 as TEXT))),
         _version = _version + 1,
         _updated = datetime('now')
       WHERE _id = (
@@ -214,8 +213,8 @@ export const sqliteSQLBuilder = (
         documents.map((d) => {
           const expectedVersion = (d as WithIdAndVersion<T>)._version;
           return expectedVersion !== undefined
-            ? SQL`(${d._id}, ${JsonParam.serialize(serializer, d)}, ${expectedVersion})`
-            : SQL`(${d._id}, ${JsonParam.serialize(serializer, d)}, NULL)`;
+            ? SQL`(${d._id}, ${JSONParam.document(d, serializer)}, ${expectedVersion})`
+            : SQL`(${d._id}, ${JSONParam.document(d, serializer)}, NULL)`;
         }),
         ',',
       );
@@ -235,7 +234,7 @@ export const sqliteSQLBuilder = (
 
     const values = SQL.merge(
       documents.map(
-        (d) => SQL`(${d._id}, ${JsonParam.serialize(serializer, d)})`,
+        (d) => SQL`(${d._id}, ${JSONParam.document(d, serializer)})`,
       ),
       ',',
     );

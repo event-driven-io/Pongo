@@ -1,5 +1,6 @@
 import type { JSONSerializer } from '@event-driven-io/dumbo';
-import { isSQL, SQL, sqlMigration } from '@event-driven-io/dumbo';
+import { isSQL, JSONParam, SQL, sqlMigration } from '@event-driven-io/dumbo';
+import { PostgreSQLJSON } from '@event-driven-io/dumbo/postgresql';
 import {
   expectedVersionPredicate,
   type DeleteOneOptions,
@@ -15,9 +16,7 @@ import {
   type WithIdAndVersion,
   type WithoutId,
 } from '../../../../core';
-import { JsonParam } from '../../../core/jsonParam';
 import { constructFilterQuery } from './filter';
-import { PostgresJsonField } from './jsonField';
 import { buildUpdateQuery } from './update';
 
 const versionCheckClause = (
@@ -56,7 +55,7 @@ export const postgresSQLBuilder = (
 ): PongoCollectionSQLBuilder => ({
   createCollection: (): SQL => createCollection(collectionName),
   insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
-    const serialized = JsonParam.serialize(serializer, document);
+    const serialized = JSONParam.document(document, serializer);
     const id = document._id;
     const version = document._version ?? 1n;
 
@@ -68,7 +67,7 @@ export const postgresSQLBuilder = (
     const values = SQL.merge(
       documents.map(
         (doc) =>
-          SQL`(${doc._id}, ${JsonParam.serialize(serializer, doc)}, ${doc._version ?? 1n})`,
+          SQL`(${doc._id}, ${JSONParam.document(doc, serializer)}, ${doc._version ?? 1n})`,
       ),
       ',',
     );
@@ -83,7 +82,7 @@ export const postgresSQLBuilder = (
     const values = SQL.merge(
       documents.map(
         (d) =>
-          SQL`(${d._id}::text, ${JsonParam.serialize(serializer, d)}::jsonb || jsonb_build_object('_id', ${d._id}::text) || jsonb_build_object('_version', '1'::text), 1::bigint)`,
+          SQL`(${d._id}::text, ${JSONParam.document(d, serializer)}::jsonb || jsonb_build_object('_id', ${d._id}::text) || jsonb_build_object('_version', '1'::text), 1::bigint)`,
       ),
       ',',
     );
@@ -162,7 +161,7 @@ export const postgresSQLBuilder = (
       updated AS (
         UPDATE ${SQL.identifier(collectionName)}        
         SET 
-          data = ${JsonParam.serialize(serializer, document)} || jsonb_build_object('_id', ${SQL.identifier(collectionName)}._id) || jsonb_build_object('_version', (_version + 1)::text),
+          data = ${JSONParam.document(document, serializer)} || jsonb_build_object('_id', ${SQL.identifier(collectionName)}._id) || jsonb_build_object('_version', (_version + 1)::text),
           _version = _version + 1
         FROM existing 
         WHERE ${SQL.identifier(collectionName)}._id = existing._id ${expectedVersionUpdate}
@@ -247,8 +246,8 @@ export const postgresSQLBuilder = (
         documents.map((d) => {
           const expectedVersion = (d as WithIdAndVersion<T>)._version;
           return expectedVersion !== undefined
-            ? SQL`(${d._id}::text, ${JsonParam.serialize(serializer, d)}::jsonb, ${expectedVersion}::bigint)`
-            : SQL`(${d._id}::text, ${JsonParam.serialize(serializer, d)}::jsonb, NULL::bigint)`;
+            ? SQL`(${d._id}::text, ${JSONParam.document(d, serializer)}::jsonb, ${expectedVersion}::bigint)`
+            : SQL`(${d._id}::text, ${JSONParam.document(d, serializer)}::jsonb, NULL::bigint)`;
         }),
         ',',
       );
@@ -270,7 +269,7 @@ export const postgresSQLBuilder = (
     const values = SQL.merge(
       documents.map(
         (d) =>
-          SQL`(${d._id}::text, ${JsonParam.serialize(serializer, d)}::jsonb)`,
+          SQL`(${d._id}::text, ${JSONParam.document(d, serializer)}::jsonb)`,
       ),
       ',',
     );
@@ -360,7 +359,7 @@ export const postgresSQLBuilder = (
         // that numeric fields are sorted numerically, not lexicographically.
         const accessor = isMetadata
           ? SQL`${SQL.plain(field)}`
-          : PostgresJsonField.json(field);
+          : PostgreSQLJSON.field(SQL`data`, field);
         // Match MongoDB's null ordering: missing/null values sort first on ASC,
         // last on DESC. PostgreSQL's default is the opposite for ASC (NULLS LAST).
         return dir === 1

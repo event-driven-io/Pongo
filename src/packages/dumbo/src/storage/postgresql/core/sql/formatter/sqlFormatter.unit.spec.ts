@@ -1,6 +1,7 @@
 import assert from 'assert';
 import { describe, it } from 'vitest';
 import { pgFormatter } from '.';
+import { PostgreSQLJSON } from '..';
 import { SQL, isSQL, isTokenizedSQL } from '../../../../../core/sql';
 
 describe('SQLite SQL Tagged Template Literal', () => {
@@ -35,6 +36,15 @@ describe('SQLite SQL Tagged Template Literal', () => {
     // Plain string without escaping
     assert.deepStrictEqual(SQL.format(query, pgFormatter), {
       query: "SELECT some'unsafe;",
+      params: [],
+    });
+  });
+
+  it('formats PostgreSQL JSON fields with escaped inline paths', () => {
+    const query = SQL`SELECT ${PostgreSQLJSON.field(SQL`data`, "director's.title")}, ${PostgreSQLJSON.textField(SQL`data`, 'address.city')}`;
+
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: `SELECT data #> '{"director''s",title}', data #>> '{address,city}'`,
       params: [],
     });
   });
