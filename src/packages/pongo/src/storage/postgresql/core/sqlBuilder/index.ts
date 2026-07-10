@@ -15,7 +15,9 @@ import {
   type WithIdAndVersion,
   type WithoutId,
 } from '../../../../core';
+import { JsonParam } from '../../../core/jsonParam';
 import { constructFilterQuery } from './filter';
+import { PostgresJsonField } from './jsonField';
 import { buildUpdateQuery } from './update';
 
 const versionCheckClause = (
@@ -54,7 +56,7 @@ export const postgresSQLBuilder = (
 ): PongoCollectionSQLBuilder => ({
   createCollection: (): SQL => createCollection(collectionName),
   insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
-    const serialized = serializer.serialize(document);
+    const serialized = JsonParam.serialize(serializer, document);
     const id = document._id;
     const version = document._version ?? 1n;
 
@@ -66,7 +68,7 @@ export const postgresSQLBuilder = (
     const values = SQL.merge(
       documents.map(
         (doc) =>
-          SQL`(${doc._id}, ${serializer.serialize(doc)}, ${doc._version ?? 1n})`,
+          SQL`(${doc._id}, ${JsonParam.serialize(serializer, doc)}, ${doc._version ?? 1n})`,
       ),
       ',',
     );
@@ -81,7 +83,7 @@ export const postgresSQLBuilder = (
     const values = SQL.merge(
       documents.map(
         (d) =>
-          SQL`(${d._id}::text, ${serializer.serialize(d)}::jsonb || jsonb_build_object('_id', ${d._id}::text) || jsonb_build_object('_version', '1'::text), 1::bigint)`,
+          SQL`(${d._id}::text, ${JsonParam.serialize(serializer, d)}::jsonb || jsonb_build_object('_id', ${d._id}::text) || jsonb_build_object('_version', '1'::text), 1::bigint)`,
       ),
       ',',
     );
@@ -160,7 +162,7 @@ export const postgresSQLBuilder = (
       updated AS (
         UPDATE ${SQL.identifier(collectionName)}        
         SET 
-          data = ${serializer.serialize(document)} || jsonb_build_object('_id', ${SQL.identifier(collectionName)}._id) || jsonb_build_object('_version', (_version + 1)::text),
+          data = ${JsonParam.serialize(serializer, document)} || jsonb_build_object('_id', ${SQL.identifier(collectionName)}._id) || jsonb_build_object('_version', (_version + 1)::text),
           _version = _version + 1
         FROM existing 
         WHERE ${SQL.identifier(collectionName)}._id = existing._id ${expectedVersionUpdate}
@@ -245,8 +247,8 @@ export const postgresSQLBuilder = (
         documents.map((d) => {
           const expectedVersion = (d as WithIdAndVersion<T>)._version;
           return expectedVersion !== undefined
-            ? SQL`(${d._id}::text, ${serializer.serialize(d)}::jsonb, ${expectedVersion}::bigint)`
-            : SQL`(${d._id}::text, ${serializer.serialize(d)}::jsonb, NULL::bigint)`;
+            ? SQL`(${d._id}::text, ${JsonParam.serialize(serializer, d)}::jsonb, ${expectedVersion}::bigint)`
+            : SQL`(${d._id}::text, ${JsonParam.serialize(serializer, d)}::jsonb, NULL::bigint)`;
         }),
         ',',
       );
@@ -267,7 +269,8 @@ export const postgresSQLBuilder = (
 
     const values = SQL.merge(
       documents.map(
-        (d) => SQL`(${d._id}::text, ${serializer.serialize(d)}::jsonb)`,
+        (d) =>
+          SQL`(${d._id}::text, ${JsonParam.serialize(serializer, d)}::jsonb)`,
       ),
       ',',
     );
@@ -352,15 +355,12 @@ export const postgresSQLBuilder = (
     if (options?.sort && Object.keys(options.sort).length > 0) {
       const clauses = Object.entries(options.sort).map(([field, dir]) => {
         const isMetadata = field === '_id' || field === '_version';
-        const isNested = !isMetadata && field.includes('.');
         // _id and _version are native columns, not JSON fields.
         // Use -> / #> (returns jsonb) rather than ->> / #>> (returns text) so
         // that numeric fields are sorted numerically, not lexicographically.
         const accessor = isMetadata
           ? SQL`${SQL.plain(field)}`
-          : isNested
-            ? SQL`data #> '${SQL.plain(`{${field.split('.').join(',')}}`)}'`
-            : SQL`data -> '${SQL.plain(field)}'`;
+          : PostgresJsonField.json(field);
         // Match MongoDB's null ordering: missing/null values sort first on ASC,
         // last on DESC. PostgreSQL's default is the opposite for ASC (NULLS LAST).
         return dir === 1

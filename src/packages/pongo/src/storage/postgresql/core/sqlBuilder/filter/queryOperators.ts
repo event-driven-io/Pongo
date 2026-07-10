@@ -1,6 +1,8 @@
 import type { JSONSerializer } from '@event-driven-io/dumbo';
 import { SQL } from '@event-driven-io/dumbo';
-import { objectEntries, OperatorMap } from '../../../../../core';
+import { OperatorMap } from '../../../../../core';
+import { JsonParam } from '../../../../core/jsonParam';
+import { PostgresJsonField } from '../jsonField';
 
 export const handleOperator = (
   path: string,
@@ -14,47 +16,47 @@ export const handleOperator = (
 
   switch (operator) {
     case '$eq': {
-      const nestedPath = serializer.serialize(buildNestedObject(path, value));
-      const serializedValue = serializer.serialize(value);
+      const field = PostgresJsonField.json(path);
+      const serializedValue = JsonParam.serialize(serializer, value);
+      const serializedArrayValue = JsonParam.serializeArray(serializer, value);
 
-      return SQL`(data @> ${nestedPath}::jsonb OR jsonb_path_exists(data, '$.${SQL.plain(path)}[*] ? (@ == ${SQL.plain(serializedValue)})'))`;
+      return SQL`(${field} = ${serializedValue}::jsonb OR ${field} @> ${serializedArrayValue}::jsonb)`;
     }
     case '$gt':
     case '$gte':
     case '$lt':
     case '$lte':
     case '$ne': {
-      const jsonPath = SQL.plain(path.split('.').join(','));
+      const field = PostgresJsonField.text(path);
 
-      return SQL`data ->> '${jsonPath}' ${SQL.plain(OperatorMap[operator])} ${value}`;
+      return SQL`${field} ${SQL.plain(OperatorMap[operator])} ${value}`;
     }
     case '$in': {
-      const jsonPath = `{${path.split('.').join(',')}}`;
+      const field = PostgresJsonField.text(path);
 
-      return SQL`data #>> ${jsonPath} = ANY (${value})`;
+      return SQL`${field} = ANY (${value})`;
     }
     case '$nin': {
-      const jsonPath = `{${path.split('.').join(',')}}`;
+      const field = PostgresJsonField.text(path);
 
-      return SQL`data #>> ${jsonPath} != ALL (${value})`;
+      return SQL`${field} != ALL (${value})`;
     }
     case '$elemMatch': {
-      const subQuery = objectEntries(value as Record<string, unknown>)
-        .map(
-          ([subKey, subValue]) =>
-            `@."${subKey}" == ${serializer.serialize(subValue)}`,
-        )
-        .join(' && ');
-      return SQL`jsonb_path_exists(data, '$.${SQL.plain(path)}[*] ? (${SQL.plain(subQuery)})')`;
+      const field = PostgresJsonField.json(path);
+      const arrayField = SQL`CASE WHEN jsonb_typeof(${field}) = 'array' THEN ${field} ELSE '[]'::jsonb END`;
+      const serializedValue = JsonParam.serialize(serializer, value);
+      return SQL`EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(${arrayField}) AS elem(value)
+        WHERE elem.value @> ${serializedValue}::jsonb
+      )`;
     }
     case '$all': {
-      const nestedPath = serializer.serialize(buildNestedObject(path, value));
-      return SQL`data @> ${nestedPath}::jsonb`;
+      const serializedValue = JsonParam.serialize(serializer, value);
+      return SQL`${PostgresJsonField.json(path)} @> ${serializedValue}::jsonb`;
     }
     case '$size': {
-      const jsonPath = `{${path.split('.').join(',')}}`;
-
-      return SQL`jsonb_array_length(data #> ${jsonPath}) = ${value}`;
+      return SQL`jsonb_array_length(${PostgresJsonField.json(path)}) = ${value}`;
     }
     default:
       throw new Error(`Unsupported operator: ${operator}`);
@@ -83,12 +85,3 @@ const handleMetadataOperator = (
       throw new Error(`Unsupported operator: ${operator}`);
   }
 };
-
-const buildNestedObject = (
-  path: string,
-  value: unknown,
-): Record<string, unknown> =>
-  path
-    .split('.')
-    .reverse()
-    .reduce((acc, key) => ({ [key]: acc }), value as Record<string, unknown>);

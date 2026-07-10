@@ -210,7 +210,7 @@ describe('SQLite MongoDB Compatibility Tests', () => {
           });
           const byArrayValue = await pongoCollection.findOne({
             tags: document.tags[0]!,
-          } as unknown as Parameters<typeof pongoCollection.findOne>[0]);
+          });
 
           assert.ok(byName);
           assert.ok(byNestedCity);
@@ -257,7 +257,10 @@ describe('SQLite MongoDB Compatibility Tests', () => {
             'updateOneSpecialCharacters',
           );
 
-        for (const [index, testCase] of insertOneSpecialCharacterCases.entries()) {
+        for (const [
+          index,
+          testCase,
+        ] of insertOneSpecialCharacterCases.entries()) {
           const document = cloneInsertOneSpecialCharacterDocument(
             testCase.document,
           );
@@ -291,7 +294,10 @@ describe('SQLite MongoDB Compatibility Tests', () => {
             'updateManySpecialCharacters',
           );
 
-        for (const [index, testCase] of insertOneSpecialCharacterCases.entries()) {
+        for (const [
+          index,
+          testCase,
+        ] of insertOneSpecialCharacterCases.entries()) {
           const group = `update-many-${index}`;
           const document = cloneInsertOneSpecialCharacterDocument(
             testCase.document,
@@ -319,7 +325,10 @@ describe('SQLite MongoDB Compatibility Tests', () => {
             'replaceOneSpecialCharacters',
           );
 
-        for (const [index, testCase] of insertOneSpecialCharacterCases.entries()) {
+        for (const [
+          index,
+          testCase,
+        ] of insertOneSpecialCharacterCases.entries()) {
           const document = cloneInsertOneSpecialCharacterDocument(
             testCase.document,
           );

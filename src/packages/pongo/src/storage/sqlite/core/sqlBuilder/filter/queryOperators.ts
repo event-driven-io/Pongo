@@ -1,6 +1,8 @@
 import type { JSONSerializer } from '@event-driven-io/dumbo';
 import { SQL } from '@event-driven-io/dumbo';
 import { objectEntries, OperatorMap } from '../../../../../core';
+import { JsonParam } from '../../../../core/jsonParam';
+import { sqliteJsonPathLiteral } from '../jsonPath';
 
 export const handleOperator = (
   path: string,
@@ -14,14 +16,14 @@ export const handleOperator = (
 
   switch (operator) {
     case '$eq': {
-      const jsonPath = buildJsonPath(path);
+      const jsonPath = sqliteJsonPathLiteral(path);
 
       return SQL`(
-        json_extract(data, '${SQL.plain(jsonPath)}') = ${value}
+        json_extract(data, ${jsonPath}) = ${value}
         OR (
-          json_type(data, '${SQL.plain(jsonPath)}') = 'array'
+          json_type(data, ${jsonPath}) = 'array'
           AND EXISTS(
-            SELECT 1 FROM json_each(data, '${SQL.plain(jsonPath)}')
+            SELECT 1 FROM json_each(data, ${jsonPath})
             WHERE json_each.value = ${value}
           )
         )
@@ -32,51 +34,49 @@ export const handleOperator = (
     case '$lt':
     case '$lte':
     case '$ne': {
-      const jsonPath = buildJsonPath(path);
+      const jsonPath = sqliteJsonPathLiteral(path);
 
-      return SQL`json_extract(data, '${SQL.plain(jsonPath)}') ${SQL.plain(OperatorMap[operator])} ${value}`;
+      return SQL`json_extract(data, ${jsonPath}) ${SQL.plain(OperatorMap[operator])} ${value}`;
     }
     case '$in': {
-      const jsonPath = buildJsonPath(path);
+      const jsonPath = sqliteJsonPathLiteral(path);
       const values = value as unknown[];
       const inClause = SQL.merge(
         values.map((v) => SQL`${v}`),
         ', ',
       );
 
-      return SQL`json_extract(data, '${SQL.plain(jsonPath)}') IN (${inClause})`;
+      return SQL`json_extract(data, ${jsonPath}) IN (${inClause})`;
     }
     case '$nin': {
-      const jsonPath = buildJsonPath(path);
+      const jsonPath = sqliteJsonPathLiteral(path);
       const values = value as unknown[];
       const inClause = SQL.merge(
         values.map((v) => SQL`${v}`),
         ', ',
       );
 
-      return SQL`json_extract(data, '${SQL.plain(jsonPath)}') NOT IN (${inClause})`;
+      return SQL`json_extract(data, ${jsonPath}) NOT IN (${inClause})`;
     }
     case '$elemMatch': {
-      const subConditions = objectEntries(value as Record<string, unknown>)
-        .map(([subKey, subValue]) => {
-          const serializedValue = serializer.serialize(subValue);
-          return `json_extract(value, '$.${subKey}') = json('${serializedValue}')`;
-        })
-        .join(' AND ');
+      const subConditions = objectEntries(value as Record<string, unknown>).map(
+        ([subKey, subValue]) =>
+          SQL`json_extract(value, ${sqliteJsonPathLiteral(subKey)}) = json(${JsonParam.serialize(serializer, subValue)})`,
+      );
 
-      const jsonPath = buildJsonPath(path);
-      return SQL`EXISTS(SELECT 1 FROM json_each(data, '${SQL.plain(jsonPath)}') WHERE ${SQL.plain(subConditions)})`;
+      const jsonPath = sqliteJsonPathLiteral(path);
+      return SQL`EXISTS(SELECT 1 FROM json_each(data, ${jsonPath}) WHERE ${SQL.merge(subConditions, ' AND ')})`;
     }
     case '$all': {
-      const jsonPath = buildJsonPath(path);
-      const serializedValue = serializer.serialize(value);
+      const jsonPath = sqliteJsonPathLiteral(path);
+      const serializedValue = JsonParam.serialize(serializer, value);
 
-      return SQL`(SELECT COUNT(*) FROM json_each(json(${serializedValue})) WHERE json_each.value NOT IN (SELECT value FROM json_each(data, '${SQL.plain(jsonPath)}'))) = 0`;
+      return SQL`(SELECT COUNT(*) FROM json_each(json(${serializedValue})) WHERE json_each.value NOT IN (SELECT value FROM json_each(data, ${jsonPath}))) = 0`;
     }
     case '$size': {
-      const jsonPath = buildJsonPath(path);
+      const jsonPath = sqliteJsonPathLiteral(path);
 
-      return SQL`json_array_length(json_extract(data, '${SQL.plain(jsonPath)}')) = ${value}`;
+      return SQL`json_array_length(json_extract(data, ${jsonPath})) = ${value}`;
     }
     default:
       throw new Error(`Unsupported operator: ${operator}`);
@@ -116,8 +116,4 @@ const handleMetadataOperator = (
     default:
       throw new Error(`Unsupported operator: ${operator}`);
   }
-};
-
-const buildJsonPath = (path: string): string => {
-  return `$.${path}`;
 };

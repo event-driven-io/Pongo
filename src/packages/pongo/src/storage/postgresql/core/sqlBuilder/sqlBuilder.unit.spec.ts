@@ -85,7 +85,8 @@ describe('bound JSON params', () => {
 
     assert.deepStrictEqual(params, [
       JSONSerializer.serialize(patch),
-      JSONSerializer.serialize({ title: specialDocument.title }),
+      JSONSerializer.serialize(specialDocument.title),
+      JSONSerializer.serialize([specialDocument.title]),
     ]);
   });
 
@@ -126,27 +127,53 @@ describe('bound JSON params', () => {
     ]);
   });
 
-  it('find binds string filter values inside JSON containment without SQL escaping', () => {
+  it('find binds string filter values against the JSON field expression without SQL escaping', () => {
     const result = builder.find({
       title: specialDocument.title,
     });
-    const { params } = SQL.format(result, pgFormatter);
+    const { query, params } = SQL.format(result, pgFormatter);
 
+    assert.ok(query.includes(`data -> 'title' = $1::jsonb`), `got: ${query}`);
+    assert.ok(query.includes(`data -> 'title' @> $2::jsonb`), `got: ${query}`);
     assert.deepStrictEqual(params, [
-      JSONSerializer.serialize({ title: specialDocument.title }),
+      JSONSerializer.serialize(specialDocument.title),
+      JSONSerializer.serialize([specialDocument.title]),
     ]);
   });
 
-  it('find binds nested object equality values without SQL escaping', () => {
+  it('find binds nested object equality values against the nested JSON field expression', () => {
     const result = builder.find({
       nested: { quote: specialDocument.nested.quote },
     });
-    const { params } = SQL.format(result, pgFormatter);
+    const { query, params } = SQL.format(result, pgFormatter);
 
+    assert.ok(
+      query.includes(`data #> '{nested,quote}' = $1::jsonb`),
+      `got: ${query}`,
+    );
+    assert.ok(
+      query.includes(`data #> '{nested,quote}' @> $2::jsonb`),
+      `got: ${query}`,
+    );
     assert.deepStrictEqual(params, [
-      JSONSerializer.serialize({
-        nested: { quote: specialDocument.nested.quote },
-      }),
+      JSONSerializer.serialize(specialDocument.nested.quote),
+      JSONSerializer.serialize([specialDocument.nested.quote]),
+    ]);
+  });
+
+  it('find keeps apostrophes in field names escaped in inline JSON field paths', () => {
+    const result = builder.find({
+      "director's.title": specialDocument.title,
+    });
+    const { query, params } = SQL.format(result, pgFormatter);
+
+    assert.ok(
+      query.includes(`data #> '{"director''s",title}' = $1::jsonb`),
+      `got: ${query}`,
+    );
+    assert.deepStrictEqual(params, [
+      JSONSerializer.serialize(specialDocument.title),
+      JSONSerializer.serialize([specialDocument.title]),
     ]);
   });
 });

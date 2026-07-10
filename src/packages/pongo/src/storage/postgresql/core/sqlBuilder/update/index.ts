@@ -8,6 +8,8 @@ import {
   type $unset,
   type PongoUpdate,
 } from '../../../../../core';
+import { JsonParam } from '../../../../core/jsonParam';
+import { PostgresJsonField } from '../jsonField';
 
 export const buildUpdateQuery = <T>(
   update: PongoUpdate<T>,
@@ -35,15 +37,19 @@ export const buildSetQuery = <T>(
   set: $set<T>,
   currentUpdateQuery: SQL,
   serializer: JSONSerializer,
-): SQL => SQL`${currentUpdateQuery} || ${serializer.serialize(set)}::jsonb`;
+): SQL =>
+  SQL`${currentUpdateQuery} || ${JsonParam.serialize(serializer, set)}::jsonb`;
 
 export const buildUnsetQuery = <T>(
   unset: $unset<T>,
   currentUpdateQuery: SQL,
-): SQL =>
-  SQL`${currentUpdateQuery} - ${Object.keys(unset)
-    .map((k) => `{${k}}`)
-    .join(', ')}`;
+): SQL => {
+  let query = currentUpdateQuery;
+  for (const key of Object.keys(unset)) {
+    query = SQL`${query} - ${key}`;
+  }
+  return query;
+};
 
 export const buildIncQuery = <T>(
   inc: $inc<T>,
@@ -52,8 +58,8 @@ export const buildIncQuery = <T>(
   for (const [key, value] of Object.entries(inc)) {
     currentUpdateQuery =
       typeof value === 'bigint'
-        ? SQL`jsonb_set(${currentUpdateQuery}, '{${SQL.plain(key)}}', to_jsonb((COALESCE((data->>'${SQL.plain(key)}')::BIGINT, 0) + ${value})::TEXT), true)`
-        : SQL`jsonb_set(${currentUpdateQuery}, '{${SQL.plain(key)}}', to_jsonb(COALESCE((data->>'${SQL.plain(key)}')::NUMERIC, 0) + ${value}), true)`;
+        ? SQL`jsonb_set(${currentUpdateQuery}, ${PostgresJsonField.pathLiteral(key)}, to_jsonb((COALESCE((${PostgresJsonField.text(key)})::BIGINT, 0) + ${value})::TEXT), true)`
+        : SQL`jsonb_set(${currentUpdateQuery}, ${PostgresJsonField.pathLiteral(key)}, to_jsonb(COALESCE((${PostgresJsonField.text(key)})::NUMERIC, 0) + ${value}), true)`;
   }
   return currentUpdateQuery;
 };
@@ -64,8 +70,8 @@ export const buildPushQuery = <T>(
   serializer: JSONSerializer,
 ): SQL => {
   for (const [key, value] of Object.entries(push)) {
-    const serializedValue = serializer.serialize([value]);
-    currentUpdateQuery = SQL`jsonb_set(${currentUpdateQuery}, '{${SQL.plain(key)}}', (coalesce(data->'${SQL.plain(key)}', '[]'::jsonb) || ${serializedValue}::jsonb), true)`;
+    const serializedValue = JsonParam.serializeArray(serializer, value);
+    currentUpdateQuery = SQL`jsonb_set(${currentUpdateQuery}, ${PostgresJsonField.pathLiteral(key)}, (coalesce(${PostgresJsonField.json(key)}, '[]'::jsonb) || ${serializedValue}::jsonb), true)`;
   }
   return currentUpdateQuery;
 };
