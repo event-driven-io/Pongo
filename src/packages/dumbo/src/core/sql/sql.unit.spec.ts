@@ -49,6 +49,17 @@ describe('SQL template', () => {
     });
   });
 
+  describe('stringLiteral', () => {
+    it('creates an escaped inline SQL string literal token', () => {
+      const query = SQL`SELECT ${SQL.stringLiteral("director's cut")}`;
+
+      assert.deepStrictEqual(SQL.format(query, mockFormatter), {
+        query: "SELECT 'director''s cut'",
+        params: [],
+      });
+    });
+  });
+
   describe('isEmpty function', () => {
     it('should correctly identify empty SQL', () => {
       const empty1 = SQL``;

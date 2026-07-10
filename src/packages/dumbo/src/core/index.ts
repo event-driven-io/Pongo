@@ -6,6 +6,7 @@ import type {
 } from './drivers';
 import { dumboSchema } from './schema';
 import { SQL, SQLColumnTypeTokensFactory } from './sql';
+import type { SQLPlain } from './sql';
 
 export * from './connections';
 export * from './drivers';
@@ -44,6 +45,7 @@ declare module './sql' {
     export const columnN: typeof dumboSchema.column & {
       type: typeof SQLColumnTypeTokensFactory;
     };
+    export let stringLiteral: (value: string) => SQLPlain;
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access

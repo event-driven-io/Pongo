@@ -10,6 +10,7 @@ import {
   SQLIdentifier,
   SQLIn,
   SQLPlain,
+  type SQLPlain as SQLPlainToken,
   type SQLArrayMode,
 } from './tokens';
 
@@ -79,6 +80,9 @@ const mergeSQL = (sqls: SQL[], separator: string = ' '): SQL => {
 
 const concatSQL = (...sqls: SQL[]): SQL => mergeSQL(sqls, '');
 
+const stringLiteral = (value: string): SQLPlainToken =>
+  SQLPlain.from(`'${value.replace(/'/g, "''")}'`);
+
 const isEmpty = (sql: SQL): boolean => {
   if (isTokenizedSQL(sql)) {
     const parametrized = sql as unknown as TokenizedSQL;
@@ -118,6 +122,7 @@ SQL.array = (values: unknown[], options?: { mode?: SQLArrayMode }) =>
   SQLArray.from(options?.mode ? { value: values, mode: options.mode } : values);
 SQL.identifier = SQLIdentifier.from;
 SQL.plain = SQLPlain.from;
+SQL.stringLiteral = stringLiteral;
 
 SQL.check = {
   isSQL,

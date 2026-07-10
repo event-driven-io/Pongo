@@ -1,8 +1,7 @@
 import type { JSONSerializer } from '@event-driven-io/dumbo';
-import { SQL } from '@event-driven-io/dumbo';
+import { JSONParam, SQL } from '@event-driven-io/dumbo';
+import { PostgreSQLJSON } from '@event-driven-io/dumbo/postgresql';
 import { OperatorMap } from '../../../../../core';
-import { JsonParam } from '../../../../core/jsonParam';
-import { PostgresJsonField } from '../jsonField';
 
 export const handleOperator = (
   path: string,
@@ -16,9 +15,12 @@ export const handleOperator = (
 
   switch (operator) {
     case '$eq': {
-      const field = PostgresJsonField.json(path);
-      const serializedValue = JsonParam.serialize(serializer, value);
-      const serializedArrayValue = JsonParam.serializeArray(serializer, value);
+      const field = PostgreSQLJSON.field(SQL`data`, path);
+      const serializedValue = JSONParam.value(value, serializer);
+      const serializedArrayValue = JSONParam.arrayContaining(
+        value,
+        serializer,
+      );
 
       return SQL`(${field} = ${serializedValue}::jsonb OR ${field} @> ${serializedArrayValue}::jsonb)`;
     }
@@ -27,24 +29,24 @@ export const handleOperator = (
     case '$lt':
     case '$lte':
     case '$ne': {
-      const field = PostgresJsonField.text(path);
+      const field = PostgreSQLJSON.textField(SQL`data`, path);
 
       return SQL`${field} ${SQL.plain(OperatorMap[operator])} ${value}`;
     }
     case '$in': {
-      const field = PostgresJsonField.text(path);
+      const field = PostgreSQLJSON.textField(SQL`data`, path);
 
       return SQL`${field} = ANY (${value})`;
     }
     case '$nin': {
-      const field = PostgresJsonField.text(path);
+      const field = PostgreSQLJSON.textField(SQL`data`, path);
 
       return SQL`${field} != ALL (${value})`;
     }
     case '$elemMatch': {
-      const field = PostgresJsonField.json(path);
+      const field = PostgreSQLJSON.field(SQL`data`, path);
       const arrayField = SQL`CASE WHEN jsonb_typeof(${field}) = 'array' THEN ${field} ELSE '[]'::jsonb END`;
-      const serializedValue = JsonParam.serialize(serializer, value);
+      const serializedValue = JSONParam.value(value, serializer);
       return SQL`EXISTS (
         SELECT 1
         FROM jsonb_array_elements(${arrayField}) AS elem(value)
@@ -52,11 +54,11 @@ export const handleOperator = (
       )`;
     }
     case '$all': {
-      const serializedValue = JsonParam.serialize(serializer, value);
-      return SQL`${PostgresJsonField.json(path)} @> ${serializedValue}::jsonb`;
+      const serializedValue = JSONParam.value(value, serializer);
+      return SQL`${PostgreSQLJSON.field(SQL`data`, path)} @> ${serializedValue}::jsonb`;
     }
     case '$size': {
-      return SQL`jsonb_array_length(${PostgresJsonField.json(path)}) = ${value}`;
+      return SQL`jsonb_array_length(${PostgreSQLJSON.field(SQL`data`, path)}) = ${value}`;
     }
     default:
       throw new Error(`Unsupported operator: ${operator}`);
