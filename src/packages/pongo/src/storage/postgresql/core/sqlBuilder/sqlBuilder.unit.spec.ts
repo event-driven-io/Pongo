@@ -5,6 +5,152 @@ import { describe, it } from 'vitest';
 import { postgresSQLBuilder } from '.';
 import type { ExpectedDocumentVersion } from '../../../../core';
 
+const specialDocument = {
+  _id: 'special-id',
+  title: "director's cut",
+  nested: {
+    quote: "owner's copy",
+    unicode: 'Zażółć gęślą jaźń',
+    jsonLike: `{"title":"director's cut"}`,
+    dateLike: '2024-07-15T16:30:00.000Z',
+    bigintLike: '9007199254740993',
+  },
+  tags: ["can't", '東京', '$.path[0]'],
+};
+const specialDocumentJSON = JSONSerializer.serialize(specialDocument);
+
+describe('bound JSON params', () => {
+  const builder = postgresSQLBuilder('users', JSONSerializer);
+
+  it('insertOne binds serialized document JSON without SQL escaping', () => {
+    const result = builder.insertOne(specialDocument);
+    const { params } = SQL.format(result, pgFormatter);
+
+    assert.deepStrictEqual(params, [
+      specialDocument._id,
+      specialDocumentJSON,
+      '1',
+    ]);
+  });
+
+  it('insertMany binds serialized JSON without SQL escaping', () => {
+    const result = builder.insertMany([specialDocument]);
+    const { params } = SQL.format(result, pgFormatter);
+
+    assert.deepStrictEqual(params, [
+      specialDocument._id,
+      specialDocumentJSON,
+      '1',
+    ]);
+  });
+
+  it('insertOrReplace binds serialized JSON without SQL escaping', () => {
+    const result = builder.insertOrReplace([specialDocument]);
+    const { params } = SQL.format(result, pgFormatter);
+
+    assert.deepStrictEqual(params, [
+      specialDocument._id,
+      specialDocumentJSON,
+      specialDocument._id,
+    ]);
+  });
+
+  it('updateOne binds $set JSON without SQL escaping', () => {
+    const patch = {
+      title: specialDocument.title,
+      nested: specialDocument.nested,
+    };
+    const result = builder.updateOne<typeof specialDocument>(
+      { _id: specialDocument._id },
+      { $set: patch },
+    );
+    const { params } = SQL.format(result, pgFormatter);
+
+    assert.deepStrictEqual(params, [
+      specialDocument._id,
+      JSONSerializer.serialize(patch),
+    ]);
+  });
+
+  it('updateMany binds $set JSON and filter params without SQL escaping', () => {
+    const patch = {
+      title: specialDocument.title,
+      nested: specialDocument.nested,
+    };
+    const result = builder.updateMany<typeof specialDocument>(
+      { title: specialDocument.title },
+      { $set: patch },
+    );
+    const { params } = SQL.format(result, pgFormatter);
+
+    assert.deepStrictEqual(params, [
+      JSONSerializer.serialize(patch),
+      JSONSerializer.serialize({ title: specialDocument.title }),
+    ]);
+  });
+
+  it('replaceOne binds replacement JSON without SQL escaping', () => {
+    const replacement = {
+      title: specialDocument.title,
+      nested: specialDocument.nested,
+      tags: specialDocument.tags,
+    };
+    const result = builder.replaceOne(
+      { _id: specialDocument._id },
+      replacement,
+    );
+    const { params } = SQL.format(result, pgFormatter);
+
+    assert.deepStrictEqual(params, [
+      specialDocument._id,
+      JSONSerializer.serialize(replacement),
+    ]);
+  });
+
+  it('replaceMany binds every serialized replacement without SQL escaping', () => {
+    const secondDocument = {
+      ...specialDocument,
+      _id: 'special-id-2',
+      title: "producer's notes",
+      _version: 7n,
+    };
+    const result = builder.replaceMany([specialDocument, secondDocument]);
+    const { params } = SQL.format(result, pgFormatter);
+
+    assert.deepStrictEqual(params, [
+      specialDocument._id,
+      specialDocumentJSON,
+      secondDocument._id,
+      JSONSerializer.serialize(secondDocument),
+      '7',
+    ]);
+  });
+
+  it('find binds string filter values inside JSON containment without SQL escaping', () => {
+    const result = builder.find({
+      title: specialDocument.title,
+    });
+    const { params } = SQL.format(result, pgFormatter);
+
+    assert.deepStrictEqual(params, [
+      JSONSerializer.serialize({ title: specialDocument.title }),
+    ]);
+  });
+
+  it('find binds nested object equality values without SQL escaping', () => {
+    const result = builder.find({
+      nested: { quote: specialDocument.nested.quote },
+    });
+    const { params } = SQL.format(result, pgFormatter);
+
+    assert.deepStrictEqual(params, [
+      JSONSerializer.serialize({
+        nested: { quote: specialDocument.nested.quote },
+      }),
+    ]);
+  });
+});
+
 describe('insertOrReplace()', () => {
   const builder = postgresSQLBuilder('users', JSONSerializer);
 

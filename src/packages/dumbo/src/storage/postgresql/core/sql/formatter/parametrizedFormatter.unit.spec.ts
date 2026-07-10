@@ -122,6 +122,27 @@ describe('PostgreSQL Parametrized Formatter', () => {
       });
     });
 
+    it('does not SQL-escape apostrophes inside bound object params', () => {
+      const obj = {
+        title: "director's cut",
+        nested: {
+          quote: "owner's copy",
+          unicode: 'Zażółć gęślą jaźń',
+          jsonLike: `{"title":"director's cut"}`,
+          dateLike: '2024-07-15T16:30:00.000Z',
+          bigintLike: '9007199254740993',
+        },
+      };
+
+      const sql = SQL`INSERT INTO test (json) VALUES (${obj})`;
+      const result = pgFormatter.format(sql, { serializer: JSONSerializer });
+
+      assert.deepStrictEqual(result, {
+        query: 'INSERT INTO test (json) VALUES ($1)',
+        params: [JSONSerializer.serialize(obj)],
+      });
+    });
+
     it('handles empty parameters', () => {
       const sql = SQL`SELECT * FROM users`;
       const result = pgFormatter.format(sql, { serializer: JSONSerializer });

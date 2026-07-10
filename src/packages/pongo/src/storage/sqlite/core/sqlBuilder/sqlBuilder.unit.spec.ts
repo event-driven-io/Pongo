@@ -1,9 +1,4 @@
-import {
-  JSONSerializer,
-  SQL,
-  SQLLiteral,
-  type TokenizedSQL,
-} from '@event-driven-io/dumbo';
+import { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import { sqliteFormatter } from '@event-driven-io/dumbo/sqlite';
 import { randomUUID } from 'crypto';
 import assert from 'node:assert/strict';
@@ -14,6 +9,19 @@ import { sqliteSQLBuilder } from './index';
 describe('sqliteSQLBuilder', () => {
   const collectionName = 'testCollection';
   const builder = sqliteSQLBuilder(collectionName, JSONSerializer);
+  const specialDocument = {
+    _id: 'special-id',
+    title: "director's cut",
+    nested: {
+      quote: "owner's copy",
+      unicode: 'Zażółć gęślą jaźń',
+      jsonLike: `{"title":"director's cut"}`,
+      dateLike: '2024-07-15T16:30:00.000Z',
+      bigintLike: '9007199254740993',
+    },
+    tags: ["can't", '東京', '$.path[0]'],
+  };
+  const specialDocumentJSON = JSONSerializer.serialize(specialDocument);
 
   describe('createCollection', () => {
     it('should generate correct CREATE TABLE statement', () => {
@@ -46,17 +54,111 @@ describe('sqliteSQLBuilder', () => {
       assert.ok(query.includes('(_id, data, _version)'));
     });
 
-    it('serializes document with single quotes without escaping them', () => {
-      const document = { _id: randomUUID(), name: "director's cut" };
-      const result = builder.insertOne(document);
-      const { sqlTokens } = result as unknown as TokenizedSQL;
+    it('binds serialized document JSON without SQL-escaping string content', () => {
+      const result = builder.insertOne(specialDocument);
+      const { params } = SQL.format(result, sqliteFormatter);
 
-      const literals = sqlTokens.filter(SQLLiteral.check);
-      assert.ok(
-        literals.some(
-          (literal) => literal.value === JSONSerializer.serialize(document),
-        ),
+      assert.deepStrictEqual(params, [
+        specialDocument._id,
+        specialDocumentJSON,
+        '1',
+      ]);
+    });
+  });
+
+  describe('bound JSON params', () => {
+    it('insertMany binds serialized JSON without SQL escaping', () => {
+      const result = builder.insertMany([specialDocument]);
+      const { params } = SQL.format(result, sqliteFormatter);
+
+      assert.deepStrictEqual(params, [
+        specialDocument._id,
+        specialDocumentJSON,
+        '1',
+      ]);
+    });
+
+    it('insertOrReplace binds serialized JSON without SQL escaping', () => {
+      const result = builder.insertOrReplace([specialDocument]);
+      const { params } = SQL.format(result, sqliteFormatter);
+
+      assert.deepStrictEqual(params, [
+        specialDocument._id,
+        specialDocumentJSON,
+        specialDocument._id,
+      ]);
+    });
+
+    it('updateOne binds $set JSON without SQL escaping', () => {
+      const patch = {
+        title: specialDocument.title,
+        nested: specialDocument.nested,
+      };
+      const result = builder.updateOne<typeof specialDocument>(
+        { _id: specialDocument._id },
+        { $set: patch },
       );
+      const { params } = SQL.format(result, sqliteFormatter);
+
+      assert.deepStrictEqual(params, [
+        JSONSerializer.serialize(patch),
+        specialDocument._id,
+      ]);
+    });
+
+    it('updateMany binds $set JSON and filter params without SQL escaping', () => {
+      const patch = {
+        title: specialDocument.title,
+        nested: specialDocument.nested,
+      };
+      const result = builder.updateMany<typeof specialDocument>(
+        { title: specialDocument.title },
+        { $set: patch },
+      );
+      const { params } = SQL.format(result, sqliteFormatter);
+
+      assert.deepStrictEqual(params, [
+        JSONSerializer.serialize(patch),
+        specialDocument.title,
+        specialDocument.title,
+      ]);
+    });
+
+    it('replaceOne binds replacement JSON without SQL escaping', () => {
+      const replacement = {
+        title: specialDocument.title,
+        nested: specialDocument.nested,
+        tags: specialDocument.tags,
+      };
+      const result = builder.replaceOne(
+        { _id: specialDocument._id },
+        replacement,
+      );
+      const { params } = SQL.format(result, sqliteFormatter);
+
+      assert.deepStrictEqual(params, [
+        JSONSerializer.serialize(replacement),
+        specialDocument._id,
+      ]);
+    });
+
+    it('replaceMany binds every serialized replacement without SQL escaping', () => {
+      const secondDocument = {
+        ...specialDocument,
+        _id: 'special-id-2',
+        title: "producer's notes",
+        _version: 7n,
+      };
+      const result = builder.replaceMany([specialDocument, secondDocument]);
+      const { params } = SQL.format(result, sqliteFormatter);
+
+      assert.deepStrictEqual(params, [
+        specialDocument._id,
+        specialDocumentJSON,
+        secondDocument._id,
+        JSONSerializer.serialize(secondDocument),
+        '7',
+      ]);
     });
   });
 
@@ -107,6 +209,30 @@ describe('sqliteSQLBuilder', () => {
 
       assert.ok(query.includes('WHERE'));
       assert.ok(query.includes('json_extract'));
+    });
+
+    it('binds string filter values without SQL escaping', () => {
+      const result = builder.find({
+        title: specialDocument.title,
+      });
+      const { params } = SQL.format(result, sqliteFormatter);
+
+      assert.deepStrictEqual(params, [
+        specialDocument.title,
+        specialDocument.title,
+      ]);
+    });
+
+    it('binds nested object equality values without SQL escaping', () => {
+      const result = builder.find({
+        nested: { quote: specialDocument.nested.quote },
+      });
+      const { params } = SQL.format(result, sqliteFormatter);
+
+      assert.deepStrictEqual(params, [
+        specialDocument.nested.quote,
+        specialDocument.nested.quote,
+      ]);
     });
 
     it('should handle limit and skip options', () => {

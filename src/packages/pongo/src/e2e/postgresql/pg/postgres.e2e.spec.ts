@@ -9,6 +9,12 @@ import console from 'console';
 import { v7 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
+  cloneInsertOneSpecialCharacterDocument,
+  insertOneSpecialCharacterCases,
+  pickInsertOneRoundTripFields,
+  type InsertOneSpecialCharacterDocument,
+} from '../../insertOneSpecialCharacters.cases';
+import {
   pongoClient,
   type ObjectId,
   type PongoClient,
@@ -34,6 +40,10 @@ type User = {
   tags?: string[];
   bigInt?: bigint;
   date?: Date;
+};
+
+type SpecialCharacterWriteDocument = InsertOneSpecialCharacterDocument & {
+  group?: string;
 };
 
 describe('MongoDB Compatibility Tests', () => {
@@ -151,6 +161,222 @@ describe('MongoDB Compatibility Tests', () => {
           age: mongoDoc!.age,
         },
       );
+    });
+
+    describe('insertOne special character round trips', () => {
+      for (const testCase of insertOneSpecialCharacterCases) {
+        it(`should preserve ${testCase.name}`, async () => {
+          const pongoCollection =
+            pongoDb.collection<InsertOneSpecialCharacterDocument>(
+              'insertOneSpecialCharacters',
+            );
+          const document = cloneInsertOneSpecialCharacterDocument(
+            testCase.document,
+          );
+
+          const insertResult = await pongoCollection.insertOne(document);
+          const insertedId = insertResult.insertedId;
+          assert.ok(insertedId);
+
+          const pongoDoc = await pongoCollection.findOne({
+            _id: insertedId,
+          });
+
+          assert.ok(pongoDoc);
+          assert.deepStrictEqual(
+            pickInsertOneRoundTripFields(pongoDoc),
+            pickInsertOneRoundTripFields(document),
+          );
+        });
+      }
+    });
+
+    describe('common write special character round trips', () => {
+      it('find queries should match special character values', async () => {
+        const pongoCollection =
+          pongoDb.collection<InsertOneSpecialCharacterDocument>(
+            'findSpecialCharacters',
+          );
+        const documents = insertOneSpecialCharacterCases.map(({ document }) =>
+          cloneInsertOneSpecialCharacterDocument(document),
+        );
+
+        await pongoCollection.insertMany(documents);
+
+        for (const document of documents) {
+          const byName = await pongoCollection.findOne({
+            name: document.name,
+          });
+          const byNestedCity = await pongoCollection.findOne({
+            address: { city: document.address.city },
+          });
+          const byArrayValue = await pongoCollection.findOne({
+            tags: document.tags[0]!,
+          } as unknown as Parameters<typeof pongoCollection.findOne>[0]);
+
+          assert.ok(byName);
+          assert.ok(byNestedCity);
+          assert.ok(byArrayValue);
+          assert.deepStrictEqual(
+            pickInsertOneRoundTripFields(byName),
+            pickInsertOneRoundTripFields(document),
+          );
+          assert.deepStrictEqual(
+            pickInsertOneRoundTripFields(byNestedCity),
+            pickInsertOneRoundTripFields(document),
+          );
+          assert.deepStrictEqual(
+            pickInsertOneRoundTripFields(byArrayValue),
+            pickInsertOneRoundTripFields(document),
+          );
+        }
+      });
+
+      it('insertMany should preserve every special character case', async () => {
+        const pongoCollection =
+          pongoDb.collection<InsertOneSpecialCharacterDocument>(
+            'insertManySpecialCharacters',
+          );
+        const documents = insertOneSpecialCharacterCases.map(({ document }) =>
+          cloneInsertOneSpecialCharacterDocument(document),
+        );
+
+        const insertResult = await pongoCollection.insertMany(documents);
+        const insertedIds = Object.values(insertResult.insertedIds);
+        const pongoDocs = await Promise.all(
+          insertedIds.map((_id) => pongoCollection.findOne({ _id })),
+        );
+
+        assert.deepStrictEqual(
+          pongoDocs.map((doc) => pickInsertOneRoundTripFields(doc!)),
+          documents.map(pickInsertOneRoundTripFields),
+        );
+      });
+
+      it('updateOne should preserve every special character case', async () => {
+        const pongoCollection =
+          pongoDb.collection<SpecialCharacterWriteDocument>(
+            'updateOneSpecialCharacters',
+          );
+
+        for (const [index, testCase] of insertOneSpecialCharacterCases.entries()) {
+          const document = cloneInsertOneSpecialCharacterDocument(
+            testCase.document,
+          );
+          const insertResult = await pongoCollection.insertOne({
+            name: `seed-${index}`,
+            age: 0,
+          } as SpecialCharacterWriteDocument);
+          const insertedId = insertResult.insertedId;
+          assert.ok(insertedId);
+
+          await pongoCollection.updateOne(
+            { _id: insertedId },
+            { $set: document },
+          );
+
+          const pongoDoc = await pongoCollection.findOne({
+            _id: insertedId,
+          });
+
+          assert.ok(pongoDoc);
+          assert.deepStrictEqual(
+            pickInsertOneRoundTripFields(pongoDoc),
+            pickInsertOneRoundTripFields(document),
+          );
+        }
+      });
+
+      it('updateMany should preserve every special character case', async () => {
+        const pongoCollection =
+          pongoDb.collection<SpecialCharacterWriteDocument>(
+            'updateManySpecialCharacters',
+          );
+
+        for (const [index, testCase] of insertOneSpecialCharacterCases.entries()) {
+          const group = `update-many-${index}`;
+          const document = cloneInsertOneSpecialCharacterDocument(
+            testCase.document,
+          );
+
+          await pongoCollection.insertMany([
+            { name: `seed-${index}-a`, age: 0, group },
+            { name: `seed-${index}-b`, age: 0, group },
+          ] as SpecialCharacterWriteDocument[]);
+
+          await pongoCollection.updateMany({ group }, { $set: document });
+
+          const pongoDocs = await pongoCollection.find({ group });
+
+          assert.deepStrictEqual(
+            pongoDocs.map((doc) => pickInsertOneRoundTripFields(doc)),
+            [document, document].map(pickInsertOneRoundTripFields),
+          );
+        }
+      });
+
+      it('replaceOne should preserve every special character case', async () => {
+        const pongoCollection =
+          pongoDb.collection<SpecialCharacterWriteDocument>(
+            'replaceOneSpecialCharacters',
+          );
+
+        for (const [index, testCase] of insertOneSpecialCharacterCases.entries()) {
+          const document = cloneInsertOneSpecialCharacterDocument(
+            testCase.document,
+          );
+          const insertResult = await pongoCollection.insertOne({
+            name: `seed-${index}`,
+            age: 0,
+          } as SpecialCharacterWriteDocument);
+          const insertedId = insertResult.insertedId;
+          assert.ok(insertedId);
+
+          await pongoCollection.replaceOne({ _id: insertedId }, document);
+
+          const pongoDoc = await pongoCollection.findOne({
+            _id: insertedId,
+          });
+
+          assert.ok(pongoDoc);
+          assert.deepStrictEqual(
+            pickInsertOneRoundTripFields(pongoDoc),
+            pickInsertOneRoundTripFields(document),
+          );
+        }
+      });
+
+      it('replaceMany should preserve every special character case', async () => {
+        const pongoCollection =
+          pongoDb.collection<SpecialCharacterWriteDocument>(
+            'replaceManySpecialCharacters',
+          );
+        const documents = insertOneSpecialCharacterCases.map(({ document }) =>
+          cloneInsertOneSpecialCharacterDocument(document),
+        );
+        const seedResult = await pongoCollection.insertMany(
+          documents.map((_, index) => ({
+            name: `seed-${index}`,
+            age: 0,
+          })) as SpecialCharacterWriteDocument[],
+        );
+        const insertedIds = Object.values(seedResult.insertedIds);
+        const replacements = documents.map((document, index) => ({
+          ...document,
+          _id: insertedIds[index]!,
+        }));
+
+        await pongoCollection.replaceMany(replacements);
+
+        const pongoDocs = await Promise.all(
+          insertedIds.map((_id) => pongoCollection.findOne({ _id })),
+        );
+
+        assert.deepStrictEqual(
+          pongoDocs.map((doc) => pickInsertOneRoundTripFields(doc!)),
+          documents.map(pickInsertOneRoundTripFields),
+        );
+      });
     });
 
     it('should insert many documents into both PostgreSQL and MongoDB', async () => {
