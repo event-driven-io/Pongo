@@ -80,7 +80,7 @@ const mergeSQL = (sqls: SQL[], separator: string = ' '): SQL => {
 
 const concatSQL = (...sqls: SQL[]): SQL => mergeSQL(sqls, '');
 
-const stringLiteral = (value: string): SQLPlainToken =>
+const literal = (value: string): SQLPlainToken =>
   SQLPlain.from(`'${value.replace(/'/g, "''")}'`);
 
 const isEmpty = (sql: SQL): boolean => {
@@ -122,7 +122,7 @@ SQL.array = (values: unknown[], options?: { mode?: SQLArrayMode }) =>
   SQLArray.from(options?.mode ? { value: values, mode: options.mode } : values);
 SQL.identifier = SQLIdentifier.from;
 SQL.plain = SQLPlain.from;
-SQL.stringLiteral = stringLiteral;
+SQL.literal = literal;
 
 SQL.check = {
   isSQL,

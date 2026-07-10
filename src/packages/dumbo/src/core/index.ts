@@ -45,7 +45,7 @@ declare module './sql' {
     export const columnN: typeof dumboSchema.column & {
       type: typeof SQLColumnTypeTokensFactory;
     };
-    export let stringLiteral: (value: string) => SQLPlain;
+    export let literal: (value: string) => SQLPlain;
   }
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access

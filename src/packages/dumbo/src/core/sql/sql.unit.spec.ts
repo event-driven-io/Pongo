@@ -49,9 +49,9 @@ describe('SQL template', () => {
     });
   });
 
-  describe('stringLiteral', () => {
+  describe('literal', () => {
     it('creates an escaped inline SQL string literal token', () => {
-      const query = SQL`SELECT ${SQL.stringLiteral("director's cut")}`;
+      const query = SQL`SELECT ${SQL.literal("director's cut")}`;
 
       assert.deepStrictEqual(SQL.format(query, mockFormatter), {
         query: "SELECT 'director''s cut'",
