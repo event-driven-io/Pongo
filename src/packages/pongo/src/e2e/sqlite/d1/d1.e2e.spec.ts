@@ -151,6 +151,19 @@ describe('SQLite MongoDB Compatibility Tests', () => {
       );
     });
 
+    it('should insert and find back a document with single quotes in values', async () => {
+      const pongoCollection = pongoDb.collection<User>('insertOne');
+      const doc = { name: "Anita O'Connor", age: 25 };
+      const pongoInsertResult = await pongoCollection.insertOne(doc);
+      assert(pongoInsertResult.insertedId);
+
+      const pongoDoc = await pongoCollection.findOne({
+        _id: pongoInsertResult.insertedId,
+      });
+
+      assert.strictEqual(pongoDoc!.name, "Anita O'Connor");
+    });
+
     it('should insert many documents into both SQLite and MongoDB shim', async () => {
       const pongoCollection = pongoDb.collection<User>('insertMany');
       const mongoCollection = mongoDb.collection<User>('shiminsertMany');
