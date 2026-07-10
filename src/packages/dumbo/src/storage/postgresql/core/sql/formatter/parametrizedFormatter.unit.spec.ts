@@ -3,6 +3,59 @@ import { describe, it } from 'vitest';
 import { JSONSerializer, SQL } from '../../../../../core';
 import { pgFormatter } from './index';
 
+const boundJsonSpecialCharacterCases = [
+  {
+    name: 'apostrophes',
+    value: {
+      title: "director's cut",
+      nested: {
+        quote: "owner's copy",
+        list: ["can't", "won't", "it's"],
+      },
+    },
+  },
+  {
+    name: 'quotes and slashes',
+    value: {
+      doubleQuote: 'say "hello"',
+      backslash: String.raw`C:\temp\director's-cut`,
+      jsonLike: `{"title":"director's cut","path":"C:\\temp"}`,
+    },
+  },
+  {
+    name: 'diacritics and unicode',
+    value: {
+      polish: 'Zażółć gęślą jaźń',
+      emoji: 'snowman ☃ and rocket 🚀',
+      mixed: "Łódź user's résumé",
+    },
+  },
+  {
+    name: 'sql-shaped strings',
+    value: {
+      clause: "Robert'); DROP TABLE users; --",
+      comment: "value' /* comment */",
+      keyword: 'select from where',
+    },
+  },
+  {
+    name: 'json path-shaped strings',
+    value: {
+      dotted: 'profile.name',
+      sqlitePath: "$.profile['display.name']",
+      postgresPath: '{profile,"display.name"}',
+    },
+  },
+  {
+    name: 'whitespace and control characters',
+    value: {
+      multiline: "first line\nsecond line's value",
+      tabbed: 'left\tright',
+      carriageReturn: 'before\rafter',
+    },
+  },
+] as const;
+
 describe('PostgreSQL Parametrized Formatter', () => {
   describe('format method', () => {
     it('should convert basic parametrized SQL to PostgreSQL format', () => {
@@ -122,26 +175,17 @@ describe('PostgreSQL Parametrized Formatter', () => {
       });
     });
 
-    it('does not SQL-escape apostrophes inside bound object params', () => {
-      const obj = {
-        title: "director's cut",
-        nested: {
-          quote: "owner's copy",
-          unicode: 'Zażółć gęślą jaźń',
-          jsonLike: `{"title":"director's cut"}`,
-          dateLike: '2024-07-15T16:30:00.000Z',
-          bigintLike: '9007199254740993',
-        },
-      };
+    for (const { name, value } of boundJsonSpecialCharacterCases) {
+      it(`does not SQL-escape ${name} inside bound object params`, () => {
+        const sql = SQL`INSERT INTO test (json) VALUES (${value})`;
+        const result = pgFormatter.format(sql, { serializer: JSONSerializer });
 
-      const sql = SQL`INSERT INTO test (json) VALUES (${obj})`;
-      const result = pgFormatter.format(sql, { serializer: JSONSerializer });
-
-      assert.deepStrictEqual(result, {
-        query: 'INSERT INTO test (json) VALUES ($1)',
-        params: [JSONSerializer.serialize(obj)],
+        assert.deepStrictEqual(result, {
+          query: 'INSERT INTO test (json) VALUES ($1)',
+          params: [JSONSerializer.serialize(value)],
+        });
       });
-    });
+    }
 
     it('handles empty parameters', () => {
       const sql = SQL`SELECT * FROM users`;

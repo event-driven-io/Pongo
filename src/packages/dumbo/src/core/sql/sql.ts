@@ -10,7 +10,6 @@ import {
   SQLIdentifier,
   SQLIn,
   SQLPlain,
-  type SQLPlain as SQLPlainToken,
   type SQLArrayMode,
 } from './tokens';
 
@@ -80,7 +79,7 @@ const mergeSQL = (sqls: SQL[], separator: string = ' '): SQL => {
 
 const concatSQL = (...sqls: SQL[]): SQL => mergeSQL(sqls, '');
 
-const literal = (value: string): SQLPlainToken =>
+const literal = (value: string): SQLPlain =>
   SQLPlain.from(`'${value.replace(/'/g, "''")}'`);
 
 const isEmpty = (sql: SQL): boolean => {
