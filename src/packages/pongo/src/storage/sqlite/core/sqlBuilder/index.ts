@@ -52,7 +52,7 @@ export const sqliteSQLBuilder = (
 ): PongoCollectionSQLBuilder => ({
   createCollection: (): SQL => createCollection(collectionName),
   insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
-    const serialized = document;
+    const serialized = serializer.serialize(document);
     const id = document._id;
     const version = document._version ?? 1n;
 

@@ -1,4 +1,9 @@
-import { JSONSerializer, SQL } from '@event-driven-io/dumbo';
+import {
+  JSONSerializer,
+  SQL,
+  SQLLiteral,
+  type TokenizedSQL,
+} from '@event-driven-io/dumbo';
 import { sqliteFormatter } from '@event-driven-io/dumbo/sqlite';
 import { randomUUID } from 'crypto';
 import assert from 'node:assert/strict';
@@ -39,6 +44,19 @@ describe('sqliteSQLBuilder', () => {
 
       assert.ok(query.includes('INSERT OR IGNORE INTO'));
       assert.ok(query.includes('(_id, data, _version)'));
+    });
+
+    it('serializes document with single quotes without escaping them', () => {
+      const document = { _id: randomUUID(), name: "director's cut" };
+      const result = builder.insertOne(document);
+      const { sqlTokens } = result as unknown as TokenizedSQL;
+
+      const literals = sqlTokens.filter(SQLLiteral.check);
+      assert.ok(
+        literals.some(
+          (literal) => literal.value === JSONSerializer.serialize(document),
+        ),
+      );
     });
   });
 
