@@ -3,7 +3,7 @@ import { Miniflare } from 'miniflare';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import { d1DumboDriver, type D1ConnectionPool } from '..';
 import { dumbo } from '../../../..';
-import { count, SQL } from '../../../../core';
+import { count, JSONSerializer, SQL } from '../../../../core';
 
 describe('D1 SQL Formatter Integration Tests', () => {
   let mf: Miniflare;
@@ -119,6 +119,51 @@ describe('D1 SQL Formatter Integration Tests', () => {
       );
 
       assert.strictEqual(result, 0);
+    });
+  });
+
+  describe('Object Params Handling', () => {
+    beforeAll(async () => {
+      await pool.execute.query(
+        SQL`CREATE TABLE test_documents (id INTEGER PRIMARY KEY, data TEXT)`,
+      );
+    });
+
+    it('stores object params with single quotes without escaping them', async () => {
+      const document = { title: "director's cut" };
+
+      await pool.execute.command(
+        SQL`INSERT INTO test_documents (id, data) VALUES (1, ${document})`,
+      );
+
+      const result = await pool.execute.query<{ data: string }>(
+        SQL`SELECT data FROM test_documents WHERE id = 1`,
+      );
+
+      assert.strictEqual(
+        result.rows[0]!.data,
+        JSONSerializer.serialize(document),
+      );
+    });
+
+    it('stores nested object params with single quotes without escaping them', async () => {
+      const document = {
+        title: "director's cut",
+        metadata: { note: "author's note" },
+      };
+
+      await pool.execute.command(
+        SQL`INSERT INTO test_documents (id, data) VALUES (2, ${document})`,
+      );
+
+      const result = await pool.execute.query<{ data: string }>(
+        SQL`SELECT data FROM test_documents WHERE id = 2`,
+      );
+
+      assert.strictEqual(
+        result.rows[0]!.data,
+        JSONSerializer.serialize(document),
+      );
     });
   });
 });

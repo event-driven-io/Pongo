@@ -183,6 +183,19 @@ describe('SQLite Parametrized Formatter', () => {
       assert.ok(result.includes('test'));
       assert.ok(result.includes('\n'));
     });
+
+    it('describes object params without escaping single quotes', () => {
+      const document = { title: "director's cut" };
+      const sql = SQL`INSERT INTO test (data) VALUES (${document})`;
+      const result = sqliteFormatter.describe(sql, {
+        serializer: JSONSerializer,
+      });
+
+      assert.strictEqual(
+        result,
+        `INSERT INTO test (data) VALUES ("{\\"title\\":\\"director's cut\\"}")`,
+      );
+    });
   });
 
   describe('mapSQLValue method', () => {

@@ -126,7 +126,7 @@ export function mapSQLParamValue(
   } else if (typeof value === 'object') {
     return options?.mapObject
       ? options.mapObject(value)
-      : `${serializer.serialize(value).replace(/'/g, "''")}`;
+      : serializer.serialize(value);
   } else {
     return serializer.serialize(value);
   }
