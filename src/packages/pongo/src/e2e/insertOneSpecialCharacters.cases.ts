@@ -102,7 +102,7 @@ export const insertOneSpecialCharacterCases = [
         history: [
           {
             street: 'ON CONFLICT(_id) DO UPDATE SET data = excluded.data',
-            note: "json_patch(data, '{\"title\":\"director's cut\"}')",
+            note: 'json_patch(data, \'{"title":"director\'s cut"}\')',
           },
         ],
       },
@@ -184,7 +184,7 @@ export const insertOneSpecialCharacterCases = [
       },
       extra: {
         'klucz-łódź': 'wartość-źdźbło',
-        '東京': '日本語',
+        東京: '日本語',
       },
     },
   },
@@ -254,7 +254,7 @@ export const insertOneSpecialCharacterCases = [
       },
       extra: {
         'dot.key': 'dot.value',
-        '$pathKey': '$pathValue',
+        $pathKey: '$pathValue',
       },
     },
   },
