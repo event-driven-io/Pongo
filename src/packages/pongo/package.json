@@ -24,10 +24,10 @@
     "test:unit:watch": "vitest \".unit.spec\"",
     "test:int:watch": "vitest \".int.spec\"",
     "test:e2e:watch": "vitest \".e2e.spec\"",
-    "cli:sql:print": "tsx src/cli.ts migrate sql --collection users",
-    "cli:migrate:dryRun": "tsx src/cli.ts migrate run --config src/e2e/cli-config.ts -cs postgresql://postgres:postgres@localhost:5432/postgres",
-    "cli:config:print": "tsx src/cli.ts config sample --print",
-    "cli:config:generate": "tsx src/cli.ts config sample --generate --file ./pongoConfig.ts "
+    "cli:sql:print": "tsx src/bin.ts migrate sql --collection users",
+    "cli:migrate:dryRun": "tsx src/bin.ts migrate run --config src/e2e/cli-config.ts -cs postgresql://postgres:postgres@localhost:5432/postgres",
+    "cli:config:print": "tsx src/bin.ts config sample --print",
+    "cli:config:generate": "tsx src/bin.ts config sample --generate --file ./pongoConfig.ts "
   },
   "repository": {
     "type": "git",
@@ -129,7 +129,7 @@
     "dist"
   ],
   "bin": {
-    "pongo": "dist/cli.js"
+    "pongo": "dist/bin.js"
   },
   "dependencies": {
     "@event-driven-io/dumbo": "0.13.0-beta.42",

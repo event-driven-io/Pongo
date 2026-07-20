@@ -11,6 +11,7 @@ export default defineConfig({
     'src/index.ts',
     'src/shim.ts',
     'src/cli.ts',
+    'src/bin.ts',
     'src/pg.ts',
     'src/sqlite3.ts',
     'src/cloudflare.ts',
