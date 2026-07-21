@@ -1,24 +1,24 @@
 import {
-  color,
-  LogLevel,
-  LogStyle,
-  parseConnectionString,
-  prettyJson,
-  SQL,
-  type MigrationStyle,
+    color,
+    LogLevel,
+    LogStyle,
+    parseConnectionString,
+    prettyJson,
+    SQL,
+    type MigrationStyle,
 } from '@event-driven-io/dumbo';
 import { checkConnection } from '@event-driven-io/dumbo/pg';
 import Table from 'cli-table3';
 import { Command } from 'commander';
 import repl from 'node:repl';
 import {
-  pongoClient,
-  pongoDriverRegistry,
-  pongoSchema,
-  type PongoClient,
-  type PongoClientOptions,
-  type PongoCollectionSchema,
-  type PongoDb,
+    pongoClient,
+    pongoDriverRegistry,
+    pongoSchema,
+    type PongoClient,
+    type PongoClientOptions,
+    type PongoCollectionSchema,
+    type PongoDb,
 } from '../core';
 
 let pongo: PongoClient;
@@ -128,7 +128,7 @@ const startRepl = async (options: {
   setLogLevel(process.env.DUMBO_LOG_LEVEL ?? options.logging.logLevel);
   setLogStyle(process.env.DUMBO_LOG_STYLE ?? options.logging.logStyle);
 
-  console.log(color.green('Starting Pongo Shell (version: 0.17.0-beta.44)'));
+  console.log(color.green('Starting Pongo Shell (version: 0.17.0-beta.45)'));
 
   if (options.logging.printOptions) {
     console.log(color.green('With Options:'));
