@@ -1,10 +1,10 @@
 import type { JSONSerializer } from '../../../../core';
 import {
   sqlExecutor,
+  transactionNestingCounter,
   type DatabaseTransaction,
   type DatabaseTransactionOptions,
 } from '../../../../core';
-import { transactionNestingCounter } from '../../core';
 import {
   D1DriverType,
   type D1Client,

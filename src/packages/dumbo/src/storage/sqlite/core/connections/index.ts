@@ -157,36 +157,6 @@ export type SQLiteConnectionFactory<
   ConnectionOptions extends SQLiteConnectionOptions = SQLiteConnectionOptions,
 > = (options: ConnectionOptions) => SQLiteConnectionType;
 
-export type TransactionNestingCounter = {
-  increment: () => void;
-  decrement: () => void;
-  reset: () => void;
-  level: number;
-};
-
-export const transactionNestingCounter = (): TransactionNestingCounter => {
-  let transactionLevel = 0;
-
-  return {
-    reset: () => {
-      transactionLevel = 0;
-    },
-    increment: () => {
-      transactionLevel++;
-    },
-    decrement: () => {
-      transactionLevel--;
-
-      if (transactionLevel < 0) {
-        throw new Error('Transaction level is out of bounds');
-      }
-    },
-    get level() {
-      return transactionLevel;
-    },
-  };
-};
-
 export type SqliteAmbientClientConnectionOptions<
   SQLiteConnectionType extends AnySQLiteClientConnection =
     AnySQLiteClientConnection,
