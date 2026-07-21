@@ -191,4 +191,23 @@ export default [
       ],
     },
   },
+  {
+    files: ['packages/pongo/src/**/*.ts'],
+    ignores: [
+      'packages/pongo/src/cli.ts',
+      'packages/pongo/src/bin.ts',
+      'packages/pongo/src/commandLine/**/*.ts',
+    ],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector:
+            ':matches(ImportDeclaration, ExportNamedDeclaration, ExportAllDeclaration, ImportExpression)[source.value=/(^|\\/)(cli|bin|commandLine)(\\/|$)/]',
+          message:
+            'Pongo library code cannot import CLI implementation. Keep CLI code behind the CLI entry point.',
+        },
+      ],
+    },
+  },
 ];
