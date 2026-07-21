@@ -9,6 +9,10 @@
     "source.addMissingImports": "always"
   },
 
+  "[typescript]": {
+    "editor.formatOnSave": false
+  },
+
   "editor.tabSize": 2,
 
   "files.exclude": {
