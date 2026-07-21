@@ -198,16 +198,10 @@ export const createBoundedConnectionPool = <
 ): ConnectionPool<ConnectionType> => {
   const { driverType, maxConnections } = options;
 
-  const allConnections = new Set<ConnectionType>();
-  const getTrackedConnection = async () => {
-    const connection = await options.getConnection();
-    allConnections.add(connection);
-    return connection;
-  };
-
-  const guardMaxConnections = guardBoundedAccess(getTrackedConnection, {
+  const guardMaxConnections = guardBoundedAccess(options.getConnection, {
     maxResources: maxConnections,
     reuseResources: true,
+    closeResource: (connection) => connection.close(),
   });
 
   let closed = false;
@@ -219,22 +213,11 @@ export const createBoundedConnectionPool = <
     if (closed) throw closedError();
   };
 
-  const closeAllConnections = async () => {
-    const connections = [...allConnections];
-    allConnections.clear();
-    await Promise.all(connections.map((conn) => conn.close()));
-  };
-
   const executeWithPooling = async <Result>(
     operation: (conn: ConnectionType) => Promise<Result>,
   ): Promise<Result> => {
     ensureOpen();
-    const conn = await guardMaxConnections.acquire();
-    try {
-      return await operation(conn);
-    } finally {
-      guardMaxConnections.release(conn);
-    }
+    return guardMaxConnections.execute(operation);
   };
 
   return {
@@ -280,7 +263,6 @@ export const createBoundedConnectionPool = <
       }
 
       await guardMaxConnections.stop({ force: true });
-      await closeAllConnections();
     },
   };
 };

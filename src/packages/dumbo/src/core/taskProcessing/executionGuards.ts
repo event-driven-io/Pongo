@@ -9,10 +9,14 @@ export type ExclusiveAccessGuard = {
 
 export const guardExclusiveAccess = (options?: {
   maxQueueSize?: number;
+  maxTaskIdleTime?: number;
 }): ExclusiveAccessGuard => {
   const taskProcessor = new TaskProcessor({
     maxActiveTasks: 1,
     maxQueueSize: options?.maxQueueSize ?? 1000,
+    ...(options?.maxTaskIdleTime !== undefined
+      ? { maxTaskIdleTime: options.maxTaskIdleTime }
+      : {}),
   });
 
   return {
@@ -110,6 +114,8 @@ export const guardBoundedAccess = <Resource>(
     stop: async (stopOptions) => {
       if (isStopped) return;
       isStopped = true;
+      await taskProcessor.stop(stopOptions);
+
       if (options?.closeResource) {
         const resources = [...allResources];
         allResources.clear();
@@ -120,8 +126,6 @@ export const guardBoundedAccess = <Resource>(
           ),
         );
       }
-
-      await taskProcessor.stop(stopOptions);
     },
   };
 };

@@ -156,6 +156,28 @@ describe('Task Processing Guards', () => {
       );
     });
 
+    it('closes resources after active operations complete on stop', async () => {
+      const closedResources: number[] = [];
+      const guard = guardBoundedAccess(() => ({ id: 1 }), {
+        maxResources: 1,
+        reuseResources: true,
+        closeResource: (resource) => {
+          closedResources.push(resource.id);
+        },
+      });
+
+      const operationPromise = guard.execute(async (resource) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        assert.deepStrictEqual(closedResources, []);
+        return resource.id;
+      });
+
+      await guard.stop();
+
+      assert.strictEqual(await operationPromise, 1);
+      assert.deepStrictEqual(closedResources, [1]);
+    });
+
     it('stops and clears queue on stop with force', async () => {
       const guard = guardBoundedAccess(() => ({ id: 1 }), {
         maxResources: 1,

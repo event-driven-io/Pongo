@@ -296,24 +296,27 @@ describe('SQLite Dual Connection Pool', () => {
     async () => {
       const parallelFileName = 'parallel-init-test.db';
 
-      const readPromises = Array.from({ length: 100 }, async (_, i) => {
-        const pool = sqlite3Pool({
-          fileName: parallelFileName,
+      try {
+        const readPromises = Array.from({ length: 100 }, async (_, i) => {
+          const pool = sqlite3Pool({
+            fileName: parallelFileName,
+          });
+
+          try {
+            return await pool.execute.query(SQL`SELECT ${i} as value`);
+          } catch (error) {
+            return error;
+          } finally {
+            await pool.close();
+          }
         });
 
-        try {
-          return await pool.execute.query(SQL`SELECT ${i} as value`);
-        } catch (error) {
-          return error;
-        } finally {
-          await pool.close();
-          cleanupDb(parallelFileName);
-        }
-      });
+        const results = await Promise.all(readPromises);
 
-      const results = await Promise.all(readPromises);
-
-      assert.equal(results.filter((r) => r instanceof Error).length, 0);
+        assert.equal(results.filter((r) => r instanceof Error).length, 0);
+      } finally {
+        cleanupDb(parallelFileName);
+      }
     },
   );
 
@@ -338,7 +341,7 @@ describe('SQLite Dual Connection Pool', () => {
             SQL`INSERT INTO test (value) VALUES ('outer')`,
           );
 
-          await pool.withTransaction(async (innerTx) => {
+          await outerTx.withTransaction(async (innerTx) => {
             await innerTx.execute.command(
               SQL`INSERT INTO test (value) VALUES ('inner')`,
             );
@@ -375,7 +378,7 @@ describe('SQLite Dual Connection Pool', () => {
               await outerTx.execute.command(
                 SQL`INSERT INTO test (value) VALUES ('outer')`,
               );
-              await pool.withTransaction(async (innerTx) => {
+              await outerTx.withTransaction(async (innerTx) => {
                 await innerTx.execute.command(
                   SQL`INSERT INTO test (value) VALUES ('inner')`,
                 );

@@ -17,6 +17,12 @@ export interface DatabaseTransaction<
   begin: () => Promise<void>;
   commit: () => Promise<void>;
   rollback: (error?: unknown) => Promise<void>;
+  withTransaction: <Result = never>(
+    handle: (
+      transaction: DatabaseTransaction<ConnectionType, TransactionOptionsType>,
+    ) => Promise<TransactionResult<Result> | Result>,
+    options?: TransactionOptionsType,
+  ) => Promise<Result>;
   _transactionOptions: TransactionOptionsType;
 }
 
@@ -148,6 +154,18 @@ export interface WithDatabaseTransactionFactory<
 
 export type TransactionResult<Result> = { success: boolean; result: Result };
 
+type TransactionLifecycle = {
+  begin: () => Promise<void>;
+  commit: () => Promise<void>;
+  rollback: (error?: unknown) => Promise<void>;
+};
+
+type NestedTransactionLifecycle<
+  TransactionOptionsType extends DatabaseTransactionOptions,
+> = TransactionLifecycle & {
+  _transactionOptions: TransactionOptionsType;
+};
+
 const toTransactionResult = <Result>(
   transactionResult: TransactionResult<Result> | Result,
 ): TransactionResult<Result> =>
@@ -159,8 +177,7 @@ const toTransactionResult = <Result>(
     : { success: true, result: transactionResult };
 
 export const executeInTransaction = async <
-  DatabaseTransactionType extends AnyDatabaseTransaction =
-    AnyDatabaseTransaction,
+  DatabaseTransactionType extends TransactionLifecycle = TransactionLifecycle,
   Result = void,
 >(
   transaction: DatabaseTransactionType,
@@ -181,6 +198,35 @@ export const executeInTransaction = async <
     await transaction.rollback();
     throw e;
   }
+};
+
+export const executeInNestedTransaction = async <
+  TransactionOptionsType extends DatabaseTransactionOptions =
+    DatabaseTransactionOptions,
+  DatabaseTransactionType extends
+    NestedTransactionLifecycle<TransactionOptionsType> =
+    NestedTransactionLifecycle<TransactionOptionsType>,
+  Result = void,
+>(
+  transaction: DatabaseTransactionType,
+  handle: (
+    transaction: DatabaseTransactionType,
+  ) => Promise<TransactionResult<Result> | Result>,
+  options?: TransactionOptionsType,
+): Promise<Result> => {
+  const allowNestedTransactions =
+    options?.allowNestedTransactions ??
+    transaction._transactionOptions.allowNestedTransactions ??
+    false;
+
+  if (!allowNestedTransactions) {
+    throw new InvalidOperationError(
+      'Cannot start a nested transaction: allowNestedTransactions is false. ' +
+        'Set transactionOptions: { allowNestedTransactions: true } on your pool or connection.',
+    );
+  }
+
+  return executeInTransaction(transaction, handle);
 };
 
 export const transactionFactoryWithDbClient = <
@@ -363,7 +409,9 @@ export const transactionFactoryWithAsyncAmbientConnection = <
             if (conn) await close(conn);
           }
         },
-        _transactionOptions: undefined as unknown as DatabaseTransactionOptions,
+        withTransaction: (handle, options) =>
+          executeInNestedTransaction(tx, handle, options),
+        _transactionOptions: options ?? {},
       };
 
       return tx as InferTransactionFromConnection<ConnectionType>;

@@ -1,5 +1,6 @@
 import type { JSONSerializer } from '../../../../core';
 import {
+  executeInNestedTransaction,
   sqlExecutor,
   transactionNestingCounter,
   type DatabaseTransaction,
@@ -66,7 +67,7 @@ export const d1Transaction =
       return client;
     };
 
-    return {
+    const transaction: D1Transaction = {
       connection: connection(),
       driverType: D1DriverType,
       begin: async function () {
@@ -126,6 +127,10 @@ export const d1Transaction =
           return Promise.resolve(sessionClient);
         },
       }),
+      withTransaction: (handle, options) =>
+        executeInNestedTransaction(transaction, handle, options),
       _transactionOptions: options ?? {},
     };
+
+    return transaction;
   };

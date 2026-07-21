@@ -53,9 +53,6 @@ export type SQLite3ClientOptions = SQLiteClientOptions &
 
 export type SQLite3Client = SQLiteClientOrPoolClient;
 
-export type SQLite3ConnectionOptions = SQLiteConnectionOptions &
-  ((SQLite3ClientOptions & { client?: never }) | { client: SQLite3Client });
-
 export type SQLite3Connection<
   ClientType extends SQLiteClientOrPoolClient = SQLiteClientOrPoolClient,
 > = Connection<
@@ -64,6 +61,10 @@ export type SQLite3Connection<
   ClientType,
   SQLiteTransaction<SQLite3Connection, SQLiteTransactionOptions>
 >;
+
+export type SQLite3ConnectionOptions =
+  SQLiteConnectionOptions<SQLite3Connection> &
+    ((SQLite3ClientOptions & { client?: never }) | { client: SQLite3Client });
 
 const applyPragma = (
   database: sqlite3.Database,

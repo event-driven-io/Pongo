@@ -1,7 +1,11 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
 import { InvalidOperationError } from '../errors';
-import { databaseTransaction, transactionNestingCounter } from './transaction';
+import {
+  databaseTransaction,
+  executeInNestedTransaction,
+  transactionNestingCounter,
+} from './transaction';
 
 describe('transactionNestingCounter', () => {
   it('starts at level 0', () => {
@@ -153,5 +157,22 @@ describe('databaseTransaction', () => {
     await tx.commit();
 
     assert.deepStrictEqual(calls, ['begin', 'commit']);
+  });
+});
+
+describe('executeInNestedTransaction', () => {
+  it('rejects when nested transactions are disabled on the transaction object', async () => {
+    const { backend } = makeBackend();
+    const tx = {
+      ...databaseTransaction(backend),
+      _transactionOptions: { allowNestedTransactions: false },
+    };
+
+    await assert.rejects(
+      () => executeInNestedTransaction(tx, () => Promise.resolve(undefined)),
+      (err) =>
+        err instanceof InvalidOperationError &&
+        /allowNestedTransactions/.test(err.message),
+    );
   });
 });
