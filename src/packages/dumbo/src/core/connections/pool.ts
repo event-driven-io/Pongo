@@ -19,6 +19,10 @@ import {
   type WithDatabaseTransactionFactory,
 } from './transaction';
 
+export type PoolCloseOptions = {
+  force?: boolean;
+};
+
 export interface ConnectionPool<
   ConnectionType extends AnyConnection = AnyConnection,
 >
@@ -27,7 +31,7 @@ export interface ConnectionPool<
     WithConnectionFactory<ConnectionType>,
     WithDatabaseTransactionFactory<ConnectionType> {
   driverType: ConnectionType['driverType'];
-  close: () => Promise<void>;
+  close: (options?: PoolCloseOptions) => Promise<void>;
 }
 
 const wrapPooledConnection = <ConnectionType extends AnyConnection>(
@@ -87,6 +91,26 @@ export const createSingletonConnectionPool = <
   const { driverType, getConnection } = options;
 
   let connectionPromise: Promise<ConnectionType> | null = null;
+  let closed = false;
+  const activeOperations = new Set<Promise<unknown>>();
+
+  const closedError = () =>
+    new Error('Singleton connection pool has been closed');
+
+  const run = async <Result>(
+    operation: () => Promise<Result>,
+  ): Promise<Result> => {
+    if (closed) throw closedError();
+
+    const activeOperation = operation();
+    activeOperations.add(activeOperation);
+
+    try {
+      return await activeOperation;
+    } finally {
+      activeOperations.delete(activeOperation);
+    }
+  };
 
   const getExistingOrNewConnection = () => {
     if (!connectionPromise) {
@@ -95,31 +119,63 @@ export const createSingletonConnectionPool = <
     return connectionPromise;
   };
 
+  const innerTransactionFactory = transactionFactoryWithAsyncAmbientConnection(
+    options.driverType,
+    getExistingOrNewConnection,
+    options.closeConnection,
+  );
+
   const result: ConnectionPool<ConnectionType> = {
     driverType,
     connection: () =>
-      getExistingOrNewConnection().then((conn) =>
-        wrapPooledConnection(conn, () => Promise.resolve()),
+      run(() =>
+        getExistingOrNewConnection().then((conn) =>
+          wrapPooledConnection(conn, () => Promise.resolve()),
+        ),
       ),
-    execute: sqlExecutorInAmbientConnection({
-      driverType,
-      connection: getExistingOrNewConnection,
-    }),
+    execute: (() => {
+      const ambientExecutor = sqlExecutorInAmbientConnection({
+        driverType,
+        connection: getExistingOrNewConnection,
+      });
+
+      return {
+        query: (sql, opts) => run(() => ambientExecutor.query(sql, opts)),
+        batchQuery: (sqls, opts) =>
+          run(() => ambientExecutor.batchQuery(sqls, opts)),
+        command: (sql, opts) => run(() => ambientExecutor.command(sql, opts)),
+        batchCommand: (sqls, opts) =>
+          run(() => ambientExecutor.batchCommand(sqls, opts)),
+      };
+    })(),
     withConnection: <Result>(
       handle: (connection: ConnectionType) => Promise<Result>,
       _options?: WithConnectionOptions,
     ) =>
-      executeInAmbientConnection<ConnectionType, Result>(handle, {
-        connection: getExistingOrNewConnection,
-      }),
-    ...transactionFactoryWithAsyncAmbientConnection(
-      options.driverType,
-      getExistingOrNewConnection,
-      options.closeConnection,
-    ),
-    close: async () => {
+      run(() =>
+        executeInAmbientConnection<ConnectionType, Result>(handle, {
+          connection: getExistingOrNewConnection,
+        }),
+      ),
+    transaction: (transactionOptions) => {
+      if (closed) throw closedError();
+      return innerTransactionFactory.transaction(transactionOptions);
+    },
+    withTransaction: (handle, transactionOptions) =>
+      run(() =>
+        innerTransactionFactory.withTransaction(handle, transactionOptions),
+      ),
+    close: async (closeOptions) => {
+      if (closed) return;
+      closed = true;
+
+      if (!closeOptions?.force) {
+        await Promise.allSettled([...activeOperations]);
+      }
+
       if (!connectionPromise) return;
       const connection = await connectionPromise;
+      connectionPromise = null;
       await connection.close();
     },
   };
@@ -142,16 +198,37 @@ export const createBoundedConnectionPool = <
 ): ConnectionPool<ConnectionType> => {
   const { driverType, maxConnections } = options;
 
-  const guardMaxConnections = guardBoundedAccess(options.getConnection, {
+  const allConnections = new Set<ConnectionType>();
+  const getTrackedConnection = async () => {
+    const connection = await options.getConnection();
+    allConnections.add(connection);
+    return connection;
+  };
+
+  const guardMaxConnections = guardBoundedAccess(getTrackedConnection, {
     maxResources: maxConnections,
     reuseResources: true,
   });
 
   let closed = false;
 
+  const closedError = () =>
+    new Error('Bounded connection pool has been closed');
+
+  const ensureOpen = () => {
+    if (closed) throw closedError();
+  };
+
+  const closeAllConnections = async () => {
+    const connections = [...allConnections];
+    allConnections.clear();
+    await Promise.all(connections.map((conn) => conn.close()));
+  };
+
   const executeWithPooling = async <Result>(
     operation: (conn: ConnectionType) => Promise<Result>,
   ): Promise<Result> => {
+    ensureOpen();
     const conn = await guardMaxConnections.acquire();
     try {
       return await operation(conn);
@@ -163,6 +240,7 @@ export const createBoundedConnectionPool = <
   return {
     driverType,
     connection: async () => {
+      ensureOpen();
       const conn = await guardMaxConnections.acquire();
       return wrapPooledConnection(conn, () =>
         Promise.resolve(guardMaxConnections.release(conn)),
@@ -179,16 +257,30 @@ export const createBoundedConnectionPool = <
         executeWithPooling((c) => c.execute.batchCommand(sqls, opts)),
     },
     withConnection: executeWithPooling,
-    ...transactionFactoryWithAsyncAmbientConnection(
-      driverType,
-      guardMaxConnections.acquire,
-      guardMaxConnections.release,
-    ),
-    close: async () => {
+    transaction: (transactionOptions) => {
+      ensureOpen();
+      return transactionFactoryWithAsyncAmbientConnection(
+        driverType,
+        guardMaxConnections.acquire,
+        guardMaxConnections.release,
+      ).transaction(transactionOptions);
+    },
+    withTransaction: (handle, transactionOptions) =>
+      executeWithPooling((conn) => {
+        const withTx =
+          conn.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
+        return withTx(handle, transactionOptions);
+      }),
+    close: async (closeOptions) => {
       if (closed) return;
       closed = true;
 
+      if (!closeOptions?.force) {
+        await guardMaxConnections.waitForIdle();
+      }
+
       await guardMaxConnections.stop({ force: true });
+      await closeAllConnections();
     },
   };
 };

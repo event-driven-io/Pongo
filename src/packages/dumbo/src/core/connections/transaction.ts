@@ -1,3 +1,4 @@
+import { InvalidOperationError } from '../errors';
 import type { WithSQLExecutor } from '../execute';
 import type {
   AnyConnection,
@@ -25,6 +26,102 @@ export type AnyDatabaseTransaction = DatabaseTransaction<any, any>;
 export type DatabaseTransactionOptions = {
   allowNestedTransactions?: boolean;
   readonly?: boolean;
+};
+
+export type TransactionNestingCounter = {
+  increment: () => void;
+  decrement: () => void;
+  reset: () => void;
+  level: number;
+};
+
+export const transactionNestingCounter = (): TransactionNestingCounter => {
+  let transactionLevel = 0;
+
+  return {
+    reset: () => {
+      transactionLevel = 0;
+    },
+    increment: () => {
+      transactionLevel++;
+    },
+    decrement: () => {
+      transactionLevel--;
+
+      if (transactionLevel < 0) {
+        throw new Error('Transaction level is out of bounds');
+      }
+    },
+    get level() {
+      return transactionLevel;
+    },
+  };
+};
+
+export const databaseTransaction = (
+  backend: Pick<DatabaseTransaction, 'begin' | 'commit' | 'rollback'> & {
+    savepoint?: ((level: number) => Promise<void>) | undefined;
+    releaseSavepoint?: ((level: number) => Promise<void>) | undefined;
+    rollbackToSavepoint?: ((level: number) => Promise<void>) | undefined;
+  },
+  options?: {
+    allowNestedTransactions?: boolean | undefined;
+    useSavepoints?: boolean | undefined;
+  },
+): Pick<DatabaseTransaction, 'begin' | 'commit' | 'rollback'> => {
+  const allowNestedTransactions = options?.allowNestedTransactions ?? false;
+  const useSavepoints = options?.useSavepoints ?? false;
+  const counter = transactionNestingCounter();
+  let hasBegun = false;
+
+  return {
+    begin: async () => {
+      if (allowNestedTransactions) {
+        if (counter.level >= 1) {
+          counter.increment();
+          if (useSavepoints && backend.savepoint) {
+            await backend.savepoint(counter.level);
+          }
+          return;
+        }
+        counter.increment();
+      } else if (hasBegun) {
+        throw new InvalidOperationError(
+          'Cannot start a nested transaction: allowNestedTransactions is false. ' +
+            'Set transactionOptions: { allowNestedTransactions: true } on your pool or connection.',
+        );
+      }
+
+      hasBegun = true;
+      await backend.begin();
+    },
+    commit: async () => {
+      if (allowNestedTransactions && counter.level > 1) {
+        if (useSavepoints && backend.releaseSavepoint) {
+          await backend.releaseSavepoint(counter.level);
+        }
+        counter.decrement();
+        return;
+      }
+
+      if (allowNestedTransactions) counter.reset();
+      hasBegun = false;
+      await backend.commit();
+    },
+    rollback: async (error?: unknown) => {
+      if (allowNestedTransactions && counter.level > 1) {
+        if (useSavepoints && backend.rollbackToSavepoint) {
+          await backend.rollbackToSavepoint(counter.level);
+        }
+        counter.decrement();
+        return;
+      }
+
+      if (allowNestedTransactions) counter.reset();
+      hasBegun = false;
+      await backend.rollback(error);
+    },
+  };
 };
 
 export type InferTransactionOptionsFromTransaction<

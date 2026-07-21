@@ -2,9 +2,12 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 import {
   createSingletonConnectionPool,
   type ConnectionPool,
+  type PoolCloseOptions,
 } from '../../../../core';
 import { TaskProcessor } from '../../../../core/taskProcessing';
 import type { AnySQLiteConnection } from '../../core';
+
+export const DEFAULT_SQLITE_MAX_TASK_IDLE_TIME_MS = 30_000;
 
 export type SQLite3SingletonPoolOptions<
   SQLiteConnectionType extends AnySQLiteConnection,
@@ -13,6 +16,7 @@ export type SQLite3SingletonPoolOptions<
   getConnection: () => SQLiteConnectionType | Promise<SQLiteConnectionType>;
   closeConnection?: (connection: SQLiteConnectionType) => void | Promise<void>;
   maxQueueSize?: number;
+  maxTaskIdleTime?: number;
 };
 
 // Creates a singleton-connection pool whose callers serialise through a
@@ -25,6 +29,9 @@ export const sqlite3SingletonPool = <
 >(
   options: SQLite3SingletonPoolOptions<SQLiteConnectionType>,
 ): ConnectionPool<SQLiteConnectionType> => {
+  const maxTaskIdleTime =
+    options.maxTaskIdleTime ?? DEFAULT_SQLITE_MAX_TASK_IDLE_TIME_MS;
+
   const inner = createSingletonConnectionPool<SQLiteConnectionType>({
     driverType: options.driverType,
     getConnection: options.getConnection,
@@ -36,6 +43,7 @@ export const sqlite3SingletonPool = <
   const taskProcessor = new TaskProcessor({
     maxActiveTasks: 1,
     maxQueueSize: options.maxQueueSize ?? 1000,
+    maxTaskIdleTime,
   });
   const insideWriterTask = new AsyncLocalStorage<true>();
 
@@ -72,9 +80,11 @@ export const sqlite3SingletonPool = <
       batchCommand: (sqls, commandOptions) =>
         enqueue(() => inner.execute.batchCommand(sqls, commandOptions)),
     },
-    close: async () => {
-      await taskProcessor.stop();
-      await inner.close();
+    close: async (closeOptions?: PoolCloseOptions) => {
+      await taskProcessor.stop({
+        ...(closeOptions?.force ? { force: true } : {}),
+      });
+      await inner.close(closeOptions);
     },
   };
 };
