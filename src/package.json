@@ -33,6 +33,7 @@
     "test:e2e": "vitest run \".e2e.spec\"",
     "test:e2e:postgresql": "vitest run postgresql \".e2e.spec\"",
     "test:e2e:sqlite": "vitest run sqlite \".e2e.spec\"",
+    "test:bundles": "vitest run --project bundle",
     "test:file": "vitest run --no-file-parallelism",
     "test:watch": "vitest",
     "test:unit:watch": "vitest \".unit.spec\"",
