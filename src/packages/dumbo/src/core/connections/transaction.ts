@@ -76,6 +76,12 @@ export const databaseTransaction = (
 
   return {
     begin: async () => {
+      if (!allowNestedTransactions && hasBegun) {
+        throw new InvalidOperationError(
+          'Cannot start a nested transaction: allowNestedTransactions is false. ' +
+            'Set transactionOptions: { allowNestedTransactions: true } on your pool or connection.',
+        );
+      }
       if (allowNestedTransactions) {
         if (counter.level >= 1) {
           counter.increment();
@@ -85,11 +91,6 @@ export const databaseTransaction = (
           return;
         }
         counter.increment();
-      } else if (hasBegun) {
-        throw new InvalidOperationError(
-          'Cannot start a nested transaction: allowNestedTransactions is false. ' +
-            'Set transactionOptions: { allowNestedTransactions: true } on your pool or connection.',
-        );
       }
 
       hasBegun = true;
