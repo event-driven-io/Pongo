@@ -10,26 +10,7 @@
   },
 
   "[typescript]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "editor.formatOnPaste": false,
-    "editor.formatOnSave": true,
-
-    "editor.codeActionsOnSave": {
-      "source.organizeImports": "explicit",
-      "source.fixAll.eslint": "explicit",
-      "source.addMissingImports": "always"
-    }
-  },
-  "[javascript]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "editor.formatOnPaste": false,
-    "editor.formatOnSave": true,
-
-    "editor.codeActionsOnSave": {
-      "source.organizeImports": "explicit",
-      "source.fixAll.eslint": "explicit",
-      "source.addMissingImports": "always"
-    }
+    "editor.formatOnSave": false
   },
 
   "editor.tabSize": 2,
