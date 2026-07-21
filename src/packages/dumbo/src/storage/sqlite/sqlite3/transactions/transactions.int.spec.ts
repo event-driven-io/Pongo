@@ -88,13 +88,13 @@ describe('SQLite3 Transactions', () => {
           );
 
           await pool.withTransaction(async (outerTx) => {
-            await pool.withTransaction(async (innerTx) => {
+            await outerTx.withTransaction(async (innerTx) => {
               await innerTx.execute.command(
                 SQL`INSERT INTO test_table (id, value) VALUES (1, 'first')`,
               );
             });
 
-            await pool.withTransaction(async (innerTx) => {
+            await outerTx.withTransaction(async (innerTx) => {
               await innerTx.execute.command(
                 SQL`INSERT INTO test_table (id, value) VALUES (2, 'second')`,
               );
@@ -552,7 +552,67 @@ describe('SQLite3 Transactions', () => {
         }
       });
 
-      it(`keeps a plain command outside of an open transaction with ${testName} database`, async () => {
+      it(`does not let concurrent withTransaction callbacks overlap with ${testName} database`, async () => {
+        const pool = sqlite3Pool({
+          fileName,
+          transactionOptions: { allowNestedTransactions: true },
+        });
+
+        try {
+          await pool.execute.command(
+            SQL`CREATE TABLE transaction_overlap (id INTEGER PRIMARY KEY, value TEXT)`,
+          );
+
+          let releaseFirstTransaction: () => void = () => {};
+          let firstTransactionEntered: () => void = () => {};
+          const firstCanFinish = new Promise<void>((resolve) => {
+            releaseFirstTransaction = resolve;
+          });
+          const firstEntered = new Promise<void>((resolve) => {
+            firstTransactionEntered = resolve;
+          });
+
+          const entered: string[] = [];
+
+          const first = pool.withTransaction(async (tx) => {
+            entered.push('first');
+            firstTransactionEntered();
+            await tx.execute.command(
+              SQL`INSERT INTO transaction_overlap (id, value) VALUES (1, 'first')`,
+            );
+            await firstCanFinish;
+          });
+
+          await firstEntered;
+
+          const second = pool.withTransaction(async (tx) => {
+            entered.push('second');
+            await tx.execute.command(
+              SQL`INSERT INTO transaction_overlap (id, value) VALUES (2, 'second')`,
+            );
+          });
+
+          await new Promise((resolve) => setTimeout(resolve, 25));
+          assert.deepStrictEqual(entered, ['first']);
+
+          releaseFirstTransaction();
+          await Promise.all([first, second]);
+
+          assert.deepStrictEqual(entered, ['first', 'second']);
+
+          const rows = await pool.execute.query<{ id: number }>(
+            SQL`SELECT id FROM transaction_overlap ORDER BY id`,
+          );
+          assert.deepStrictEqual(
+            rows.rows.map((row) => row.id),
+            [1, 2],
+          );
+        } finally {
+          await pool.close();
+        }
+      });
+
+      it(`keeps a root-pool write inside the active transaction callback with ${testName} database`, async () => {
         const pool = sqlite3Pool({
           fileName,
           transactionOptions: { allowNestedTransactions: true },
@@ -563,18 +623,55 @@ describe('SQLite3 Transactions', () => {
             SQL`CREATE TABLE plain_isolation (id INTEGER PRIMARY KEY, value TEXT)`,
           );
 
+          await assert.rejects(
+            () =>
+              pool.withTransaction(async (tx) => {
+                await tx.execute.command(
+                  SQL`INSERT INTO plain_isolation (id, value) VALUES (1, 'tx-row')`,
+                );
+                await Promise.resolve();
+                await pool.execute.command(
+                  SQL`INSERT INTO plain_isolation (id, value) VALUES (2, 'plain-row')`,
+                );
+                throw new Error('tx intentional rollback');
+              }),
+            /tx intentional rollback/,
+          );
+
+          const rows = await pool.execute.query<{
+            id: number;
+            value: string;
+          }>(SQL`SELECT id, value FROM plain_isolation ORDER BY id`);
+
+          assert.deepStrictEqual(rows.rows, []);
+        } finally {
+          await pool.close();
+        }
+      });
+
+      it(`queues a root-pool write started outside the active transaction callback with ${testName} database`, async () => {
+        const pool = sqlite3Pool({
+          fileName,
+          transactionOptions: { allowNestedTransactions: true },
+        });
+
+        try {
+          await pool.execute.command(
+            SQL`CREATE TABLE parallel_plain_isolation (id INTEGER PRIMARY KEY, value TEXT)`,
+          );
+
           let releaseTx: () => void = () => {};
           let plainMayStart: () => void = () => {};
-          const txMayProceed = new Promise<void>((r) => {
-            releaseTx = r;
+          const txMayProceed = new Promise<void>((resolve) => {
+            releaseTx = resolve;
           });
-          const plainCanStart = new Promise<void>((r) => {
-            plainMayStart = r;
+          const plainCanStart = new Promise<void>((resolve) => {
+            plainMayStart = resolve;
           });
 
           const txPromise = pool.withTransaction(async (tx) => {
             await tx.execute.command(
-              SQL`INSERT INTO plain_isolation (id, value) VALUES (1, 'tx-row')`,
+              SQL`INSERT INTO parallel_plain_isolation (id, value) VALUES (1, 'tx-row')`,
             );
             plainMayStart();
             await txMayProceed;
@@ -583,24 +680,21 @@ describe('SQLite3 Transactions', () => {
 
           await plainCanStart;
 
-          const plainPromise = pool.execute.command(
-            SQL`INSERT INTO plain_isolation (id, value) VALUES (2, 'plain-row')`,
+          const plainWritePromise = pool.execute.command(
+            SQL`INSERT INTO parallel_plain_isolation (id, value) VALUES (2, 'plain-row')`,
           );
 
           releaseTx();
 
           await assert.rejects(txPromise, /tx intentional rollback/);
-          await plainPromise;
+          await plainWritePromise;
 
           const rows = await pool.execute.query<{
             id: number;
             value: string;
-          }>(SQL`SELECT id, value FROM plain_isolation ORDER BY id`);
+          }>(SQL`SELECT id, value FROM parallel_plain_isolation ORDER BY id`);
 
-          assert.deepStrictEqual(
-            rows.rows.map((r) => r.value),
-            ['plain-row'],
-          );
+          assert.deepStrictEqual(rows.rows, [{ id: 2, value: 'plain-row' }]);
         } finally {
           await pool.close();
         }
@@ -653,10 +747,85 @@ describe('SQLite3 Transactions', () => {
         }
       });
 
-      // Reentrancy: a writer-bound call from inside an already-active writer
-      // task (same async stack) must bypass the queue instead of deadlocking.
-      // These tests exercise the patterns emmett relies on (workflow processor
-      // calling messageStore.appendToStream inside its tx handler).
+      it(`treats nested rollback as a no-op without savepoints with ${testName} database`, async () => {
+        const pool = sqlite3Pool({
+          fileName,
+          transactionOptions: { allowNestedTransactions: true },
+        });
+
+        try {
+          await pool.execute.command(
+            SQL`CREATE TABLE nested_no_savepoints (id INTEGER PRIMARY KEY)`,
+          );
+
+          await pool.withTransaction(async (tx) => {
+            await tx.execute.command(
+              SQL`INSERT INTO nested_no_savepoints (id) VALUES (1)`,
+            );
+            await tx.withTransaction(async (nestedTx) => {
+              await nestedTx.execute.command(
+                SQL`INSERT INTO nested_no_savepoints (id) VALUES (2)`,
+              );
+              return { success: false, result: undefined };
+            });
+            await tx.execute.command(
+              SQL`INSERT INTO nested_no_savepoints (id) VALUES (3)`,
+            );
+          });
+
+          const rows = await pool.execute.query<{ id: number }>(
+            SQL`SELECT id FROM nested_no_savepoints ORDER BY id`,
+          );
+          assert.deepStrictEqual(
+            rows.rows.map((row) => row.id),
+            [1, 2, 3],
+          );
+        } finally {
+          await pool.close();
+        }
+      });
+
+      it(`rolls back only nested work when savepoints are enabled with ${testName} database`, async () => {
+        const pool = sqlite3Pool({
+          fileName,
+          transactionOptions: {
+            allowNestedTransactions: true,
+            useSavepoints: true,
+          },
+        });
+
+        try {
+          await pool.execute.command(
+            SQL`CREATE TABLE nested_savepoints (id INTEGER PRIMARY KEY)`,
+          );
+
+          await pool.withTransaction(async (tx) => {
+            await tx.execute.command(
+              SQL`INSERT INTO nested_savepoints (id) VALUES (1)`,
+            );
+            await tx.withTransaction(async (nestedTx) => {
+              await nestedTx.execute.command(
+                SQL`INSERT INTO nested_savepoints (id) VALUES (2)`,
+              );
+              return { success: false, result: undefined };
+            });
+            await tx.execute.command(
+              SQL`INSERT INTO nested_savepoints (id) VALUES (3)`,
+            );
+          });
+
+          const rows = await pool.execute.query<{ id: number }>(
+            SQL`SELECT id FROM nested_savepoints ORDER BY id`,
+          );
+          assert.deepStrictEqual(
+            rows.rows.map((row) => row.id),
+            [1, 3],
+          );
+        } finally {
+          await pool.close();
+        }
+      });
+
       it(
         `allows pool.withConnection reentry from inside pool.withTransaction with ${testName} database`,
         { timeout: 5000 },
@@ -728,7 +897,7 @@ describe('SQLite3 Transactions', () => {
       );
 
       it(
-        `allows nested pool.withTransaction reentry with ${testName} database`,
+        `allows nested tx.withTransaction with ${testName} database`,
         { timeout: 5000 },
         async () => {
           const pool = sqlite3Pool({
@@ -746,7 +915,7 @@ describe('SQLite3 Transactions', () => {
                 SQL`INSERT INTO reentry_nested_tx (id, value) VALUES (1, 'outer')`,
               );
 
-              await pool.withTransaction(async (innerTx) => {
+              await outerTx.withTransaction(async (innerTx) => {
                 await innerTx.execute.command(
                   SQL`INSERT INTO reentry_nested_tx (id, value) VALUES (2, 'inner')`,
                 );
@@ -763,13 +932,8 @@ describe('SQLite3 Transactions', () => {
         },
       );
 
-      // Mirrors the emmett workflow scenario: outer pool.withConnection holds
-      // the writer, the workflow opens connection.withTransaction on it, then
-      // an inner messageStore.appendToStream re-enters pool.withConnection,
-      // which itself opens connection.withTransaction. That's the exact stack
-      // that deadlocked the LLMAgentWorkflow.
       it(
-        `survives nested pool.withConnection inside connection.withTransaction with ${testName} database`,
+        `allows nested pool.withConnection inside connection.withTransaction with ${testName} database`,
         { timeout: 5000 },
         async () => {
           const pool = sqlite3Pool({

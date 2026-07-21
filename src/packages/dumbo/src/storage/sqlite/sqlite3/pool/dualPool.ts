@@ -8,7 +8,10 @@ import type {
   SQLitePool,
 } from '../../core';
 import { mapSqliteError } from '../../core/errors';
-import { sqlite3SingletonPool } from './singletonPool';
+import {
+  createSQLiteTransactionContext,
+  sqlite3SingletonPool,
+} from './singletonPool';
 
 export type SQLiteDualPoolOptions<
   SQLiteConnectionType extends AnySQLiteConnection,
@@ -36,6 +39,8 @@ export const sqliteDualConnectionPool = <
 ): SQLitePool<SQLiteConnectionType> => {
   const { sqliteConnectionFactory, connectionOptions } = options;
   const readerPoolSize = options.readerPoolSize ?? Math.max(4, cpus().length);
+  const transactionContext =
+    createSQLiteTransactionContext<SQLiteConnectionType>();
 
   let databaseInitPromise: Promise<void> | null = null;
 
@@ -91,6 +96,7 @@ export const sqliteDualConnectionPool = <
   const writerPool = sqlite3SingletonPool<SQLiteConnectionType>({
     driverType: options.driverType,
     getConnection: () => wrappedConnectionFactory(false, connectionOptions),
+    ...(transactionContext ? { transactionContext } : {}),
     ...(options.maxTaskIdleTime !== undefined
       ? { maxTaskIdleTime: options.maxTaskIdleTime }
       : {}),
@@ -102,20 +108,28 @@ export const sqliteDualConnectionPool = <
     maxConnections: readerPoolSize,
   });
 
+  const hasActiveTransaction = () => !!transactionContext?.current();
+
   return {
     driverType: options.driverType,
     connection: (connectionOptions) =>
-      connectionOptions?.readonly
+      connectionOptions?.readonly && !hasActiveTransaction()
         ? readerPool.connection(connectionOptions)
         : writerPool.connection(connectionOptions),
     execute: {
-      query: (...args) => readerPool.execute.query(...args),
-      batchQuery: (...args) => readerPool.execute.batchQuery(...args),
+      query: (...args) =>
+        hasActiveTransaction()
+          ? writerPool.execute.query(...args)
+          : readerPool.execute.query(...args),
+      batchQuery: (...args) =>
+        hasActiveTransaction()
+          ? writerPool.execute.batchQuery(...args)
+          : readerPool.execute.batchQuery(...args),
       command: (...args) => writerPool.execute.command(...args),
       batchCommand: (...args) => writerPool.execute.batchCommand(...args),
     },
     withConnection: (handle, connectionOptions) =>
-      connectionOptions?.readonly
+      connectionOptions?.readonly && !hasActiveTransaction()
         ? readerPool.withConnection(handle, connectionOptions)
         : writerPool.withConnection(handle, connectionOptions),
     transaction: writerPool.transaction,

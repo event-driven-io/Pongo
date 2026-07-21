@@ -195,7 +195,7 @@ export const sqliteAmbientClientConnection = <
         sqliteTransaction(
           driverType,
           connection,
-          allowNestedTransactions ?? false,
+          { allowNestedTransactions: allowNestedTransactions ?? false },
           serializer,
           defaultTransactionMode,
         )),
@@ -255,7 +255,7 @@ export const sqliteClientConnection = <
       sqliteTransaction(
         options.driverType,
         connection,
-        connectionOptions.transactionOptions?.allowNestedTransactions ?? false,
+        connectionOptions.transactionOptions ?? {},
         serializer,
         connectionOptions.defaultTransactionMode,
       ),
@@ -306,7 +306,7 @@ export const sqlitePoolClientConnection = <
       sqliteTransaction(
         options.driverType,
         connection,
-        connectionOptions.transactionOptions?.allowNestedTransactions ?? false,
+        connectionOptions.transactionOptions ?? {},
         serializer,
         connectionOptions.defaultTransactionMode,
       ),

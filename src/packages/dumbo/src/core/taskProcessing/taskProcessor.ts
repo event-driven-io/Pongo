@@ -5,6 +5,8 @@ export type TaskQueue = TaskQueueItem[];
 export type TaskQueueItem = {
   task: () => Promise<void>;
   options?: EnqueueTaskOptions | undefined;
+  reject: (reason?: unknown) => void;
+  markStarted: () => void;
 };
 
 export type TaskProcessorOptions = {
@@ -28,6 +30,7 @@ export class TaskProcessor {
   private activeGroups: Set<string> = new Set();
   private options: TaskProcessorOptions;
   private stopped = false;
+  private idleWaiters: Array<() => void> = [];
 
   constructor(options: TaskProcessorOptions) {
     this.options = options;
@@ -50,13 +53,22 @@ export class TaskProcessor {
   }
 
   waitForEndOfProcessing(): Promise<void> {
-    return this.schedule(({ ack }) => Promise.resolve(ack()));
+    if (this.activeTasks === 0 && this.queue.length === 0) {
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+      this.idleWaiters.push(resolve);
+    });
   }
 
   async stop(options?: { force?: boolean }): Promise<void> {
     if (this.stopped) return;
     this.stopped = true;
-    this.queue.length = 0;
+    const stoppedError = new DumboError('TaskProcessor has been stopped');
+    for (const item of this.queue.splice(0)) {
+      item.reject(stoppedError);
+    }
     this.activeGroups.clear();
 
     if (!options?.force) {
@@ -65,29 +77,51 @@ export class TaskProcessor {
   }
 
   private schedule<T>(task: Task<T>, options?: EnqueueTaskOptions): Promise<T> {
-    return promiseWithDeadline(
-      (resolve, reject) => {
-        const taskWithContext = () => {
-          return new Promise<void>((resolveTask, failTask) => {
-            const taskPromise = task({
-              ack: resolveTask,
-            });
+    return new Promise<T>((resolve, reject) => {
+      let didQueueTimeout = false;
+      const queueWaitTimer = createQueueWaitTimer(
+        this.options.maxTaskIdleTime,
+        (reason) => {
+          didQueueTimeout = true;
+          // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+          reject(reason);
+        },
+      );
 
-            taskPromise.then(resolve).catch((err) => {
-              // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
-              failTask(err);
-              reject(err);
-            });
+      const taskWithContext = () => {
+        return new Promise<void>((resolveTask, failTask) => {
+          if (didQueueTimeout) {
+            resolveTask();
+            return;
+          }
+
+          const taskPromise = task({
+            ack: resolveTask,
           });
-        };
 
-        this.queue.push({ task: taskWithContext, options });
-        if (!this.isProcessing) {
-          this.ensureProcessing();
-        }
-      },
-      { deadline: this.options.maxTaskIdleTime },
-    );
+          taskPromise.then(resolve).catch((err) => {
+            // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+            failTask(err);
+            // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+            reject(err);
+          });
+        });
+      };
+
+      this.queue.push({
+        task: taskWithContext,
+        options,
+        reject: (reason) => {
+          queueWaitTimer.cancel();
+          // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+          reject(reason);
+        },
+        markStarted: queueWaitTimer.cancel,
+      });
+      if (!this.isProcessing) {
+        this.ensureProcessing();
+      }
+    });
   }
 
   private ensureProcessing(): void {
@@ -130,7 +164,12 @@ export class TaskProcessor {
     }
   }
 
-  private async executeItem({ task, options }: TaskQueueItem): Promise<void> {
+  private async executeItem({
+    task,
+    options,
+    markStarted,
+  }: TaskQueueItem): Promise<void> {
+    markStarted();
     try {
       await task();
     } finally {
@@ -141,6 +180,7 @@ export class TaskProcessor {
         this.activeGroups.delete(options.taskGroupId);
       }
 
+      this.resolveIdleWaiters();
       this.ensureProcessing();
     }
   }
@@ -169,49 +209,35 @@ export class TaskProcessor {
         !item.options?.taskGroupId ||
         !this.activeGroups.has(item.options.taskGroupId),
     ) !== -1;
+
+  private resolveIdleWaiters = (): void => {
+    if (this.activeTasks > 0 || this.queue.length > 0) return;
+
+    const waiters = this.idleWaiters.splice(0);
+    for (const resolve of waiters) {
+      resolve();
+    }
+  };
 }
 
-const DEFAULT_PROMISE_DEADLINE = 2147483647;
+type QueueWaitTimer = { cancel: () => void };
 
-const promiseWithDeadline = <T>(
-  executor: (
-    resolve: (value: T | PromiseLike<T>) => void,
-    reject: (reason?: unknown) => void,
-  ) => void,
-  options: { deadline?: number | undefined },
-) => {
-  return new Promise<T>((resolve, reject) => {
-    let taskStarted = false;
-    let timeoutId: NodeJS.Timeout | null = null;
+const createQueueWaitTimer = (
+  timeoutMs: number | undefined,
+  reject: (reason: unknown) => void,
+): QueueWaitTimer => {
+  if (timeoutMs === undefined) return { cancel: () => {} };
 
-    const deadline = options.deadline ?? DEFAULT_PROMISE_DEADLINE;
+  let timeoutId: NodeJS.Timeout | null = setTimeout(() => {
+    reject(new Error('Task was not started within the maximum waiting time'));
+  }, timeoutMs);
+  timeoutId.unref();
 
-    timeoutId = setTimeout(() => {
-      if (!taskStarted) {
-        reject(
-          new Error('Task was not started within the maximum waiting time'),
-        );
-      }
-    }, deadline);
-    timeoutId.unref();
-
-    executor(
-      (value) => {
-        taskStarted = true;
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-        }
-        timeoutId = null;
-        resolve(value);
-      },
-      (reason) => {
-        if (timeoutId) {
-          clearTimeout(timeoutId);
-        }
-        timeoutId = null;
-        // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
-        reject(reason);
-      },
-    );
-  });
+  return {
+    cancel: () => {
+      if (!timeoutId) return;
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    },
+  };
 };

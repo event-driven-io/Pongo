@@ -441,4 +441,115 @@ describe('TaskProcessor', () => {
       'Group 1 - Task 2',
     ]);
   });
+
+  it('rejects queued tasks on stop without orphaning promises', async () => {
+    const singleTaskProcessor = new TaskProcessor({
+      maxActiveTasks: 1,
+      maxQueueSize: 10,
+    });
+
+    let releaseActiveTask: () => void = () => {};
+    const activeTaskCanFinish = new Promise<void>((resolve) => {
+      releaseActiveTask = resolve;
+    });
+
+    const activeTask = singleTaskProcessor.enqueue(async ({ ack }) => {
+      await activeTaskCanFinish;
+      ack();
+      return 'active';
+    });
+
+    const queuedTask = singleTaskProcessor.enqueue(({ ack }) => {
+      ack();
+      return Promise.resolve('queued');
+    });
+
+    const stopPromise = singleTaskProcessor.stop();
+
+    await assert.rejects(queuedTask, /TaskProcessor has been stopped/);
+
+    releaseActiveTask();
+    await stopPromise;
+    await assert.doesNotReject(activeTask);
+  });
+
+  it('rejects queued tasks immediately on force stop', async () => {
+    const singleTaskProcessor = new TaskProcessor({
+      maxActiveTasks: 1,
+      maxQueueSize: 10,
+    });
+
+    let releaseActiveTask: () => void = () => {};
+    const activeTaskCanFinish = new Promise<void>((resolve) => {
+      releaseActiveTask = resolve;
+    });
+    const activeTask = singleTaskProcessor.enqueue(async ({ ack }) => {
+      await activeTaskCanFinish;
+      ack();
+      return 'active';
+    });
+
+    const queuedTask = singleTaskProcessor.enqueue(({ ack }) => {
+      ack();
+      return Promise.resolve('queued');
+    });
+
+    await singleTaskProcessor.stop({ force: true });
+
+    await assert.rejects(queuedTask, /TaskProcessor has been stopped/);
+    releaseActiveTask();
+    await assert.doesNotReject(activeTask);
+  });
+
+  it('does not reject an active task that runs longer than maxTaskIdleTime', async () => {
+    const singleTaskProcessor = new TaskProcessor({
+      maxActiveTasks: 1,
+      maxQueueSize: 10,
+      maxTaskIdleTime: 10,
+    });
+
+    await assert.doesNotReject(() =>
+      singleTaskProcessor.enqueue(async ({ ack }) => {
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        ack();
+        return 'active';
+      }),
+    );
+  });
+
+  it('does not run a queued task after maxTaskIdleTime rejects it', async () => {
+    const singleTaskProcessor = new TaskProcessor({
+      maxActiveTasks: 1,
+      maxQueueSize: 10,
+      maxTaskIdleTime: 10,
+    });
+
+    let releaseActiveTask: () => void = () => {};
+    const activeTaskCanFinish = new Promise<void>((resolve) => {
+      releaseActiveTask = resolve;
+    });
+    const activeTask = singleTaskProcessor.enqueue(async ({ ack }) => {
+      await activeTaskCanFinish;
+      ack();
+      return 'active';
+    });
+
+    let queuedTaskRan = false;
+    const queuedTask = singleTaskProcessor.enqueue(({ ack }) => {
+      queuedTaskRan = true;
+      ack();
+      return Promise.resolve('queued');
+    });
+
+    await assert.rejects(
+      queuedTask,
+      /Task was not started within the maximum waiting time/,
+    );
+
+    releaseActiveTask();
+    await activeTask;
+    await singleTaskProcessor.waitForEndOfProcessing();
+
+    assert.strictEqual(queuedTaskRan, false);
+  });
 });

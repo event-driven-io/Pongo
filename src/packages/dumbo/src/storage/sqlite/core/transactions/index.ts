@@ -4,6 +4,7 @@ import type {
 } from '../../../../core';
 import {
   databaseTransaction,
+  executeInNestedTransaction,
   SQL,
   sqlExecutor,
   type DatabaseTransaction,
@@ -33,7 +34,7 @@ export const sqliteTransaction =
   <ConnectionType extends AnySQLiteConnection = AnySQLiteConnection>(
     driverType: ConnectionType['driverType'],
     connection: () => ConnectionType,
-    allowNestedTransactions: boolean,
+    defaultOptions: boolean | SQLiteTransactionOptions,
     serializer: JSONSerializer,
     defaultTransactionMode?: 'IMMEDIATE' | 'DEFERRED' | 'EXCLUSIVE',
   ) =>
@@ -46,9 +47,18 @@ export const sqliteTransaction =
       ) => Promise<void>;
     } & SQLiteTransactionOptions,
   ): InferTransactionFromConnection<ConnectionType> => {
-    allowNestedTransactions =
-      options?.allowNestedTransactions ?? allowNestedTransactions;
-    const useSavepoints = options?.useSavepoints ?? false;
+    const defaultTransactionOptions =
+      typeof defaultOptions === 'boolean'
+        ? { allowNestedTransactions: defaultOptions }
+        : defaultOptions;
+    const allowNestedTransactions =
+      options?.allowNestedTransactions ??
+      defaultTransactionOptions.allowNestedTransactions ??
+      false;
+    const useSavepoints =
+      options?.useSavepoints ??
+      defaultTransactionOptions.useSavepoints ??
+      false;
 
     const tx = databaseTransaction(
       {
@@ -94,6 +104,12 @@ export const sqliteTransaction =
             SQL`RELEASE transaction${SQL.plain(level.toString())}`,
           );
         },
+        rollbackToSavepoint: async (level) => {
+          const client = (await getClient) as SQLiteClientOrPoolClient;
+          await client.command(
+            SQL`ROLLBACK TO transaction${SQL.plain(level.toString())}`,
+          );
+        },
       },
       { allowNestedTransactions, useSavepoints },
     );
@@ -107,6 +123,8 @@ export const sqliteTransaction =
       execute: sqlExecutor(sqliteSQLExecutor(driverType, serializer), {
         connect: () => getClient,
       }),
+      withTransaction: (handle, options) =>
+        executeInNestedTransaction(transaction, handle, options),
       _transactionOptions: {
         ...options,
         allowNestedTransactions,

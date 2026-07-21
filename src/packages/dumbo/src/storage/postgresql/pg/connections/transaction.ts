@@ -1,5 +1,6 @@
 import {
   databaseTransaction,
+  executeInNestedTransaction,
   sqlExecutor,
   type AnyConnection,
   type DatabaseTransaction,
@@ -86,7 +87,7 @@ export const pgTransaction =
       { allowNestedTransactions, useSavepoints },
     );
 
-    return {
+    const transaction: DatabaseTransaction<ConnectionType> = {
       connection: connection(),
       driverType: PgDriverType,
       begin: tx.begin,
@@ -95,9 +96,13 @@ export const pgTransaction =
       execute: sqlExecutor(pgSQLExecutor({ serializer }), {
         connect: () => getClient,
       }),
+      withTransaction: (handle, options) =>
+        executeInNestedTransaction(transaction, handle, options),
       _transactionOptions: {
         ...(options ?? {}),
         allowNestedTransactions,
       },
     };
+
+    return transaction;
   };
