@@ -178,7 +178,11 @@ export const executeInTransaction = async <
 
     return result;
   } catch (e) {
-    await transaction.rollback();
+    try {
+      await transaction.rollback();
+    } catch {
+      // rollback failed — preserve the original error
+    }
     throw e;
   }
 };
