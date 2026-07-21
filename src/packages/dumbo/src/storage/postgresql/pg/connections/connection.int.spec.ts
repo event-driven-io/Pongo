@@ -2,6 +2,7 @@ import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
+import assert from 'assert';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import pg from 'pg';
 import { pgPool } from '.';
@@ -373,6 +374,161 @@ describe('pg', () => {
 
         await pool.execute.command(SQL`DROP TABLE test_iso_readonly`);
       } finally {
+        await pool.close();
+      }
+    });
+
+    it('throws an actionable error for nested transactions by default', async () => {
+      const pool = pgPool({ connectionString });
+      const connection = await pool.connection();
+
+      try {
+        await assert.rejects(
+          () =>
+            connection.withTransaction(async () => {
+              await connection.withTransaction(async () => {
+                await connection.execute.query(SQL`SELECT 1`);
+              });
+            }),
+          (error) => {
+            assert.ok(error instanceof Error);
+            assert.match(error.message, /allowNestedTransactions/);
+            return true;
+          },
+        );
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+    });
+
+    it('treats nested rollback as a no-op without savepoints', async () => {
+      const pool = pgPool({ connectionString });
+      const connection = await pool.connection();
+
+      try {
+        await connection.execute.command(
+          SQL`CREATE TEMP TABLE tx_nested_no_savepoints (id INTEGER PRIMARY KEY)`,
+        );
+
+        await connection.withTransaction(
+          async () => {
+            await connection.execute.command(
+              SQL`INSERT INTO tx_nested_no_savepoints (id) VALUES (1)`,
+            );
+
+            await connection.withTransaction(async () => {
+              await connection.execute.command(
+                SQL`INSERT INTO tx_nested_no_savepoints (id) VALUES (2)`,
+              );
+
+              return { success: false, result: undefined };
+            });
+
+            await connection.execute.command(
+              SQL`INSERT INTO tx_nested_no_savepoints (id) VALUES (3)`,
+            );
+          },
+          { allowNestedTransactions: true },
+        );
+
+        const result = await connection.execute.query<{ id: number }>(
+          SQL`SELECT id FROM tx_nested_no_savepoints ORDER BY id`,
+        );
+
+        assert.deepStrictEqual(
+          result.rows.map((row) => row.id),
+          [1, 2, 3],
+        );
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+    });
+
+    it('rolls back only nested work when savepoints are enabled', async () => {
+      const pool = pgPool({ connectionString });
+      const connection = await pool.connection();
+
+      try {
+        await connection.execute.command(
+          SQL`CREATE TEMP TABLE tx_nested_savepoints (id INTEGER PRIMARY KEY)`,
+        );
+
+        await connection.withTransaction(
+          async () => {
+            await connection.execute.command(
+              SQL`INSERT INTO tx_nested_savepoints (id) VALUES (1)`,
+            );
+
+            await connection.withTransaction(async () => {
+              await connection.execute.command(
+                SQL`INSERT INTO tx_nested_savepoints (id) VALUES (2)`,
+              );
+
+              return { success: false, result: undefined };
+            });
+
+            await connection.execute.command(
+              SQL`INSERT INTO tx_nested_savepoints (id) VALUES (3)`,
+            );
+          },
+          { allowNestedTransactions: true, useSavepoints: true },
+        );
+
+        const result = await connection.execute.query<{ id: number }>(
+          SQL`SELECT id FROM tx_nested_savepoints ORDER BY id`,
+        );
+
+        assert.deepStrictEqual(
+          result.rows.map((row) => row.id),
+          [1, 3],
+        );
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+    });
+
+    it('propagates pool transaction options to acquired connections', async () => {
+      const pool = pgPool({
+        connectionString,
+        transactionOptions: {
+          allowNestedTransactions: true,
+          useSavepoints: true,
+        },
+      });
+      const connection = await pool.connection();
+
+      try {
+        await connection.execute.command(
+          SQL`CREATE TEMP TABLE tx_pool_default_savepoints (id INTEGER PRIMARY KEY)`,
+        );
+
+        await connection.withTransaction(async () => {
+          await connection.execute.command(
+            SQL`INSERT INTO tx_pool_default_savepoints (id) VALUES (1)`,
+          );
+
+          await connection.withTransaction(async () => {
+            await connection.execute.command(
+              SQL`INSERT INTO tx_pool_default_savepoints (id) VALUES (2)`,
+            );
+
+            return { success: false, result: undefined };
+          });
+        });
+
+        const result = await connection.execute.query<{ id: number }>(
+          SQL`SELECT id FROM tx_pool_default_savepoints ORDER BY id`,
+        );
+
+        assert.deepStrictEqual(
+          result.rows.map((row) => row.id),
+          [1],
+        );
+      } finally {
+        await connection.close();
         await pool.close();
       }
     });
