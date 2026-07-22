@@ -1,5 +1,5 @@
 import { DumboError, TransientDatabaseError } from '../errors';
-import type { OperationCancellationOptions } from '../cancellation';
+import { Abort, type AbortOptions } from './abort';
 
 export type TaskQueue = TaskQueueItem[];
 
@@ -28,8 +28,7 @@ export type TaskContext = OperationContext & {
 };
 
 export type EnqueueTaskOptions = { taskGroupId?: string };
-export type TaskOperationOptions = EnqueueTaskOptions &
-  OperationCancellationOptions;
+export type TaskOperationOptions = EnqueueTaskOptions & AbortOptions;
 
 export type StopTaskProcessorOptions = {
   force?: boolean;
@@ -51,8 +50,8 @@ export class TaskProcessor {
   }
 
   enqueue<T>(task: Task<T>, options?: TaskOperationOptions): Promise<T> {
-    if (options?.cancellation?.signal.aborted) {
-      return Promise.reject(abortReason(options.cancellation.signal));
+    if (options?.abort?.signal.aborted) {
+      return Promise.reject(Abort.reason(options.abort.signal));
     }
 
     if (this.stopped) {
@@ -121,49 +120,54 @@ export class TaskProcessor {
   ): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       let didQueueTimeout = false;
-      const abortController = new AbortController();
+      let didAbortBeforeStart = false;
+      let didStart = false;
       let queueWaitTimer: QueueWaitTimer = noopQueueWaitTimer;
-      const unlinkCancellationSignal = linkCancellationSignal(
-        options?.cancellation?.signal,
-        (reason) => {
-          queueWaitTimer.cancel();
-          abortController.abort(reason);
-          // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
-          reject(reason);
-        },
-      );
+      const abortScope = Abort.scope(options?.abort, (reason) => {
+        queueWaitTimer.cancel();
+        didAbortBeforeStart = !didStart;
+        reject(reason);
+      });
       queueWaitTimer = createQueueWaitTimer(
         this.options.maxTaskIdleTime,
         (reason) => {
           didQueueTimeout = true;
-          abortController.abort(reason);
-          unlinkCancellationSignal();
+          abortScope.abort(reason);
+          abortScope.dispose();
           // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
           reject(reason);
         },
       );
 
       const taskWithContext = () => {
-        return new Promise<void>((resolveTask, failTask) => {
-          if (didQueueTimeout) {
+        return new Promise<void>((resolveTask) => {
+          if (didQueueTimeout || didAbortBeforeStart) {
             resolveTask();
             return;
           }
 
-          const taskPromise = task({
-            ack: resolveTask,
-            signal: abortController.signal,
-          });
+          let taskPromise: Promise<T>;
+          try {
+            taskPromise = task({
+              ack: resolveTask,
+              signal: abortScope.signal,
+            });
+          } catch (err) {
+            abortScope.dispose();
+            resolveTask();
+            // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+            reject(err);
+            return;
+          }
 
           taskPromise
             .then((result) => {
-              unlinkCancellationSignal();
+              abortScope.dispose();
               resolve(result);
             })
             .catch((err) => {
-              unlinkCancellationSignal();
-              // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
-              failTask(err);
+              abortScope.dispose();
+              resolveTask();
               // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
               reject(err);
             });
@@ -175,16 +179,17 @@ export class TaskProcessor {
         options,
         reject: (reason) => {
           queueWaitTimer.cancel();
-          unlinkCancellationSignal();
+          abortScope.dispose();
           // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
           reject(reason);
         },
         markStarted: () => {
+          didStart = true;
           queueWaitTimer.cancel();
         },
         abort: (reason) => {
-          unlinkCancellationSignal();
-          abortController.abort(reason);
+          abortScope.dispose();
+          abortScope.abort(reason);
         },
       });
       if (!this.isProcessing) {
@@ -243,8 +248,6 @@ export class TaskProcessor {
     this.activeTaskAbortCallbacks.add(abort);
     try {
       await task();
-    } catch {
-      // The enqueue promise is rejected by taskWithContext.
     } finally {
       this.activeTaskAbortCallbacks.delete(abort);
       this.activeTasks--;
@@ -317,27 +320,6 @@ const createQueueWaitTimer = (
     },
   };
 };
-
-const linkCancellationSignal = (
-  signal: AbortSignal | undefined,
-  abort: (reason: unknown) => void,
-): (() => void) => {
-  if (!signal) return () => {};
-
-  if (signal.aborted) {
-    abort(abortReason(signal));
-    return () => {};
-  }
-
-  const onAbort = () => abort(abortReason(signal));
-  signal.addEventListener('abort', onAbort, { once: true });
-  return () => signal.removeEventListener('abort', onAbort);
-};
-
-const abortReason = (signal: AbortSignal): Error =>
-  signal.reason instanceof Error
-    ? signal.reason
-    : new Error(String(signal.reason));
 
 const waitForProcessingOrDeadline = async (
   processing: Promise<void>,

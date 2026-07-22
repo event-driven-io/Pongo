@@ -5,7 +5,7 @@ import {
   sqlExecutorInNewConnection,
   type WithSQLExecutor,
 } from '../execute';
-import type { OperationCancellationOptions } from '../cancellation';
+import type { AbortOptions } from '../taskProcessing';
 import { guardBoundedAccess, guardConcurrentAccess } from '../taskProcessing';
 import type { OperationContext } from '../taskProcessing';
 import type {
@@ -105,11 +105,12 @@ export const createSingletonConnectionPool = <
   const closedError = () =>
     new Error('Singleton connection pool has been closed');
 
-  const run = async <Result>(
+  const executeIfOpen = async <Result>(
     operation: (context: OperationContext) => Promise<Result>,
+    operationOptions?: AbortOptions,
   ): Promise<Result> => {
     if (closed) throw closedError();
-    return operationGuard.execute(operation);
+    return operationGuard.execute(operation, operationOptions);
   };
 
   const getExistingOrNewConnection = () => {
@@ -127,11 +128,13 @@ export const createSingletonConnectionPool = <
 
   const result: ConnectionPool<ConnectionType> = {
     driverType,
-    connection: () =>
-      run(() =>
-        getExistingOrNewConnection().then((conn) =>
-          wrapPooledConnection(conn, () => Promise.resolve()),
-        ),
+    connection: (connectionOptions) =>
+      executeIfOpen(
+        () =>
+          getExistingOrNewConnection().then((conn) =>
+            wrapPooledConnection(conn, () => Promise.resolve()),
+          ),
+        connectionOptions,
       ),
     execute: (() => {
       const ambientExecutor = sqlExecutorInAmbientConnection({
@@ -140,12 +143,14 @@ export const createSingletonConnectionPool = <
       });
 
       return {
-        query: (sql, opts) => run(() => ambientExecutor.query(sql, opts)),
+        query: (sql, opts) =>
+          executeIfOpen(() => ambientExecutor.query(sql, opts), opts),
         batchQuery: (sqls, opts) =>
-          run(() => ambientExecutor.batchQuery(sqls, opts)),
-        command: (sql, opts) => run(() => ambientExecutor.command(sql, opts)),
+          executeIfOpen(() => ambientExecutor.batchQuery(sqls, opts), opts),
+        command: (sql, opts) =>
+          executeIfOpen(() => ambientExecutor.command(sql, opts), opts),
         batchCommand: (sqls, opts) =>
-          run(() => ambientExecutor.batchCommand(sqls, opts)),
+          executeIfOpen(() => ambientExecutor.batchCommand(sqls, opts), opts),
       };
     })(),
     withConnection: <Result>(
@@ -153,26 +158,31 @@ export const createSingletonConnectionPool = <
         connection: ConnectionType,
         context: OperationContext,
       ) => Promise<Result>,
-      _options?: WithConnectionOptions,
+      options?: WithConnectionOptions,
     ) =>
-      run((context) =>
-        executeInAmbientConnection<ConnectionType, Result>(
-          (connection) => handle(connection, context),
-          {
-            connection: getExistingOrNewConnection,
-          },
-        ),
+      executeIfOpen(
+        (context) =>
+          executeInAmbientConnection<ConnectionType, Result>(
+            (connection) => handle(connection, context),
+            {
+              connection: getExistingOrNewConnection,
+              ...options,
+            },
+          ),
+        options,
       ),
     transaction: (transactionOptions) => {
       if (closed) throw closedError();
       return innerTransactionFactory.transaction(transactionOptions);
     },
     withTransaction: (handle, transactionOptions) =>
-      run((context) =>
-        innerTransactionFactory.withTransaction(
-          (tx) => handle(tx, context),
-          transactionOptions,
-        ),
+      executeIfOpen(
+        (context) =>
+          innerTransactionFactory.withTransaction(
+            (tx) => handle(tx, context),
+            transactionOptions,
+          ),
+        transactionOptions,
       ),
     close: async (closeOptions) => {
       if (closed) return;
@@ -219,12 +229,12 @@ export const createBoundedConnectionPool = <
     if (closed) throw closedError();
   };
 
-  const executeWithPooling = async <Result>(
+  const executeWithPooledConnection = async <Result>(
     operation: (
       conn: ConnectionType,
       context: OperationContext,
     ) => Promise<Result>,
-    operationOptions?: WithConnectionOptions & OperationCancellationOptions,
+    operationOptions?: AbortOptions,
   ): Promise<Result> => {
     ensureOpen();
     return guardMaxConnections.execute(operation, operationOptions);
@@ -241,15 +251,21 @@ export const createBoundedConnectionPool = <
     },
     execute: {
       query: (sql, opts) =>
-        executeWithPooling((c) => c.execute.query(sql, opts), opts),
+        executeWithPooledConnection((c) => c.execute.query(sql, opts), opts),
       batchQuery: (sqls, opts) =>
-        executeWithPooling((c) => c.execute.batchQuery(sqls, opts), opts),
+        executeWithPooledConnection(
+          (c) => c.execute.batchQuery(sqls, opts),
+          opts,
+        ),
       command: (sql, opts) =>
-        executeWithPooling((c) => c.execute.command(sql, opts), opts),
+        executeWithPooledConnection((c) => c.execute.command(sql, opts), opts),
       batchCommand: (sqls, opts) =>
-        executeWithPooling((c) => c.execute.batchCommand(sqls, opts), opts),
+        executeWithPooledConnection(
+          (c) => c.execute.batchCommand(sqls, opts),
+          opts,
+        ),
     },
-    withConnection: executeWithPooling,
+    withConnection: executeWithPooledConnection,
     transaction: (transactionOptions) => {
       ensureOpen();
       return transactionFactoryWithAsyncAmbientConnection(
@@ -259,11 +275,11 @@ export const createBoundedConnectionPool = <
       ).transaction(transactionOptions);
     },
     withTransaction: (handle, transactionOptions) =>
-      executeWithPooling((conn, context) => {
+      executeWithPooledConnection((conn, context) => {
         const withTx =
           conn.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
         return withTx((tx) => handle(tx, context), transactionOptions);
-      }),
+      }, transactionOptions),
     close: async (closeOptions) => {
       if (closed) return;
       closed = true;

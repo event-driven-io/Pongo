@@ -6,7 +6,7 @@ import {
   type WithSQLExecutor,
 } from '../execute';
 import type { JSONSerializer } from '../serializer';
-import type { OperationContext } from '../taskProcessing';
+import type { AbortOptions, OperationContext } from '../taskProcessing';
 import {
   transactionFactoryWithDbClient,
   type AnyDatabaseTransaction,
@@ -66,7 +66,7 @@ export type ConnectionFactory<
   ConnectionType extends AnyConnection = AnyConnection,
 > = (options: ConnectionOptions<ConnectionType>) => ConnectionType;
 
-export type WithConnectionOptions = {
+export type WithConnectionOptions = AbortOptions & {
   readonly?: boolean;
 };
 
