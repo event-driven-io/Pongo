@@ -77,6 +77,32 @@ describe('Task Processing Guards', () => {
       const result = await operationPromise;
       assert.strictEqual(result, 42);
     });
+
+    it('aborts active operation context on force stop', async () => {
+      const guard = guardExclusiveAccess();
+
+      let markOperationStarted: () => void = () => {};
+      const operationStarted = new Promise<void>((resolve) => {
+        markOperationStarted = resolve;
+      });
+      const operationPromise = guard.execute(({ signal }) => {
+        return new Promise((_resolve, reject) => {
+          markOperationStarted();
+          signal.addEventListener('abort', () => {
+            reject(
+              signal.reason instanceof Error
+                ? signal.reason
+                : new Error(String(signal.reason)),
+            );
+          });
+        });
+      });
+
+      await operationStarted;
+      await guard.stop({ force: true });
+
+      await assert.rejects(operationPromise, /TaskProcessor has been stopped/);
+    });
   });
 
   describe('guardBoundedAccess', () => {
@@ -217,6 +243,35 @@ describe('Task Processing Guards', () => {
       );
       const result = await operationPromise;
       assert.strictEqual(result, 1);
+    });
+
+    it('aborts active operation context on force stop', async () => {
+      const guard = guardBoundedAccess(() => ({ id: 1 }), {
+        maxResources: 1,
+        reuseResources: true,
+      });
+
+      let markOperationStarted: () => void = () => {};
+      const operationStarted = new Promise<void>((resolve) => {
+        markOperationStarted = resolve;
+      });
+      const operationPromise = guard.execute((_resource, { signal }) => {
+        return new Promise((_resolve, reject) => {
+          markOperationStarted();
+          signal.addEventListener('abort', () => {
+            reject(
+              signal.reason instanceof Error
+                ? signal.reason
+                : new Error(String(signal.reason)),
+            );
+          });
+        });
+      });
+
+      await operationStarted;
+      await guard.stop({ force: true });
+
+      await assert.rejects(operationPromise, /TaskProcessor has been stopped/);
     });
   });
 

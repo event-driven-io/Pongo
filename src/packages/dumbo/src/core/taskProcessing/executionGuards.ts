@@ -1,8 +1,10 @@
 import { v7 as uuid } from 'uuid';
-import { TaskProcessor } from './taskProcessor';
+import { TaskProcessor, type TaskContext } from './taskProcessor';
 
 export type ExclusiveAccessGuard = {
-  execute: <Result>(operation: () => Promise<Result>) => Promise<Result>;
+  execute: <Result>(
+    operation: (context: TaskContext) => Promise<Result>,
+  ) => Promise<Result>;
   waitForIdle: () => Promise<void>;
   stop: (options?: { force?: boolean }) => Promise<void>;
 };
@@ -20,12 +22,14 @@ export const guardExclusiveAccess = (options?: {
   });
 
   return {
-    execute: <Result>(operation: () => Promise<Result>): Promise<Result> =>
-      taskProcessor.enqueue(async ({ ack }) => {
+    execute: <Result>(
+      operation: (context: TaskContext) => Promise<Result>,
+    ): Promise<Result> =>
+      taskProcessor.enqueue(async (context) => {
         try {
-          return await operation();
+          return await operation(context);
         } finally {
-          ack();
+          context.ack();
         }
       }),
     waitForIdle: () => taskProcessor.waitForEndOfProcessing(),
@@ -37,7 +41,7 @@ export type BoundedAccessGuard<Resource> = {
   acquire: () => Promise<Resource>;
   release: (resource: Resource) => void;
   execute: <Result>(
-    operation: (resource: Resource) => Promise<Result>,
+    operation: (resource: Resource, context: TaskContext) => Promise<Result>,
   ) => Promise<Result>;
   waitForIdle: () => Promise<void>;
   stop: (options?: { force?: boolean }) => Promise<void>;
@@ -60,10 +64,13 @@ export const guardBoundedAccess = <Resource>(
 
   const resourcePool: Resource[] = [];
   const allResources = new Set<Resource>();
-  const ackCallbacks = new Map<Resource, () => void>();
+  const activeResourceContexts = new Map<
+    Resource,
+    { ack: () => void; taskContext: TaskContext }
+  >();
 
   const acquire = async (): Promise<Resource> =>
-    taskProcessor.enqueue(async ({ ack }) => {
+    taskProcessor.enqueue(async (taskContext) => {
       try {
         let resource: Resource | undefined;
 
@@ -76,31 +83,39 @@ export const guardBoundedAccess = <Resource>(
           allResources.add(resource);
         }
 
-        ackCallbacks.set(resource, ack);
+        activeResourceContexts.set(resource, {
+          ack: taskContext.ack,
+          taskContext,
+        });
         return resource;
       } catch (e) {
-        ack();
+        taskContext.ack();
         throw e;
       }
     });
 
   const release = (resource: Resource) => {
-    const ack = ackCallbacks.get(resource);
-    if (ack) {
-      ackCallbacks.delete(resource);
+    const activeResourceContext = activeResourceContexts.get(resource);
+    if (activeResourceContext) {
+      activeResourceContexts.delete(resource);
       if (options.reuseResources) {
         resourcePool.push(resource);
       }
-      ack();
+      activeResourceContext.ack();
     }
   };
 
   const execute = async <Result>(
-    operation: (resource: Resource) => Promise<Result>,
+    operation: (resource: Resource, context: TaskContext) => Promise<Result>,
   ): Promise<Result> => {
     const resource = await acquire();
+    const activeResourceContext = activeResourceContexts.get(resource);
+    if (!activeResourceContext) {
+      throw new Error('Acquired resource is not active');
+    }
+
     try {
-      return await operation(resource);
+      return await operation(resource, activeResourceContext.taskContext);
     } finally {
       release(resource);
     }
