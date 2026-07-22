@@ -26,7 +26,18 @@ import type {
   PongoDBCollectionOptions,
   PongoMigrationOptions,
 } from '../typing';
+import type { PongoNestedTransactionOptions } from '../pongoTransaction';
 import type { PongoDatabaseSchemaComponent } from './pongoDatabaseSchemaComponent';
+
+type PongoTransactionOptionsFor<
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  DumboType extends Dumbo<DatabaseDriverType, any>,
+> =
+  NonNullable<
+    Parameters<DumboType['transaction']>[0]
+  > extends PongoNestedTransactionOptions
+    ? NonNullable<Parameters<DumboType['transaction']>[0]>
+    : PongoNestedTransactionOptions;
 
 export type PongoDatabaseOptions<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -52,6 +63,7 @@ export type PongoDatabaseOptions<
     | undefined;
   errors?: { throwOnOperationFailures?: boolean } | undefined;
   cache?: CacheConfig | 'disabled' | PongoCache | undefined;
+  transactionOptions?: PongoTransactionOptionsFor<DumboType> | undefined;
 };
 
 export const PongoDatabase = <
@@ -98,6 +110,25 @@ export const PongoDatabase = <
     );
 
   const driverType = pool.driverType as Database['driverType'];
+  const defaultTransactionOptions = options.transactionOptions;
+  const pongoTransactionOptions = (
+    transactionOptions?: PongoTransactionOptionsFor<DumboType>,
+  ): PongoTransactionOptionsFor<DumboType> => {
+    const nestedTransactionOptions = transactionOptions as
+      PongoNestedTransactionOptions | undefined;
+    const nestedDefaultTransactionOptions = defaultTransactionOptions as
+      PongoNestedTransactionOptions | undefined;
+    const allowNestedTransactions: boolean =
+      nestedTransactionOptions?.allowNestedTransactions ??
+      nestedDefaultTransactionOptions?.allowNestedTransactions ??
+      true;
+
+    return {
+      ...(defaultTransactionOptions ?? {}),
+      allowNestedTransactions,
+      ...(transactionOptions ?? {}),
+    };
+  };
 
   const db = {
     driverType,
@@ -132,8 +163,21 @@ export const PongoDatabase = <
             ? collectionOptions.cache
             : cache,
       }),
-    transaction: () => pool.transaction(),
-    withTransaction: (handle) => pool.withTransaction(handle),
+    transaction: (transactionOptions) =>
+      pool.transaction(
+        pongoTransactionOptions(
+          transactionOptions as
+            PongoTransactionOptionsFor<DumboType> | undefined,
+        ),
+      ),
+    withTransaction: (handle, transactionOptions) =>
+      pool.withTransaction(
+        handle,
+        pongoTransactionOptions(
+          transactionOptions as
+            PongoTransactionOptionsFor<DumboType> | undefined,
+        ),
+      ),
 
     schema: {
       component: schemaComponent,

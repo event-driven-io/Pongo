@@ -1,5 +1,8 @@
 import { JSONSerializer } from '@event-driven-io/dumbo';
-import type { D1PoolOptions } from '@event-driven-io/dumbo/cloudflare';
+import type {
+  D1PoolOptions,
+  D1TransactionOptions,
+} from '@event-driven-io/dumbo/cloudflare';
 import { D1DriverType, d1Pool } from '@event-driven-io/dumbo/cloudflare';
 import {
   PongoCollectionSchemaComponent,
@@ -10,6 +13,7 @@ import {
   type PongoDb,
   type PongoDriver,
   type PongoDriverOptions,
+  withPongoTransactionOptions,
 } from '../../../core';
 import { pongoCollectionSQLiteMigrations, sqliteSQLBuilder } from '../core';
 
@@ -25,13 +29,21 @@ const d1PongoDriver: PongoDriver<
   driverType: D1DriverType,
   databaseFactory: (options) => {
     const databaseName = options.databaseName ?? 'db:default';
+    const connectionOptions = {
+      ...options,
+      ...options.connectionOptions,
+    } as D1PoolOptions;
+    const pongoConnectionOptions = withPongoTransactionOptions<
+      D1PoolOptions,
+      D1TransactionOptions
+    >(connectionOptions);
 
     return PongoDatabase({
       ...options,
+      transactionOptions: pongoConnectionOptions.transactionOptions,
       pool: d1Pool({
-        ...options,
-        ...options.connectionOptions,
-      } as D1PoolOptions),
+        ...pongoConnectionOptions,
+      }),
       schemaComponent: PongoDatabaseSchemaComponent({
         driverType: D1DriverType,
         collectionFactory: (schema) =>

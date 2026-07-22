@@ -4,6 +4,7 @@ import {
   PgDriverType,
   postgreSQLMetadata,
   type PgConnection,
+  type PgTransactionOptions,
 } from '@event-driven-io/dumbo/pg';
 import type pg from 'pg';
 import {
@@ -15,6 +16,7 @@ import {
   type PongoDb,
   type PongoDriver,
   type PongoDriverOptions,
+  withPongoTransactionOptions,
 } from '../../../core';
 import {
   pongoCollectionPostgreSQLMigrations,
@@ -68,13 +70,18 @@ const pgPongoDriver: PongoDriver<
       options.databaseName ??
       postgreSQLMetadata.parseDatabaseName(options.connectionString) ??
       postgreSQLMetadata.defaultDatabaseName;
+    const connectionOptions = withPongoTransactionOptions<
+      PgPongoClientOptions,
+      PgTransactionOptions
+    >(options.connectionOptions);
 
     return PongoDatabase({
       ...options,
+      transactionOptions: connectionOptions.transactionOptions,
       pool: dumbo({
         connectionString: options.connectionString,
         driver: dumboDriver,
-        ...options.connectionOptions,
+        ...connectionOptions,
         serialization: { serializer: options.serializer },
       }),
       schemaComponent: PongoDatabaseSchemaComponent({

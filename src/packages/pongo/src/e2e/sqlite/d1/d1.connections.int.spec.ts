@@ -16,6 +16,12 @@ type User = {
 const uniqueCollectionName = () =>
   `connections_${randomUUID().replaceAll('-', '')}`;
 
+const isNestedTransactionsDisabledError = (error: unknown): boolean =>
+  error instanceof Error &&
+  'errorType' in error &&
+  error.errorType === 'InvalidOperationError' &&
+  error.message.includes('allowNestedTransactions');
+
 describe('Pongo D1 connections', () => {
   let mf: Miniflare;
   let database: D1Database;
@@ -82,6 +88,71 @@ describe('Pongo D1 connections', () => {
         rows.map((row) => row._id).sort(),
         [firstId, secondId].sort(),
       );
+    } finally {
+      await pool.close();
+    }
+  });
+
+  it('runs nested Pongo transaction on existing D1 connection without nested transaction options', async () => {
+    const pool = d1Pool({ database });
+
+    try {
+      const connection = await pool.connection();
+
+      const pongo = pongoClient({
+        driver: databaseDriver,
+        connectionOptions: {
+          connection,
+          transactionOptions: { mode: 'session_based' },
+        },
+      });
+
+      try {
+        const db = pongo.db();
+
+        await db.withTransaction((outer) =>
+          outer.withTransaction((inner) => inner.execute.query(SQL`SELECT 1`)),
+        );
+      } finally {
+        await pongo.close();
+      }
+    } finally {
+      await pool.close();
+    }
+  });
+
+  it('respects explicitly disabled nested transactions on existing D1 connection', async () => {
+    const pool = d1Pool({ database });
+
+    try {
+      const connection = await pool.connection();
+
+      const pongo = pongoClient({
+        driver: databaseDriver,
+        connectionOptions: {
+          connection,
+          transactionOptions: {
+            allowNestedTransactions: false,
+            mode: 'session_based',
+          },
+        },
+      });
+
+      try {
+        const db = pongo.db();
+
+        await assert.rejects(
+          () =>
+            db.withTransaction((outer) =>
+              outer.withTransaction((inner) =>
+                inner.execute.query(SQL`SELECT 1`),
+              ),
+            ),
+          isNestedTransactionsDisabledError,
+        );
+      } finally {
+        await pongo.close();
+      }
     } finally {
       await pool.close();
     }
