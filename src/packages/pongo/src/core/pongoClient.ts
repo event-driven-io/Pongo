@@ -71,6 +71,9 @@ export const pongoClient = <
         databaseName: dbName,
         serializer,
         errors,
+        ...(schema?.autoMigration
+          ? { schema: { autoMigration: schema.autoMigration } }
+          : {}),
         cache: options?.cache ?? cache,
         serialization,
       });
