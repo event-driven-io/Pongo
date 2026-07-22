@@ -7,6 +7,7 @@ export type TaskQueueItem = {
   options?: EnqueueTaskOptions | undefined;
   reject: (reason?: unknown) => void;
   markStarted: () => void;
+  abort: (reason?: unknown) => void;
 };
 
 export type TaskProcessorOptions = {
@@ -19,6 +20,7 @@ export type Task<T> = (context: TaskContext) => Promise<T>;
 
 export type TaskContext = {
   ack: () => void;
+  signal: AbortSignal;
 };
 
 export type EnqueueTaskOptions = { taskGroupId?: string };
@@ -31,6 +33,7 @@ export class TaskProcessor {
   private options: TaskProcessorOptions;
   private stopped = false;
   private idleWaiters: Array<() => void> = [];
+  private activeTaskAbortCallbacks: Set<(reason?: unknown) => void> = new Set();
 
   constructor(options: TaskProcessorOptions) {
     this.options = options;
@@ -67,9 +70,16 @@ export class TaskProcessor {
     this.stopped = true;
     const stoppedError = new DumboError('TaskProcessor has been stopped');
     for (const item of this.queue.splice(0)) {
+      item.abort(stoppedError);
       item.reject(stoppedError);
     }
     this.activeGroups.clear();
+
+    if (options?.force) {
+      for (const abort of this.activeTaskAbortCallbacks) {
+        abort(stoppedError);
+      }
+    }
 
     if (!options?.force) {
       await this.waitForEndOfProcessing();
@@ -79,10 +89,12 @@ export class TaskProcessor {
   private schedule<T>(task: Task<T>, options?: EnqueueTaskOptions): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       let didQueueTimeout = false;
+      const abortController = new AbortController();
       const queueWaitTimer = createQueueWaitTimer(
         this.options.maxTaskIdleTime,
         (reason) => {
           didQueueTimeout = true;
+          abortController.abort(reason);
           // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
           reject(reason);
         },
@@ -97,6 +109,7 @@ export class TaskProcessor {
 
           const taskPromise = task({
             ack: resolveTask,
+            signal: abortController.signal,
           });
 
           taskPromise.then(resolve).catch((err) => {
@@ -117,6 +130,7 @@ export class TaskProcessor {
           reject(reason);
         },
         markStarted: queueWaitTimer.cancel,
+        abort: (reason) => abortController.abort(reason),
       });
       if (!this.isProcessing) {
         this.ensureProcessing();
@@ -168,11 +182,16 @@ export class TaskProcessor {
     task,
     options,
     markStarted,
+    abort,
   }: TaskQueueItem): Promise<void> {
     markStarted();
+    this.activeTaskAbortCallbacks.add(abort);
     try {
       await task();
+    } catch {
+      // The enqueue promise is rejected by taskWithContext.
     } finally {
+      this.activeTaskAbortCallbacks.delete(abort);
       this.activeTasks--;
 
       // Mark the group as inactive after task completion

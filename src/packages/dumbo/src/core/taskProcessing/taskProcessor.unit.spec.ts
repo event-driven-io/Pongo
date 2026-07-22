@@ -552,4 +552,56 @@ describe('TaskProcessor', () => {
 
     assert.strictEqual(queuedTaskRan, false);
   });
+
+  it('aborts active task context on force stop', async () => {
+    const singleTaskProcessor = new TaskProcessor({
+      maxActiveTasks: 1,
+      maxQueueSize: 10,
+    });
+
+    const activeTask = singleTaskProcessor.enqueue(({ signal }) => {
+      return new Promise((_resolve, reject) => {
+        signal.addEventListener('abort', () => {
+          reject(
+            signal.reason instanceof Error
+              ? signal.reason
+              : new Error(String(signal.reason)),
+          );
+        });
+      });
+    });
+
+    await singleTaskProcessor.stop({ force: true });
+
+    await assert.rejects(activeTask, /TaskProcessor has been stopped/);
+  });
+
+  it('does not abort active task context on graceful stop', async () => {
+    const singleTaskProcessor = new TaskProcessor({
+      maxActiveTasks: 1,
+      maxQueueSize: 10,
+    });
+
+    let releaseActiveTask: () => void = () => {};
+    const activeTaskCanFinish = new Promise<void>((resolve) => {
+      releaseActiveTask = resolve;
+    });
+    let wasAborted = false;
+
+    const activeTask = singleTaskProcessor.enqueue(async ({ ack, signal }) => {
+      signal.addEventListener('abort', () => {
+        wasAborted = true;
+      });
+      await activeTaskCanFinish;
+      ack();
+      return 'active';
+    });
+
+    const stopPromise = singleTaskProcessor.stop();
+    releaseActiveTask();
+    await stopPromise;
+
+    assert.strictEqual(await activeTask, 'active');
+    assert.strictEqual(wasAborted, false);
+  });
 });
