@@ -1,12 +1,20 @@
 import { v7 as uuid } from 'uuid';
-import { TaskProcessor, type TaskContext } from './taskProcessor';
+import type { OperationCancellationOptions } from '../cancellation';
+import {
+  TaskProcessor,
+  type OperationContext,
+  type StopTaskProcessorOptions,
+  type TaskContext,
+  type TaskOperationOptions,
+} from './taskProcessor';
 
 export type ExclusiveAccessGuard = {
   execute: <Result>(
     operation: (context: TaskContext) => Promise<Result>,
+    options?: OperationCancellationOptions,
   ) => Promise<Result>;
   waitForIdle: () => Promise<void>;
-  stop: (options?: { force?: boolean }) => Promise<void>;
+  stop: (options?: StopTaskProcessorOptions) => Promise<void>;
 };
 
 export const guardExclusiveAccess = (options?: {
@@ -24,6 +32,7 @@ export const guardExclusiveAccess = (options?: {
   return {
     execute: <Result>(
       operation: (context: TaskContext) => Promise<Result>,
+      options?: OperationCancellationOptions,
     ): Promise<Result> =>
       taskProcessor.enqueue(async (context) => {
         try {
@@ -31,20 +40,63 @@ export const guardExclusiveAccess = (options?: {
         } finally {
           context.ack();
         }
-      }),
+      }, options),
+    waitForIdle: () => taskProcessor.waitForEndOfProcessing(),
+    stop: (options) => taskProcessor.stop(options),
+  };
+};
+
+export type ConcurrentAccessGuard = {
+  execute: <Result>(
+    operation: (context: OperationContext) => Promise<Result>,
+    options?: OperationCancellationOptions,
+  ) => Promise<Result>;
+  waitForIdle: () => Promise<void>;
+  stop: (options?: StopTaskProcessorOptions) => Promise<void>;
+};
+
+export const guardConcurrentAccess = (options?: {
+  maxActiveTasks?: number;
+  maxQueueSize?: number;
+  maxTaskIdleTime?: number;
+}): ConcurrentAccessGuard => {
+  const taskProcessor = new TaskProcessor({
+    maxActiveTasks: options?.maxActiveTasks ?? Number.MAX_SAFE_INTEGER,
+    maxQueueSize: options?.maxQueueSize ?? Number.MAX_SAFE_INTEGER,
+    ...(options?.maxTaskIdleTime !== undefined
+      ? { maxTaskIdleTime: options.maxTaskIdleTime }
+      : {}),
+  });
+
+  return {
+    execute: <Result>(
+      operation: (context: OperationContext) => Promise<Result>,
+      options?: OperationCancellationOptions,
+    ): Promise<Result> =>
+      taskProcessor.enqueue(async (context) => {
+        try {
+          return await operation(context);
+        } finally {
+          context.ack();
+        }
+      }, options),
     waitForIdle: () => taskProcessor.waitForEndOfProcessing(),
     stop: (options) => taskProcessor.stop(options),
   };
 };
 
 export type BoundedAccessGuard<Resource> = {
-  acquire: () => Promise<Resource>;
+  acquire: (options?: TaskOperationOptions) => Promise<Resource>;
   release: (resource: Resource) => void;
   execute: <Result>(
-    operation: (resource: Resource, context: TaskContext) => Promise<Result>,
+    operation: (
+      resource: Resource,
+      context: OperationContext,
+    ) => Promise<Result>,
+    options?: OperationCancellationOptions,
   ) => Promise<Result>;
   waitForIdle: () => Promise<void>;
-  stop: (options?: { force?: boolean }) => Promise<void>;
+  stop: (options?: StopTaskProcessorOptions) => Promise<void>;
 };
 
 export const guardBoundedAccess = <Resource>(
@@ -69,30 +121,48 @@ export const guardBoundedAccess = <Resource>(
     { ack: () => void; taskContext: TaskContext }
   >();
 
-  const acquire = async (): Promise<Resource> =>
-    taskProcessor.enqueue(async (taskContext) => {
-      try {
-        let resource: Resource | undefined;
+  const acquireResource = async (
+    taskContext: TaskContext,
+  ): Promise<Resource> => {
+    try {
+      let resource: Resource | undefined;
 
-        if (options.reuseResources) {
-          resource = resourcePool.pop();
-        }
-
-        if (!resource) {
-          resource = await getResource();
-          allResources.add(resource);
-        }
-
-        activeResourceContexts.set(resource, {
-          ack: taskContext.ack,
-          taskContext,
-        });
-        return resource;
-      } catch (e) {
-        taskContext.ack();
-        throw e;
+      if (options.reuseResources) {
+        resource = resourcePool.pop();
       }
-    });
+
+      if (!resource) {
+        resource = await getResource();
+        allResources.add(resource);
+      }
+
+      activeResourceContexts.set(resource, {
+        ack: taskContext.ack,
+        taskContext,
+      });
+      return resource;
+    } catch (e) {
+      taskContext.ack();
+      throw e;
+    }
+  };
+
+  const acquire = async (
+    operationOptions?: TaskOperationOptions,
+  ): Promise<Resource> =>
+    taskProcessor.enqueue(
+      (taskContext) => acquireResource(taskContext),
+      operationOptions,
+    );
+
+  const getActiveResourceContext = (resource: Resource) => {
+    const activeResourceContext = activeResourceContexts.get(resource);
+    if (!activeResourceContext) {
+      throw new Error('Acquired resource is not active');
+    }
+
+    return activeResourceContext;
+  };
 
   const release = (resource: Resource) => {
     const activeResourceContext = activeResourceContexts.get(resource);
@@ -106,19 +176,21 @@ export const guardBoundedAccess = <Resource>(
   };
 
   const execute = async <Result>(
-    operation: (resource: Resource, context: TaskContext) => Promise<Result>,
+    operation: (
+      resource: Resource,
+      context: OperationContext,
+    ) => Promise<Result>,
+    operationOptions?: OperationCancellationOptions,
   ): Promise<Result> => {
-    const resource = await acquire();
-    const activeResourceContext = activeResourceContexts.get(resource);
-    if (!activeResourceContext) {
-      throw new Error('Acquired resource is not active');
-    }
-
-    try {
-      return await operation(resource, activeResourceContext.taskContext);
-    } finally {
-      release(resource);
-    }
+    return taskProcessor.enqueue(async (taskContext) => {
+      const resource = await acquireResource(taskContext);
+      const activeResourceContext = getActiveResourceContext(resource);
+      try {
+        return await operation(resource, activeResourceContext.taskContext);
+      } finally {
+        release(resource);
+      }
+    }, operationOptions);
   };
 
   return {
@@ -146,9 +218,9 @@ export const guardBoundedAccess = <Resource>(
 };
 
 export type InitializedOnceGuard<T> = {
-  ensureInitialized: () => Promise<T>;
+  ensureInitialized: (options?: OperationCancellationOptions) => Promise<T>;
   reset: () => void;
-  stop: (options?: { force?: boolean }) => Promise<void>;
+  stop: (options?: StopTaskProcessorOptions) => Promise<void>;
 };
 
 export const guardInitializedOnce = <T>(
@@ -165,7 +237,10 @@ export const guardInitializedOnce = <T>(
     maxQueueSize: options?.maxQueueSize ?? 1000,
   });
 
-  const ensureInitialized = async (retryCount = 0): Promise<T> => {
+  const ensureInitialized = async (
+    operationOptions?: OperationCancellationOptions,
+    retryCount = 0,
+  ): Promise<T> => {
     if (initPromise !== null) {
       return initPromise;
     }
@@ -188,12 +263,12 @@ export const guardInitializedOnce = <T>(
           ack();
           const maxRetries = options?.maxRetries ?? 3;
           if (retryCount < maxRetries) {
-            return ensureInitialized(retryCount + 1);
+            return ensureInitialized(operationOptions, retryCount + 1);
           }
           throw error;
         }
       },
-      { taskGroupId: uuid() },
+      { ...operationOptions, taskGroupId: uuid() },
     );
   };
 

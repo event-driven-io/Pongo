@@ -4,6 +4,7 @@ import {
   type AnyConnection,
   type ConnectionPool,
   type DatabaseTransactionOptions,
+  type OperationContext,
 } from '@event-driven-io/dumbo';
 import { describe, it } from 'vitest';
 import { pongoSchema } from '../schema';
@@ -13,6 +14,9 @@ import { PongoDatabaseSchemaComponent } from './pongoDatabaseSchemaComponent';
 const createTestDb = (options?: { allowNestedTransactions?: boolean }) => {
   let transactionOptions: DatabaseTransactionOptions | undefined;
   let withTransactionOptions: DatabaseTransactionOptions | undefined;
+  const operationContext: OperationContext = {
+    signal: new AbortController().signal,
+  };
 
   const pool = {
     driverType: 'test:test',
@@ -34,9 +38,10 @@ const createTestDb = (options?: { allowNestedTransactions?: boolean }) => {
       options?: DatabaseTransactionOptions,
     ) => {
       withTransactionOptions = options;
-      return handle({ execute: pool.execute } as ReturnType<
-        ConnectionPool['transaction']
-      >);
+      return handle(
+        { execute: pool.execute } as ReturnType<ConnectionPool['transaction']>,
+        operationContext,
+      );
     },
   } as unknown as ConnectionPool;
 

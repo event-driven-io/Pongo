@@ -10,7 +10,10 @@ type FakeConnection = AnyConnection & { id: number; closed: boolean };
 
 const fakeDriverType = 'fake-driver' as unknown as AnyConnection['driverType'];
 
-const makeFakeConnection = (id: number): FakeConnection => {
+const makeFakeConnection = (
+  id: number,
+  overrides?: Partial<AnyConnection>,
+): FakeConnection => {
   const conn = {
     id,
     closed: false,
@@ -21,9 +24,9 @@ const makeFakeConnection = (id: number): FakeConnection => {
       return Promise.resolve();
     },
     execute: {
-      query: () => Promise.resolve([]),
+      query: () => Promise.resolve({ rowCount: 0, rows: [] }),
       batchQuery: () => Promise.resolve([]),
-      command: () => Promise.resolve([]),
+      command: () => Promise.resolve({ rowCount: 0, rows: [] }),
       batchCommand: () => Promise.resolve([]),
     },
     transaction: () => undefined,
@@ -43,6 +46,7 @@ const makeFakeConnection = (id: number): FakeConnection => {
       }
       return outcome;
     },
+    ...overrides,
   };
   return conn as unknown as FakeConnection;
 };
@@ -102,6 +106,117 @@ describe('createBoundedConnectionPool', () => {
 
     assert.strictEqual(callbackFinished, true);
     await inFlight;
+  });
+
+  it('force close aborts the in-flight operation context', async () => {
+    const pool = createBoundedConnectionPool<FakeConnection>({
+      driverType: fakeDriverType,
+      maxConnections: 1,
+      getConnection: () => makeFakeConnection(1),
+    });
+
+    const operationStarted = Promise.withResolvers<void>();
+    const inFlight = pool.withConnection(async (_conn, { signal }) => {
+      operationStarted.resolve();
+      await new Promise<void>((resolve) => {
+        if (signal.aborted) {
+          resolve();
+          return;
+        }
+        signal.addEventListener('abort', () => resolve(), { once: true });
+      });
+      return signal.reason instanceof Error ? signal.reason.message : '';
+    });
+
+    await operationStarted.promise;
+    await pool.close({ force: true });
+
+    assert.strictEqual(await inFlight, 'TaskProcessor has been stopped');
+  });
+
+  it('closeDeadline aborts an in-flight operation context when graceful close does not finish', async () => {
+    const pool = createBoundedConnectionPool<FakeConnection>({
+      driverType: fakeDriverType,
+      maxConnections: 1,
+      getConnection: () => makeFakeConnection(1),
+    });
+
+    const operationStarted = Promise.withResolvers<void>();
+    const inFlight = pool.withConnection(async (_conn, { signal }) => {
+      operationStarted.resolve();
+      await new Promise<void>((resolve) => {
+        if (signal.aborted) {
+          resolve();
+          return;
+        }
+        signal.addEventListener('abort', () => resolve(), { once: true });
+      });
+      return signal.reason instanceof Error ? signal.reason.message : '';
+    });
+
+    await operationStarted.promise;
+    const start = Date.now();
+    await pool.close({ closeDeadline: 10 });
+    const elapsed = Date.now() - start;
+
+    assert.ok(elapsed < 200);
+    assert.strictEqual(await inFlight, 'TaskProcessor has been stopped');
+  });
+
+  it('force close aborts the in-flight transaction context', async () => {
+    const pool = createBoundedConnectionPool<FakeConnection>({
+      driverType: fakeDriverType,
+      maxConnections: 1,
+      getConnection: () => makeFakeConnection(1),
+    });
+
+    const operationStarted = Promise.withResolvers<void>();
+    const inFlight = pool.withTransaction(async (_tx, { signal }) => {
+      operationStarted.resolve();
+      await new Promise<void>((resolve) => {
+        if (signal.aborted) {
+          resolve();
+          return;
+        }
+        signal.addEventListener('abort', () => resolve(), { once: true });
+      });
+      return signal.reason instanceof Error ? signal.reason.message : '';
+    });
+
+    await operationStarted.promise;
+    await pool.close({ force: true });
+
+    assert.strictEqual(await inFlight, 'TaskProcessor has been stopped');
+  });
+
+  it('rejects an in-flight execute command when its signal aborts', async () => {
+    const commandStarted = Promise.withResolvers<void>();
+    const pool = createBoundedConnectionPool<FakeConnection>({
+      driverType: fakeDriverType,
+      maxConnections: 1,
+      getConnection: () =>
+        makeFakeConnection(1, {
+          execute: {
+            query: () => Promise.resolve({ rowCount: 0, rows: [] }),
+            batchQuery: () => Promise.resolve([]),
+            command: async () => {
+              commandStarted.resolve();
+              await new Promise(() => {});
+              return { rowCount: 0, rows: [] };
+            },
+            batchCommand: () => Promise.resolve([]),
+          },
+        }),
+    });
+    const abortController = new AbortController();
+
+    const command = pool.execute.command({} as never, {
+      cancellation: { signal: abortController.signal },
+    });
+    await commandStarted.promise;
+    abortController.abort(new Error('abort bounded command'));
+
+    await assert.rejects(command, /abort bounded command/);
   });
 
   it('rejects new operations attempted after close', async () => {
@@ -194,6 +309,120 @@ describe('createSingletonConnectionPool', () => {
 
     release.resolve();
     await inFlight;
+  });
+
+  it('force close aborts the in-flight operation context', async () => {
+    const conn = makeFakeConnection(1);
+
+    const pool = createSingletonConnectionPool<FakeConnection>({
+      driverType: fakeDriverType,
+      getConnection: () => conn,
+    });
+
+    const operationStarted = Promise.withResolvers<void>();
+    const inFlight = pool.withConnection(async (_conn, { signal }) => {
+      operationStarted.resolve();
+      await new Promise<void>((resolve) => {
+        if (signal.aborted) {
+          resolve();
+          return;
+        }
+        signal.addEventListener('abort', () => resolve(), { once: true });
+      });
+      return signal.reason instanceof Error ? signal.reason.message : '';
+    });
+
+    await operationStarted.promise;
+    await pool.close({ force: true });
+
+    assert.strictEqual(await inFlight, 'TaskProcessor has been stopped');
+  });
+
+  it('closeDeadline aborts an in-flight operation context when graceful close does not finish', async () => {
+    const conn = makeFakeConnection(1);
+
+    const pool = createSingletonConnectionPool<FakeConnection>({
+      driverType: fakeDriverType,
+      getConnection: () => conn,
+    });
+
+    const operationStarted = Promise.withResolvers<void>();
+    const inFlight = pool.withConnection(async (_conn, { signal }) => {
+      operationStarted.resolve();
+      await new Promise<void>((resolve) => {
+        if (signal.aborted) {
+          resolve();
+          return;
+        }
+        signal.addEventListener('abort', () => resolve(), { once: true });
+      });
+      return signal.reason instanceof Error ? signal.reason.message : '';
+    });
+
+    await operationStarted.promise;
+    const start = Date.now();
+    await pool.close({ closeDeadline: 10 });
+    const elapsed = Date.now() - start;
+
+    assert.ok(elapsed < 200);
+    assert.strictEqual(await inFlight, 'TaskProcessor has been stopped');
+  });
+
+  it('force close aborts the in-flight transaction context', async () => {
+    const conn = makeFakeConnection(1);
+
+    const pool = createSingletonConnectionPool<FakeConnection>({
+      driverType: fakeDriverType,
+      getConnection: () => conn,
+    });
+
+    const operationStarted = Promise.withResolvers<void>();
+    const inFlight = pool.withTransaction(async (_tx, { signal }) => {
+      operationStarted.resolve();
+      await new Promise<void>((resolve) => {
+        if (signal.aborted) {
+          resolve();
+          return;
+        }
+        signal.addEventListener('abort', () => resolve(), { once: true });
+      });
+      return signal.reason instanceof Error ? signal.reason.message : '';
+    });
+
+    await operationStarted.promise;
+    await pool.close({ force: true });
+
+    assert.strictEqual(await inFlight, 'TaskProcessor has been stopped');
+  });
+
+  it('rejects an in-flight execute command when its signal aborts', async () => {
+    const commandStarted = Promise.withResolvers<void>();
+    const conn = makeFakeConnection(1, {
+      execute: {
+        query: () => Promise.resolve({ rowCount: 0, rows: [] }),
+        batchQuery: () => Promise.resolve([]),
+        command: async () => {
+          commandStarted.resolve();
+          await new Promise(() => {});
+          return { rowCount: 0, rows: [] };
+        },
+        batchCommand: () => Promise.resolve([]),
+      },
+    });
+
+    const pool = createSingletonConnectionPool<FakeConnection>({
+      driverType: fakeDriverType,
+      getConnection: () => conn,
+    });
+    const abortController = new AbortController();
+
+    const command = pool.execute.command({} as never, {
+      cancellation: { signal: abortController.signal },
+    });
+    await commandStarted.promise;
+    abortController.abort(new Error('abort singleton command'));
+
+    await assert.rejects(command, /abort singleton command/);
   });
 
   it('rejects new operations attempted after close', async () => {

@@ -6,6 +6,7 @@ import {
   type WithSQLExecutor,
 } from '../execute';
 import type { JSONSerializer } from '../serializer';
+import type { OperationContext } from '../taskProcessing';
 import {
   transactionFactoryWithDbClient,
   type AnyDatabaseTransaction,
@@ -75,7 +76,10 @@ export interface WithConnectionFactory<
   connection: (options?: WithConnectionOptions) => Promise<ConnectionType>;
 
   withConnection: <Result = unknown>(
-    handle: (connection: ConnectionType) => Promise<Result>,
+    handle: (
+      connection: ConnectionType,
+      context: OperationContext,
+    ) => Promise<Result>,
     options?: WithConnectionOptions,
   ) => Promise<Result>;
 }

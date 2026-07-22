@@ -1,12 +1,59 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
 import {
+  guardConcurrentAccess,
   guardBoundedAccess,
   guardExclusiveAccess,
   guardInitializedOnce,
 } from './executionGuards';
 
 describe('Task Processing Guards', () => {
+  describe('guardConcurrentAccess', () => {
+    it('does not serialize concurrent operations', async () => {
+      const guard = guardConcurrentAccess();
+      let activeOperations = 0;
+      let peakOperations = 0;
+
+      await Promise.all(
+        Array.from({ length: 5 }, async () =>
+          guard.execute(async () => {
+            activeOperations++;
+            peakOperations = Math.max(peakOperations, activeOperations);
+            await new Promise((resolve) => setTimeout(resolve, 10));
+            activeOperations--;
+          }),
+        ),
+      );
+
+      assert.strictEqual(peakOperations, 5);
+    });
+
+    it('aborts active operation context when closeDeadline elapses', async () => {
+      const guard = guardConcurrentAccess();
+      const operationStarted = Promise.withResolvers<void>();
+
+      const operationPromise = guard.execute(async ({ signal }) => {
+        operationStarted.resolve();
+        await new Promise<void>((resolve) => {
+          if (signal.aborted) {
+            resolve();
+            return;
+          }
+          signal.addEventListener('abort', () => resolve(), { once: true });
+        });
+        return signal.reason instanceof Error ? signal.reason.message : '';
+      });
+
+      await operationStarted.promise;
+      await guard.stop({ closeDeadline: 10 });
+
+      assert.strictEqual(
+        await operationPromise,
+        'TaskProcessor has been stopped',
+      );
+    });
+  });
+
   describe('guardExclusiveAccess', () => {
     it('ensures operations run one at a time', async () => {
       const guard = guardExclusiveAccess();
@@ -102,6 +149,20 @@ describe('Task Processing Guards', () => {
       await guard.stop({ force: true });
 
       await assert.rejects(operationPromise, /TaskProcessor has been stopped/);
+    });
+
+    it('rejects operation when its signal is already aborted', async () => {
+      const guard = guardExclusiveAccess();
+      const abortController = new AbortController();
+      abortController.abort(new Error('exclusive aborted'));
+
+      await assert.rejects(
+        () =>
+          guard.execute(() => Promise.resolve(1), {
+            cancellation: { signal: abortController.signal },
+          }),
+        /exclusive aborted/,
+      );
     });
   });
 
@@ -273,6 +334,23 @@ describe('Task Processing Guards', () => {
 
       await assert.rejects(operationPromise, /TaskProcessor has been stopped/);
     });
+
+    it('rejects operation when its signal is already aborted', async () => {
+      const guard = guardBoundedAccess(() => ({ id: 1 }), {
+        maxResources: 1,
+        reuseResources: true,
+      });
+      const abortController = new AbortController();
+      abortController.abort(new Error('bounded aborted'));
+
+      await assert.rejects(
+        () =>
+          guard.execute(() => Promise.resolve(1), {
+            cancellation: { signal: abortController.signal },
+          }),
+        /bounded aborted/,
+      );
+    });
   });
 
   describe('guardInitializedOnce', () => {
@@ -365,6 +443,20 @@ describe('Task Processing Guards', () => {
       await assert.rejects(
         () => guard.ensureInitialized(),
         /TaskProcessor has been stopped/,
+      );
+    });
+
+    it('rejects initialization when its signal is already aborted', async () => {
+      const guard = guardInitializedOnce(() => Promise.resolve('initialized'));
+      const abortController = new AbortController();
+      abortController.abort(new Error('initialization aborted'));
+
+      await assert.rejects(
+        () =>
+          guard.ensureInitialized({
+            cancellation: { signal: abortController.signal },
+          }),
+        /initialization aborted/,
       );
     });
   });
