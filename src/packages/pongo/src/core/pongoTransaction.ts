@@ -6,6 +6,42 @@ import type {
   PongoTransactionOptions,
 } from './typing';
 
+export type PongoNestedTransactionOptions = {
+  allowNestedTransactions?: boolean;
+};
+
+export type PongoConnectionOptionsWithTransactions<
+  ConnectionOptions extends object = object,
+  TransactionOptions extends PongoNestedTransactionOptions =
+    PongoNestedTransactionOptions,
+> = Omit<ConnectionOptions, 'transactionOptions'> & {
+  transactionOptions: TransactionOptions;
+};
+
+export const withPongoTransactionOptions = <
+  ConnectionOptions extends object = object,
+  TransactionOptions extends PongoNestedTransactionOptions =
+    PongoNestedTransactionOptions,
+>(
+  connectionOptions?: ConnectionOptions & {
+    transactionOptions?: TransactionOptions | undefined;
+  },
+): PongoConnectionOptionsWithTransactions<
+  ConnectionOptions,
+  TransactionOptions
+> => {
+  const currentTransactionOptions = connectionOptions?.transactionOptions;
+
+  return {
+    ...(connectionOptions ?? ({} as ConnectionOptions)),
+    transactionOptions: {
+      ...(currentTransactionOptions ?? ({} as TransactionOptions)),
+      allowNestedTransactions:
+        currentTransactionOptions?.allowNestedTransactions ?? true,
+    },
+  };
+};
+
 export const pongoTransaction = (
   options: PongoTransactionOptions,
 ): PongoDbTransaction => {
