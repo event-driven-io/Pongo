@@ -5,7 +5,6 @@ import type {
   ExtractDumboDatabaseDriverOptions,
 } from './drivers';
 
-export * from './cancellation';
 export * from './connections';
 export * from './drivers';
 export * from './errors';
@@ -15,6 +14,7 @@ export * from './query';
 export * from './schema';
 export * from './serializer';
 export * from './sql';
+export * from './taskProcessing/abort';
 export type { OperationContext } from './taskProcessing';
 export * from './testing';
 export * from './tracing';

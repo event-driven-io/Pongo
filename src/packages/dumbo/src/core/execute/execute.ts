@@ -1,8 +1,5 @@
 import type { Connection } from '../connections';
-import {
-  executeWithCancellation,
-  type OperationCancellationOptions,
-} from '../cancellation';
+import { Abort, type AbortOptions } from '../taskProcessing';
 import type { DatabaseDriverType } from '../drivers';
 import { DumboError } from '../errors';
 import type { QueryResult, QueryResultRow } from '../query';
@@ -70,12 +67,12 @@ export type SQLQueryResultColumnMapping = {
   [column: string]: (value: unknown) => unknown;
 };
 
-export type SQLQueryOptions = OperationCancellationOptions & {
+export type SQLQueryOptions = AbortOptions & {
   timeoutMs?: number | undefined;
   mapping?: SQLQueryResultColumnMapping;
 };
 
-export type SQLCommandOptions = OperationCancellationOptions & {
+export type SQLCommandOptions = AbortOptions & {
   timeoutMs?: number | undefined;
   mapping?: SQLQueryResultColumnMapping;
 };
@@ -172,22 +169,22 @@ export const sqlExecutor = <
   query: (sql, queryOptions) =>
     executeInNewDbClient(
       (client) => sqlExecutor.query(client, sql, queryOptions),
-      { ...options, cancellation: queryOptions },
+      { ...options, ...queryOptions },
     ),
   batchQuery: (sqls, queryOptions) =>
     executeInNewDbClient(
       (client) => sqlExecutor.batchQuery(client, sqls, queryOptions),
-      { ...options, cancellation: queryOptions },
+      { ...options, ...queryOptions },
     ),
   command: (sql, commandOptions) =>
     executeInNewDbClient(
       (client) => sqlExecutor.command(client, sql, commandOptions),
-      { ...options, cancellation: commandOptions },
+      { ...options, ...commandOptions },
     ),
   batchCommand: (sqls, commandOptions) =>
     executeInNewDbClient(
       (client) => sqlExecutor.batchCommand(client, sqls, commandOptions),
-      { ...options, cancellation: commandOptions },
+      { ...options, ...commandOptions },
     ),
 });
 
@@ -200,22 +197,22 @@ export const sqlExecutorInNewConnection = <
   query: (sql, queryOptions) =>
     executeInNewConnection(
       (connection) => connection.execute.query(sql, queryOptions),
-      { ...options, cancellation: queryOptions },
+      { ...options, ...queryOptions },
     ),
   batchQuery: (sqls, queryOptions) =>
     executeInNewConnection(
       (connection) => connection.execute.batchQuery(sqls, queryOptions),
-      { ...options, cancellation: queryOptions },
+      { ...options, ...queryOptions },
     ),
   command: (sql, commandOptions) =>
     executeInNewConnection(
       (connection) => connection.execute.command(sql, commandOptions),
-      { ...options, cancellation: commandOptions },
+      { ...options, ...commandOptions },
     ),
   batchCommand: (sqls, commandOptions) =>
     executeInNewConnection(
       (connection) => connection.execute.batchCommand(sqls, commandOptions),
-      { ...options, cancellation: commandOptions },
+      { ...options, ...commandOptions },
     ),
 });
 
@@ -228,22 +225,22 @@ export const sqlExecutorInAmbientConnection = <
   query: (sql, queryOptions) =>
     executeInAmbientConnection(
       (connection) => connection.execute.query(sql, queryOptions),
-      { ...options, cancellation: queryOptions },
+      { ...options, ...queryOptions },
     ),
   batchQuery: (sqls, queryOptions) =>
     executeInAmbientConnection(
       (connection) => connection.execute.batchQuery(sqls, queryOptions),
-      { ...options, cancellation: queryOptions },
+      { ...options, ...queryOptions },
     ),
   command: (sql, commandOptions) =>
     executeInAmbientConnection(
       (connection) => connection.execute.command(sql, commandOptions),
-      { ...options, cancellation: commandOptions },
+      { ...options, ...commandOptions },
     ),
   batchCommand: (sqls, commandOptions) =>
     executeInAmbientConnection(
       (connection) => connection.execute.batchCommand(sqls, commandOptions),
-      { ...options, cancellation: commandOptions },
+      { ...options, ...commandOptions },
     ),
 });
 
@@ -255,10 +252,9 @@ export const executeInNewDbClient = async <
   options: {
     connect: () => Promise<DbClient>;
     close?: (client: DbClient, error?: unknown) => Promise<void>;
-    cancellation?: OperationCancellationOptions | undefined;
-  },
+  } & AbortOptions,
 ): Promise<Result> => {
-  return executeWithCancellation(async () => {
+  return Abort.execute(async () => {
     const { connect, close } = options;
     const client = await connect();
     try {
@@ -268,7 +264,7 @@ export const executeInNewDbClient = async <
 
       throw error;
     }
-  }, options.cancellation);
+  }, options);
 };
 
 export const executeInNewConnection = async <
@@ -278,10 +274,9 @@ export const executeInNewConnection = async <
   handle: (connection: ConnectionType) => Promise<Result>,
   options: {
     connection: () => Promise<ConnectionType>;
-    cancellation?: OperationCancellationOptions | undefined;
-  },
+  } & AbortOptions,
 ) => {
-  return executeWithCancellation(async () => {
+  return Abort.execute(async () => {
     const connection = await options.connection();
 
     try {
@@ -289,7 +284,7 @@ export const executeInNewConnection = async <
     } finally {
       await connection.close();
     }
-  }, options.cancellation);
+  }, options);
 };
 
 export const executeInAmbientConnection = async <
@@ -299,11 +294,10 @@ export const executeInAmbientConnection = async <
   handle: (connection: ConnectionType) => Promise<Result>,
   options: {
     connection: () => Promise<ConnectionType>;
-    cancellation?: OperationCancellationOptions | undefined;
-  },
+  } & AbortOptions,
 ) => {
-  return executeWithCancellation(async () => {
+  return Abort.execute(async () => {
     const connection = await options.connection();
     return handle(connection);
-  }, options.cancellation);
+  }, options);
 };

@@ -31,7 +31,7 @@ describe('BatchCommandNoChangesError', () => {
   });
 });
 
-describe('SQLExecutor cancellation', () => {
+describe('SQLExecutor abort', () => {
   it('rejects query immediately when signal is already aborted', async () => {
     let queryWasCalled = false;
     const executor = sqlExecutor(
@@ -56,7 +56,7 @@ describe('SQLExecutor cancellation', () => {
     await assert.rejects(
       () =>
         executor.query({} as never, {
-          cancellation: { signal: abortController.signal },
+          abort: { signal: abortController.signal },
         }),
       /abort query/,
     );
@@ -85,7 +85,7 @@ describe('SQLExecutor cancellation', () => {
     );
 
     const command = executor.command({} as never, {
-      cancellation: { signal: abortController.signal },
+      abort: { signal: abortController.signal },
     });
     await commandStarted.promise;
     abortController.abort(new Error('abort command'));

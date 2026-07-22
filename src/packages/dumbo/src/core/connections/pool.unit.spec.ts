@@ -211,7 +211,7 @@ describe('createBoundedConnectionPool', () => {
     const abortController = new AbortController();
 
     const command = pool.execute.command({} as never, {
-      cancellation: { signal: abortController.signal },
+      abort: { signal: abortController.signal },
     });
     await commandStarted.promise;
     abortController.abort(new Error('abort bounded command'));
@@ -417,7 +417,7 @@ describe('createSingletonConnectionPool', () => {
     const abortController = new AbortController();
 
     const command = pool.execute.command({} as never, {
-      cancellation: { signal: abortController.signal },
+      abort: { signal: abortController.signal },
     });
     await commandStarted.promise;
     abortController.abort(new Error('abort singleton command'));

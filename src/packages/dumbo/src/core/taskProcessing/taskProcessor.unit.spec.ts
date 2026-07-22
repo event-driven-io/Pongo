@@ -553,6 +553,88 @@ describe('TaskProcessor', () => {
     assert.strictEqual(queuedTaskRan, false);
   });
 
+  it('does not start queued work when the caller aborts while waiting', async () => {
+    const singleTaskProcessor = new TaskProcessor({
+      maxActiveTasks: 1,
+      maxQueueSize: 10,
+    });
+    const abortController = new AbortController();
+    let releaseActiveTask: () => void = () => {};
+    const activeTaskCanFinish = new Promise<void>((resolve) => {
+      releaseActiveTask = resolve;
+    });
+    let queuedTaskRan = false;
+
+    const activeTask = singleTaskProcessor.enqueue(async ({ ack }) => {
+      await activeTaskCanFinish;
+      ack();
+      return 'active';
+    });
+
+    const queuedTask = singleTaskProcessor.enqueue(
+      ({ ack }) => {
+        queuedTaskRan = true;
+        ack();
+        return Promise.resolve('queued');
+      },
+      { abort: { signal: abortController.signal } },
+    );
+
+    abortController.abort(new Error('queued task aborted'));
+
+    await assert.rejects(queuedTask, /queued task aborted/);
+
+    releaseActiveTask();
+    await activeTask;
+    await singleTaskProcessor.waitForEndOfProcessing();
+
+    assert.strictEqual(queuedTaskRan, false);
+  });
+
+  it('continues processing work after a task fails during setup', async () => {
+    const singleTaskProcessor = new TaskProcessor({
+      maxActiveTasks: 1,
+      maxQueueSize: 10,
+    });
+
+    await assert.rejects(
+      () =>
+        singleTaskProcessor.enqueue(() => {
+          throw new Error('setup failed');
+        }),
+      /setup failed/,
+    );
+
+    const nextTask = await singleTaskProcessor.enqueue(({ ack }) => {
+      ack();
+      return Promise.resolve('next task completed');
+    });
+
+    assert.strictEqual(nextTask, 'next task completed');
+  });
+
+  it('continues processing work after a running task rejects', async () => {
+    const singleTaskProcessor = new TaskProcessor({
+      maxActiveTasks: 1,
+      maxQueueSize: 10,
+    });
+
+    await assert.rejects(
+      () =>
+        singleTaskProcessor.enqueue(() => {
+          return Promise.reject(new Error('task failed'));
+        }),
+      /task failed/,
+    );
+
+    const nextTask = await singleTaskProcessor.enqueue(({ ack }) => {
+      ack();
+      return Promise.resolve('next task completed');
+    });
+
+    assert.strictEqual(nextTask, 'next task completed');
+  });
+
   it('aborts active task context on force stop', async () => {
     const singleTaskProcessor = new TaskProcessor({
       maxActiveTasks: 1,

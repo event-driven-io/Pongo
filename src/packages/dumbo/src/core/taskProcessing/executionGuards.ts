@@ -1,5 +1,5 @@
 import { v7 as uuid } from 'uuid';
-import type { OperationCancellationOptions } from '../cancellation';
+import type { AbortOptions } from './abort';
 import {
   TaskProcessor,
   type OperationContext,
@@ -11,7 +11,7 @@ import {
 export type ExclusiveAccessGuard = {
   execute: <Result>(
     operation: (context: TaskContext) => Promise<Result>,
-    options?: OperationCancellationOptions,
+    options?: AbortOptions,
   ) => Promise<Result>;
   waitForIdle: () => Promise<void>;
   stop: (options?: StopTaskProcessorOptions) => Promise<void>;
@@ -32,7 +32,7 @@ export const guardExclusiveAccess = (options?: {
   return {
     execute: <Result>(
       operation: (context: TaskContext) => Promise<Result>,
-      options?: OperationCancellationOptions,
+      options?: AbortOptions,
     ): Promise<Result> =>
       taskProcessor.enqueue(async (context) => {
         try {
@@ -49,7 +49,7 @@ export const guardExclusiveAccess = (options?: {
 export type ConcurrentAccessGuard = {
   execute: <Result>(
     operation: (context: OperationContext) => Promise<Result>,
-    options?: OperationCancellationOptions,
+    options?: AbortOptions,
   ) => Promise<Result>;
   waitForIdle: () => Promise<void>;
   stop: (options?: StopTaskProcessorOptions) => Promise<void>;
@@ -71,7 +71,7 @@ export const guardConcurrentAccess = (options?: {
   return {
     execute: <Result>(
       operation: (context: OperationContext) => Promise<Result>,
-      options?: OperationCancellationOptions,
+      options?: AbortOptions,
     ): Promise<Result> =>
       taskProcessor.enqueue(async (context) => {
         try {
@@ -93,7 +93,7 @@ export type BoundedAccessGuard<Resource> = {
       resource: Resource,
       context: OperationContext,
     ) => Promise<Result>,
-    options?: OperationCancellationOptions,
+    options?: AbortOptions,
   ) => Promise<Result>;
   waitForIdle: () => Promise<void>;
   stop: (options?: StopTaskProcessorOptions) => Promise<void>;
@@ -180,7 +180,7 @@ export const guardBoundedAccess = <Resource>(
       resource: Resource,
       context: OperationContext,
     ) => Promise<Result>,
-    operationOptions?: OperationCancellationOptions,
+    operationOptions?: AbortOptions,
   ): Promise<Result> => {
     return taskProcessor.enqueue(async (taskContext) => {
       const resource = await acquireResource(taskContext);
@@ -218,7 +218,7 @@ export const guardBoundedAccess = <Resource>(
 };
 
 export type InitializedOnceGuard<T> = {
-  ensureInitialized: (options?: OperationCancellationOptions) => Promise<T>;
+  ensureInitialized: (options?: AbortOptions) => Promise<T>;
   reset: () => void;
   stop: (options?: StopTaskProcessorOptions) => Promise<void>;
 };
@@ -238,7 +238,7 @@ export const guardInitializedOnce = <T>(
   });
 
   const ensureInitialized = async (
-    operationOptions?: OperationCancellationOptions,
+    operationOptions?: AbortOptions,
     retryCount = 0,
   ): Promise<T> => {
     if (initPromise !== null) {

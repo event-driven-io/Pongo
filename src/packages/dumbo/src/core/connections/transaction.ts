@@ -1,6 +1,6 @@
 import { InvalidOperationError } from '../errors';
 import type { WithSQLExecutor } from '../execute';
-import type { OperationContext } from '../taskProcessing';
+import type { AbortOptions, OperationContext } from '../taskProcessing';
 import type {
   AnyConnection,
   InferDbClientFromConnection,
@@ -31,7 +31,7 @@ export interface DatabaseTransaction<
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnyDatabaseTransaction = DatabaseTransaction<any, any>;
 
-export type DatabaseTransactionOptions = {
+export type DatabaseTransactionOptions = AbortOptions & {
   allowNestedTransactions?: boolean;
   readonly?: boolean;
 };

@@ -159,7 +159,7 @@ describe('Task Processing Guards', () => {
       await assert.rejects(
         () =>
           guard.execute(() => Promise.resolve(1), {
-            cancellation: { signal: abortController.signal },
+            abort: { signal: abortController.signal },
           }),
         /exclusive aborted/,
       );
@@ -346,7 +346,7 @@ describe('Task Processing Guards', () => {
       await assert.rejects(
         () =>
           guard.execute(() => Promise.resolve(1), {
-            cancellation: { signal: abortController.signal },
+            abort: { signal: abortController.signal },
           }),
         /bounded aborted/,
       );
@@ -454,7 +454,7 @@ describe('Task Processing Guards', () => {
       await assert.rejects(
         () =>
           guard.ensureInitialized({
-            cancellation: { signal: abortController.signal },
+            abort: { signal: abortController.signal },
           }),
         /initialization aborted/,
       );
