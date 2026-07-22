@@ -1,5 +1,6 @@
 import { InvalidOperationError } from '../errors';
 import type { WithSQLExecutor } from '../execute';
+import type { OperationContext } from '../taskProcessing';
 import type {
   AnyConnection,
   InferDbClientFromConnection,
@@ -20,6 +21,7 @@ export interface DatabaseTransaction<
   withTransaction: <Result = never>(
     handle: (
       transaction: DatabaseTransaction<ConnectionType, TransactionOptionsType>,
+      context: OperationContext,
     ) => Promise<TransactionResult<Result> | Result>,
     options?: TransactionOptionsType,
   ) => Promise<Result>;
@@ -147,6 +149,7 @@ export interface WithDatabaseTransactionFactory<
   withTransaction: <Result = never>(
     handle: (
       transaction: InferTransactionFromConnection<ConnectionType>,
+      context: OperationContext,
     ) => Promise<TransactionResult<Result> | Result>,
     options?: InferTransactionOptionsFromConnection<ConnectionType>,
   ) => Promise<Result>;
@@ -183,12 +186,16 @@ export const executeInTransaction = async <
   transaction: DatabaseTransactionType,
   handle: (
     transaction: DatabaseTransactionType,
+    context: OperationContext,
   ) => Promise<TransactionResult<Result> | Result>,
+  context: OperationContext = neverAbortContext,
 ): Promise<Result> => {
   await transaction.begin();
 
   try {
-    const { success, result } = toTransactionResult(await handle(transaction));
+    const { success, result } = toTransactionResult(
+      await handle(transaction, context),
+    );
 
     if (success) await transaction.commit();
     else await transaction.rollback();
@@ -211,8 +218,10 @@ export const executeInNestedTransaction = async <
   transaction: DatabaseTransactionType,
   handle: (
     transaction: DatabaseTransactionType,
+    context: OperationContext,
   ) => Promise<TransactionResult<Result> | Result>,
   options?: TransactionOptionsType,
+  context?: OperationContext,
 ): Promise<Result> => {
   const allowNestedTransactions =
     options?.allowNestedTransactions ??
@@ -226,7 +235,11 @@ export const executeInNestedTransaction = async <
     );
   }
 
-  return executeInTransaction(transaction, handle);
+  return executeInTransaction(transaction, handle, context);
+};
+
+const neverAbortContext: OperationContext = {
+  signal: new AbortController().signal,
 };
 
 export const transactionFactoryWithDbClient = <
