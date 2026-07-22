@@ -6,8 +6,11 @@ import {
   type WithSQLExecutor,
 } from '../execute';
 import type { AbortOptions } from '../taskProcessing';
-import { guardBoundedAccess, guardConcurrentAccess } from '../taskProcessing';
-import type { OperationContext } from '../taskProcessing';
+import {
+  Abort,
+  guardBoundedAccess,
+  guardConcurrentAccess,
+} from '../taskProcessing';
 import type {
   AnyConnection,
   InferDbClientFromConnection,
@@ -42,10 +45,6 @@ const wrapPooledConnection = <ConnectionType extends AnyConnection>(
   onClose: () => Promise<void>,
 ): ConnectionType => ({ ...conn, close: onClose });
 
-const neverAbortContext: OperationContext = {
-  signal: new AbortController().signal,
-};
-
 export type ConnectionPoolFactory<
   ConnectionPoolType extends ConnectionPool = ConnectionPool,
   ConnectionPoolOptions = unknown,
@@ -72,12 +71,12 @@ export const createAmbientConnectionPool = <
       connection.transaction(
         options,
       ) as InferTransactionFromConnection<ConnectionType>,
-    withConnection: (handle, _options?) =>
-      handle(connection, neverAbortContext),
+    withConnection: (handle, options) =>
+      handle(connection, { abort: Abort.from(options) }),
     withTransaction: (handle, options) => {
       const withTx =
         connection.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
-      return withTx(handle, options);
+      return Abort.execute(() => withTx(handle, options), options);
     },
   });
 };
@@ -106,7 +105,7 @@ export const createSingletonConnectionPool = <
     new Error('Singleton connection pool has been closed');
 
   const executeIfOpen = async <Result>(
-    operation: (context: OperationContext) => Promise<Result>,
+    operation: (context: { abort: Abort }) => Promise<Result>,
     operationOptions?: AbortOptions,
   ): Promise<Result> => {
     if (closed) throw closedError();
@@ -156,7 +155,7 @@ export const createSingletonConnectionPool = <
     withConnection: <Result>(
       handle: (
         connection: ConnectionType,
-        context: OperationContext,
+        context: { abort: Abort },
       ) => Promise<Result>,
       options?: WithConnectionOptions,
     ) =>
@@ -232,7 +231,7 @@ export const createBoundedConnectionPool = <
   const executeWithPooledConnection = async <Result>(
     operation: (
       conn: ConnectionType,
-      context: OperationContext,
+      context: { abort: Abort },
     ) => Promise<Result>,
     operationOptions?: AbortOptions,
   ): Promise<Result> => {
@@ -242,9 +241,9 @@ export const createBoundedConnectionPool = <
 
   return {
     driverType,
-    connection: async () => {
+    connection: async (connectionOptions) => {
       ensureOpen();
-      const conn = await guardMaxConnections.acquire();
+      const conn = await guardMaxConnections.acquire(connectionOptions);
       return wrapPooledConnection(conn, () =>
         Promise.resolve(guardMaxConnections.release(conn)),
       );
@@ -270,7 +269,7 @@ export const createBoundedConnectionPool = <
       ensureOpen();
       return transactionFactoryWithAsyncAmbientConnection(
         driverType,
-        guardMaxConnections.acquire,
+        () => guardMaxConnections.acquire(transactionOptions),
         guardMaxConnections.release,
       ).transaction(transactionOptions);
     },
@@ -366,14 +365,15 @@ export const createConnectionPool = <ConnectionType extends AnyConnection>(
       : <Result>(
           handle: (
             connection: ConnectionType,
-            context: OperationContext,
+            context: { abort: Abort },
           ) => Promise<Result>,
-          _options?: WithConnectionOptions,
+          options?: WithConnectionOptions,
         ) =>
           executeInNewConnection<ConnectionType, Result>(
-            (connection) => handle(connection, neverAbortContext),
+            (connection) => handle(connection, { abort: Abort.from(options) }),
             {
               connection,
+              ...options,
             },
           );
 

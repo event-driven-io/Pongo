@@ -32,7 +32,7 @@ describe('Task Processing Guards', () => {
       const guard = guardConcurrentAccess();
       const operationStarted = Promise.withResolvers<void>();
 
-      const operationPromise = guard.execute(async ({ signal }) => {
+      const operationPromise = guard.execute(async ({ abort: { signal } }) => {
         operationStarted.resolve();
         await new Promise<void>((resolve) => {
           if (signal.aborted) {
@@ -132,7 +132,7 @@ describe('Task Processing Guards', () => {
       const operationStarted = new Promise<void>((resolve) => {
         markOperationStarted = resolve;
       });
-      const operationPromise = guard.execute(({ signal }) => {
+      const operationPromise = guard.execute(({ abort: { signal } }) => {
         return new Promise((_resolve, reject) => {
           markOperationStarted();
           signal.addEventListener('abort', () => {
@@ -316,18 +316,20 @@ describe('Task Processing Guards', () => {
       const operationStarted = new Promise<void>((resolve) => {
         markOperationStarted = resolve;
       });
-      const operationPromise = guard.execute((_resource, { signal }) => {
-        return new Promise((_resolve, reject) => {
-          markOperationStarted();
-          signal.addEventListener('abort', () => {
-            reject(
-              signal.reason instanceof Error
-                ? signal.reason
-                : new Error(String(signal.reason)),
-            );
+      const operationPromise = guard.execute(
+        (_resource, { abort: { signal } }) => {
+          return new Promise((_resolve, reject) => {
+            markOperationStarted();
+            signal.addEventListener('abort', () => {
+              reject(
+                signal.reason instanceof Error
+                  ? signal.reason
+                  : new Error(String(signal.reason)),
+              );
+            });
           });
-        });
-      });
+        },
+      );
 
       await operationStarted;
       await guard.stop({ force: true });

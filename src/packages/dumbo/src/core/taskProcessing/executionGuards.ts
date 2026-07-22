@@ -1,8 +1,7 @@
 import { v7 as uuid } from 'uuid';
-import type { AbortOptions } from './abort';
+import type { Abort, AbortOptions } from './abort';
 import {
   TaskProcessor,
-  type OperationContext,
   type StopTaskProcessorOptions,
   type TaskContext,
   type TaskOperationOptions,
@@ -48,7 +47,7 @@ export const guardExclusiveAccess = (options?: {
 
 export type ConcurrentAccessGuard = {
   execute: <Result>(
-    operation: (context: OperationContext) => Promise<Result>,
+    operation: (context: { abort: Abort }) => Promise<Result>,
     options?: AbortOptions,
   ) => Promise<Result>;
   waitForIdle: () => Promise<void>;
@@ -70,12 +69,12 @@ export const guardConcurrentAccess = (options?: {
 
   return {
     execute: <Result>(
-      operation: (context: OperationContext) => Promise<Result>,
+      operation: (context: { abort: Abort }) => Promise<Result>,
       options?: AbortOptions,
     ): Promise<Result> =>
       taskProcessor.enqueue(async (context) => {
         try {
-          return await operation(context);
+          return await operation({ abort: context.abort });
         } finally {
           context.ack();
         }
@@ -91,7 +90,7 @@ export type BoundedAccessGuard<Resource> = {
   execute: <Result>(
     operation: (
       resource: Resource,
-      context: OperationContext,
+      context: { abort: Abort },
     ) => Promise<Result>,
     options?: AbortOptions,
   ) => Promise<Result>;
@@ -178,7 +177,7 @@ export const guardBoundedAccess = <Resource>(
   const execute = async <Result>(
     operation: (
       resource: Resource,
-      context: OperationContext,
+      context: { abort: Abort },
     ) => Promise<Result>,
     operationOptions?: AbortOptions,
   ): Promise<Result> => {
@@ -186,7 +185,9 @@ export const guardBoundedAccess = <Resource>(
       const resource = await acquireResource(taskContext);
       const activeResourceContext = getActiveResourceContext(resource);
       try {
-        return await operation(resource, activeResourceContext.taskContext);
+        return await operation(resource, {
+          abort: activeResourceContext.taskContext.abort,
+        });
       } finally {
         release(resource);
       }

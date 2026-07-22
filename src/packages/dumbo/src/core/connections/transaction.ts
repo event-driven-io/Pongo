@@ -1,6 +1,6 @@
 import { InvalidOperationError } from '../errors';
 import type { WithSQLExecutor } from '../execute';
-import type { AbortOptions, OperationContext } from '../taskProcessing';
+import { Abort, type AbortOptions } from '../taskProcessing';
 import type {
   AnyConnection,
   InferDbClientFromConnection,
@@ -21,7 +21,7 @@ export interface DatabaseTransaction<
   withTransaction: <Result = never>(
     handle: (
       transaction: DatabaseTransaction<ConnectionType, TransactionOptionsType>,
-      context: OperationContext,
+      context: { abort: Abort },
     ) => Promise<TransactionResult<Result> | Result>,
     options?: TransactionOptionsType,
   ) => Promise<Result>;
@@ -149,7 +149,7 @@ export interface WithDatabaseTransactionFactory<
   withTransaction: <Result = never>(
     handle: (
       transaction: InferTransactionFromConnection<ConnectionType>,
-      context: OperationContext,
+      context: { abort: Abort },
     ) => Promise<TransactionResult<Result> | Result>,
     options?: InferTransactionOptionsFromConnection<ConnectionType>,
   ) => Promise<Result>;
@@ -186,9 +186,9 @@ export const executeInTransaction = async <
   transaction: DatabaseTransactionType,
   handle: (
     transaction: DatabaseTransactionType,
-    context: OperationContext,
+    context: { abort: Abort },
   ) => Promise<TransactionResult<Result> | Result>,
-  context: OperationContext = neverAbortContext,
+  context: { abort: Abort } = { abort: Abort.never },
 ): Promise<Result> => {
   await transaction.begin();
 
@@ -218,10 +218,10 @@ export const executeInNestedTransaction = async <
   transaction: DatabaseTransactionType,
   handle: (
     transaction: DatabaseTransactionType,
-    context: OperationContext,
+    context: { abort: Abort },
   ) => Promise<TransactionResult<Result> | Result>,
   options?: TransactionOptionsType,
-  context?: OperationContext,
+  context?: { abort: Abort },
 ): Promise<Result> => {
   const allowNestedTransactions =
     options?.allowNestedTransactions ??
@@ -235,11 +235,10 @@ export const executeInNestedTransaction = async <
     );
   }
 
-  return executeInTransaction(transaction, handle, context);
-};
-
-const neverAbortContext: OperationContext = {
-  signal: new AbortController().signal,
+  return Abort.execute(
+    () => executeInTransaction(transaction, handle, context),
+    options,
+  );
 };
 
 export const transactionFactoryWithDbClient = <
@@ -263,7 +262,7 @@ export const transactionFactoryWithDbClient = <
     options?: InferTransactionOptionsFromConnection<ConnectionType>,
   ) =>
     currentTransaction ??
-    (currentTransaction = initTransaction(connect(), {
+    (currentTransaction = initTransaction(Abort.execute(connect, options), {
       close: () => {
         currentTransaction = undefined;
         return Promise.resolve();
@@ -275,7 +274,13 @@ export const transactionFactoryWithDbClient = <
   return {
     transaction: getOrInitCurrentTransaction,
     withTransaction: (handle, options) =>
-      executeInTransaction(getOrInitCurrentTransaction(options), handle),
+      Abort.execute(
+        () =>
+          executeInTransaction(getOrInitCurrentTransaction(options), handle, {
+            abort: Abort.from(options),
+          }),
+        options,
+      ),
   };
 };
 
@@ -299,6 +304,8 @@ export const transactionFactoryWithNewConnection = <
   connect: () => ConnectionType,
 ): WithDatabaseTransactionFactory<ConnectionType> => ({
   transaction: (options) => {
+    Abort.throwIfAborted(options);
+
     const connection = connect();
     const transaction = connection.transaction(
       options,
@@ -312,12 +319,13 @@ export const transactionFactoryWithNewConnection = <
         wrapInConnectionClosure(connection, () => transaction.rollback()),
     };
   },
-  withTransaction: (handle, options) => {
-    const connection = connect();
-    const withTx =
-      connection.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
-    return wrapInConnectionClosure(connection, () => withTx(handle, options));
-  },
+  withTransaction: (handle, options) =>
+    Abort.execute(() => {
+      const connection = connect();
+      const withTx =
+        connection.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
+      return wrapInConnectionClosure(connection, () => withTx(handle, options));
+    }, options),
 });
 
 export const transactionFactoryWithAmbientConnection = <
@@ -326,6 +334,8 @@ export const transactionFactoryWithAmbientConnection = <
   connect: () => ConnectionType,
 ): WithDatabaseTransactionFactory<ConnectionType> => ({
   transaction: (options) => {
+    Abort.throwIfAborted(options);
+
     const connection = connect();
     const transaction = connection.transaction(options);
 
@@ -335,12 +345,13 @@ export const transactionFactoryWithAmbientConnection = <
       rollback: () => transaction.rollback(),
     } as InferTransactionFromConnection<ConnectionType>;
   },
-  withTransaction: (handle, options) => {
-    const connection = connect();
-    const withTx =
-      connection.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
-    return withTx(handle, options);
-  },
+  withTransaction: (handle, options) =>
+    Abort.execute(() => {
+      const connection = connect();
+      const withTx =
+        connection.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
+      return withTx(handle, options);
+    }, options),
 });
 
 export const transactionFactoryWithAsyncAmbientConnection = <
@@ -362,7 +373,7 @@ export const transactionFactoryWithAsyncAmbientConnection = <
 
         if (!connectingPromise) {
           connectingPromise = (async () => {
-            conn = await connect();
+            conn = await Abort.execute(connect, options);
             innerTx = conn.transaction(options);
           })();
         }
@@ -423,21 +434,25 @@ export const transactionFactoryWithAsyncAmbientConnection = <
           }
         },
         withTransaction: (handle, options) =>
-          executeInNestedTransaction(tx, handle, options),
+          executeInNestedTransaction(tx, handle, options, {
+            abort: Abort.from(options),
+          }),
         _transactionOptions: options ?? {},
       };
 
       return tx as InferTransactionFromConnection<ConnectionType>;
     },
     withTransaction: async (handle, options) => {
-      const conn = await connect();
-      try {
-        const withTx =
-          conn.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
-        return await withTx(handle, options);
-      } finally {
-        await close(conn);
-      }
+      return Abort.execute(async () => {
+        const conn = await connect();
+        try {
+          const withTx =
+            conn.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
+          return await withTx(handle, options);
+        } finally {
+          await close(conn);
+        }
+      }, options);
     },
   };
 };

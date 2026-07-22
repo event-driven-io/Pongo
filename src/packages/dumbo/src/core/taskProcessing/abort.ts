@@ -13,6 +13,12 @@ export type AbortScope = Abort & {
   dispose: () => void;
 };
 
+const never: Abort = {
+  signal: new AbortController().signal,
+};
+
+const from = (options?: AbortOptions): Abort => options?.abort ?? never;
+
 const getSignal = (abort: Abort | AbortSignal): AbortSignal =>
   'signal' in abort ? abort.signal : abort;
 
@@ -92,6 +98,13 @@ const execute = <Result>(
   });
 };
 
+const throwIfAborted = (options?: AbortOptions): void => {
+  const abort = options?.abort;
+  if (abort?.signal.aborted) {
+    throw reason(abort);
+  }
+};
+
 const onAbortSignal = (
   abort: Abort | undefined,
   handle: (reason: Error) => void,
@@ -111,7 +124,10 @@ const onAbortSignal = (
 
 export const Abort = {
   execute,
+  from,
+  never,
   onAbort: onAbortSignal,
   reason,
   scope,
+  throwIfAborted,
 } as const;

@@ -1,5 +1,6 @@
 import { DumboError, TransientDatabaseError } from '../errors';
-import { Abort, type AbortOptions } from './abort';
+import { Abort } from './abort';
+import type { AbortOptions } from './abort';
 
 export type TaskQueue = TaskQueueItem[];
 
@@ -19,11 +20,8 @@ export type TaskProcessorOptions = {
 
 export type Task<T> = (context: TaskContext) => Promise<T>;
 
-export type OperationContext = {
-  signal: AbortSignal;
-};
-
-export type TaskContext = OperationContext & {
+export type TaskContext = {
+  abort: Abort;
   ack: () => void;
 };
 
@@ -150,7 +148,7 @@ export class TaskProcessor {
           try {
             taskPromise = task({
               ack: resolveTask,
-              signal: abortScope.signal,
+              abort: abortScope,
             });
           } catch (err) {
             abortScope.dispose();
