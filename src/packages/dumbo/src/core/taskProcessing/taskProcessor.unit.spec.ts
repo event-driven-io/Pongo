@@ -641,7 +641,7 @@ describe('TaskProcessor', () => {
       maxQueueSize: 10,
     });
 
-    const activeTask = singleTaskProcessor.enqueue(({ signal }) => {
+    const activeTask = singleTaskProcessor.enqueue(({ abort: { signal } }) => {
       return new Promise((_resolve, reject) => {
         signal.addEventListener('abort', () => {
           reject(
@@ -670,14 +670,16 @@ describe('TaskProcessor', () => {
     });
     let wasAborted = false;
 
-    const activeTask = singleTaskProcessor.enqueue(async ({ ack, signal }) => {
-      signal.addEventListener('abort', () => {
-        wasAborted = true;
-      });
-      await activeTaskCanFinish;
-      ack();
-      return 'active';
-    });
+    const activeTask = singleTaskProcessor.enqueue(
+      async ({ ack, abort: { signal } }) => {
+        signal.addEventListener('abort', () => {
+          wasAborted = true;
+        });
+        await activeTaskCanFinish;
+        ack();
+        return 'active';
+      },
+    );
 
     const stopPromise = singleTaskProcessor.stop();
     releaseActiveTask();

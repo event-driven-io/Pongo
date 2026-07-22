@@ -2,9 +2,9 @@ import assert from 'node:assert';
 import {
   JSONSerializer,
   type AnyConnection,
+  type Abort,
   type ConnectionPool,
   type DatabaseTransactionOptions,
-  type OperationContext,
 } from '@event-driven-io/dumbo';
 import { describe, it } from 'vitest';
 import { pongoSchema } from '../schema';
@@ -14,7 +14,7 @@ import { PongoDatabaseSchemaComponent } from './pongoDatabaseSchemaComponent';
 const createTestDb = (options?: { allowNestedTransactions?: boolean }) => {
   let transactionOptions: DatabaseTransactionOptions | undefined;
   let withTransactionOptions: DatabaseTransactionOptions | undefined;
-  const operationContext: OperationContext = {
+  const abort: Abort = {
     signal: new AbortController().signal,
   };
 
@@ -40,7 +40,7 @@ const createTestDb = (options?: { allowNestedTransactions?: boolean }) => {
       withTransactionOptions = options;
       return handle(
         { execute: pool.execute } as ReturnType<ConnectionPool['transaction']>,
-        operationContext,
+        { abort },
       );
     },
   } as unknown as ConnectionPool;

@@ -4,13 +4,12 @@ import {
   type ConnectionPool,
   type InferTransactionFromConnection,
   type InferTransactionOptionsFromConnection,
+  type AbortOptions,
+  type Abort,
   type PoolCloseOptions,
   type TransactionResult,
 } from '../../../../core';
-import {
-  guardExclusiveAccess,
-  type OperationContext,
-} from '../../../../core/taskProcessing';
+import { guardExclusiveAccess } from '../../../../core/taskProcessing';
 import type { AnySQLiteConnection } from '../../core';
 
 export const DEFAULT_SQLITE_MAX_TASK_IDLE_TIME_MS = 30_000;
@@ -104,9 +103,9 @@ export const sqlite3SingletonPool = <
     connection: SQLiteConnectionType,
     handle: (
       transaction: InferTransactionFromConnection<SQLiteConnectionType>,
-      context: OperationContext,
+      context: { abort: Abort },
     ) => Promise<TransactionResult<Result> | Result>,
-    context: OperationContext,
+    context: { abort: Abort },
     transactionOptions?: InferTransactionOptionsFromConnection<SQLiteConnectionType>,
   ): Promise<Result> => {
     const withTransaction =
@@ -120,29 +119,39 @@ export const sqlite3SingletonPool = <
   const runOnWriterConnection = <Result>(
     handle: (
       connection: SQLiteConnectionType,
-      context: OperationContext,
+      context: { abort: Abort },
     ) => Promise<Result>,
+    options?: AbortOptions,
   ): Promise<Result> => {
     const connection = activeConnection();
     if (connection) {
-      return inner.withConnection((_connection, context) =>
-        handle(connection, context),
+      return inner.withConnection(
+        (_connection, context) => handle(connection, context),
+        options,
       );
     }
 
-    return writerGuard.execute((context) =>
-      inner.withConnection((connection) => handle(connection, context)),
+    return writerGuard.execute(
+      (context) =>
+        inner.withConnection(
+          (connection) => handle(connection, context),
+          options,
+        ),
+      options,
     );
   };
 
   const withWriterConnection = <Result>(
     handle: (
       connection: SQLiteConnectionType,
-      context: OperationContext,
+      context: { abort: Abort },
     ) => Promise<Result>,
+    options?: AbortOptions,
   ): Promise<Result> =>
-    runOnWriterConnection((connection, context) =>
-      handle(transactionAwareConnection(connection), context),
+    runOnWriterConnection(
+      (connection, context) =>
+        handle(transactionAwareConnection(connection), context),
+      options,
     );
 
   return {
@@ -151,30 +160,34 @@ export const sqlite3SingletonPool = <
     transaction: inner.transaction.bind(inner),
     withConnection: (handle, connectionOptions) =>
       activeConnection() || !connectionOptions?.readonly
-        ? withWriterConnection(handle)
+        ? withWriterConnection(handle, connectionOptions)
         : inner.withConnection(handle, connectionOptions),
     withTransaction: (handle, transactionOptions) => {
       const connection = activeConnection();
       if (connection) {
-        return inner.withConnection((_connection, context) =>
-          runConnectionTransaction(
-            connection,
-            handle,
-            context,
-            transactionOptions,
-          ),
+        return inner.withConnection(
+          (_connection, context) =>
+            runConnectionTransaction(
+              connection,
+              handle,
+              context,
+              transactionOptions,
+            ),
+          transactionOptions,
         );
       }
 
-      return runOnWriterConnection((connection, context) =>
-        runInTransactionContext(connection, () =>
-          runConnectionTransaction(
-            connection,
-            handle,
-            context,
-            transactionOptions,
+      return runOnWriterConnection(
+        (connection, context) =>
+          runInTransactionContext(connection, () =>
+            runConnectionTransaction(
+              connection,
+              handle,
+              context,
+              transactionOptions,
+            ),
           ),
-        ),
+        transactionOptions,
       );
     },
     execute: {
@@ -191,12 +204,14 @@ export const sqlite3SingletonPool = <
           : inner.execute.batchQuery(sqls, queryOptions);
       },
       command: (sql, commandOptions) =>
-        runOnWriterConnection((connection) =>
-          connection.execute.command(sql, commandOptions),
+        runOnWriterConnection(
+          (connection) => connection.execute.command(sql, commandOptions),
+          commandOptions,
         ),
       batchCommand: (sqls, commandOptions) =>
-        runOnWriterConnection((connection) =>
-          connection.execute.batchCommand(sqls, commandOptions),
+        runOnWriterConnection(
+          (connection) => connection.execute.batchCommand(sqls, commandOptions),
+          commandOptions,
         ),
     },
     close: async (closeOptions?: PoolCloseOptions) => {

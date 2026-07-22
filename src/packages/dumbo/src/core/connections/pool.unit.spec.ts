@@ -2,7 +2,9 @@ import assert from 'node:assert';
 import { describe, it } from 'vitest';
 import type { AnyConnection } from './connection';
 import {
+  createAmbientConnectionPool,
   createBoundedConnectionPool,
+  createConnectionPool,
   createSingletonConnectionPool,
 } from './pool';
 
@@ -51,7 +53,119 @@ const makeFakeConnection = (
   return conn as unknown as FakeConnection;
 };
 
+describe('createConnectionPool', () => {
+  it('does not open a fallback connection when the caller aborts before withConnection starts', async () => {
+    let openedConnections = 0;
+    const abortController = new AbortController();
+    abortController.abort(new Error('abort fallback connection'));
+    const pool = createConnectionPool<FakeConnection>({
+      driverType: fakeDriverType,
+      getConnection: () => {
+        openedConnections++;
+        return makeFakeConnection(openedConnections);
+      },
+    });
+
+    await assert.rejects(
+      () =>
+        pool.withConnection(() => Promise.resolve(undefined), {
+          abort: { signal: abortController.signal },
+        }),
+      /abort fallback connection/,
+    );
+
+    assert.strictEqual(openedConnections, 0);
+  });
+
+  it('passes the caller abort signal to fallback withConnection context', async () => {
+    const abortController = new AbortController();
+    const pool = createConnectionPool<FakeConnection>({
+      driverType: fakeDriverType,
+      getConnection: () => makeFakeConnection(1),
+    });
+
+    const signal = await pool.withConnection(
+      (_connection, context) => Promise.resolve(context.abort.signal),
+      { abort: { signal: abortController.signal } },
+    );
+
+    assert.strictEqual(signal, abortController.signal);
+  });
+
+  it('does not open a fallback transaction connection when the caller aborts before transaction starts', () => {
+    let openedConnections = 0;
+    const abortController = new AbortController();
+    abortController.abort(new Error('abort fallback transaction'));
+    const pool = createConnectionPool<FakeConnection>({
+      driverType: fakeDriverType,
+      getConnection: () => {
+        openedConnections++;
+        return makeFakeConnection(openedConnections);
+      },
+    });
+
+    assert.throws(
+      () => pool.transaction({ abort: { signal: abortController.signal } }),
+      /abort fallback transaction/,
+    );
+    assert.strictEqual(openedConnections, 0);
+  });
+});
+
+describe('createAmbientConnectionPool', () => {
+  it('does not call the connection transaction handler when the caller aborts before withTransaction starts', async () => {
+    let withTransactionCalls = 0;
+    const abortController = new AbortController();
+    abortController.abort(new Error('abort ambient transaction'));
+    const pool = createAmbientConnectionPool({
+      driverType: fakeDriverType,
+      connection: makeFakeConnection(1, {
+        withTransaction: <Result>() => {
+          withTransactionCalls++;
+          return Promise.resolve(undefined as Result);
+        },
+      }),
+    });
+
+    await assert.rejects(
+      () =>
+        pool.withTransaction(() => Promise.resolve(undefined), {
+          abort: { signal: abortController.signal },
+        }),
+      /abort ambient transaction/,
+    );
+    assert.strictEqual(withTransactionCalls, 0);
+  });
+});
+
 describe('createBoundedConnectionPool', () => {
+  it('does not acquire a queued connection when the caller aborts while waiting', async () => {
+    const created: FakeConnection[] = [];
+    const pool = createBoundedConnectionPool<FakeConnection>({
+      driverType: fakeDriverType,
+      maxConnections: 1,
+      getConnection: () => {
+        const conn = makeFakeConnection(created.length + 1);
+        created.push(conn);
+        return conn;
+      },
+    });
+    const activeConnection = await pool.connection();
+    const abortController = new AbortController();
+
+    const queuedConnection = pool.connection({
+      abort: { signal: abortController.signal },
+    });
+    abortController.abort(new Error('abort queued connection'));
+
+    await assert.rejects(queuedConnection, /abort queued connection/);
+
+    await activeConnection.close();
+    await pool.close();
+
+    assert.strictEqual(created.length, 1);
+  });
+
   it('closes acquired connections when the pool is closed', async () => {
     const created: FakeConnection[] = [];
 
@@ -116,17 +230,19 @@ describe('createBoundedConnectionPool', () => {
     });
 
     const operationStarted = Promise.withResolvers<void>();
-    const inFlight = pool.withConnection(async (_conn, { signal }) => {
-      operationStarted.resolve();
-      await new Promise<void>((resolve) => {
-        if (signal.aborted) {
-          resolve();
-          return;
-        }
-        signal.addEventListener('abort', () => resolve(), { once: true });
-      });
-      return signal.reason instanceof Error ? signal.reason.message : '';
-    });
+    const inFlight = pool.withConnection(
+      async (_conn, { abort: { signal } }) => {
+        operationStarted.resolve();
+        await new Promise<void>((resolve) => {
+          if (signal.aborted) {
+            resolve();
+            return;
+          }
+          signal.addEventListener('abort', () => resolve(), { once: true });
+        });
+        return signal.reason instanceof Error ? signal.reason.message : '';
+      },
+    );
 
     await operationStarted.promise;
     await pool.close({ force: true });
@@ -142,17 +258,19 @@ describe('createBoundedConnectionPool', () => {
     });
 
     const operationStarted = Promise.withResolvers<void>();
-    const inFlight = pool.withConnection(async (_conn, { signal }) => {
-      operationStarted.resolve();
-      await new Promise<void>((resolve) => {
-        if (signal.aborted) {
-          resolve();
-          return;
-        }
-        signal.addEventListener('abort', () => resolve(), { once: true });
-      });
-      return signal.reason instanceof Error ? signal.reason.message : '';
-    });
+    const inFlight = pool.withConnection(
+      async (_conn, { abort: { signal } }) => {
+        operationStarted.resolve();
+        await new Promise<void>((resolve) => {
+          if (signal.aborted) {
+            resolve();
+            return;
+          }
+          signal.addEventListener('abort', () => resolve(), { once: true });
+        });
+        return signal.reason instanceof Error ? signal.reason.message : '';
+      },
+    );
 
     await operationStarted.promise;
     const start = Date.now();
@@ -171,17 +289,19 @@ describe('createBoundedConnectionPool', () => {
     });
 
     const operationStarted = Promise.withResolvers<void>();
-    const inFlight = pool.withTransaction(async (_tx, { signal }) => {
-      operationStarted.resolve();
-      await new Promise<void>((resolve) => {
-        if (signal.aborted) {
-          resolve();
-          return;
-        }
-        signal.addEventListener('abort', () => resolve(), { once: true });
-      });
-      return signal.reason instanceof Error ? signal.reason.message : '';
-    });
+    const inFlight = pool.withTransaction(
+      async (_tx, { abort: { signal } }) => {
+        operationStarted.resolve();
+        await new Promise<void>((resolve) => {
+          if (signal.aborted) {
+            resolve();
+            return;
+          }
+          signal.addEventListener('abort', () => resolve(), { once: true });
+        });
+        return signal.reason instanceof Error ? signal.reason.message : '';
+      },
+    );
 
     await operationStarted.promise;
     await pool.close({ force: true });
@@ -320,17 +440,19 @@ describe('createSingletonConnectionPool', () => {
     });
 
     const operationStarted = Promise.withResolvers<void>();
-    const inFlight = pool.withConnection(async (_conn, { signal }) => {
-      operationStarted.resolve();
-      await new Promise<void>((resolve) => {
-        if (signal.aborted) {
-          resolve();
-          return;
-        }
-        signal.addEventListener('abort', () => resolve(), { once: true });
-      });
-      return signal.reason instanceof Error ? signal.reason.message : '';
-    });
+    const inFlight = pool.withConnection(
+      async (_conn, { abort: { signal } }) => {
+        operationStarted.resolve();
+        await new Promise<void>((resolve) => {
+          if (signal.aborted) {
+            resolve();
+            return;
+          }
+          signal.addEventListener('abort', () => resolve(), { once: true });
+        });
+        return signal.reason instanceof Error ? signal.reason.message : '';
+      },
+    );
 
     await operationStarted.promise;
     await pool.close({ force: true });
@@ -347,17 +469,19 @@ describe('createSingletonConnectionPool', () => {
     });
 
     const operationStarted = Promise.withResolvers<void>();
-    const inFlight = pool.withConnection(async (_conn, { signal }) => {
-      operationStarted.resolve();
-      await new Promise<void>((resolve) => {
-        if (signal.aborted) {
-          resolve();
-          return;
-        }
-        signal.addEventListener('abort', () => resolve(), { once: true });
-      });
-      return signal.reason instanceof Error ? signal.reason.message : '';
-    });
+    const inFlight = pool.withConnection(
+      async (_conn, { abort: { signal } }) => {
+        operationStarted.resolve();
+        await new Promise<void>((resolve) => {
+          if (signal.aborted) {
+            resolve();
+            return;
+          }
+          signal.addEventListener('abort', () => resolve(), { once: true });
+        });
+        return signal.reason instanceof Error ? signal.reason.message : '';
+      },
+    );
 
     await operationStarted.promise;
     const start = Date.now();
@@ -377,17 +501,19 @@ describe('createSingletonConnectionPool', () => {
     });
 
     const operationStarted = Promise.withResolvers<void>();
-    const inFlight = pool.withTransaction(async (_tx, { signal }) => {
-      operationStarted.resolve();
-      await new Promise<void>((resolve) => {
-        if (signal.aborted) {
-          resolve();
-          return;
-        }
-        signal.addEventListener('abort', () => resolve(), { once: true });
-      });
-      return signal.reason instanceof Error ? signal.reason.message : '';
-    });
+    const inFlight = pool.withTransaction(
+      async (_tx, { abort: { signal } }) => {
+        operationStarted.resolve();
+        await new Promise<void>((resolve) => {
+          if (signal.aborted) {
+            resolve();
+            return;
+          }
+          signal.addEventListener('abort', () => resolve(), { once: true });
+        });
+        return signal.reason instanceof Error ? signal.reason.message : '';
+      },
+    );
 
     await operationStarted.promise;
     await pool.close({ force: true });

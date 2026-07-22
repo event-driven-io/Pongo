@@ -15,7 +15,6 @@ export * from './schema';
 export * from './serializer';
 export * from './sql';
 export * from './taskProcessing/abort';
-export type { OperationContext } from './taskProcessing';
 export * from './testing';
 export * from './tracing';
 
