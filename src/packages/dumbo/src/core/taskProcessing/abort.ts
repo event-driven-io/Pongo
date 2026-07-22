@@ -8,6 +8,10 @@ export type AbortOptions = {
   abort?: Abort | undefined;
 };
 
+export type AbortContext = {
+  abort: Abort;
+};
+
 export type AbortScope = Abort & {
   abort: (reason?: unknown) => void;
   dispose: () => void;
@@ -105,6 +109,13 @@ const throwIfAborted = (options?: AbortOptions): void => {
   }
 };
 
+const rejectIfAborted = (
+  options?: AbortOptions,
+): Promise<never> | undefined => {
+  const abort = options?.abort;
+  return abort?.signal.aborted ? Promise.reject(reason(abort)) : undefined;
+};
+
 const onAbortSignal = (
   abort: Abort | undefined,
   handle: (reason: Error) => void,
@@ -128,6 +139,7 @@ export const Abort = {
   never,
   onAbort: onAbortSignal,
   reason,
+  rejectIfAborted,
   scope,
   throwIfAborted,
 } as const;

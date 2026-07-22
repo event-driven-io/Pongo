@@ -1,5 +1,5 @@
 import type { Connection } from '../connections';
-import { Abort, type AbortOptions } from '../taskProcessing';
+import { Abort, type AbortContext, type AbortOptions } from '../taskProcessing';
 import type { DatabaseDriverType } from '../drivers';
 import { DumboError } from '../errors';
 import type { QueryResult, QueryResultRow } from '../query';
@@ -162,7 +162,7 @@ export const sqlExecutor = <
   sqlExecutor: DbExecutor,
   // TODO: In the longer term we should have different options for query and command
   options: {
-    connect: () => Promise<DbClient>;
+    connect: (context: AbortContext) => Promise<DbClient>;
     close?: (client: DbClient, error?: unknown) => Promise<void>;
   },
 ): SQLExecutor => ({
@@ -192,7 +192,7 @@ export const sqlExecutorInNewConnection = <
   ConnectionType extends Connection,
 >(options: {
   driverType: ConnectionType['driverType'];
-  connection: () => Promise<ConnectionType>;
+  connection: (context: AbortContext) => Promise<ConnectionType>;
 }): SQLExecutor => ({
   query: (sql, queryOptions) =>
     executeInNewConnection(
@@ -220,7 +220,7 @@ export const sqlExecutorInAmbientConnection = <
   ConnectionType extends Connection,
 >(options: {
   driverType: ConnectionType['driverType'];
-  connection: () => Promise<ConnectionType>;
+  connection: (context: AbortContext) => Promise<ConnectionType>;
 }): SQLExecutor => ({
   query: (sql, queryOptions) =>
     executeInAmbientConnection(
@@ -250,21 +250,21 @@ export const executeInNewDbClient = async <
 >(
   handle: (client: DbClient) => Promise<Result>,
   options: {
-    connect: () => Promise<DbClient>;
+    connect: (context: AbortContext) => Promise<DbClient>;
     close?: (client: DbClient, error?: unknown) => Promise<void>;
   } & AbortOptions,
 ): Promise<Result> => {
-  return Abort.execute(async () => {
-    const { connect, close } = options;
-    const client = await connect();
-    try {
-      return await handle(client);
-    } catch (error) {
-      if (close) await close(client, error);
+  Abort.throwIfAborted(options);
 
-      throw error;
-    }
-  }, options);
+  const { connect, close } = options;
+  const client = await connect({ abort: Abort.from(options) });
+  try {
+    return await handle(client);
+  } catch (error) {
+    if (close) await close(client, error);
+
+    throw error;
+  }
 };
 
 export const executeInNewConnection = async <
@@ -273,18 +273,17 @@ export const executeInNewConnection = async <
 >(
   handle: (connection: ConnectionType) => Promise<Result>,
   options: {
-    connection: () => Promise<ConnectionType>;
+    connection: (context: AbortContext) => Promise<ConnectionType>;
   } & AbortOptions,
 ) => {
-  return Abort.execute(async () => {
-    const connection = await options.connection();
+  Abort.throwIfAborted(options);
 
-    try {
-      return await handle(connection);
-    } finally {
-      await connection.close();
-    }
-  }, options);
+  const connection = await options.connection({ abort: Abort.from(options) });
+  try {
+    return await handle(connection);
+  } finally {
+    await connection.close();
+  }
 };
 
 export const executeInAmbientConnection = async <
@@ -293,11 +292,11 @@ export const executeInAmbientConnection = async <
 >(
   handle: (connection: ConnectionType) => Promise<Result>,
   options: {
-    connection: () => Promise<ConnectionType>;
+    connection: (context: AbortContext) => Promise<ConnectionType>;
   } & AbortOptions,
 ) => {
-  return Abort.execute(async () => {
-    const connection = await options.connection();
-    return handle(connection);
-  }, options);
+  Abort.throwIfAborted(options);
+
+  const connection = await options.connection({ abort: Abort.from(options) });
+  return handle(connection);
 };

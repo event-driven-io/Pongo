@@ -1,5 +1,8 @@
 import { cpus } from 'os';
-import { createBoundedConnectionPool } from '../../../../core';
+import {
+  createBoundedConnectionPool,
+  type AbortContext,
+} from '../../../../core';
 import { guardInitializedOnce } from '../../../../core/taskProcessing';
 import type {
   AnySQLiteConnection,
@@ -44,7 +47,7 @@ export const sqliteDualConnectionPool = <
 
   let databaseInitPromise: Promise<void> | null = null;
 
-  const guardSingleConnection = guardInitializedOnce(async () => {
+  const guardSingleConnection = guardInitializedOnce(async (context) => {
     if (databaseInitPromise !== null) {
       return databaseInitPromise;
     }
@@ -55,7 +58,7 @@ export const sqliteDualConnectionPool = <
       readonly: false,
     } as ConnectionOptions);
 
-    const initPromise = initConnection.open();
+    const initPromise = initConnection.open(context);
     databaseInitPromise = initPromise;
 
     try {
@@ -68,19 +71,22 @@ export const sqliteDualConnectionPool = <
     }
   });
 
-  const ensureDatabaseInitialized = async (): Promise<void> => {
+  const ensureDatabaseInitialized = async (
+    context: AbortContext,
+  ): Promise<void> => {
     if (databaseInitPromise !== null) {
       return databaseInitPromise;
     }
 
-    return guardSingleConnection.ensureInitialized();
+    return guardSingleConnection.ensureInitialized({ abort: context.abort });
   };
 
   const wrappedConnectionFactory = async (
     readonly: boolean,
     connectionOptions: ConnectionOptions | undefined,
+    context: AbortContext,
   ): Promise<SQLiteConnectionType> => {
-    await ensureDatabaseInitialized();
+    await ensureDatabaseInitialized(context);
 
     const connection = sqliteConnectionFactory({
       ...connectionOptions,
@@ -88,14 +94,15 @@ export const sqliteDualConnectionPool = <
       readonly,
     } as ConnectionOptions);
 
-    await connection.open();
+    await connection.open(context);
 
     return connection;
   };
 
   const writerPool = sqlite3SingletonPool<SQLiteConnectionType>({
     driverType: options.driverType,
-    getConnection: () => wrappedConnectionFactory(false, connectionOptions),
+    getConnection: (context) =>
+      wrappedConnectionFactory(false, connectionOptions, context),
     ...(transactionContext ? { transactionContext } : {}),
     ...(options.maxTaskIdleTime !== undefined
       ? { maxTaskIdleTime: options.maxTaskIdleTime }
@@ -104,7 +111,8 @@ export const sqliteDualConnectionPool = <
 
   const readerPool = createBoundedConnectionPool({
     driverType: options.driverType,
-    getConnection: () => wrappedConnectionFactory(true, connectionOptions),
+    getConnection: (context) =>
+      wrappedConnectionFactory(true, connectionOptions, context),
     maxConnections: readerPoolSize,
   });
 

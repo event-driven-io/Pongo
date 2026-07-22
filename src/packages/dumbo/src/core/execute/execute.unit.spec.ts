@@ -1,6 +1,7 @@
 import assert from 'assert';
 import { describe, it } from 'vitest';
 import { DumboError } from '../errors';
+import { Abort } from '../taskProcessing';
 import {
   BatchCommandNoChangesError,
   sqlExecutor,
@@ -34,6 +35,7 @@ describe('BatchCommandNoChangesError', () => {
 describe('SQLExecutor abort', () => {
   it('rejects query immediately when signal is already aborted', async () => {
     let queryWasCalled = false;
+    let connectWasCalled = false;
     const executor = sqlExecutor(
       {
         driverType: 'test:test',
@@ -47,7 +49,10 @@ describe('SQLExecutor abort', () => {
         batchCommand: () => Promise.resolve([]),
       } satisfies DbSQLExecutor,
       {
-        connect: () => Promise.resolve({}),
+        connect: () => {
+          connectWasCalled = true;
+          return Promise.resolve({});
+        },
       },
     );
     const abortController = new AbortController();
@@ -60,7 +65,35 @@ describe('SQLExecutor abort', () => {
         }),
       /abort query/,
     );
+    assert.strictEqual(connectWasCalled, false);
     assert.strictEqual(queryWasCalled, false);
+  });
+
+  it('passes the caller abort signal to connect', async () => {
+    const abortController = new AbortController();
+    let observedSignal: AbortSignal | undefined;
+    const executor = sqlExecutor(
+      {
+        driverType: 'test:test',
+        formatter: undefined as never,
+        query: () => Promise.resolve({ rowCount: 0, rows: [] }),
+        batchQuery: () => Promise.resolve([]),
+        command: () => Promise.resolve({ rowCount: 0, rows: [] }),
+        batchCommand: () => Promise.resolve([]),
+      } satisfies DbSQLExecutor,
+      {
+        connect: ({ abort }) => {
+          observedSignal = abort.signal;
+          return Promise.resolve({});
+        },
+      },
+    );
+
+    await executor.query({} as never, {
+      abort: { signal: abortController.signal },
+    });
+
+    assert.strictEqual(observedSignal, abortController.signal);
   });
 
   it('rejects a running command when signal aborts', async () => {
@@ -72,9 +105,19 @@ describe('SQLExecutor abort', () => {
         formatter: undefined as never,
         query: () => Promise.resolve({ rowCount: 0, rows: [] }),
         batchQuery: () => Promise.resolve([]),
-        command: async () => {
+        command: async (_client, _sql, options) => {
           commandStarted.resolve();
-          await new Promise(() => {});
+          if (!options?.abort) {
+            throw new Error('abort options were not passed to command');
+          }
+          const { abort } = options;
+          await new Promise<void>((_resolve, reject) => {
+            abort.signal.addEventListener(
+              'abort',
+              () => reject(Abort.reason(abort)),
+              { once: true },
+            );
+          });
           return { rowCount: 0, rows: [] };
         },
         batchCommand: () => Promise.resolve([]),

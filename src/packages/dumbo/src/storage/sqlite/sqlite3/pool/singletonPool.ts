@@ -4,8 +4,8 @@ import {
   type ConnectionPool,
   type InferTransactionFromConnection,
   type InferTransactionOptionsFromConnection,
+  type AbortContext,
   type AbortOptions,
-  type Abort,
   type PoolCloseOptions,
   type TransactionResult,
 } from '../../../../core';
@@ -48,7 +48,9 @@ export type SQLite3SingletonPoolOptions<
   SQLiteConnectionType extends AnySQLiteConnection,
 > = {
   driverType: SQLiteConnectionType['driverType'];
-  getConnection: () => SQLiteConnectionType | Promise<SQLiteConnectionType>;
+  getConnection: (
+    context: AbortContext,
+  ) => SQLiteConnectionType | Promise<SQLiteConnectionType>;
   closeConnection?: (connection: SQLiteConnectionType) => void | Promise<void>;
   maxQueueSize?: number;
   maxTaskIdleTime?: number;
@@ -103,9 +105,9 @@ export const sqlite3SingletonPool = <
     connection: SQLiteConnectionType,
     handle: (
       transaction: InferTransactionFromConnection<SQLiteConnectionType>,
-      context: { abort: Abort },
+      context: AbortContext,
     ) => Promise<TransactionResult<Result> | Result>,
-    context: { abort: Abort },
+    context: AbortContext,
     transactionOptions?: InferTransactionOptionsFromConnection<SQLiteConnectionType>,
   ): Promise<Result> => {
     const withTransaction =
@@ -119,7 +121,7 @@ export const sqlite3SingletonPool = <
   const runOnWriterConnection = <Result>(
     handle: (
       connection: SQLiteConnectionType,
-      context: { abort: Abort },
+      context: AbortContext,
     ) => Promise<Result>,
     options?: AbortOptions,
   ): Promise<Result> => {
@@ -144,7 +146,7 @@ export const sqlite3SingletonPool = <
   const withWriterConnection = <Result>(
     handle: (
       connection: SQLiteConnectionType,
-      context: { abort: Abort },
+      context: AbortContext,
     ) => Promise<Result>,
     options?: AbortOptions,
   ): Promise<Result> =>

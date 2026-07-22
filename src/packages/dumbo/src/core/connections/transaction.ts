@@ -1,6 +1,6 @@
 import { InvalidOperationError } from '../errors';
 import type { WithSQLExecutor } from '../execute';
-import { Abort, type AbortOptions } from '../taskProcessing';
+import { Abort, type AbortContext, type AbortOptions } from '../taskProcessing';
 import type {
   AnyConnection,
   InferDbClientFromConnection,
@@ -21,7 +21,7 @@ export interface DatabaseTransaction<
   withTransaction: <Result = never>(
     handle: (
       transaction: DatabaseTransaction<ConnectionType, TransactionOptionsType>,
-      context: { abort: Abort },
+      context: AbortContext,
     ) => Promise<TransactionResult<Result> | Result>,
     options?: TransactionOptionsType,
   ) => Promise<Result>;
@@ -149,7 +149,7 @@ export interface WithDatabaseTransactionFactory<
   withTransaction: <Result = never>(
     handle: (
       transaction: InferTransactionFromConnection<ConnectionType>,
-      context: { abort: Abort },
+      context: AbortContext,
     ) => Promise<TransactionResult<Result> | Result>,
     options?: InferTransactionOptionsFromConnection<ConnectionType>,
   ) => Promise<Result>;
@@ -186,9 +186,9 @@ export const executeInTransaction = async <
   transaction: DatabaseTransactionType,
   handle: (
     transaction: DatabaseTransactionType,
-    context: { abort: Abort },
+    context: AbortContext,
   ) => Promise<TransactionResult<Result> | Result>,
-  context: { abort: Abort } = { abort: Abort.never },
+  context: AbortContext = { abort: Abort.never },
 ): Promise<Result> => {
   await transaction.begin();
 
@@ -218,11 +218,13 @@ export const executeInNestedTransaction = async <
   transaction: DatabaseTransactionType,
   handle: (
     transaction: DatabaseTransactionType,
-    context: { abort: Abort },
+    context: AbortContext,
   ) => Promise<TransactionResult<Result> | Result>,
   options?: TransactionOptionsType,
-  context?: { abort: Abort },
+  context?: AbortContext,
 ): Promise<Result> => {
+  Abort.throwIfAborted(options);
+
   const allowNestedTransactions =
     options?.allowNestedTransactions ??
     transaction._transactionOptions.allowNestedTransactions ??
@@ -235,16 +237,15 @@ export const executeInNestedTransaction = async <
     );
   }
 
-  return Abort.execute(
-    () => executeInTransaction(transaction, handle, context),
-    options,
-  );
+  return executeInTransaction(transaction, handle, context);
 };
 
 export const transactionFactoryWithDbClient = <
   ConnectionType extends AnyConnection = AnyConnection,
 >(
-  connect: () => Promise<InferDbClientFromConnection<ConnectionType>>,
+  connect: (
+    context: AbortContext,
+  ) => Promise<InferDbClientFromConnection<ConnectionType>>,
   initTransaction: (
     client: Promise<InferDbClientFromConnection<ConnectionType>>,
     options?: InferTransactionOptionsFromConnection<ConnectionType> & {
@@ -260,27 +261,39 @@ export const transactionFactoryWithDbClient = <
 
   const getOrInitCurrentTransaction = (
     options?: InferTransactionOptionsFromConnection<ConnectionType>,
-  ) =>
-    currentTransaction ??
-    (currentTransaction = initTransaction(Abort.execute(connect, options), {
-      close: () => {
-        currentTransaction = undefined;
-        return Promise.resolve();
+  ) => {
+    Abort.throwIfAborted(options);
+
+    if (currentTransaction) return currentTransaction;
+
+    currentTransaction = initTransaction(
+      connect({ abort: Abort.from(options) }),
+      {
+        close: () => {
+          currentTransaction = undefined;
+          return Promise.resolve();
+        },
+        ...(options ??
+          ({} as InferTransactionOptionsFromConnection<ConnectionType>)),
       },
-      ...(options ??
-        ({} as InferTransactionOptionsFromConnection<ConnectionType>)),
-    }));
+    );
+    return currentTransaction;
+  };
 
   return {
     transaction: getOrInitCurrentTransaction,
-    withTransaction: (handle, options) =>
-      Abort.execute(
-        () =>
-          executeInTransaction(getOrInitCurrentTransaction(options), handle, {
-            abort: Abort.from(options),
-          }),
-        options,
-      ),
+    withTransaction: (handle, options) => {
+      const abortRejection = Abort.rejectIfAborted(options);
+      if (abortRejection) return abortRejection;
+
+      return executeInTransaction(
+        getOrInitCurrentTransaction(options),
+        handle,
+        {
+          abort: Abort.from(options),
+        },
+      );
+    },
   };
 };
 
@@ -301,12 +314,12 @@ const wrapInConnectionClosure = async <
 export const transactionFactoryWithNewConnection = <
   ConnectionType extends AnyConnection = AnyConnection,
 >(
-  connect: () => ConnectionType,
+  connect: (context: AbortContext) => ConnectionType,
 ): WithDatabaseTransactionFactory<ConnectionType> => ({
   transaction: (options) => {
     Abort.throwIfAborted(options);
 
-    const connection = connect();
+    const connection = connect({ abort: Abort.from(options) });
     const transaction = connection.transaction(
       options,
     ) as InferTransactionFromConnection<ConnectionType>;
@@ -319,24 +332,26 @@ export const transactionFactoryWithNewConnection = <
         wrapInConnectionClosure(connection, () => transaction.rollback()),
     };
   },
-  withTransaction: (handle, options) =>
-    Abort.execute(() => {
-      const connection = connect();
-      const withTx =
-        connection.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
-      return wrapInConnectionClosure(connection, () => withTx(handle, options));
-    }, options),
+  withTransaction: (handle, options) => {
+    const abortRejection = Abort.rejectIfAborted(options);
+    if (abortRejection) return abortRejection;
+
+    const connection = connect({ abort: Abort.from(options) });
+    const withTx =
+      connection.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
+    return wrapInConnectionClosure(connection, () => withTx(handle, options));
+  },
 });
 
 export const transactionFactoryWithAmbientConnection = <
   ConnectionType extends AnyConnection = AnyConnection,
 >(
-  connect: () => ConnectionType,
+  connect: (context: AbortContext) => ConnectionType,
 ): WithDatabaseTransactionFactory<ConnectionType> => ({
   transaction: (options) => {
     Abort.throwIfAborted(options);
 
-    const connection = connect();
+    const connection = connect({ abort: Abort.from(options) });
     const transaction = connection.transaction(options);
 
     return {
@@ -345,25 +360,29 @@ export const transactionFactoryWithAmbientConnection = <
       rollback: () => transaction.rollback(),
     } as InferTransactionFromConnection<ConnectionType>;
   },
-  withTransaction: (handle, options) =>
-    Abort.execute(() => {
-      const connection = connect();
-      const withTx =
-        connection.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
-      return withTx(handle, options);
-    }, options),
+  withTransaction: (handle, options) => {
+    const abortRejection = Abort.rejectIfAborted(options);
+    if (abortRejection) return abortRejection;
+
+    const connection = connect({ abort: Abort.from(options) });
+    const withTx =
+      connection.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
+    return withTx(handle, options);
+  },
 });
 
 export const transactionFactoryWithAsyncAmbientConnection = <
   ConnectionType extends AnyConnection = AnyConnection,
 >(
   driverType: ConnectionType['driverType'],
-  connect: () => Promise<ConnectionType>,
+  connect: (context: AbortContext) => Promise<ConnectionType>,
   close?: (connection: ConnectionType) => void | Promise<void>,
 ): WithDatabaseTransactionFactory<ConnectionType> => {
   close ??= () => Promise.resolve();
   return {
     transaction: (options) => {
+      Abort.throwIfAborted(options);
+
       let conn: ConnectionType | null = null;
       let innerTx: DatabaseTransaction<ConnectionType> | null = null;
       let connectingPromise: Promise<void> | null = null;
@@ -373,7 +392,8 @@ export const transactionFactoryWithAsyncAmbientConnection = <
 
         if (!connectingPromise) {
           connectingPromise = (async () => {
-            conn = await Abort.execute(connect, options);
+            Abort.throwIfAborted(options);
+            conn = await connect({ abort: Abort.from(options) });
             innerTx = conn.transaction(options);
           })();
         }
@@ -443,16 +463,16 @@ export const transactionFactoryWithAsyncAmbientConnection = <
       return tx as InferTransactionFromConnection<ConnectionType>;
     },
     withTransaction: async (handle, options) => {
-      return Abort.execute(async () => {
-        const conn = await connect();
-        try {
-          const withTx =
-            conn.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
-          return await withTx(handle, options);
-        } finally {
-          await close(conn);
-        }
-      }, options);
+      Abort.throwIfAborted(options);
+
+      const conn = await connect({ abort: Abort.from(options) });
+      try {
+        const withTx =
+          conn.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
+        return await withTx(handle, options);
+      } finally {
+        await close(conn);
+      }
     },
   };
 };
