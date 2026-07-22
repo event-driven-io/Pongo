@@ -6,7 +6,7 @@ import {
   type WithSQLExecutor,
 } from '../execute';
 import type { JSONSerializer } from '../serializer';
-import type { Abort, AbortOptions } from '../taskProcessing';
+import { Abort, type AbortContext, type AbortOptions } from '../taskProcessing';
 import {
   transactionFactoryWithDbClient,
   type AnyDatabaseTransaction,
@@ -28,7 +28,7 @@ export interface Connection<
 >
   extends WithSQLExecutor, WithDatabaseTransactionFactory<Self> {
   driverType: DriverType;
-  open: () => Promise<DbClient>;
+  open: (context?: AbortContext) => Promise<DbClient>;
   close: () => Promise<void>;
   _transactionType: TransactionType;
 }
@@ -78,7 +78,7 @@ export interface WithConnectionFactory<
   withConnection: <Result = unknown>(
     handle: (
       connection: ConnectionType,
-      context: { abort: Abort },
+      context: AbortContext,
     ) => Promise<Result>,
     options?: WithConnectionOptions,
   ) => Promise<Result>;
@@ -101,7 +101,9 @@ export type CreateConnectionOptions<
   Executor extends DbSQLExecutor = DbSQLExecutor,
 > = {
   driverType: InferDriverTypeFromConnection<ConnectionType>;
-  connect: () => Promise<InferDbClientFromConnection<ConnectionType>>;
+  connect: (
+    context: AbortContext,
+  ) => Promise<InferDbClientFromConnection<ConnectionType>>;
   close: (client: InferDbClientFromConnection<ConnectionType>) => Promise<void>;
   initTransaction: InitTransaction<ConnectionType>;
   serializer: JSONSerializer;
@@ -129,7 +131,10 @@ export const createAmbientConnection = <
 
   const clientPromise = Promise.resolve(client);
   const closePromise = Promise.resolve();
-  const open = () => clientPromise;
+  const open = (context?: AbortContext) => {
+    Abort.throwIfAborted(context);
+    return clientPromise;
+  };
   const close = () => closePromise;
 
   const connection: Connection<
@@ -160,7 +165,9 @@ export type CreateSingletonConnectionOptions<
   Executor extends DbSQLExecutor = DbSQLExecutor,
 > = {
   driverType: InferDriverTypeFromConnection<ConnectionType>;
-  connect: () => Promise<InferDbClientFromConnection<ConnectionType>>;
+  connect: (
+    context: AbortContext,
+  ) => Promise<InferDbClientFromConnection<ConnectionType>>;
   close: (client: InferDbClientFromConnection<ConnectionType>) => Promise<void>;
   initTransaction: InitTransaction<ConnectionType>;
   serializer: JSONSerializer;
@@ -181,10 +188,11 @@ export const createSingletonConnection = <
     InferDbClientFromConnection<ConnectionType>
   > | null = null;
 
-  const getClient = async () => {
+  const getClient = async (context?: AbortContext) => {
+    Abort.throwIfAborted(context);
     if (client) return client;
     if (!connectPromise) {
-      connectPromise = connect().then((c) => {
+      connectPromise = connect(context ?? { abort: Abort.never }).then((c) => {
         client = c;
         return c;
       });
@@ -220,7 +228,9 @@ export type CreateTransientConnectionOptions<
   Executor extends DbSQLExecutor = DbSQLExecutor,
 > = {
   driverType: InferDriverTypeFromConnection<ConnectionType>;
-  open: () => Promise<InferDbClientFromConnection<ConnectionType>>;
+  open: (
+    context?: AbortContext,
+  ) => Promise<InferDbClientFromConnection<ConnectionType>>;
   close: () => Promise<void>;
   initTransaction: InitTransaction<ConnectionType>;
   serializer: JSONSerializer;
@@ -235,6 +245,10 @@ export const createTransientConnection = <
 ): ConnectionType => {
   const { driverType, open, close, initTransaction, executor, serializer } =
     options;
+  const openIfNotAborted = (context?: AbortContext) => {
+    Abort.throwIfAborted(context);
+    return open(context);
+  };
 
   const connection: Connection<
     ConnectionType,
@@ -243,13 +257,15 @@ export const createTransientConnection = <
     InferTransactionFromConnection<ConnectionType>
   > = {
     driverType,
-    open,
+    open: openIfNotAborted,
     close,
     ...transactionFactoryWithDbClient<ConnectionType>(
-      open,
+      openIfNotAborted,
       initTransaction(() => typedConnection),
     ),
-    execute: sqlExecutor(executor({ serializer }), { connect: open }),
+    execute: sqlExecutor(executor({ serializer }), {
+      connect: openIfNotAborted,
+    }),
     _transactionType:
       undefined as unknown as InferTransactionFromConnection<ConnectionType>,
   };
@@ -273,10 +289,11 @@ export const createConnection = <
     InferDbClientFromConnection<ConnectionType>
   > | null = null;
 
-  const getClient = async () => {
+  const getClient = async (context?: AbortContext) => {
+    Abort.throwIfAborted(context);
     if (client) return client;
     if (!connectPromise) {
-      connectPromise = connect().then((c) => {
+      connectPromise = connect(context ?? { abort: Abort.never }).then((c) => {
         client = c;
         return c;
       });

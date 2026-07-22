@@ -1,6 +1,8 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
+import { Abort } from '../taskProcessing';
 import type { AnyConnection } from './connection';
+import type { DatabaseTransactionOptions } from './transaction';
 import {
   createAmbientConnectionPool,
   createBoundedConnectionPool,
@@ -92,6 +94,24 @@ describe('createConnectionPool', () => {
     assert.strictEqual(signal, abortController.signal);
   });
 
+  it('passes the caller abort signal to fallback getConnection', async () => {
+    const abortController = new AbortController();
+    let observedSignal: AbortSignal | undefined;
+    const pool = createConnectionPool<FakeConnection>({
+      driverType: fakeDriverType,
+      getConnection: ({ abort }) => {
+        observedSignal = abort.signal;
+        return makeFakeConnection(1);
+      },
+    });
+
+    await pool.withConnection(() => Promise.resolve(undefined), {
+      abort: { signal: abortController.signal },
+    });
+
+    assert.strictEqual(observedSignal, abortController.signal);
+  });
+
   it('does not open a fallback transaction connection when the caller aborts before transaction starts', () => {
     let openedConnections = 0;
     const abortController = new AbortController();
@@ -113,16 +133,24 @@ describe('createConnectionPool', () => {
 });
 
 describe('createAmbientConnectionPool', () => {
-  it('does not call the connection transaction handler when the caller aborts before withTransaction starts', async () => {
+  it('fails fast through the connection transaction handler when the caller aborts before withTransaction starts', async () => {
     let withTransactionCalls = 0;
     const abortController = new AbortController();
     abortController.abort(new Error('abort ambient transaction'));
     const pool = createAmbientConnectionPool({
       driverType: fakeDriverType,
       connection: makeFakeConnection(1, {
-        withTransaction: <Result>() => {
+        withTransaction: <Result>(
+          handle: Parameters<AnyConnection['withTransaction']>[0],
+          options?: DatabaseTransactionOptions,
+        ) => {
+          const abortRejection = Abort.rejectIfAborted(options);
+          if (abortRejection) return abortRejection;
+
           withTransactionCalls++;
-          return Promise.resolve(undefined as Result);
+          return handle({ id: 'tx-1' } as never, {
+            abort: Abort.from(options),
+          }) as Promise<Result>;
         },
       }),
     });
@@ -567,7 +595,7 @@ describe('createSingletonConnectionPool', () => {
     );
   });
 
-  it('does not serialize concurrent calls', async () => {
+  it('does not serialize operations that can run concurrently on the shared connection', async () => {
     const conn = makeFakeConnection(1);
     const pool = createSingletonConnectionPool<FakeConnection>({
       driverType: fakeDriverType,

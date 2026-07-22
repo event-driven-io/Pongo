@@ -5,7 +5,7 @@ import {
   sqlExecutorInNewConnection,
   type WithSQLExecutor,
 } from '../execute';
-import type { AbortOptions } from '../taskProcessing';
+import type { AbortContext, AbortOptions } from '../taskProcessing';
 import {
   Abort,
   guardBoundedAccess,
@@ -71,12 +71,14 @@ export const createAmbientConnectionPool = <
       connection.transaction(
         options,
       ) as InferTransactionFromConnection<ConnectionType>,
-    withConnection: (handle, options) =>
-      handle(connection, { abort: Abort.from(options) }),
+    withConnection: (handle, options) => {
+      Abort.throwIfAborted(options);
+      return handle(connection, { abort: Abort.from(options) });
+    },
     withTransaction: (handle, options) => {
       const withTx =
         connection.withTransaction as WithDatabaseTransactionFactory<ConnectionType>['withTransaction'];
-      return Abort.execute(() => withTx(handle, options), options);
+      return withTx(handle, options);
     },
   });
 };
@@ -85,7 +87,9 @@ export type SingletonConnectionPoolOptions<
   ConnectionType extends AnyConnection,
 > = {
   driverType: ConnectionType['driverType'];
-  getConnection: () => ConnectionType | Promise<ConnectionType>;
+  getConnection: (
+    context: AbortContext,
+  ) => ConnectionType | Promise<ConnectionType>;
   closeConnection?: (connection: ConnectionType) => void | Promise<void>;
   connectionOptions?: never;
 };
@@ -105,16 +109,16 @@ export const createSingletonConnectionPool = <
     new Error('Singleton connection pool has been closed');
 
   const executeIfOpen = async <Result>(
-    operation: (context: { abort: Abort }) => Promise<Result>,
+    operation: (context: AbortContext) => Promise<Result>,
     operationOptions?: AbortOptions,
   ): Promise<Result> => {
     if (closed) throw closedError();
     return operationGuard.execute(operation, operationOptions);
   };
 
-  const getExistingOrNewConnection = () => {
+  const getExistingOrNewConnection = (context: AbortContext) => {
     if (!connectionPromise) {
-      connectionPromise ??= Promise.resolve(getConnection());
+      connectionPromise ??= Promise.resolve(getConnection(context));
     }
     return connectionPromise;
   };
@@ -129,8 +133,8 @@ export const createSingletonConnectionPool = <
     driverType,
     connection: (connectionOptions) =>
       executeIfOpen(
-        () =>
-          getExistingOrNewConnection().then((conn) =>
+        (context) =>
+          getExistingOrNewConnection(context).then((conn) =>
             wrapPooledConnection(conn, () => Promise.resolve()),
           ),
         connectionOptions,
@@ -155,7 +159,7 @@ export const createSingletonConnectionPool = <
     withConnection: <Result>(
       handle: (
         connection: ConnectionType,
-        context: { abort: Abort },
+        context: AbortContext,
       ) => Promise<Result>,
       options?: WithConnectionOptions,
     ) =>
@@ -202,7 +206,9 @@ export type CreateBoundedConnectionPoolOptions<
   ConnectionType extends AnyConnection,
 > = {
   driverType: ConnectionType['driverType'];
-  getConnection: () => ConnectionType | Promise<ConnectionType>;
+  getConnection: (
+    context: AbortContext,
+  ) => ConnectionType | Promise<ConnectionType>;
   maxConnections: number;
 };
 
@@ -229,10 +235,7 @@ export const createBoundedConnectionPool = <
   };
 
   const executeWithPooledConnection = async <Result>(
-    operation: (
-      conn: ConnectionType,
-      context: { abort: Abort },
-    ) => Promise<Result>,
+    operation: (conn: ConnectionType, context: AbortContext) => Promise<Result>,
     operationOptions?: AbortOptions,
   ): Promise<Result> => {
     ensureOpen();
@@ -269,7 +272,11 @@ export const createBoundedConnectionPool = <
       ensureOpen();
       return transactionFactoryWithAsyncAmbientConnection(
         driverType,
-        () => guardMaxConnections.acquire(transactionOptions),
+        (context) =>
+          guardMaxConnections.acquire({
+            ...transactionOptions,
+            abort: context.abort,
+          }),
         guardMaxConnections.release,
       ).transaction(transactionOptions);
     },
@@ -316,12 +323,15 @@ export type CreateAlwaysNewConnectionPoolOptions<
 > = ConnectionOptions extends undefined
   ? {
       driverType: ConnectionType['driverType'];
-      getConnection: () => ConnectionType;
+      getConnection: (context: AbortContext) => ConnectionType;
       connectionOptions?: never;
     }
   : {
       driverType: ConnectionType['driverType'];
-      getConnection: (options: ConnectionOptions) => ConnectionType;
+      getConnection: (
+        options: ConnectionOptions,
+        context: AbortContext,
+      ) => ConnectionType;
       connectionOptions: ConnectionOptions;
     };
 
@@ -338,15 +348,17 @@ export const createAlwaysNewConnectionPool = <
 
   return createConnectionPool({
     driverType,
-    getConnection: () =>
-      connectionOptions ? getConnection(connectionOptions) : getConnection(),
+    getConnection: (context) =>
+      connectionOptions
+        ? getConnection(connectionOptions, context)
+        : getConnection(context),
   });
 };
 
 export type CreateConnectionPoolOptions<ConnectionType extends AnyConnection> =
   Pick<ConnectionPool<ConnectionType>, 'driverType'> &
     Partial<ConnectionPool<ConnectionType>> & {
-      getConnection: () => ConnectionType;
+      getConnection: (context: AbortContext) => ConnectionType;
     };
 
 export const createConnectionPool = <ConnectionType extends AnyConnection>(
@@ -357,7 +369,10 @@ export const createConnectionPool = <ConnectionType extends AnyConnection>(
   const connection =
     'connection' in pool
       ? pool.connection
-      : () => Promise.resolve(getConnection());
+      : (options?: WithConnectionOptions) => {
+          Abort.throwIfAborted(options);
+          return Promise.resolve(getConnection({ abort: Abort.from(options) }));
+        };
 
   const withConnection =
     'withConnection' in pool
@@ -365,7 +380,7 @@ export const createConnectionPool = <ConnectionType extends AnyConnection>(
       : <Result>(
           handle: (
             connection: ConnectionType,
-            context: { abort: Abort },
+            context: AbortContext,
           ) => Promise<Result>,
           options?: WithConnectionOptions,
         ) =>

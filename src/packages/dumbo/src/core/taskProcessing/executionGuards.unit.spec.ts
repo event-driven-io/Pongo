@@ -461,5 +461,29 @@ describe('Task Processing Guards', () => {
         /initialization aborted/,
       );
     });
+
+    it('lets one-time initialization observe caller abort while setup is running', async () => {
+      const abortController = new AbortController();
+      let observedSignal: AbortSignal | undefined;
+      const guard = guardInitializedOnce(async ({ abort }) => {
+        observedSignal = abort.signal;
+        await new Promise<void>((resolve) => {
+          abort.signal.addEventListener('abort', () => resolve(), {
+            once: true,
+          });
+        });
+        return 'initialized';
+      });
+
+      const initialization = guard.ensureInitialized({
+        abort: { signal: abortController.signal },
+      });
+
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      abortController.abort(new Error('stop initialization'));
+
+      await assert.rejects(initialization, /stop initialization/);
+      assert.strictEqual(observedSignal?.aborted, true);
+    });
   });
 });
