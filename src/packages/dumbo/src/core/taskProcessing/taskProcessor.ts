@@ -32,7 +32,6 @@ export type Task<T> = (context: TaskContext) => Promise<T>;
 
 export type TaskContext = {
   abort: Abort;
-  ack: () => void;
   release: () => void;
 };
 
@@ -178,7 +177,6 @@ export class TaskProcessor {
         let taskPromise: Promise<T>;
         try {
           taskPromise = task({
-            ack: release,
             abort: abortScope,
             release,
           });
