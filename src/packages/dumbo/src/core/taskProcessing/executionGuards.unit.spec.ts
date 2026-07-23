@@ -133,8 +133,9 @@ describe('Task Processing Guards', () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
         completedOperations.push(1);
       });
-      const second = guard.execute(async () => {
+      const second = guard.execute(() => {
         completedOperations.push(2);
+        return Promise.resolve();
       });
 
       await guard.waitForEndOfProcessing();
@@ -334,8 +335,9 @@ describe('Task Processing Guards', () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
         completedOperations.push(1);
       });
-      const second = guard.execute(async () => {
+      const second = guard.execute(() => {
         completedOperations.push(2);
+        return Promise.resolve();
       });
 
       await guard.waitForEndOfProcessing();
