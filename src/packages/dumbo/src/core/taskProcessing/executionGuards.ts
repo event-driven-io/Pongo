@@ -2,6 +2,7 @@ import { v7 as uuid } from 'uuid';
 import type { AbortContext, AbortOptions } from './abort';
 import {
   TaskProcessor,
+  type TaskProcessorLogger,
   type StopTaskProcessorOptions,
   type TaskContext,
   type TaskOperationOptions,
@@ -12,17 +13,19 @@ export type ExclusiveAccessGuard = {
     operation: (context: TaskContext) => Promise<Result>,
     options?: AbortOptions,
   ) => Promise<Result>;
-  waitForIdle: () => Promise<void>;
+  waitForEndOfProcessing: () => Promise<void>;
   stop: (options?: StopTaskProcessorOptions) => Promise<void>;
 };
 
 export const guardExclusiveAccess = (options?: {
+  logger?: TaskProcessorLogger;
   maxQueueSize?: number;
   maxTaskIdleTime?: number;
 }): ExclusiveAccessGuard => {
   const taskProcessor = new TaskProcessor({
     maxActiveTasks: 1,
     maxQueueSize: options?.maxQueueSize ?? 1000,
+    ...(options?.logger !== undefined ? { logger: options.logger } : {}),
     ...(options?.maxTaskIdleTime !== undefined
       ? { maxTaskIdleTime: options.maxTaskIdleTime }
       : {}),
@@ -33,14 +36,8 @@ export const guardExclusiveAccess = (options?: {
       operation: (context: TaskContext) => Promise<Result>,
       options?: AbortOptions,
     ): Promise<Result> =>
-      taskProcessor.enqueue(async (context) => {
-        try {
-          return await operation(context);
-        } finally {
-          context.ack();
-        }
-      }, options),
-    waitForIdle: () => taskProcessor.waitForEndOfProcessing(),
+      taskProcessor.enqueue((context) => operation(context), options),
+    waitForEndOfProcessing: () => taskProcessor.waitForEndOfProcessing(),
     stop: (options) => taskProcessor.stop(options),
   };
 };
@@ -50,11 +47,12 @@ export type ConcurrentAccessGuard = {
     operation: (context: AbortContext) => Promise<Result>,
     options?: AbortOptions,
   ) => Promise<Result>;
-  waitForIdle: () => Promise<void>;
+  waitForEndOfProcessing: () => Promise<void>;
   stop: (options?: StopTaskProcessorOptions) => Promise<void>;
 };
 
 export const guardConcurrentAccess = (options?: {
+  logger?: TaskProcessorLogger;
   maxActiveTasks?: number;
   maxQueueSize?: number;
   maxTaskIdleTime?: number;
@@ -62,6 +60,7 @@ export const guardConcurrentAccess = (options?: {
   const taskProcessor = new TaskProcessor({
     maxActiveTasks: options?.maxActiveTasks ?? Number.MAX_SAFE_INTEGER,
     maxQueueSize: options?.maxQueueSize ?? Number.MAX_SAFE_INTEGER,
+    ...(options?.logger !== undefined ? { logger: options.logger } : {}),
     ...(options?.maxTaskIdleTime !== undefined
       ? { maxTaskIdleTime: options.maxTaskIdleTime }
       : {}),
@@ -72,14 +71,11 @@ export const guardConcurrentAccess = (options?: {
       operation: (context: AbortContext) => Promise<Result>,
       options?: AbortOptions,
     ): Promise<Result> =>
-      taskProcessor.enqueue(async (context) => {
-        try {
-          return await operation({ abort: context.abort });
-        } finally {
-          context.ack();
-        }
-      }, options),
-    waitForIdle: () => taskProcessor.waitForEndOfProcessing(),
+      taskProcessor.enqueue(
+        (context) => operation({ abort: context.abort }),
+        options,
+      ),
+    waitForEndOfProcessing: () => taskProcessor.waitForEndOfProcessing(),
     stop: (options) => taskProcessor.stop(options),
   };
 };
@@ -91,13 +87,14 @@ export type BoundedAccessGuard<Resource> = {
     operation: (resource: Resource, context: AbortContext) => Promise<Result>,
     options?: AbortOptions,
   ) => Promise<Result>;
-  waitForIdle: () => Promise<void>;
+  waitForEndOfProcessing: () => Promise<void>;
   stop: (options?: StopTaskProcessorOptions) => Promise<void>;
 };
 
 export const guardBoundedAccess = <Resource>(
   getResource: (context: AbortContext) => Resource | Promise<Resource>,
   options: {
+    logger?: TaskProcessorLogger;
     maxResources: number;
     maxQueueSize?: number;
     reuseResources?: boolean;
@@ -108,13 +105,14 @@ export const guardBoundedAccess = <Resource>(
   const taskProcessor = new TaskProcessor({
     maxActiveTasks: options.maxResources,
     maxQueueSize: options.maxQueueSize ?? 1000,
+    ...(options.logger !== undefined ? { logger: options.logger } : {}),
   });
 
   const resourcePool: Resource[] = [];
   const allResources = new Set<Resource>();
   const activeResourceContexts = new Map<
     Resource,
-    { ack: () => void; taskContext: TaskContext }
+    { release: () => void; taskContext: TaskContext }
   >();
 
   const acquireResource = async (
@@ -133,12 +131,12 @@ export const guardBoundedAccess = <Resource>(
       }
 
       activeResourceContexts.set(resource, {
-        ack: taskContext.ack,
+        release: taskContext.release,
         taskContext,
       });
       return resource;
     } catch (e) {
-      taskContext.ack();
+      taskContext.release();
       throw e;
     }
   };
@@ -148,7 +146,7 @@ export const guardBoundedAccess = <Resource>(
   ): Promise<Resource> =>
     taskProcessor.enqueue(
       (taskContext) => acquireResource(taskContext),
-      operationOptions,
+      { ...operationOptions, releaseMode: 'manual' },
     );
 
   const getActiveResourceContext = (resource: Resource) => {
@@ -167,7 +165,7 @@ export const guardBoundedAccess = <Resource>(
       if (options.reuseResources) {
         resourcePool.push(resource);
       }
-      activeResourceContext.ack();
+      activeResourceContext.release();
     }
   };
 
@@ -192,7 +190,7 @@ export const guardBoundedAccess = <Resource>(
     acquire,
     release,
     execute,
-    waitForIdle: () => taskProcessor.waitForEndOfProcessing(),
+    waitForEndOfProcessing: () => taskProcessor.waitForEndOfProcessing(),
     stop: async (stopOptions) => {
       if (isStopped) return;
       isStopped = true;
@@ -221,6 +219,7 @@ export type InitializedOnceGuard<T> = {
 export const guardInitializedOnce = <T>(
   initialize: (context: AbortContext) => Promise<T>,
   options?: {
+    logger?: TaskProcessorLogger;
     maxQueueSize?: number;
     maxRetries?: number;
   },
@@ -230,6 +229,7 @@ export const guardInitializedOnce = <T>(
   const taskProcessor = new TaskProcessor({
     maxActiveTasks: 1,
     maxQueueSize: options?.maxQueueSize ?? 1000,
+    ...(options?.logger !== undefined ? { logger: options.logger } : {}),
   });
 
   const ensureInitialized = async (
@@ -241,9 +241,9 @@ export const guardInitializedOnce = <T>(
     }
 
     return taskProcessor.enqueue(
-      async ({ abort, ack }) => {
+      async ({ abort, release }) => {
         if (initPromise !== null) {
-          ack();
+          release();
           return initPromise;
         }
 
@@ -251,13 +251,12 @@ export const guardInitializedOnce = <T>(
           const promise = initialize({ abort });
           initPromise = promise;
           const result = await promise;
-          ack();
           return result;
         } catch (error) {
           initPromise = null;
-          ack();
           const maxRetries = options?.maxRetries ?? 3;
           if (retryCount < maxRetries) {
+            release();
             return ensureInitialized(operationOptions, retryCount + 1);
           }
           throw error;

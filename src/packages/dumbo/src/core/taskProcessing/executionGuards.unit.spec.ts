@@ -125,6 +125,24 @@ describe('Task Processing Guards', () => {
       assert.strictEqual(result, 42);
     });
 
+    it('lets callers wait until exclusive work is finished', async () => {
+      const guard = guardExclusiveAccess();
+      const completedOperations: number[] = [];
+
+      const first = guard.execute(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        completedOperations.push(1);
+      });
+      const second = guard.execute(async () => {
+        completedOperations.push(2);
+      });
+
+      await guard.waitForEndOfProcessing();
+
+      await Promise.all([first, second]);
+      assert.deepStrictEqual(completedOperations, [1, 2]);
+    });
+
     it('aborts active operation context on force stop', async () => {
       const guard = guardExclusiveAccess();
 
@@ -304,6 +322,26 @@ describe('Task Processing Guards', () => {
       );
       const result = await operationPromise;
       assert.strictEqual(result, 1);
+    });
+
+    it('lets callers wait until bounded work is finished', async () => {
+      const guard = guardBoundedAccess(() => ({ id: 1 }), {
+        maxResources: 1,
+      });
+      const completedOperations: number[] = [];
+
+      const first = guard.execute(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        completedOperations.push(1);
+      });
+      const second = guard.execute(async () => {
+        completedOperations.push(2);
+      });
+
+      await guard.waitForEndOfProcessing();
+
+      await Promise.all([first, second]);
+      assert.deepStrictEqual(completedOperations, [1, 2]);
     });
 
     it('aborts active operation context on force stop', async () => {

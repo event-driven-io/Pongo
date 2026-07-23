@@ -11,7 +11,7 @@ export type TaskQueue = TaskQueueItem[];
 export type TaskQueueItem = {
   task: () => Promise<void>;
   options?: EnqueueTaskOptions | undefined;
-  expiresAt?: number | undefined;
+  expiresAtMs?: number | undefined;
   reject: (reason?: unknown) => void;
   markStarted: () => void;
   abort: (reason?: unknown) => void;
@@ -21,6 +21,11 @@ export type TaskProcessorOptions = {
   maxActiveTasks: number;
   maxQueueSize: number;
   maxTaskIdleTime?: number;
+  logger?: TaskProcessorLogger;
+};
+
+export type TaskProcessorLogger = {
+  error: (...args: unknown[]) => void;
 };
 
 export type Task<T> = (context: TaskContext) => Promise<T>;
@@ -28,9 +33,13 @@ export type Task<T> = (context: TaskContext) => Promise<T>;
 export type TaskContext = {
   abort: Abort;
   ack: () => void;
+  release: () => void;
 };
 
-export type EnqueueTaskOptions = { taskGroupId?: string };
+export type EnqueueTaskOptions = {
+  releaseMode?: 'auto' | 'manual';
+  taskGroupId?: string;
+};
 export type TaskOperationOptions = EnqueueTaskOptions & AbortOptions;
 
 export type StopTaskProcessorOptions = {
@@ -48,9 +57,11 @@ export class TaskProcessor {
   private idleWaiters: Array<() => void> = [];
   private activeTaskAbortCallbacks: Set<(reason?: unknown) => void> = new Set();
   private expireQueuedTasks: QueuedTaskExpiration;
+  private logger: TaskProcessorLogger;
 
   constructor(options: TaskProcessorOptions) {
     this.options = options;
+    this.logger = options.logger ?? console;
     this.expireQueuedTasks = queuedTaskExpiration({
       queue: this.queue,
       maxTaskIdleTime: options.maxTaskIdleTime,
@@ -152,20 +163,28 @@ export class TaskProcessor {
 
     const taskWithContext = () => {
       return new Promise<void>((resolveTask) => {
-        if (didAbortBeforeStart) {
+        let didRelease = false;
+        const release = () => {
+          if (didRelease) return;
+          didRelease = true;
           resolveTask();
+        };
+
+        if (didAbortBeforeStart) {
+          release();
           return;
         }
 
         let taskPromise: Promise<T>;
         try {
           taskPromise = task({
-            ack: resolveTask,
+            ack: release,
             abort: abortScope,
+            release,
           });
         } catch (err) {
           abortScope.dispose();
-          resolveTask();
+          release();
 
           reject(err);
           return;
@@ -175,21 +194,24 @@ export class TaskProcessor {
           .then((result) => {
             abortScope.dispose();
             resolve(result);
+            if (options?.releaseMode !== 'manual') {
+              release();
+            }
           })
           .catch((err) => {
             abortScope.dispose();
-            resolveTask();
+            release();
 
             reject(err);
           });
       });
     };
-    const expiresAt = this.expireQueuedTasks.deadlineForNewTask();
+    const expiresAtMs = this.expireQueuedTasks.deadlineForNewTask();
 
     queuedItem = {
       task: taskWithContext,
       options,
-      ...(expiresAt !== undefined ? { expiresAt } : {}),
+      ...(expiresAtMs !== undefined ? { expiresAtMs } : {}),
       reject: (reason) => {
         abortScope.dispose();
 
@@ -238,11 +260,14 @@ export class TaskProcessor {
 
         this.activeTasks++;
         void this.executeItem(item).catch((err) => {
-          console.error('TaskProcessor caught unhandled task rejection:', err);
+          this.logger.error(
+            'TaskProcessor caught unhandled task rejection:',
+            err,
+          );
         });
       }
     } catch (error) {
-      console.error(error);
+      this.logger.error(error);
       throw error;
     } finally {
       this.isProcessing = false;
