@@ -1,4 +1,5 @@
 import type { TaskQueue, TaskQueueItem } from './taskProcessor';
+import { Clock } from './clock';
 
 export type QueuedTaskExpiration = ReturnType<typeof queuedTaskExpiration>;
 
@@ -7,25 +8,27 @@ export const queuedTaskExpiration = ({
   maxTaskIdleTime,
   expire,
   onExpired,
+  now = Clock.now,
 }: {
   queue: TaskQueue;
   maxTaskIdleTime: number | undefined;
   expire: (item: TaskQueueItem, reason: Error) => void;
   onExpired: () => void;
+  now?: () => number;
 }) => {
   let timer: NodeJS.Timeout | null = null;
 
   const deadlineForNewTask = (): number | undefined =>
-    maxTaskIdleTime === undefined ? undefined : Date.now() + maxTaskIdleTime;
+    maxTaskIdleTime === undefined ? undefined : now() + maxTaskIdleTime;
 
   const schedule = (): void => {
     if (timer !== null || maxTaskIdleTime === undefined) return;
 
-    scheduleNext();
+    scheduleEarliestExpiration();
   };
 
   const rejectIfExpired = (item: TaskQueueItem): boolean => {
-    if (item.expiresAt === undefined || item.expiresAt > Date.now()) {
+    if (item.expiresAt === undefined || item.expiresAt > now()) {
       return false;
     }
 
@@ -41,7 +44,7 @@ export const queuedTaskExpiration = ({
     timer = null;
   };
 
-  const scheduleNext = (): void => {
+  const scheduleEarliestExpiration = (): void => {
     if (maxTaskIdleTime === undefined) return;
 
     const nextExpiresAt = queue.reduce<number | null>(
@@ -54,22 +57,22 @@ export const queuedTaskExpiration = ({
 
     if (nextExpiresAt === null) return;
 
-    const timeoutMs = Math.max(0, nextExpiresAt - Date.now());
+    const timeoutMs = Math.max(0, nextExpiresAt - now());
     timer = setTimeout(() => {
       timer = null;
       rejectExpiredQueuedTasks();
-      scheduleNext();
+      scheduleEarliestExpiration();
     }, timeoutMs);
     timer.unref();
   };
 
   const rejectExpiredQueuedTasks = (): void => {
-    const now = Date.now();
+    const currentTime = now();
     let didRejectItem = false;
 
-    for (let i = 0; i < queue.length; ) {
+    for (let i = 0; i < queue.length;) {
       const item = queue[i];
-      if (item?.expiresAt === undefined || item.expiresAt > now) {
+      if (item?.expiresAt === undefined || item.expiresAt > currentTime) {
         i++;
         continue;
       }

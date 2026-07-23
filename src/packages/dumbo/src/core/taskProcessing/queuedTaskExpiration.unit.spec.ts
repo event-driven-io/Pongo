@@ -1,5 +1,6 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
+import { Clock } from './clock';
 import { queuedTaskExpiration } from './queuedTaskExpiration';
 import type { TaskQueue, TaskQueueItem } from './taskProcessor';
 
@@ -21,21 +22,20 @@ describe('queuedTaskExpiration', () => {
       maxTaskIdleTime: 100,
       expire: () => {},
       onExpired: () => {},
+      now: () => 1_000,
     });
 
-    const before = Date.now();
     const expiresAt = expireQueuedTasks.deadlineForNewTask();
-    const after = Date.now();
 
-    assert.ok(expiresAt);
-    assert.ok(expiresAt >= before + 100);
-    assert.ok(expiresAt <= after + 100);
+    assert.strictEqual(expiresAt, 1_100);
   });
 
   it('expires queued tasks after their deadline passes', async () => {
     const expiredTasks: TaskQueueItem[] = [];
     let didNotifyProcessor = false;
-    const task = taskQueueItem({ expiresAt: Date.now() + 10 });
+    const task = taskQueueItem({
+      expiresAt: Clock.now() + 10,
+    });
     const queue: TaskQueue = [task];
     const expireQueuedTasks = queuedTaskExpiration({
       queue,
@@ -58,8 +58,13 @@ describe('queuedTaskExpiration', () => {
 
   it('leaves queued tasks waiting until their own deadline passes', async () => {
     const expiredTasks: TaskQueueItem[] = [];
-    const firstToExpire = taskQueueItem({ expiresAt: Date.now() + 10 });
-    const stillWaiting = taskQueueItem({ expiresAt: Date.now() + 50 });
+    const now = Clock.now();
+    const firstToExpire = taskQueueItem({
+      expiresAt: now + 10,
+    });
+    const stillWaiting = taskQueueItem({
+      expiresAt: now + 50,
+    });
     const queue: TaskQueue = [stillWaiting, firstToExpire];
     const expireQueuedTasks = queuedTaskExpiration({
       queue,
@@ -83,7 +88,9 @@ describe('queuedTaskExpiration', () => {
   });
 
   it('lets the processor reject an expired task before starting it', () => {
-    const task = taskQueueItem({ expiresAt: Date.now() - 1 });
+    const task = taskQueueItem({
+      expiresAt: Clock.now() - 1,
+    });
     const expiredTasks: TaskQueueItem[] = [];
     let didNotifyProcessor = false;
     const expireQueuedTasks = queuedTaskExpiration({
@@ -105,7 +112,9 @@ describe('queuedTaskExpiration', () => {
   });
 
   it('lets the processor start a task that has not expired', () => {
-    const task = taskQueueItem({ expiresAt: Date.now() + 100 });
+    const task = taskQueueItem({
+      expiresAt: Clock.now() + 100,
+    });
     const expiredTasks: TaskQueueItem[] = [];
     let didNotifyProcessor = false;
     const expireQueuedTasks = queuedTaskExpiration({
@@ -128,7 +137,9 @@ describe('queuedTaskExpiration', () => {
 
   it('stops expiring queued tasks after expiration is cancelled', async () => {
     const expiredTasks: TaskQueueItem[] = [];
-    const task = taskQueueItem({ expiresAt: Date.now() + 10 });
+    const task = taskQueueItem({
+      expiresAt: Clock.now() + 10,
+    });
     const queue: TaskQueue = [task];
     const expireQueuedTasks = queuedTaskExpiration({
       queue,
