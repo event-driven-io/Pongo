@@ -14,8 +14,8 @@ describe('TaskProcessor', () => {
   });
 
   it('should enqueue and process a task', async () => {
-    const task: Task<string> = ({ ack }: { ack: () => void }) => {
-      ack();
+    const task: Task<string> = ({ release }: { release: () => void }) => {
+      release();
       return Promise.resolve('Task should be processed successfully');
     };
     const result = await taskProcessor.enqueue(task);
@@ -26,15 +26,15 @@ describe('TaskProcessor', () => {
   it('should process multiple tasks concurrently', async () => {
     const taskResults: string[] = [];
     const tasks = [
-      taskProcessor.enqueue(async ({ ack }) => {
+      taskProcessor.enqueue(async ({ release }) => {
         await new Promise((resolve) => setTimeout(resolve, 100)); // Simulate task work
         taskResults.push('Task 1 completed');
-        ack();
+        release();
       }),
-      taskProcessor.enqueue(async ({ ack }) => {
+      taskProcessor.enqueue(async ({ release }) => {
         await new Promise((resolve) => setTimeout(resolve, 100));
         taskResults.push('Task 2 completed');
-        ack();
+        release();
       }),
     ];
 
@@ -51,22 +51,22 @@ describe('TaskProcessor', () => {
     const tasks: string[] = [];
 
     // Enqueue 2 active tasks
-    const task1 = taskProcessor.enqueue(async ({ ack }) => {
+    const task1 = taskProcessor.enqueue(async ({ release }) => {
       await new Promise((resolve) => setTimeout(resolve, 200)); // Simulate task work
       tasks.push('Task 1 completed');
-      ack();
+      release();
     });
 
-    const task2 = taskProcessor.enqueue(async ({ ack }) => {
+    const task2 = taskProcessor.enqueue(async ({ release }) => {
       await new Promise((resolve) => setTimeout(resolve, 200));
       tasks.push('Task 2 completed');
-      ack();
+      release();
     });
 
     // Enqueue a queued task, should only process after one of the above tasks finishes
-    const queuedTask = taskProcessor.enqueue(({ ack }) => {
+    const queuedTask = taskProcessor.enqueue(({ release }) => {
       tasks.push('Queued Task completed');
-      ack();
+      release();
       return Promise.resolve();
     });
 
@@ -87,19 +87,19 @@ describe('TaskProcessor', () => {
   it('should process tasks in FIFO order without taskGroupId', async () => {
     const taskResults: string[] = [];
     const tasks = [
-      taskProcessor.enqueue(async ({ ack }) => {
+      taskProcessor.enqueue(async ({ release }) => {
         taskResults.push('Task 1 completed');
-        ack();
+        release();
         return Promise.resolve();
       }),
-      taskProcessor.enqueue(async ({ ack }) => {
+      taskProcessor.enqueue(async ({ release }) => {
         taskResults.push('Task 2 completed');
-        ack();
+        release();
         return Promise.resolve();
       }),
-      taskProcessor.enqueue(async ({ ack }) => {
+      taskProcessor.enqueue(async ({ release }) => {
         taskResults.push('Task 3 completed');
-        ack();
+        release();
         return Promise.resolve();
       }),
     ];
@@ -117,17 +117,17 @@ describe('TaskProcessor', () => {
     const taskResults: string[] = [];
     const tasks = [
       taskProcessor.enqueue(
-        async ({ ack }) => {
+        async ({ release }) => {
           taskResults.push('Group 1 - Task 1');
-          ack();
+          release();
           return Promise.resolve();
         },
         { taskGroupId: 'group1' },
       ),
       taskProcessor.enqueue(
-        async ({ ack }) => {
+        async ({ release }) => {
           taskResults.push('Group 1 - Task 2');
-          ack();
+          release();
           return Promise.resolve();
         },
         { taskGroupId: 'group1' },
@@ -147,18 +147,18 @@ describe('TaskProcessor', () => {
     const taskResults: string[] = [];
     const tasks = [
       taskProcessor.enqueue(
-        async ({ ack }) => {
+        async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 100)); // Simulate work
           taskResults.push('Group 1 - Task 1');
-          ack();
+          release();
         },
         { taskGroupId: 'group1' },
       ),
       taskProcessor.enqueue(
-        async ({ ack }) => {
+        async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 100));
           taskResults.push('Group 2 - Task 1');
-          ack();
+          release();
         },
         { taskGroupId: 'group2' },
       ),
@@ -177,17 +177,17 @@ describe('TaskProcessor', () => {
     const taskResults: string[] = [];
     const tasks = [
       taskProcessor.enqueue(
-        async ({ ack }) => {
+        async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 100)); // Simulate work
           taskResults.push('Grouped Task');
-          ack();
+          release();
         },
         { taskGroupId: 'group1' },
       ),
-      taskProcessor.enqueue(async ({ ack }) => {
+      taskProcessor.enqueue(async ({ release }) => {
         await new Promise((resolve) => setTimeout(resolve, 100));
         taskResults.push('Ungrouped Task');
-        ack();
+        release();
       }),
     ];
 
@@ -202,29 +202,29 @@ describe('TaskProcessor', () => {
 
   it('should respect queue size limit and reject tasks when exceeded', async () => {
     const tasks = [
-      taskProcessor.enqueue(({ ack }) => {
-        ack();
+      taskProcessor.enqueue(({ release }) => {
+        release();
         return Promise.resolve();
       }),
-      taskProcessor.enqueue(({ ack }) => {
-        ack();
+      taskProcessor.enqueue(({ release }) => {
+        release();
         return Promise.resolve();
       }),
-      taskProcessor.enqueue(({ ack }) => {
-        ack();
+      taskProcessor.enqueue(({ release }) => {
+        release();
         return Promise.resolve();
       }),
-      taskProcessor.enqueue(({ ack }) => {
-        ack();
+      taskProcessor.enqueue(({ release }) => {
+        release();
         return Promise.resolve();
       }),
-      taskProcessor.enqueue(({ ack }) => {
-        ack();
+      taskProcessor.enqueue(({ release }) => {
+        release();
         return Promise.resolve();
       }),
       // 5 + 1
-      taskProcessor.enqueue(({ ack }) => {
-        ack();
+      taskProcessor.enqueue(({ release }) => {
+        release();
         return Promise.resolve();
       }),
     ];
@@ -240,17 +240,17 @@ describe('TaskProcessor', () => {
     const taskResults: string[] = [];
     const tasks = [
       taskProcessor.enqueue(
-        async ({ ack }) => {
+        async ({ release }) => {
           taskResults.push('Group 1 - Task 1');
           await new Promise((resolve) => setTimeout(resolve, 200));
-          ack();
+          release();
         },
         { taskGroupId: 'group1' },
       ),
       taskProcessor.enqueue(
-        async ({ ack }) => {
+        async ({ release }) => {
           taskResults.push('Group 1 - Task 2');
-          ack();
+          release();
           return Promise.resolve();
         },
         { taskGroupId: 'group1' },
@@ -271,20 +271,20 @@ describe('TaskProcessor', () => {
   it('should process tasks in strict FIFO order without taskGroupId', async () => {
     const taskResults: string[] = [];
     const tasks = [
-      taskProcessor.enqueue(async ({ ack }) => {
+      taskProcessor.enqueue(async ({ release }) => {
         await new Promise((resolve) => setTimeout(resolve, 50)); // Delay to simulate processing
         taskResults.push('Task 1 completed');
-        ack();
+        release();
       }),
-      taskProcessor.enqueue(async ({ ack }) => {
+      taskProcessor.enqueue(async ({ release }) => {
         await new Promise((resolve) => setTimeout(resolve, 50));
         taskResults.push('Task 2 completed');
-        ack();
+        release();
       }),
-      taskProcessor.enqueue(async ({ ack }) => {
+      taskProcessor.enqueue(async ({ release }) => {
         await new Promise((resolve) => setTimeout(resolve, 50));
         taskResults.push('Task 3 completed');
-        ack();
+        release();
       }),
     ];
 
@@ -301,26 +301,26 @@ describe('TaskProcessor', () => {
     const taskResults: string[] = [];
     const tasks = [
       taskProcessor.enqueue(
-        async ({ ack }) => {
+        async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 20)); // Simulate work
           taskResults.push('Group 1 - Task 1');
-          ack();
+          release();
         },
         { taskGroupId: 'group1' },
       ),
       taskProcessor.enqueue(
-        async ({ ack }) => {
+        async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 10));
           taskResults.push('Group 1 - Task 2');
-          ack();
+          release();
         },
         { taskGroupId: 'group1' },
       ),
       taskProcessor.enqueue(
-        async ({ ack }) => {
+        async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 50));
           taskResults.push('Group 2 - Task 1');
-          ack();
+          release();
         },
         { taskGroupId: 'group2' },
       ),
@@ -339,26 +339,26 @@ describe('TaskProcessor', () => {
     const taskResults: string[] = [];
     const tasks = [
       taskProcessor.enqueue(
-        async ({ ack }) => {
+        async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 50)); // Simulate longer work
           taskResults.push('Group 1 - Task 1');
-          ack();
+          release();
         },
         { taskGroupId: 'group1' },
       ),
       taskProcessor.enqueue(
-        async ({ ack }) => {
+        async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 50));
           taskResults.push('Group 2 - Task 1');
-          ack();
+          release();
         },
         { taskGroupId: 'group2' },
       ),
       taskProcessor.enqueue(
-        async ({ ack }) => {
+        async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 50));
           taskResults.push('Group 1 - Task 2');
-          ack();
+          release();
         },
         { taskGroupId: 'group1' },
       ),
@@ -377,23 +377,23 @@ describe('TaskProcessor', () => {
     const taskResults: string[] = [];
     const tasks = [
       taskProcessor.enqueue(
-        async ({ ack }) => {
+        async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 50)); // Simulate longer work
           taskResults.push('Group 1 - Task 1');
-          ack();
+          release();
         },
         { taskGroupId: 'group1' },
       ),
-      taskProcessor.enqueue(async ({ ack }) => {
+      taskProcessor.enqueue(async ({ release }) => {
         await new Promise((resolve) => setTimeout(resolve, 50));
         taskResults.push('Ungrouped Task 1');
-        ack();
+        release();
       }),
       taskProcessor.enqueue(
-        async ({ ack }) => {
+        async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 50));
           taskResults.push('Group 1 - Task 2');
-          ack();
+          release();
         },
         { taskGroupId: 'group1' },
       ),
@@ -412,23 +412,23 @@ describe('TaskProcessor', () => {
     const taskResults: string[] = [];
     const tasks = [
       taskProcessor.enqueue(
-        async ({ ack }) => {
+        async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 100)); // Simulate work
           taskResults.push('Group 1 - Task 1');
-          ack();
+          release();
         },
         { taskGroupId: 'group1' },
       ),
-      taskProcessor.enqueue(async ({ ack }) => {
+      taskProcessor.enqueue(async ({ release }) => {
         await new Promise((resolve) => setTimeout(resolve, 10));
         taskResults.push('Ungrouped Task');
-        ack();
+        release();
       }),
       taskProcessor.enqueue(
-        async ({ ack }) => {
+        async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 20));
           taskResults.push('Group 1 - Task 2');
-          ack();
+          release();
         },
         { taskGroupId: 'group1' },
       ),
@@ -454,14 +454,14 @@ describe('TaskProcessor', () => {
       releaseActiveTask = resolve;
     });
 
-    const activeTask = singleTaskProcessor.enqueue(async ({ ack }) => {
+    const activeTask = singleTaskProcessor.enqueue(async ({ release }) => {
       await activeTaskCanFinish;
-      ack();
+      release();
       return 'active';
     });
 
-    const queuedTask = singleTaskProcessor.enqueue(({ ack }) => {
-      ack();
+    const queuedTask = singleTaskProcessor.enqueue(({ release }) => {
+      release();
       return Promise.resolve('queued');
     });
 
@@ -484,14 +484,14 @@ describe('TaskProcessor', () => {
     const activeTaskCanFinish = new Promise<void>((resolve) => {
       releaseActiveTask = resolve;
     });
-    const activeTask = singleTaskProcessor.enqueue(async ({ ack }) => {
+    const activeTask = singleTaskProcessor.enqueue(async ({ release }) => {
       await activeTaskCanFinish;
-      ack();
+      release();
       return 'active';
     });
 
-    const queuedTask = singleTaskProcessor.enqueue(({ ack }) => {
-      ack();
+    const queuedTask = singleTaskProcessor.enqueue(({ release }) => {
+      release();
       return Promise.resolve('queued');
     });
 
@@ -510,9 +510,9 @@ describe('TaskProcessor', () => {
     });
 
     await assert.doesNotReject(() =>
-      singleTaskProcessor.enqueue(async ({ ack }) => {
+      singleTaskProcessor.enqueue(async ({ release }) => {
         await new Promise((resolve) => setTimeout(resolve, 30));
-        ack();
+        release();
         return 'active';
       }),
     );
@@ -529,16 +529,16 @@ describe('TaskProcessor', () => {
     const activeTaskCanFinish = new Promise<void>((resolve) => {
       releaseActiveTask = resolve;
     });
-    const activeTask = singleTaskProcessor.enqueue(async ({ ack }) => {
+    const activeTask = singleTaskProcessor.enqueue(async ({ release }) => {
       await activeTaskCanFinish;
-      ack();
+      release();
       return 'active';
     });
 
     let queuedTaskRan = false;
-    const queuedTask = singleTaskProcessor.enqueue(({ ack }) => {
+    const queuedTask = singleTaskProcessor.enqueue(({ release }) => {
       queuedTaskRan = true;
-      ack();
+      release();
       return Promise.resolve('queued');
     });
 
@@ -561,17 +561,17 @@ describe('TaskProcessor', () => {
       maxTaskIdleTime: 10,
     });
 
-    const activeTask = singleTaskProcessor.enqueue(async ({ ack }) => {
+    const activeTask = singleTaskProcessor.enqueue(async ({ release }) => {
       await Promise.resolve();
       blockEventLoopFor(30);
-      ack();
+      release();
       return 'active';
     });
 
     let queuedTaskRan = false;
-    const queuedTask = singleTaskProcessor.enqueue(({ ack }) => {
+    const queuedTask = singleTaskProcessor.enqueue(({ release }) => {
       queuedTaskRan = true;
-      ack();
+      release();
       return Promise.resolve('queued');
     });
 
@@ -591,25 +591,25 @@ describe('TaskProcessor', () => {
     });
     const activeTaskCanFinish = Promise.withResolvers<void>();
 
-    const activeTask = singleTaskProcessor.enqueue(async ({ ack }) => {
+    const activeTask = singleTaskProcessor.enqueue(async ({ release }) => {
       await activeTaskCanFinish.promise;
-      ack();
+      release();
       return 'active';
     });
 
     let timedOutTaskRan = false;
-    const timedOutTask = singleTaskProcessor.enqueue(({ ack }) => {
+    const timedOutTask = singleTaskProcessor.enqueue(({ release }) => {
       timedOutTaskRan = true;
-      ack();
+      release();
       return Promise.resolve('timed out');
     });
 
     blockEventLoopFor(30);
 
     let nextTaskRan = false;
-    const nextTask = singleTaskProcessor.enqueue(({ ack }) => {
+    const nextTask = singleTaskProcessor.enqueue(({ release }) => {
       nextTaskRan = true;
-      ack();
+      release();
       return Promise.resolve('next');
     });
 
@@ -636,14 +636,14 @@ describe('TaskProcessor', () => {
     const activeTaskCanFinish = new Promise<void>((resolve) => {
       releaseActiveTask = resolve;
     });
-    const activeTask = singleTaskProcessor.enqueue(async ({ ack }) => {
+    const activeTask = singleTaskProcessor.enqueue(async ({ release }) => {
       await activeTaskCanFinish;
-      ack();
+      release();
       return 'active';
     });
 
-    const timedOutTask = singleTaskProcessor.enqueue(({ ack }) => {
-      ack();
+    const timedOutTask = singleTaskProcessor.enqueue(({ release }) => {
+      release();
       return Promise.resolve('timed out');
     });
 
@@ -652,8 +652,8 @@ describe('TaskProcessor', () => {
       /Task was not started within the maximum waiting time/,
     );
 
-    const replacementTask = singleTaskProcessor.enqueue(({ ack }) => {
-      ack();
+    const replacementTask = singleTaskProcessor.enqueue(({ release }) => {
+      release();
       return Promise.resolve('replacement');
     });
 
@@ -674,16 +674,16 @@ describe('TaskProcessor', () => {
     });
     let queuedTaskRan = false;
 
-    const activeTask = singleTaskProcessor.enqueue(async ({ ack }) => {
+    const activeTask = singleTaskProcessor.enqueue(async ({ release }) => {
       await activeTaskCanFinish;
-      ack();
+      release();
       return 'active';
     });
 
     const queuedTask = singleTaskProcessor.enqueue(
-      ({ ack }) => {
+      ({ release }) => {
         queuedTaskRan = true;
-        ack();
+        release();
         return Promise.resolve('queued');
       },
       { abort: { signal: abortController.signal } },
@@ -711,15 +711,15 @@ describe('TaskProcessor', () => {
       releaseActiveTask = resolve;
     });
 
-    const activeTask = singleTaskProcessor.enqueue(async ({ ack }) => {
+    const activeTask = singleTaskProcessor.enqueue(async ({ release }) => {
       await activeTaskCanFinish;
-      ack();
+      release();
       return 'active';
     });
 
     const abortedTask = singleTaskProcessor.enqueue(
-      ({ ack }) => {
-        ack();
+      ({ release }) => {
+        release();
         return Promise.resolve('aborted');
       },
       { abort: { signal: abortController.signal } },
@@ -729,8 +729,8 @@ describe('TaskProcessor', () => {
 
     await assert.rejects(abortedTask, /queued task aborted/);
 
-    const replacementTask = singleTaskProcessor.enqueue(({ ack }) => {
-      ack();
+    const replacementTask = singleTaskProcessor.enqueue(({ release }) => {
+      release();
       return Promise.resolve('replacement');
     });
 
@@ -748,13 +748,13 @@ describe('TaskProcessor', () => {
     let releaseSlot: () => void = () => {};
     let queuedTaskRan = false;
 
-    const activeTask = singleTaskProcessor.enqueue(({ ack }) => {
-      releaseSlot = ack;
+    const activeTask = singleTaskProcessor.enqueue(({ release }) => {
+      releaseSlot = release;
       return Promise.resolve('active');
     }, { releaseMode: 'manual' });
-    const queuedTask = singleTaskProcessor.enqueue(({ ack }) => {
+    const queuedTask = singleTaskProcessor.enqueue(({ release }) => {
       queuedTaskRan = true;
-      ack();
+      release();
       return Promise.resolve('queued');
     });
 
@@ -795,9 +795,9 @@ describe('TaskProcessor', () => {
     const activeTaskCanFinish = Promise.withResolvers<void>();
 
     let queuedTaskRan = false;
-    const activeTask = singleTaskProcessor.enqueue(async ({ ack }) => {
-      ack();
-      ack();
+    const activeTask = singleTaskProcessor.enqueue(async ({ release }) => {
+      release();
+      release();
       await activeTaskCanFinish.promise;
       return 'active';
     });
@@ -828,8 +828,8 @@ describe('TaskProcessor', () => {
       /setup failed/,
     );
 
-    const nextTask = await singleTaskProcessor.enqueue(({ ack }) => {
-      ack();
+    const nextTask = await singleTaskProcessor.enqueue(({ release }) => {
+      release();
       return Promise.resolve('next task completed');
     });
 
@@ -850,8 +850,8 @@ describe('TaskProcessor', () => {
       /task failed/,
     );
 
-    const nextTask = await singleTaskProcessor.enqueue(({ ack }) => {
-      ack();
+    const nextTask = await singleTaskProcessor.enqueue(({ release }) => {
+      release();
       return Promise.resolve('next task completed');
     });
 
@@ -894,12 +894,12 @@ describe('TaskProcessor', () => {
     let wasAborted = false;
 
     const activeTask = singleTaskProcessor.enqueue(
-      async ({ ack, abort: { signal } }) => {
+      async ({ release, abort: { signal } }) => {
         signal.addEventListener('abort', () => {
           wasAborted = true;
         });
         await activeTaskCanFinish;
-        ack();
+        release();
         return 'active';
       },
     );
