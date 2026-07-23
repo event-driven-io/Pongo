@@ -1,5 +1,6 @@
 import assert from 'assert';
 import { beforeEach, describe, it } from 'vitest';
+import { Clock } from './clock';
 import { TaskProcessor, type Task } from './taskProcessor';
 
 describe('TaskProcessor', () => {
@@ -562,10 +563,7 @@ describe('TaskProcessor', () => {
 
     const activeTask = singleTaskProcessor.enqueue(async ({ ack }) => {
       await Promise.resolve();
-      const startedAt = Date.now();
-      while (Date.now() - startedAt < 30) {
-        // Block the event loop so the scheduler timer cannot run first.
-      }
+      blockEventLoopFor(30);
       ack();
       return 'active';
     });
@@ -583,6 +581,48 @@ describe('TaskProcessor', () => {
       /Task was not started within the maximum waiting time/,
     );
     assert.strictEqual(queuedTaskRan, false);
+  });
+
+  it('continues with the next waiting task after a timed out task is skipped', async () => {
+    const singleTaskProcessor = new TaskProcessor({
+      maxActiveTasks: 1,
+      maxQueueSize: 10,
+      maxTaskIdleTime: 10,
+    });
+    const activeTaskCanFinish = Promise.withResolvers<void>();
+
+    const activeTask = singleTaskProcessor.enqueue(async ({ ack }) => {
+      await activeTaskCanFinish.promise;
+      ack();
+      return 'active';
+    });
+
+    let timedOutTaskRan = false;
+    const timedOutTask = singleTaskProcessor.enqueue(({ ack }) => {
+      timedOutTaskRan = true;
+      ack();
+      return Promise.resolve('timed out');
+    });
+
+    blockEventLoopFor(30);
+
+    let nextTaskRan = false;
+    const nextTask = singleTaskProcessor.enqueue(({ ack }) => {
+      nextTaskRan = true;
+      ack();
+      return Promise.resolve('next');
+    });
+
+    activeTaskCanFinish.resolve();
+
+    assert.strictEqual(await activeTask, 'active');
+    await assert.rejects(
+      timedOutTask,
+      /Task was not started within the maximum waiting time/,
+    );
+    assert.strictEqual(await nextTask, 'next');
+    assert.strictEqual(timedOutTaskRan, false);
+    assert.strictEqual(nextTaskRan, true);
   });
 
   it('lets another caller wait after a previous waiting caller times out', async () => {
@@ -825,3 +865,10 @@ describe('TaskProcessor', () => {
     assert.strictEqual(wasAborted, false);
   });
 });
+
+const blockEventLoopFor = (timeoutMs: number): void => {
+  const startedAt = Clock.now();
+  while (Clock.now() - startedAt < timeoutMs) {
+    // Keep the event loop busy so pending timers cannot run first.
+  }
+};
