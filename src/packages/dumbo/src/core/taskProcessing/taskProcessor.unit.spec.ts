@@ -501,7 +501,7 @@ describe('TaskProcessor', () => {
     await assert.doesNotReject(activeTask);
   });
 
-  it('does not reject an active task that runs longer than maxTaskIdleTime', async () => {
+  it('lets already started work run beyond the queue idle timeout', async () => {
     const singleTaskProcessor = new TaskProcessor({
       maxActiveTasks: 1,
       maxQueueSize: 10,
@@ -517,7 +517,7 @@ describe('TaskProcessor', () => {
     );
   });
 
-  it('does not run a queued task after maxTaskIdleTime rejects it', async () => {
+  it('does not start waiting work after the caller has timed out', async () => {
     const singleTaskProcessor = new TaskProcessor({
       maxActiveTasks: 1,
       maxQueueSize: 10,
@@ -553,7 +553,76 @@ describe('TaskProcessor', () => {
     assert.strictEqual(queuedTaskRan, false);
   });
 
-  it('does not start queued work when the caller aborts while waiting', async () => {
+  it('does not start waiting work whose timeout elapsed before the scheduler ran', async () => {
+    const singleTaskProcessor = new TaskProcessor({
+      maxActiveTasks: 1,
+      maxQueueSize: 10,
+      maxTaskIdleTime: 10,
+    });
+
+    const activeTask = singleTaskProcessor.enqueue(async ({ ack }) => {
+      await Promise.resolve();
+      const startedAt = Date.now();
+      while (Date.now() - startedAt < 30) {
+        // Block the event loop so the scheduler timer cannot run first.
+      }
+      ack();
+      return 'active';
+    });
+
+    let queuedTaskRan = false;
+    const queuedTask = singleTaskProcessor.enqueue(({ ack }) => {
+      queuedTaskRan = true;
+      ack();
+      return Promise.resolve('queued');
+    });
+
+    assert.strictEqual(await activeTask, 'active');
+    await assert.rejects(
+      queuedTask,
+      /Task was not started within the maximum waiting time/,
+    );
+    assert.strictEqual(queuedTaskRan, false);
+  });
+
+  it('lets another caller wait after a previous waiting caller times out', async () => {
+    const singleTaskProcessor = new TaskProcessor({
+      maxActiveTasks: 1,
+      maxQueueSize: 1,
+      maxTaskIdleTime: 10,
+    });
+
+    let releaseActiveTask: () => void = () => {};
+    const activeTaskCanFinish = new Promise<void>((resolve) => {
+      releaseActiveTask = resolve;
+    });
+    const activeTask = singleTaskProcessor.enqueue(async ({ ack }) => {
+      await activeTaskCanFinish;
+      ack();
+      return 'active';
+    });
+
+    const timedOutTask = singleTaskProcessor.enqueue(({ ack }) => {
+      ack();
+      return Promise.resolve('timed out');
+    });
+
+    await assert.rejects(
+      timedOutTask,
+      /Task was not started within the maximum waiting time/,
+    );
+
+    const replacementTask = singleTaskProcessor.enqueue(({ ack }) => {
+      ack();
+      return Promise.resolve('replacement');
+    });
+
+    releaseActiveTask();
+    assert.strictEqual(await activeTask, 'active');
+    assert.strictEqual(await replacementTask, 'replacement');
+  });
+
+  it('does not start waiting work after the caller aborts', async () => {
     const singleTaskProcessor = new TaskProcessor({
       maxActiveTasks: 1,
       maxQueueSize: 10,
@@ -589,6 +658,73 @@ describe('TaskProcessor', () => {
     await singleTaskProcessor.waitForEndOfProcessing();
 
     assert.strictEqual(queuedTaskRan, false);
+  });
+
+  it('lets another caller wait after a previous waiting caller aborts', async () => {
+    const singleTaskProcessor = new TaskProcessor({
+      maxActiveTasks: 1,
+      maxQueueSize: 1,
+    });
+    const abortController = new AbortController();
+    let releaseActiveTask: () => void = () => {};
+    const activeTaskCanFinish = new Promise<void>((resolve) => {
+      releaseActiveTask = resolve;
+    });
+
+    const activeTask = singleTaskProcessor.enqueue(async ({ ack }) => {
+      await activeTaskCanFinish;
+      ack();
+      return 'active';
+    });
+
+    const abortedTask = singleTaskProcessor.enqueue(
+      ({ ack }) => {
+        ack();
+        return Promise.resolve('aborted');
+      },
+      { abort: { signal: abortController.signal } },
+    );
+
+    abortController.abort(new Error('queued task aborted'));
+
+    await assert.rejects(abortedTask, /queued task aborted/);
+
+    const replacementTask = singleTaskProcessor.enqueue(({ ack }) => {
+      ack();
+      return Promise.resolve('replacement');
+    });
+
+    releaseActiveTask();
+    assert.strictEqual(await activeTask, 'active');
+    assert.strictEqual(await replacementTask, 'replacement');
+  });
+
+  it('keeps leased capacity unavailable until the caller releases it', async () => {
+    const singleTaskProcessor = new TaskProcessor({
+      maxActiveTasks: 1,
+      maxQueueSize: 10,
+    });
+
+    let releaseSlot: () => void = () => {};
+    let queuedTaskRan = false;
+
+    const activeTask = singleTaskProcessor.enqueue(({ ack }) => {
+      releaseSlot = ack;
+      return Promise.resolve('active');
+    });
+    const queuedTask = singleTaskProcessor.enqueue(({ ack }) => {
+      queuedTaskRan = true;
+      ack();
+      return Promise.resolve('queued');
+    });
+
+    assert.strictEqual(await activeTask, 'active');
+    assert.strictEqual(queuedTaskRan, false);
+
+    releaseSlot();
+
+    assert.strictEqual(await queuedTask, 'queued');
+    assert.strictEqual(queuedTaskRan, true);
   });
 
   it('continues processing work after a task fails during setup', async () => {

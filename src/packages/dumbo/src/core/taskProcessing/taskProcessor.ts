@@ -1,12 +1,17 @@
 import { DumboError, TransientDatabaseError } from '../errors';
 import { Abort } from './abort';
 import type { AbortOptions } from './abort';
+import {
+  queuedTaskExpiration,
+  type QueuedTaskExpiration,
+} from './queuedTaskExpiration';
 
 export type TaskQueue = TaskQueueItem[];
 
 export type TaskQueueItem = {
   task: () => Promise<void>;
   options?: EnqueueTaskOptions | undefined;
+  expiresAt?: number | undefined;
   reject: (reason?: unknown) => void;
   markStarted: () => void;
   abort: (reason?: unknown) => void;
@@ -42,9 +47,22 @@ export class TaskProcessor {
   private stopped = false;
   private idleWaiters: Array<() => void> = [];
   private activeTaskAbortCallbacks: Set<(reason?: unknown) => void> = new Set();
+  private expireQueuedTasks: QueuedTaskExpiration;
 
   constructor(options: TaskProcessorOptions) {
     this.options = options;
+    this.expireQueuedTasks = queuedTaskExpiration({
+      queue: this.queue,
+      maxTaskIdleTime: options.maxTaskIdleTime,
+      expire: (item, reason) => {
+        item.abort(reason);
+        item.reject(reason);
+      },
+      onExpired: () => {
+        this.resolveIdleWaiters();
+        this.ensureProcessing();
+      },
+    });
   }
 
   enqueue<T>(task: Task<T>, options?: TaskOperationOptions): Promise<T> {
@@ -85,6 +103,7 @@ export class TaskProcessor {
       item.abort(stoppedError);
       item.reject(stoppedError);
     }
+    this.expireQueuedTasks.cancel();
     this.activeGroups.clear();
 
     if (options?.force) {
@@ -116,84 +135,81 @@ export class TaskProcessor {
     task: Task<T>,
     options?: TaskOperationOptions,
   ): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
-      let didQueueTimeout = false;
-      let didAbortBeforeStart = false;
-      let didStart = false;
-      let queueWaitTimer: QueueWaitTimer = noopQueueWaitTimer;
-      const abortScope = Abort.scope(options?.abort, (reason) => {
-        queueWaitTimer.cancel();
-        didAbortBeforeStart = !didStart;
-        reject(reason);
-      });
-      queueWaitTimer = createQueueWaitTimer(
-        this.options.maxTaskIdleTime,
-        (reason) => {
-          didQueueTimeout = true;
-          abortScope.abort(reason);
+    const { promise, resolve, reject } = createDeferred<T>();
+    let didAbortBeforeStart = false;
+    let didStart = false;
+    let queuedItem: TaskQueueItem | null = null;
+
+    const abortScope = Abort.scope(options?.abort, (reason) => {
+      didAbortBeforeStart = !didStart;
+      if (didAbortBeforeStart && queuedItem) {
+        this.removeQueuedItem(queuedItem);
+        abortScope.dispose();
+        this.resolveIdleWaiters();
+      }
+      reject(reason);
+    });
+
+    const taskWithContext = () => {
+      return new Promise<void>((resolveTask) => {
+        if (didAbortBeforeStart) {
+          resolveTask();
+          return;
+        }
+
+        let taskPromise: Promise<T>;
+        try {
+          taskPromise = task({
+            ack: resolveTask,
+            abort: abortScope,
+          });
+        } catch (err) {
           abortScope.dispose();
-          // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
-          reject(reason);
-        },
-      );
+          resolveTask();
 
-      const taskWithContext = () => {
-        return new Promise<void>((resolveTask) => {
-          if (didQueueTimeout || didAbortBeforeStart) {
-            resolveTask();
-            return;
-          }
+          reject(err);
+          return;
+        }
 
-          let taskPromise: Promise<T>;
-          try {
-            taskPromise = task({
-              ack: resolveTask,
-              abort: abortScope,
-            });
-          } catch (err) {
+        taskPromise
+          .then((result) => {
+            abortScope.dispose();
+            resolve(result);
+          })
+          .catch((err) => {
             abortScope.dispose();
             resolveTask();
-            // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
+
             reject(err);
-            return;
-          }
-
-          taskPromise
-            .then((result) => {
-              abortScope.dispose();
-              resolve(result);
-            })
-            .catch((err) => {
-              abortScope.dispose();
-              resolveTask();
-              // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
-              reject(err);
-            });
-        });
-      };
-
-      this.queue.push({
-        task: taskWithContext,
-        options,
-        reject: (reason) => {
-          queueWaitTimer.cancel();
-          abortScope.dispose();
-          // eslint-disable-next-line @typescript-eslint/prefer-promise-reject-errors
-          reject(reason);
-        },
-        markStarted: () => {
-          didStart = true;
-          queueWaitTimer.cancel();
-        },
-        abort: (reason) => {
-          abortScope.dispose();
-          abortScope.abort(reason);
-        },
+          });
       });
-      if (!this.isProcessing) {
-        this.ensureProcessing();
-      }
-    });
+    };
+    const expiresAt = this.expireQueuedTasks.deadlineForNewTask();
+
+    queuedItem = {
+      task: taskWithContext,
+      options,
+      ...(expiresAt !== undefined ? { expiresAt } : {}),
+      reject: (reason) => {
+        abortScope.dispose();
+
+        reject(reason);
+      },
+      markStarted: () => {
+        didStart = true;
+      },
+      abort: (reason) => {
+        abortScope.dispose();
+        abortScope.abort(reason);
+      },
+    };
+    this.queue.push(queuedItem);
+    this.expireQueuedTasks.schedule();
+    if (!this.isProcessing) {
+      this.ensureProcessing();
+    }
+
+    return promise;
   }
 
   private ensureProcessing(): void {
@@ -211,6 +227,7 @@ export class TaskProcessor {
         const item = this.takeFirstAvailableItem();
 
         if (item === null) return;
+        if (this.expireQueuedTasks.rejectIfExpired(item)) continue;
 
         const groupId = item.options?.taskGroupId;
 
@@ -220,19 +237,15 @@ export class TaskProcessor {
         }
 
         this.activeTasks++;
-        void this.executeItem(item);
+        void this.executeItem(item).catch((err) => {
+          console.error('TaskProcessor caught unhandled task rejection:', err);
+        });
       }
     } catch (error) {
       console.error(error);
       throw error;
     } finally {
       this.isProcessing = false;
-      if (
-        this.hasItemsToProcess() &&
-        this.activeTasks < this.options.maxActiveTasks
-      ) {
-        this.ensureProcessing();
-      }
     }
   }
 
@@ -278,13 +291,6 @@ export class TaskProcessor {
     return item ?? null;
   };
 
-  private hasItemsToProcess = (): boolean =>
-    this.queue.findIndex(
-      (item) =>
-        !item.options?.taskGroupId ||
-        !this.activeGroups.has(item.options.taskGroupId),
-    ) !== -1;
-
   private resolveIdleWaiters = (): void => {
     if (this.activeTasks > 0 || this.queue.length > 0) return;
 
@@ -293,30 +299,29 @@ export class TaskProcessor {
       resolve();
     }
   };
+
+  private removeQueuedItem = (item: TaskQueueItem): boolean => {
+    const index = this.queue.indexOf(item);
+    if (index === -1) return false;
+
+    this.queue.splice(index, 1);
+    return true;
+  };
 }
 
-type QueueWaitTimer = { cancel: () => void };
+const createDeferred = <T>(): PromiseWithResolvers<T> => {
+  if (Promise.withResolvers) {
+    return Promise.withResolvers<T>();
+  }
 
-const noopQueueWaitTimer: QueueWaitTimer = { cancel: () => {} };
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
 
-const createQueueWaitTimer = (
-  timeoutMs: number | undefined,
-  reject: (reason: unknown) => void,
-): QueueWaitTimer => {
-  if (timeoutMs === undefined) return noopQueueWaitTimer;
-
-  let timeoutId: NodeJS.Timeout | null = setTimeout(() => {
-    reject(new Error('Task was not started within the maximum waiting time'));
-  }, timeoutMs);
-  timeoutId.unref();
-
-  return {
-    cancel: () => {
-      if (!timeoutId) return;
-      clearTimeout(timeoutId);
-      timeoutId = null;
-    },
-  };
+  return { promise, resolve, reject };
 };
 
 const waitForProcessingOrDeadline = async (
