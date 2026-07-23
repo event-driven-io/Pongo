@@ -739,7 +739,7 @@ describe('TaskProcessor', () => {
     assert.strictEqual(await replacementTask, 'replacement');
   });
 
-  it('keeps leased capacity unavailable until the caller releases it', async () => {
+  it('keeps an acquired slot unavailable until the caller gives it back', async () => {
     const singleTaskProcessor = new TaskProcessor({
       maxActiveTasks: 1,
       maxQueueSize: 10,
@@ -751,7 +751,7 @@ describe('TaskProcessor', () => {
     const activeTask = singleTaskProcessor.enqueue(({ ack }) => {
       releaseSlot = ack;
       return Promise.resolve('active');
-    });
+    }, { releaseMode: 'manual' });
     const queuedTask = singleTaskProcessor.enqueue(({ ack }) => {
       queuedTaskRan = true;
       ack();
@@ -765,6 +765,53 @@ describe('TaskProcessor', () => {
 
     assert.strictEqual(await queuedTask, 'queued');
     assert.strictEqual(queuedTaskRan, true);
+  });
+
+  it('lets the next caller start after earlier work finishes', async () => {
+    const singleTaskProcessor = new TaskProcessor({
+      maxActiveTasks: 1,
+      maxQueueSize: 10,
+    });
+
+    let queuedTaskRan = false;
+    const activeTask = singleTaskProcessor.enqueue(() => {
+      return Promise.resolve('active');
+    });
+    const queuedTask = singleTaskProcessor.enqueue(() => {
+      queuedTaskRan = true;
+      return Promise.resolve('queued');
+    });
+
+    assert.strictEqual(await activeTask, 'active');
+    assert.strictEqual(await queuedTask, 'queued');
+    assert.strictEqual(queuedTaskRan, true);
+  });
+
+  it('lets a long operation make room for the next caller early', async () => {
+    const singleTaskProcessor = new TaskProcessor({
+      maxActiveTasks: 1,
+      maxQueueSize: 10,
+    });
+    const activeTaskCanFinish = Promise.withResolvers<void>();
+
+    let queuedTaskRan = false;
+    const activeTask = singleTaskProcessor.enqueue(async ({ ack }) => {
+      ack();
+      ack();
+      await activeTaskCanFinish.promise;
+      return 'active';
+    });
+    const queuedTask = singleTaskProcessor.enqueue(() => {
+      queuedTaskRan = true;
+      return Promise.resolve('queued');
+    });
+
+    assert.strictEqual(await queuedTask, 'queued');
+    assert.strictEqual(queuedTaskRan, true);
+
+    activeTaskCanFinish.resolve();
+    assert.strictEqual(await activeTask, 'active');
+    await singleTaskProcessor.waitForEndOfProcessing();
   });
 
   it('continues processing work after a task fails during setup', async () => {

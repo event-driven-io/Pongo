@@ -28,7 +28,7 @@ export const queuedTaskExpiration = ({
   };
 
   const rejectIfExpired = (item: TaskQueueItem): boolean => {
-    if (item.expiresAt === undefined || item.expiresAt > now()) {
+    if (item.expiresAtMs === undefined || item.expiresAtMs > now()) {
       return false;
     }
 
@@ -47,17 +47,18 @@ export const queuedTaskExpiration = ({
   const scheduleEarliestExpiration = (): void => {
     if (maxTaskIdleTime === undefined) return;
 
-    const nextExpiresAt = queue.reduce<number | null>(
+    const nextExpiresAtMs = queue.reduce<number | null>(
       (next, item) =>
-        item.expiresAt !== undefined && (next === null || item.expiresAt < next)
-          ? item.expiresAt
+        item.expiresAtMs !== undefined &&
+        (next === null || item.expiresAtMs < next)
+          ? item.expiresAtMs
           : next,
       null,
     );
 
-    if (nextExpiresAt === null) return;
+    if (nextExpiresAtMs === null) return;
 
-    const timeoutMs = Math.max(0, nextExpiresAt - now());
+    const timeoutMs = Math.max(0, nextExpiresAtMs - now());
     timer = setTimeout(() => {
       timer = null;
       rejectExpiredQueuedTasks();
@@ -72,7 +73,7 @@ export const queuedTaskExpiration = ({
 
     for (let i = 0; i < queue.length;) {
       const item = queue[i];
-      if (item?.expiresAt === undefined || item.expiresAt > currentTime) {
+      if (item?.expiresAtMs === undefined || item.expiresAtMs > currentTime) {
         i++;
         continue;
       }
