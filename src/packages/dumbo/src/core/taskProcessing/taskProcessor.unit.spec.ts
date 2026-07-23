@@ -1,13 +1,13 @@
 import assert from 'assert';
 import { beforeEach, describe, it } from 'vitest';
 import { Clock } from './clock';
-import { TaskProcessor, type Task } from './taskProcessor';
+import { taskProcessor, type TaskProcessor, type Task } from './taskProcessor';
 
 describe('TaskProcessor', () => {
-  let taskProcessor: TaskProcessor;
+  let processor: TaskProcessor;
 
   beforeEach(() => {
-    taskProcessor = new TaskProcessor({
+    processor = taskProcessor({
       maxActiveTasks: 2,
       maxQueueSize: 3,
     });
@@ -18,7 +18,7 @@ describe('TaskProcessor', () => {
       release();
       return Promise.resolve('Task should be processed successfully');
     };
-    const result = await taskProcessor.enqueue(task);
+    const result = await processor.enqueue(task);
 
     assert.ok(result, 'Task should be processed successfully');
   });
@@ -26,12 +26,12 @@ describe('TaskProcessor', () => {
   it('should process multiple tasks concurrently', async () => {
     const taskResults: string[] = [];
     const tasks = [
-      taskProcessor.enqueue(async ({ release }) => {
+      processor.enqueue(async ({ release }) => {
         await new Promise((resolve) => setTimeout(resolve, 100)); // Simulate task work
         taskResults.push('Task 1 completed');
         release();
       }),
-      taskProcessor.enqueue(async ({ release }) => {
+      processor.enqueue(async ({ release }) => {
         await new Promise((resolve) => setTimeout(resolve, 100));
         taskResults.push('Task 2 completed');
         release();
@@ -51,20 +51,20 @@ describe('TaskProcessor', () => {
     const tasks: string[] = [];
 
     // Enqueue 2 active tasks
-    const task1 = taskProcessor.enqueue(async ({ release }) => {
+    const task1 = processor.enqueue(async ({ release }) => {
       await new Promise((resolve) => setTimeout(resolve, 200)); // Simulate task work
       tasks.push('Task 1 completed');
       release();
     });
 
-    const task2 = taskProcessor.enqueue(async ({ release }) => {
+    const task2 = processor.enqueue(async ({ release }) => {
       await new Promise((resolve) => setTimeout(resolve, 200));
       tasks.push('Task 2 completed');
       release();
     });
 
     // Enqueue a queued task, should only process after one of the above tasks finishes
-    const queuedTask = taskProcessor.enqueue(({ release }) => {
+    const queuedTask = processor.enqueue(({ release }) => {
       tasks.push('Queued Task completed');
       release();
       return Promise.resolve();
@@ -87,17 +87,17 @@ describe('TaskProcessor', () => {
   it('should process tasks in FIFO order without taskGroupId', async () => {
     const taskResults: string[] = [];
     const tasks = [
-      taskProcessor.enqueue(async ({ release }) => {
+      processor.enqueue(async ({ release }) => {
         taskResults.push('Task 1 completed');
         release();
         return Promise.resolve();
       }),
-      taskProcessor.enqueue(async ({ release }) => {
+      processor.enqueue(async ({ release }) => {
         taskResults.push('Task 2 completed');
         release();
         return Promise.resolve();
       }),
-      taskProcessor.enqueue(async ({ release }) => {
+      processor.enqueue(async ({ release }) => {
         taskResults.push('Task 3 completed');
         release();
         return Promise.resolve();
@@ -116,7 +116,7 @@ describe('TaskProcessor', () => {
   it('should process tasks with taskGroupId sequentially', async () => {
     const taskResults: string[] = [];
     const tasks = [
-      taskProcessor.enqueue(
+      processor.enqueue(
         async ({ release }) => {
           taskResults.push('Group 1 - Task 1');
           release();
@@ -124,7 +124,7 @@ describe('TaskProcessor', () => {
         },
         { taskGroupId: 'group1' },
       ),
-      taskProcessor.enqueue(
+      processor.enqueue(
         async ({ release }) => {
           taskResults.push('Group 1 - Task 2');
           release();
@@ -146,7 +146,7 @@ describe('TaskProcessor', () => {
   it('should process tasks from different taskGroupIds concurrently', async () => {
     const taskResults: string[] = [];
     const tasks = [
-      taskProcessor.enqueue(
+      processor.enqueue(
         async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 100)); // Simulate work
           taskResults.push('Group 1 - Task 1');
@@ -154,7 +154,7 @@ describe('TaskProcessor', () => {
         },
         { taskGroupId: 'group1' },
       ),
-      taskProcessor.enqueue(
+      processor.enqueue(
         async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 100));
           taskResults.push('Group 2 - Task 1');
@@ -176,7 +176,7 @@ describe('TaskProcessor', () => {
   it('should process ungrouped tasks concurrently with grouped tasks', async () => {
     const taskResults: string[] = [];
     const tasks = [
-      taskProcessor.enqueue(
+      processor.enqueue(
         async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 100)); // Simulate work
           taskResults.push('Grouped Task');
@@ -184,7 +184,7 @@ describe('TaskProcessor', () => {
         },
         { taskGroupId: 'group1' },
       ),
-      taskProcessor.enqueue(async ({ release }) => {
+      processor.enqueue(async ({ release }) => {
         await new Promise((resolve) => setTimeout(resolve, 100));
         taskResults.push('Ungrouped Task');
         release();
@@ -202,28 +202,28 @@ describe('TaskProcessor', () => {
 
   it('should respect queue size limit and reject tasks when exceeded', async () => {
     const tasks = [
-      taskProcessor.enqueue(({ release }) => {
+      processor.enqueue(({ release }) => {
         release();
         return Promise.resolve();
       }),
-      taskProcessor.enqueue(({ release }) => {
+      processor.enqueue(({ release }) => {
         release();
         return Promise.resolve();
       }),
-      taskProcessor.enqueue(({ release }) => {
+      processor.enqueue(({ release }) => {
         release();
         return Promise.resolve();
       }),
-      taskProcessor.enqueue(({ release }) => {
+      processor.enqueue(({ release }) => {
         release();
         return Promise.resolve();
       }),
-      taskProcessor.enqueue(({ release }) => {
+      processor.enqueue(({ release }) => {
         release();
         return Promise.resolve();
       }),
       // 5 + 1
-      taskProcessor.enqueue(({ release }) => {
+      processor.enqueue(({ release }) => {
         release();
         return Promise.resolve();
       }),
@@ -239,7 +239,7 @@ describe('TaskProcessor', () => {
   it('should process tasks from blocked groups in FIFO order after unblocking', async () => {
     const taskResults: string[] = [];
     const tasks = [
-      taskProcessor.enqueue(
+      processor.enqueue(
         async ({ release }) => {
           taskResults.push('Group 1 - Task 1');
           await new Promise((resolve) => setTimeout(resolve, 200));
@@ -247,7 +247,7 @@ describe('TaskProcessor', () => {
         },
         { taskGroupId: 'group1' },
       ),
-      taskProcessor.enqueue(
+      processor.enqueue(
         async ({ release }) => {
           taskResults.push('Group 1 - Task 2');
           release();
@@ -271,17 +271,17 @@ describe('TaskProcessor', () => {
   it('should process tasks in strict FIFO order without taskGroupId', async () => {
     const taskResults: string[] = [];
     const tasks = [
-      taskProcessor.enqueue(async ({ release }) => {
+      processor.enqueue(async ({ release }) => {
         await new Promise((resolve) => setTimeout(resolve, 50)); // Delay to simulate processing
         taskResults.push('Task 1 completed');
         release();
       }),
-      taskProcessor.enqueue(async ({ release }) => {
+      processor.enqueue(async ({ release }) => {
         await new Promise((resolve) => setTimeout(resolve, 50));
         taskResults.push('Task 2 completed');
         release();
       }),
-      taskProcessor.enqueue(async ({ release }) => {
+      processor.enqueue(async ({ release }) => {
         await new Promise((resolve) => setTimeout(resolve, 50));
         taskResults.push('Task 3 completed');
         release();
@@ -300,7 +300,7 @@ describe('TaskProcessor', () => {
   it('should process tasks with taskGroupId in strict FIFO order within the group', async () => {
     const taskResults: string[] = [];
     const tasks = [
-      taskProcessor.enqueue(
+      processor.enqueue(
         async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 20)); // Simulate work
           taskResults.push('Group 1 - Task 1');
@@ -308,7 +308,7 @@ describe('TaskProcessor', () => {
         },
         { taskGroupId: 'group1' },
       ),
-      taskProcessor.enqueue(
+      processor.enqueue(
         async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 10));
           taskResults.push('Group 1 - Task 2');
@@ -316,7 +316,7 @@ describe('TaskProcessor', () => {
         },
         { taskGroupId: 'group1' },
       ),
-      taskProcessor.enqueue(
+      processor.enqueue(
         async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 50));
           taskResults.push('Group 2 - Task 1');
@@ -338,7 +338,7 @@ describe('TaskProcessor', () => {
   it('should delay tasks from the same taskGroupId but allow other groups to process', async () => {
     const taskResults: string[] = [];
     const tasks = [
-      taskProcessor.enqueue(
+      processor.enqueue(
         async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 50)); // Simulate longer work
           taskResults.push('Group 1 - Task 1');
@@ -346,7 +346,7 @@ describe('TaskProcessor', () => {
         },
         { taskGroupId: 'group1' },
       ),
-      taskProcessor.enqueue(
+      processor.enqueue(
         async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 50));
           taskResults.push('Group 2 - Task 1');
@@ -354,7 +354,7 @@ describe('TaskProcessor', () => {
         },
         { taskGroupId: 'group2' },
       ),
-      taskProcessor.enqueue(
+      processor.enqueue(
         async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 50));
           taskResults.push('Group 1 - Task 2');
@@ -376,7 +376,7 @@ describe('TaskProcessor', () => {
   it('should ensure ungrouped tasks interleave with grouped tasks based on availability', async () => {
     const taskResults: string[] = [];
     const tasks = [
-      taskProcessor.enqueue(
+      processor.enqueue(
         async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 50)); // Simulate longer work
           taskResults.push('Group 1 - Task 1');
@@ -384,12 +384,12 @@ describe('TaskProcessor', () => {
         },
         { taskGroupId: 'group1' },
       ),
-      taskProcessor.enqueue(async ({ release }) => {
+      processor.enqueue(async ({ release }) => {
         await new Promise((resolve) => setTimeout(resolve, 50));
         taskResults.push('Ungrouped Task 1');
         release();
       }),
-      taskProcessor.enqueue(
+      processor.enqueue(
         async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 50));
           taskResults.push('Group 1 - Task 2');
@@ -411,7 +411,7 @@ describe('TaskProcessor', () => {
   it('should ensure blocked tasks from an active group are eventually processed', async () => {
     const taskResults: string[] = [];
     const tasks = [
-      taskProcessor.enqueue(
+      processor.enqueue(
         async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 100)); // Simulate work
           taskResults.push('Group 1 - Task 1');
@@ -419,12 +419,12 @@ describe('TaskProcessor', () => {
         },
         { taskGroupId: 'group1' },
       ),
-      taskProcessor.enqueue(async ({ release }) => {
+      processor.enqueue(async ({ release }) => {
         await new Promise((resolve) => setTimeout(resolve, 10));
         taskResults.push('Ungrouped Task');
         release();
       }),
-      taskProcessor.enqueue(
+      processor.enqueue(
         async ({ release }) => {
           await new Promise((resolve) => setTimeout(resolve, 20));
           taskResults.push('Group 1 - Task 2');
@@ -444,7 +444,7 @@ describe('TaskProcessor', () => {
   });
 
   it('rejects queued tasks on stop without orphaning promises', async () => {
-    const singleTaskProcessor = new TaskProcessor({
+    const singleTaskProcessor = taskProcessor({
       maxActiveTasks: 1,
       maxQueueSize: 10,
     });
@@ -475,7 +475,7 @@ describe('TaskProcessor', () => {
   });
 
   it('rejects queued tasks immediately on force stop', async () => {
-    const singleTaskProcessor = new TaskProcessor({
+    const singleTaskProcessor = taskProcessor({
       maxActiveTasks: 1,
       maxQueueSize: 10,
     });
@@ -503,7 +503,7 @@ describe('TaskProcessor', () => {
   });
 
   it('lets already started work run beyond the queue idle timeout', async () => {
-    const singleTaskProcessor = new TaskProcessor({
+    const singleTaskProcessor = taskProcessor({
       maxActiveTasks: 1,
       maxQueueSize: 10,
       maxTaskIdleTime: 10,
@@ -519,7 +519,7 @@ describe('TaskProcessor', () => {
   });
 
   it('does not start waiting work after the caller has timed out', async () => {
-    const singleTaskProcessor = new TaskProcessor({
+    const singleTaskProcessor = taskProcessor({
       maxActiveTasks: 1,
       maxQueueSize: 10,
       maxTaskIdleTime: 10,
@@ -555,7 +555,7 @@ describe('TaskProcessor', () => {
   });
 
   it('does not start waiting work whose timeout elapsed before the scheduler ran', async () => {
-    const singleTaskProcessor = new TaskProcessor({
+    const singleTaskProcessor = taskProcessor({
       maxActiveTasks: 1,
       maxQueueSize: 10,
       maxTaskIdleTime: 10,
@@ -584,7 +584,7 @@ describe('TaskProcessor', () => {
   });
 
   it('continues with the next waiting task after a timed out task is skipped', async () => {
-    const singleTaskProcessor = new TaskProcessor({
+    const singleTaskProcessor = taskProcessor({
       maxActiveTasks: 1,
       maxQueueSize: 10,
       maxTaskIdleTime: 10,
@@ -626,7 +626,7 @@ describe('TaskProcessor', () => {
   });
 
   it('lets another caller wait after a previous waiting caller times out', async () => {
-    const singleTaskProcessor = new TaskProcessor({
+    const singleTaskProcessor = taskProcessor({
       maxActiveTasks: 1,
       maxQueueSize: 1,
       maxTaskIdleTime: 10,
@@ -663,7 +663,7 @@ describe('TaskProcessor', () => {
   });
 
   it('does not start waiting work after the caller aborts', async () => {
-    const singleTaskProcessor = new TaskProcessor({
+    const singleTaskProcessor = taskProcessor({
       maxActiveTasks: 1,
       maxQueueSize: 10,
     });
@@ -701,7 +701,7 @@ describe('TaskProcessor', () => {
   });
 
   it('lets another caller wait after a previous waiting caller aborts', async () => {
-    const singleTaskProcessor = new TaskProcessor({
+    const singleTaskProcessor = taskProcessor({
       maxActiveTasks: 1,
       maxQueueSize: 1,
     });
@@ -740,7 +740,7 @@ describe('TaskProcessor', () => {
   });
 
   it('keeps an acquired slot unavailable until the caller gives it back', async () => {
-    const singleTaskProcessor = new TaskProcessor({
+    const singleTaskProcessor = taskProcessor({
       maxActiveTasks: 1,
       maxQueueSize: 10,
     });
@@ -748,10 +748,13 @@ describe('TaskProcessor', () => {
     let releaseSlot: () => void = () => {};
     let queuedTaskRan = false;
 
-    const activeTask = singleTaskProcessor.enqueue(({ release }) => {
-      releaseSlot = release;
-      return Promise.resolve('active');
-    }, { releaseMode: 'manual' });
+    const activeTask = singleTaskProcessor.enqueue(
+      ({ release }) => {
+        releaseSlot = release;
+        return Promise.resolve('active');
+      },
+      { releaseMode: 'manual' },
+    );
     const queuedTask = singleTaskProcessor.enqueue(({ release }) => {
       queuedTaskRan = true;
       release();
@@ -768,7 +771,7 @@ describe('TaskProcessor', () => {
   });
 
   it('lets the next caller start after earlier work finishes', async () => {
-    const singleTaskProcessor = new TaskProcessor({
+    const singleTaskProcessor = taskProcessor({
       maxActiveTasks: 1,
       maxQueueSize: 10,
     });
@@ -788,7 +791,7 @@ describe('TaskProcessor', () => {
   });
 
   it('lets a long operation make room for the next caller early', async () => {
-    const singleTaskProcessor = new TaskProcessor({
+    const singleTaskProcessor = taskProcessor({
       maxActiveTasks: 1,
       maxQueueSize: 10,
     });
@@ -815,7 +818,7 @@ describe('TaskProcessor', () => {
   });
 
   it('continues processing work after a task fails during setup', async () => {
-    const singleTaskProcessor = new TaskProcessor({
+    const singleTaskProcessor = taskProcessor({
       maxActiveTasks: 1,
       maxQueueSize: 10,
     });
@@ -837,7 +840,7 @@ describe('TaskProcessor', () => {
   });
 
   it('continues processing work after a running task rejects', async () => {
-    const singleTaskProcessor = new TaskProcessor({
+    const singleTaskProcessor = taskProcessor({
       maxActiveTasks: 1,
       maxQueueSize: 10,
     });
@@ -859,7 +862,7 @@ describe('TaskProcessor', () => {
   });
 
   it('aborts active task context on force stop', async () => {
-    const singleTaskProcessor = new TaskProcessor({
+    const singleTaskProcessor = taskProcessor({
       maxActiveTasks: 1,
       maxQueueSize: 10,
     });
@@ -882,7 +885,7 @@ describe('TaskProcessor', () => {
   });
 
   it('does not abort active task context on graceful stop', async () => {
-    const singleTaskProcessor = new TaskProcessor({
+    const singleTaskProcessor = taskProcessor({
       maxActiveTasks: 1,
       maxQueueSize: 10,
     });

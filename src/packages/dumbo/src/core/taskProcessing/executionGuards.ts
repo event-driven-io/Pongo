@@ -1,7 +1,7 @@
 import { v7 as uuid } from 'uuid';
 import type { AbortContext, AbortOptions } from './abort';
 import {
-  TaskProcessor,
+  taskProcessor,
   type TaskProcessorLogger,
   type StopTaskProcessorOptions,
   type TaskContext,
@@ -22,7 +22,7 @@ export const guardExclusiveAccess = (options?: {
   maxQueueSize?: number;
   maxTaskIdleTime?: number;
 }): ExclusiveAccessGuard => {
-  const taskProcessor = new TaskProcessor({
+  const processor = taskProcessor({
     maxActiveTasks: 1,
     maxQueueSize: options?.maxQueueSize ?? 1000,
     ...(options?.logger !== undefined ? { logger: options.logger } : {}),
@@ -36,9 +36,9 @@ export const guardExclusiveAccess = (options?: {
       operation: (context: TaskContext) => Promise<Result>,
       options?: AbortOptions,
     ): Promise<Result> =>
-      taskProcessor.enqueue((context) => operation(context), options),
-    waitForEndOfProcessing: () => taskProcessor.waitForEndOfProcessing(),
-    stop: (options) => taskProcessor.stop(options),
+      processor.enqueue((context) => operation(context), options),
+    waitForEndOfProcessing: () => processor.waitForEndOfProcessing(),
+    stop: (options) => processor.stop(options),
   };
 };
 
@@ -57,7 +57,7 @@ export const guardConcurrentAccess = (options?: {
   maxQueueSize?: number;
   maxTaskIdleTime?: number;
 }): ConcurrentAccessGuard => {
-  const taskProcessor = new TaskProcessor({
+  const processor = taskProcessor({
     maxActiveTasks: options?.maxActiveTasks ?? Number.MAX_SAFE_INTEGER,
     maxQueueSize: options?.maxQueueSize ?? Number.MAX_SAFE_INTEGER,
     ...(options?.logger !== undefined ? { logger: options.logger } : {}),
@@ -71,12 +71,12 @@ export const guardConcurrentAccess = (options?: {
       operation: (context: AbortContext) => Promise<Result>,
       options?: AbortOptions,
     ): Promise<Result> =>
-      taskProcessor.enqueue(
+      processor.enqueue(
         (context) => operation({ abort: context.abort }),
         options,
       ),
-    waitForEndOfProcessing: () => taskProcessor.waitForEndOfProcessing(),
-    stop: (options) => taskProcessor.stop(options),
+    waitForEndOfProcessing: () => processor.waitForEndOfProcessing(),
+    stop: (options) => processor.stop(options),
   };
 };
 
@@ -102,7 +102,7 @@ export const guardBoundedAccess = <Resource>(
   },
 ): BoundedAccessGuard<Resource> => {
   let isStopped = false;
-  const taskProcessor = new TaskProcessor({
+  const processor = taskProcessor({
     maxActiveTasks: options.maxResources,
     maxQueueSize: options.maxQueueSize ?? 1000,
     ...(options.logger !== undefined ? { logger: options.logger } : {}),
@@ -144,10 +144,10 @@ export const guardBoundedAccess = <Resource>(
   const acquire = async (
     operationOptions?: TaskOperationOptions,
   ): Promise<Resource> =>
-    taskProcessor.enqueue(
-      (taskContext) => acquireResource(taskContext),
-      { ...operationOptions, releaseMode: 'manual' },
-    );
+    processor.enqueue((taskContext) => acquireResource(taskContext), {
+      ...operationOptions,
+      releaseMode: 'manual',
+    });
 
   const getActiveResourceContext = (resource: Resource) => {
     const activeResourceContext = activeResourceContexts.get(resource);
@@ -173,7 +173,7 @@ export const guardBoundedAccess = <Resource>(
     operation: (resource: Resource, context: AbortContext) => Promise<Result>,
     operationOptions?: AbortOptions,
   ): Promise<Result> => {
-    return taskProcessor.enqueue(async (taskContext) => {
+    return processor.enqueue(async (taskContext) => {
       const resource = await acquireResource(taskContext);
       const activeResourceContext = getActiveResourceContext(resource);
       try {
@@ -190,11 +190,11 @@ export const guardBoundedAccess = <Resource>(
     acquire,
     release,
     execute,
-    waitForEndOfProcessing: () => taskProcessor.waitForEndOfProcessing(),
+    waitForEndOfProcessing: () => processor.waitForEndOfProcessing(),
     stop: async (stopOptions) => {
       if (isStopped) return;
       isStopped = true;
-      await taskProcessor.stop(stopOptions);
+      await processor.stop(stopOptions);
 
       if (options?.closeResource) {
         const resources = [...allResources];
@@ -226,7 +226,7 @@ export const guardInitializedOnce = <T>(
 ): InitializedOnceGuard<T> => {
   let initPromise: Promise<T> | null = null;
 
-  const taskProcessor = new TaskProcessor({
+  const processor = taskProcessor({
     maxActiveTasks: 1,
     maxQueueSize: options?.maxQueueSize ?? 1000,
     ...(options?.logger !== undefined ? { logger: options.logger } : {}),
@@ -240,7 +240,7 @@ export const guardInitializedOnce = <T>(
       return initPromise;
     }
 
-    return taskProcessor.enqueue(
+    return processor.enqueue(
       async ({ abort, release }) => {
         if (initPromise !== null) {
           release();
@@ -271,6 +271,6 @@ export const guardInitializedOnce = <T>(
     reset: () => {
       initPromise = null;
     },
-    stop: (options) => taskProcessor.stop(options),
+    stop: (options) => processor.stop(options),
   };
 };
