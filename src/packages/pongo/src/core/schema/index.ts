@@ -17,7 +17,14 @@ export interface PongoCollectionSchema<
 > {
   name: string;
   databaseSchema?: string | undefined;
+  indexes?: readonly PongoCollectionIndex[] | undefined;
 }
+
+export type PongoCollectionIndex = {
+  name: string;
+  path: string | readonly string[];
+  unique?: boolean | undefined;
+};
 
 export interface PongoDatabaseSchemaSchema<
   T extends Record<string, PongoCollectionSchema> = Record<
@@ -88,10 +95,15 @@ export type PongoClientWithSchema<
 
 const pongoCollectionSchema = <T extends PongoDocument>(
   name: string,
-  options?: { schema?: string; databaseSchema?: string },
+  options?: {
+    schema?: string;
+    databaseSchema?: string;
+    indexes?: readonly PongoCollectionIndex[];
+  },
 ): PongoCollectionSchema<T> => ({
   name,
   databaseSchema: options?.databaseSchema ?? options?.schema,
+  indexes: options?.indexes,
 });
 
 pongoCollectionSchema.from = (
@@ -104,6 +116,21 @@ pongoCollectionSchema.from = (
     ),
     {} as Record<string, PongoCollectionSchema>,
   );
+
+const pongoCollectionIndex = (
+  name: string,
+  path: string | readonly string[],
+  options?: { unique?: boolean | undefined },
+): PongoCollectionIndex => ({
+  name,
+  path,
+  unique: options?.unique,
+});
+
+pongoCollectionIndex.unique = (
+  name: string,
+  path: string | readonly string[],
+): PongoCollectionIndex => pongoCollectionIndex(name, path, { unique: true });
 
 function pongoDbSchema<T extends Record<string, PongoCollectionSchema>>(
   collections: T,
@@ -294,6 +321,7 @@ export const pongoSchema = {
   database: pongoDatabaseSchemaDefinition,
   schema: pongoDatabaseSchema,
   collection: pongoCollectionSchema,
+  index: pongoCollectionIndex,
 };
 
 // Factory function to create DB instances

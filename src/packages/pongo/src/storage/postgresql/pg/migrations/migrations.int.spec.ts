@@ -20,6 +20,10 @@ describe('Migration Integration Tests', () => {
     database: pongoSchema.db({
       users: pongoSchema.collection('users'),
       roles: pongoSchema.collection('roles'),
+      crmUsers: pongoSchema.collection('users', {
+        schema: 'crm',
+        indexes: [pongoSchema.index.unique('users_email_uq', 'email')],
+      }),
     }),
   });
 
@@ -42,7 +46,7 @@ describe('Migration Integration Tests', () => {
 
   beforeEach(async () => {
     await pool.execute.query(
-      SQL`DROP SCHEMA public CASCADE; CREATE SCHEMA public;`,
+      SQL`DROP SCHEMA IF EXISTS crm CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public;`,
     );
   });
 
@@ -51,9 +55,55 @@ describe('Migration Integration Tests', () => {
 
     const usersTableExists = await tableExists(pool.execute, 'users');
     const rolesTableExists = await tableExists(pool.execute, 'roles');
+    const crmUsersTableExists = await pool.execute.query<{ exists: boolean }>(
+      SQL`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables
+          WHERE table_schema = 'crm' AND table_name = 'users'
+        )`,
+    );
+    const crmUsersEmailIndexExists = await pool.execute.query<{
+      exists: boolean;
+    }>(
+      SQL`
+        SELECT EXISTS (
+          SELECT FROM pg_indexes
+          WHERE schemaname = 'crm' AND tablename = 'users' AND indexname = 'users_email_uq'
+        )`,
+    );
 
     assert.ok(usersTableExists, 'The users table should exist.');
     assert.ok(rolesTableExists, 'The roles table should exist.');
+    assert.strictEqual(
+      crmUsersTableExists.rows[0]?.exists,
+      true,
+      'The crm.users table should exist.',
+    );
+    assert.strictEqual(
+      crmUsersEmailIndexExists.rows[0]?.exists,
+      true,
+      'The crm.users email index should exist.',
+    );
+  });
+
+  it('uses default and explicit schemas in runtime collection calls', async () => {
+    await client.db().schema.migrate();
+
+    const defaultUsers = client.db().collection('users');
+    const crmUsers = client.db().collection('users', { schema: 'crm' });
+
+    await defaultUsers.insertOne({ _id: 'public-user', email: 'public@test' });
+    await crmUsers.insertOne({ _id: 'crm-user', email: 'crm@test' });
+
+    const defaultCount = await pool.execute.query<{ count: number }>(
+      SQL`SELECT COUNT(*)::int as count FROM public.users`,
+    );
+    const crmCount = await pool.execute.query<{ count: number }>(
+      SQL`SELECT COUNT(*)::int as count FROM crm.users`,
+    );
+
+    assert.strictEqual(defaultCount.rows[0]?.count, 1);
+    assert.strictEqual(crmCount.rows[0]?.count, 1);
   });
 
   it('should correctly apply a migration if the hash matches the previous migration with the same name', async () => {
@@ -67,7 +117,7 @@ describe('Migration Integration Tests', () => {
     );
     assert.strictEqual(
       migrationNames.rowCount,
-      2,
+      4,
       'The migration should only be applied once.',
     );
     assert.deepEqual(
@@ -75,6 +125,8 @@ describe('Migration Integration Tests', () => {
       [
         'pongoCollection:users:001:createtable',
         'pongoCollection:roles:001:createtable',
+        'pongoCollection:crm:users:001:createtable',
+        'pongoCollection:crm:users:002:index:users_email_uq',
       ],
     );
   });

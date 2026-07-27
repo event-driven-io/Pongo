@@ -5,7 +5,17 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { InMemorySQLiteDatabase, SQLiteConnectionString } from '..';
 import { count, dumbo, single, SQL, type Dumbo } from '../../../..';
-import { runSQLMigrations, type SQLMigration } from '../../../../core/schema';
+import {
+  databaseFeatureSchemaComponent,
+  databaseSchemaComponent,
+  databaseSchemaFeatureSchemaComponent,
+  databaseSchemaSchemaComponent,
+  runSQLMigrations,
+  SchemaComponentMigrator,
+  sqlMigration,
+  tableSchemaComponent,
+  type SQLMigration,
+} from '../../../../core/schema';
 import { SQLite3DriverType, tableExists } from '../../../../sqlite3';
 
 describe('Migration Integration Tests', () => {
@@ -82,6 +92,60 @@ describe('Migration Integration Tests', () => {
 
         assert.ok(usersTableExists, 'The users table should exist.');
         assert.ok(rolesTableExists, 'The roles table should exist.');
+      });
+
+      it('runs expanded database and schema feature component migrations in order', async () => {
+        const schemaTableMigration = sqlMigration('schema-table:001', [
+          SQL`CREATE TABLE component_users (id TEXT PRIMARY KEY);`,
+        ]);
+        const schemaFeatureMigration = sqlMigration('schema-feature:001', [
+          SQL`CREATE TABLE schema_audit_log (id TEXT PRIMARY KEY);`,
+        ]);
+        const databaseFeatureMigration = sqlMigration('database-feature:001', [
+          SQL`CREATE TABLE database_outbox (id TEXT PRIMARY KEY);`,
+        ]);
+        const audit = databaseSchemaFeatureSchemaComponent({
+          featureKind: 'audit',
+          featureName: 'audit',
+          migrations: [schemaFeatureMigration],
+        });
+        const eventStore = databaseFeatureSchemaComponent({
+          featureKind: 'event_store',
+          featureName: 'eventStore',
+          migrations: [databaseFeatureMigration],
+        });
+        const component = databaseSchemaComponent({
+          databaseName: 'app',
+          schemas: {
+            main: databaseSchemaSchemaComponent({
+              schemaName: 'main',
+              tables: {
+                users: tableSchemaComponent({
+                  tableName: 'users',
+                  migrations: [schemaTableMigration],
+                }),
+              },
+              features: { audit },
+            }),
+          },
+          features: { eventStore },
+        });
+        const migrator = SchemaComponentMigrator(component, pool);
+
+        await migrator.run({ lock: { options: { timeoutMs: 300 } } });
+        await migrator.run({ lock: { options: { timeoutMs: 300 } } });
+
+        const migrationNames = await pool.execute.query<{ name: string }>(
+          SQL`SELECT name FROM dmb_migrations WHERE name <> 'dumbo:migrationTable:001' ORDER BY id`,
+        );
+
+        assert.deepStrictEqual(
+          migrationNames.rows.map((row) => row.name),
+          ['schema-table:001', 'schema-feature:001', 'database-feature:001'],
+        );
+        assert.ok(await tableExists(pool.execute, 'component_users'));
+        assert.ok(await tableExists(pool.execute, 'schema_audit_log'));
+        assert.ok(await tableExists(pool.execute, 'database_outbox'));
       });
 
       // it('should timeout if the advisory lock is not acquired within the specified time', async () => {
