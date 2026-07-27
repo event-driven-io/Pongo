@@ -13,6 +13,7 @@ export interface PongoCollectionSchema<
   T extends PongoDocument = PongoDocument,
 > {
   name: string;
+  databaseSchema?: string | undefined;
 }
 
 // Database schema interface
@@ -59,8 +60,10 @@ export type PongoClientWithSchema<
 
 const pongoCollectionSchema = <T extends PongoDocument>(
   name: string,
+  options?: { schema?: string; databaseSchema?: string },
 ): PongoCollectionSchema<T> => ({
   name,
+  databaseSchema: options?.databaseSchema ?? options?.schema,
 });
 
 pongoCollectionSchema.from = (

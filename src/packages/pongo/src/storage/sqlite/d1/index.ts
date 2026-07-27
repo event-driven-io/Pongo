@@ -7,9 +7,8 @@ import { D1DriverType, d1Pool } from '@event-driven-io/dumbo/cloudflare';
 import {
   PongoCollectionSchemaComponent,
   PongoDatabase,
-  PongoDatabaseSchemaComponent,
   pongoDriverRegistry,
-  pongoSchema,
+  pongoDatabaseSchemaComponentFor,
   type PongoDb,
   type PongoDriver,
   type PongoDriverOptions,
@@ -44,8 +43,9 @@ const d1PongoDriver: PongoDriver<
       pool: d1Pool({
         ...pongoConnectionOptions,
       }),
-      schemaComponent: PongoDatabaseSchemaComponent({
+      schemaComponent: pongoDatabaseSchemaComponentFor({
         driverType: D1DriverType,
+        databaseName,
         collectionFactory: (schema) =>
           PongoCollectionSchemaComponent({
             driverType: D1DriverType,
@@ -58,8 +58,7 @@ const d1PongoDriver: PongoDriver<
               options.serialization?.serializer ?? JSONSerializer,
             ),
           }),
-        definition:
-          options.schema?.definition ?? pongoSchema.db(databaseName, {}),
+        definition: options.schema?.definition,
       }),
       databaseName,
     });

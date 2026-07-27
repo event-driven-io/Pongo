@@ -1,6 +1,7 @@
 import type { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import {
   runSQLMigrations,
+  type AnySchemaComponent,
   type DatabaseDriverType,
   type Dumbo,
   type MigrationStyle,
@@ -58,7 +59,7 @@ export type PongoDatabaseOptions<
   schema?:
     | {
         autoMigration?: MigrationStyle;
-        definition?: PongoDbSchema<CollectionsSchema>;
+        definition?: PongoDbSchema<CollectionsSchema> | AnySchemaComponent;
       }
     | undefined;
   errors?: { throwOnOperationFailures?: boolean } | undefined;
@@ -146,23 +147,50 @@ export const PongoDatabase = <
     collection: <T extends Document, Payload extends Document = T>(
       collectionName: string,
       collectionOptions?: PongoDBCollectionOptions<T, Payload>,
-    ) =>
-      (collections.get(collectionName) as PongoCollection<T> | undefined) ??
-      pongoCollection({
+    ) => {
+      const databaseSchemaName =
+        typeof collectionOptions?.schema === 'string'
+          ? collectionOptions.schema
+          : undefined;
+      const collectionKey = databaseSchemaName
+        ? `${databaseSchemaName}.${collectionName}`
+        : collectionName;
+      const collectionSchema =
+        databaseSchemaName !== undefined
+          ? pongoSchema.collection<T>(collectionName, {
+              schema: databaseSchemaName,
+            })
+          : pongoSchema.collection<T>(collectionName);
+      const collectionRuntimeSchema =
+        typeof collectionOptions?.schema === 'string'
+          ? undefined
+          : collectionOptions?.schema;
+
+      const existing = collections.get(collectionKey) as
+        PongoCollection<T> | undefined;
+
+      if (existing) return existing;
+
+      const collection = pongoCollection({
         collectionName,
         db,
         pool,
-        schemaComponent: schemaComponent.collection(
-          pongoSchema.collection<T>(collectionName),
-        ),
-        schema: { ...options.schema, ...collectionOptions?.schema },
+        schemaComponent: schemaComponent.collection(collectionSchema),
+        schema: { ...options.schema, ...collectionRuntimeSchema },
         serializer,
         errors: { ...options.errors, ...collectionOptions?.errors },
         cache:
           collectionOptions?.cache !== undefined
             ? collectionOptions.cache
             : cache,
-      }),
+      });
+
+      collections.set(
+        collectionKey,
+        collection as unknown as PongoCollection<Document>,
+      );
+      return collection;
+    },
     transaction: (transactionOptions) =>
       pool.transaction(
         pongoTransactionOptions(
@@ -202,9 +230,9 @@ export const PongoDatabase = <
     },
   } satisfies PongoDb<Database['driverType']> as unknown as Database;
 
-  const dbSchema = options?.schema?.definition;
+  const dbSchema = schemaComponent.definition;
 
-  if (dbSchema) {
+  if (Object.keys(dbSchema.collections).length > 0) {
     return proxyPongoDbWithSchema(db, dbSchema, collections);
   }
 

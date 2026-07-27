@@ -13,9 +13,7 @@ type LogicalSchema = {
 };
 
 export type LogicalSchemaMapping =
-  | { mode: 'strict' }
-  | { mode: 'prefix'; separator?: string }
-  | { mode: 'database-per-schema' };
+  { mode: 'strict' } | { mode: 'prefix'; separator?: string };
 
 export type LogicalSchemaCollision = {
   physicalName: string;

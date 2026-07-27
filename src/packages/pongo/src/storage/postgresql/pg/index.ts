@@ -10,9 +10,8 @@ import type pg from 'pg';
 import {
   PongoCollectionSchemaComponent,
   PongoDatabase,
-  PongoDatabaseSchemaComponent,
   pongoDriverRegistry,
-  pongoSchema,
+  pongoDatabaseSchemaComponentFor,
   type PongoDb,
   type PongoDriver,
   type PongoDriverOptions,
@@ -84,8 +83,9 @@ const pgPongoDriver: PongoDriver<
         ...connectionOptions,
         serialization: { serializer: options.serializer },
       }),
-      schemaComponent: PongoDatabaseSchemaComponent({
+      schemaComponent: pongoDatabaseSchemaComponentFor({
         driverType: PgDriverType,
+        databaseName,
         collectionFactory: (schema) =>
           PongoCollectionSchemaComponent({
             driverType: PgDriverType,
@@ -98,8 +98,7 @@ const pgPongoDriver: PongoDriver<
               options.serialization?.serializer ?? JSONSerializer,
             ),
           }),
-        definition:
-          options.schema?.definition ?? pongoSchema.db(databaseName, {}),
+        definition: options.schema?.definition,
       }),
       databaseName,
     });

@@ -7,11 +7,14 @@ import {
 import type { PongoCollectionSchema, PongoCollectionSQLBuilder } from '..';
 
 export type PongoCollectionURNType = 'sc:pongo:collection';
-export type PongoCollectionURN = `${PongoCollectionURNType}:${string}`;
+export type PongoCollectionURN =
+  | `${PongoCollectionURNType}:${string}`
+  | `${PongoCollectionURNType}:${string}:${string}`;
 
 export type PongoCollectionSchemaComponent =
   SchemaComponent<PongoCollectionURN> & {
     collectionName: string;
+    databaseSchemaName?: string | undefined;
     definition: PongoCollectionSchema;
     sqlBuilder: PongoCollectionSQLBuilder;
   };
@@ -33,10 +36,13 @@ export const PongoCollectionSchemaComponent = <
   sqlBuilder,
 }: PongoCollectionSchemaComponentOptions<DriverType>): PongoCollectionSchemaComponent => ({
   ...schemaComponent(
-    `sc:pongo:collection:${definition.name}`,
+    definition.databaseSchema
+      ? `sc:pongo:collection:${definition.databaseSchema}:${definition.name}`
+      : `sc:pongo:collection:${definition.name}`,
     migrationsOrSchemaComponents,
   ),
   sqlBuilder,
   definition,
   collectionName: definition.name,
+  databaseSchemaName: definition.databaseSchema,
 });

@@ -1,4 +1,5 @@
 export * from './components';
+export * from './componentDiscovery';
 export * from './databaseMetadata';
 export * from './dumboSchema';
 export * from './expandSchemaComponent';
