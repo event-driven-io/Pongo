@@ -45,9 +45,14 @@ describe('dumboSchema', () => {
     assert.ok(tbl.columns.has('id'));
     assert.ok(tbl.columns.has('email'));
     assert.ok(tbl.indexes.has('idx_email'));
+    const boundEmailIndex = tbl.indexes.get('idx_email');
     assert.strictEqual(
-      tbl.components.get(emailIndex.schemaComponentKey),
-      emailIndex,
+      boundEmailIndex?.schemaComponentKey,
+      'sc:dumbo:index:regular:__default_database_schema__:users:idx_email',
+    );
+    assert.strictEqual(
+      tbl.components.get(boundEmailIndex.schemaComponentKey),
+      boundEmailIndex,
     );
     assert.ok(tbl.columns.id !== undefined);
     assert.ok(tbl.columns.email !== undefined);

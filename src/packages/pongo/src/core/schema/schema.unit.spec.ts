@@ -36,6 +36,10 @@ describe('pongoSchema indexes', () => {
     assert.strictEqual(externalId.type, 'json_path');
     assert.strictEqual(document.name, 'users_data_idx');
     assert.strictEqual(document.type, 'json_document');
+    assert.strictEqual(
+      email.schemaComponentKey,
+      'sc:dumbo:index:json_path:__default_database_schema__:__default_table__:users_email_idx',
+    );
   });
 
   it('preserves custom index metadata for driver or user extensions', () => {
@@ -59,7 +63,7 @@ describe('pongoSchema indexes', () => {
 
     assert.strictEqual(
       index?.schemaComponentKey,
-      'sc:dumbo:index:custom_jsonb_path:users_data_path_ops',
+      'sc:dumbo:index:custom_jsonb_path:__default_database_schema__:users:users_data_path_ops',
     );
     assert.deepStrictEqual(index?.path, customIndex.path);
     assert.deepStrictEqual(index?.options, customIndex.options);
@@ -101,6 +105,10 @@ describe('Pongo collection schema component', () => {
     assert.strictEqual(
       users.indexes.get('users_email_uq')?.name,
       'users_email_uq',
+    );
+    assert.strictEqual(
+      users.indexes.get('users_email_uq')?.schemaComponentKey,
+      'sc:dumbo:index:json_path:crm:users:users_email_uq',
     );
     assert.strictEqual(crm.tables.get('users'), users);
     expectTypeOf(crm.tables.users).toMatchTypeOf<

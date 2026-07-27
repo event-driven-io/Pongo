@@ -9,8 +9,9 @@ import {
   type AnyColumnSchemaComponent,
 } from './columnSchemaComponent';
 import {
+  bindIndexToTable,
   IndexURNType,
-  type IndexSchemaComponent,
+  type AnyIndexSchemaComponent,
 } from './indexSchemaComponent';
 import type { TableRelationships } from './relationships/relationshipTypes';
 
@@ -38,12 +39,19 @@ export const TableURN = <
   `${TableURNType}:${kind}:${databaseSchemaName}:${name}`;
 
 export type TableColumns = Record<string, AnyColumnSchemaComponent>;
-export type TableIndexes = Record<
-  string,
-  IndexSchemaComponent<string, string, Record<string, unknown>>
->;
+export type TableIndexes = Record<string, AnyIndexSchemaComponent>;
 export type RegularTableKind = 'regular';
 export const RegularTableKind: RegularTableKind = 'regular';
+
+type RuntimeTableSchemaComponent = TableSchemaComponent<
+  TableColumns,
+  string,
+  string,
+  TableRelationships<string>,
+  TableIndexes,
+  string,
+  Record<string, unknown>
+>;
 
 export const DEFAULT_DATABASE_SCHEMA_NAME = '__default_database_schema__';
 
@@ -98,9 +106,9 @@ export type TableSchemaComponent<
       keyof ReadonlyMap<string, AnyColumnSchemaComponent>
     >[];
     relationships: Relationships;
-    indexes: ReadonlyMap<string, IndexSchemaComponent> & Indexes;
+    indexes: ReadonlyMap<string, AnyIndexSchemaComponent> & Indexes;
     addColumn: (column: AnyColumnSchemaComponent) => AnyColumnSchemaComponent;
-    addIndex: (index: IndexSchemaComponent) => IndexSchemaComponent;
+    addIndex: (index: AnyIndexSchemaComponent) => AnyIndexSchemaComponent;
   }> &
     AdditionalData
 >;
@@ -261,7 +269,13 @@ export const tableSchemaComponent = <
   additionalData ??= {} as AdditionalData;
   databaseSchemaName ??= DEFAULT_DATABASE_SCHEMA_NAME as DatabaseSchemaName;
   tableKind ??= RegularTableKind as TableKind;
-  const indexComponents = Object.values(indexes);
+  const boundIndexes = Object.fromEntries(
+    Object.entries(indexes).map(([indexName, index]) => [
+      indexName,
+      bindIndexToTable(index, databaseSchemaName, tableName),
+    ]),
+  ) as unknown as Indexes;
+  const indexComponents = Object.values(boundIndexes);
 
   const base = schemaComponent(
     TableURN({ kind: tableKind, databaseSchemaName, name: tableName }),
@@ -283,7 +297,7 @@ export const tableSchemaComponent = <
       tableName,
       databaseSchemaName,
       relationships,
-      indexes,
+      indexes: boundIndexes,
       tableKind,
       additionalData,
     },
@@ -305,21 +319,21 @@ export const tableSchemaComponent = <
       return Object.assign(columnsMap, columns);
     },
     get indexes() {
-      const indexesMap = mapSchemaComponentsOfType<
-        IndexSchemaComponent<string, string, Record<string, unknown>>
-      >(base.components, IndexURNType, (c) => c.indexName) as Map<
-        string,
-        IndexSchemaComponent<string, string, Record<string, unknown>>
-      >;
+      const indexesMap = mapSchemaComponentsOfType<AnyIndexSchemaComponent>(
+        base.components,
+        IndexURNType,
+        (c) => c.indexName,
+      ) as Map<string, AnyIndexSchemaComponent>;
 
-      for (const [indexName, index] of Object.entries(indexes)) {
+      for (const [indexName, index] of Object.entries(boundIndexes)) {
         indexesMap.set(indexName, index);
       }
 
-      return Object.assign(indexesMap, indexes);
+      return Object.assign(indexesMap, boundIndexes);
     },
     addColumn: (column: AnyColumnSchemaComponent) => base.addComponent(column),
-    addIndex: (index: IndexSchemaComponent) => base.addComponent(index),
+    addIndex: (index: AnyIndexSchemaComponent) =>
+      base.addComponent(bindIndexToTable(index, databaseSchemaName, tableName)),
   } as unknown as TableSchemaComponent<
     Columns,
     TableName,
@@ -340,8 +354,7 @@ export const bindTableToDatabaseSchema = <
   table: Table,
   databaseSchemaName: DatabaseSchemaName,
 ): BindTableToDatabaseSchema<Table, DatabaseSchemaName> => {
-  /* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
-  const tableComponent = table as AnyTableSchemaComponent;
+  const tableComponent = table as RuntimeTableSchemaComponent;
 
   if (
     tableComponent.databaseSchemaName !== DEFAULT_DATABASE_SCHEMA_NAME &&
@@ -356,6 +369,33 @@ export const bindTableToDatabaseSchema = <
     return table as BindTableToDatabaseSchema<Table, DatabaseSchemaName>;
   }
 
+  const components = (): ReadonlyMap<string, SchemaComponent> =>
+    new Map<string, SchemaComponent>(
+      Array.from(tableComponent.components.values()).map((component) => {
+        const boundComponent = component.schemaComponentKey.startsWith(
+          IndexURNType,
+        )
+          ? bindIndexToTable(
+              component as AnyIndexSchemaComponent,
+              databaseSchemaName,
+              tableComponent.tableName,
+            )
+          : component;
+
+        return [boundComponent.schemaComponentKey, boundComponent];
+      }),
+    );
+  const indexes = (): ReadonlyMap<string, AnyIndexSchemaComponent> &
+    TableIndexes => {
+    const indexesMap = mapSchemaComponentsOfType<AnyIndexSchemaComponent>(
+      components(),
+      IndexURNType,
+      (c) => c.indexName,
+    ) as Map<string, AnyIndexSchemaComponent>;
+
+    return Object.assign(indexesMap, Object.fromEntries(indexesMap));
+  };
+
   return {
     ...tableComponent,
     schemaComponentKey: TableURN({
@@ -364,10 +404,26 @@ export const bindTableToDatabaseSchema = <
       name: tableComponent.tableName,
     }),
     databaseSchemaName,
+    get components() {
+      return components();
+    },
+    get migrations() {
+      return tableComponent.migrations;
+    },
+    get columns() {
+      return tableComponent.columns;
+    },
+    get indexes() {
+      return indexes();
+    },
+    addIndex: (index: AnyIndexSchemaComponent) =>
+      tableComponent.addComponent(
+        bindIndexToTable(index, databaseSchemaName, tableComponent.tableName),
+      ),
     [tableTypeState]: {
       ...tableComponent[tableTypeState],
       databaseSchemaName,
+      indexes: indexes(),
     },
-  } as BindTableToDatabaseSchema<Table, DatabaseSchemaName>;
-  /* eslint-enable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access */
+  } as unknown as BindTableToDatabaseSchema<Table, DatabaseSchemaName>;
 };
