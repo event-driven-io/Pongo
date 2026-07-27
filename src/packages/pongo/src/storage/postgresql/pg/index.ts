@@ -90,11 +90,9 @@ const pgPongoDriver: PongoDriver<
           PongoCollectionSchemaComponent({
             driverType: PgDriverType,
             definition: schema,
-            migrationsOrSchemaComponents: {
-              migrations: pongoCollectionPostgreSQLMigrations(schema.name),
-            },
+            migrations: pongoCollectionPostgreSQLMigrations(schema),
             sqlBuilder: postgresSQLBuilder(
-              schema.name,
+              schema,
               options.serialization?.serializer ?? JSONSerializer,
             ),
           }),

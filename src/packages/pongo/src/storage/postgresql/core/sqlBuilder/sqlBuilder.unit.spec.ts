@@ -2,8 +2,8 @@ import { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import { pgFormatter } from '@event-driven-io/dumbo/pg';
 import assert from 'assert';
 import { describe, it } from 'vitest';
-import { postgresSQLBuilder } from '.';
-import type { ExpectedDocumentVersion } from '../../../../core';
+import { postgresSQLBuilder, pongoCollectionPostgreSQLMigrations } from '.';
+import { pongoSchema, type ExpectedDocumentVersion } from '../../../../core';
 
 const specialDocument = {
   _id: 'special-id',
@@ -175,6 +175,47 @@ describe('bound JSON params', () => {
       JSONSerializer.serialize(specialDocument.title),
       JSONSerializer.serialize([specialDocument.title]),
     ]);
+  });
+});
+
+describe('postgres collection schema migrations', () => {
+  it('keeps default schema migrations unqualified for compatibility', () => {
+    const migrations = pongoCollectionPostgreSQLMigrations(
+      pongoSchema.collection('users'),
+    );
+    const { query } = SQL.format(migrations[0]!.sqls[0]!, pgFormatter);
+
+    assert.strictEqual(
+      migrations[0]!.name,
+      'pongoCollection:users:001:createtable',
+    );
+    assert.ok(query.includes('CREATE TABLE IF NOT EXISTS users'));
+  });
+
+  it('creates and uses explicit PostgreSQL schemas', () => {
+    const migrations = pongoCollectionPostgreSQLMigrations(
+      pongoSchema.collection('users', { schema: 'crm' }),
+    );
+    const createSchema = SQL.format(migrations[0]!.sqls[0]!, pgFormatter);
+    const createTable = SQL.format(migrations[0]!.sqls[1]!, pgFormatter);
+    const builder = postgresSQLBuilder(
+      pongoSchema.collection('users', { schema: 'crm' }),
+      JSONSerializer,
+    );
+    const insert = SQL.format(
+      builder.insertOne({ _id: '1', name: 'Oskar' }),
+      pgFormatter,
+    );
+
+    assert.strictEqual(
+      migrations[0]!.name,
+      'pongoCollection:crm:users:001:createtable',
+    );
+    assert.ok(createSchema.query.includes('CREATE SCHEMA IF NOT EXISTS crm'));
+    assert.ok(
+      createTable.query.includes('CREATE TABLE IF NOT EXISTS crm.users'),
+    );
+    assert.ok(insert.query.includes('INSERT INTO crm.users'));
   });
 });
 

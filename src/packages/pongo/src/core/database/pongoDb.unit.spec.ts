@@ -1,12 +1,14 @@
 import assert from 'node:assert';
 import {
   JSONSerializer,
+  dumboSchema,
   type AnyConnection,
   type Abort,
   type ConnectionPool,
   type DatabaseTransactionOptions,
 } from '@event-driven-io/dumbo';
 import { describe, it } from 'vitest';
+import { PongoCollectionSchemaComponent } from '../collection';
 import { pongoSchema } from '../schema';
 import { PongoDatabase } from './pongoDb';
 import { PongoDatabaseSchemaComponent } from './pongoDatabaseSchemaComponent';
@@ -54,19 +56,11 @@ const createTestDb = (options?: { allowNestedTransactions?: boolean }) => {
       driverType: 'test:test',
       definition: pongoSchema.db('test', {}),
       collectionFactory: (schema) =>
-        ({
-          schemaComponentKey: schema.databaseSchema
-            ? `sc:pongo:collection:${schema.databaseSchema}:${schema.name}`
-            : `sc:pongo:collection:${schema.name}`,
-          migrations: [],
-          components: new Map(),
-          addComponent: () => ({}),
-          addMigration: () => undefined,
-          collectionName: schema.name,
-          databaseSchemaName: schema.databaseSchema,
+        PongoCollectionSchemaComponent({
+          driverType: 'test:test',
           definition: schema,
-          sqlBuilder: {},
-        }) as never,
+          sqlBuilder: {} as never,
+        }),
     }),
   });
 
@@ -99,10 +93,18 @@ describe('PongoDatabase transactions', () => {
     const { db } = createTestDb();
 
     const defaultUsers = db.collection('users');
+    const explicitDefaultUsers = db.collection('users', {
+      schema: dumboSchema.schema.defaultName,
+    });
     const crmUsers = db.collection('users', { schema: 'crm' });
 
+    assert.strictEqual(defaultUsers, explicitDefaultUsers);
     assert.notStrictEqual(defaultUsers, crmUsers);
     assert.strictEqual(db.collections().length, 2);
+    assert.strictEqual(
+      defaultUsers.schema.component.schemaComponentKey,
+      `sc:pongo:collection:${dumboSchema.schema.defaultName}:users`,
+    );
   });
 
   it('starts transactions with nested transactions enabled while preserving savepoints', () => {
