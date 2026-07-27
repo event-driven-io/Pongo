@@ -23,7 +23,7 @@ export const PongoDatabaseCache = <
 }: {
   driver: PongoDriver<Database>;
   typedSchema?: TypedClientSchema | undefined;
-  schemaDefinition?: AnySchemaComponent | undefined;
+  schemaDefinition?: PongoDbSchema | AnySchemaComponent | undefined;
 }) => {
   const dbClients = new Map<string, PongoDb>();
 
@@ -44,7 +44,7 @@ export const PongoDatabaseCache = <
         JSONSerializationOptions & {
           schema?: {
             autoMigration?: MigrationStyle;
-            definition?: AnySchemaComponent;
+            definition?: PongoDbSchema<CollectionsSchema> | AnySchemaComponent;
           };
         },
     ): Database => {
@@ -72,7 +72,8 @@ export const PongoDatabaseCache = <
         schemaDefinition;
 
       if (schemaDefinitionForDatabase !== undefined) {
-        schemaOptions.definition = schemaDefinitionForDatabase;
+        schemaOptions.definition = schemaDefinitionForDatabase as
+          PongoDbSchema<CollectionsSchema> | AnySchemaComponent;
       }
 
       const newDb: Database = driver.databaseFactory({

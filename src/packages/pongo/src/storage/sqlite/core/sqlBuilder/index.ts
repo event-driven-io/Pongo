@@ -1,5 +1,11 @@
 import type { JSONSerializer } from '@event-driven-io/dumbo';
-import { isSQL, JSONParam, SQL, sqlMigration } from '@event-driven-io/dumbo';
+import {
+  dumboSchema,
+  isSQL,
+  JSONParam,
+  SQL,
+  sqlMigration,
+} from '@event-driven-io/dumbo';
 import { SQLiteJSON } from '@event-driven-io/dumbo/sqlite';
 import {
   expectedVersionPredicate,
@@ -7,6 +13,7 @@ import {
   type ExpectedDocumentVersion,
   type FindOptions,
   type OptionalUnlessRequiredIdAndVersion,
+  type PongoCollectionSchema,
   type PongoCollectionSQLBuilder,
   type PongoFilter,
   type PongoUpdate,
@@ -41,73 +48,109 @@ const createCollection = (collectionName: string): SQL =>
       _updated      TEXT           NOT NULL     DEFAULT (datetime('now'))
   )`;
 
-export const pongoCollectionSQLiteMigrations = (collectionName: string) => [
-  sqlMigration(`pongoCollection:${collectionName}:001:createtable`, [
-    createCollection(collectionName),
-  ]),
-];
+const collectionIdentity = (
+  schemaOrName: PongoCollectionSchema | string,
+): { migrationName: string; physicalName: string } => {
+  const schema =
+    typeof schemaOrName === 'string'
+      ? { name: schemaOrName, databaseSchema: undefined }
+      : schemaOrName;
+
+  if (
+    schema.databaseSchema === undefined ||
+    schema.databaseSchema === dumboSchema.schema.defaultName
+  ) {
+    return {
+      migrationName: schema.name,
+      physicalName: schema.name,
+    };
+  }
+
+  return {
+    migrationName: `${schema.databaseSchema}:${schema.name}`,
+    physicalName: `${schema.databaseSchema}_${schema.name}`,
+  };
+};
+
+export const pongoCollectionSQLiteMigrations = (
+  schemaOrName: PongoCollectionSchema | string,
+) => {
+  const collection = collectionIdentity(schemaOrName);
+
+  return [
+    sqlMigration(
+      `pongoCollection:${collection.migrationName}:001:createtable`,
+      [createCollection(collection.physicalName)],
+    ),
+  ];
+};
 
 export const sqliteSQLBuilder = (
-  collectionName: string,
+  schemaOrName: PongoCollectionSchema | string,
   serializer: JSONSerializer,
-): PongoCollectionSQLBuilder => ({
-  createCollection: (): SQL => createCollection(collectionName),
-  insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
-    const serialized = JSONParam.document(document, serializer);
-    const id = document._id;
-    const version = document._version ?? 1n;
+): PongoCollectionSQLBuilder => {
+  const collectionName = collectionIdentity(schemaOrName).physicalName;
 
-    return SQL`
+  return {
+    createCollection: (): SQL => createCollection(collectionName),
+    insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
+      const serialized = JSONParam.document(document, serializer);
+      const id = document._id;
+      const version = document._version ?? 1n;
+
+      return SQL`
       INSERT OR IGNORE INTO ${SQL.identifier(collectionName)} (_id, data, _version)
       VALUES (${id}, ${serialized}, ${version})
       RETURNING _id;`;
-  },
-  insertMany: <T>(documents: OptionalUnlessRequiredIdAndVersion<T>[]): SQL => {
-    const values = SQL.merge(
-      documents.map(
-        (doc) =>
-          SQL`(${doc._id}, ${JSONParam.document(doc, serializer)}, ${doc._version ?? 1n})`,
-      ),
-      ',',
-    );
+    },
+    insertMany: <T>(
+      documents: OptionalUnlessRequiredIdAndVersion<T>[],
+    ): SQL => {
+      const values = SQL.merge(
+        documents.map(
+          (doc) =>
+            SQL`(${doc._id}, ${JSONParam.document(doc, serializer)}, ${doc._version ?? 1n})`,
+        ),
+        ',',
+      );
 
-    return SQL`
+      return SQL`
       INSERT OR IGNORE INTO ${SQL.identifier(collectionName)} (_id, data, _version) VALUES ${values}
       RETURNING _id;`;
-  },
-  insertOrReplace: <T>(documents: Array<WithId<T>>): SQL => {
-    const col = SQL.identifier(collectionName);
-    const values = SQL.merge(
-      documents.map(
-        (d) =>
-          SQL`(${d._id}, json_patch(${JSONParam.document(d, serializer)}, json_object('_id', ${d._id}, '_version', '1')), 1)`,
-      ),
-      ',',
-    );
+    },
+    insertOrReplace: <T>(documents: Array<WithId<T>>): SQL => {
+      const col = SQL.identifier(collectionName);
+      const values = SQL.merge(
+        documents.map(
+          (d) =>
+            SQL`(${d._id}, json_patch(${JSONParam.document(d, serializer)}, json_object('_id', ${d._id}, '_version', '1')), 1)`,
+        ),
+        ',',
+      );
 
-    return SQL`
+      return SQL`
       INSERT INTO ${col} (_id, data, _version)
       VALUES ${values}
       ON CONFLICT(_id) DO UPDATE SET
         data = json_patch(excluded.data, json_object('_id', ${col}._id, '_version', cast(${col}._version + 1 as TEXT))),
         _version = ${col}._version + 1
       RETURNING _id, cast(_version as TEXT) as version;`;
-  },
-  updateOne: <T>(
-    filter: PongoFilter<T> | SQL,
-    update: PongoUpdate<T> | SQL,
-    options?: UpdateOneOptions,
-  ): SQL => {
-    const expectedVersionCheck = versionCheckClause(options?.expectedVersion);
+    },
+    updateOne: <T>(
+      filter: PongoFilter<T> | SQL,
+      update: PongoUpdate<T> | SQL,
+      options?: UpdateOneOptions,
+    ): SQL => {
+      const expectedVersionCheck = versionCheckClause(options?.expectedVersion);
 
-    const filterQuery = isSQL(filter)
-      ? filter
-      : constructFilterQuery(filter, serializer);
-    const updateQuery = isSQL(update)
-      ? update
-      : buildUpdateQuery(update, serializer);
+      const filterQuery = isSQL(filter)
+        ? filter
+        : constructFilterQuery(filter, serializer);
+      const updateQuery = isSQL(update)
+        ? update
+        : buildUpdateQuery(update, serializer);
 
-    return SQL`
+      return SQL`
       UPDATE ${SQL.identifier(collectionName)}
       SET
         data = json_patch(${updateQuery}, json_object('_id', _id, '_version', cast(_version + 1 as TEXT))),
@@ -123,19 +166,19 @@ export const sqliteSQLBuilder = (
         cast(_version as TEXT) as version,
         1 as matched,
         1 as modified;`;
-  },
-  replaceOne: <T>(
-    filter: PongoFilter<T> | SQL,
-    document: WithoutId<T>,
-    options?: ReplaceOneOptions,
-  ): SQL => {
-    const expectedVersionCheck = versionCheckClause(options?.expectedVersion);
+    },
+    replaceOne: <T>(
+      filter: PongoFilter<T> | SQL,
+      document: WithoutId<T>,
+      options?: ReplaceOneOptions,
+    ): SQL => {
+      const expectedVersionCheck = versionCheckClause(options?.expectedVersion);
 
-    const filterQuery = isSQL(filter)
-      ? filter
-      : constructFilterQuery(filter, serializer);
+      const filterQuery = isSQL(filter)
+        ? filter
+        : constructFilterQuery(filter, serializer);
 
-    return SQL`
+      return SQL`
       UPDATE ${SQL.identifier(collectionName)}
       SET
         data = json_patch(${JSONParam.document(document, serializer)}, json_object('_id', _id, '_version', cast(_version + 1 as TEXT))),
@@ -151,19 +194,19 @@ export const sqliteSQLBuilder = (
         cast(_version as TEXT) AS version,
         1 AS matched,
         1 AS modified;`;
-  },
-  updateMany: <T>(
-    filter: PongoFilter<T> | SQL,
-    update: PongoUpdate<T> | SQL,
-  ): SQL => {
-    const filterQuery = isSQL(filter)
-      ? filter
-      : constructFilterQuery(filter, serializer);
-    const updateQuery = isSQL(update)
-      ? update
-      : buildUpdateQuery(update, serializer);
+    },
+    updateMany: <T>(
+      filter: PongoFilter<T> | SQL,
+      update: PongoUpdate<T> | SQL,
+    ): SQL => {
+      const filterQuery = isSQL(filter)
+        ? filter
+        : constructFilterQuery(filter, serializer);
+      const updateQuery = isSQL(update)
+        ? update
+        : buildUpdateQuery(update, serializer);
 
-    return SQL`
+      return SQL`
       UPDATE ${SQL.identifier(collectionName)}
       SET
         data = json_patch(${updateQuery}, json_object('_version', cast(_version + 1 as TEXT))),
@@ -171,18 +214,18 @@ export const sqliteSQLBuilder = (
         _updated = datetime('now')
       ${where(filterQuery)}
       RETURNING _id;`;
-  },
-  deleteOne: <T>(
-    filter: PongoFilter<T> | SQL,
-    options?: DeleteOneOptions,
-  ): SQL => {
-    const expectedVersionCheck = versionCheckClause(options?.expectedVersion);
+    },
+    deleteOne: <T>(
+      filter: PongoFilter<T> | SQL,
+      options?: DeleteOneOptions,
+    ): SQL => {
+      const expectedVersionCheck = versionCheckClause(options?.expectedVersion);
 
-    const filterQuery = isSQL(filter)
-      ? filter
-      : constructFilterQuery(filter, serializer);
+      const filterQuery = isSQL(filter)
+        ? filter
+        : constructFilterQuery(filter, serializer);
 
-    return SQL`
+      return SQL`
       DELETE FROM ${SQL.identifier(collectionName)}
       WHERE _id = (
         SELECT _id FROM ${SQL.identifier(collectionName)}
@@ -193,33 +236,33 @@ export const sqliteSQLBuilder = (
         _id,
         1 AS matched,
         1 AS deleted;`;
-  },
-  deleteMany: <T>(filter: PongoFilter<T> | SQL): SQL => {
-    const filterQuery = isSQL(filter)
-      ? filter
-      : constructFilterQuery(filter, serializer);
+    },
+    deleteMany: <T>(filter: PongoFilter<T> | SQL): SQL => {
+      const filterQuery = isSQL(filter)
+        ? filter
+        : constructFilterQuery(filter, serializer);
 
-    return SQL`DELETE FROM ${SQL.identifier(collectionName)} ${where(filterQuery)} RETURNING _id`;
-  },
-  replaceMany: <T>(
-    documents: Array<WithIdAndVersion<T>> | Array<WithId<T>>,
-  ): SQL => {
-    const col = SQL.identifier(collectionName);
-    const hasVersions = documents.some(
-      (d) => '_version' in d && d._version !== undefined,
-    );
-
-    if (hasVersions) {
-      const values = SQL.merge(
-        documents.map((d) => {
-          const expectedVersion = (d as WithIdAndVersion<T>)._version;
-          return expectedVersion !== undefined
-            ? SQL`(${d._id}, ${JSONParam.document(d, serializer)}, ${expectedVersion})`
-            : SQL`(${d._id}, ${JSONParam.document(d, serializer)}, NULL)`;
-        }),
-        ',',
+      return SQL`DELETE FROM ${SQL.identifier(collectionName)} ${where(filterQuery)} RETURNING _id`;
+    },
+    replaceMany: <T>(
+      documents: Array<WithIdAndVersion<T>> | Array<WithId<T>>,
+    ): SQL => {
+      const col = SQL.identifier(collectionName);
+      const hasVersions = documents.some(
+        (d) => '_version' in d && d._version !== undefined,
       );
-      return SQL`
+
+      if (hasVersions) {
+        const values = SQL.merge(
+          documents.map((d) => {
+            const expectedVersion = (d as WithIdAndVersion<T>)._version;
+            return expectedVersion !== undefined
+              ? SQL`(${d._id}, ${JSONParam.document(d, serializer)}, ${expectedVersion})`
+              : SQL`(${d._id}, ${JSONParam.document(d, serializer)}, NULL)`;
+          }),
+          ',',
+        );
+        return SQL`
         WITH replacements(_id, data, expected_version) AS (
           VALUES ${values}
         )
@@ -231,15 +274,15 @@ export const sqliteSQLBuilder = (
         FROM replacements r
         WHERE ${col}._id = r._id AND (r.expected_version IS NULL OR ${col}._version = r.expected_version)
         RETURNING ${col}._id, cast(${col}._version as TEXT) as version;`;
-    }
+      }
 
-    const values = SQL.merge(
-      documents.map(
-        (d) => SQL`(${d._id}, ${JSONParam.document(d, serializer)})`,
-      ),
-      ',',
-    );
-    return SQL`
+      const values = SQL.merge(
+        documents.map(
+          (d) => SQL`(${d._id}, ${JSONParam.document(d, serializer)})`,
+        ),
+        ',',
+      );
+      return SQL`
       WITH replacements(_id, data) AS (
         VALUES ${values}
       )
@@ -251,17 +294,17 @@ export const sqliteSQLBuilder = (
       FROM replacements r
       WHERE ${col}._id = r._id
       RETURNING ${col}._id, cast(${col}._version as TEXT) as version;`;
-  },
-  deleteManyByIds: (ids: Array<{ _id: string; _version?: bigint }>): SQL => {
-    const hasVersions = ids.some((d) => d._version !== undefined);
+    },
+    deleteManyByIds: (ids: Array<{ _id: string; _version?: bigint }>): SQL => {
+      const hasVersions = ids.some((d) => d._version !== undefined);
 
-    if (hasVersions) {
-      const values = SQL.merge(
-        ids.map((d) => SQL`(${d._id}, ${d._version ?? 0n})`),
-        ',',
-      );
+      if (hasVersions) {
+        const values = SQL.merge(
+          ids.map((d) => SQL`(${d._id}, ${d._version ?? 0n})`),
+          ',',
+        );
 
-      return SQL`
+        return SQL`
         WITH targets(_id, expected_version) AS (
           VALUES ${values}
         )
@@ -269,70 +312,71 @@ export const sqliteSQLBuilder = (
         WHERE _id IN (SELECT _id FROM targets)
           AND _version = (SELECT expected_version FROM targets WHERE targets._id = ${SQL.identifier(collectionName)}._id)
         RETURNING _id;`;
-    }
+      }
 
-    const idList = SQL.merge(
-      ids.map((d) => SQL`${d._id}`),
-      ',',
-    );
+      const idList = SQL.merge(
+        ids.map((d) => SQL`${d._id}`),
+        ',',
+      );
 
-    return SQL`
+      return SQL`
       DELETE FROM ${SQL.identifier(collectionName)}
       WHERE _id IN (${idList})
       RETURNING _id;`;
-  },
-  findOne: <T>(filter: PongoFilter<T> | SQL): SQL => {
-    const filterQuery = isSQL(filter)
-      ? filter
-      : constructFilterQuery(filter, serializer);
+    },
+    findOne: <T>(filter: PongoFilter<T> | SQL): SQL => {
+      const filterQuery = isSQL(filter)
+        ? filter
+        : constructFilterQuery(filter, serializer);
 
-    return SQL`SELECT data, _id, _version FROM ${SQL.identifier(collectionName)} ${where(filterQuery)} LIMIT 1;`;
-  },
-  find: <T>(filter: PongoFilter<T> | SQL, options?: FindOptions): SQL => {
-    const filterQuery = isSQL(filter)
-      ? filter
-      : constructFilterQuery(filter, serializer);
-    const query: SQL[] = [];
+      return SQL`SELECT data, _id, _version FROM ${SQL.identifier(collectionName)} ${where(filterQuery)} LIMIT 1;`;
+    },
+    find: <T>(filter: PongoFilter<T> | SQL, options?: FindOptions): SQL => {
+      const filterQuery = isSQL(filter)
+        ? filter
+        : constructFilterQuery(filter, serializer);
+      const query: SQL[] = [];
 
-    query.push(
-      SQL`SELECT data, _id, _version FROM ${SQL.identifier(collectionName)}`,
-    );
+      query.push(
+        SQL`SELECT data, _id, _version FROM ${SQL.identifier(collectionName)}`,
+      );
 
-    query.push(where(filterQuery));
+      query.push(where(filterQuery));
 
-    if (options?.sort && Object.keys(options.sort).length > 0) {
-      const clauses = Object.entries(options.sort).map(([field, dir]) => {
-        // _id and _version are native columns, not JSON fields.
-        const isMetadata = field === '_id' || field === '_version';
-        const accessor = isMetadata
-          ? SQL`${SQL.identifier(field)}`
-          : SQL`json_extract(data, ${SQLiteJSON.path(field)})`;
-        return dir === 1 ? SQL`${accessor} ASC` : SQL`${accessor} DESC`;
-      });
-      query.push(SQL`ORDER BY ${SQL.merge(clauses, ',')}`);
-    }
+      if (options?.sort && Object.keys(options.sort).length > 0) {
+        const clauses = Object.entries(options.sort).map(([field, dir]) => {
+          // _id and _version are native columns, not JSON fields.
+          const isMetadata = field === '_id' || field === '_version';
+          const accessor = isMetadata
+            ? SQL`${SQL.identifier(field)}`
+            : SQL`json_extract(data, ${SQLiteJSON.path(field)})`;
+          return dir === 1 ? SQL`${accessor} ASC` : SQL`${accessor} DESC`;
+        });
+        query.push(SQL`ORDER BY ${SQL.merge(clauses, ',')}`);
+      }
 
-    if (options?.limit) {
-      query.push(SQL`LIMIT ${options.limit}`);
-    }
+      if (options?.limit) {
+        query.push(SQL`LIMIT ${options.limit}`);
+      }
 
-    if (options?.skip) {
-      query.push(SQL`OFFSET ${options.skip}`);
-    }
+      if (options?.skip) {
+        query.push(SQL`OFFSET ${options.skip}`);
+      }
 
-    return SQL.merge([...query, SQL`;`]);
-  },
-  countDocuments: <T>(filter: PongoFilter<T> | SQL): SQL => {
-    const filterQuery = SQL.check.isSQL(filter)
-      ? filter
-      : constructFilterQuery(filter, serializer);
-    return SQL`SELECT COUNT(1) as count FROM ${SQL.identifier(collectionName)} ${where(filterQuery)};`;
-  },
-  rename: (newName: string): SQL =>
-    SQL`ALTER TABLE ${SQL.identifier(collectionName)} RENAME TO ${SQL.identifier(newName)};`,
-  drop: (targetName: string = collectionName): SQL =>
-    SQL`DROP TABLE IF EXISTS ${SQL.identifier(targetName)}`,
-});
+      return SQL.merge([...query, SQL`;`]);
+    },
+    countDocuments: <T>(filter: PongoFilter<T> | SQL): SQL => {
+      const filterQuery = SQL.check.isSQL(filter)
+        ? filter
+        : constructFilterQuery(filter, serializer);
+      return SQL`SELECT COUNT(1) as count FROM ${SQL.identifier(collectionName)} ${where(filterQuery)};`;
+    },
+    rename: (newName: string): SQL =>
+      SQL`ALTER TABLE ${SQL.identifier(collectionName)} RENAME TO ${SQL.identifier(newName)};`,
+    drop: (targetName: string = collectionName): SQL =>
+      SQL`DROP TABLE IF EXISTS ${SQL.identifier(targetName)}`,
+  };
+};
 
 const where = (filterQuery: SQL): SQL =>
   SQL.check.isEmpty(filterQuery)

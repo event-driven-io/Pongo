@@ -3,8 +3,8 @@ import { sqliteFormatter } from '@event-driven-io/dumbo/sqlite';
 import { randomUUID } from 'crypto';
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
-import type { ExpectedDocumentVersion } from '../../../../core';
-import { sqliteSQLBuilder } from './index';
+import { pongoSchema, type ExpectedDocumentVersion } from '../../../../core';
+import { pongoCollectionSQLiteMigrations, sqliteSQLBuilder } from './index';
 
 describe('sqliteSQLBuilder', () => {
   const collectionName = 'testCollection';
@@ -41,6 +41,39 @@ describe('sqliteSQLBuilder', () => {
   )`;
 
       assert.equal(query, expected);
+    });
+  });
+
+  describe('schema migrations', () => {
+    it('keeps default schema migrations unprefixed', () => {
+      const migrations = pongoCollectionSQLiteMigrations(
+        pongoSchema.collection('users'),
+      );
+      const { query } = SQL.format(migrations[0]!.sqls[0]!, sqliteFormatter);
+
+      assert.equal(
+        migrations[0]!.name,
+        'pongoCollection:users:001:createtable',
+      );
+      assert.ok(query.includes('CREATE TABLE IF NOT EXISTS users'));
+    });
+
+    it('prefixes explicit schema migrations and runtime SQL', () => {
+      const schema = pongoSchema.collection('users', { schema: 'crm' });
+      const migrations = pongoCollectionSQLiteMigrations(schema);
+      const { query } = SQL.format(migrations[0]!.sqls[0]!, sqliteFormatter);
+      const builder = sqliteSQLBuilder(schema, JSONSerializer);
+      const insert = SQL.format(
+        builder.insertOne({ _id: '1', name: 'Oskar' }),
+        sqliteFormatter,
+      );
+
+      assert.equal(
+        migrations[0]!.name,
+        'pongoCollection:crm:users:001:createtable',
+      );
+      assert.ok(query.includes('CREATE TABLE IF NOT EXISTS crm_users'));
+      assert.ok(insert.query.includes('INSERT OR IGNORE INTO crm_users'));
     });
   });
 

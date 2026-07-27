@@ -1,4 +1,5 @@
 import {
+  dumboSchema,
   schemaComponent,
   type DatabaseDriverType,
   type SchemaComponent,
@@ -8,8 +9,7 @@ import type { PongoCollectionSchema, PongoCollectionSQLBuilder } from '..';
 
 export type PongoCollectionURNType = 'sc:pongo:collection';
 export type PongoCollectionURN =
-  | `${PongoCollectionURNType}:${string}`
-  | `${PongoCollectionURNType}:${string}:${string}`;
+  `${PongoCollectionURNType}:${string}:${string}`;
 
 export type PongoCollectionSchemaComponent =
   SchemaComponent<PongoCollectionURN> & {
@@ -21,28 +21,36 @@ export type PongoCollectionSchemaComponent =
 
 export type PongoCollectionSchemaComponentOptions<
   DriverType extends DatabaseDriverType = DatabaseDriverType,
-> = Readonly<{
-  driverType: DriverType;
-  definition: PongoCollectionSchema;
-  migrationsOrSchemaComponents: SchemaComponentOptions;
-  sqlBuilder: PongoCollectionSQLBuilder;
-}>;
+> = Readonly<
+  {
+    driverType: DriverType;
+    definition: PongoCollectionSchema;
+    sqlBuilder: PongoCollectionSQLBuilder;
+  } & SchemaComponentOptions
+>;
 
 export const PongoCollectionSchemaComponent = <
   DriverType extends DatabaseDriverType = DatabaseDriverType,
 >({
   definition,
-  migrationsOrSchemaComponents,
+  migrations,
+  components,
   sqlBuilder,
-}: PongoCollectionSchemaComponentOptions<DriverType>): PongoCollectionSchemaComponent => ({
-  ...schemaComponent(
-    definition.databaseSchema
-      ? `sc:pongo:collection:${definition.databaseSchema}:${definition.name}`
-      : `sc:pongo:collection:${definition.name}`,
-    migrationsOrSchemaComponents,
-  ),
-  sqlBuilder,
-  definition,
-  collectionName: definition.name,
-  databaseSchemaName: definition.databaseSchema,
-});
+}: PongoCollectionSchemaComponentOptions<DriverType>): PongoCollectionSchemaComponent => {
+  const databaseSchemaName =
+    definition.databaseSchema ?? dumboSchema.schema.defaultName;
+
+  return {
+    ...schemaComponent(
+      `sc:pongo:collection:${databaseSchemaName}:${definition.name}`,
+      {
+        ...(migrations !== undefined ? { migrations } : {}),
+        ...(components !== undefined ? { components } : {}),
+      },
+    ),
+    sqlBuilder,
+    definition,
+    collectionName: definition.name,
+    databaseSchemaName,
+  };
+};

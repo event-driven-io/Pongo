@@ -1,12 +1,14 @@
 import assert from 'node:assert';
-import { describe, it } from 'vitest';
+import { describe, expectTypeOf, it } from 'vitest';
 import {
   databaseSchemaComponent,
+  dumboSchema,
   SQL,
   sqlMigration,
 } from '@event-driven-io/dumbo';
 import {
   PongoCollectionSchemaComponent,
+  type PongoCollectionURN,
   type PongoCollectionSchemaComponent as PongoCollectionSchemaComponentType,
 } from '../collection';
 import { pongoSchema } from '../schema';
@@ -23,9 +25,7 @@ const collectionFactory = (
   PongoCollectionSchemaComponent({
     driverType: 'test:test',
     definition: schema,
-    migrationsOrSchemaComponents: {
-      migrations: [sqlMigration(`${schema.name}:001`, [SQL`SELECT 1`])],
-    },
+    migrations: [sqlMigration(`${schema.name}:001`, [SQL`SELECT 1`])],
     sqlBuilder: {} as never,
   });
 
@@ -58,10 +58,55 @@ describe('PongoDatabaseSchemaComponent', () => {
     assert.strictEqual(collection.collectionName, 'users');
     assert.strictEqual(component.collections.length, 1);
     assert.strictEqual(
-      component.components.has('sc:pongo:collection:users'),
+      component.components.has(
+        `sc:pongo:collection:${dumboSchema.schema.defaultName}:users`,
+      ),
       true,
     );
     assert.strictEqual(component.migrations.length, 1);
+  });
+
+  it('keeps same collection names in different schemas as separate components', () => {
+    const component = PongoDatabaseSchemaComponent({
+      driverType: 'test:test',
+      definition: pongoSchema.db('app', {}),
+      collectionFactory,
+    });
+
+    const defaultUsers = component.collection(pongoSchema.collection('users'));
+    const crmUsers = component.collection(
+      pongoSchema.collection('users', { schema: 'crm' }),
+    );
+
+    assert.notStrictEqual(defaultUsers, crmUsers);
+    assert.strictEqual(component.collections.length, 2);
+    assert.deepStrictEqual(
+      component.collections.map((collection) => collection.schemaComponentKey),
+      [
+        `sc:pongo:collection:${dumboSchema.schema.defaultName}:users`,
+        'sc:pongo:collection:crm:users',
+      ],
+    );
+  });
+
+  it('uses a single collection URN shape', () => {
+    const collection = PongoCollectionSchemaComponent({
+      driverType: 'test:test',
+      definition: pongoSchema.collection('users'),
+      sqlBuilder: {} as never,
+    });
+
+    expectTypeOf(
+      collection.schemaComponentKey,
+    ).toMatchTypeOf<PongoCollectionURN>();
+    assert.strictEqual(
+      collection.schemaComponentKey,
+      `sc:pongo:collection:${dumboSchema.schema.defaultName}:users`,
+    );
+    assert.strictEqual(
+      collection.databaseSchemaName,
+      dumboSchema.schema.defaultName,
+    );
   });
 });
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { describe, it } from 'vitest';
+import { describe, expectTypeOf, it } from 'vitest';
 import { SQL } from '../sql';
 import {
   DatabaseSchemaURNType,
@@ -212,6 +212,53 @@ describe('FeatureSchemaComponent', () => {
     assert.strictEqual(database.features.eventStore.featureScope, 'database');
     assert.strictEqual(schema.features.audit, audit);
     assert.strictEqual(schema.features.audit.featureScope, 'database_schema');
+
+    expectTypeOf(database.features.eventStore).toEqualTypeOf(eventStore);
+    expectTypeOf(schema.features.audit).toEqualTypeOf(audit);
+  });
+
+  it('includes scoped feature migrations in deterministic database order', () => {
+    const schemaTableMigration = sqlMigration('schema-table:001', [
+      SQL`SELECT 1`,
+    ]);
+    const schemaFeatureMigration = sqlMigration('schema-feature:001', [
+      SQL`SELECT 2`,
+    ]);
+    const databaseFeatureMigration = sqlMigration('database-feature:001', [
+      SQL`SELECT 3`,
+    ]);
+    const audit = databaseSchemaFeatureSchemaComponent({
+      featureKind: 'audit',
+      featureName: 'audit',
+      migrations: [schemaFeatureMigration],
+    });
+    const eventStore = databaseFeatureSchemaComponent({
+      featureKind: 'event_store',
+      featureName: 'eventStore',
+      migrations: [databaseFeatureMigration],
+    });
+    const database = databaseSchemaComponent({
+      databaseName: 'app',
+      schemas: {
+        crm: databaseSchemaSchemaComponent({
+          schemaName: 'crm',
+          tables: {
+            users: tableSchemaComponent({
+              tableName: 'users',
+              migrations: [schemaTableMigration],
+            }),
+          },
+          features: { audit },
+        }),
+      },
+      features: { eventStore },
+    });
+
+    assert.deepStrictEqual(database.migrations, [
+      schemaTableMigration,
+      schemaFeatureMigration,
+      databaseFeatureMigration,
+    ]);
   });
 });
 

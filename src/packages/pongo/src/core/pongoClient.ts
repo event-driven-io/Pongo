@@ -17,6 +17,7 @@ import {
   proxyClientWithSchema,
   type PongoClientSchema,
   type PongoClientWithSchema,
+  type PongoDbSchema,
 } from './schema';
 import type {
   PongoClient,
@@ -27,13 +28,13 @@ import type {
 } from './typing';
 
 const isPongoClientSchema = <T extends PongoClientSchema>(
-  schema: T | AnySchemaComponent | undefined,
+  schema: T | PongoDbSchema | AnySchemaComponent | undefined,
 ): schema is T => schema !== undefined && 'dbs' in schema;
 
 export const pongoClient = <
   DatabaseDriver extends AnyPongoDriver,
-  SchemaDefinition extends PongoClientSchema | AnySchemaComponent =
-    PongoClientSchema,
+  SchemaDefinition extends
+    PongoClientSchema | PongoDbSchema | AnySchemaComponent = PongoClientSchema,
   TypedClientSchema extends PongoClientSchema =
     PongoClientSchemaFromDefinition<SchemaDefinition>,
 >(

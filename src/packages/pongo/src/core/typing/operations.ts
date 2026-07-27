@@ -25,7 +25,7 @@ import type {
 import type { PongoDatabaseSchemaComponent } from '../database/pongoDatabaseSchemaComponent';
 import type { AnyPongoDriver, ExtractPongoDriverOptions } from '../drivers';
 import { ConcurrencyError } from '../errors';
-import type { PongoClientSchema } from '../schema';
+import type { PongoClientSchema, PongoDbSchema } from '../schema';
 
 export interface PongoClient<
   DriverType extends DatabaseDriverType = DatabaseDriverType,
@@ -48,8 +48,8 @@ export interface PongoClient<
 
 export type PongoClientOptions<
   DatabaseDriver extends AnyPongoDriver = AnyPongoDriver,
-  SchemaDefinition extends PongoClientSchema | AnySchemaComponent =
-    PongoClientSchema,
+  SchemaDefinition extends
+    PongoClientSchema | PongoDbSchema | AnySchemaComponent = PongoClientSchema,
 > =
   ExtractPongoDriverOptions<DatabaseDriver> extends infer Options
     ? Options extends unknown

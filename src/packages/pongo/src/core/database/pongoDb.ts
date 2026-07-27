@@ -1,6 +1,7 @@
 import type { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import {
   runSQLMigrations,
+  dumboSchema,
   type AnySchemaComponent,
   type DatabaseDriverType,
   type Dumbo,
@@ -151,16 +152,11 @@ export const PongoDatabase = <
       const databaseSchemaName =
         typeof collectionOptions?.schema === 'string'
           ? collectionOptions.schema
-          : undefined;
-      const collectionKey = databaseSchemaName
-        ? `${databaseSchemaName}.${collectionName}`
-        : collectionName;
-      const collectionSchema =
-        databaseSchemaName !== undefined
-          ? pongoSchema.collection<T>(collectionName, {
-              schema: databaseSchemaName,
-            })
-          : pongoSchema.collection<T>(collectionName);
+          : dumboSchema.schema.defaultName;
+      const collectionKey = `${databaseSchemaName}.${collectionName}`;
+      const collectionSchema = pongoSchema.collection<T>(collectionName, {
+        schema: databaseSchemaName,
+      });
       const collectionRuntimeSchema =
         typeof collectionOptions?.schema === 'string'
           ? undefined

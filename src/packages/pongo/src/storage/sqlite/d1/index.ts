@@ -50,11 +50,9 @@ const d1PongoDriver: PongoDriver<
           PongoCollectionSchemaComponent({
             driverType: D1DriverType,
             definition: schema,
-            migrationsOrSchemaComponents: {
-              migrations: pongoCollectionSQLiteMigrations(schema.name),
-            },
+            migrations: pongoCollectionSQLiteMigrations(schema),
             sqlBuilder: sqliteSQLBuilder(
-              schema.name,
+              schema,
               options.serialization?.serializer ?? JSONSerializer,
             ),
           }),
