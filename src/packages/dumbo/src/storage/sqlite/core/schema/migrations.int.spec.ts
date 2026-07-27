@@ -152,7 +152,7 @@ describe('Migration Integration Tests', () => {
         const users = tableSchemaComponent({
           tableName: 'users',
           migrations: [
-            sqlMigration('users:001:create-table', [
+            sqlMigration('app:main:users:001:create-table', [
               SQL`CREATE TABLE users (id TEXT PRIMARY KEY, email TEXT NOT NULL);`,
             ]),
           ],
@@ -162,9 +162,12 @@ describe('Migration Integration Tests', () => {
               columnNames: ['email'],
               isUnique: true,
               migrations: [
-                sqlMigration('users:002:create-email-index', [
-                  SQL`CREATE UNIQUE INDEX IF NOT EXISTS users_email_idx ON users (email);`,
-                ]),
+                sqlMigration(
+                  'app:main:users:users_email_idx:002:create-index',
+                  [
+                    SQL`CREATE UNIQUE INDEX IF NOT EXISTS users_email_idx ON users (email);`,
+                  ],
+                ),
               ],
             }),
           },
@@ -195,7 +198,10 @@ describe('Migration Integration Tests', () => {
         assert.deepStrictEqual(indexes.rows, [{ name: 'users_email_idx' }]);
         assert.deepStrictEqual(
           migrationNames.rows.map((row) => row.name),
-          ['users:001:create-table', 'users:002:create-email-index'],
+          [
+            'app:main:users:001:create-table',
+            'app:main:users:users_email_idx:002:create-index',
+          ],
         );
       });
 

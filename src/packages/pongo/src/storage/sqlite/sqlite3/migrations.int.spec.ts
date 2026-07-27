@@ -119,8 +119,8 @@ describe('SQLite3 migration integration', () => {
       assert.deepStrictEqual(
         migrationNames.rows.map((row) => row.name),
         [
-          'pongoCollection:users:001:createtable',
-          'pongoCollection:explicit_default_users:001:createtable',
+          'pongoCollection:__default_database_schema__:users:001:createtable',
+          'pongoCollection:__default_database_schema__:explicit_default_users:001:createtable',
           'pongoCollection:crm:users:001:createtable',
           'pongoCollection:audit:users:001:createtable',
         ],

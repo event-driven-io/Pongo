@@ -66,7 +66,7 @@ const collectionIdentity = (
 
   if (schema.databaseSchemaName === dumboSchema.schema.defaultName) {
     return {
-      migrationName: schema.tableName,
+      migrationName: `${schema.databaseSchemaName}:${schema.tableName}`,
       collectionName: schema.tableName,
       physicalName: schema.tableName,
     };
