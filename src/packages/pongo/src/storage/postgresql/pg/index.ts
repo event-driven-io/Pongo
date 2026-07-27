@@ -1,4 +1,8 @@
-import { dumbo, JSONSerializer } from '@event-driven-io/dumbo';
+import {
+  bindTableToDatabaseSchema,
+  dumbo,
+  JSONSerializer,
+} from '@event-driven-io/dumbo';
 import {
   pgDumboDriver as dumboDriver,
   PgDriverType,
@@ -86,16 +90,19 @@ const pgPongoDriver: PongoDriver<
       schemaComponent: pongoDatabaseSchemaComponentFor({
         driverType: PgDriverType,
         databaseName,
-        collectionFactory: (schema) =>
-          PongoCollectionSchemaComponent({
+        collectionFactory: (schema) => {
+          const collectionSchema = bindTableToDatabaseSchema(schema, 'public');
+
+          return PongoCollectionSchemaComponent({
             driverType: PgDriverType,
-            definition: schema,
-            migrations: pongoCollectionPostgreSQLMigrations(schema),
+            definition: collectionSchema,
+            migrations: pongoCollectionPostgreSQLMigrations(collectionSchema),
             sqlBuilder: postgresSQLBuilder(
-              schema,
+              collectionSchema,
               options.serialization?.serializer ?? JSONSerializer,
             ),
-          }),
+          });
+        },
         definition: options.schema?.definition,
       }),
       databaseName,

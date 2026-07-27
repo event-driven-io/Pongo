@@ -59,7 +59,7 @@ describe('sqliteSQLBuilder', () => {
 
       assert.equal(
         migrations[0]!.name,
-        'pongoCollection:__default_database_schema__:users:001:createtable',
+        'pongoCollection:main:users:001:createtable',
       );
       assert.ok(query.includes('CREATE TABLE IF NOT EXISTS users'));
     });
@@ -274,7 +274,7 @@ describe('sqliteSQLBuilder', () => {
 
       assert.deepStrictEqual(
         migrations.map((migration) => migration.name),
-        ['pongoCollection:__default_database_schema__:users:001:createtable'],
+        ['pongoCollection:main:users:001:createtable'],
       );
       assert.equal(
         collection.indexes.get('users_data_idx')?.type,
