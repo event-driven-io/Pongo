@@ -104,15 +104,14 @@ export type PongoCollectionsFeatureKind = 'pongo_collections';
 
 export type PongoCollectionsSchemaComponent<
   FeatureName extends string = string,
-> = SchemaComponent<
-  `sc:dumbo:feature:${PongoCollectionsFeatureKind}:${FeatureName}`
-> & {
-  featureKind: PongoCollectionsFeatureKind;
-  featureName: FeatureName;
-  visibility: 'opaque';
-  definition: PongoDbSchema;
-  database: PongoDatabaseSchemaComponent;
-};
+> =
+  SchemaComponent<`sc:dumbo:feature:${PongoCollectionsFeatureKind}:${FeatureName}`> & {
+    featureKind: PongoCollectionsFeatureKind;
+    featureName: FeatureName;
+    visibility: 'opaque';
+    definition: PongoDbSchema;
+    database: PongoDatabaseSchemaComponent;
+  };
 
 export type PongoCollectionsSchemaOptions<
   DriverType extends DatabaseDriverType = DatabaseDriverType,
@@ -134,12 +133,9 @@ export const pongoCollectionsSchema = <
     ...options,
     definition: databaseDefinition,
   });
-  const base = schemaComponent(
-    `sc:dumbo:feature:pongo_collections:${name}`,
-    {
-      components: [database],
-    },
-  );
+  const base = schemaComponent(`sc:dumbo:feature:pongo_collections:${name}`, {
+    components: [database],
+  });
 
   return {
     ...base,

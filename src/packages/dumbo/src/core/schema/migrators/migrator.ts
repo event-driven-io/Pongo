@@ -44,6 +44,7 @@ export const getDefaultMigratorOptionsFromRegistry = (
 export type MigratorOptions = {
   schema?: {
     migrationTable?: SchemaComponent;
+    validateComponent?: (component: SchemaComponent) => void;
   };
   lock?: {
     databaseLock?: DatabaseLock;
