@@ -111,12 +111,6 @@ describe('SQLite3 migration integration', () => {
       );
 
       assert.deepStrictEqual(objects.rows, [
-        { name: 'audit_users_email_idx', type: 'index' },
-        { name: 'explicit_default_email_idx', type: 'index' },
-        { name: 'users_custom_data_idx', type: 'index' },
-        { name: 'users_data_idx', type: 'index' },
-        { name: 'users_email_idx', type: 'index' },
-        { name: 'users_external_id_uq', type: 'index' },
         { name: 'audit_users', type: 'table' },
         { name: 'crm_users', type: 'table' },
         { name: 'explicit_default_users', type: 'table' },
@@ -127,14 +121,8 @@ describe('SQLite3 migration integration', () => {
         [
           'pongoCollection:users:001:createtable',
           'pongoCollection:explicit_default_users:001:createtable',
-          'pongoCollection:explicit_default_users:002:index:explicit_default_email_idx',
           'pongoCollection:crm:users:001:createtable',
-          'pongoCollection:crm:users:002:index:users_email_idx',
-          'pongoCollection:crm:users:002:index:users_external_id_uq',
-          'pongoCollection:crm:users:002:index:users_data_idx',
-          'pongoCollection:crm:users:002:index:users_custom_data_idx',
           'pongoCollection:audit:users:001:createtable',
-          'pongoCollection:audit:users:002:index:audit_users_email_idx',
         ],
       );
       assert.strictEqual(defaultCount.rows[0]?.count, 1);

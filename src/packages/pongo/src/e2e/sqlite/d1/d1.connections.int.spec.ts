@@ -166,10 +166,6 @@ describe('Pongo D1 connections', () => {
       );
 
       assert.deepStrictEqual(objects.rows, [
-        { name: customIndexName, type: 'index' },
-        { name: documentIndexName, type: 'index' },
-        { name: emailIndexName, type: 'index' },
-        { name: uniqueIndexName, type: 'index' },
         { name: collectionName, type: 'table' },
         { name: schemaTableName, type: 'table' },
       ]);

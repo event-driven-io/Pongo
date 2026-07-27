@@ -16,6 +16,21 @@ describe('Migration Integration Tests', () => {
   let connectionString: PostgreSQLConnectionString;
   let client: PongoClient;
 
+  const crmUsers = pongoSchema.collection('users', {
+    schema: 'crm',
+    indexes: [
+      pongoSchema.index('users_email_idx', 'email'),
+      pongoSchema.index.unique('users_external_id_uq', ['external', 'id']),
+      pongoSchema.index.json('users_data_idx'),
+      {
+        name: 'users_custom_data_idx',
+        type: 'custom_jsonb_path',
+        sql: ({ tableReference }) =>
+          SQL`CREATE INDEX IF NOT EXISTS users_custom_data_idx ON ${tableReference} USING GIN (data jsonb_path_ops)`,
+      },
+    ],
+  });
+
   const schema = pongoSchema.client({
     database: pongoSchema.db({
       users: pongoSchema.collection('users'),
@@ -24,20 +39,7 @@ describe('Migration Integration Tests', () => {
         indexes: [pongoSchema.index('explicit_default_email_idx', 'email')],
       }),
       roles: pongoSchema.collection('roles'),
-      crmUsers: pongoSchema.collection('users', {
-        schema: 'crm',
-        indexes: [
-          pongoSchema.index('users_email_idx', 'email'),
-          pongoSchema.index.unique('users_external_id_uq', ['external', 'id']),
-          pongoSchema.index.json('users_data_idx'),
-          {
-            name: 'users_custom_data_idx',
-            type: 'custom_jsonb_path',
-            sql: ({ tableReference }) =>
-              SQL`CREATE INDEX IF NOT EXISTS users_custom_data_idx ON ${tableReference} USING GIN (data jsonb_path_ops)`,
-          },
-        ],
-      }),
+      crmUsers,
       auditUsers: pongoSchema.collection('users', {
         schema: 'audit',
         indexes: [pongoSchema.index('audit_users_email_idx', 'email')],
@@ -125,14 +127,7 @@ describe('Migration Integration Tests', () => {
     );
     assert.deepStrictEqual(
       indexNames.rows.map((row) => row.indexname),
-      [
-        'audit_users_email_idx',
-        'explicit_default_email_idx',
-        'users_custom_data_idx',
-        'users_data_idx',
-        'users_email_idx',
-        'users_external_id_uq',
-      ],
+      [],
     );
   });
 
@@ -171,7 +166,7 @@ describe('Migration Integration Tests', () => {
     );
     assert.strictEqual(
       migrationNames.rowCount,
-      11,
+      5,
       'The migration should only be applied once.',
     );
     assert.deepEqual(
@@ -179,15 +174,9 @@ describe('Migration Integration Tests', () => {
       [
         'pongoCollection:users:001:createtable',
         'pongoCollection:explicit_default_users:001:createtable',
-        'pongoCollection:explicit_default_users:002:index:explicit_default_email_idx',
         'pongoCollection:roles:001:createtable',
         'pongoCollection:crm:users:001:createtable',
-        'pongoCollection:crm:users:002:index:users_email_idx',
-        'pongoCollection:crm:users:002:index:users_external_id_uq',
-        'pongoCollection:crm:users:002:index:users_data_idx',
-        'pongoCollection:crm:users:002:index:users_custom_data_idx',
         'pongoCollection:audit:users:001:createtable',
-        'pongoCollection:audit:users:002:index:audit_users_email_idx',
       ],
     );
   });

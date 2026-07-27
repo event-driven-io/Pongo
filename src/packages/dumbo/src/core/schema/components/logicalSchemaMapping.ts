@@ -2,6 +2,7 @@ import { findExpandedSchemaComponentsOfType } from '../expandSchemaComponent';
 import type { AnySchemaComponent } from '../schemaComponent';
 import type { AnyDatabaseSchemaComponent } from './databaseSchemaComponent';
 import { DatabaseSchemaURNType } from './databaseSchemaSchemaComponent';
+import { TableURNType } from './tableSchemaComponent';
 
 type LogicalSchemaTable = {
   tableName: string;
@@ -10,6 +11,14 @@ type LogicalSchemaTable = {
 type LogicalSchema = {
   schemaName: string;
   tables: ReadonlyMap<string, LogicalSchemaTable>;
+};
+
+type DatabaseSchemaComponentView = AnySchemaComponent & {
+  schemaName: string;
+};
+
+type TableComponentView = AnySchemaComponent & {
+  tableName: string;
 };
 
 export type LogicalSchemaMapping =
@@ -78,21 +87,23 @@ export const assertLogicalSchemaComponentMapping = (
     findExpandedSchemaComponentsOfType<AnySchemaComponent>(
       component,
       DatabaseSchemaURNType,
-    ).map((schema) => ({
-      schemaName: schema.schemaComponentKey.slice(
-        `${DatabaseSchemaURNType}:`.length,
-      ),
-      tables: findExpandedSchemaComponentsOfType<AnySchemaComponent>(
-        schema,
-        'sc:dumbo:table',
-      ).reduce((tables, table) => {
-        const tableName = table.schemaComponentKey.slice(
-          'sc:dumbo:table:'.length,
-        );
+    ).map((schemaComponent) => {
+      const schema = schemaComponent as unknown as DatabaseSchemaComponentView;
 
-        return tables.set(tableName, { tableName });
-      }, new Map<string, LogicalSchemaTable>()),
-    })),
+      return {
+        schemaName: schema.schemaName,
+        tables: findExpandedSchemaComponentsOfType<AnySchemaComponent>(
+          schema,
+          TableURNType,
+        ).reduce((tables, tableComponent) => {
+          const table = tableComponent as unknown as TableComponentView;
+          const tableName = table.tableName;
+
+          tables.set(tableName, { tableName });
+          return tables;
+        }, new Map<string, LogicalSchemaTable>()),
+      };
+    }),
     mapping,
   );
 };

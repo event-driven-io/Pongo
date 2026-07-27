@@ -13,7 +13,6 @@ import {
   type ExpectedDocumentVersion,
   type FindOptions,
   type OptionalUnlessRequiredIdAndVersion,
-  type PongoCollectionIndex,
   type PongoCollectionSchema,
   type PongoCollectionSQLBuilder,
   type PongoFilter,
@@ -47,25 +46,25 @@ const collectionIdentity = (
 } => {
   const schema =
     typeof schemaOrName === 'string'
-      ? { name: schemaOrName, databaseSchema: undefined }
+      ? {
+          tableName: schemaOrName,
+          databaseSchemaName: dumboSchema.schema.defaultName,
+        }
       : schemaOrName;
 
-  if (
-    schema.databaseSchema === undefined ||
-    schema.databaseSchema === dumboSchema.schema.defaultName
-  ) {
+  if (schema.databaseSchemaName === dumboSchema.schema.defaultName) {
     return {
-      migrationName: schema.name,
-      reference: SQL`${SQL.identifier(schema.name)}`,
-      tableName: schema.name,
+      migrationName: schema.tableName,
+      reference: SQL`${SQL.identifier(schema.tableName)}`,
+      tableName: schema.tableName,
     };
   }
 
   return {
-    databaseSchemaName: schema.databaseSchema,
-    migrationName: `${schema.databaseSchema}:${schema.name}`,
-    reference: SQL`${SQL.identifier(schema.databaseSchema)}.${SQL.identifier(schema.name)}`,
-    tableName: schema.name,
+    databaseSchemaName: schema.databaseSchemaName,
+    migrationName: `${schema.databaseSchemaName}:${schema.tableName}`,
+    reference: SQL`${SQL.identifier(schema.databaseSchemaName)}.${SQL.identifier(schema.tableName)}`,
+    tableName: schema.tableName,
   };
 };
 
@@ -74,13 +73,12 @@ const createDatabaseSchema = (
 ): SQL | undefined => {
   if (
     typeof schemaOrName === 'string' ||
-    schemaOrName.databaseSchema === undefined ||
-    schemaOrName.databaseSchema === dumboSchema.schema.defaultName
+    schemaOrName.databaseSchemaName === dumboSchema.schema.defaultName
   ) {
     return undefined;
   }
 
-  return SQL`CREATE SCHEMA IF NOT EXISTS ${SQL.identifier(schemaOrName.databaseSchema)}`;
+  return SQL`CREATE SCHEMA IF NOT EXISTS ${SQL.identifier(schemaOrName.databaseSchemaName)}`;
 };
 
 const createCollection = (schemaOrName: PongoCollectionSchema | string): SQL =>
@@ -96,53 +94,11 @@ const createCollection = (schemaOrName: PongoCollectionSchema | string): SQL =>
       _updated      TIMESTAMPTZ    NOT NULL     DEFAULT now()
 	  )`;
 
-const postgresIndexPath = (path: string | readonly string[]): string =>
-  (typeof path === 'string' ? path.split('.') : path)
-    .map((segment) => segment.replaceAll('"', '\\"').replaceAll("'", "''"))
-    .map((segment) =>
-      segment.includes(',') || segment.includes('"') ? `"${segment}"` : segment,
-    )
-    .join(',');
-
-const createCollectionIndex = (
-  schemaOrName: PongoCollectionSchema | string,
-  index: PongoCollectionIndex,
-): SQL => {
-  const collection = collectionIdentity(schemaOrName);
-
-  if (index.sql) {
-    return index.sql({
-      collectionName: collection.tableName,
-      databaseSchemaName: collection.databaseSchemaName,
-      tableName: collection.tableName,
-      tableReference: collection.reference,
-    });
-  }
-
-  if (index.type === 'json_document') {
-    return SQL`
-      CREATE INDEX IF NOT EXISTS ${SQL.identifier(index.name)}
-      ON ${collection.reference} USING GIN (data)
-    `;
-  }
-
-  if (index.path === undefined) {
-    throw new Error(`Pongo index ${index.name} needs a path`);
-  }
-
-  return SQL`
-    CREATE ${index.unique === true ? SQL`UNIQUE ` : SQL.EMPTY}INDEX IF NOT EXISTS ${SQL.identifier(index.name)}
-    ON ${collection.reference} ((data #>> ${SQL.plain(`'{${postgresIndexPath(index.path)}}'`)}))
-  `;
-};
-
 export const pongoCollectionPostgreSQLMigrations = (
   schemaOrName: PongoCollectionSchema | string,
 ) => {
   const collection = collectionIdentity(schemaOrName);
   const schemaMigration = createDatabaseSchema(schemaOrName);
-  const indexes =
-    typeof schemaOrName === 'string' ? [] : (schemaOrName.indexes ?? []);
 
   return [
     sqlMigration(
@@ -152,12 +108,7 @@ export const pongoCollectionPostgreSQLMigrations = (
         createCollection(schemaOrName),
       ],
     ),
-    ...indexes.map((index) =>
-      sqlMigration(
-        `pongoCollection:${collection.migrationName}:002:index:${index.name}`,
-        [createCollectionIndex(schemaOrName, index)],
-      ),
-    ),
+    ...(typeof schemaOrName === 'string' ? [] : schemaOrName.migrations),
   ];
 };
 

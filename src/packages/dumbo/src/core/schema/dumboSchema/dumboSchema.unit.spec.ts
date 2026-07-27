@@ -28,13 +28,14 @@ describe('dumboSchema', () => {
   });
 
   it('should create a table with columns and indexes', () => {
+    const emailIndex = index('idx_email', ['email']);
     const tbl = table('users', {
       columns: {
         id: column('id', Varchar('max')),
         email: column('email', Varchar('max')),
       },
       indexes: {
-        idx_email: index('idx_email', ['email']),
+        idx_email: emailIndex,
       },
     });
 
@@ -44,6 +45,10 @@ describe('dumboSchema', () => {
     assert.ok(tbl.columns.has('id'));
     assert.ok(tbl.columns.has('email'));
     assert.ok(tbl.indexes.has('idx_email'));
+    assert.strictEqual(
+      tbl.components.get(emailIndex.schemaComponentKey),
+      emailIndex,
+    );
     assert.ok(tbl.columns.id !== undefined);
     assert.ok(tbl.columns.email !== undefined);
   });

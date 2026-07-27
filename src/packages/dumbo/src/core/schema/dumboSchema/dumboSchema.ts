@@ -14,6 +14,7 @@ import {
   type IndexSchemaComponent,
   type TableColumnNames,
   type TableColumns,
+  DEFAULT_DATABASE_SCHEMA_NAME as DEFAULT_TABLE_DATABASE_SCHEMA_NAME,
   type TableRelationships,
   tableSchemaComponent,
   type TableSchemaComponent,
@@ -25,7 +26,7 @@ import {
 } from '../schemaComponent';
 
 const DEFAULT_DATABASE_NAME = '__default_database__';
-const DEFAULT_DATABASE_SCHEMA_NAME = '__default_database_schema__';
+const DEFAULT_DATABASE_SCHEMA_NAME = DEFAULT_TABLE_DATABASE_SCHEMA_NAME;
 
 const dumboColumn = <
   const ColumnType extends AnyColumnTypeToken | string =
@@ -66,30 +67,56 @@ const dumboIndex = (
 const dumboTable = <
   const Columns extends TableColumns = TableColumns,
   const TableName extends string = string,
+  const DatabaseSchemaName extends string =
+    typeof DEFAULT_TABLE_DATABASE_SCHEMA_NAME,
   const Relationships extends TableRelationships<keyof Columns & string> =
-    TableRelationships<keyof Columns & string>,
+    {} & TableRelationships<keyof Columns & string>,
+  const Indexes extends Record<string, IndexSchemaComponent> = Record<
+    string,
+    IndexSchemaComponent
+  >,
 >(
   name: TableName,
   definition: {
+    databaseSchema?: DatabaseSchemaName;
     columns?: Columns;
     primaryKey?: TableColumnNames<
-      TableSchemaComponent<Columns, TableName, Relationships>
+      TableSchemaComponent<
+        Columns,
+        TableName,
+        DatabaseSchemaName,
+        Relationships,
+        Indexes
+      >
     >[];
     relationships?: Relationships;
-    indexes?: Record<string, IndexSchemaComponent>;
+    indexes?: Indexes;
   } & SchemaComponentOptions,
-): TableSchemaComponent<Columns, TableName, Relationships> => {
-  const { columns, indexes, primaryKey, relationships, ...options } =
-    definition;
-
-  const components = [...(indexes ? Object.values(indexes) : [])];
+): TableSchemaComponent<
+  Columns,
+  TableName,
+  DatabaseSchemaName,
+  Relationships,
+  Indexes
+> => {
+  const {
+    databaseSchema,
+    columns,
+    indexes,
+    primaryKey,
+    relationships,
+    ...options
+  } = definition;
 
   return tableSchemaComponent({
     tableName: name,
+    ...(databaseSchema !== undefined
+      ? { databaseSchemaName: databaseSchema }
+      : {}),
     columns: columns ?? ({} as Columns),
     primaryKey: primaryKey ?? [],
     ...(relationships !== undefined ? { relationships } : {}),
-    components,
+    ...(indexes !== undefined ? { indexes } : {}),
     ...options,
   });
 };

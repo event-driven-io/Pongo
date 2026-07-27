@@ -10,6 +10,7 @@ import {
   databaseSchemaComponent,
   databaseSchemaFeatureSchemaComponent,
   databaseSchemaSchemaComponent,
+  indexSchemaComponent,
   runSQLMigrations,
   SchemaComponentMigrator,
   sqlMigration,
@@ -114,17 +115,16 @@ describe('Migration Integration Tests', () => {
           featureName: 'eventStore',
           migrations: [databaseFeatureMigration],
         });
+        const users = tableSchemaComponent({
+          tableName: 'users',
+          migrations: [schemaTableMigration],
+        });
         const component = databaseSchemaComponent({
           databaseName: 'app',
           schemas: {
             main: databaseSchemaSchemaComponent({
               schemaName: 'main',
-              tables: {
-                users: tableSchemaComponent({
-                  tableName: 'users',
-                  migrations: [schemaTableMigration],
-                }),
-              },
+              tables: { users },
               features: { audit },
             }),
           },
@@ -146,6 +146,57 @@ describe('Migration Integration Tests', () => {
         assert.ok(await tableExists(pool.execute, 'component_users'));
         assert.ok(await tableExists(pool.execute, 'schema_audit_log'));
         assert.ok(await tableExists(pool.execute, 'database_outbox'));
+      });
+
+      it('runs migrations from indexes declared on tables', async () => {
+        const users = tableSchemaComponent({
+          tableName: 'users',
+          migrations: [
+            sqlMigration('users:001:create-table', [
+              SQL`CREATE TABLE users (id TEXT PRIMARY KEY, email TEXT NOT NULL);`,
+            ]),
+          ],
+          indexes: {
+            users_email_idx: indexSchemaComponent({
+              indexName: 'users_email_idx',
+              columnNames: ['email'],
+              isUnique: true,
+              migrations: [
+                sqlMigration('users:002:create-email-index', [
+                  SQL`CREATE UNIQUE INDEX IF NOT EXISTS users_email_idx ON users (email);`,
+                ]),
+              ],
+            }),
+          },
+        });
+        const component = databaseSchemaComponent({
+          databaseName: 'app',
+          schemas: {
+            main: databaseSchemaSchemaComponent({
+              schemaName: 'main',
+              tables: { users },
+            }),
+          },
+        });
+        const migrator = SchemaComponentMigrator(component, pool);
+
+        await migrator.run({ lock: { options: { timeoutMs: 300 } } });
+
+        const indexes = await pool.execute.query<{ name: string }>(
+          SQL`
+            SELECT name
+            FROM sqlite_master
+            WHERE type = 'index' AND name = 'users_email_idx'`,
+        );
+        const migrationNames = await pool.execute.query<{ name: string }>(
+          SQL`SELECT name FROM dmb_migrations WHERE name <> 'dumbo:migrationTable:001' ORDER BY id`,
+        );
+
+        assert.deepStrictEqual(indexes.rows, [{ name: 'users_email_idx' }]);
+        assert.deepStrictEqual(
+          migrationNames.rows.map((row) => row.name),
+          ['users:001:create-table', 'users:002:create-email-index'],
+        );
       });
 
       // it('should timeout if the advisory lock is not acquired within the specified time', async () => {

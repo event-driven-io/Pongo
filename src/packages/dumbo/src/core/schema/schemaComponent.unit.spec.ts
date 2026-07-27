@@ -1,4 +1,5 @@
 import assert from 'node:assert';
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { describe, expectTypeOf, it } from 'vitest';
 import { SQL } from '../sql';
 import {
@@ -298,7 +299,7 @@ describe('Schema component discovery', () => {
 
     assert.throws(
       () => requireSingleComponent(root, TableURNType, 'table'),
-      /Expected one table, found 2: sc:dumbo:table:users, sc:dumbo:table:audit/,
+      /Expected one table, found 2: sc:dumbo:table:regular:__default_database_schema__:users, sc:dumbo:table:regular:__default_database_schema__:audit/,
     );
   });
 });
@@ -365,7 +366,9 @@ describe('logical schema mapping', () => {
     });
 
     assert.strictEqual(
-      database.components.has(`${DatabaseSchemaURNType}:public`),
+      database.components.has(
+        `${DatabaseSchemaURNType}:regular:__default_database__:public`,
+      ),
       true,
     );
     assert.doesNotThrow(() => assertLogicalSchemaMapping(database));

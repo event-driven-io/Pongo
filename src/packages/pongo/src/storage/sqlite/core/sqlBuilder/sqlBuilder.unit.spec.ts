@@ -231,115 +231,75 @@ describe('sqliteSQLBuilder', () => {
       });
     }
 
-    it('creates named JSON path index migrations', () => {
-      const migrations = pongoCollectionSQLiteMigrations(
-        pongoSchema.collection('users', {
-          indexes: [
-            pongoSchema.index('users_email_idx', 'email'),
-            pongoSchema.index.unique('users_external_id_uq', [
-              'external',
-              'id',
-            ]),
-          ],
-        }),
-      );
-      const index = SQL.format(migrations[1]!.sqls[0]!, sqliteFormatter);
-      const unique = SQL.format(migrations[2]!.sqls[0]!, sqliteFormatter);
+    it('keeps declared JSON path indexes on the collection table', () => {
+      const collection = pongoSchema.collection('users', {
+        indexes: [
+          pongoSchema.index('users_email_idx', 'email'),
+          pongoSchema.index.unique('users_external_id_uq', ['external', 'id']),
+        ],
+      });
+      const migrations = pongoCollectionSQLiteMigrations(collection);
 
+      assert.equal(migrations.length, 1);
       assert.equal(
-        migrations[1]!.name,
-        'pongoCollection:users:002:index:users_email_idx',
+        collection.indexes.get('users_email_idx')?.name,
+        'users_email_idx',
       );
-      assert.ok(
-        singleLine(index.query).includes(
-          "CREATE INDEX IF NOT EXISTS users_email_idx ON users (json_extract(data, '$.email'))",
-        ),
-        `got: ${index.query}`,
-      );
-      assert.ok(
-        singleLine(unique.query).includes(
-          "CREATE UNIQUE INDEX IF NOT EXISTS users_external_id_uq ON users (json_extract(data, '$.external.id'))",
-        ),
-        `got: ${unique.query}`,
+      assert.equal(
+        collection.indexes.get('users_external_id_uq')?.unique,
+        true,
       );
     });
 
-    it('creates named indexes on prefixed schema tables', () => {
-      const migrations = pongoCollectionSQLiteMigrations(
-        pongoSchema.collection('users', {
-          schema: 'crm',
-          indexes: [pongoSchema.index('users_email_idx', 'email')],
-        }),
-      );
-      const index = SQL.format(migrations[1]!.sqls[0]!, sqliteFormatter);
+    it('keeps declared indexes on prefixed schema tables', () => {
+      const collection = pongoSchema.collection('users', {
+        schema: 'crm',
+        indexes: [pongoSchema.index('users_email_idx', 'email')],
+      });
+      const migrations = pongoCollectionSQLiteMigrations(collection);
 
-      assert.equal(
-        migrations[1]!.name,
-        'pongoCollection:crm:users:002:index:users_email_idx',
-      );
-      assert.ok(
-        singleLine(index.query).includes(
-          "CREATE INDEX IF NOT EXISTS users_email_idx ON crm_users (json_extract(data, '$.email'))",
-        ),
-        `got: ${index.query}`,
-      );
+      assert.equal(migrations.length, 1);
+      assert.equal(collection.databaseSchemaName, 'crm');
+      assert.equal(collection.indexes.get('users_email_idx')?.path, 'email');
     });
 
-    it('creates document JSON index migrations on data', () => {
-      const migrations = pongoCollectionSQLiteMigrations(
-        pongoSchema.collection('users', {
-          indexes: [
-            pongoSchema.index('users_email_idx', 'email'),
-            pongoSchema.index.json('users_data_idx'),
-          ],
-        }),
-      );
-      const index = SQL.format(migrations[2]!.sqls[0]!, sqliteFormatter);
+    it('keeps declared document JSON indexes on the collection table', () => {
+      const collection = pongoSchema.collection('users', {
+        indexes: [
+          pongoSchema.index('users_email_idx', 'email'),
+          pongoSchema.index.json('users_data_idx'),
+        ],
+      });
+      const migrations = pongoCollectionSQLiteMigrations(collection);
 
       assert.deepStrictEqual(
         migrations.map((migration) => migration.name),
-        [
-          'pongoCollection:users:001:createtable',
-          'pongoCollection:users:002:index:users_email_idx',
-          'pongoCollection:users:002:index:users_data_idx',
-        ],
+        ['pongoCollection:users:001:createtable'],
       );
-      assert.ok(
-        singleLine(index.query).includes(
-          'CREATE INDEX IF NOT EXISTS users_data_idx ON users (data)',
-        ),
-        `got: ${index.query}`,
+      assert.equal(
+        collection.indexes.get('users_data_idx')?.type,
+        'json_document',
       );
     });
 
-    it('creates custom index migrations with schema-aware SQL context', () => {
-      const migrations = pongoCollectionSQLiteMigrations(
-        pongoSchema.collection('users', {
-          schema: 'crm',
-          indexes: [
-            {
-              name: 'users_custom_data_idx',
-              type: 'custom_json_index',
-              sql: ({ tableReference, databaseSchemaName, tableName }) => {
-                assert.strictEqual(databaseSchemaName, 'crm');
-                assert.strictEqual(tableName, 'crm_users');
-                return SQL`CREATE INDEX IF NOT EXISTS users_custom_data_idx ON ${tableReference} (data)`;
-              },
-            },
-          ],
-        }),
-      );
-      const index = SQL.format(migrations[1]!.sqls[0]!, sqliteFormatter);
+    it('keeps custom index SQL hooks on the collection table', () => {
+      const collection = pongoSchema.collection('users', {
+        schema: 'crm',
+        indexes: [
+          {
+            name: 'users_custom_data_idx',
+            type: 'custom_json_index',
+            sql: ({ tableReference }) =>
+              SQL`CREATE INDEX IF NOT EXISTS users_custom_data_idx ON ${tableReference} (data)`,
+          },
+        ],
+      });
+      const migrations = pongoCollectionSQLiteMigrations(collection);
 
+      assert.equal(migrations.length, 1);
       assert.equal(
-        migrations[1]!.name,
-        'pongoCollection:crm:users:002:index:users_custom_data_idx',
-      );
-      assert.ok(
-        singleLine(index.query).includes(
-          'CREATE INDEX IF NOT EXISTS users_custom_data_idx ON crm_users (data)',
-        ),
-        `got: ${index.query}`,
+        typeof collection.indexes.get('users_custom_data_idx')?.sql,
+        'function',
       );
     });
   });
