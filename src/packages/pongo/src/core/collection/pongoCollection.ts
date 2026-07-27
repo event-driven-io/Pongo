@@ -1,5 +1,6 @@
 import type { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import {
+  dumboSchema,
   mapColumnToBigint,
   mapColumnToJSON,
   runSQLMigrations,
@@ -194,7 +195,9 @@ export const pongoCollection = <
   };
 
   const cacheKey = (id: string): PongoDocumentCacheKey =>
-    `${db.databaseName}:${collectionName}:${id}`;
+    schemaComponent.databaseSchemaName === dumboSchema.schema.defaultName
+      ? `${db.databaseName}:${collectionName}:${id}`
+      : `${db.databaseName}:${schemaComponent.databaseSchemaName}.${collectionName}:${id}`;
 
   const txCacheFor = (options: CollectionOperationOptions | undefined) =>
     options?.session?.transaction?.cache ?? null;

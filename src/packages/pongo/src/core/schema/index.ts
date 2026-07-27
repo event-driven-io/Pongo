@@ -1,4 +1,4 @@
-import type { DatabaseDriverType } from '@event-driven-io/dumbo';
+import type { DatabaseDriverType, SQL } from '@event-driven-io/dumbo';
 import {
   type Document,
   type PongoClient,
@@ -20,10 +20,31 @@ export interface PongoCollectionSchema<
   indexes?: readonly PongoCollectionIndex[] | undefined;
 }
 
-export type PongoCollectionIndex = {
+// Allows driver packages and users to type custom index options via declaration merging.
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type
+export interface PongoCollectionIndexExtensions {}
+
+export type PongoCollectionIndexType =
+  'json_path' | 'json_document' | (string & {});
+
+export type PongoCollectionIndex<
+  Type extends PongoCollectionIndexType = PongoCollectionIndexType,
+> = {
   name: string;
-  path: string | readonly string[];
+  path?: string | readonly string[] | undefined;
   unique?: boolean | undefined;
+  type?: Type | undefined;
+  sql?: ((context: PongoCollectionIndexSQLContext) => SQL) | undefined;
+  options?: Type extends keyof PongoCollectionIndexExtensions
+    ? PongoCollectionIndexExtensions[Type]
+    : Record<string, unknown> | undefined;
+};
+
+export type PongoCollectionIndexSQLContext = {
+  collectionName: string;
+  databaseSchemaName?: string | undefined;
+  tableName: string;
+  tableReference: SQL;
 };
 
 export interface PongoDatabaseSchemaSchema<
@@ -125,12 +146,18 @@ const pongoCollectionIndex = (
   name,
   path,
   unique: options?.unique,
+  type: 'json_path',
 });
 
 pongoCollectionIndex.unique = (
   name: string,
   path: string | readonly string[],
 ): PongoCollectionIndex => pongoCollectionIndex(name, path, { unique: true });
+
+pongoCollectionIndex.json = (name: string): PongoCollectionIndex => ({
+  name,
+  type: 'json_document',
+});
 
 function pongoDbSchema<T extends Record<string, PongoCollectionSchema>>(
   collections: T,

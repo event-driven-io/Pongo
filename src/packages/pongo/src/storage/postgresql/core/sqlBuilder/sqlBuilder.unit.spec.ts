@@ -3,7 +3,11 @@ import { pgFormatter } from '@event-driven-io/dumbo/pg';
 import assert from 'assert';
 import { describe, it } from 'vitest';
 import { postgresSQLBuilder, pongoCollectionPostgreSQLMigrations } from '.';
-import { pongoSchema, type ExpectedDocumentVersion } from '../../../../core';
+import {
+  pongoSchema,
+  type ExpectedDocumentVersion,
+  type PongoCollectionSQLBuilder,
+} from '../../../../core';
 
 const specialDocument = {
   _id: 'special-id',
@@ -220,6 +224,155 @@ describe('postgres collection schema migrations', () => {
     assert.ok(insert.query.includes('INSERT INTO crm.users'));
   });
 
+  const runtimeSQLCases: {
+    name: keyof PongoCollectionSQLBuilder;
+    sql: (builder: PongoCollectionSQLBuilder) => SQL;
+    defaultIncludes: string;
+    schemaIncludes: string;
+  }[] = [
+    {
+      name: 'createCollection',
+      sql: (builder) => builder.createCollection(),
+      defaultIncludes: 'CREATE TABLE IF NOT EXISTS users',
+      schemaIncludes: 'CREATE TABLE IF NOT EXISTS crm.users',
+    },
+    {
+      name: 'insertOne',
+      sql: (builder) => builder.insertOne({ _id: '1', email: 'a@test' }),
+      defaultIncludes: 'INSERT INTO users',
+      schemaIncludes: 'INSERT INTO crm.users',
+    },
+    {
+      name: 'insertMany',
+      sql: (builder) => builder.insertMany([{ _id: '1', email: 'a@test' }]),
+      defaultIncludes: 'INSERT INTO users',
+      schemaIncludes: 'INSERT INTO crm.users',
+    },
+    {
+      name: 'insertOrReplace',
+      sql: (builder) =>
+        builder.insertOrReplace([{ _id: '1', email: 'a@test' }]),
+      defaultIncludes: 'INSERT INTO users',
+      schemaIncludes: 'INSERT INTO crm.users',
+    },
+    {
+      name: 'updateOne',
+      sql: (builder) =>
+        builder.updateOne<{ email: string; name: string }>(
+          { email: 'a@test' },
+          { $set: { name: 'A' } },
+        ),
+      defaultIncludes: 'UPDATE users',
+      schemaIncludes: 'UPDATE crm.users',
+    },
+    {
+      name: 'replaceOne',
+      sql: (builder) =>
+        builder.replaceOne<{ email: string; name: string }>(
+          { email: 'a@test' },
+          { email: 'b@test', name: 'B' },
+        ),
+      defaultIncludes: 'UPDATE users',
+      schemaIncludes: 'UPDATE crm.users',
+    },
+    {
+      name: 'updateMany',
+      sql: (builder) =>
+        builder.updateMany<{ email: string; name: string }>(
+          { email: 'a@test' },
+          { $set: { name: 'A' } },
+        ),
+      defaultIncludes: 'UPDATE users',
+      schemaIncludes: 'UPDATE crm.users',
+    },
+    {
+      name: 'deleteOne',
+      sql: (builder) => builder.deleteOne({ email: 'a@test' }),
+      defaultIncludes: 'DELETE FROM users',
+      schemaIncludes: 'DELETE FROM crm.users',
+    },
+    {
+      name: 'deleteMany',
+      sql: (builder) => builder.deleteMany({ email: 'a@test' }),
+      defaultIncludes: 'DELETE FROM users',
+      schemaIncludes: 'DELETE FROM crm.users',
+    },
+    {
+      name: 'replaceMany',
+      sql: (builder) => builder.replaceMany([{ _id: '1', email: 'a@test' }]),
+      defaultIncludes: 'UPDATE users',
+      schemaIncludes: 'UPDATE crm.users',
+    },
+    {
+      name: 'deleteManyByIds',
+      sql: (builder) => builder.deleteManyByIds([{ _id: '1' }]),
+      defaultIncludes: 'DELETE FROM users',
+      schemaIncludes: 'DELETE FROM crm.users',
+    },
+    {
+      name: 'findOne',
+      sql: (builder) => builder.findOne({ email: 'a@test' }),
+      defaultIncludes: 'FROM users',
+      schemaIncludes: 'FROM crm.users',
+    },
+    {
+      name: 'find',
+      sql: (builder) => builder.find({}),
+      defaultIncludes: 'FROM users',
+      schemaIncludes: 'FROM crm.users',
+    },
+    {
+      name: 'countDocuments',
+      sql: (builder) => builder.countDocuments({}),
+      defaultIncludes: 'FROM users',
+      schemaIncludes: 'FROM crm.users',
+    },
+    {
+      name: 'rename',
+      sql: (builder) => builder.rename('archived_users'),
+      defaultIncludes: 'ALTER TABLE users RENAME TO archived_users',
+      schemaIncludes: 'ALTER TABLE crm.users RENAME TO archived_users',
+    },
+    {
+      name: 'drop',
+      sql: (builder) => builder.drop(),
+      defaultIncludes: 'DROP TABLE IF EXISTS users',
+      schemaIncludes: 'DROP TABLE IF EXISTS crm.users',
+    },
+  ];
+
+  for (const testCase of runtimeSQLCases) {
+    it(`uses default and explicit PostgreSQL schemas in ${testCase.name}`, () => {
+      const defaultBuilder = postgresSQLBuilder(
+        pongoSchema.collection('users'),
+        JSONSerializer,
+      );
+      const schemaBuilder = postgresSQLBuilder(
+        pongoSchema.collection('users', { schema: 'crm' }),
+        JSONSerializer,
+      );
+      const defaultSQL = singleLine(
+        SQL.format(testCase.sql(defaultBuilder), pgFormatter).query,
+      );
+      const schemaSQL = singleLine(
+        SQL.format(testCase.sql(schemaBuilder), pgFormatter).query,
+      );
+
+      assert.ok(
+        defaultSQL.includes(testCase.defaultIncludes),
+        `${testCase.name} default got: ${defaultSQL}`,
+      );
+      assert.ok(
+        !defaultSQL.includes('crm.users'),
+        `${testCase.name} default should not use crm.users: ${defaultSQL}`,
+      );
+      assert.ok(
+        schemaSQL.includes(testCase.schemaIncludes),
+        `${testCase.name} schema got: ${schemaSQL}`,
+      );
+    });
+  }
+
   it('creates named JSON path index migrations', () => {
     const migrations = pongoCollectionPostgreSQLMigrations(
       pongoSchema.collection('users', {
@@ -250,6 +403,26 @@ describe('postgres collection schema migrations', () => {
     );
   });
 
+  it('creates document JSON index migrations as PostgreSQL JSONB GIN indexes', () => {
+    const migrations = pongoCollectionPostgreSQLMigrations(
+      pongoSchema.collection('users', {
+        indexes: [pongoSchema.index.json('users_data_idx')],
+      }),
+    );
+    const index = SQL.format(migrations[1]!.sqls[0]!, pgFormatter);
+
+    assert.strictEqual(
+      migrations[1]!.name,
+      'pongoCollection:users:002:index:users_data_idx',
+    );
+    assert.ok(
+      singleLine(index.query).includes(
+        'CREATE INDEX IF NOT EXISTS users_data_idx ON users USING GIN (data)',
+      ),
+      `got: ${index.query}`,
+    );
+  });
+
   it('creates named indexes on explicit PostgreSQL schemas', () => {
     const migrations = pongoCollectionPostgreSQLMigrations(
       pongoSchema.collection('users', {
@@ -266,6 +439,37 @@ describe('postgres collection schema migrations', () => {
     assert.ok(
       singleLine(index.query).includes(
         "CREATE INDEX IF NOT EXISTS users_email_idx ON crm.users ((data #>> '{email}'))",
+      ),
+      `got: ${index.query}`,
+    );
+  });
+
+  it('creates custom index migrations with schema-aware SQL context', () => {
+    const migrations = pongoCollectionPostgreSQLMigrations(
+      pongoSchema.collection('users', {
+        schema: 'crm',
+        indexes: [
+          {
+            name: 'users_custom_data_idx',
+            type: 'custom_jsonb_path',
+            sql: ({ tableReference, databaseSchemaName, tableName }) => {
+              assert.strictEqual(databaseSchemaName, 'crm');
+              assert.strictEqual(tableName, 'users');
+              return SQL`CREATE INDEX IF NOT EXISTS users_custom_data_idx ON ${tableReference} USING GIN (data jsonb_path_ops)`;
+            },
+          },
+        ],
+      }),
+    );
+    const index = SQL.format(migrations[1]!.sqls[0]!, pgFormatter);
+
+    assert.strictEqual(
+      migrations[1]!.name,
+      'pongoCollection:crm:users:002:index:users_custom_data_idx',
+    );
+    assert.ok(
+      singleLine(index.query).includes(
+        'CREATE INDEX IF NOT EXISTS users_custom_data_idx ON crm.users USING GIN (data jsonb_path_ops)',
       ),
       `got: ${index.query}`,
     );

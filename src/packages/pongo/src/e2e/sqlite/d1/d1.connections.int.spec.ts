@@ -5,7 +5,7 @@ import assert from 'assert';
 import { Miniflare } from 'miniflare';
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, it } from 'vitest';
-import { pongoClient } from '../../..';
+import { pongoClient, pongoSchema } from '../../..';
 import { d1Driver as databaseDriver } from '../../../storage/sqlite/d1';
 
 type User = {
@@ -43,7 +43,10 @@ describe('Pongo D1 connections', () => {
     const collectionName = uniqueCollectionName();
     const pongo = pongoClient({
       driver: databaseDriver,
-      connectionOptions: { database },
+      connectionOptions: {
+        database,
+        transactionOptions: { mode: 'session_based' },
+      },
     });
 
     try {
@@ -89,6 +92,91 @@ describe('Pongo D1 connections', () => {
         [firstId, secondId].sort(),
       );
     } finally {
+      await pool.close();
+    }
+  });
+
+  it('runs schema-prefixed migrations and collection calls', async () => {
+    const collectionName = uniqueCollectionName();
+    const schemaTableName = `crm_${collectionName}`;
+    const emailIndexName = `${collectionName}_email_idx`;
+    const uniqueIndexName = `${collectionName}_external_id_uq`;
+    const documentIndexName = `${collectionName}_data_idx`;
+    const customIndexName = `${collectionName}_custom_idx`;
+    const pongo = pongoClient({
+      driver: databaseDriver,
+      connectionOptions: {
+        database,
+        transactionOptions: { mode: 'session_based' },
+      },
+      schema: {
+        definition: pongoSchema.client({
+          database: pongoSchema.db({
+            users: pongoSchema.collection(collectionName),
+            crmUsers: pongoSchema.collection(collectionName, {
+              schema: 'crm',
+              indexes: [
+                pongoSchema.index(emailIndexName, 'email'),
+                pongoSchema.index.unique(uniqueIndexName, ['external', 'id']),
+                pongoSchema.index.json(documentIndexName),
+                {
+                  name: customIndexName,
+                  type: 'custom_json_index',
+                  sql: ({ tableReference }) =>
+                    SQL`CREATE INDEX IF NOT EXISTS ${SQL.identifier(customIndexName)} ON ${tableReference} (data)`,
+                },
+              ],
+            }),
+          }),
+        }),
+      },
+    });
+    const pool = d1Pool({ database });
+
+    try {
+      await pongo.db().schema.migrate();
+      await pongo
+        .db()
+        .collection(collectionName)
+        .insertOne({ _id: 'default-user', email: 'default@test' });
+      await pongo
+        .db()
+        .collection(collectionName, { schema: 'crm' })
+        .insertOne({ _id: 'crm-user', email: 'crm@test' });
+
+      const objects = await pool.execute.query<{ name: string; type: string }>(
+        SQL`
+          SELECT name, type
+          FROM sqlite_master
+          WHERE name IN (
+            ${collectionName},
+            ${schemaTableName},
+            ${emailIndexName},
+            ${uniqueIndexName},
+            ${documentIndexName},
+            ${customIndexName}
+          )
+          ORDER BY type, name`,
+      );
+      const defaultCount = await pool.execute.query<{ count: number }>(
+        SQL`SELECT COUNT(*) as count FROM ${SQL.identifier(collectionName)}`,
+      );
+      const schemaCount = await pool.execute.query<{ count: number }>(
+        SQL`SELECT COUNT(*) as count FROM ${SQL.identifier(schemaTableName)}`,
+      );
+
+      assert.deepStrictEqual(objects.rows, [
+        { name: customIndexName, type: 'index' },
+        { name: documentIndexName, type: 'index' },
+        { name: emailIndexName, type: 'index' },
+        { name: uniqueIndexName, type: 'index' },
+        { name: collectionName, type: 'table' },
+        { name: schemaTableName, type: 'table' },
+      ]);
+      assert.strictEqual(defaultCount.rows[0]?.count, 1);
+      assert.strictEqual(schemaCount.rows[0]?.count, 1);
+    } finally {
+      await pongo.close();
       await pool.close();
     }
   });

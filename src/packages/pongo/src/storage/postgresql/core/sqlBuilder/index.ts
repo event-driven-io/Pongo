@@ -39,7 +39,12 @@ const versionCheckClause = (
 
 const collectionIdentity = (
   schemaOrName: PongoCollectionSchema | string,
-): { migrationName: string; reference: SQL; tableName: string } => {
+): {
+  databaseSchemaName?: string | undefined;
+  migrationName: string;
+  reference: SQL;
+  tableName: string;
+} => {
   const schema =
     typeof schemaOrName === 'string'
       ? { name: schemaOrName, databaseSchema: undefined }
@@ -57,6 +62,7 @@ const collectionIdentity = (
   }
 
   return {
+    databaseSchemaName: schema.databaseSchema,
     migrationName: `${schema.databaseSchema}:${schema.name}`,
     reference: SQL`${SQL.identifier(schema.databaseSchema)}.${SQL.identifier(schema.name)}`,
     tableName: schema.name,
@@ -103,6 +109,26 @@ const createCollectionIndex = (
   index: PongoCollectionIndex,
 ): SQL => {
   const collection = collectionIdentity(schemaOrName);
+
+  if (index.sql) {
+    return index.sql({
+      collectionName: collection.tableName,
+      databaseSchemaName: collection.databaseSchemaName,
+      tableName: collection.tableName,
+      tableReference: collection.reference,
+    });
+  }
+
+  if (index.type === 'json_document') {
+    return SQL`
+      CREATE INDEX IF NOT EXISTS ${SQL.identifier(index.name)}
+      ON ${collection.reference} USING GIN (data)
+    `;
+  }
+
+  if (index.path === undefined) {
+    throw new Error(`Pongo index ${index.name} needs a path`);
+  }
 
   return SQL`
     CREATE ${index.unique === true ? SQL`UNIQUE ` : SQL.EMPTY}INDEX IF NOT EXISTS ${SQL.identifier(index.name)}
@@ -476,8 +502,10 @@ export const postgresSQLBuilder = (
     },
     rename: (newName: string): SQL =>
       SQL`ALTER TABLE ${collection.reference} RENAME TO ${SQL.identifier(newName)};`,
-    drop: (targetName: string = collection.tableName): SQL =>
-      SQL`DROP TABLE IF EXISTS ${SQL.identifier(targetName)}`,
+    drop: (targetName?: string): SQL =>
+      targetName === undefined
+        ? SQL`DROP TABLE IF EXISTS ${collection.reference}`
+        : SQL`DROP TABLE IF EXISTS ${SQL.identifier(targetName)}`,
   };
 };
 

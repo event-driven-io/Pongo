@@ -32,9 +32,30 @@ describe('SQLite3 migration integration', () => {
     const schema = pongoSchema.client({
       database: pongoSchema.db({
         users: pongoSchema.collection('users'),
+        explicitDefaultUsers: pongoSchema.collection('explicit_default_users', {
+          schema: pongoSchema.schema.defaultName,
+          indexes: [pongoSchema.index('explicit_default_email_idx', 'email')],
+        }),
         crmUsers: pongoSchema.collection('users', {
           schema: 'crm',
-          indexes: [pongoSchema.index.unique('users_email_uq', 'email')],
+          indexes: [
+            pongoSchema.index('users_email_idx', 'email'),
+            pongoSchema.index.unique('users_external_id_uq', [
+              'external',
+              'id',
+            ]),
+            pongoSchema.index.json('users_data_idx'),
+            {
+              name: 'users_custom_data_idx',
+              type: 'custom_json_index',
+              sql: ({ tableReference }) =>
+                SQL`CREATE INDEX IF NOT EXISTS users_custom_data_idx ON ${tableReference} (data)`,
+            },
+          ],
+        }),
+        auditUsers: pongoSchema.collection('users', {
+          schema: 'audit',
+          indexes: [pongoSchema.index('audit_users_email_idx', 'email')],
         }),
       }),
     });
@@ -62,7 +83,18 @@ describe('SQLite3 migration integration', () => {
         SQL`
           SELECT name, type
           FROM sqlite_master
-          WHERE name IN ('users', 'crm_users', 'users_email_uq')
+          WHERE name IN (
+            'users',
+            'explicit_default_users',
+            'crm_users',
+            'audit_users',
+            'explicit_default_email_idx',
+            'users_email_idx',
+            'users_external_id_uq',
+            'users_data_idx',
+            'users_custom_data_idx',
+            'audit_users_email_idx'
+          )
           ORDER BY type, name`,
       );
       const migrationNames = await pool.execute.query<{ name: string }>(
@@ -74,22 +106,40 @@ describe('SQLite3 migration integration', () => {
       const crmCount = await pool.execute.query<{ count: number }>(
         SQL`SELECT COUNT(*) as count FROM crm_users`,
       );
+      const auditCount = await pool.execute.query<{ count: number }>(
+        SQL`SELECT COUNT(*) as count FROM audit_users`,
+      );
 
       assert.deepStrictEqual(objects.rows, [
-        { name: 'users_email_uq', type: 'index' },
+        { name: 'audit_users_email_idx', type: 'index' },
+        { name: 'explicit_default_email_idx', type: 'index' },
+        { name: 'users_custom_data_idx', type: 'index' },
+        { name: 'users_data_idx', type: 'index' },
+        { name: 'users_email_idx', type: 'index' },
+        { name: 'users_external_id_uq', type: 'index' },
+        { name: 'audit_users', type: 'table' },
         { name: 'crm_users', type: 'table' },
+        { name: 'explicit_default_users', type: 'table' },
         { name: 'users', type: 'table' },
       ]);
       assert.deepStrictEqual(
         migrationNames.rows.map((row) => row.name),
         [
           'pongoCollection:users:001:createtable',
+          'pongoCollection:explicit_default_users:001:createtable',
+          'pongoCollection:explicit_default_users:002:index:explicit_default_email_idx',
           'pongoCollection:crm:users:001:createtable',
-          'pongoCollection:crm:users:002:index:users_email_uq',
+          'pongoCollection:crm:users:002:index:users_email_idx',
+          'pongoCollection:crm:users:002:index:users_external_id_uq',
+          'pongoCollection:crm:users:002:index:users_data_idx',
+          'pongoCollection:crm:users:002:index:users_custom_data_idx',
+          'pongoCollection:audit:users:001:createtable',
+          'pongoCollection:audit:users:002:index:audit_users_email_idx',
         ],
       );
       assert.strictEqual(defaultCount.rows[0]?.count, 1);
       assert.strictEqual(crmCount.rows[0]?.count, 1);
+      assert.strictEqual(auditCount.rows[0]?.count, 0);
     } finally {
       await client.close();
       await pool.close();

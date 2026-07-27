@@ -19,10 +19,28 @@ describe('Migration Integration Tests', () => {
   const schema = pongoSchema.client({
     database: pongoSchema.db({
       users: pongoSchema.collection('users'),
+      explicitDefaultUsers: pongoSchema.collection('explicit_default_users', {
+        schema: pongoSchema.schema.defaultName,
+        indexes: [pongoSchema.index('explicit_default_email_idx', 'email')],
+      }),
       roles: pongoSchema.collection('roles'),
       crmUsers: pongoSchema.collection('users', {
         schema: 'crm',
-        indexes: [pongoSchema.index.unique('users_email_uq', 'email')],
+        indexes: [
+          pongoSchema.index('users_email_idx', 'email'),
+          pongoSchema.index.unique('users_external_id_uq', ['external', 'id']),
+          pongoSchema.index.json('users_data_idx'),
+          {
+            name: 'users_custom_data_idx',
+            type: 'custom_jsonb_path',
+            sql: ({ tableReference }) =>
+              SQL`CREATE INDEX IF NOT EXISTS users_custom_data_idx ON ${tableReference} USING GIN (data jsonb_path_ops)`,
+          },
+        ],
+      }),
+      auditUsers: pongoSchema.collection('users', {
+        schema: 'audit',
+        indexes: [pongoSchema.index('audit_users_email_idx', 'email')],
       }),
     }),
   });
@@ -46,7 +64,7 @@ describe('Migration Integration Tests', () => {
 
   beforeEach(async () => {
     await pool.execute.query(
-      SQL`DROP SCHEMA IF EXISTS crm CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public;`,
+      SQL`DROP SCHEMA IF EXISTS audit CASCADE; DROP SCHEMA IF EXISTS crm CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public;`,
     );
   });
 
@@ -55,6 +73,10 @@ describe('Migration Integration Tests', () => {
 
     const usersTableExists = await tableExists(pool.execute, 'users');
     const rolesTableExists = await tableExists(pool.execute, 'roles');
+    const explicitDefaultUsersTableExists = await tableExists(
+      pool.execute,
+      'explicit_default_users',
+    );
     const crmUsersTableExists = await pool.execute.query<{ exists: boolean }>(
       SQL`
         SELECT EXISTS (
@@ -62,27 +84,55 @@ describe('Migration Integration Tests', () => {
           WHERE table_schema = 'crm' AND table_name = 'users'
         )`,
     );
-    const crmUsersEmailIndexExists = await pool.execute.query<{
-      exists: boolean;
-    }>(
+    const auditUsersTableExists = await pool.execute.query<{ exists: boolean }>(
       SQL`
         SELECT EXISTS (
-          SELECT FROM pg_indexes
-          WHERE schemaname = 'crm' AND tablename = 'users' AND indexname = 'users_email_uq'
+          SELECT FROM information_schema.tables
+          WHERE table_schema = 'audit' AND table_name = 'users'
         )`,
+    );
+    const indexNames = await pool.execute.query<{ indexname: string }>(
+      SQL`
+        SELECT indexname
+        FROM pg_indexes
+        WHERE schemaname IN ('public', 'crm', 'audit')
+          AND indexname IN (
+            'explicit_default_email_idx',
+            'users_email_idx',
+            'users_external_id_uq',
+            'users_data_idx',
+            'users_custom_data_idx',
+            'audit_users_email_idx'
+          )
+        ORDER BY indexname`,
     );
 
     assert.ok(usersTableExists, 'The users table should exist.');
     assert.ok(rolesTableExists, 'The roles table should exist.');
+    assert.ok(
+      explicitDefaultUsersTableExists,
+      'The explicit default schema table should exist.',
+    );
     assert.strictEqual(
       crmUsersTableExists.rows[0]?.exists,
       true,
       'The crm.users table should exist.',
     );
     assert.strictEqual(
-      crmUsersEmailIndexExists.rows[0]?.exists,
+      auditUsersTableExists.rows[0]?.exists,
       true,
-      'The crm.users email index should exist.',
+      'The audit.users table should exist.',
+    );
+    assert.deepStrictEqual(
+      indexNames.rows.map((row) => row.indexname),
+      [
+        'audit_users_email_idx',
+        'explicit_default_email_idx',
+        'users_custom_data_idx',
+        'users_data_idx',
+        'users_email_idx',
+        'users_external_id_uq',
+      ],
     );
   });
 
@@ -101,9 +151,13 @@ describe('Migration Integration Tests', () => {
     const crmCount = await pool.execute.query<{ count: number }>(
       SQL`SELECT COUNT(*)::int as count FROM crm.users`,
     );
+    const auditCount = await pool.execute.query<{ count: number }>(
+      SQL`SELECT COUNT(*)::int as count FROM audit.users`,
+    );
 
     assert.strictEqual(defaultCount.rows[0]?.count, 1);
     assert.strictEqual(crmCount.rows[0]?.count, 1);
+    assert.strictEqual(auditCount.rows[0]?.count, 0);
   });
 
   it('should correctly apply a migration if the hash matches the previous migration with the same name', async () => {
@@ -117,16 +171,23 @@ describe('Migration Integration Tests', () => {
     );
     assert.strictEqual(
       migrationNames.rowCount,
-      4,
+      11,
       'The migration should only be applied once.',
     );
     assert.deepEqual(
       migrationNames.rows.map((r) => r.name),
       [
         'pongoCollection:users:001:createtable',
+        'pongoCollection:explicit_default_users:001:createtable',
+        'pongoCollection:explicit_default_users:002:index:explicit_default_email_idx',
         'pongoCollection:roles:001:createtable',
         'pongoCollection:crm:users:001:createtable',
-        'pongoCollection:crm:users:002:index:users_email_uq',
+        'pongoCollection:crm:users:002:index:users_email_idx',
+        'pongoCollection:crm:users:002:index:users_external_id_uq',
+        'pongoCollection:crm:users:002:index:users_data_idx',
+        'pongoCollection:crm:users:002:index:users_custom_data_idx',
+        'pongoCollection:audit:users:001:createtable',
+        'pongoCollection:audit:users:002:index:audit_users_email_idx',
       ],
     );
   });
