@@ -14,7 +14,6 @@ import {
 import { pongoSchema } from '../schema';
 import {
   PongoDatabaseSchemaComponent,
-  PongoDatabaseURNType,
   pongoCollectionsSchema,
   pongoDatabaseSchemaComponentFor,
 } from './pongoDatabaseSchemaComponent';
@@ -30,7 +29,7 @@ const collectionFactory = (
   });
 
 describe('PongoDatabaseSchemaComponent', () => {
-  it('uses Pongo database component keys', () => {
+  it('uses Dumbo database component identity with Pongo kind', () => {
     const component = PongoDatabaseSchemaComponent({
       driverType: 'test:test',
       definition: pongoSchema.db('app', {
@@ -41,8 +40,9 @@ describe('PongoDatabaseSchemaComponent', () => {
 
     assert.strictEqual(
       component.schemaComponentKey,
-      `${PongoDatabaseURNType}:app`,
+      'sc:dumbo:database:pongo:app',
     );
+    assert.strictEqual(component.databaseKind, 'pongo');
     assert.strictEqual(component.collections.length, 1);
   });
 
@@ -89,6 +89,30 @@ describe('PongoDatabaseSchemaComponent', () => {
     );
   });
 
+  it('uses collections already bound by Pongo database schemas', () => {
+    const component = PongoDatabaseSchemaComponent({
+      driverType: 'test:test',
+      definition: pongoSchema.database('app', {
+        crm: pongoSchema.schema('crm', {
+          users: pongoSchema.collection('users'),
+        }),
+        audit: pongoSchema.schema('audit', {
+          users: pongoSchema.collection('users'),
+        }),
+      }),
+      collectionFactory,
+    });
+
+    assert.deepStrictEqual(
+      component.collections.map((collection) => collection.schemaComponentKey),
+      [
+        'sc:dumbo:table:pongo_collection:crm:users',
+        'sc:dumbo:table:pongo_collection:audit:users',
+      ],
+    );
+    assert.strictEqual(component.migrations.length, 2);
+  });
+
   it('uses a single collection URN shape', () => {
     const collection = PongoCollectionSchemaComponent({
       driverType: 'test:test',
@@ -99,6 +123,10 @@ describe('PongoDatabaseSchemaComponent', () => {
     expectTypeOf(
       collection.pongoCollectionComponentKey,
     ).toMatchTypeOf<PongoCollectionURN>();
+    assert.strictEqual(
+      collection.schemaComponentKey,
+      `sc:dumbo:table:pongo_collection:${dumboSchema.schema.defaultName}:users`,
+    );
     assert.strictEqual(
       collection.pongoCollectionComponentKey,
       `sc:pongo:collection:${dumboSchema.schema.defaultName}:users`,
@@ -129,11 +157,12 @@ describe('pongoCollectionsSchema', () => {
     );
     assert.strictEqual(
       feature.database.schemaComponentKey,
-      'sc:pongo:database:app',
+      'sc:dumbo:database:pongo:app',
     );
+    assert.strictEqual(feature.database.databaseKind, 'pongo');
     assert.strictEqual(feature.migrations.length, 1);
 
-    const database = feature.components.get('sc:pongo:database:app');
+    const database = feature.components.get('sc:dumbo:database:pongo:app');
     const collections = Array.from(database?.components.values() ?? []);
 
     assert.strictEqual(collections.length, 1);

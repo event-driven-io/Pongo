@@ -64,10 +64,15 @@ const collectionIdentity = (
         }
       : schemaOrName;
 
-  if (
-    schema.databaseSchemaName === dumboSchema.schema.defaultName ||
-    schema.databaseSchemaName === 'main'
-  ) {
+  if (schema.databaseSchemaName === dumboSchema.schema.defaultName) {
+    return {
+      migrationName: schema.tableName,
+      collectionName: schema.tableName,
+      physicalName: schema.tableName,
+    };
+  }
+
+  if (schema.databaseSchemaName === 'main') {
     return {
       migrationName: `main:${schema.tableName}`,
       collectionName: schema.tableName,

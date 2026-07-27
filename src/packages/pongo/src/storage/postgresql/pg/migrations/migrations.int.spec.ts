@@ -172,9 +172,9 @@ describe('Migration Integration Tests', () => {
     assert.deepEqual(
       migrationNames.rows.map((r) => r.name),
       [
-        'pongoCollection:public:users:001:createtable',
-        'pongoCollection:public:explicit_default_users:001:createtable',
-        'pongoCollection:public:roles:001:createtable',
+        'pongoCollection:users:001:createtable',
+        'pongoCollection:explicit_default_users:001:createtable',
+        'pongoCollection:roles:001:createtable',
         'pongoCollection:crm:users:001:createtable',
         'pongoCollection:audit:users:001:createtable',
       ],

@@ -84,36 +84,3 @@ export const findFeature = <
     (feature) =>
       featureName === undefined || feature.featureName === featureName,
   );
-
-export function requireSingleComponent<T extends AnySchemaComponent>(
-  root: AnySchemaComponent,
-  predicate: SchemaComponentPredicate<T>,
-  label?: string,
-): T;
-export function requireSingleComponent<
-  T extends AnySchemaComponent = AnySchemaComponent,
->(root: AnySchemaComponent, keyPrefix: string, label?: string): T;
-export function requireSingleComponent<
-  T extends AnySchemaComponent = AnySchemaComponent,
->(
-  root: AnySchemaComponent,
-  predicateOrPrefix: string | SchemaComponentPredicate<T>,
-  label = 'schema component',
-): T {
-  const matches =
-    typeof predicateOrPrefix === 'string'
-      ? findComponents<T>(root, predicateOrPrefix)
-      : findComponents<T>(root, predicateOrPrefix);
-
-  if (matches.length === 1) return matches[0] as T;
-
-  const keys = matches.map((component) => component.schemaComponentKey);
-
-  if (matches.length === 0) {
-    throw new Error(`Expected one ${label}, found none`);
-  }
-
-  throw new Error(
-    `Expected one ${label}, found ${matches.length}: ${keys.join(', ')}`,
-  );
-}
