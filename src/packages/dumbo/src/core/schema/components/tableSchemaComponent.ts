@@ -292,6 +292,9 @@ export const tableSchemaComponent = <
     databaseSchemaName,
     primaryKey: primaryKey ?? [],
     relationships,
+    get migrations() {
+      return base.migrations;
+    },
     get columns() {
       const columnsMap = mapSchemaComponentsOfType<AnyColumnSchemaComponent>(
         base.components,

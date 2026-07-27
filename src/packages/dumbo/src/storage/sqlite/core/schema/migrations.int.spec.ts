@@ -17,7 +17,11 @@ import {
   tableSchemaComponent,
   type SQLMigration,
 } from '../../../../core/schema';
-import { SQLite3DriverType, tableExists } from '../../../../sqlite3';
+import {
+  SQLite3DriverType,
+  indexExists,
+  tableExists,
+} from '../../../../sqlite3';
 
 describe('Migration Integration Tests', () => {
   const inMemoryfileName = InMemorySQLiteDatabase;
@@ -185,17 +189,14 @@ describe('Migration Integration Tests', () => {
 
         await migrator.run({ lock: { options: { timeoutMs: 300 } } });
 
-        const indexes = await pool.execute.query<{ name: string }>(
-          SQL`
-            SELECT name
-            FROM sqlite_master
-            WHERE type = 'index' AND name = 'users_email_idx'`,
-        );
         const migrationNames = await pool.execute.query<{ name: string }>(
           SQL`SELECT name FROM dmb_migrations WHERE name <> 'dumbo:migrationTable:001' ORDER BY id`,
         );
 
-        assert.deepStrictEqual(indexes.rows, [{ name: 'users_email_idx' }]);
+        assert.strictEqual(
+          await indexExists(pool.execute, 'users_email_idx'),
+          true,
+        );
         assert.deepStrictEqual(
           migrationNames.rows.map((row) => row.name),
           [

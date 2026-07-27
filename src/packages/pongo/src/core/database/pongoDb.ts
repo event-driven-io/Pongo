@@ -2,7 +2,6 @@ import type { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import {
   runSQLMigrations,
   dumboSchema,
-  type AnySchemaComponent,
   type DatabaseDriverType,
   type Dumbo,
   type MigrationStyle,
@@ -60,7 +59,7 @@ export type PongoDatabaseOptions<
   schema?:
     | {
         autoMigration?: MigrationStyle;
-        definition?: PongoDbSchema<CollectionsSchema> | AnySchemaComponent;
+        definition?: PongoDbSchema<CollectionsSchema>;
       }
     | undefined;
   errors?: { throwOnOperationFailures?: boolean } | undefined;
@@ -234,7 +233,10 @@ export const PongoDatabase = <
 
   const dbSchema = schemaComponent.definition;
 
-  if (Object.keys(dbSchema.collections).length > 0) {
+  if (
+    Object.keys(dbSchema.collections).length > 0 ||
+    Object.keys(dbSchema.schemas ?? {}).length > 0
+  ) {
     return proxyPongoDbWithSchema(db, dbSchema, collections);
   }
 

@@ -4,7 +4,10 @@ import { describe, expectTypeOf, it } from 'vitest';
 import type { PongoDatabaseFactoryOptions, PongoDriver } from './drivers';
 import { pongoClient } from './pongoClient';
 import { pongoSchema, proxyPongoDbWithSchema } from './schema';
-import { pongoCollectionsSchema } from './database';
+import {
+  pongoClientSchemaFromDumboComponent,
+  pongoCollectionsSchema,
+} from './database';
 import { PongoCollectionSchemaComponent } from './collection';
 import type {
   PongoCollection,
@@ -178,9 +181,49 @@ describe('pongoClient', () => {
     >();
   });
 
-  it('projects typed Pongo features from a database schema', () => {
+  it('keeps duplicate schema-group collection aliases scoped at runtime', () => {
     type User = PongoDocument & { email: string };
-    const { driver, databaseFactoryCalls } = testPongoDriver();
+    const db = {
+      ...testPongoDb({
+        databaseName: 'app',
+        onConnect: () => undefined,
+        onClose: () => undefined,
+      }),
+      collection: <T extends PongoDocument, Payload extends PongoDocument = T>(
+        name: string,
+        options?: PongoDBCollectionOptions<T, Payload>,
+      ) =>
+        ({
+          name,
+          schema:
+            typeof options?.schema === 'string' ? options.schema : undefined,
+        }) as never,
+    };
+    const schema = pongoSchema.database('app', {
+      crm: pongoSchema.schema('crm', {
+        users: pongoSchema.collection<User>('users'),
+      }),
+      audit: pongoSchema.schema('audit', {
+        users: pongoSchema.collection<User>('users'),
+      }),
+    });
+    const collections = new Map<string, PongoCollection<PongoDocument>>();
+    const projected = proxyPongoDbWithSchema(db, schema, collections);
+
+    assert.deepStrictEqual(Object.keys(schema.collections), []);
+    assert.strictEqual(projected.users, undefined);
+    assert.deepStrictEqual(projected.crm.users, {
+      name: 'users',
+      schema: 'crm',
+    });
+    assert.deepStrictEqual(projected.audit.users, {
+      name: 'users',
+      schema: 'audit',
+    });
+  });
+
+  it('projects typed Pongo features from a database schema component tree', () => {
+    type User = PongoDocument & { email: string };
     const feature = pongoCollectionsSchema(
       'app',
       pongoSchema.db('app', {
@@ -204,19 +247,11 @@ describe('pongoClient', () => {
       },
     );
 
-    const client = pongoClient({
-      driver,
-      schema: { definition: schema },
-    });
-
-    client.db('app');
-    const definition = databaseFactoryCalls[0]?.schema?.definition as
-      { collections: Record<string, unknown> } | undefined;
+    const definition = pongoClientSchemaFromDumboComponent(schema)?.dbs.app;
 
     assert.deepStrictEqual(Object.keys(definition?.collections ?? {}), [
       'users',
     ]);
-    expectTypeOf(client.db('app')).toMatchTypeOf<PongoDb<TestDriverType>>();
   });
 
   it('forwards connection options to the driver database factory', () => {

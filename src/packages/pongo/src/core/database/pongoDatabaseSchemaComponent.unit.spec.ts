@@ -15,7 +15,8 @@ import { pongoSchema } from '../schema';
 import {
   PongoDatabaseSchemaComponent,
   pongoCollectionsSchema,
-  pongoDatabaseSchemaComponentFor,
+  pongoDatabaseSchemaFromDumboComponent,
+  pongoDatabaseSchemaFromPongoSchema,
 } from './pongoDatabaseSchemaComponent';
 
 const collectionFactory = (
@@ -113,7 +114,7 @@ describe('PongoDatabaseSchemaComponent', () => {
     assert.strictEqual(component.migrations.length, 2);
   });
 
-  it('uses a single collection URN shape', () => {
+  it('uses Dumbo table identity as the collection URN shape', () => {
     const collection = PongoCollectionSchemaComponent({
       driverType: 'test:test',
       definition: pongoSchema.collection('users'),
@@ -121,15 +122,11 @@ describe('PongoDatabaseSchemaComponent', () => {
     });
 
     expectTypeOf(
-      collection.pongoCollectionComponentKey,
+      collection.schemaComponentKey,
     ).toMatchTypeOf<PongoCollectionURN>();
     assert.strictEqual(
       collection.schemaComponentKey,
       `sc:dumbo:table:pongo_collection:${dumboSchema.schema.defaultName}:users`,
-    );
-    assert.strictEqual(
-      collection.pongoCollectionComponentKey,
-      `sc:pongo:collection:${dumboSchema.schema.defaultName}:users`,
     );
     assert.strictEqual(
       collection.databaseSchemaName,
@@ -174,9 +171,9 @@ describe('pongoCollectionsSchema', () => {
   });
 });
 
-describe('pongoDatabaseSchemaComponentFor', () => {
+describe('pongoDatabaseSchemaFromPongoSchema', () => {
   it('keeps plain Pongo DB definitions compatible', () => {
-    const component = pongoDatabaseSchemaComponentFor({
+    const component = pongoDatabaseSchemaFromPongoSchema({
       databaseName: 'app',
       driverType: 'test:test',
       definition: pongoSchema.db({
@@ -205,11 +202,9 @@ describe('pongoDatabaseSchemaComponentFor', () => {
       components: [feature],
     });
 
-    const component = pongoDatabaseSchemaComponentFor({
+    const component = pongoDatabaseSchemaFromDumboComponent({
       databaseName: 'app',
-      driverType: 'test:test',
       definition: database,
-      collectionFactory,
     });
 
     assert.strictEqual(
@@ -217,5 +212,33 @@ describe('pongoDatabaseSchemaComponentFor', () => {
       feature.database.schemaComponentKey,
     );
     assert.strictEqual(component.collections.length, 1);
+  });
+
+  it('ignores non-Pongo table children in collections', () => {
+    const component = PongoDatabaseSchemaComponent({
+      driverType: 'test:test',
+      definition: pongoSchema.db('app', {}),
+      collectionFactory,
+    });
+
+    component.addComponent(
+      dumboSchema.table('users', {
+        columns: {
+          id: dumboSchema.column('id', SQL.column.type.Varchar('max')),
+        },
+      }),
+    );
+    component.addComponent(
+      PongoCollectionSchemaComponent({
+        driverType: 'test:test',
+        definition: pongoSchema.collection('events'),
+        sqlBuilder: {} as never,
+      }),
+    );
+
+    assert.deepStrictEqual(
+      component.collections.map((collection) => collection.collectionName),
+      ['events'],
+    );
   });
 });

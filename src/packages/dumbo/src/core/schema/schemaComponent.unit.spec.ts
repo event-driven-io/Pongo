@@ -20,6 +20,7 @@ import {
   findFeature,
   findFeatures,
   isFeatureSchemaComponent,
+  indexSchemaComponent,
   extendSchemaComponent,
   schemaComponent,
   sqlMigration,
@@ -281,6 +282,89 @@ describe('FeatureSchemaComponent', () => {
       schemaFeatureMigration,
       databaseFeatureMigration,
     ]);
+  });
+
+  it('binds nested database schemas to their parent database identity', () => {
+    const database = databaseSchemaComponent({
+      databaseName: 'app',
+      schemas: {
+        crm: databaseSchemaSchemaComponent({
+          schemaName: 'crm',
+        }),
+      },
+    });
+
+    assert.strictEqual(database.schemas.crm.databaseName, 'app');
+    assert.strictEqual(
+      database.schemas.crm.schemaComponentKey,
+      'sc:dumbo:database_schema:regular:app:crm',
+    );
+    assert.strictEqual(
+      database.components.has('sc:dumbo:database_schema:regular:app:crm'),
+      true,
+    );
+  });
+
+  it('binds schemas added lazily to their parent database identity', () => {
+    const database = databaseSchemaComponent({
+      databaseName: 'app',
+    });
+
+    const schema = database.addSchema('crm');
+
+    assert.strictEqual(schema.databaseName, 'app');
+    assert.strictEqual(
+      schema.schemaComponentKey,
+      'sc:dumbo:database_schema:regular:app:crm',
+    );
+    assert.strictEqual(
+      database.components.has('sc:dumbo:database_schema:regular:app:crm'),
+      true,
+    );
+  });
+
+  it('keeps wrapper migrations live after dynamic child additions', () => {
+    const tableMigration = sqlMigration('table:001', [SQL`SELECT 1`]);
+    const indexMigration = sqlMigration('index:001', [SQL`SELECT 2`]);
+    const featureMigration = sqlMigration('feature:001', [SQL`SELECT 3`]);
+
+    const schema = databaseSchemaSchemaComponent({
+      schemaName: 'crm',
+    });
+    const table = tableSchemaComponent({ tableName: 'users' });
+    const feature = featureSchemaComponent({
+      featureKind: 'audit',
+      featureName: 'audit',
+    });
+
+    const events = schema.addTable(
+      tableSchemaComponent({
+        tableName: 'events',
+        migrations: [tableMigration],
+      }),
+    );
+    table.addIndex(
+      indexSchemaComponent({
+        indexName: 'users_email_idx',
+        columnNames: ['email'],
+        isUnique: false,
+        migrations: [indexMigration],
+      }),
+    );
+    feature.addComponent(
+      schemaComponent('sc:test:feature-child', {
+        migrations: [featureMigration],
+      }),
+    );
+
+    assert.deepStrictEqual(schema.migrations, [tableMigration]);
+    assert.strictEqual(events.databaseSchemaName, 'crm');
+    assert.strictEqual(
+      events.schemaComponentKey,
+      'sc:dumbo:table:regular:crm:events',
+    );
+    assert.deepStrictEqual(table.migrations, [indexMigration]);
+    assert.deepStrictEqual(feature.migrations, [featureMigration]);
   });
 });
 

@@ -8,7 +8,6 @@ import type {
   QueryResult,
   QueryResultRow,
   RunSQLMigrationsResult,
-  AnySchemaComponent,
   SQL,
   SQLCommandOptions,
   SQLExecutor,
@@ -48,8 +47,8 @@ export interface PongoClient<
 
 export type PongoClientOptions<
   DatabaseDriver extends AnyPongoDriver = AnyPongoDriver,
-  SchemaDefinition extends
-    PongoClientSchema | PongoDbSchema | AnySchemaComponent = PongoClientSchema,
+  SchemaDefinition extends PongoClientSchema | PongoDbSchema =
+    PongoClientSchema,
 > =
   ExtractPongoDriverOptions<DatabaseDriver> extends infer Options
     ? Options extends unknown

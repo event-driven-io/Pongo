@@ -1,6 +1,12 @@
 {
   "extends": "./tsconfig.shared.json",
-  "include": ["./packages/**/*.ts", "./docs/**/*.ts", "./tsup.config.ts"],
+  "include": [
+    "./packages/**/*.ts",
+    "./docs/**/*.ts",
+    "./docs/**/*.mts",
+    "./docs/.vitepress/**/*.mts",
+    "./tsup.config.ts"
+  ],
   "exclude": ["node_modules", "tmp"],
   "files": [],
   "compilerOptions": {

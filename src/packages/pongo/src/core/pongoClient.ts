@@ -1,11 +1,7 @@
-import {
-  JSONSerializer,
-  type AnySchemaComponent,
-} from '@event-driven-io/dumbo';
+import { JSONSerializer } from '@event-driven-io/dumbo';
 import { pongoCache } from './cache';
 import {
   PongoDatabaseCache,
-  pongoClientSchemaFromDefinition,
   type PongoClientSchemaFromDefinition,
 } from './database';
 import type {
@@ -14,6 +10,7 @@ import type {
 } from './drivers';
 import { pongoSession } from './pongoSession';
 import {
+  pongoSchema,
   proxyClientWithSchema,
   type PongoClientSchema,
   type PongoClientWithSchema,
@@ -28,13 +25,13 @@ import type {
 } from './typing';
 
 const isPongoClientSchema = <T extends PongoClientSchema>(
-  schema: T | PongoDbSchema | AnySchemaComponent | undefined,
+  schema: T | PongoDbSchema | undefined,
 ): schema is T => schema !== undefined && 'dbs' in schema;
 
 export const pongoClient = <
   DatabaseDriver extends AnyPongoDriver,
-  SchemaDefinition extends
-    PongoClientSchema | PongoDbSchema | AnySchemaComponent = PongoClientSchema,
+  SchemaDefinition extends PongoClientSchema | PongoDbSchema =
+    PongoClientSchema,
   TypedClientSchema extends PongoClientSchema =
     PongoClientSchemaFromDefinition<SchemaDefinition>,
 >(
@@ -53,15 +50,24 @@ export const pongoClient = <
     ...connectionOptions
   } = options;
 
-  const typedSchema = pongoClientSchemaFromDefinition(schema?.definition) as
-    TypedClientSchema | undefined;
+  const schemaDefinition = schema?.definition;
+  const typedSchema = (
+    schemaDefinition === undefined
+      ? undefined
+      : isPongoClientSchema(schemaDefinition)
+        ? schemaDefinition
+        : pongoSchema.client({
+            [schemaDefinition.name ?? pongoSchema.database.defaultName]:
+              schemaDefinition,
+          })
+  ) as TypedClientSchema | undefined;
 
   const dbClients = PongoDatabaseCache<PongoDb, TypedClientSchema>({
     driver,
     typedSchema,
-    schemaDefinition: isPongoClientSchema(schema?.definition)
+    schemaDefinition: isPongoClientSchema(schemaDefinition)
       ? undefined
-      : schema?.definition,
+      : schemaDefinition,
   });
 
   const serializer = JSONSerializer.from(options);

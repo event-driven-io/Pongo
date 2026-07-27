@@ -10,7 +10,9 @@ import {
 } from '../featureSchemaComponent';
 import {
   DatabaseSchemaURNType,
+  bindDatabaseSchemaToDatabase,
   databaseSchemaSchemaComponent,
+  type BindDatabaseSchemasToDatabase,
   type AnyDatabaseSchemaSchemaComponent,
   type DatabaseSchemaSchemaComponent,
 } from './databaseSchemaSchemaComponent';
@@ -56,7 +58,8 @@ export type DatabaseSchemaComponent<
   Readonly<{
     databaseKind: DatabaseKindName;
     databaseName: DatabaseName;
-    schemas: ReadonlyMap<string, DatabaseSchemaSchemaComponent> & Schemas;
+    schemas: ReadonlyMap<string, DatabaseSchemaSchemaComponent> &
+      BindDatabaseSchemasToDatabase<Schemas, DatabaseName>;
     features: ReadonlyMap<string, DatabaseFeatureSchemaComponent> & Features;
     addSchema: (
       schema: string | DatabaseSchemaSchemaComponent,
@@ -93,6 +96,15 @@ export const databaseSchemaComponent = <
   schemas ??= {} as Schemas;
   features ??= {} as Features;
   databaseKind ??= DatabaseKind as DatabaseKindName;
+  const boundSchemas = Object.fromEntries(
+    Object.entries(schemas).map(([key, schema]) => [
+      key,
+      bindDatabaseSchemaToDatabase(schema, databaseName),
+    ]),
+  ) as BindDatabaseSchemasToDatabase<Schemas, DatabaseName>;
+  const schemaComponents = Object.values(
+    boundSchemas as Record<string, DatabaseSchemaSchemaComponent>,
+  );
 
   const base = schemaComponent(
     DatabaseURN({ kind: databaseKind, name: databaseName }),
@@ -100,7 +112,7 @@ export const databaseSchemaComponent = <
       migrations: migrationsOrComponents.migrations ?? [],
       components: [
         ...(migrationsOrComponents.components ?? []),
-        ...Object.values(schemas),
+        ...schemaComponents,
         ...Object.values(features),
       ],
     },
@@ -121,7 +133,7 @@ export const databaseSchemaComponent = <
           (c) => c.schemaName,
         );
 
-      return Object.assign(schemasMap, schemas);
+      return Object.assign(schemasMap, boundSchemas);
     },
     get features() {
       const featuresMap =
@@ -136,8 +148,11 @@ export const databaseSchemaComponent = <
     addSchema: (schema: string | DatabaseSchemaSchemaComponent) =>
       base.addComponent(
         typeof schema === 'string'
-          ? databaseSchemaSchemaComponent({ schemaName: schema })
-          : schema,
+          ? databaseSchemaSchemaComponent({
+              databaseName,
+              schemaName: schema,
+            })
+          : bindDatabaseSchemaToDatabase(schema, databaseName),
       ),
   };
 };

@@ -3,7 +3,6 @@ import {
   type DatabaseDriverType,
   type JSONSerializationOptions,
   type MigrationStyle,
-  type AnySchemaComponent,
 } from '@event-driven-io/dumbo';
 import type { PongoDatabaseFactoryOptions, PongoDriver } from '../drivers';
 import type {
@@ -23,7 +22,7 @@ export const PongoDatabaseCache = <
 }: {
   driver: PongoDriver<Database>;
   typedSchema?: TypedClientSchema | undefined;
-  schemaDefinition?: PongoDbSchema | AnySchemaComponent | undefined;
+  schemaDefinition?: PongoDbSchema | undefined;
 }) => {
   const dbClients = new Map<string, PongoDb>();
 
@@ -44,7 +43,7 @@ export const PongoDatabaseCache = <
         JSONSerializationOptions & {
           schema?: {
             autoMigration?: MigrationStyle;
-            definition?: PongoDbSchema<CollectionsSchema> | AnySchemaComponent;
+            definition?: PongoDbSchema<CollectionsSchema>;
           };
         },
     ): Database => {
@@ -65,15 +64,15 @@ export const PongoDatabaseCache = <
 
       const schemaOptions: {
         autoMigration?: MigrationStyle;
-        definition?: PongoDbSchema<CollectionsSchema> | AnySchemaComponent;
+        definition?: PongoDbSchema<CollectionsSchema>;
       } = { ...createOptions.schema };
       const schemaDefinitionForDatabase =
         (definition as PongoDbSchema<CollectionsSchema> | undefined) ??
         schemaDefinition;
 
       if (schemaDefinitionForDatabase !== undefined) {
-        schemaOptions.definition = schemaDefinitionForDatabase as
-          PongoDbSchema<CollectionsSchema> | AnySchemaComponent;
+        schemaOptions.definition =
+          schemaDefinitionForDatabase as PongoDbSchema<CollectionsSchema>;
       }
 
       const newDb: Database = driver.databaseFactory({

@@ -78,6 +78,45 @@ export type AnyDatabaseSchemaSchemaComponent =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   DatabaseSchemaSchemaComponent<any, any, any, any, any>;
 
+export type BindDatabaseSchemaToDatabase<
+  Schema extends AnyDatabaseSchemaSchemaComponent,
+  DatabaseName extends string,
+> =
+  Schema extends DatabaseSchemaSchemaComponent<
+    infer Tables extends DatabaseSchemaTables,
+    infer SchemaName extends string,
+    infer CurrentDatabaseName extends string,
+    infer SchemaKind extends string,
+    infer Features extends DatabaseSchemaFeatures
+  >
+    ? CurrentDatabaseName extends typeof DEFAULT_DATABASE_NAME
+      ? DatabaseSchemaSchemaComponent<
+          Tables,
+          SchemaName,
+          DatabaseName,
+          SchemaKind,
+          Features
+        >
+      : string extends CurrentDatabaseName
+        ? DatabaseSchemaSchemaComponent<
+            Tables,
+            SchemaName,
+            DatabaseName,
+            SchemaKind,
+            Features
+          >
+        : CurrentDatabaseName extends DatabaseName
+          ? Schema
+          : never
+    : never;
+
+export type BindDatabaseSchemasToDatabase<
+  Schemas extends Record<string, AnyDatabaseSchemaSchemaComponent>,
+  DatabaseName extends string,
+> = {
+  [K in keyof Schemas]: BindDatabaseSchemaToDatabase<Schemas[K], DatabaseName>;
+};
+
 export const databaseSchemaSchemaComponent = <
   const Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
   const SchemaName extends string = string,
@@ -133,6 +172,9 @@ export const databaseSchemaSchemaComponent = <
     schemaKind,
     databaseName,
     schemaName,
+    get migrations() {
+      return base.migrations;
+    },
     get tables() {
       const tablesMap = mapSchemaComponentsOfType<TableSchemaComponent>(
         base.components,
@@ -154,9 +196,57 @@ export const databaseSchemaSchemaComponent = <
     },
     addTable: (table: string | TableSchemaComponent) =>
       base.addComponent(
-        typeof table === 'string'
-          ? tableSchemaComponent({ tableName: table })
-          : table,
+        bindTableToDatabaseSchema(
+          typeof table === 'string'
+            ? tableSchemaComponent({ tableName: table })
+            : table,
+          schemaName,
+        ),
       ),
   };
+};
+
+export const bindDatabaseSchemaToDatabase = <
+  const Schema extends AnyDatabaseSchemaSchemaComponent,
+  const DatabaseName extends string,
+>(
+  schema: Schema,
+  databaseName: DatabaseName,
+): BindDatabaseSchemaToDatabase<Schema, DatabaseName> => {
+  const schemaComponent = schema as DatabaseSchemaSchemaComponent;
+
+  if (
+    schemaComponent.databaseName !== DEFAULT_DATABASE_NAME &&
+    schemaComponent.databaseName !== databaseName
+  ) {
+    throw new Error(
+      `Database schema ${schemaComponent.schemaName} belongs to database ${schemaComponent.databaseName} and cannot be added to ${databaseName}`,
+    );
+  }
+
+  if (schemaComponent.databaseName === databaseName) {
+    return schema as BindDatabaseSchemaToDatabase<Schema, DatabaseName>;
+  }
+
+  return {
+    ...schemaComponent,
+    schemaComponentKey: DatabaseSchemaURN({
+      kind: schemaComponent.schemaKind,
+      databaseName,
+      name: schemaComponent.schemaName,
+    }),
+    databaseName,
+    get components() {
+      return schemaComponent.components;
+    },
+    get migrations() {
+      return schemaComponent.migrations;
+    },
+    get tables() {
+      return schemaComponent.tables;
+    },
+    get features() {
+      return schemaComponent.features;
+    },
+  } as BindDatabaseSchemaToDatabase<Schema, DatabaseName>;
 };

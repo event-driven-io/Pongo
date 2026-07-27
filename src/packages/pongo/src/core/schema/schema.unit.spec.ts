@@ -109,3 +109,29 @@ describe('Pongo collection schema component', () => {
     expectTypeOf(users.document).toEqualTypeOf<User>();
   });
 });
+
+describe('pongoSchema database schemas', () => {
+  it('keeps colliding schema-group collection aliases out of top-level collections', () => {
+    const schema = pongoSchema.database('app', {
+      crm: pongoSchema.schema('crm', {
+        users: pongoSchema.collection('users'),
+      }),
+      audit: pongoSchema.schema('audit', {
+        users: pongoSchema.collection('users'),
+      }),
+      reporting: pongoSchema.schema('reporting', {
+        exports: pongoSchema.collection('exports'),
+      }),
+    });
+
+    assert.deepStrictEqual(Object.keys(schema.collections), ['exports']);
+    expectTypeOf(schema.collections).toEqualTypeOf<{
+      exports: typeof schema.schemas.reporting.collections.exports;
+    }>();
+    assert.strictEqual(schema.schemas.crm.collections.users.tableName, 'users');
+    assert.strictEqual(
+      schema.schemas.audit.collections.users.tableName,
+      'users',
+    );
+  });
+});
