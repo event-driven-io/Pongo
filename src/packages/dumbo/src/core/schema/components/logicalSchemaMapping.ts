@@ -1,5 +1,16 @@
+import { findExpandedSchemaComponentsOfType } from '../expandSchemaComponent';
+import type { AnySchemaComponent } from '../schemaComponent';
 import type { AnyDatabaseSchemaComponent } from './databaseSchemaComponent';
-import type { AnyDatabaseSchemaSchemaComponent } from './databaseSchemaSchemaComponent';
+import { DatabaseSchemaURNType } from './databaseSchemaSchemaComponent';
+
+type LogicalSchemaTable = {
+  tableName: string;
+};
+
+type LogicalSchema = {
+  schemaName: string;
+  tables: ReadonlyMap<string, LogicalSchemaTable>;
+};
 
 export type LogicalSchemaMapping =
   | { mode: 'strict' }
@@ -19,7 +30,7 @@ export type LogicalSchemaCollision = {
 };
 
 export const collectLogicalSchemaCollisions = (
-  schemas: Iterable<AnyDatabaseSchemaSchemaComponent>,
+  schemas: Iterable<LogicalSchema>,
 ): LogicalSchemaCollision[] => {
   const physicalTables = new Map<
     string,
@@ -58,13 +69,45 @@ export const assertLogicalSchemaMapping = (
   database: AnyDatabaseSchemaComponent,
   mapping: LogicalSchemaMapping = { mode: 'strict' },
 ): void => {
+  assertLogicalSchemaComponentMapping(database, mapping);
+};
+
+export const assertLogicalSchemaComponentMapping = (
+  component: AnySchemaComponent,
+  mapping: LogicalSchemaMapping = { mode: 'strict' },
+): void => {
+  assertLogicalSchemas(
+    findExpandedSchemaComponentsOfType<AnySchemaComponent>(
+      component,
+      DatabaseSchemaURNType,
+    ).map((schema) => ({
+      schemaName: schema.schemaComponentKey.slice(
+        `${DatabaseSchemaURNType}:`.length,
+      ),
+      tables: findExpandedSchemaComponentsOfType<AnySchemaComponent>(
+        schema,
+        'sc:dumbo:table',
+      ).reduce((tables, table) => {
+        const tableName = table.schemaComponentKey.slice(
+          'sc:dumbo:table:'.length,
+        );
+
+        return tables.set(tableName, { tableName });
+      }, new Map<string, LogicalSchemaTable>()),
+    })),
+    mapping,
+  );
+};
+
+const assertLogicalSchemas = (
+  schemas: Iterable<LogicalSchema>,
+  mapping: LogicalSchemaMapping,
+): void => {
   if (mapping.mode !== 'strict') {
-    throw new Error(
-      `Unsupported logical schema mapping mode: ${mapping.mode}`,
-    );
+    throw new Error(`Unsupported logical schema mapping mode: ${mapping.mode}`);
   }
 
-  const collisions = collectLogicalSchemaCollisions(database.schemas.values());
+  const collisions = collectLogicalSchemaCollisions(schemas);
 
   if (collisions.length === 0) return;
 

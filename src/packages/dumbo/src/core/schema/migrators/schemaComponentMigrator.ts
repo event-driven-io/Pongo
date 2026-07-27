@@ -1,9 +1,14 @@
 import type { Dumbo } from '../..';
-import type { DatabaseDriverType } from '../../drivers';
+import { fromDatabaseDriverType, type DatabaseDriverType } from '../../drivers';
 import { SQL } from '../../sql';
+import { expandSchemaComponent } from '../expandSchemaComponent';
 import { schemaComponent, type SchemaComponent } from '../schemaComponent';
 import { sqlMigration } from '../sqlMigration';
-import { type MigratorOptions, runSQLMigrations } from './migrator';
+import {
+  getDefaultMigratorOptionsFromRegistry,
+  type MigratorOptions,
+  runSQLMigrations,
+} from './migrator';
 
 const { AutoIncrement, Varchar, Timestamp } = SQL.column.type;
 
@@ -38,7 +43,16 @@ export const SchemaComponentMigrator = <DriverType extends DatabaseDriverType>(
   return {
     component,
     run: async (options) => {
-      const pendingMigrations = component.migrations.filter(
+      const expandedComponent = expandSchemaComponent(component);
+      const validateComponent =
+        options?.schema?.validateComponent ??
+        getDefaultMigratorOptionsFromRegistry(
+          fromDatabaseDriverType(dumbo.driverType).databaseType,
+        ).schema?.validateComponent;
+
+      validateComponent?.(expandedComponent);
+
+      const pendingMigrations = expandedComponent.migrations.filter(
         (m) =>
           !completedMigrations.includes(
             `${component.schemaComponentKey}:${m.name}`,

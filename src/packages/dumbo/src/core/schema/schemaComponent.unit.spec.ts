@@ -4,6 +4,7 @@ import { SQL } from '../sql';
 import {
   DatabaseSchemaURNType,
   FeatureSchemaComponentURNType,
+  SchemaComponentMigrator,
   TableURNType,
   assertLogicalSchemaMapping,
   columnSchemaComponent,
@@ -12,6 +13,7 @@ import {
   featureSchemaComponent,
   findExpandedSchemaComponentsOfType,
   isFeatureSchemaComponent,
+  extendSchemaComponent,
   schemaComponent,
   sqlMigration,
   tableSchemaComponent,
@@ -41,6 +43,70 @@ describe('SchemaComponent', () => {
     parent.addComponent(child);
 
     assert.deepStrictEqual(parent.migrations, [migration]);
+  });
+
+  it('extends a component with additional children without mutating the source', () => {
+    const sourceMigration = sqlMigration('source:001', [SQL`SELECT 1`]);
+    const extraMigration = sqlMigration('extra:001', [SQL`SELECT 2`]);
+    const sourceChild = schemaComponent('sc:test:source-child', {
+      migrations: [sourceMigration],
+    });
+    const extraChild = schemaComponent('sc:test:extra-child', {
+      migrations: [extraMigration],
+    });
+    const source = schemaComponent('sc:test:source', {
+      components: [sourceChild],
+    });
+
+    const extended = extendSchemaComponent(source, {
+      components: [extraChild],
+    });
+
+    assert.strictEqual(
+      source.components.has(extraChild.schemaComponentKey),
+      false,
+    );
+    assert.strictEqual(
+      extended.components.has(extraChild.schemaComponentKey),
+      true,
+    );
+    assert.deepStrictEqual(extended.migrations, [
+      sourceMigration,
+      extraMigration,
+    ]);
+  });
+
+  it('keeps extension migration order deterministic', () => {
+    const sourceMigration = sqlMigration('source:001', [SQL`SELECT 1`]);
+    const localMigration = sqlMigration('local:001', [SQL`SELECT 2`]);
+    const firstChildMigration = sqlMigration('first-child:001', [
+      SQL`SELECT 3`,
+    ]);
+    const secondChildMigration = sqlMigration('second-child:001', [
+      SQL`SELECT 4`,
+    ]);
+    const source = schemaComponent('sc:test:source', {
+      migrations: [sourceMigration],
+    });
+    const firstChild = schemaComponent('sc:test:first-child', {
+      migrations: [firstChildMigration],
+    });
+    const secondChild = schemaComponent('sc:test:second-child', {
+      migrations: [secondChildMigration],
+    });
+
+    const extended = extendSchemaComponent(source, {
+      migrations: [localMigration],
+      components: [firstChild],
+    });
+    extended.addComponent(secondChild);
+
+    assert.deepStrictEqual(extended.migrations, [
+      sourceMigration,
+      localMigration,
+      firstChildMigration,
+      secondChildMigration,
+    ]);
   });
 });
 
@@ -73,6 +139,7 @@ describe('FeatureSchemaComponent', () => {
     });
 
     assert.strictEqual(schema.tables.size, 0);
+    assert.strictEqual(schema.features.get('audit'), feature);
     assert.strictEqual(schema.components.has(feature.schemaComponentKey), true);
   });
 
@@ -174,5 +241,59 @@ describe('logical schema mapping', () => {
       true,
     );
     assert.doesNotThrow(() => assertLogicalSchemaMapping(database));
+  });
+
+  it('checks schemas exposed by feature expansion', () => {
+    const feature = featureSchemaComponent({
+      featureKind: 'tenant_storage',
+      featureName: 'audit',
+      components: [
+        databaseSchemaSchemaComponent({
+          schemaName: 'audit',
+          tables: {
+            users: tableSchemaComponent({ tableName: 'users' }),
+          },
+        }),
+      ],
+    });
+    const database = databaseSchemaComponent({
+      databaseName: 'app',
+      schemas: {
+        public: databaseSchemaSchemaComponent({
+          schemaName: 'public',
+          tables: {
+            users: tableSchemaComponent({ tableName: 'users' }),
+          },
+        }),
+      },
+      components: [feature],
+    });
+
+    assert.strictEqual(database.features.get('audit'), feature);
+    assert.throws(
+      () => assertLogicalSchemaMapping(database),
+      /Logical schema collision detected: users/,
+    );
+  });
+
+  it('runs migrator schema validation before migrations', async () => {
+    const component = schemaComponent('sc:test:root', {
+      migrations: [sqlMigration('root:001', [SQL`SELECT 1`])],
+    });
+    const migrator = SchemaComponentMigrator(component, {
+      driverType: 'Test:test',
+    } as never);
+
+    await assert.rejects(
+      () =>
+        migrator.run({
+          schema: {
+            validateComponent: () => {
+              throw new Error('schema validation failed');
+            },
+          },
+        }),
+      /schema validation failed/,
+    );
   });
 });

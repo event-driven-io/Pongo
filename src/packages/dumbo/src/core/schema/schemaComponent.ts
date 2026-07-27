@@ -96,6 +96,41 @@ export const schemaComponent = <const ComponentKey extends string = string>(
   };
 };
 
+export const extendSchemaComponent = <T extends AnySchemaComponent>(
+  component: T,
+  options: SchemaComponentOptions,
+): T => {
+  const componentsMap = new Map<string, AnySchemaComponent>(
+    options.components?.map((comp) => [comp.schemaComponentKey, comp]),
+  );
+  const migrations: SQLMigration[] = [...(options.migrations ?? [])];
+
+  return {
+    ...component,
+    get components() {
+      return new Map([...component.components, ...componentsMap]);
+    },
+    get migrations(): SQLMigration[] {
+      return [
+        ...component.migrations,
+        ...migrations,
+        ...Array.from(componentsMap.values()).flatMap((c) => c.migrations),
+      ];
+    },
+    addComponent: <
+      SchemaComponentType extends AnySchemaComponent = AnySchemaComponent,
+    >(
+      child: SchemaComponentType,
+    ): SchemaComponentType => {
+      componentsMap.set(child.schemaComponentKey, child);
+      return child;
+    },
+    addMigration: (migration: SQLMigration) => {
+      migrations.push(migration);
+    },
+  };
+};
+
 export const isSchemaComponentOfType = <
   SchemaComponentOfType extends AnySchemaComponent = AnySchemaComponent,
 >(

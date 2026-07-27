@@ -52,9 +52,7 @@ export const expandSchemaComponent = <T extends AnySchemaComponent>(
   };
 };
 
-export const expandFeatureSchemaComponent = <
-  T extends FeatureSchemaComponent,
->(
+export const expandFeatureSchemaComponent = <T extends FeatureSchemaComponent>(
   component: T,
 ): SchemaComponent<T['schemaComponentKey']> => expandSchemaComponent(component);
 

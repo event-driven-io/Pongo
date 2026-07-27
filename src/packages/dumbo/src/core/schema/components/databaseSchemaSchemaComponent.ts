@@ -5,6 +5,10 @@ import {
   type SchemaComponentOptions,
 } from '../schemaComponent';
 import {
+  FeatureSchemaComponentURNType,
+  type FeatureSchemaComponent,
+} from '../featureSchemaComponent';
+import {
   TableURNType,
   tableSchemaComponent,
   type AnyTableSchemaComponent,
@@ -35,6 +39,7 @@ export type DatabaseSchemaSchemaComponent<
   Readonly<{
     schemaName: SchemaName;
     tables: ReadonlyMap<string, TableSchemaComponent> & Tables;
+    features: ReadonlyMap<string, FeatureSchemaComponent>;
     addTable: (table: string | TableSchemaComponent) => TableSchemaComponent;
   }>
 >;
@@ -76,6 +81,13 @@ export const databaseSchemaSchemaComponent = <
       );
 
       return Object.assign(tablesMap, tables);
+    },
+    get features() {
+      return mapSchemaComponentsOfType<FeatureSchemaComponent>(
+        base.components,
+        FeatureSchemaComponentURNType,
+        (c) => c.featureName,
+      );
     },
     addTable: (table: string | TableSchemaComponent) =>
       base.addComponent(
