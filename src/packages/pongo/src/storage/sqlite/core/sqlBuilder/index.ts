@@ -13,6 +13,7 @@ import {
   type ExpectedDocumentVersion,
   type FindOptions,
   type OptionalUnlessRequiredIdAndVersion,
+  type PongoCollectionIndex,
   type PongoCollectionSchema,
   type PongoCollectionSQLBuilder,
   type PongoFilter,
@@ -72,15 +73,38 @@ const collectionIdentity = (
   };
 };
 
+const sqliteIndexPath = (path: string | readonly string[]): string =>
+  typeof path === 'string' ? path : path.join('.');
+
+const createCollectionIndex = (
+  schemaOrName: PongoCollectionSchema | string,
+  index: PongoCollectionIndex,
+): SQL => {
+  const collection = collectionIdentity(schemaOrName);
+
+  return SQL`
+    CREATE ${index.unique === true ? SQL`UNIQUE ` : SQL.EMPTY}INDEX IF NOT EXISTS ${SQL.identifier(index.name)}
+    ON ${SQL.identifier(collection.physicalName)} (json_extract(data, ${SQLiteJSON.path(sqliteIndexPath(index.path))}))
+  `;
+};
+
 export const pongoCollectionSQLiteMigrations = (
   schemaOrName: PongoCollectionSchema | string,
 ) => {
   const collection = collectionIdentity(schemaOrName);
+  const indexes =
+    typeof schemaOrName === 'string' ? [] : (schemaOrName.indexes ?? []);
 
   return [
     sqlMigration(
       `pongoCollection:${collection.migrationName}:001:createtable`,
       [createCollection(collection.physicalName)],
+    ),
+    ...indexes.map((index) =>
+      sqlMigration(
+        `pongoCollection:${collection.migrationName}:002:index:${index.name}`,
+        [createCollectionIndex(schemaOrName, index)],
+      ),
     ),
   ];
 };

@@ -45,6 +45,8 @@ describe('sqliteSQLBuilder', () => {
   });
 
   describe('schema migrations', () => {
+    const singleLine = (value: string) => value.replace(/\s+/g, ' ').trim();
+
     it('keeps default schema migrations unprefixed', () => {
       const migrations = pongoCollectionSQLiteMigrations(
         pongoSchema.collection('users'),
@@ -74,6 +76,60 @@ describe('sqliteSQLBuilder', () => {
       );
       assert.ok(query.includes('CREATE TABLE IF NOT EXISTS crm_users'));
       assert.ok(insert.query.includes('INSERT OR IGNORE INTO crm_users'));
+    });
+
+    it('creates named JSON path index migrations', () => {
+      const migrations = pongoCollectionSQLiteMigrations(
+        pongoSchema.collection('users', {
+          indexes: [
+            pongoSchema.index('users_email_idx', 'email'),
+            pongoSchema.index.unique('users_external_id_uq', [
+              'external',
+              'id',
+            ]),
+          ],
+        }),
+      );
+      const index = SQL.format(migrations[1]!.sqls[0]!, sqliteFormatter);
+      const unique = SQL.format(migrations[2]!.sqls[0]!, sqliteFormatter);
+
+      assert.equal(
+        migrations[1]!.name,
+        'pongoCollection:users:002:index:users_email_idx',
+      );
+      assert.ok(
+        singleLine(index.query).includes(
+          "CREATE INDEX IF NOT EXISTS users_email_idx ON users (json_extract(data, '$.email'))",
+        ),
+        `got: ${index.query}`,
+      );
+      assert.ok(
+        singleLine(unique.query).includes(
+          "CREATE UNIQUE INDEX IF NOT EXISTS users_external_id_uq ON users (json_extract(data, '$.external.id'))",
+        ),
+        `got: ${unique.query}`,
+      );
+    });
+
+    it('creates named indexes on prefixed schema tables', () => {
+      const migrations = pongoCollectionSQLiteMigrations(
+        pongoSchema.collection('users', {
+          schema: 'crm',
+          indexes: [pongoSchema.index('users_email_idx', 'email')],
+        }),
+      );
+      const index = SQL.format(migrations[1]!.sqls[0]!, sqliteFormatter);
+
+      assert.equal(
+        migrations[1]!.name,
+        'pongoCollection:crm:users:002:index:users_email_idx',
+      );
+      assert.ok(
+        singleLine(index.query).includes(
+          "CREATE INDEX IF NOT EXISTS users_email_idx ON crm_users (json_extract(data, '$.email'))",
+        ),
+        `got: ${index.query}`,
+      );
     });
   });
 

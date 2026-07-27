@@ -13,6 +13,7 @@ import {
   type ExpectedDocumentVersion,
   type FindOptions,
   type OptionalUnlessRequiredIdAndVersion,
+  type PongoCollectionIndex,
   type PongoCollectionSchema,
   type PongoCollectionSQLBuilder,
   type PongoFilter,
@@ -87,13 +88,35 @@ const createCollection = (schemaOrName: PongoCollectionSchema | string): SQL =>
       _archived     BOOLEAN        NOT NULL     DEFAULT FALSE,
       _created      TIMESTAMPTZ    NOT NULL     DEFAULT now(),
       _updated      TIMESTAMPTZ    NOT NULL     DEFAULT now()
-  )`;
+	  )`;
+
+const postgresIndexPath = (path: string | readonly string[]): string =>
+  (typeof path === 'string' ? path.split('.') : path)
+    .map((segment) => segment.replaceAll('"', '\\"').replaceAll("'", "''"))
+    .map((segment) =>
+      segment.includes(',') || segment.includes('"') ? `"${segment}"` : segment,
+    )
+    .join(',');
+
+const createCollectionIndex = (
+  schemaOrName: PongoCollectionSchema | string,
+  index: PongoCollectionIndex,
+): SQL => {
+  const collection = collectionIdentity(schemaOrName);
+
+  return SQL`
+    CREATE ${index.unique === true ? SQL`UNIQUE ` : SQL.EMPTY}INDEX IF NOT EXISTS ${SQL.identifier(index.name)}
+    ON ${collection.reference} ((data #>> ${SQL.plain(`'{${postgresIndexPath(index.path)}}'`)}))
+  `;
+};
 
 export const pongoCollectionPostgreSQLMigrations = (
   schemaOrName: PongoCollectionSchema | string,
 ) => {
   const collection = collectionIdentity(schemaOrName);
   const schemaMigration = createDatabaseSchema(schemaOrName);
+  const indexes =
+    typeof schemaOrName === 'string' ? [] : (schemaOrName.indexes ?? []);
 
   return [
     sqlMigration(
@@ -102,6 +125,12 @@ export const pongoCollectionPostgreSQLMigrations = (
         ...(schemaMigration ? [schemaMigration] : []),
         createCollection(schemaOrName),
       ],
+    ),
+    ...indexes.map((index) =>
+      sqlMigration(
+        `pongoCollection:${collection.migrationName}:002:index:${index.name}`,
+        [createCollectionIndex(schemaOrName, index)],
+      ),
     ),
   ];
 };
