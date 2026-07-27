@@ -161,11 +161,15 @@ export const PongoDatabase = <
         typeof collectionOptions?.schema === 'string'
           ? undefined
           : collectionOptions?.schema;
+      const hasRuntimeOverrides =
+        collectionOptions?.cache !== undefined ||
+        collectionOptions?.errors !== undefined ||
+        collectionRuntimeSchema !== undefined;
 
       const existing = collections.get(collectionKey) as
         PongoCollection<T> | undefined;
 
-      if (existing) return existing;
+      if (!hasRuntimeOverrides && existing) return existing;
 
       const collection = pongoCollection({
         collectionName,
@@ -181,10 +185,12 @@ export const PongoDatabase = <
             : cache,
       });
 
-      collections.set(
-        collectionKey,
-        collection as unknown as PongoCollection<Document>,
-      );
+      if (!hasRuntimeOverrides) {
+        collections.set(
+          collectionKey,
+          collection as unknown as PongoCollection<Document>,
+        );
+      }
       return collection;
     },
     transaction: (transactionOptions) =>

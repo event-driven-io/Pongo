@@ -36,9 +36,9 @@ const versionCheckClause = (
     : SQL`AND _version = ${predicate.value}`;
 };
 
-const createCollection = (collectionName: string): SQL =>
+const createCollection = (tableName: string): SQL =>
   SQL`
-    CREATE TABLE IF NOT EXISTS ${SQL.identifier(collectionName)} (
+    CREATE TABLE IF NOT EXISTS ${SQL.identifier(tableName)} (
       _id           TEXT           PRIMARY KEY,
       data          JSON           NOT NULL,
       metadata      JSON           NOT NULL     DEFAULT '{}',
@@ -51,7 +51,12 @@ const createCollection = (collectionName: string): SQL =>
 
 const collectionIdentity = (
   schemaOrName: PongoCollectionSchema | string,
-): { migrationName: string; physicalName: string } => {
+): {
+  collectionName: string;
+  databaseSchemaName?: string | undefined;
+  migrationName: string;
+  physicalName: string;
+} => {
   const schema =
     typeof schemaOrName === 'string'
       ? { name: schemaOrName, databaseSchema: undefined }
@@ -63,11 +68,14 @@ const collectionIdentity = (
   ) {
     return {
       migrationName: schema.name,
+      collectionName: schema.name,
       physicalName: schema.name,
     };
   }
 
   return {
+    collectionName: schema.name,
+    databaseSchemaName: schema.databaseSchema,
     migrationName: `${schema.databaseSchema}:${schema.name}`,
     physicalName: `${schema.databaseSchema}_${schema.name}`,
   };
@@ -81,6 +89,26 @@ const createCollectionIndex = (
   index: PongoCollectionIndex,
 ): SQL => {
   const collection = collectionIdentity(schemaOrName);
+
+  if (index.sql) {
+    return index.sql({
+      collectionName: collection.collectionName,
+      databaseSchemaName: collection.databaseSchemaName,
+      tableName: collection.physicalName,
+      tableReference: SQL`${SQL.identifier(collection.physicalName)}`,
+    });
+  }
+
+  if (index.type === 'json_document') {
+    return SQL`
+      CREATE INDEX IF NOT EXISTS ${SQL.identifier(index.name)}
+      ON ${SQL.identifier(collection.physicalName)} (data)
+    `;
+  }
+
+  if (index.path === undefined) {
+    throw new Error(`Pongo index ${index.name} needs a path`);
+  }
 
   return SQL`
     CREATE ${index.unique === true ? SQL`UNIQUE ` : SQL.EMPTY}INDEX IF NOT EXISTS ${SQL.identifier(index.name)}
@@ -113,17 +141,17 @@ export const sqliteSQLBuilder = (
   schemaOrName: PongoCollectionSchema | string,
   serializer: JSONSerializer,
 ): PongoCollectionSQLBuilder => {
-  const collectionName = collectionIdentity(schemaOrName).physicalName;
+  const tableName = collectionIdentity(schemaOrName).physicalName;
 
   return {
-    createCollection: (): SQL => createCollection(collectionName),
+    createCollection: (): SQL => createCollection(tableName),
     insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
       const serialized = JSONParam.document(document, serializer);
       const id = document._id;
       const version = document._version ?? 1n;
 
       return SQL`
-      INSERT OR IGNORE INTO ${SQL.identifier(collectionName)} (_id, data, _version)
+      INSERT OR IGNORE INTO ${SQL.identifier(tableName)} (_id, data, _version)
       VALUES (${id}, ${serialized}, ${version})
       RETURNING _id;`;
     },
@@ -139,11 +167,11 @@ export const sqliteSQLBuilder = (
       );
 
       return SQL`
-      INSERT OR IGNORE INTO ${SQL.identifier(collectionName)} (_id, data, _version) VALUES ${values}
+      INSERT OR IGNORE INTO ${SQL.identifier(tableName)} (_id, data, _version) VALUES ${values}
       RETURNING _id;`;
     },
     insertOrReplace: <T>(documents: Array<WithId<T>>): SQL => {
-      const col = SQL.identifier(collectionName);
+      const col = SQL.identifier(tableName);
       const values = SQL.merge(
         documents.map(
           (d) =>
@@ -175,13 +203,13 @@ export const sqliteSQLBuilder = (
         : buildUpdateQuery(update, serializer);
 
       return SQL`
-      UPDATE ${SQL.identifier(collectionName)}
+      UPDATE ${SQL.identifier(tableName)}
       SET
         data = json_patch(${updateQuery}, json_object('_id', _id, '_version', cast(_version + 1 as TEXT))),
         _version = _version + 1,
         _updated = datetime('now')
       WHERE _id = (
-        SELECT _id FROM ${SQL.identifier(collectionName)}
+        SELECT _id FROM ${SQL.identifier(tableName)}
         ${where(filterQuery)}
         LIMIT 1
       ) ${expectedVersionCheck}
@@ -203,13 +231,13 @@ export const sqliteSQLBuilder = (
         : constructFilterQuery(filter, serializer);
 
       return SQL`
-      UPDATE ${SQL.identifier(collectionName)}
+      UPDATE ${SQL.identifier(tableName)}
       SET
         data = json_patch(${JSONParam.document(document, serializer)}, json_object('_id', _id, '_version', cast(_version + 1 as TEXT))),
         _version = _version + 1,
         _updated = datetime('now')
       WHERE _id = (
-        SELECT _id FROM ${SQL.identifier(collectionName)}
+        SELECT _id FROM ${SQL.identifier(tableName)}
         ${where(filterQuery)}
         LIMIT 1
       ) ${expectedVersionCheck}
@@ -231,7 +259,7 @@ export const sqliteSQLBuilder = (
         : buildUpdateQuery(update, serializer);
 
       return SQL`
-      UPDATE ${SQL.identifier(collectionName)}
+      UPDATE ${SQL.identifier(tableName)}
       SET
         data = json_patch(${updateQuery}, json_object('_version', cast(_version + 1 as TEXT))),
         _version = _version + 1,
@@ -250,9 +278,9 @@ export const sqliteSQLBuilder = (
         : constructFilterQuery(filter, serializer);
 
       return SQL`
-      DELETE FROM ${SQL.identifier(collectionName)}
+      DELETE FROM ${SQL.identifier(tableName)}
       WHERE _id = (
-        SELECT _id FROM ${SQL.identifier(collectionName)}
+        SELECT _id FROM ${SQL.identifier(tableName)}
         ${where(filterQuery)}
         LIMIT 1
       ) ${expectedVersionCheck}
@@ -266,12 +294,12 @@ export const sqliteSQLBuilder = (
         ? filter
         : constructFilterQuery(filter, serializer);
 
-      return SQL`DELETE FROM ${SQL.identifier(collectionName)} ${where(filterQuery)} RETURNING _id`;
+      return SQL`DELETE FROM ${SQL.identifier(tableName)} ${where(filterQuery)} RETURNING _id`;
     },
     replaceMany: <T>(
       documents: Array<WithIdAndVersion<T>> | Array<WithId<T>>,
     ): SQL => {
-      const col = SQL.identifier(collectionName);
+      const col = SQL.identifier(tableName);
       const hasVersions = documents.some(
         (d) => '_version' in d && d._version !== undefined,
       );
@@ -332,9 +360,9 @@ export const sqliteSQLBuilder = (
         WITH targets(_id, expected_version) AS (
           VALUES ${values}
         )
-        DELETE FROM ${SQL.identifier(collectionName)}
+        DELETE FROM ${SQL.identifier(tableName)}
         WHERE _id IN (SELECT _id FROM targets)
-          AND _version = (SELECT expected_version FROM targets WHERE targets._id = ${SQL.identifier(collectionName)}._id)
+          AND _version = (SELECT expected_version FROM targets WHERE targets._id = ${SQL.identifier(tableName)}._id)
         RETURNING _id;`;
       }
 
@@ -344,7 +372,7 @@ export const sqliteSQLBuilder = (
       );
 
       return SQL`
-      DELETE FROM ${SQL.identifier(collectionName)}
+      DELETE FROM ${SQL.identifier(tableName)}
       WHERE _id IN (${idList})
       RETURNING _id;`;
     },
@@ -353,7 +381,7 @@ export const sqliteSQLBuilder = (
         ? filter
         : constructFilterQuery(filter, serializer);
 
-      return SQL`SELECT data, _id, _version FROM ${SQL.identifier(collectionName)} ${where(filterQuery)} LIMIT 1;`;
+      return SQL`SELECT data, _id, _version FROM ${SQL.identifier(tableName)} ${where(filterQuery)} LIMIT 1;`;
     },
     find: <T>(filter: PongoFilter<T> | SQL, options?: FindOptions): SQL => {
       const filterQuery = isSQL(filter)
@@ -362,7 +390,7 @@ export const sqliteSQLBuilder = (
       const query: SQL[] = [];
 
       query.push(
-        SQL`SELECT data, _id, _version FROM ${SQL.identifier(collectionName)}`,
+        SQL`SELECT data, _id, _version FROM ${SQL.identifier(tableName)}`,
       );
 
       query.push(where(filterQuery));
@@ -393,11 +421,11 @@ export const sqliteSQLBuilder = (
       const filterQuery = SQL.check.isSQL(filter)
         ? filter
         : constructFilterQuery(filter, serializer);
-      return SQL`SELECT COUNT(1) as count FROM ${SQL.identifier(collectionName)} ${where(filterQuery)};`;
+      return SQL`SELECT COUNT(1) as count FROM ${SQL.identifier(tableName)} ${where(filterQuery)};`;
     },
     rename: (newName: string): SQL =>
-      SQL`ALTER TABLE ${SQL.identifier(collectionName)} RENAME TO ${SQL.identifier(newName)};`,
-    drop: (targetName: string = collectionName): SQL =>
+      SQL`ALTER TABLE ${SQL.identifier(tableName)} RENAME TO ${SQL.identifier(newName)};`,
+    drop: (targetName: string = tableName): SQL =>
       SQL`DROP TABLE IF EXISTS ${SQL.identifier(targetName)}`,
   };
 };
