@@ -80,11 +80,13 @@ describe('PongoDatabase transactions', () => {
     assert.strictEqual(collection.collectionName, 'users');
     assert.strictEqual(
       collection.schema.component.schemaComponentKey,
-      'sc:pongo:collection:crm:users',
+      'sc:dumbo:table:pongo_collection:crm:users',
     );
     assert.strictEqual(collection.schema.component.databaseSchemaName, 'crm');
     assert.strictEqual(
-      db.schema.component.components.has('sc:pongo:collection:crm:users'),
+      db.schema.component.components.has(
+        'sc:dumbo:table:pongo_collection:crm:users',
+      ),
       true,
     );
   });
@@ -103,7 +105,7 @@ describe('PongoDatabase transactions', () => {
     assert.strictEqual(db.collections().length, 2);
     assert.strictEqual(
       defaultUsers.schema.component.schemaComponentKey,
-      `sc:pongo:collection:${dumboSchema.schema.defaultName}:users`,
+      `sc:dumbo:table:pongo_collection:${dumboSchema.schema.defaultName}:users`,
     );
   });
 

@@ -1,4 +1,15 @@
-import type { DatabaseDriverType, SQL } from '@event-driven-io/dumbo';
+import type { SQL } from '@event-driven-io/dumbo';
+import {
+  DEFAULT_DATABASE_SCHEMA_NAME,
+  bindTableToDatabaseSchema,
+  indexSchemaComponent,
+  isSchemaComponentOfType,
+  tableSchemaComponent,
+  type DatabaseDriverType,
+  type IndexSQLContext,
+  type TableSchemaComponent,
+  type IndexSchemaComponent,
+} from '@event-driven-io/dumbo';
 import {
   type Document,
   type PongoClient,
@@ -9,16 +20,37 @@ import {
 } from '../typing';
 
 const DEFAULT_DATABASE_NAME = '__default_database__';
-const DEFAULT_DATABASE_SCHEMA_NAME = '__default_database_schema__';
 
-export interface PongoCollectionSchema<
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+type PongoCollectionTableColumns = Record<never, never>;
+type PongoCollectionTableRelationships = Record<never, never>;
+export type PongoCollectionTableKind = 'pongo_collection';
+export const PongoCollectionTableKind: PongoCollectionTableKind =
+  'pongo_collection';
+
+export type PongoCollectionIndexes<
+  Indexes extends readonly PongoCollectionIndexDefinition[] =
+    readonly PongoCollectionIndexDefinition[],
+> = string extends Indexes[number]['name']
+  ? Record<never, never>
+  : {
+      [Index in Indexes[number] as Index['name']]: PongoCollectionIndex;
+    };
+
+export type PongoCollectionSchema<
   T extends PongoDocument = PongoDocument,
-> {
-  name: string;
-  databaseSchema?: string | undefined;
-  indexes?: readonly PongoCollectionIndex[] | undefined;
-}
+  TableName extends string = string,
+  DatabaseSchemaName extends string = string,
+  Indexes extends readonly PongoCollectionIndexDefinition[] =
+    readonly PongoCollectionIndexDefinition[],
+> = TableSchemaComponent<
+  PongoCollectionTableColumns,
+  TableName,
+  DatabaseSchemaName,
+  PongoCollectionTableRelationships,
+  PongoCollectionIndexes<Indexes>,
+  PongoCollectionTableKind,
+  { document: T }
+>;
 
 // Allows driver packages and users to type custom index options via declaration merging.
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
@@ -27,7 +59,7 @@ export interface PongoCollectionIndexExtensions {}
 export type PongoCollectionIndexType =
   'json_path' | 'json_document' | (string & {});
 
-export type PongoCollectionIndex<
+export type PongoCollectionIndexDefinition<
   Type extends PongoCollectionIndexType = PongoCollectionIndexType,
 > = {
   name: string;
@@ -40,12 +72,12 @@ export type PongoCollectionIndex<
     : Record<string, unknown> | undefined;
 };
 
-export type PongoCollectionIndexSQLContext = {
-  collectionName: string;
-  databaseSchemaName?: string | undefined;
-  tableName: string;
-  tableReference: SQL;
-};
+export type PongoCollectionIndex<
+  Type extends PongoCollectionIndexType = PongoCollectionIndexType,
+> = IndexSchemaComponent<Type, string, Record<string, unknown>> &
+  PongoCollectionIndexDefinition<Type>;
+
+export type PongoCollectionIndexSQLContext = IndexSQLContext;
 
 export interface PongoDatabaseSchemaSchema<
   T extends Record<string, PongoCollectionSchema> = Record<
@@ -114,18 +146,97 @@ export type PongoClientWithSchema<
   Database extends PongoDb<DriverType> = PongoDb<DriverType>,
 > = DBsMap<T['dbs'], DriverType, Database> & PongoClient<DriverType, Database>;
 
-const pongoCollectionSchema = <T extends PongoDocument>(
-  name: string,
+function pongoCollectionSchema<
+  T extends PongoDocument,
+  const TableName extends string = string,
+>(
+  name: TableName,
+): PongoCollectionSchema<T, TableName, typeof DEFAULT_DATABASE_SCHEMA_NAME, []>;
+function pongoCollectionSchema<
+  T extends PongoDocument,
+  const TableName extends string = string,
+  const Indexes extends readonly PongoCollectionIndexDefinition[] =
+    readonly PongoCollectionIndexDefinition[],
+>(
+  name: TableName,
+  options: {
+    schema?: string;
+    databaseSchema?: string;
+    indexes?: Indexes;
+  },
+): PongoCollectionSchema<T, TableName, string, Indexes>;
+function pongoCollectionSchema<
+  T extends PongoDocument,
+  const TableName extends string = string,
+  const Indexes extends readonly PongoCollectionIndexDefinition[] =
+    readonly PongoCollectionIndexDefinition[],
+>(
+  name: TableName,
   options?: {
     schema?: string;
     databaseSchema?: string;
-    indexes?: readonly PongoCollectionIndex[];
+    indexes?: Indexes;
   },
-): PongoCollectionSchema<T> => ({
-  name,
-  databaseSchema: options?.databaseSchema ?? options?.schema,
-  indexes: options?.indexes,
-});
+):
+  | PongoCollectionSchema<T, TableName, typeof DEFAULT_DATABASE_SCHEMA_NAME, []>
+  | PongoCollectionSchema<T, TableName, string, Indexes> {
+  const indexes = (options?.indexes ?? []) as unknown as Indexes;
+  const indexesMap = Object.fromEntries(
+    indexes.map((index) => {
+      const indexComponent =
+        'schemaComponentKey' in index &&
+        typeof index.schemaComponentKey === 'string' &&
+        isSchemaComponentOfType(index as PongoCollectionIndex, 'sc:dumbo:index')
+          ? index
+          : {
+              ...indexSchemaComponent({
+                indexName: index.name,
+                indexKind: index.type ?? 'json_path',
+                columnNames: ['data'],
+                isUnique: index.unique ?? false,
+                sql: index.sql,
+                additionalData: {
+                  name: index.name,
+                  ...(index.path !== undefined ? { path: index.path } : {}),
+                  ...(index.unique !== undefined
+                    ? { unique: index.unique }
+                    : {}),
+                  ...(index.type !== undefined ? { type: index.type } : {}),
+                  ...(index.options !== undefined
+                    ? { options: index.options }
+                    : {}),
+                },
+              }),
+              name: index.name,
+              ...(index.path !== undefined ? { path: index.path } : {}),
+              ...(index.unique !== undefined ? { unique: index.unique } : {}),
+              ...(index.type !== undefined ? { type: index.type } : {}),
+              ...(index.sql !== undefined ? { sql: index.sql } : {}),
+              ...(index.options !== undefined
+                ? { options: index.options }
+                : {}),
+            };
+
+      return [index.name, indexComponent];
+    }),
+  ) as PongoCollectionIndexes<Indexes>;
+
+  return tableSchemaComponent({
+    tableName: name,
+    databaseSchemaName:
+      options?.databaseSchema ??
+      options?.schema ??
+      DEFAULT_DATABASE_SCHEMA_NAME,
+    tableKind: PongoCollectionTableKind,
+    columns: {},
+    relationships: {},
+    primaryKey: [],
+    indexes: indexesMap,
+    additionalData: {
+      document: undefined as unknown as T,
+    },
+  });
+}
 
 pongoCollectionSchema.from = (
   collectionNames: string[],
@@ -142,22 +253,52 @@ const pongoCollectionIndex = (
   name: string,
   path: string | readonly string[],
   options?: { unique?: boolean | undefined },
-): PongoCollectionIndex => ({
-  name,
-  path,
-  unique: options?.unique,
-  type: 'json_path',
-});
+): PongoCollectionIndex => {
+  const index = indexSchemaComponent({
+    indexName: name,
+    indexKind: 'json_path',
+    columnNames: ['data'],
+    isUnique: options?.unique ?? false,
+    additionalData: {
+      name,
+      path,
+      unique: options?.unique,
+      type: 'json_path' as const,
+    },
+  });
+
+  return {
+    ...index,
+    name,
+    path,
+    unique: options?.unique,
+    type: 'json_path',
+  };
+};
 
 pongoCollectionIndex.unique = (
   name: string,
   path: string | readonly string[],
 ): PongoCollectionIndex => pongoCollectionIndex(name, path, { unique: true });
 
-pongoCollectionIndex.json = (name: string): PongoCollectionIndex => ({
-  name,
-  type: 'json_document',
-});
+pongoCollectionIndex.json = (name: string): PongoCollectionIndex => {
+  const index = indexSchemaComponent({
+    indexName: name,
+    indexKind: 'json_document',
+    columnNames: ['data'],
+    isUnique: false,
+    additionalData: {
+      name,
+      type: 'json_document' as const,
+    },
+  });
+
+  return {
+    ...index,
+    name,
+    type: 'json_document',
+  };
+};
 
 function pongoDbSchema<T extends Record<string, PongoCollectionSchema>>(
   collections: T,
@@ -219,10 +360,10 @@ function pongoDatabaseSchema<
     name: schemaName,
     collections: objectEntries(schemaCollections).reduce((acc, entry) => {
       const [key, collection] = entry;
-      acc[key] = {
-        ...collection,
-        databaseSchema: collection.databaseSchema ?? schemaName,
-      };
+      acc[key] = bindTableToDatabaseSchema(
+        collection,
+        schemaName,
+      ) as unknown as T[typeof key];
       return acc;
     }, {} as T),
   };
@@ -369,13 +510,13 @@ export const proxyPongoDbWithSchema = <
     if (collectionSchema === undefined) continue;
 
     const collectionOptions =
-      collectionSchema.databaseSchema === undefined
+      collectionSchema.databaseSchemaName === DEFAULT_DATABASE_SCHEMA_NAME
         ? undefined
-        : { schema: collectionSchema.databaseSchema };
+        : { schema: collectionSchema.databaseSchemaName };
 
     collections.set(
       collectionName,
-      pongoDb.collection(collectionSchema.name, collectionOptions),
+      pongoDb.collection(collectionSchema.tableName, collectionOptions),
     );
   }
 
@@ -398,11 +539,15 @@ export const proxyPongoDbWithSchema = <
             if (!collectionSchema) return undefined;
 
             const collectionOptions =
-              collectionSchema.databaseSchema === undefined
+              collectionSchema.databaseSchemaName ===
+              DEFAULT_DATABASE_SCHEMA_NAME
                 ? undefined
-                : { schema: collectionSchema.databaseSchema };
+                : { schema: collectionSchema.databaseSchemaName };
 
-            return pongoDb.collection(collectionSchema.name, collectionOptions);
+            return pongoDb.collection(
+              collectionSchema.tableName,
+              collectionOptions,
+            );
           },
         },
       ),
@@ -471,7 +616,7 @@ export const toDbSchemaMetadata = <TypedDbSchema extends PongoDbSchema>(
 ): PongoDbSchemaMetadata => ({
   name: schema.name,
   collections: objectEntries(schema.collections).map((c) => ({
-    name: c[1].name,
+    name: c[1].tableName,
   })),
 });
 

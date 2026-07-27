@@ -29,6 +29,7 @@ import type {
 } from '../../../typing';
 import type {
   AnyTableSchemaComponent,
+  InferTableTypeState,
   TableColumns,
   TableSchemaComponent,
 } from '../tableSchemaComponent';
@@ -155,11 +156,9 @@ export type ValidateColumnReference<
   >
     ? SchemaName extends keyof Schemas
       ? TableName extends keyof Schemas[SchemaName]['tables']
-        ? Schemas[SchemaName]['tables'][TableName] extends TableSchemaComponent<
-            infer Columns,
-            infer _TableName,
-            infer _Relationships
-          >
+        ? InferTableTypeState<
+            Schemas[SchemaName]['tables'][TableName]
+          > extends { columns: infer Columns extends TableColumns }
           ? ColumnName extends keyof Columns
             ? Columns[ColumnName]
             : ColumnReferenceExistanceError<
@@ -242,6 +241,7 @@ export type ValidateReference<
   RefPath extends SchemaColumnName = SchemaColumnName,
   ColPath extends SchemaColumnName = SchemaColumnName,
   Schemas extends DatabaseSchemas = DatabaseSchemas,
+  LocalColumns extends TableColumns | undefined = undefined,
 > =
   ColPath extends SchemaColumnName<
     infer SchemaName,
@@ -250,11 +250,15 @@ export type ValidateReference<
   >
     ? ValidateColumnReference<RefPath, Schemas> extends infer RefColumn
       ? RefColumn extends AnyColumnSchemaComponent
-        ? ValidateColumnsMatch<
-            RefColumn,
-            Schemas[SchemaName]['tables'][TableName]['columns'][Column],
-            RefPath
-          >
+        ? LocalColumns extends TableColumns
+          ? Column extends keyof LocalColumns
+            ? ValidateColumnsMatch<RefColumn, LocalColumns[Column], RefPath>
+            : TypeValidationSuccess
+          : ValidateColumnsMatch<
+              RefColumn,
+              Schemas[SchemaName]['tables'][TableName]['columns'][Column],
+              RefPath
+            >
         : RefColumn extends {
               valid: false;
               error: infer E;
@@ -268,6 +272,7 @@ export type ValidateReferences<
   RefPath extends SchemaColumnName = SchemaColumnName,
   ColPath extends SchemaColumnName = SchemaColumnName,
   Schemas extends DatabaseSchemas = DatabaseSchemas,
+  LocalColumns extends TableColumns | undefined = undefined,
 > =
   ColPath extends SchemaColumnName<
     infer SchemaName,
@@ -276,11 +281,15 @@ export type ValidateReferences<
   >
     ? ValidateColumnReference<RefPath, Schemas> extends infer RefColumn
       ? RefColumn extends AnyColumnSchemaComponent
-        ? ValidateColumnsMatch<
-            RefColumn,
-            Schemas[SchemaName]['tables'][TableName]['columns'][Column],
-            RefPath
-          >
+        ? LocalColumns extends TableColumns
+          ? Column extends keyof LocalColumns
+            ? ValidateColumnsMatch<RefColumn, LocalColumns[Column], RefPath>
+            : TypeValidationSuccess
+          : ValidateColumnsMatch<
+              RefColumn,
+              Schemas[SchemaName]['tables'][TableName]['columns'][Column],
+              RefPath
+            >
         : RefColumn extends {
               valid: false;
               error: infer E;
@@ -297,12 +306,13 @@ export type CollectReferencesErrors<
   _CurrentTable extends string,
   Schemas extends DatabaseSchemas = DatabaseSchemas,
   Errors extends AnyTypeValidationError[] = [],
+  LocalColumns extends TableColumns | undefined = undefined,
 > = ZipTuplesCollectErrors<
   References,
   Columns,
   {
     [R in References[number]]: {
-      [C in Columns[number]]: ValidateReference<R, C, Schemas>;
+      [C in Columns[number]]: ValidateReference<R, C, Schemas, LocalColumns>;
     };
   },
   Errors
@@ -312,11 +322,14 @@ export type SchemaTablesWithSingle<Table extends AnyTableSchemaComponent> =
   Table extends TableSchemaComponent<
     infer _Columns,
     infer TableName,
-    infer _FKs
+    infer DatabaseSchemaName
   >
-    ? DatabaseSchemaSchemaComponent<{
-        [K in TableName]: Table;
-      }>
+    ? DatabaseSchemaSchemaComponent<
+        {
+          [K in TableName]: Table;
+        },
+        DatabaseSchemaName
+      >
     : never;
 
 export type DatabaseSchemasWithSingle<
@@ -357,7 +370,9 @@ export type ValidateRelationship<
         >,
         Schema['schemaName'],
         CurrentTableName,
-        Schemas
+        Schemas,
+        [],
+        Columns
       > extends infer Results extends readonly AnyTypeValidationError[]
         ? IF<
             AnyTypeValidationFailed<Results>,
@@ -397,7 +412,9 @@ export type CollectRelationshipErrors<
         ? Relationships[R]
         : never,
       Extract<R, string>,
-      Table['tableName'],
+      Table extends TableSchemaComponent<infer _Columns, infer TableName>
+        ? TableName
+        : string,
       Table,
       Schema,
       Schemas
@@ -412,11 +429,11 @@ export type ValidateTableRelationships<
     SchemaTablesWithSingle<Table>,
   Schemas extends DatabaseSchemas = DatabaseSchemasWithSingle<Schema>,
 > =
-  Table extends TableSchemaComponent<
-    infer Columns,
-    infer TableName,
-    infer Relationships
-  >
+  InferTableTypeState<Table> extends {
+    columns: infer Columns extends TableColumns;
+    tableName: infer TableName extends string;
+    relationships: infer Relationships extends TableRelationships<string>;
+  }
     ? keyof Relationships extends Extract<keyof Relationships, string>
       ? CollectRelationshipErrors<
           Columns,

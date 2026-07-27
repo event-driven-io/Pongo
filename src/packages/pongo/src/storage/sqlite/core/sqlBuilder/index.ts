@@ -13,7 +13,6 @@ import {
   type ExpectedDocumentVersion,
   type FindOptions,
   type OptionalUnlessRequiredIdAndVersion,
-  type PongoCollectionIndex,
   type PongoCollectionSchema,
   type PongoCollectionSQLBuilder,
   type PongoFilter,
@@ -59,81 +58,39 @@ const collectionIdentity = (
 } => {
   const schema =
     typeof schemaOrName === 'string'
-      ? { name: schemaOrName, databaseSchema: undefined }
+      ? {
+          tableName: schemaOrName,
+          databaseSchemaName: dumboSchema.schema.defaultName,
+        }
       : schemaOrName;
 
-  if (
-    schema.databaseSchema === undefined ||
-    schema.databaseSchema === dumboSchema.schema.defaultName
-  ) {
+  if (schema.databaseSchemaName === dumboSchema.schema.defaultName) {
     return {
-      migrationName: schema.name,
-      collectionName: schema.name,
-      physicalName: schema.name,
+      migrationName: schema.tableName,
+      collectionName: schema.tableName,
+      physicalName: schema.tableName,
     };
   }
 
   return {
-    collectionName: schema.name,
-    databaseSchemaName: schema.databaseSchema,
-    migrationName: `${schema.databaseSchema}:${schema.name}`,
-    physicalName: `${schema.databaseSchema}_${schema.name}`,
+    collectionName: schema.tableName,
+    databaseSchemaName: schema.databaseSchemaName,
+    migrationName: `${schema.databaseSchemaName}:${schema.tableName}`,
+    physicalName: `${schema.databaseSchemaName}_${schema.tableName}`,
   };
-};
-
-const sqliteIndexPath = (path: string | readonly string[]): string =>
-  typeof path === 'string' ? path : path.join('.');
-
-const createCollectionIndex = (
-  schemaOrName: PongoCollectionSchema | string,
-  index: PongoCollectionIndex,
-): SQL => {
-  const collection = collectionIdentity(schemaOrName);
-
-  if (index.sql) {
-    return index.sql({
-      collectionName: collection.collectionName,
-      databaseSchemaName: collection.databaseSchemaName,
-      tableName: collection.physicalName,
-      tableReference: SQL`${SQL.identifier(collection.physicalName)}`,
-    });
-  }
-
-  if (index.type === 'json_document') {
-    return SQL`
-      CREATE INDEX IF NOT EXISTS ${SQL.identifier(index.name)}
-      ON ${SQL.identifier(collection.physicalName)} (data)
-    `;
-  }
-
-  if (index.path === undefined) {
-    throw new Error(`Pongo index ${index.name} needs a path`);
-  }
-
-  return SQL`
-    CREATE ${index.unique === true ? SQL`UNIQUE ` : SQL.EMPTY}INDEX IF NOT EXISTS ${SQL.identifier(index.name)}
-    ON ${SQL.identifier(collection.physicalName)} (json_extract(data, ${SQLiteJSON.path(sqliteIndexPath(index.path))}))
-  `;
 };
 
 export const pongoCollectionSQLiteMigrations = (
   schemaOrName: PongoCollectionSchema | string,
 ) => {
   const collection = collectionIdentity(schemaOrName);
-  const indexes =
-    typeof schemaOrName === 'string' ? [] : (schemaOrName.indexes ?? []);
 
   return [
     sqlMigration(
       `pongoCollection:${collection.migrationName}:001:createtable`,
       [createCollection(collection.physicalName)],
     ),
-    ...indexes.map((index) =>
-      sqlMigration(
-        `pongoCollection:${collection.migrationName}:002:index:${index.name}`,
-        [createCollectionIndex(schemaOrName, index)],
-      ),
-    ),
+    ...(typeof schemaOrName === 'string' ? [] : schemaOrName.migrations),
   ];
 };
 

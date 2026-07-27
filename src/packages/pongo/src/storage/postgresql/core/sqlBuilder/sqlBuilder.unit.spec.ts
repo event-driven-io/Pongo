@@ -373,105 +373,72 @@ describe('postgres collection schema migrations', () => {
     });
   }
 
-  it('creates named JSON path index migrations', () => {
-    const migrations = pongoCollectionPostgreSQLMigrations(
-      pongoSchema.collection('users', {
-        indexes: [
-          pongoSchema.index('users_email_idx', 'email'),
-          pongoSchema.index.unique('users_external_id_uq', ['external', 'id']),
-        ],
-      }),
-    );
-    const index = SQL.format(migrations[1]!.sqls[0]!, pgFormatter);
-    const unique = SQL.format(migrations[2]!.sqls[0]!, pgFormatter);
+  it('keeps declared JSON path indexes on the collection table', () => {
+    const collection = pongoSchema.collection('users', {
+      indexes: [
+        pongoSchema.index('users_email_idx', 'email'),
+        pongoSchema.index.unique('users_external_id_uq', ['external', 'id']),
+      ],
+    });
+    const migrations = pongoCollectionPostgreSQLMigrations(collection);
 
+    assert.strictEqual(migrations.length, 1);
     assert.strictEqual(
-      migrations[1]!.name,
-      'pongoCollection:users:002:index:users_email_idx',
+      collection.indexes.get('users_email_idx')?.name,
+      'users_email_idx',
     );
-    assert.ok(
-      singleLine(index.query).includes(
-        "CREATE INDEX IF NOT EXISTS users_email_idx ON users ((data #>> '{email}'))",
-      ),
-      `got: ${index.query}`,
-    );
-    assert.ok(
-      singleLine(unique.query).includes(
-        "CREATE UNIQUE INDEX IF NOT EXISTS users_external_id_uq ON users ((data #>> '{external,id}'))",
-      ),
-      `got: ${unique.query}`,
+    assert.strictEqual(
+      collection.indexes.get('users_external_id_uq')?.unique,
+      true,
     );
   });
 
-  it('creates document JSON index migrations as PostgreSQL JSONB GIN indexes', () => {
-    const migrations = pongoCollectionPostgreSQLMigrations(
-      pongoSchema.collection('users', {
-        indexes: [pongoSchema.index.json('users_data_idx')],
-      }),
-    );
-    const index = SQL.format(migrations[1]!.sqls[0]!, pgFormatter);
+  it('keeps declared document JSON indexes on the collection table', () => {
+    const collection = pongoSchema.collection('users', {
+      indexes: [pongoSchema.index.json('users_data_idx')],
+    });
+    const migrations = pongoCollectionPostgreSQLMigrations(collection);
 
+    assert.strictEqual(migrations.length, 1);
     assert.strictEqual(
-      migrations[1]!.name,
-      'pongoCollection:users:002:index:users_data_idx',
-    );
-    assert.ok(
-      singleLine(index.query).includes(
-        'CREATE INDEX IF NOT EXISTS users_data_idx ON users USING GIN (data)',
-      ),
-      `got: ${index.query}`,
+      collection.indexes.get('users_data_idx')?.type,
+      'json_document',
     );
   });
 
-  it('creates named indexes on explicit PostgreSQL schemas', () => {
-    const migrations = pongoCollectionPostgreSQLMigrations(
-      pongoSchema.collection('users', {
-        schema: 'crm',
-        indexes: [pongoSchema.index('users_email_idx', 'email')],
-      }),
-    );
-    const index = SQL.format(migrations[1]!.sqls[0]!, pgFormatter);
+  it('keeps declared indexes on explicit PostgreSQL schema tables', () => {
+    const collection = pongoSchema.collection('users', {
+      schema: 'crm',
+      indexes: [pongoSchema.index('users_email_idx', 'email')],
+    });
+    const migrations = pongoCollectionPostgreSQLMigrations(collection);
 
+    assert.strictEqual(migrations.length, 1);
+    assert.strictEqual(collection.databaseSchemaName, 'crm');
     assert.strictEqual(
-      migrations[1]!.name,
-      'pongoCollection:crm:users:002:index:users_email_idx',
-    );
-    assert.ok(
-      singleLine(index.query).includes(
-        "CREATE INDEX IF NOT EXISTS users_email_idx ON crm.users ((data #>> '{email}'))",
-      ),
-      `got: ${index.query}`,
+      collection.indexes.get('users_email_idx')?.path,
+      'email',
     );
   });
 
-  it('creates custom index migrations with schema-aware SQL context', () => {
-    const migrations = pongoCollectionPostgreSQLMigrations(
-      pongoSchema.collection('users', {
-        schema: 'crm',
-        indexes: [
-          {
-            name: 'users_custom_data_idx',
-            type: 'custom_jsonb_path',
-            sql: ({ tableReference, databaseSchemaName, tableName }) => {
-              assert.strictEqual(databaseSchemaName, 'crm');
-              assert.strictEqual(tableName, 'users');
-              return SQL`CREATE INDEX IF NOT EXISTS users_custom_data_idx ON ${tableReference} USING GIN (data jsonb_path_ops)`;
-            },
-          },
-        ],
-      }),
-    );
-    const index = SQL.format(migrations[1]!.sqls[0]!, pgFormatter);
+  it('keeps custom index SQL hooks on the collection table', () => {
+    const collection = pongoSchema.collection('users', {
+      schema: 'crm',
+      indexes: [
+        {
+          name: 'users_custom_data_idx',
+          type: 'custom_jsonb_path',
+          sql: ({ tableReference }) =>
+            SQL`CREATE INDEX IF NOT EXISTS users_custom_data_idx ON ${tableReference} USING GIN (data jsonb_path_ops)`,
+        },
+      ],
+    });
+    const migrations = pongoCollectionPostgreSQLMigrations(collection);
 
+    assert.strictEqual(migrations.length, 1);
     assert.strictEqual(
-      migrations[1]!.name,
-      'pongoCollection:crm:users:002:index:users_custom_data_idx',
-    );
-    assert.ok(
-      singleLine(index.query).includes(
-        'CREATE INDEX IF NOT EXISTS users_custom_data_idx ON crm.users USING GIN (data jsonb_path_ops)',
-      ),
-      `got: ${index.query}`,
+      typeof collection.indexes.get('users_custom_data_idx')?.sql,
+      'function',
     );
   });
 });

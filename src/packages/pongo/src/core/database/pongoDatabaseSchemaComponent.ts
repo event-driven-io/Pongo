@@ -1,5 +1,4 @@
 import {
-  dumboSchema,
   findComponents,
   schemaComponent,
   type DatabaseDriverType,
@@ -112,11 +111,10 @@ export const PongoDatabaseSchemaComponent = <
     collection: <T extends PongoDocument = PongoDocument>(
       schema: PongoCollectionSchema<T>,
     ) => {
-      const databaseSchemaName =
-        schema.databaseSchema ?? dumboSchema.schema.defaultName;
+      const databaseSchemaName = schema.databaseSchemaName;
       const existing = collections.find(
         (c) =>
-          c.collectionName === schema.name &&
+          c.collectionName === schema.tableName &&
           c.databaseSchemaName === databaseSchemaName,
       );
 
@@ -125,7 +123,7 @@ export const PongoDatabaseSchemaComponent = <
       const newCollection = collectionFactory(schema);
       collections.push(newCollection);
       (definition.collections as Record<string, PongoCollectionSchema>)[
-        schema.name
+        schema.tableName
       ] = schema;
       return newCollection;
     },

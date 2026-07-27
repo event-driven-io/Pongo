@@ -39,7 +39,7 @@ export type TableColumnType<T extends AnyColumnSchemaComponent> =
     : unknown;
 
 export type TableColumnNames<T extends AnyTableSchemaComponent> = Exclude<
-  keyof T['columns'],
+  T extends TableSchemaComponent<infer Columns> ? keyof Columns : never,
   keyof ReadonlyMap<string, AnyColumnSchemaComponent>
 >;
 

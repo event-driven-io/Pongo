@@ -25,7 +25,7 @@ const collectionFactory = (
   PongoCollectionSchemaComponent({
     driverType: 'test:test',
     definition: schema,
-    migrations: [sqlMigration(`${schema.name}:001`, [SQL`SELECT 1`])],
+    migrations: [sqlMigration(`${schema.tableName}:001`, [SQL`SELECT 1`])],
     sqlBuilder: {} as never,
   });
 
@@ -59,7 +59,7 @@ describe('PongoDatabaseSchemaComponent', () => {
     assert.strictEqual(component.collections.length, 1);
     assert.strictEqual(
       component.components.has(
-        `sc:pongo:collection:${dumboSchema.schema.defaultName}:users`,
+        `sc:dumbo:table:pongo_collection:${dumboSchema.schema.defaultName}:users`,
       ),
       true,
     );
@@ -83,8 +83,8 @@ describe('PongoDatabaseSchemaComponent', () => {
     assert.deepStrictEqual(
       component.collections.map((collection) => collection.schemaComponentKey),
       [
-        `sc:pongo:collection:${dumboSchema.schema.defaultName}:users`,
-        'sc:pongo:collection:crm:users',
+        `sc:dumbo:table:pongo_collection:${dumboSchema.schema.defaultName}:users`,
+        'sc:dumbo:table:pongo_collection:crm:users',
       ],
     );
   });
@@ -97,10 +97,10 @@ describe('PongoDatabaseSchemaComponent', () => {
     });
 
     expectTypeOf(
-      collection.schemaComponentKey,
+      collection.pongoCollectionComponentKey,
     ).toMatchTypeOf<PongoCollectionURN>();
     assert.strictEqual(
-      collection.schemaComponentKey,
+      collection.pongoCollectionComponentKey,
       `sc:pongo:collection:${dumboSchema.schema.defaultName}:users`,
     );
     assert.strictEqual(
