@@ -1,9 +1,11 @@
 import assert from 'node:assert';
-import type { DatabaseDriverType } from '@event-driven-io/dumbo';
-import { describe, it } from 'vitest';
+import { dumboSchema, type DatabaseDriverType } from '@event-driven-io/dumbo';
+import { describe, expectTypeOf, it } from 'vitest';
 import type { PongoDatabaseFactoryOptions, PongoDriver } from './drivers';
 import { pongoClient } from './pongoClient';
-import type { PongoDb } from './typing';
+import { pongoSchema } from './schema';
+import { pongoCollectionsSchema } from './database';
+import type { PongoCollection, PongoDb, PongoDocument } from './typing';
 
 type TestDriverType = DatabaseDriverType<'Test'>;
 const TestDriverType: TestDriverType = 'Test:fake';
@@ -78,6 +80,73 @@ const testPongoDriver = () => {
 };
 
 describe('pongoClient', () => {
+  it('keeps typed client schema access', () => {
+    type User = PongoDocument & { email: string };
+    const { driver } = testPongoDriver();
+    const schema = pongoSchema.client({
+      app: pongoSchema.db('app', {
+        users: pongoSchema.collection<User>('users'),
+      }),
+    });
+
+    const _client = pongoClient({
+      driver,
+      schema: { definition: schema },
+    });
+
+    type Client = typeof _client;
+
+    expectTypeOf<Client['app']['users']>().toEqualTypeOf<
+      PongoCollection<User>
+    >();
+  });
+
+  it('projects typed Pongo features from a database schema', () => {
+    type User = PongoDocument & { email: string };
+    const { driver, databaseFactoryCalls } = testPongoDriver();
+    const feature = pongoCollectionsSchema(
+      'app',
+      pongoSchema.db('app', {
+        users: pongoSchema.collection<User>('users'),
+      }),
+      {
+        driverType: TestDriverType,
+        collectionFactory: (schema) =>
+          ({
+            schemaComponentKey: schema.databaseSchema
+              ? `sc:pongo:collection:${schema.databaseSchema}:${schema.name}`
+              : `sc:pongo:collection:${schema.name}`,
+            migrations: [],
+            components: new Map(),
+            collectionName: schema.name,
+            definition: schema,
+            sqlBuilder: {},
+          }) as never,
+      },
+    );
+    const schema = dumboSchema.database(
+      'app',
+      {},
+      {
+        components: [feature],
+      },
+    );
+
+    const client = pongoClient({
+      driver,
+      schema: { definition: schema },
+    });
+
+    client.db('app');
+    const definition = databaseFactoryCalls[0]?.schema?.definition as
+      { collections: Record<string, unknown> } | undefined;
+
+    assert.deepStrictEqual(Object.keys(definition?.collections ?? {}), [
+      'users',
+    ]);
+    expectTypeOf(client.db('app')).toMatchTypeOf<PongoDb<TestDriverType>>();
+  });
+
   it('forwards connection options to the driver database factory', () => {
     const { driver, databaseFactoryCalls } = testPongoDriver();
     const connection = { id: 'connection' };

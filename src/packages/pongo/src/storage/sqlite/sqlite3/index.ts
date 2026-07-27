@@ -7,9 +7,8 @@ import {
 import {
   PongoCollectionSchemaComponent,
   PongoDatabase,
-  PongoDatabaseSchemaComponent,
   pongoDriverRegistry,
-  pongoSchema,
+  pongoDatabaseSchemaComponentFor,
   type PongoDb,
   type PongoDriver,
   type PongoDriverOptions,
@@ -46,8 +45,9 @@ const sqlite3PongoDriver: PongoDriver<
         ...connectionOptions,
         serialization: { serializer: options.serializer },
       }),
-      schemaComponent: PongoDatabaseSchemaComponent({
+      schemaComponent: pongoDatabaseSchemaComponentFor({
         driverType: SQLite3DriverType,
+        databaseName,
         collectionFactory: (schema) =>
           PongoCollectionSchemaComponent({
             driverType: SQLite3DriverType,
@@ -60,8 +60,7 @@ const sqlite3PongoDriver: PongoDriver<
               options.serialization?.serializer ?? JSONSerializer,
             ),
           }),
-        definition:
-          options.schema?.definition ?? pongoSchema.db(databaseName, {}),
+        definition: options.schema?.definition,
       }),
       databaseName,
     });

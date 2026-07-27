@@ -9,9 +9,15 @@ import {
   assertLogicalSchemaMapping,
   columnSchemaComponent,
   databaseSchemaComponent,
+  databaseFeatureSchemaComponent,
   databaseSchemaSchemaComponent,
+  databaseSchemaFeatureSchemaComponent,
   featureSchemaComponent,
+  findComponent,
   findExpandedSchemaComponentsOfType,
+  findFeature,
+  findFeatures,
+  requireSingleComponent,
   isFeatureSchemaComponent,
   extendSchemaComponent,
   schemaComponent,
@@ -172,6 +178,81 @@ describe('FeatureSchemaComponent', () => {
 
     assert.strictEqual(tables.length, 1);
     assert.strictEqual(tables[0]?.tableName, 'audit_log');
+  });
+
+  it('supports scoped feature maps on databases and schemas', () => {
+    const eventStore = databaseFeatureSchemaComponent({
+      featureKind: 'event_store',
+      featureName: 'eventStore',
+      components: [
+        databaseSchemaSchemaComponent({
+          schemaName: 'events',
+          tables: {
+            events: tableSchemaComponent({ tableName: 'events' }),
+          },
+        }),
+      ],
+    });
+    const audit = databaseSchemaFeatureSchemaComponent({
+      featureKind: 'audit',
+      featureName: 'audit',
+      components: [tableSchemaComponent({ tableName: 'audit_log' })],
+    });
+    const schema = databaseSchemaSchemaComponent({
+      schemaName: 'crm',
+      features: { audit },
+    });
+    const database = databaseSchemaComponent({
+      databaseName: 'app',
+      schemas: { crm: schema },
+      features: { eventStore },
+    });
+
+    assert.strictEqual(database.features.eventStore, eventStore);
+    assert.strictEqual(database.features.eventStore.featureScope, 'database');
+    assert.strictEqual(schema.features.audit, audit);
+    assert.strictEqual(schema.features.audit.featureScope, 'database_schema');
+  });
+});
+
+describe('Schema component discovery', () => {
+  it('finds components and features through expanded traversal', () => {
+    const table = tableSchemaComponent({ tableName: 'audit_log' });
+    const feature = featureSchemaComponent({
+      featureKind: 'audit',
+      featureName: 'audit',
+      components: [table],
+    });
+    const root = databaseSchemaComponent({
+      databaseName: 'app',
+      components: [feature],
+    });
+
+    assert.strictEqual(
+      findComponent(root, table.schemaComponentKey)?.schemaComponentKey,
+      table.schemaComponentKey,
+    );
+    assert.strictEqual(findFeatures(root).length, 1);
+    assert.strictEqual(findFeature(root, 'audit', 'audit'), feature);
+    assert.strictEqual(
+      requireSingleComponent(root, TableURNType, 'table').schemaComponentKey,
+      table.schemaComponentKey,
+    );
+  });
+
+  it('reports duplicate discovery matches with component keys', () => {
+    const root = databaseSchemaComponent({
+      databaseName: 'app',
+      components: [
+        tableSchemaComponent({ tableName: 'users' }),
+        tableSchemaComponent({ tableName: 'audit' }),
+      ],
+    });
+
+    assert.throws(
+      () => requireSingleComponent(root, TableURNType, 'table'),
+      /Expected one table, found 2: sc:dumbo:table:users, sc:dumbo:table:audit/,
+    );
   });
 });
 

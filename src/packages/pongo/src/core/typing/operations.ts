@@ -8,6 +8,7 @@ import type {
   QueryResult,
   QueryResultRow,
   RunSQLMigrationsResult,
+  AnySchemaComponent,
   SQL,
   SQLCommandOptions,
   SQLExecutor,
@@ -47,14 +48,18 @@ export interface PongoClient<
 
 export type PongoClientOptions<
   DatabaseDriver extends AnyPongoDriver = AnyPongoDriver,
-  TypedClientSchema extends PongoClientSchema = PongoClientSchema,
+  SchemaDefinition extends PongoClientSchema | AnySchemaComponent =
+    PongoClientSchema,
 > =
   ExtractPongoDriverOptions<DatabaseDriver> extends infer Options
     ? Options extends unknown
       ? {
           driver: DatabaseDriver;
           schema?:
-            | { autoMigration?: MigrationStyle; definition?: TypedClientSchema }
+            | {
+                autoMigration?: MigrationStyle;
+                definition?: SchemaDefinition;
+              }
             | undefined;
           errors?: { throwOnOperationFailures?: boolean } | undefined;
           cache?: CacheConfig | PongoCache | undefined;
@@ -111,12 +116,14 @@ export type PongoDBCollectionOptions<
   T extends PongoDocument,
   Payload extends PongoDocument = T,
 > = {
-  schema?: {
-    versioning?: {
-      upcast?: (document: Payload) => T;
-      downcast?: (document: T) => Payload;
-    };
-  };
+  schema?:
+    | string
+    | {
+        versioning?: {
+          upcast?: (document: Payload) => T;
+          downcast?: (document: T) => Payload;
+        };
+      };
   errors?: { throwOnOperationFailures?: boolean };
   cache?: CacheConfig | 'disabled' | PongoCache;
 };

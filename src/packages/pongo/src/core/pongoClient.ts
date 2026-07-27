@@ -1,6 +1,13 @@
-import { JSONSerializer } from '@event-driven-io/dumbo';
+import {
+  JSONSerializer,
+  type AnySchemaComponent,
+} from '@event-driven-io/dumbo';
 import { pongoCache } from './cache';
-import { PongoDatabaseCache } from './database';
+import {
+  PongoDatabaseCache,
+  pongoClientSchemaFromDefinition,
+  type PongoClientSchemaFromDefinition,
+} from './database';
 import type {
   AnyPongoDriver,
   ExtractPongoDatabaseTypeFromDriver,
@@ -19,11 +26,18 @@ import type {
   PongoSession,
 } from './typing';
 
+const isPongoClientSchema = <T extends PongoClientSchema>(
+  schema: T | AnySchemaComponent | undefined,
+): schema is T => schema !== undefined && 'dbs' in schema;
+
 export const pongoClient = <
   DatabaseDriver extends AnyPongoDriver,
-  TypedClientSchema extends PongoClientSchema = PongoClientSchema,
+  SchemaDefinition extends PongoClientSchema | AnySchemaComponent =
+    PongoClientSchema,
+  TypedClientSchema extends PongoClientSchema =
+    PongoClientSchemaFromDefinition<SchemaDefinition>,
 >(
-  options: PongoClientOptions<DatabaseDriver, TypedClientSchema>,
+  options: PongoClientOptions<DatabaseDriver, SchemaDefinition>,
 ): PongoClient<
   DatabaseDriver['driverType'],
   ExtractPongoDatabaseTypeFromDriver<DatabaseDriver>
@@ -38,9 +52,15 @@ export const pongoClient = <
     ...connectionOptions
   } = options;
 
+  const typedSchema = pongoClientSchemaFromDefinition(schema?.definition) as
+    TypedClientSchema | undefined;
+
   const dbClients = PongoDatabaseCache<PongoDb, TypedClientSchema>({
     driver,
-    typedSchema: schema?.definition,
+    typedSchema,
+    schemaDefinition: isPongoClientSchema(schema?.definition)
+      ? undefined
+      : schema?.definition,
   });
 
   const serializer = JSONSerializer.from(options);
@@ -94,5 +114,5 @@ export const pongoClient = <
     },
   };
 
-  return proxyClientWithSchema(pongoClient, schema?.definition);
+  return proxyClientWithSchema(pongoClient, typedSchema);
 };

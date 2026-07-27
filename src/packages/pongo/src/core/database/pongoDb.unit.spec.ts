@@ -55,9 +55,17 @@ const createTestDb = (options?: { allowNestedTransactions?: boolean }) => {
       definition: pongoSchema.db('test', {}),
       collectionFactory: (schema) =>
         ({
-          schemaComponentKey: `sc:pongo:collection:${schema.name}`,
+          schemaComponentKey: schema.databaseSchema
+            ? `sc:pongo:collection:${schema.databaseSchema}:${schema.name}`
+            : `sc:pongo:collection:${schema.name}`,
           migrations: [],
-          nested: [],
+          components: new Map(),
+          addComponent: () => ({}),
+          addMigration: () => undefined,
+          collectionName: schema.name,
+          databaseSchemaName: schema.databaseSchema,
+          definition: schema,
+          sqlBuilder: {},
         }) as never,
     }),
   });
@@ -70,6 +78,33 @@ const createTestDb = (options?: { allowNestedTransactions?: boolean }) => {
 };
 
 describe('PongoDatabase transactions', () => {
+  it('creates schema-qualified collection components lazily', () => {
+    const { db } = createTestDb();
+
+    const collection = db.collection('users', { schema: 'crm' });
+
+    assert.strictEqual(collection.collectionName, 'users');
+    assert.strictEqual(
+      collection.schema.component.schemaComponentKey,
+      'sc:pongo:collection:crm:users',
+    );
+    assert.strictEqual(collection.schema.component.databaseSchemaName, 'crm');
+    assert.strictEqual(
+      db.schema.component.components.has('sc:pongo:collection:crm:users'),
+      true,
+    );
+  });
+
+  it('keeps default and schema-qualified collections distinct', () => {
+    const { db } = createTestDb();
+
+    const defaultUsers = db.collection('users');
+    const crmUsers = db.collection('users', { schema: 'crm' });
+
+    assert.notStrictEqual(defaultUsers, crmUsers);
+    assert.strictEqual(db.collections().length, 2);
+  });
+
   it('starts transactions with nested transactions enabled while preserving savepoints', () => {
     const { db, transactionOptions } = createTestDb();
 

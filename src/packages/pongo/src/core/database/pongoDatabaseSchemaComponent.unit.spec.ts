@@ -1,6 +1,10 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
-import { SQL, sqlMigration } from '@event-driven-io/dumbo';
+import {
+  databaseSchemaComponent,
+  SQL,
+  sqlMigration,
+} from '@event-driven-io/dumbo';
 import {
   PongoCollectionSchemaComponent,
   type PongoCollectionSchemaComponent as PongoCollectionSchemaComponentType,
@@ -10,6 +14,7 @@ import {
   PongoDatabaseSchemaComponent,
   PongoDatabaseURNType,
   pongoCollectionsSchema,
+  pongoDatabaseSchemaComponentFor,
 } from './pongoDatabaseSchemaComponent';
 
 const collectionFactory = (
@@ -92,5 +97,51 @@ describe('pongoCollectionsSchema', () => {
         ?.collectionName,
       'users',
     );
+  });
+});
+
+describe('pongoDatabaseSchemaComponentFor', () => {
+  it('keeps plain Pongo DB definitions compatible', () => {
+    const component = pongoDatabaseSchemaComponentFor({
+      databaseName: 'app',
+      driverType: 'test:test',
+      definition: pongoSchema.db({
+        users: pongoSchema.collection('users'),
+      }),
+      collectionFactory,
+    });
+
+    assert.strictEqual(component.definition.name, 'app');
+    assert.strictEqual(component.collections.length, 1);
+  });
+
+  it('gets a Pongo database component from a database schema component', () => {
+    const feature = pongoCollectionsSchema(
+      'app',
+      pongoSchema.db({
+        users: pongoSchema.collection('users'),
+      }),
+      {
+        driverType: 'test:test',
+        collectionFactory,
+      },
+    );
+    const database = databaseSchemaComponent({
+      databaseName: 'app',
+      components: [feature],
+    });
+
+    const component = pongoDatabaseSchemaComponentFor({
+      databaseName: 'app',
+      driverType: 'test:test',
+      definition: database,
+      collectionFactory,
+    });
+
+    assert.strictEqual(
+      component.schemaComponentKey,
+      feature.database.schemaComponentKey,
+    );
+    assert.strictEqual(component.collections.length, 1);
   });
 });
