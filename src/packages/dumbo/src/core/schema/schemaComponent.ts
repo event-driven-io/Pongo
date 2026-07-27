@@ -88,7 +88,6 @@ export const schemaComponent = <const ComponentKey extends string = string>(
       component: SchemaComponentType,
     ): SchemaComponentType => {
       componentsMap.set(component.schemaComponentKey, component);
-      migrations.push(...component.migrations);
       return component;
     },
     addMigration: (migration: SQLMigration) => {
