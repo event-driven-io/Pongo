@@ -366,6 +366,124 @@ describe('FeatureSchemaComponent', () => {
     assert.deepStrictEqual(table.migrations, [indexMigration]);
     assert.deepStrictEqual(feature.migrations, [featureMigration]);
   });
+
+  it('scopes standalone indexes to the default unbound table identity', () => {
+    const index = indexSchemaComponent({
+      indexName: 'users_email_idx',
+      columnNames: ['email'],
+      isUnique: false,
+    });
+
+    assert.strictEqual(index.databaseSchemaName, '__default_database_schema__');
+    assert.strictEqual(index.tableName, '__default_table__');
+    assert.strictEqual(
+      index.schemaComponentKey,
+      'sc:dumbo:index:regular:__default_database_schema__:__default_table__:users_email_idx',
+    );
+  });
+
+  it('binds table-declared indexes to the table scope', () => {
+    const users = tableSchemaComponent({
+      tableName: 'users',
+      indexes: {
+        users_email_idx: indexSchemaComponent({
+          indexName: 'users_email_idx',
+          columnNames: ['email'],
+          isUnique: false,
+        }),
+      },
+    });
+
+    const index = users.indexes.get('users_email_idx');
+
+    assert.strictEqual(
+      index?.databaseSchemaName,
+      '__default_database_schema__',
+    );
+    assert.strictEqual(index?.tableName, 'users');
+    assert.strictEqual(
+      index?.schemaComponentKey,
+      'sc:dumbo:index:regular:__default_database_schema__:users:users_email_idx',
+    );
+    assert.strictEqual(users.components.get(index.schemaComponentKey), index);
+  });
+
+  it('binds schema-qualified table indexes to the schema and table scope', () => {
+    const users = tableSchemaComponent({
+      databaseSchemaName: 'crm',
+      tableName: 'users',
+      indexes: {
+        users_email_idx: indexSchemaComponent({
+          indexName: 'users_email_idx',
+          columnNames: ['email'],
+          isUnique: false,
+        }),
+      },
+    });
+
+    assert.strictEqual(
+      users.indexes.get('users_email_idx')?.schemaComponentKey,
+      'sc:dumbo:index:regular:crm:users:users_email_idx',
+    );
+  });
+
+  it('rebinds indexes when a default table is added to a database schema', () => {
+    const users = tableSchemaComponent({
+      tableName: 'users',
+      indexes: {
+        users_email_idx: indexSchemaComponent({
+          indexName: 'users_email_idx',
+          columnNames: ['email'],
+          isUnique: false,
+        }),
+      },
+    });
+    const schema = databaseSchemaSchemaComponent({
+      schemaName: 'crm',
+      tables: { users },
+    });
+
+    assert.strictEqual(
+      schema.tables.users.indexes.get('users_email_idx')?.schemaComponentKey,
+      'sc:dumbo:index:regular:crm:users:users_email_idx',
+    );
+  });
+
+  it('binds dynamically added indexes and keeps migrations live', () => {
+    const migration = sqlMigration('index:001', [SQL`SELECT 1`]);
+    const users = tableSchemaComponent({ tableName: 'users' });
+
+    const index = users.addIndex(
+      indexSchemaComponent({
+        indexName: 'users_email_idx',
+        columnNames: ['email'],
+        isUnique: false,
+        migrations: [migration],
+      }),
+    );
+
+    assert.strictEqual(
+      index.schemaComponentKey,
+      'sc:dumbo:index:regular:__default_database_schema__:users:users_email_idx',
+    );
+    assert.deepStrictEqual(users.migrations, [migration]);
+  });
+
+  it('rejects indexes already bound to a different table or schema', () => {
+    const users = tableSchemaComponent({ tableName: 'users' });
+    const index = indexSchemaComponent({
+      databaseSchemaName: 'crm',
+      tableName: 'accounts',
+      indexName: 'accounts_email_idx',
+      columnNames: ['email'],
+      isUnique: false,
+    });
+
+    assert.throws(
+      () => users.addIndex(index),
+      /Index accounts_email_idx belongs to database schema crm and cannot be added to __default_database_schema__\.users/,
+    );
+  });
 });
 
 describe('Schema component discovery', () => {

@@ -74,7 +74,13 @@ export type PongoCollectionIndexDefinition<
 
 export type PongoCollectionIndex<
   Type extends PongoCollectionIndexType = PongoCollectionIndexType,
-> = IndexSchemaComponent<Type, string, Record<string, unknown>> &
+> = IndexSchemaComponent<
+  Type,
+  string,
+  string,
+  string,
+  Record<string, unknown>
+> &
   PongoCollectionIndexDefinition<Type>;
 
 export type PongoCollectionIndexSQLContext = IndexSQLContext;

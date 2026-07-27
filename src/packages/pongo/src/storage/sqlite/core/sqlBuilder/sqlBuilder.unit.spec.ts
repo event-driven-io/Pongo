@@ -270,6 +270,10 @@ describe('sqliteSQLBuilder', () => {
         'users_email_idx',
       );
       assert.equal(
+        collection.indexes.get('users_email_idx')?.schemaComponentKey,
+        'sc:dumbo:index:json_path:__default_database_schema__:users:users_email_idx',
+      );
+      assert.equal(
         collection.indexes.get('users_external_id_uq')?.unique,
         true,
       );
@@ -285,6 +289,10 @@ describe('sqliteSQLBuilder', () => {
       assert.equal(migrations.length, 1);
       assert.equal(collection.databaseSchemaName, 'crm');
       assert.equal(collection.indexes.get('users_email_idx')?.path, 'email');
+      assert.equal(
+        collection.indexes.get('users_email_idx')?.schemaComponentKey,
+        'sc:dumbo:index:json_path:crm:users:users_email_idx',
+      );
     });
 
     it('keeps declared document JSON indexes on the collection table', () => {

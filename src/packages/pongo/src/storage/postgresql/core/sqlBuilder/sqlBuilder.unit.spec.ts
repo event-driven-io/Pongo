@@ -388,6 +388,10 @@ describe('postgres collection schema migrations', () => {
       'users_email_idx',
     );
     assert.strictEqual(
+      collection.indexes.get('users_email_idx')?.schemaComponentKey,
+      'sc:dumbo:index:json_path:__default_database_schema__:users:users_email_idx',
+    );
+    assert.strictEqual(
       collection.indexes.get('users_external_id_uq')?.unique,
       true,
     );
@@ -418,6 +422,10 @@ describe('postgres collection schema migrations', () => {
     assert.strictEqual(
       collection.indexes.get('users_email_idx')?.path,
       'email',
+    );
+    assert.strictEqual(
+      collection.indexes.get('users_email_idx')?.schemaComponentKey,
+      'sc:dumbo:index:json_path:crm:users:users_email_idx',
     );
   });
 
