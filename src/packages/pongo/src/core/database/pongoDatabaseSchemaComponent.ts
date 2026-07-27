@@ -12,8 +12,9 @@ import {
 } from '../schema';
 import type { PongoDocument } from '../typing';
 
-export type PongoDatabaseURNType = 'sc:dumbo:database';
+export type PongoDatabaseURNType = 'sc:pongo:database';
 export type PongoDatabaseURN = `${PongoDatabaseURNType}:${string}`;
+export const PongoDatabaseURNType: PongoDatabaseURNType = 'sc:pongo:database';
 
 export type PongoDatabaseSchemaComponent<
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -53,11 +54,23 @@ export const PongoDatabaseSchemaComponent = <
 }: PongoDatabaseSchemaComponentOptions<DriverType>): PongoDatabaseSchemaComponent => {
   const collections: PongoCollectionSchemaComponent[] =
     Object.values(definition.collections).map(collectionFactory) ?? [];
+  const base = schemaComponent(`${PongoDatabaseURNType}:${definition.name}`, {
+    components: collections,
+  });
 
   return {
-    ...schemaComponent(`sc:dumbo:database:${definition.name}`, {
-      components: collections,
-    }),
+    ...base,
+    get migrations() {
+      return collections.flatMap((collection) => collection.migrations);
+    },
+    get components() {
+      return new Map(
+        collections.map((collection) => [
+          collection.schemaComponentKey,
+          collection,
+        ]),
+      );
+    },
     definition,
     collections,
 
@@ -85,4 +98,61 @@ export type PongoDatabaseSQLBuilder<
 > = {
   driverType: DriverType;
   collection: PongoCollectionSQLBuilder;
+};
+
+export type PongoCollectionsFeatureKind = 'pongo_collections';
+
+export type PongoCollectionsSchemaComponent<
+  FeatureName extends string = string,
+> = SchemaComponent<
+  `sc:dumbo:feature:${PongoCollectionsFeatureKind}:${FeatureName}`
+> & {
+  featureKind: PongoCollectionsFeatureKind;
+  featureName: FeatureName;
+  visibility: 'opaque';
+  definition: PongoDbSchema;
+  database: PongoDatabaseSchemaComponent;
+};
+
+export type PongoCollectionsSchemaOptions<
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
+> = Omit<PongoDatabaseSchemaComponentOptions<DriverType>, 'definition'>;
+
+export const pongoCollectionsSchema = <
+  const FeatureName extends string = string,
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
+>(
+  name: FeatureName,
+  definition: PongoDbSchema,
+  options: PongoCollectionsSchemaOptions<DriverType>,
+): PongoCollectionsSchemaComponent<FeatureName> => {
+  const databaseDefinition = {
+    ...definition,
+    name: definition.name ?? name,
+  };
+  const database = PongoDatabaseSchemaComponent({
+    ...options,
+    definition: databaseDefinition,
+  });
+  const base = schemaComponent(
+    `sc:dumbo:feature:pongo_collections:${name}`,
+    {
+      components: [database],
+    },
+  );
+
+  return {
+    ...base,
+    get migrations() {
+      return base.migrations;
+    },
+    get components() {
+      return base.components;
+    },
+    featureKind: 'pongo_collections',
+    featureName: name,
+    visibility: 'opaque',
+    definition: databaseDefinition,
+    database,
+  };
 };

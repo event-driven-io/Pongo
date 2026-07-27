@@ -8,6 +8,7 @@ export * from './columnSchemaComponent';
 export * from './databaseSchemaComponent';
 export * from './databaseSchemaSchemaComponent';
 export * from './indexSchemaComponent';
+export * from './logicalSchemaMapping';
 export * from './relationships';
 export * from './tableSchemaComponent';
 export * from './tableTypesInference';
