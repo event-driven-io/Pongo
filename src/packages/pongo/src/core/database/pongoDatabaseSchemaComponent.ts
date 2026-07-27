@@ -61,20 +61,13 @@ export type PongoDatabaseSchemaComponentOptions<
   ) => PongoCollectionSchemaComponent;
 }>;
 
-export type PongoSchemaDefinition<
-  T extends Record<string, PongoCollectionSchema> = Record<
-    string,
-    PongoCollectionSchema
-  >,
-> = PongoDbSchema<T> | AnySchemaComponent;
-
 export const isPongoDbSchema = <
   T extends Record<string, PongoCollectionSchema> = Record<
     string,
     PongoCollectionSchema
   >,
 >(
-  definition: PongoSchemaDefinition<T> | undefined,
+  definition: PongoDbSchema<T> | undefined,
 ): definition is PongoDbSchema<T> =>
   definition !== undefined &&
   'collections' in definition &&
@@ -87,6 +80,11 @@ export const isPongoDatabaseSchemaComponent = (
   component.schemaComponentKey.startsWith(
     `sc:dumbo:database:${PongoDatabaseKind}:`,
   );
+
+const isPongoCollectionSchemaComponent = (
+  component: AnySchemaComponent,
+): component is PongoCollectionSchemaComponent =>
+  (component as { tableKind?: unknown }).tableKind === 'pongo_collection';
 
 export const PongoDatabaseSchemaComponent = <
   DriverType extends DatabaseDriverType = DatabaseDriverType,
@@ -148,7 +146,9 @@ export const PongoDatabaseSchemaComponent = <
 
   Object.defineProperty(component, 'collections', {
     get: () =>
-      Array.from(base.components.values()) as PongoCollectionSchemaComponent[],
+      Array.from(base.components.values()).filter(
+        isPongoCollectionSchemaComponent,
+      ),
     enumerable: true,
     configurable: true,
   });
@@ -156,7 +156,7 @@ export const PongoDatabaseSchemaComponent = <
   return component;
 };
 
-export const pongoDatabaseSchemaComponentFor = <
+export const pongoDatabaseSchemaFromPongoSchema = <
   DriverType extends DatabaseDriverType = DatabaseDriverType,
   T extends Record<string, PongoCollectionSchema> = Record<
     string,
@@ -168,20 +168,32 @@ export const pongoDatabaseSchemaComponentFor = <
   ...options
 }: Omit<PongoDatabaseSchemaComponentOptions<DriverType, T>, 'definition'> & {
   databaseName: string;
-  definition?: PongoSchemaDefinition<T> | undefined;
+  definition?: PongoDbSchema<T> | undefined;
 }): PongoDatabaseSchemaComponent<DriverType, T> => {
-  if (definition === undefined || isPongoDbSchema(definition)) {
-    const databaseDefinition: PongoDbSchema<T> = {
-      ...(definition ?? pongoSchema.db(databaseName, {} as T)),
-      name: definition?.name ?? databaseName,
-    };
+  const databaseDefinition: PongoDbSchema<T> = {
+    ...(definition ?? pongoSchema.db(databaseName, {} as T)),
+    name: definition?.name ?? databaseName,
+  };
 
-    return PongoDatabaseSchemaComponent({
-      ...options,
-      definition: databaseDefinition,
-    });
-  }
+  return PongoDatabaseSchemaComponent({
+    ...options,
+    definition: databaseDefinition,
+  });
+};
 
+export const pongoDatabaseSchemaFromDumboComponent = <
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
+  T extends Record<string, PongoCollectionSchema> = Record<
+    string,
+    PongoCollectionSchema
+  >,
+>({
+  databaseName,
+  definition,
+}: {
+  databaseName: string;
+  definition: AnySchemaComponent;
+}): PongoDatabaseSchemaComponent<DriverType, T> => {
   const databases = findComponents<PongoDatabaseSchemaComponent>(
     definition,
     isPongoDatabaseSchemaComponent,
@@ -253,19 +265,10 @@ export const isPongoCollectionsSchemaComponent = (
     'sc:dumbo:feature:pongo_collections:',
   );
 
-export const pongoClientSchemaFromDefinition = (
-  definition:
-    PongoClientSchema | PongoDbSchema | AnySchemaComponent | undefined,
+export const pongoClientSchemaFromDumboComponent = (
+  definition: AnySchemaComponent | undefined,
 ): PongoClientSchema | undefined => {
   if (definition === undefined) return undefined;
-
-  if (!('schemaComponentKey' in definition)) {
-    if ('dbs' in definition) return definition;
-
-    return pongoSchema.client({
-      [definition.name ?? pongoSchema.database.defaultName]: definition,
-    });
-  }
 
   const features = findComponents<PongoCollectionsSchemaComponent>(
     definition,

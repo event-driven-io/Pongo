@@ -63,20 +63,33 @@ export const featureSchemaComponent = <
 }: FeatureSchemaComponentOptions<
   FeatureKind,
   FeatureName
->): FeatureSchemaComponent<FeatureKind, FeatureName> => ({
-  ...schemaComponent(FeatureSchemaComponentURN({ featureKind, featureName }), {
-    ...(options.migrations !== undefined
-      ? { migrations: options.migrations }
-      : {}),
-    ...(options.components !== undefined
-      ? { components: options.components }
-      : {}),
-  }),
-  featureKind,
-  featureName,
-  visibility,
-  featureScope,
-});
+>): FeatureSchemaComponent<FeatureKind, FeatureName> => {
+  const base = schemaComponent(
+    FeatureSchemaComponentURN({ featureKind, featureName }),
+    {
+      ...(options.migrations !== undefined
+        ? { migrations: options.migrations }
+        : {}),
+      ...(options.components !== undefined
+        ? { components: options.components }
+        : {}),
+    },
+  );
+
+  return {
+    ...base,
+    get migrations() {
+      return base.migrations;
+    },
+    get components() {
+      return base.components;
+    },
+    featureKind,
+    featureName,
+    visibility,
+    featureScope,
+  };
+};
 
 export const isFeatureSchemaComponent = (
   component: SchemaComponent,

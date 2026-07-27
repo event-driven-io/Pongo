@@ -2,15 +2,17 @@ import {
   extendSchemaComponent,
   type DatabaseDriverType,
   type SchemaComponentOptions,
+  type TableURN,
 } from '@event-driven-io/dumbo';
 import type { PongoCollectionSchema, PongoCollectionSQLBuilder } from '..';
+import type { PongoCollectionTableKind } from '../schema';
 
-export type PongoCollectionURNType = 'sc:pongo:collection';
-export type PongoCollectionURN =
-  `${PongoCollectionURNType}:${string}:${string}`;
+export type PongoCollectionURN<
+  DatabaseSchemaName extends string = string,
+  TableName extends string = string,
+> = TableURN<PongoCollectionTableKind, DatabaseSchemaName, TableName>;
 
 export type PongoCollectionSchemaComponent = PongoCollectionSchema & {
-  pongoCollectionComponentKey: PongoCollectionURN;
   collectionName: string;
   databaseSchemaName?: string | undefined;
   definition: PongoCollectionSchema;
@@ -42,7 +44,6 @@ export const PongoCollectionSchemaComponent = <
 
   return {
     ...table,
-    pongoCollectionComponentKey: `sc:pongo:collection:${definition.databaseSchemaName}:${definition.tableName}`,
     sqlBuilder,
     definition,
     collectionName: definition.tableName,

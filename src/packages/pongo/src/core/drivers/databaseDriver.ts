@@ -3,7 +3,6 @@ import type {
   JSONSerializationOptions,
   JSONSerializer,
   MigrationStyle,
-  AnySchemaComponent,
 } from '@event-driven-io/dumbo';
 import type { CacheConfig, PongoCache } from '../cache';
 import type { PongoCollectionSchema, PongoDbSchema } from '../schema';
@@ -27,7 +26,7 @@ export type PongoDatabaseFactoryOptions<
   schema?:
     | {
         autoMigration?: MigrationStyle;
-        definition?: PongoDbSchema<CollectionsSchema> | AnySchemaComponent;
+        definition?: PongoDbSchema<CollectionsSchema>;
       }
     | undefined;
   serializer: JSONSerializer;

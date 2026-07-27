@@ -8,7 +8,7 @@ import {
   PongoCollectionSchemaComponent,
   PongoDatabase,
   pongoDriverRegistry,
-  pongoDatabaseSchemaComponentFor,
+  pongoDatabaseSchemaFromPongoSchema,
   type PongoDb,
   type PongoDriver,
   type PongoDriverOptions,
@@ -45,7 +45,7 @@ const sqlite3PongoDriver: PongoDriver<
         ...connectionOptions,
         serialization: { serializer: options.serializer },
       }),
-      schemaComponent: pongoDatabaseSchemaComponentFor({
+      schemaComponent: pongoDatabaseSchemaFromPongoSchema({
         driverType: SQLite3DriverType,
         databaseName,
         collectionFactory: (schema) =>

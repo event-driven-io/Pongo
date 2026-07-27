@@ -8,7 +8,7 @@ import {
   PongoCollectionSchemaComponent,
   PongoDatabase,
   pongoDriverRegistry,
-  pongoDatabaseSchemaComponentFor,
+  pongoDatabaseSchemaFromPongoSchema,
   type PongoDb,
   type PongoDriver,
   type PongoDriverOptions,
@@ -43,7 +43,7 @@ const d1PongoDriver: PongoDriver<
       pool: d1Pool({
         ...pongoConnectionOptions,
       }),
-      schemaComponent: pongoDatabaseSchemaComponentFor({
+      schemaComponent: pongoDatabaseSchemaFromPongoSchema({
         driverType: D1DriverType,
         databaseName,
         collectionFactory: (schema) =>

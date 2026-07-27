@@ -371,23 +371,53 @@ function pongoDatabaseSchema<
 
 pongoDatabaseSchema.defaultName = DEFAULT_DATABASE_SCHEMA_NAME;
 
-type UnionToIntersection<T> = (
-  T extends unknown ? (value: T) => void : never
-) extends (value: infer Intersection) => void
-  ? Intersection
+type IsUnion<T, U = T> = T extends unknown
+  ? [U] extends [T]
+    ? false
+    : true
   : never;
 
-type DatabaseSchemaCollections<T extends PongoDatabaseSchemas> =
-  T[keyof T] extends PongoDatabaseSchemaSchema<infer Collections>
-    ? Collections
-    : never;
+type CollectionKeys<T extends PongoDatabaseSchemas> = {
+  [SchemaKey in keyof T]: keyof T[SchemaKey]['collections'];
+}[keyof T] &
+  string;
 
-type CollectionsFromDatabaseSchemas<T extends PongoDatabaseSchemas> =
-  UnionToIntersection<
-    DatabaseSchemaCollections<T>
-  > extends infer Collections extends Record<string, PongoCollectionSchema>
-    ? Collections
+type SchemasWithCollectionKey<
+  T extends PongoDatabaseSchemas,
+  CollectionKey extends string,
+> = {
+  [
+    SchemaKey in keyof T
+  ]: CollectionKey extends keyof T[SchemaKey]['collections']
+    ? SchemaKey
     : never;
+}[keyof T];
+
+type UniqueCollectionKeys<T extends PongoDatabaseSchemas> = {
+  [CollectionKey in CollectionKeys<T>]: IsUnion<
+    SchemasWithCollectionKey<T, CollectionKey>
+  > extends true
+    ? never
+    : CollectionKey;
+}[CollectionKeys<T>];
+
+type CollectionForKey<
+  T extends PongoDatabaseSchemas,
+  CollectionKey extends string,
+> = {
+  [
+    SchemaKey in keyof T
+  ]: CollectionKey extends keyof T[SchemaKey]['collections']
+    ? T[SchemaKey]['collections'][CollectionKey]
+    : never;
+}[keyof T];
+
+type CollectionsFromDatabaseSchemas<T extends PongoDatabaseSchemas> = {
+  [CollectionKey in UniqueCollectionKeys<T>]: CollectionForKey<
+    T,
+    CollectionKey
+  >;
+};
 
 function pongoDatabaseSchemaDefinition<
   const Schemas extends PongoDatabaseSchemas,
@@ -434,19 +464,19 @@ function pongoDatabaseSchemaDefinition<
     typeof nameOrSchemas === 'string'
       ? (schemas ?? ({} as Schemas))
       : nameOrSchemas;
-  const collections = objectEntries(databaseSchemas).reduce(
-    (acc, entry) => {
-      const [_schemaKey, schema] = entry;
+  const collectionEntries = objectEntries(databaseSchemas).flatMap((entry) => {
+    const [_schemaKey, schema] = entry;
 
-      for (const [collectionKey, collection] of objectEntries(
-        schema.collections,
-      )) {
-        acc[collectionKey] = collection;
-      }
-
-      return acc;
-    },
-    {} as Record<string, PongoCollectionSchema>,
+    return objectEntries(schema.collections);
+  });
+  const collectionAliases = collectionEntries.reduce((acc, [collectionKey]) => {
+    acc.set(collectionKey, (acc.get(collectionKey) ?? 0) + 1);
+    return acc;
+  }, new Map<string, number>());
+  const collections = Object.fromEntries(
+    collectionEntries.filter(
+      ([collectionKey]) => collectionAliases.get(collectionKey) === 1,
+    ),
   ) as CollectionsFromDatabaseSchemas<Schemas>;
 
   return {

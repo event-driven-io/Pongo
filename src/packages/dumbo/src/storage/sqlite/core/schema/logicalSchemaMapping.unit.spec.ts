@@ -10,15 +10,15 @@ import { DefaultSQLiteMigratorOptions } from './migrations';
 
 describe('SQLite logical schema mapping', () => {
   it('validates expanded database schema components in strict mode', () => {
+    const auditUsers = tableSchemaComponent({ tableName: 'users' });
+    const publicUsers = tableSchemaComponent({ tableName: 'users' });
     const feature = featureSchemaComponent({
       featureKind: 'tenant_storage',
       featureName: 'audit',
       components: [
         databaseSchemaSchemaComponent({
           schemaName: 'audit',
-          tables: {
-            users: tableSchemaComponent({ tableName: 'users' }),
-          },
+          tables: { users: auditUsers },
         }),
       ],
     });
@@ -27,9 +27,7 @@ describe('SQLite logical schema mapping', () => {
       schemas: {
         public: databaseSchemaSchemaComponent({
           schemaName: 'public',
-          tables: {
-            users: tableSchemaComponent({ tableName: 'users' }),
-          },
+          tables: { users: publicUsers },
         }),
       },
       components: [feature],
