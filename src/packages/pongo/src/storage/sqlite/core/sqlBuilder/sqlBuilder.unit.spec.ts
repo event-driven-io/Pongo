@@ -59,9 +59,33 @@ describe('sqliteSQLBuilder', () => {
 
       assert.equal(
         migrations[0]!.name,
+        'pongoCollection:users:001:createtable',
+      );
+      assert.ok(query.includes('CREATE TABLE IF NOT EXISTS users'));
+    });
+
+    it('keeps concrete main schema migrations unprefixed', () => {
+      const migrations = pongoCollectionSQLiteMigrations(
+        pongoSchema.collection('users', { schema: 'main' }),
+      );
+      const { query } = SQL.format(migrations[0]!.sqls[0]!, sqliteFormatter);
+      const builder = sqliteSQLBuilder(
+        pongoSchema.collection('users', { schema: 'main' }),
+        JSONSerializer,
+      );
+      const insert = SQL.format(
+        builder.insertOne({ _id: '1', name: 'Oskar' }),
+        sqliteFormatter,
+      );
+
+      assert.equal(
+        migrations[0]!.name,
         'pongoCollection:main:users:001:createtable',
       );
       assert.ok(query.includes('CREATE TABLE IF NOT EXISTS users'));
+      assert.ok(insert.query.includes('INSERT OR IGNORE INTO users'));
+      assert.ok(!query.includes('main_users'));
+      assert.ok(!insert.query.includes('main_users'));
     });
 
     it('prefixes explicit schema migrations and runtime SQL', () => {
@@ -274,7 +298,7 @@ describe('sqliteSQLBuilder', () => {
 
       assert.deepStrictEqual(
         migrations.map((migration) => migration.name),
-        ['pongoCollection:main:users:001:createtable'],
+        ['pongoCollection:users:001:createtable'],
       );
       assert.equal(
         collection.indexes.get('users_data_idx')?.type,

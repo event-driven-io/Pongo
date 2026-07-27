@@ -110,6 +110,9 @@ export const databaseSchemaComponent = <
     ...base,
     databaseKind,
     databaseName,
+    get migrations() {
+      return base.migrations;
+    },
     get schemas() {
       const schemasMap =
         mapSchemaComponentsOfType<DatabaseSchemaSchemaComponent>(

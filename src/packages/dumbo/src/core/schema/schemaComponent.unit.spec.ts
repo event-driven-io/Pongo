@@ -15,17 +15,38 @@ import {
   databaseSchemaFeatureSchemaComponent,
   featureSchemaComponent,
   findComponent,
+  findComponents,
   findExpandedSchemaComponentsOfType,
   findFeature,
   findFeatures,
-  requireSingleComponent,
   isFeatureSchemaComponent,
   extendSchemaComponent,
   schemaComponent,
   sqlMigration,
   tableSchemaComponent,
+  type AnySchemaComponent,
   type TableSchemaComponent,
 } from './index';
+
+const requireSingleComponent = <T extends AnySchemaComponent>(
+  root: AnySchemaComponent,
+  keyPrefix: string,
+  label: string,
+): T => {
+  const matches = findComponents<T>(root, keyPrefix);
+
+  if (matches.length === 1) return matches[0]!;
+
+  if (matches.length === 0) {
+    throw new Error(`Expected one ${label}, found none`);
+  }
+
+  throw new Error(
+    `Expected one ${label}, found ${matches.length}: ${matches
+      .map((component) => component.schemaComponentKey)
+      .join(', ')}`,
+  );
+};
 
 describe('SchemaComponent', () => {
   it('collects child migrations exactly once when component is created upfront', () => {

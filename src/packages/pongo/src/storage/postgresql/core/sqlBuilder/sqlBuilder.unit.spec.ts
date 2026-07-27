@@ -193,7 +193,7 @@ describe('postgres collection schema migrations', () => {
 
     assert.strictEqual(
       migrations[0]!.name,
-      'pongoCollection:public:users:001:createtable',
+      'pongoCollection:users:001:createtable',
     );
     assert.ok(query.includes('CREATE TABLE IF NOT EXISTS users'));
   });

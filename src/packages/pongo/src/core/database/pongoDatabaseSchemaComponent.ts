@@ -1,8 +1,12 @@
 import {
+  databaseSchemaComponent,
   findComponents,
   schemaComponent,
   type DatabaseDriverType,
   type AnySchemaComponent,
+  type DatabaseFeatureSchemaComponent,
+  type DatabaseSchemas,
+  type DatabaseSchemaComponent as DumboDatabaseSchemaComponent,
   type SchemaComponent,
 } from '@event-driven-io/dumbo';
 import type { PongoCollectionSchemaComponent } from '../collection';
@@ -15,18 +19,26 @@ import {
 } from '../schema';
 import type { PongoDocument } from '../typing';
 
-export type PongoDatabaseURNType = 'sc:pongo:database';
-export type PongoDatabaseURN = `${PongoDatabaseURNType}:${string}`;
-export const PongoDatabaseURNType: PongoDatabaseURNType = 'sc:pongo:database';
+export type PongoDatabaseKind = 'pongo';
+export const PongoDatabaseKind: PongoDatabaseKind = 'pongo';
 
 export type PongoDatabaseSchemaComponent<
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   DriverType extends DatabaseDriverType = DatabaseDriverType,
   T extends Record<string, PongoCollectionSchema> = Record<
     string,
     PongoCollectionSchema
   >,
-> = SchemaComponent<PongoDatabaseURN> & {
+> = Omit<
+  DumboDatabaseSchemaComponent<
+    DatabaseSchemas,
+    string,
+    PongoDatabaseKind,
+    Record<string, DatabaseFeatureSchemaComponent>
+  >,
+  'databaseKind'
+> & {
+  databaseKind: PongoDatabaseKind;
+  driverType: DriverType;
   definition: PongoDbSchema<T>;
   collections: ReadonlyArray<PongoCollectionSchemaComponent>;
 
@@ -71,7 +83,10 @@ export const isPongoDbSchema = <
 export const isPongoDatabaseSchemaComponent = (
   component: AnySchemaComponent,
 ): component is PongoDatabaseSchemaComponent =>
-  component.schemaComponentKey.startsWith(`${PongoDatabaseURNType}:`);
+  component.databaseKind === PongoDatabaseKind ||
+  component.schemaComponentKey.startsWith(
+    `sc:dumbo:database:${PongoDatabaseKind}:`,
+  );
 
 export const PongoDatabaseSchemaComponent = <
   DriverType extends DatabaseDriverType = DatabaseDriverType,
@@ -80,54 +95,65 @@ export const PongoDatabaseSchemaComponent = <
     PongoCollectionSchema
   >,
 >({
+  driverType,
   definition,
   collectionFactory,
 }: PongoDatabaseSchemaComponentOptions<
   DriverType,
   T
 >): PongoDatabaseSchemaComponent<DriverType, T> => {
-  const collections: PongoCollectionSchemaComponent[] =
-    Object.values(definition.collections).map(collectionFactory) ?? [];
-  const base = schemaComponent(`${PongoDatabaseURNType}:${definition.name}`, {
-    components: collections,
-  });
+  const definitions = definition.schemas
+    ? Object.values(definition.schemas).flatMap((schema) =>
+        Object.values(schema.collections),
+      )
+    : Object.values(definition.collections);
+  const collectionComponents = definitions.map(collectionFactory) ?? [];
+  const base = databaseSchemaComponent({
+    databaseName: definition.name ?? '',
+    databaseKind: PongoDatabaseKind,
+    components: collectionComponents,
+  }) as unknown as DumboDatabaseSchemaComponent<
+    DatabaseSchemas,
+    string,
+    PongoDatabaseKind,
+    Record<string, DatabaseFeatureSchemaComponent>
+  >;
 
-  return {
-    ...base,
-    get migrations() {
-      return collections.flatMap((collection) => collection.migrations);
-    },
-    get components() {
-      return new Map(
-        collections.map((collection) => [
-          collection.schemaComponentKey,
-          collection,
-        ]),
-      );
-    },
+  const component = Object.assign(base, {
+    driverType,
     definition,
-    collections,
 
     collection: <T extends PongoDocument = PongoDocument>(
       schema: PongoCollectionSchema<T>,
     ) => {
       const databaseSchemaName = schema.databaseSchemaName;
-      const existing = collections.find(
+      const existing = Array.from(base.components.values()).find(
         (c) =>
-          c.collectionName === schema.tableName &&
-          c.databaseSchemaName === databaseSchemaName,
-      );
+          (c as PongoCollectionSchemaComponent).collectionName ===
+            schema.tableName &&
+          (c as PongoCollectionSchemaComponent).databaseSchemaName ===
+            databaseSchemaName,
+      ) as PongoCollectionSchemaComponent | undefined;
 
       if (existing) return existing;
 
       const newCollection = collectionFactory(schema);
-      collections.push(newCollection);
+      base.addComponent(newCollection);
       (definition.collections as Record<string, PongoCollectionSchema>)[
         schema.tableName
       ] = schema;
       return newCollection;
     },
-  };
+  }) as PongoDatabaseSchemaComponent<DriverType, T>;
+
+  Object.defineProperty(component, 'collections', {
+    get: () =>
+      Array.from(base.components.values()) as PongoCollectionSchemaComponent[],
+    enumerable: true,
+    configurable: true,
+  });
+
+  return component;
 };
 
 export const pongoDatabaseSchemaComponentFor = <
@@ -164,7 +190,8 @@ export const pongoDatabaseSchemaComponentFor = <
   const exact = databases.find(
     (database) =>
       database.definition.name === databaseName ||
-      database.schemaComponentKey === `${PongoDatabaseURNType}:${databaseName}`,
+      database.schemaComponentKey ===
+        `sc:dumbo:database:${PongoDatabaseKind}:${databaseName}`,
   );
 
   if (exact) return exact;
