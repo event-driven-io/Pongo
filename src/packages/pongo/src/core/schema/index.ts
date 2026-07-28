@@ -30,10 +30,12 @@ export const PongoCollectionTableKind: PongoCollectionTableKind =
 export type PongoCollectionIndexes<
   Indexes extends readonly PongoCollectionIndexDefinition[] =
     readonly PongoCollectionIndexDefinition[],
-> = string extends Indexes[number]['name']
+  NamedIndexes extends PongoCollectionIndexDefinition & { name: string } =
+    Extract<Indexes[number], { name: string }>,
+> = string extends NamedIndexes['name']
   ? Record<never, never>
   : {
-      [Index in Indexes[number] as Index['name']]: PongoCollectionIndex;
+      [Index in NamedIndexes as Index['name']]: PongoCollectionIndex;
     };
 
 export type PongoCollectionSchema<
@@ -189,6 +191,13 @@ function pongoCollectionSchema<
   const indexes = (options?.indexes ?? []) as unknown as Indexes;
   const indexesMap = Object.fromEntries(
     indexes.map((index) => {
+      const indexKind = index.type ?? 'json_path';
+      const indexTargetNames =
+        index.path === undefined
+          ? ['data']
+          : typeof index.path === 'string'
+            ? [index.path]
+            : index.path;
       const indexComponent =
         'schemaComponentKey' in index &&
         typeof index.schemaComponentKey === 'string' &&
@@ -197,7 +206,8 @@ function pongoCollectionSchema<
           : {
               ...indexSchemaComponent({
                 indexName: index.name,
-                indexKind: index.type ?? 'json_path',
+                indexKind,
+                indexTargetNames,
                 columnNames: ['data'],
                 isUnique: index.unique ?? false,
                 sql: index.sql,
@@ -255,11 +265,16 @@ pongoCollectionSchema.from = (
     {} as Record<string, PongoCollectionSchema>,
   );
 
-const pongoCollectionIndex = (
+function pongoCollectionIndex(
   name: string,
   path: string | readonly string[],
   options?: { unique?: boolean | undefined },
-): PongoCollectionIndex => {
+): PongoCollectionIndex;
+function pongoCollectionIndex(
+  name: string,
+  path: string | readonly string[],
+  options?: { unique?: boolean | undefined },
+): PongoCollectionIndex {
   const index = indexSchemaComponent({
     indexName: name,
     indexKind: 'json_path',
@@ -280,14 +295,17 @@ const pongoCollectionIndex = (
     unique: options?.unique,
     type: 'json_path',
   };
-};
+}
 
-pongoCollectionIndex.unique = (
+pongoCollectionIndex.unique = ((
   name: string,
   path: string | readonly string[],
-): PongoCollectionIndex => pongoCollectionIndex(name, path, { unique: true });
+): PongoCollectionIndex =>
+  pongoCollectionIndex(name, path, { unique: true })) as {
+  (name: string, path: string | readonly string[]): PongoCollectionIndex;
+};
 
-pongoCollectionIndex.json = (name: string): PongoCollectionIndex => {
+pongoCollectionIndex.json = ((name: string): PongoCollectionIndex => {
   const index = indexSchemaComponent({
     indexName: name,
     indexKind: 'json_document',
@@ -304,6 +322,8 @@ pongoCollectionIndex.json = (name: string): PongoCollectionIndex => {
     name,
     type: 'json_document',
   };
+}) as {
+  (name: string): PongoCollectionIndex;
 };
 
 function pongoDbSchema<T extends Record<string, PongoCollectionSchema>>(

@@ -275,6 +275,9 @@ export const tableSchemaComponent = <
       bindIndexToTable(index, databaseSchemaName, tableName),
     ]),
   ) as unknown as Indexes;
+  const boundIndexesByName = Object.fromEntries(
+    Object.values(boundIndexes).map((index) => [index.indexName, index]),
+  );
   const indexComponents = Object.values(boundIndexes);
 
   const base = schemaComponent(
@@ -297,7 +300,7 @@ export const tableSchemaComponent = <
       tableName,
       databaseSchemaName,
       relationships,
-      indexes: boundIndexes,
+      indexes: boundIndexesByName,
       tableKind,
       additionalData,
     },
@@ -325,11 +328,11 @@ export const tableSchemaComponent = <
         (c) => c.indexName,
       ) as Map<string, AnyIndexSchemaComponent>;
 
-      for (const [indexName, index] of Object.entries(boundIndexes)) {
+      for (const [indexName, index] of Object.entries(boundIndexesByName)) {
         indexesMap.set(indexName, index);
       }
 
-      return Object.assign(indexesMap, boundIndexes);
+      return Object.assign(indexesMap, boundIndexesByName);
     },
     addColumn: (column: AnyColumnSchemaComponent) => base.addComponent(column),
     addIndex: (index: AnyIndexSchemaComponent) =>

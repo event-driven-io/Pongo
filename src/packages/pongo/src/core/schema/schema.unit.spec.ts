@@ -42,6 +42,28 @@ describe('pongoSchema indexes', () => {
     );
   });
 
+  it('does not rewrite explicit index names', () => {
+    const collection = pongoSchema.collection('users', {
+      indexes: [
+        pongoSchema.index('users_email_idx', 'email'),
+        pongoSchema.index.json('users_data_idx'),
+      ],
+    });
+
+    assert.strictEqual(
+      collection.indexes.get('users_email_idx')?.name,
+      'users_email_idx',
+    );
+    assert.strictEqual(
+      collection.indexes.get('users_data_idx')?.name,
+      'users_data_idx',
+    );
+    assert.strictEqual(
+      collection.indexes.has('users_email_json_path_idx'),
+      false,
+    );
+  });
+
   it('preserves custom index metadata for driver or user extensions', () => {
     const customIndex = {
       name: 'users_data_path_ops',

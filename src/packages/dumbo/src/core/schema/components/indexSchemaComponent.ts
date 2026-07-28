@@ -38,6 +38,7 @@ export type IndexSchemaComponent<
     databaseSchemaName: DatabaseSchemaName;
     tableName: TableName;
     indexName: IndexName;
+    indexTargetNames: ReadonlyArray<string>;
     columnNames: ReadonlyArray<string>;
     isUnique: boolean;
     sql?: ((context: IndexSQLContext) => SQL) | undefined;
@@ -83,6 +84,7 @@ export const indexSchemaComponent = <
 >({
   indexName,
   indexKind,
+  indexTargetNames,
   databaseSchemaName,
   tableName,
   columnNames,
@@ -93,6 +95,7 @@ export const indexSchemaComponent = <
 }: {
   indexName: IndexName;
   indexKind?: IndexKind;
+  indexTargetNames?: ReadonlyArray<string> | undefined;
   databaseSchemaName?: DatabaseSchemaName;
   tableName?: TableName;
   columnNames: string[];
@@ -137,6 +140,7 @@ export const indexSchemaComponent = <
     databaseSchemaName,
     tableName,
     indexName,
+    indexTargetNames: indexTargetNames ?? columnNames,
     get columnNames() {
       return columnNames;
     },
@@ -152,6 +156,28 @@ export const indexSchemaComponent = <
     AdditionalData
   >;
 };
+
+export const generatedIndexNameSegment = (value: string): string =>
+  value
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase();
+
+export const generatedIndexName = ({
+  tableName,
+  indexTargetNames,
+  indexKind,
+}: {
+  tableName: string;
+  indexTargetNames: ReadonlyArray<string>;
+  indexKind: string;
+}): string =>
+  [
+    generatedIndexNameSegment(tableName),
+    ...indexTargetNames.map(generatedIndexNameSegment),
+    generatedIndexNameSegment(indexKind),
+    'idx',
+  ].join('_');
 
 export const bindIndexToTable = <
   const Index extends AnyIndexSchemaComponent,
