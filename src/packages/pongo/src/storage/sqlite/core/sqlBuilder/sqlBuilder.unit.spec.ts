@@ -1,18 +1,76 @@
-import { JSONSerializer, SQL } from '@event-driven-io/dumbo';
+import {
+  findComponents,
+  JSONSerializer,
+  SQL,
+  type ComponentContext,
+} from '@event-driven-io/dumbo';
 import { sqliteFormatter } from '@event-driven-io/dumbo/sqlite';
 import { randomUUID } from 'crypto';
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 import {
+  isPongoCollectionComponent,
   pongoSchema,
   type ExpectedDocumentVersion,
+  type PongoCollectionComponent,
+  type PongoCollectionIndexes,
   type PongoCollectionSQLBuilder,
 } from '../../../../core';
-import { pongoCollectionSQLiteMigrations, sqliteSQLBuilder } from './index';
+import { materializePongoSQLiteDatabaseComponent } from '../materializeSQLiteDatabase';
+import { sqliteSQLBuilder } from './index';
+
+const formatSQL = (sql: SQL, formatter = sqliteFormatter) =>
+  formatter.format(sql, { serializer: JSONSerializer });
+
+const tableContext = (
+  databaseSchemaName: string,
+  tableName: string,
+): ComponentContext => ({
+  databaseName: 'app',
+  databaseSchemaName,
+  tableName,
+});
+
+const collectionInSchema = (schemaName: string, collectionName: string) =>
+  collectionInSchemaWithIndexes(schemaName, collectionName, { indexes: {} });
+
+const collectionInSchemaWithIndexes = <
+  const Indexes extends PongoCollectionIndexes,
+>(
+  schemaName: string,
+  collectionName: string,
+  options: { indexes: Indexes },
+) => {
+  const database = materializePongoSQLiteDatabaseComponent({
+    driverType: 'SQLite:test',
+    databaseName: 'app',
+    defaultSchemaName: 'main',
+    serializer: JSONSerializer,
+    definition: pongoSchema.db({
+      schemas: {
+        [schemaName]: pongoSchema.schema({
+          collection: pongoSchema.collection(collectionName, options),
+        }),
+      },
+    }),
+  });
+  const collection = findComponents(database, isPongoCollectionComponent)[0];
+  assert.ok(collection);
+  return collection;
+};
+
+const builderFor = (
+  collection: PongoCollectionComponent,
+): PongoCollectionSQLBuilder =>
+  sqliteSQLBuilder(
+    collection,
+    tableContext(collection.databaseSchemaName!, collection.tableName),
+    JSONSerializer,
+  );
 
 describe('sqliteSQLBuilder', () => {
   const collectionName = 'testCollection';
-  const builder = sqliteSQLBuilder(collectionName, JSONSerializer);
+  const builder = builderFor(collectionInSchema('main', collectionName));
   const specialDocument = {
     _id: 'special-id',
     title: "director's cut",
@@ -28,23 +86,14 @@ describe('sqliteSQLBuilder', () => {
   const specialDocumentJSON = JSONSerializer.serialize(specialDocument);
 
   describe('createCollection', () => {
-    it('should generate correct CREATE TABLE statement', () => {
+    it('creates a collection from its Dumbo columns', () => {
       const result = builder.createCollection();
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
 
-      const expected = `
-    CREATE TABLE IF NOT EXISTS "${collectionName}" (
-      _id           TEXT           PRIMARY KEY,
-      data          JSON           NOT NULL,
-      metadata      JSON           NOT NULL     DEFAULT '{}',
-      _version      INTEGER        NOT NULL     DEFAULT 1,
-      _partition    TEXT           NOT NULL     DEFAULT 'png_global',
-      _archived     INTEGER        NOT NULL     DEFAULT 0,
-      _created      TEXT           NOT NULL     DEFAULT (datetime('now')),
-      _updated      TEXT           NOT NULL     DEFAULT (datetime('now'))
-  )`;
-
-      assert.equal(query, expected);
+      assert.strictEqual(
+        query,
+        `CREATE TABLE IF NOT EXISTS "${collectionName}" (_id TEXT PRIMARY KEY NOT NULL, data TEXT NOT NULL, metadata TEXT NOT NULL DEFAULT '{}', _version INTEGER NOT NULL DEFAULT 1, _partition TEXT NOT NULL DEFAULT 'png_global', _archived INTEGER NOT NULL DEFAULT FALSE, _created DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP, _updated DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP)`,
+      );
     });
   });
 
@@ -52,10 +101,8 @@ describe('sqliteSQLBuilder', () => {
     const singleLine = (value: string) => value.replace(/\s+/g, ' ').trim();
 
     it('keeps default schema migrations unprefixed', () => {
-      const migrations = pongoCollectionSQLiteMigrations(
-        pongoSchema.collection('users'),
-      );
-      const { query } = SQL.format(migrations[0]!.sqls[0]!, sqliteFormatter);
+      const migrations = collectionInSchema('main', 'users').migrations;
+      const { query } = formatSQL(migrations[0]!.sqls[0]!, sqliteFormatter);
 
       assert.equal(
         migrations[0]!.name,
@@ -65,22 +112,18 @@ describe('sqliteSQLBuilder', () => {
     });
 
     it('keeps concrete main schema migrations unprefixed', () => {
-      const migrations = pongoCollectionSQLiteMigrations(
-        pongoSchema.collection('users', { schema: 'main' }),
-      );
-      const { query } = SQL.format(migrations[0]!.sqls[0]!, sqliteFormatter);
-      const builder = sqliteSQLBuilder(
-        pongoSchema.collection('users', { schema: 'main' }),
-        JSONSerializer,
-      );
-      const insert = SQL.format(
+      const collection = collectionInSchema('main', 'users');
+      const migrations = collection.migrations;
+      const { query } = formatSQL(migrations[0]!.sqls[0]!, sqliteFormatter);
+      const builder = builderFor(collection);
+      const insert = formatSQL(
         builder.insertOne({ _id: '1', name: 'Oskar' }),
         sqliteFormatter,
       );
 
       assert.equal(
         migrations[0]!.name,
-        'pongoCollection:main:users:001:createtable',
+        'pongoCollection:users:001:createtable',
       );
       assert.ok(query.includes('CREATE TABLE IF NOT EXISTS users'));
       assert.ok(insert.query.includes('INSERT OR IGNORE INTO users'));
@@ -89,11 +132,11 @@ describe('sqliteSQLBuilder', () => {
     });
 
     it('prefixes explicit schema migrations and runtime SQL', () => {
-      const schema = pongoSchema.collection('users', { schema: 'crm' });
-      const migrations = pongoCollectionSQLiteMigrations(schema);
-      const { query } = SQL.format(migrations[0]!.sqls[0]!, sqliteFormatter);
-      const builder = sqliteSQLBuilder(schema, JSONSerializer);
-      const insert = SQL.format(
+      const collection = collectionInSchema('crm', 'users');
+      const migrations = collection.migrations;
+      const { query } = formatSQL(migrations[0]!.sqls[0]!, sqliteFormatter);
+      const builder = builderFor(collection);
+      const insert = formatSQL(
         builder.insertOne({ _id: '1', name: 'Oskar' }),
         sqliteFormatter,
       );
@@ -102,8 +145,45 @@ describe('sqliteSQLBuilder', () => {
         migrations[0]!.name,
         'pongoCollection:crm:users:001:createtable',
       );
-      assert.ok(query.includes('CREATE TABLE IF NOT EXISTS crm_users'));
-      assert.ok(insert.query.includes('INSERT OR IGNORE INTO crm_users'));
+      assert.ok(
+        query.includes('CREATE TABLE IF NOT EXISTS pongo_crm_table_users'),
+      );
+      assert.ok(
+        insert.query.includes('INSERT OR IGNORE INTO pongo_crm_table_users'),
+      );
+    });
+
+    it('keeps ambiguous logical schema tuples on distinct physical tables', () => {
+      const first = collectionInSchema('a', 'b_c');
+      const second = collectionInSchema('a_b', 'c');
+      const firstSQL = formatSQL(
+        first.migrations[0]!.sqls[0]!,
+        sqliteFormatter,
+      ).query;
+      const secondSQL = formatSQL(
+        second.migrations[0]!.sqls[0]!,
+        sqliteFormatter,
+      ).query;
+
+      assert.notEqual(firstSQL, secondSQL);
+      assert.ok(firstSQL.includes('pongo_a_table_b__c'));
+      assert.ok(secondSQL.includes('pongo_a__b_table_c'));
+    });
+
+    it('reserves the mapped-name prefix for native tables and indexes', () => {
+      assert.throws(
+        () => collectionInSchema('main', 'pongo_users'),
+        /SQLite collection names starting with pongo_ are reserved/,
+      );
+      assert.throws(
+        () =>
+          collectionInSchemaWithIndexes('main', 'users', {
+            indexes: {
+              email: pongoSchema.index('pongo_users_email_idx', 'email'),
+            },
+          }),
+        /SQLite index names starting with pongo_ are reserved/,
+      );
     });
 
     const runtimeSQLCases: {
@@ -116,26 +196,26 @@ describe('sqliteSQLBuilder', () => {
         name: 'createCollection',
         sql: (builder) => builder.createCollection(),
         defaultIncludes: 'CREATE TABLE IF NOT EXISTS users',
-        schemaIncludes: 'CREATE TABLE IF NOT EXISTS crm_users',
+        schemaIncludes: 'CREATE TABLE IF NOT EXISTS pongo_crm_table_users',
       },
       {
         name: 'insertOne',
         sql: (builder) => builder.insertOne({ _id: '1', email: 'a@test' }),
         defaultIncludes: 'INSERT OR IGNORE INTO users',
-        schemaIncludes: 'INSERT OR IGNORE INTO crm_users',
+        schemaIncludes: 'INSERT OR IGNORE INTO pongo_crm_table_users',
       },
       {
         name: 'insertMany',
         sql: (builder) => builder.insertMany([{ _id: '1', email: 'a@test' }]),
         defaultIncludes: 'INSERT OR IGNORE INTO users',
-        schemaIncludes: 'INSERT OR IGNORE INTO crm_users',
+        schemaIncludes: 'INSERT OR IGNORE INTO pongo_crm_table_users',
       },
       {
         name: 'insertOrReplace',
         sql: (builder) =>
           builder.insertOrReplace([{ _id: '1', email: 'a@test' }]),
         defaultIncludes: 'INSERT INTO users',
-        schemaIncludes: 'INSERT INTO crm_users',
+        schemaIncludes: 'INSERT INTO pongo_crm_table_users',
       },
       {
         name: 'updateOne',
@@ -145,7 +225,7 @@ describe('sqliteSQLBuilder', () => {
             { $set: { name: 'A' } },
           ),
         defaultIncludes: 'UPDATE users',
-        schemaIncludes: 'UPDATE crm_users',
+        schemaIncludes: 'UPDATE pongo_crm_table_users',
       },
       {
         name: 'replaceOne',
@@ -155,7 +235,7 @@ describe('sqliteSQLBuilder', () => {
             { email: 'b@test', name: 'B' },
           ),
         defaultIncludes: 'UPDATE users',
-        schemaIncludes: 'UPDATE crm_users',
+        schemaIncludes: 'UPDATE pongo_crm_table_users',
       },
       {
         name: 'updateMany',
@@ -165,79 +245,74 @@ describe('sqliteSQLBuilder', () => {
             { $set: { name: 'A' } },
           ),
         defaultIncludes: 'UPDATE users',
-        schemaIncludes: 'UPDATE crm_users',
+        schemaIncludes: 'UPDATE pongo_crm_table_users',
       },
       {
         name: 'deleteOne',
         sql: (builder) => builder.deleteOne({ email: 'a@test' }),
         defaultIncludes: 'DELETE FROM users',
-        schemaIncludes: 'DELETE FROM crm_users',
+        schemaIncludes: 'DELETE FROM pongo_crm_table_users',
       },
       {
         name: 'deleteMany',
         sql: (builder) => builder.deleteMany({ email: 'a@test' }),
         defaultIncludes: 'DELETE FROM users',
-        schemaIncludes: 'DELETE FROM crm_users',
+        schemaIncludes: 'DELETE FROM pongo_crm_table_users',
       },
       {
         name: 'replaceMany',
         sql: (builder) => builder.replaceMany([{ _id: '1', email: 'a@test' }]),
         defaultIncludes: 'UPDATE users',
-        schemaIncludes: 'UPDATE crm_users',
+        schemaIncludes: 'UPDATE pongo_crm_table_users',
       },
       {
         name: 'deleteManyByIds',
         sql: (builder) => builder.deleteManyByIds([{ _id: '1' }]),
         defaultIncludes: 'DELETE FROM users',
-        schemaIncludes: 'DELETE FROM crm_users',
+        schemaIncludes: 'DELETE FROM pongo_crm_table_users',
       },
       {
         name: 'findOne',
         sql: (builder) => builder.findOne({ email: 'a@test' }),
         defaultIncludes: 'FROM users',
-        schemaIncludes: 'FROM crm_users',
+        schemaIncludes: 'FROM pongo_crm_table_users',
       },
       {
         name: 'find',
         sql: (builder) => builder.find({}),
         defaultIncludes: 'FROM users',
-        schemaIncludes: 'FROM crm_users',
+        schemaIncludes: 'FROM pongo_crm_table_users',
       },
       {
         name: 'countDocuments',
         sql: (builder) => builder.countDocuments({}),
         defaultIncludes: 'FROM users',
-        schemaIncludes: 'FROM crm_users',
+        schemaIncludes: 'FROM pongo_crm_table_users',
       },
       {
         name: 'rename',
         sql: (builder) => builder.rename('archived_users'),
         defaultIncludes: 'ALTER TABLE users RENAME TO archived_users',
-        schemaIncludes: 'ALTER TABLE crm_users RENAME TO archived_users',
+        schemaIncludes:
+          'ALTER TABLE pongo_crm_table_users RENAME TO pongo_crm_table_archived__users',
       },
       {
         name: 'drop',
         sql: (builder) => builder.drop(),
         defaultIncludes: 'DROP TABLE IF EXISTS users',
-        schemaIncludes: 'DROP TABLE IF EXISTS crm_users',
+        schemaIncludes: 'DROP TABLE IF EXISTS pongo_crm_table_users',
       },
     ];
 
     for (const testCase of runtimeSQLCases) {
       it(`uses default and prefixed schema tables in ${testCase.name}`, () => {
-        const defaultBuilder = sqliteSQLBuilder(
-          pongoSchema.collection('users'),
-          JSONSerializer,
-        );
-        const schemaBuilder = sqliteSQLBuilder(
-          pongoSchema.collection('users', { schema: 'crm' }),
-          JSONSerializer,
-        );
+        const defaultBuilder = builderFor(collectionInSchema('main', 'users'));
+        const schemaBuilder = builderFor(collectionInSchema('crm', 'users'));
         const defaultSQL = singleLine(
-          SQL.format(testCase.sql(defaultBuilder), sqliteFormatter).query,
+          formatSQL(testCase.sql(defaultBuilder), sqliteFormatter).query,
         );
         const schemaSQL = singleLine(
-          SQL.format(testCase.sql(schemaBuilder), sqliteFormatter).query,
+          formatSQL(testCase.sql(schemaBuilder), sqliteFormatter).query,
         );
 
         assert.ok(
@@ -245,8 +320,8 @@ describe('sqliteSQLBuilder', () => {
           `${testCase.name} default got: ${defaultSQL}`,
         );
         assert.ok(
-          !defaultSQL.includes('crm_users'),
-          `${testCase.name} default should not use crm_users: ${defaultSQL}`,
+          !defaultSQL.includes('pongo_crm_table_users'),
+          `${testCase.name} default should not use the CRM table: ${defaultSQL}`,
         );
         assert.ok(
           schemaSQL.includes(testCase.schemaIncludes),
@@ -256,83 +331,117 @@ describe('sqliteSQLBuilder', () => {
     }
 
     it('keeps declared JSON path indexes on the collection table', () => {
-      const collection = pongoSchema.collection('users', {
-        indexes: [
-          pongoSchema.index('users_email_idx', 'email'),
-          pongoSchema.index.unique('users_external_id_uq', ['external', 'id']),
-        ],
+      const collection = collectionInSchemaWithIndexes('main', 'users', {
+        indexes: {
+          email: pongoSchema.index('users_email_idx', 'email'),
+          externalId: pongoSchema.index.unique('users_external_id_uq', [
+            'external',
+            'id',
+          ]),
+        },
       });
-      const migrations = pongoCollectionSQLiteMigrations(collection);
+      const migrations = collection.migrations;
+      const queries = migrations.map(
+        (migration) => formatSQL(migration.sqls[0]!, sqliteFormatter).query,
+      );
 
-      assert.equal(migrations.length, 1);
-      assert.equal(
-        collection.indexes.get('users_email_idx')?.name,
-        'users_email_idx',
+      assert.equal(migrations.length, 3);
+      assert.ok(
+        queries[1]?.includes(
+          "CREATE INDEX users_email_idx ON users (json_extract(data, '$.email'))",
+        ),
       );
-      assert.equal(
-        collection.indexes.get('users_email_idx')?.schemaComponentKey,
-        'sc:dumbo:index:json_path:__default_database_schema__:users:users_email_idx',
+      assert.ok(
+        queries[2]?.includes(
+          "CREATE UNIQUE INDEX users_external_id_uq ON users (json_extract(data, '$.external.id'))",
+        ),
       );
-      assert.equal(
-        collection.indexes.get('users_external_id_uq')?.unique,
-        true,
-      );
+      const email = collection.indexes.email;
+      const externalId = collection.indexes.externalId;
+      assert.ok(email);
+      assert.ok(externalId);
+      assert.strictEqual(email.indexName, 'users_email_idx');
+      assert.strictEqual(email.tableName, 'users');
+      assert.strictEqual(externalId.isUnique, true);
     });
 
     it('keeps declared indexes on prefixed schema tables', () => {
-      const collection = pongoSchema.collection('users', {
-        schema: 'crm',
-        indexes: [pongoSchema.index('users_email_idx', 'email')],
+      const collection = collectionInSchemaWithIndexes('crm', 'users', {
+        indexes: {
+          email: pongoSchema.index('users_email_idx', 'email'),
+        },
       });
-      const migrations = pongoCollectionSQLiteMigrations(collection);
+      const migrations = collection.migrations;
+      const indexSQL = formatSQL(
+        migrations[1]!.sqls[0]!,
+        sqliteFormatter,
+      ).query;
 
-      assert.equal(migrations.length, 1);
+      assert.equal(migrations.length, 2);
       assert.equal(collection.databaseSchemaName, 'crm');
-      assert.equal(collection.indexes.get('users_email_idx')?.path, 'email');
-      assert.equal(
-        collection.indexes.get('users_email_idx')?.schemaComponentKey,
-        'sc:dumbo:index:json_path:crm:users:users_email_idx',
+      const email = collection.indexes.email;
+      assert.ok(email);
+      assert.equal(email.path, 'email');
+      assert.ok(
+        indexSQL.includes(
+          'CREATE INDEX pongo_crm_table_users_index_users__email__idx ON pongo_crm_table_users',
+        ),
+        `got: ${indexSQL}`,
       );
+      assert.equal(email.databaseSchemaName, 'crm');
     });
 
     it('keeps declared document JSON indexes on the collection table', () => {
-      const collection = pongoSchema.collection('users', {
-        indexes: [
-          pongoSchema.index('users_email_idx', 'email'),
-          pongoSchema.index.json('users_data_idx'),
-        ],
+      const collection = collectionInSchemaWithIndexes('main', 'users', {
+        indexes: {
+          email: pongoSchema.index('users_email_idx', 'email'),
+          document: pongoSchema.index.json('users_data_idx'),
+        },
       });
-      const migrations = pongoCollectionSQLiteMigrations(collection);
+      const migrations = collection.migrations;
 
       assert.deepStrictEqual(
         migrations.map((migration) => migration.name),
-        ['pongoCollection:users:001:createtable'],
+        [
+          'pongoCollection:users:001:createtable',
+          'pongoIndex:main:users:users_email_idx:create',
+          'pongoIndex:main:users:users_data_idx:create',
+        ],
       );
-      assert.equal(
-        collection.indexes.get('users_data_idx')?.type,
-        'json_document',
-      );
+      const document = collection.indexes.document;
+      assert.ok(document);
+      assert.strictEqual(document.indexName, 'users_data_idx');
     });
 
     it('keeps custom index SQL hooks on the collection table', () => {
-      const collection = pongoSchema.collection('users', {
-        schema: 'crm',
-        indexes: [
-          {
-            name: 'users_custom_data_idx',
-            type: 'custom_json_index',
-            sql: ({ tableReference }) =>
-              SQL`CREATE INDEX IF NOT EXISTS users_custom_data_idx ON ${tableReference} (data)`,
-          },
-        ],
+      let resolvedReferences:
+        { tableReference: string; indexReference: string } | undefined;
+      const collection = collectionInSchemaWithIndexes('crm', 'users', {
+        indexes: {
+          custom: pongoSchema.index.custom(
+            'users_custom_data_idx',
+            ({ tableReference, indexReference }) => {
+              resolvedReferences = {
+                tableReference: formatSQL(tableReference, sqliteFormatter)
+                  .query,
+                indexReference: formatSQL(indexReference, sqliteFormatter)
+                  .query,
+              };
+              return SQL`CREATE INDEX IF NOT EXISTS ${indexReference} ON ${tableReference} (data)`;
+            },
+          ),
+        },
       });
-      const migrations = pongoCollectionSQLiteMigrations(collection);
+      const migrations = collection.migrations;
 
-      assert.equal(migrations.length, 1);
-      assert.equal(
-        typeof collection.indexes.get('users_custom_data_idx')?.sql,
-        'function',
-      );
+      assert.equal(migrations.length, 2);
+      assert.deepStrictEqual(resolvedReferences, {
+        tableReference: 'pongo_crm_table_users',
+        indexReference: 'pongo_crm_table_users_index_users__custom__data__idx',
+      });
+      const custom = collection.indexes.custom;
+      assert.ok(custom);
+      assert.equal(typeof custom.sql, 'function');
     });
   });
 
@@ -340,7 +449,7 @@ describe('sqliteSQLBuilder', () => {
     it('should generate correct INSERT statement', () => {
       const document = { _id: randomUUID(), name: 'Test', age: 30 };
       const result = builder.insertOne(document);
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
 
       assert.ok(query.includes('INSERT OR IGNORE INTO'));
       assert.ok(query.includes('(_id, data, _version)'));
@@ -348,7 +457,7 @@ describe('sqliteSQLBuilder', () => {
 
     it('binds serialized document JSON without SQL-escaping string content', () => {
       const result = builder.insertOne(specialDocument);
-      const { params } = SQL.format(result, sqliteFormatter);
+      const { params } = formatSQL(result, sqliteFormatter);
 
       assert.deepStrictEqual(params, [
         specialDocument._id,
@@ -361,7 +470,7 @@ describe('sqliteSQLBuilder', () => {
   describe('bound JSON params', () => {
     it('insertMany binds serialized JSON without SQL escaping', () => {
       const result = builder.insertMany([specialDocument]);
-      const { params } = SQL.format(result, sqliteFormatter);
+      const { params } = formatSQL(result, sqliteFormatter);
 
       assert.deepStrictEqual(params, [
         specialDocument._id,
@@ -372,7 +481,7 @@ describe('sqliteSQLBuilder', () => {
 
     it('insertOrReplace binds serialized JSON without SQL escaping', () => {
       const result = builder.insertOrReplace([specialDocument]);
-      const { params } = SQL.format(result, sqliteFormatter);
+      const { params } = formatSQL(result, sqliteFormatter);
 
       assert.deepStrictEqual(params, [
         specialDocument._id,
@@ -390,7 +499,7 @@ describe('sqliteSQLBuilder', () => {
         { _id: specialDocument._id },
         { $set: patch },
       );
-      const { params } = SQL.format(result, sqliteFormatter);
+      const { params } = formatSQL(result, sqliteFormatter);
 
       assert.deepStrictEqual(params, [
         JSONSerializer.serialize(patch),
@@ -407,7 +516,7 @@ describe('sqliteSQLBuilder', () => {
         { title: specialDocument.title },
         { $set: patch },
       );
-      const { params } = SQL.format(result, sqliteFormatter);
+      const { params } = formatSQL(result, sqliteFormatter);
 
       assert.deepStrictEqual(params, [
         JSONSerializer.serialize(patch),
@@ -426,7 +535,7 @@ describe('sqliteSQLBuilder', () => {
         { _id: specialDocument._id },
         replacement,
       );
-      const { params } = SQL.format(result, sqliteFormatter);
+      const { params } = formatSQL(result, sqliteFormatter);
 
       assert.deepStrictEqual(params, [
         JSONSerializer.serialize(replacement),
@@ -442,7 +551,7 @@ describe('sqliteSQLBuilder', () => {
         _version: 7n,
       };
       const result = builder.replaceMany([specialDocument, secondDocument]);
-      const { params } = SQL.format(result, sqliteFormatter);
+      const { params } = formatSQL(result, sqliteFormatter);
 
       assert.deepStrictEqual(params, [
         specialDocument._id,
@@ -459,7 +568,7 @@ describe('sqliteSQLBuilder', () => {
       const result = builder.insertOrReplace([
         { _id: randomUUID(), name: 'Test', age: 30 },
       ]);
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
 
       assert.ok(query.includes('INSERT INTO'));
       assert.ok(query.includes('(_id, data, _version)'));
@@ -478,7 +587,7 @@ describe('sqliteSQLBuilder', () => {
         { _id: 'a', name: 'A' },
         { _id: 'b', name: 'B' },
       ]);
-      const { params } = SQL.format(result, sqliteFormatter);
+      const { params } = formatSQL(result, sqliteFormatter);
       // two ids + two serialized docs
       assert.ok(params.includes('a'));
       assert.ok(params.includes('b'));
@@ -488,7 +597,7 @@ describe('sqliteSQLBuilder', () => {
   describe('find operations', () => {
     it('should handle empty filter', () => {
       const result = builder.find({});
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
 
       assert.ok(query.includes('SELECT data, _id, _version FROM'));
       assert.ok(!query.includes('WHERE'));
@@ -497,7 +606,7 @@ describe('sqliteSQLBuilder', () => {
     it('should handle simple equality filter', () => {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
       const result = builder.find({ name: 'John' } as any);
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
 
       assert.ok(query.includes('WHERE'));
       assert.ok(query.includes('json_extract'));
@@ -507,7 +616,7 @@ describe('sqliteSQLBuilder', () => {
       const result = builder.find({
         title: specialDocument.title,
       });
-      const { params } = SQL.format(result, sqliteFormatter);
+      const { params } = formatSQL(result, sqliteFormatter);
 
       assert.deepStrictEqual(params, [
         specialDocument.title,
@@ -519,7 +628,7 @@ describe('sqliteSQLBuilder', () => {
       const result = builder.find({
         nested: { quote: specialDocument.nested.quote },
       });
-      const { params } = SQL.format(result, sqliteFormatter);
+      const { params } = formatSQL(result, sqliteFormatter);
 
       assert.deepStrictEqual(params, [
         specialDocument.nested.quote,
@@ -529,7 +638,7 @@ describe('sqliteSQLBuilder', () => {
 
     it('should handle limit and skip options', () => {
       const result = builder.find({}, { limit: 10, skip: 5 });
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
 
       assert.ok(query.includes('LIMIT'));
       assert.ok(query.includes('OFFSET'));
@@ -537,13 +646,13 @@ describe('sqliteSQLBuilder', () => {
 
     it('empty sort object produces no ORDER BY clause', () => {
       const result = builder.find({}, { sort: {} });
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
       assert.ok(!query.includes('ORDER BY'), `got: ${query}`);
     });
 
     it('sorts ASC by a single field', () => {
       const result = builder.find({}, { sort: { name: 1 } });
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
       assert.ok(
         query.includes(`ORDER BY json_extract(data, '$.name') ASC`),
         `got: ${query}`,
@@ -552,7 +661,7 @@ describe('sqliteSQLBuilder', () => {
 
     it('sorts DESC by a single field', () => {
       const result = builder.find({}, { sort: { created_at: -1 } });
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
       assert.ok(
         query.includes(`ORDER BY json_extract(data, '$.created_at') DESC`),
         `got: ${query}`,
@@ -561,7 +670,7 @@ describe('sqliteSQLBuilder', () => {
 
     it('ORDER BY appears before LIMIT', () => {
       const result = builder.find({}, { sort: { name: 1 }, limit: 10 });
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
       assert.ok(
         query.indexOf('ORDER BY') < query.indexOf('LIMIT'),
         `got: ${query}`,
@@ -573,13 +682,13 @@ describe('sqliteSQLBuilder', () => {
         {},
         { sort: { name: 1 }, limit: 10, skip: 5 },
       );
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
       assert.ok(/ORDER BY.*LIMIT.*OFFSET/s.test(query), `got: ${query}`);
     });
 
     it('sorts by multiple fields', () => {
       const result = builder.find({}, { sort: { age: -1, name: 1 } });
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
       assert.ok(
         query.includes(
           `ORDER BY json_extract(data, '$.age') DESC,json_extract(data, '$.name') ASC`,
@@ -590,7 +699,7 @@ describe('sqliteSQLBuilder', () => {
 
     it('sorts by a nested field', () => {
       const result = builder.find({}, { sort: { 'address.city': 1 } });
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
       assert.ok(
         query.includes(`ORDER BY json_extract(data, '$.address.city') ASC`),
         `got: ${query}`,
@@ -599,7 +708,7 @@ describe('sqliteSQLBuilder', () => {
 
     it('sorts by a deeply nested field (3 levels)', () => {
       const result = builder.find({}, { sort: { 'a.b.c': -1 } });
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
       assert.ok(
         query.includes(`ORDER BY json_extract(data, '$.a.b.c') DESC`),
         `got: ${query}`,
@@ -608,14 +717,14 @@ describe('sqliteSQLBuilder', () => {
 
     it('sorts by _id using the native column, not the JSON field', () => {
       const result = builder.find({}, { sort: { _id: 1 } });
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
       assert.ok(query.includes('ORDER BY _id ASC'), `got: ${query}`);
       assert.ok(!query.includes('json_extract'), `got: ${query}`);
     });
 
     it('sorts by _version using the native column, not the JSON field', () => {
       const result = builder.find({}, { sort: { _version: -1 } });
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
       assert.ok(query.includes('ORDER BY _version DESC'), `got: ${query}`);
       assert.ok(!query.includes('json_extract'), `got: ${query}`);
     });
@@ -627,7 +736,7 @@ describe('sqliteSQLBuilder', () => {
         { _id: 'test-id' },
         { $set: { name: 'Updated' } },
       );
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
 
       assert.ok(query.includes('UPDATE'));
       assert.ok(query.includes('json_patch') || query.includes('json_set'));
@@ -638,7 +747,7 @@ describe('sqliteSQLBuilder', () => {
         { _id: 'test-id' },
         { $inc: { count: 1 } },
       );
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
 
       assert.ok(query.includes('json_set'));
       assert.ok(query.includes('json_extract'));
@@ -649,7 +758,7 @@ describe('sqliteSQLBuilder', () => {
         { _id: 'test-id' },
         { $push: { tags: 'new-tag' } },
       );
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
 
       assert.ok(query.includes('json_set'));
       assert.ok(query.includes('json_type') || query.includes('json_array'));
@@ -659,7 +768,7 @@ describe('sqliteSQLBuilder', () => {
   describe('delete operations', () => {
     it('should generate correct DELETE statement', () => {
       const result = builder.deleteOne({ _id: 'test-id' });
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
 
       assert.ok(query.includes('DELETE FROM'));
       assert.ok(query.includes('WHERE'));
@@ -670,7 +779,7 @@ describe('sqliteSQLBuilder', () => {
         { _id: 'test-id' },
         { expectedVersion: 2n },
       );
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
 
       assert.ok(query.includes('_version'));
     });
@@ -683,7 +792,7 @@ describe('sqliteSQLBuilder', () => {
         'DOCUMENT_DOES_NOT_EXIST'
       >,
     ) =>
-      SQL.format(
+      formatSQL(
         builder.deleteOne({ _id: 'test-id' }, { expectedVersion }),
         sqliteFormatter,
       ).query;
@@ -710,7 +819,7 @@ describe('sqliteSQLBuilder', () => {
     it('should generate correct COUNT statement', () => {
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument, @typescript-eslint/no-explicit-any
       const result = builder.countDocuments({ status: 'active' } as any);
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
 
       assert.ok(query.includes('SELECT COUNT(1) as count'));
       assert.ok(query.includes('WHERE'));
@@ -722,7 +831,7 @@ describe('sqliteSQLBuilder', () => {
       const result = builder.find<{ flag: boolean }>({
         $or: [{ flag: true }, { flag: false }],
       });
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
 
       assert.ok(query.includes(' OR '), `got: ${query}`);
       assert.ok(!query.includes('$.$or'), `got: ${query}`);
@@ -735,7 +844,7 @@ describe('sqliteSQLBuilder', () => {
         status: 'active',
         $or: [{ flag: true }, { flag: false }],
       });
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
 
       assert.ok(query.includes(' AND '), `got: ${query}`);
       assert.ok(query.includes(' OR '), `got: ${query}`);
@@ -748,7 +857,7 @@ describe('sqliteSQLBuilder', () => {
           { $or: [{ flag: true }, { flag: false }] },
         ],
       });
-      const { query } = SQL.format(result, sqliteFormatter);
+      const { query } = formatSQL(result, sqliteFormatter);
 
       assert.ok(query.includes(' AND '), `got: ${query}`);
       assert.ok(query.includes(' OR '), `got: ${query}`);

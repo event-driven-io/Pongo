@@ -4,6 +4,7 @@ import type {
   DatabaseTransaction,
   JSONSerializationOptions,
   JSONSerializer,
+  MigrationTableOptions,
   MigrationStyle,
   QueryResult,
   QueryResultRow,
@@ -21,7 +22,7 @@ import type {
   DocumentCommandHandlerInput,
   PongoCollectionSchemaComponent,
 } from '../collection';
-import type { PongoDatabaseSchemaComponent } from '../database/pongoDatabaseSchemaComponent';
+import type { PongoRuntimeDatabaseComponent } from '../database/pongoDatabaseSchemaComponent';
 import type { AnyPongoDriver, ExtractPongoDriverOptions } from '../drivers';
 import { ConcurrencyError } from '../errors';
 import type { PongoClientSchema, PongoDbSchema } from '../schema';
@@ -62,6 +63,9 @@ export type PongoClientOptions<
             | undefined;
           errors?: { throwOnOperationFailures?: boolean } | undefined;
           cache?: CacheConfig | PongoCache | undefined;
+          databaseName?: string | undefined;
+          defaultSchemaName?: string | undefined;
+          migrationTable?: MigrationTableOptions | undefined;
         } & JSONSerializationOptions &
           Omit<Options, 'driver'>
       : never
@@ -115,21 +119,40 @@ export type PongoDBCollectionOptions<
   T extends PongoDocument,
   Payload extends PongoDocument = T,
 > = {
-  schema?:
-    | string
-    | {
-        versioning?: {
-          upcast?: (document: Payload) => T;
-          downcast?: (document: T) => Payload;
-        };
-      };
+  schemaName?: string | undefined;
+  schema?: {
+    versioning?: {
+      upcast?: (document: Payload) => T;
+      downcast?: (document: T) => Payload;
+    };
+  };
   errors?: { throwOnOperationFailures?: boolean };
   cache?: CacheConfig | 'disabled' | PongoCache;
 };
 
 export type PongoDbOptions = {
   cache?: CacheConfig | PongoCache;
+  defaultSchemaName?: string | undefined;
+  migrationTable?: MigrationTableOptions | undefined;
 };
+
+export interface PongoSchemaScope {
+  collection<T extends PongoDocument, Payload extends PongoDocument = T>(
+    name: string,
+    options?: Omit<PongoDBCollectionOptions<T, Payload>, 'schemaName'>,
+  ): PongoCollection<T>;
+  collections(): ReadonlyArray<PongoCollection<PongoDocument>>;
+}
+
+export type PongoSchemaAccessor<
+  DriverType extends DatabaseDriverType = DatabaseDriverType,
+> = ((schemaName?: string) => PongoSchemaScope) &
+  Readonly<{
+    component: PongoRuntimeDatabaseComponent<DriverType>;
+    definition: PongoDbSchema;
+    migrations: PongoRuntimeDatabaseComponent<DriverType>['migrations'];
+    migrate(options?: PongoMigrationOptions): Promise<RunSQLMigrationsResult>;
+  }>;
 
 export interface PongoDb<
   DriverType extends DatabaseDriverType = DatabaseDriverType,
@@ -143,10 +166,7 @@ export interface PongoDb<
     options?: PongoDBCollectionOptions<T, Payload>,
   ): PongoCollection<T>;
   collections(): ReadonlyArray<PongoCollection<PongoDocument>>;
-  readonly schema: Readonly<{
-    component: PongoDatabaseSchemaComponent<DriverType>;
-    migrate(options?: PongoMigrationOptions): Promise<RunSQLMigrationsResult>;
-  }>;
+  readonly schema: PongoSchemaAccessor<DriverType>;
   sql: {
     query<Result extends QueryResultRow = QueryResultRow>(
       sql: SQL,
@@ -165,6 +185,7 @@ export type PongoMigrationOptions = {
   dryRun?: boolean | undefined;
   ignoreMigrationHashMismatch?: boolean | undefined;
   migrationTimeoutMs?: number | undefined;
+  migrationTable?: MigrationTableOptions | undefined;
 };
 
 export type CollectionOperationOptions = {

@@ -203,7 +203,9 @@ const startRepl = async (options: {
     }
 
     const schema = pongoSchema.client({
-      database: pongoSchema.db(options.schema.database, collectionsSchema),
+      database: pongoSchema.db(options.schema.database, {
+        collections: collectionsSchema,
+      }),
     });
 
     const driverOptions: PongoClientOptions = {
@@ -227,7 +229,8 @@ const startRepl = async (options: {
     db = typedClient.database!;
 
     for (const collectionName of options.schema.collections) {
-      shell.context[collectionName] = typedClient.database![collectionName];
+      shell.context[collectionName] =
+        typedClient.database!.collection(collectionName);
     }
 
     pongo = typedClient;

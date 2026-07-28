@@ -1,7 +1,6 @@
 import type { Dumbo } from '../..';
 import { fromDatabaseDriverType, type DatabaseDriverType } from '../../drivers';
 import { SQL } from '../../sql';
-import { expandSchemaComponent } from '../expandSchemaComponent';
 import { schemaComponent, type SchemaComponent } from '../schemaComponent';
 import { sqlMigration } from '../sqlMigration';
 import {
@@ -12,8 +11,24 @@ import {
 
 const { AutoIncrement, Varchar, Timestamp } = SQL.column.type;
 
-const migrationTableSQL = SQL`
-  CREATE TABLE IF NOT EXISTS dmb_migrations (
+export const migrationTableComponentFor = ({
+  schemaName,
+  tableName = 'dmb_migrations',
+  createSchema = false,
+}: {
+  schemaName?: string | undefined;
+  tableName?: string | undefined;
+  createSchema?: boolean | undefined;
+} = {}): SchemaComponent => {
+  const tableReference = schemaName
+    ? SQL`${SQL.identifier(schemaName)}.${SQL.identifier(tableName)}`
+    : SQL`${SQL.identifier(tableName)}`;
+  const createSchemaSQL =
+    createSchema && schemaName
+      ? [SQL`CREATE SCHEMA IF NOT EXISTS ${SQL.identifier(schemaName)}`]
+      : [];
+  const migrationTableSQL = SQL`
+  CREATE TABLE IF NOT EXISTS ${tableReference} (
     id ${AutoIncrement({ primaryKey: true })},
     name ${Varchar(255)} NOT NULL UNIQUE,
     application ${Varchar(255)} NOT NULL DEFAULT 'default',
@@ -22,12 +37,18 @@ const migrationTableSQL = SQL`
   );
 `;
 
-export const migrationTableSchemaComponent = schemaComponent(
-  'dumbo:schema-component:migrations-table',
-  {
-    migrations: [sqlMigration('dumbo:migrationTable:001', [migrationTableSQL])],
-  },
-);
+  return schemaComponent({
+    migrations: [
+      sqlMigration('dumbo:migrationTable:001', [
+        ...createSchemaSQL,
+        migrationTableSQL,
+      ]),
+    ],
+  });
+};
+
+export const migrationTableComponent: SchemaComponent =
+  migrationTableComponentFor();
 
 export type SchemaComponentMigrator = {
   component: SchemaComponent;
@@ -43,20 +64,16 @@ export const SchemaComponentMigrator = <DriverType extends DatabaseDriverType>(
   return {
     component,
     run: async (options) => {
-      const expandedComponent = expandSchemaComponent(component);
       const validateComponent =
         options?.schema?.validateComponent ??
         getDefaultMigratorOptionsFromRegistry(
           fromDatabaseDriverType(dumbo.driverType).databaseType,
         ).schema?.validateComponent;
 
-      validateComponent?.(expandedComponent);
+      validateComponent?.(component);
 
-      const pendingMigrations = expandedComponent.migrations.filter(
-        (m) =>
-          !completedMigrations.includes(
-            `${component.schemaComponentKey}:${m.name}`,
-          ),
+      const pendingMigrations = component.migrations.filter(
+        (migration) => !completedMigrations.includes(migration.name),
       );
 
       if (pendingMigrations.length === 0) return;
@@ -64,9 +81,7 @@ export const SchemaComponentMigrator = <DriverType extends DatabaseDriverType>(
       await runSQLMigrations(dumbo, pendingMigrations, options);
 
       completedMigrations.push(
-        ...pendingMigrations.map(
-          (m) => `${component.schemaComponentKey}:${m.name}`,
-        ),
+        ...pendingMigrations.map((migration) => migration.name),
       );
     },
   };

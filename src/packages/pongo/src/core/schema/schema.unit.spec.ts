@@ -1,24 +1,36 @@
 import assert from 'node:assert';
-import { dumboSchema, SQL } from '@event-driven-io/dumbo';
+import {
+  dumboSchema,
+  isDatabaseComponent,
+  isDatabaseSchemaComponent,
+  isIndexComponent,
+  isTableComponent,
+  SQL,
+} from '@event-driven-io/dumbo';
 import { describe, expectTypeOf, it } from 'vitest';
 import {
+  isPongoCollectionComponent,
+  isPongoDatabaseComponent,
+  isPongoIndexComponent,
+  isPongoSchemaComponent,
+  pongoCollectionComponentType,
+  pongoDatabaseComponentType,
+  pongoDocumentType,
+  pongoIndexStrategy,
+  pongoJsonDocumentIndex,
+  pongoJsonPathIndex,
   pongoSchema,
-  type PongoCollectionSchema,
-  type PongoCollectionIndexDefinition,
-  type PongoCollectionIndexExtensions,
+  pongoSchemaComponentType,
+  pongoUniqueJsonPathIndex,
+  type PongoCollectionIndexSQLContext,
 } from './index';
 
-declare module './index' {
-  interface PongoCollectionIndexExtensions {
-    custom_jsonb_path: {
-      opclass: 'jsonb_path_ops';
-      predicate?: string | undefined;
-    };
-  }
-}
+type User = {
+  email: string;
+};
 
-describe('pongoSchema indexes', () => {
-  it('creates path, unique multi-path, and document JSON index definitions', () => {
+describe('declaring Pongo indexes', () => {
+  it('declares path, unique path, and whole-document indexes as Dumbo indexes', () => {
     const email = pongoSchema.index('users_email_idx', 'email');
     const externalId = pongoSchema.index.unique('users_external_id_uq', [
       'external',
@@ -26,142 +38,225 @@ describe('pongoSchema indexes', () => {
     ]);
     const document = pongoSchema.index.json('users_data_idx');
 
-    assert.strictEqual(email.name, 'users_email_idx');
+    assert.strictEqual(email.indexName, 'users_email_idx');
     assert.strictEqual(email.path, 'email');
-    assert.strictEqual(email.unique, undefined);
-    assert.strictEqual(email.type, 'json_path');
-    assert.strictEqual(externalId.name, 'users_external_id_uq');
+    assert.strictEqual(email[pongoIndexStrategy], pongoJsonPathIndex);
+    assert.strictEqual(externalId.indexName, 'users_external_id_uq');
     assert.deepStrictEqual(externalId.path, ['external', 'id']);
-    assert.strictEqual(externalId.unique, true);
-    assert.strictEqual(externalId.type, 'json_path');
-    assert.strictEqual(document.name, 'users_data_idx');
-    assert.strictEqual(document.type, 'json_document');
     assert.strictEqual(
-      email.schemaComponentKey,
-      'sc:dumbo:index:json_path:__default_database_schema__:__default_table__:users_email_idx',
+      externalId[pongoIndexStrategy],
+      pongoUniqueJsonPathIndex,
     );
+    assert.strictEqual(document.indexName, 'users_data_idx');
+    assert.strictEqual(document[pongoIndexStrategy], pongoJsonDocumentIndex);
+    assert.strictEqual(isIndexComponent(email), true);
+    assert.strictEqual(isPongoIndexComponent(email), true);
   });
 
-  it('does not rewrite explicit index names', () => {
+  it('keeps explicit index names as typed collection aliases', () => {
     const collection = pongoSchema.collection('users', {
-      indexes: [
-        pongoSchema.index('users_email_idx', 'email'),
-        pongoSchema.index.json('users_data_idx'),
-      ],
-    });
-
-    assert.strictEqual(
-      collection.indexes.get('users_email_idx')?.name,
-      'users_email_idx',
-    );
-    assert.strictEqual(
-      collection.indexes.get('users_data_idx')?.name,
-      'users_data_idx',
-    );
-    assert.strictEqual(
-      collection.indexes.has('users_email_json_path_idx'),
-      false,
-    );
-  });
-
-  it('preserves custom index metadata for driver or user extensions', () => {
-    const customIndex = {
-      name: 'users_data_path_ops',
-      type: 'custom_jsonb_path',
-      path: ['profile', 'tags'],
-      sql: ({ tableReference }) =>
-        SQL`CREATE INDEX users_data_path_ops ON ${tableReference} USING GIN (data jsonb_path_ops)`,
-      options: {
-        opclass: 'jsonb_path_ops',
-        predicate: "data ? 'profile'",
+      indexes: {
+        email: pongoSchema.index('users_email_idx', 'email'),
+        document: pongoSchema.index.json('users_data_idx'),
       },
-    } satisfies PongoCollectionIndexDefinition<'custom_jsonb_path'>;
-
-    const collection = pongoSchema.collection('users', {
-      indexes: [customIndex],
     });
 
-    const index = collection.indexes.get('users_data_path_ops');
+    assert.strictEqual(collection.indexes.email.indexName, 'users_email_idx');
+    assert.strictEqual(collection.indexes.document.indexName, 'users_data_idx');
+    assert.strictEqual(collection.indexes.email, collection.indexes.email);
+  });
 
-    assert.strictEqual(
-      index?.schemaComponentKey,
-      'sc:dumbo:index:custom_jsonb_path:__default_database_schema__:users:users_data_path_ops',
-    );
-    assert.deepStrictEqual(index?.path, customIndex.path);
-    assert.deepStrictEqual(index?.options, customIndex.options);
-    assert.strictEqual(
-      typeof collection.indexes.get('users_data_path_ops')?.sql,
-      'function',
-    );
-    expectTypeOf(customIndex.options).toMatchTypeOf<
-      PongoCollectionIndexExtensions['custom_jsonb_path']
-    >();
+  it('passes logical and resolved references to a custom index SQL callback', () => {
+    const sql = ({
+      tableName,
+      indexName,
+      tableReference,
+      indexReference,
+    }: PongoCollectionIndexSQLContext) =>
+      SQL`CREATE INDEX ${indexReference} ON ${tableReference} (${SQL.identifier(`${tableName}_${indexName}`)})`;
+    const custom = pongoSchema.index.custom('users_search_idx', sql);
+
+    assert.strictEqual(custom.indexName, 'users_search_idx');
+    assert.strictEqual(custom.sql, sql);
+    assert.strictEqual(isPongoIndexComponent(custom), true);
   });
 });
 
-describe('Pongo collection schema component', () => {
-  it('can be used as a strongly typed Dumbo table in mixed schemas', () => {
-    type User = { _id: string; email: string };
+describe('declaring Pongo collections', () => {
+  it('declares a collection as a Dumbo table with its physical columns', () => {
+    const users = pongoSchema.collection<User>('users');
 
-    const users = pongoSchema.collection<User>('users', {
-      schema: 'crm',
-      indexes: [pongoSchema.index.unique('users_email_uq', 'email')],
-    });
-    const accounts = dumboSchema.table('accounts', {
-      columns: {
-        id: dumboSchema.column('id', SQL.column.type.Varchar('max'), {
-          primaryKey: true,
-          notNull: true,
-        }),
-        email: dumboSchema.column('email', SQL.column.type.Varchar('max')),
-      },
-    });
+    assert.strictEqual(isTableComponent(users), true);
+    assert.strictEqual(isPongoCollectionComponent(users), true);
+    assert.strictEqual(users.tableName, 'users');
+    assert.strictEqual(users.databaseSchemaName, undefined);
+    assert.deepStrictEqual(Object.keys(users.columns), [
+      '_id',
+      'data',
+      'metadata',
+      '_version',
+      '_partition',
+      '_archived',
+      '_created',
+      '_updated',
+    ]);
+    assert.deepStrictEqual(users.primaryKey, ['_id']);
+    assert.strictEqual(users.columns._id.primaryKey, true);
+    assert.strictEqual(users.columns.data.notNull, true);
+    assert.strictEqual(SQL.check.isPlain(users.columns.metadata.default), true);
+    assert.strictEqual(users.columns._version.default, 1n);
+    assert.strictEqual(users.columns._partition.default, 'png_global');
+    assert.strictEqual(users.columns._archived.default, false);
+    assert.strictEqual(SQL.check.isPlain(users.columns._created.default), true);
+    assert.strictEqual(SQL.check.isPlain(users.columns._updated.default), true);
+  });
 
+  it('places a reusable collection in a Dumbo schema without changing it', () => {
+    const users = pongoSchema.collection<User>('users');
+    const accounts = dumboSchema.table('accounts');
     const crm = dumboSchema.schema('crm', { accounts, users });
 
-    assert.strictEqual(crm.tables.accounts.tableName, accounts.tableName);
+    assert.strictEqual(users.databaseSchemaName, undefined);
+    assert.strictEqual(crm.tables.users.databaseSchemaName, 'crm');
     assert.strictEqual(crm.tables.accounts.databaseSchemaName, 'crm');
-    assert.strictEqual(crm.tables.users, users);
-    assert.strictEqual(crm.tables.users.tableName, 'users');
-    assert.strictEqual(crm.tables.users.tableKind, 'pongo_collection');
-    assert.strictEqual(
-      users.indexes.get('users_email_uq')?.name,
-      'users_email_uq',
+    assert.strictEqual(isPongoCollectionComponent(crm.tables.users), true);
+    expectTypeOf(crm.tables.users[pongoDocumentType]).toEqualTypeOf<User>();
+  });
+
+  it('accepts a collection placement constraint that matches its schema', () => {
+    const entries = pongoSchema.collection('entries', {
+      databaseSchemaName: 'audit',
+    });
+    const audit = pongoSchema.schema('audit', { auditEntries: entries });
+
+    assert.strictEqual(entries.databaseSchemaName, 'audit');
+    assert.strictEqual(audit.tables.auditEntries.databaseSchemaName, 'audit');
+  });
+
+  it('rejects placing a constrained collection in another schema', () => {
+    const entries = pongoSchema.collection('entries', {
+      databaseSchemaName: 'audit',
+    });
+
+    assert.throws(
+      () => pongoSchema.schema('public', { entries }),
+      /constrained to database schema "audit".*placed in "public"/,
     );
-    assert.strictEqual(
-      users.indexes.get('users_email_uq')?.schemaComponentKey,
-      'sc:dumbo:index:json_path:crm:users:users_email_uq',
-    );
-    assert.strictEqual(crm.tables.get('users'), users);
-    expectTypeOf(crm.tables.users).toMatchTypeOf<
-      PongoCollectionSchema<User, string, 'crm'>
-    >();
-    expectTypeOf(users.document).toEqualTypeOf<User>();
+  });
+
+  it('retains Pongo specialization markers after Dumbo composition', () => {
+    const users = pongoSchema.collection<User>('users');
+    const crm = dumboSchema.schema('crm', { users });
+
+    assert.strictEqual(users[pongoCollectionComponentType], true);
+    assert.strictEqual(crm.tables.users[pongoCollectionComponentType], true);
   });
 });
 
-describe('pongoSchema database schemas', () => {
-  it('keeps colliding schema-group collection aliases out of top-level collections', () => {
-    const schema = pongoSchema.database('app', {
-      crm: pongoSchema.schema('crm', {
-        users: pongoSchema.collection('users'),
-      }),
-      audit: pongoSchema.schema('audit', {
-        users: pongoSchema.collection('users'),
-      }),
-      reporting: pongoSchema.schema('reporting', {
-        exports: pongoSchema.collection('exports'),
-      }),
+describe('declaring Pongo schemas and databases', () => {
+  it('declares an unnamed reusable schema component', () => {
+    const schema = pongoSchema.schema({
+      users: pongoSchema.collection<User>('users'),
     });
 
-    assert.deepStrictEqual(Object.keys(schema.collections), ['exports']);
-    expectTypeOf(schema.collections).toEqualTypeOf<{
-      exports: typeof schema.schemas.reporting.collections.exports;
-    }>();
-    assert.strictEqual(schema.schemas.crm.collections.users.tableName, 'users');
+    assert.strictEqual(isDatabaseSchemaComponent(schema), true);
+    assert.strictEqual(isPongoSchemaComponent(schema), true);
+    assert.strictEqual(schema.schemaName, undefined);
+    assert.strictEqual(schema[pongoSchemaComponentType], true);
+  });
+
+  it('uses a schema record key to place an unnamed reusable schema', () => {
+    const reusable = pongoSchema.schema({
+      users: pongoSchema.collection<User>('users'),
+    });
+    const database = pongoSchema.db('app', {
+      schemas: { public: reusable },
+    });
+
+    assert.strictEqual(reusable.schemaName, undefined);
+    assert.strictEqual(database.schemas.public.schemaName, 'public');
     assert.strictEqual(
-      schema.schemas.audit.collections.users.tableName,
-      'users',
+      database.schemas.public.tables.users.databaseSchemaName,
+      'public',
     );
+  });
+
+  it('rejects an explicitly named schema stored under another key', () => {
+    assert.throws(
+      () =>
+        pongoSchema.db('app', {
+          schemas: {
+            audit: pongoSchema.schema('history', {}),
+          },
+        }),
+      /record key "audit" conflicts with its explicit name "history"/,
+    );
+  });
+
+  it('declares direct collections without inventing a default schema name', () => {
+    const database = pongoSchema.db('app', {
+      collections: {
+        users: pongoSchema.collection<User>('users'),
+      },
+    });
+
+    assert.strictEqual(isDatabaseComponent(database), true);
+    assert.strictEqual(isPongoDatabaseComponent(database), true);
+    assert.strictEqual(database.databaseName, 'app');
+    assert.strictEqual(database.collections.users.tableName, 'users');
+    assert.strictEqual(
+      database.collections.users.databaseSchemaName,
+      undefined,
+    );
+    assert.deepStrictEqual(Object.keys(database.schemas), []);
+    assert.strictEqual(database[pongoDatabaseComponentType], true);
+  });
+
+  it('does not promote collections from named schemas onto the database', () => {
+    const database = pongoSchema.db('app', {
+      schemas: {
+        crm: pongoSchema.schema({
+          users: pongoSchema.collection<User>('users'),
+        }),
+        audit: pongoSchema.schema({
+          users: pongoSchema.collection<User>('users'),
+        }),
+      },
+    });
+
+    assert.strictEqual('collections' in database, false);
+    assert.strictEqual(database.schemas.crm.tables.users.tableName, 'users');
+    assert.strictEqual(database.schemas.audit.tables.users.tableName, 'users');
+  });
+
+  it('attaches the same direct extension-map shape to schemas and databases', () => {
+    const eventStore = dumboSchema.extension('event-store', {});
+    const audit = pongoSchema.schema(
+      'audit',
+      { auditEntries: pongoSchema.collection('entries') },
+      { eventStore },
+    );
+    const database = pongoSchema.db(
+      'app',
+      { schemas: { audit } },
+      { eventStore },
+    );
+
+    assert.strictEqual(audit.extensions.eventStore, eventStore);
+    assert.strictEqual(database.extensions.eventStore, eventStore);
+  });
+
+  it('leaves frozen collection and schema source records unchanged', () => {
+    const users = pongoSchema.collection<User>('users');
+    const collections = Object.freeze({ users });
+    const publicSchema = pongoSchema.schema(collections);
+    const schemas = Object.freeze({ public: publicSchema });
+
+    pongoSchema.db('app', { schemas });
+
+    assert.deepStrictEqual(Object.keys(collections), ['users']);
+    assert.strictEqual(collections.users, users);
+    assert.deepStrictEqual(Object.keys(schemas), ['public']);
+    assert.strictEqual(schemas.public, publicSchema);
   });
 });

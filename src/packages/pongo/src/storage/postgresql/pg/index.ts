@@ -1,26 +1,20 @@
-import { dumbo, JSONSerializer } from '@event-driven-io/dumbo';
+import { dumbo } from '@event-driven-io/dumbo';
 import {
   pgDumboDriver as dumboDriver,
   PgDriverType,
-  postgreSQLMetadata,
   type PgConnection,
   type PgTransactionOptions,
 } from '@event-driven-io/dumbo/pg';
 import type pg from 'pg';
 import {
-  PongoCollectionSchemaComponent,
   PongoDatabase,
   pongoDriverRegistry,
-  pongoDatabaseSchemaFromPongoSchema,
   type PongoDb,
   type PongoDriver,
   type PongoDriverOptions,
   withPongoTransactionOptions,
 } from '../../../core';
-import {
-  pongoCollectionPostgreSQLMigrations,
-  postgresSQLBuilder,
-} from '../core';
+import { materializePongoPostgreSQLDatabaseComponent } from '../core';
 
 export type PgPongoClientOptions =
   PooledPongoClientOptions | NotPooledPongoOptions;
@@ -64,15 +58,31 @@ const pgPongoDriver: PongoDriver<
   PgDatabaseDriverOptions
 > = {
   driverType: PgDriverType,
+  dumboDriver,
   databaseFactory: (options) => {
-    const databaseName =
-      options.databaseName ??
-      postgreSQLMetadata.parseDatabaseName(options.connectionString) ??
-      postgreSQLMetadata.defaultDatabaseName;
+    const { databaseName, defaultSchemaName } = options;
+    if (databaseName === undefined || defaultSchemaName === undefined) {
+      throw new Error(
+        'PostgreSQL driver requires resolved database and default schema names',
+      );
+    }
     const connectionOptions = withPongoTransactionOptions<
       PgPongoClientOptions,
       PgTransactionOptions
     >(options.connectionOptions);
+    const ambientOptions = options.connectionOptions;
+    const ambientDatabase =
+      ambientOptions && 'pool' in ambientOptions && ambientOptions.pool
+        ? ambientOptions.pool.options.database
+        : ambientOptions && 'client' in ambientOptions && ambientOptions.client
+          ? ambientOptions.client.database
+          : undefined;
+
+    if (ambientDatabase && ambientDatabase !== databaseName) {
+      throw new Error(
+        `The ambient PostgreSQL connection is connected to database ${ambientDatabase} and cannot be used for ${databaseName}`,
+      );
+    }
 
     return PongoDatabase({
       ...options,
@@ -80,25 +90,19 @@ const pgPongoDriver: PongoDriver<
       pool: dumbo({
         connectionString: options.connectionString,
         driver: dumboDriver,
+        database: databaseName,
         ...connectionOptions,
         serialization: { serializer: options.serializer },
       }),
-      schemaComponent: pongoDatabaseSchemaFromPongoSchema({
+      schemaComponent: materializePongoPostgreSQLDatabaseComponent({
         driverType: PgDriverType,
         databaseName,
-        collectionFactory: (schema) =>
-          PongoCollectionSchemaComponent({
-            driverType: PgDriverType,
-            definition: schema,
-            migrations: pongoCollectionPostgreSQLMigrations(schema),
-            sqlBuilder: postgresSQLBuilder(
-              schema,
-              options.serialization?.serializer ?? JSONSerializer,
-            ),
-          }),
+        defaultSchemaName,
+        serializer: options.serializer,
         definition: options.schema?.definition,
       }),
       databaseName,
+      defaultSchemaName,
     });
   },
 };

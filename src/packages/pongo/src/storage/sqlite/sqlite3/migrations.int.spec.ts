@@ -31,32 +31,46 @@ describe('SQLite3 migration integration', () => {
   it('applies default and schema-prefixed collection migrations in order', async () => {
     const schema = pongoSchema.client({
       database: pongoSchema.db({
-        users: pongoSchema.collection('users'),
-        explicitDefaultUsers: pongoSchema.collection('explicit_default_users', {
-          schema: pongoSchema.schema.defaultName,
-          indexes: [pongoSchema.index('explicit_default_email_idx', 'email')],
-        }),
-        crmUsers: pongoSchema.collection('users', {
-          schema: 'crm',
-          indexes: [
-            pongoSchema.index('users_email_idx', 'email'),
-            pongoSchema.index.unique('users_external_id_uq', [
-              'external',
-              'id',
-            ]),
-            pongoSchema.index.json('users_data_idx'),
-            {
-              name: 'users_custom_data_idx',
-              type: 'custom_json_index',
-              sql: ({ tableReference }) =>
-                SQL`CREATE INDEX IF NOT EXISTS users_custom_data_idx ON ${tableReference} (data)`,
-            },
-          ],
-        }),
-        auditUsers: pongoSchema.collection('users', {
-          schema: 'audit',
-          indexes: [pongoSchema.index('audit_users_email_idx', 'email')],
-        }),
+        schemas: {
+          main: pongoSchema.schema({
+            users: pongoSchema.collection('users'),
+            explicitDefaultUsers: pongoSchema.collection(
+              'explicit_default_users',
+              {
+                indexes: {
+                  email: pongoSchema.index(
+                    'explicit_default_email_idx',
+                    'email',
+                  ),
+                },
+              },
+            ),
+          }),
+          crm: pongoSchema.schema({
+            crmUsers: pongoSchema.collection('users', {
+              indexes: {
+                email: pongoSchema.index('users_email_idx', 'email'),
+                externalId: pongoSchema.index.unique('users_external_id_uq', [
+                  'external',
+                  'id',
+                ]),
+                document: pongoSchema.index.json('users_data_idx'),
+                custom: pongoSchema.index.custom(
+                  'users_custom_data_idx',
+                  ({ tableReference, indexReference }) =>
+                    SQL`CREATE INDEX IF NOT EXISTS ${indexReference} ON ${tableReference} (data)`,
+                ),
+              },
+            }),
+          }),
+          audit: pongoSchema.schema({
+            auditUsers: pongoSchema.collection('users', {
+              indexes: {
+                email: pongoSchema.index('audit_users_email_idx', 'email'),
+              },
+            }),
+          }),
+        },
       }),
     });
     const client = pongoClient({
@@ -65,18 +79,33 @@ describe('SQLite3 migration integration', () => {
       schema: { definition: schema },
     });
     const pool = sqlite3Pool({ fileName });
+    const expectedMigrationNames = [
+      'pongoCollection:users:001:createtable',
+      'pongoCollection:explicit_default_users:001:createtable',
+      'pongoIndex:main:explicit_default_users:explicit_default_email_idx:create',
+      'pongoCollection:crm:users:001:createtable',
+      'pongoIndex:crm:users:users_email_idx:create',
+      'pongoIndex:crm:users:users_external_id_uq:create',
+      'pongoIndex:crm:users:users_data_idx:create',
+      'pongoIndex:crm:users:users_custom_data_idx:create',
+      'pongoCollection:audit:users:001:createtable',
+      'pongoIndex:audit:users:audit_users_email_idx:create',
+    ];
 
     try {
-      await client.db().schema.migrate();
-      await client.db().schema.migrate();
+      const db = client.db('database');
+      assert.deepStrictEqual(
+        db.schema.migrations.map((migration) => migration.name),
+        expectedMigrationNames,
+      );
+      await db.schema.migrate();
+      await db.schema.migrate();
 
-      await client
-        .db()
+      await db
         .collection('users')
         .insertOne({ _id: 'default-user', email: 'default@test' });
-      await client
-        .db()
-        .collection('users', { schema: 'crm' })
+      await db
+        .collection('users', { schemaName: 'crm' })
         .insertOne({ _id: 'crm-user', email: 'crm@test' });
 
       const objects = await pool.execute.query<{ name: string; type: string }>(
@@ -86,14 +115,14 @@ describe('SQLite3 migration integration', () => {
           WHERE name IN (
             'users',
             'explicit_default_users',
-            'crm_users',
-            'audit_users',
+            'pongo_crm_table_users',
+            'pongo_audit_table_users',
             'explicit_default_email_idx',
-            'users_email_idx',
-            'users_external_id_uq',
-            'users_data_idx',
-            'users_custom_data_idx',
-            'audit_users_email_idx'
+            'pongo_crm_table_users_index_users__email__idx',
+            'pongo_crm_table_users_index_users__external__id__uq',
+            'pongo_crm_table_users_index_users__data__idx',
+            'pongo_crm_table_users_index_users__custom__data__idx',
+            'pongo_audit_table_users_index_audit__users__email__idx'
           )
           ORDER BY type, name`,
       );
@@ -104,26 +133,42 @@ describe('SQLite3 migration integration', () => {
         SQL`SELECT COUNT(*) as count FROM users`,
       );
       const crmCount = await pool.execute.query<{ count: number }>(
-        SQL`SELECT COUNT(*) as count FROM crm_users`,
+        SQL`SELECT COUNT(*) as count FROM ${SQL.identifier('pongo_crm_table_users')}`,
       );
       const auditCount = await pool.execute.query<{ count: number }>(
-        SQL`SELECT COUNT(*) as count FROM audit_users`,
+        SQL`SELECT COUNT(*) as count FROM ${SQL.identifier('pongo_audit_table_users')}`,
       );
 
       assert.deepStrictEqual(objects.rows, [
-        { name: 'audit_users', type: 'table' },
-        { name: 'crm_users', type: 'table' },
+        { name: 'explicit_default_email_idx', type: 'index' },
+        {
+          name: 'pongo_audit_table_users_index_audit__users__email__idx',
+          type: 'index',
+        },
+        {
+          name: 'pongo_crm_table_users_index_users__custom__data__idx',
+          type: 'index',
+        },
+        {
+          name: 'pongo_crm_table_users_index_users__data__idx',
+          type: 'index',
+        },
+        {
+          name: 'pongo_crm_table_users_index_users__email__idx',
+          type: 'index',
+        },
+        {
+          name: 'pongo_crm_table_users_index_users__external__id__uq',
+          type: 'index',
+        },
         { name: 'explicit_default_users', type: 'table' },
+        { name: 'pongo_audit_table_users', type: 'table' },
+        { name: 'pongo_crm_table_users', type: 'table' },
         { name: 'users', type: 'table' },
       ]);
       assert.deepStrictEqual(
         migrationNames.rows.map((row) => row.name),
-        [
-          'pongoCollection:users:001:createtable',
-          'pongoCollection:explicit_default_users:001:createtable',
-          'pongoCollection:crm:users:001:createtable',
-          'pongoCollection:audit:users:001:createtable',
-        ],
+        expectedMigrationNames,
       );
       assert.strictEqual(defaultCount.rows[0]?.count, 1);
       assert.strictEqual(crmCount.rows[0]?.count, 1);

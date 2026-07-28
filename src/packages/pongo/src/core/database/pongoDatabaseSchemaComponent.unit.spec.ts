@@ -1,240 +1,308 @@
 import assert from 'node:assert';
-import { describe, expectTypeOf, it } from 'vitest';
 import {
-  databaseSchemaComponent,
   dumboSchema,
+  isDatabaseComponent,
+  isIndexComponent,
   SQL,
   sqlMigration,
 } from '@event-driven-io/dumbo';
+import { describe, it } from 'vitest';
+import type { PongoCollectionSQLBuilder } from '../collection';
 import {
-  PongoCollectionSchemaComponent,
-  type PongoCollectionURN,
-  type PongoCollectionSchemaComponent as PongoCollectionSchemaComponentType,
-} from '../collection';
-import { pongoSchema } from '../schema';
+  isPongoCollectionComponent,
+  pongoCollectionComponentType,
+  pongoSchema,
+} from '../schema';
 import {
-  PongoDatabaseSchemaComponent,
-  pongoCollectionsSchema,
-  pongoDatabaseSchemaFromDumboComponent,
-  pongoDatabaseSchemaFromPongoSchema,
+  findPongoDatabaseComponent,
+  materializePongoDatabaseComponent,
 } from './pongoDatabaseSchemaComponent';
 
-const collectionFactory = (
-  schema: ReturnType<typeof pongoSchema.collection>,
-): PongoCollectionSchemaComponentType =>
-  PongoCollectionSchemaComponent({
+const emptySQL = () => SQL``;
+const unusedSQLBuilder: PongoCollectionSQLBuilder = {
+  createCollection: emptySQL,
+  insertOne: emptySQL,
+  insertMany: emptySQL,
+  insertOrReplace: emptySQL,
+  updateOne: emptySQL,
+  replaceOne: emptySQL,
+  updateMany: emptySQL,
+  deleteOne: emptySQL,
+  deleteMany: emptySQL,
+  replaceMany: emptySQL,
+  deleteManyByIds: emptySQL,
+  findOne: emptySQL,
+  find: emptySQL,
+  countDocuments: emptySQL,
+  rename: emptySQL,
+  drop: emptySQL,
+};
+
+const materialize = (definition: ReturnType<typeof pongoSchema.db>) =>
+  materializePongoDatabaseComponent({
     driverType: 'test:test',
-    definition: schema,
-    migrations: [sqlMigration(`${schema.tableName}:001`, [SQL`SELECT 1`])],
-    sqlBuilder: {} as never,
+    databaseName: 'app',
+    defaultSchemaName: 'public',
+    definition,
+    sqlBuilderFor: () => unusedSQLBuilder,
+    migrationsFor: (component, context) =>
+      isPongoCollectionComponent(component)
+        ? [
+            sqlMigration(
+              `${context.databaseSchemaName}.${component.tableName}:table`,
+              [SQL`SELECT 1`],
+            ),
+          ]
+        : [],
   });
 
-describe('PongoDatabaseSchemaComponent', () => {
-  it('uses Dumbo database component identity with Pongo kind', () => {
-    const component = PongoDatabaseSchemaComponent({
-      driverType: 'test:test',
-      definition: pongoSchema.db('app', {
-        users: pongoSchema.collection('users'),
-      }),
-      collectionFactory,
-    });
-
-    assert.strictEqual(
-      component.schemaComponentKey,
-      'sc:dumbo:database:pongo:app',
-    );
-    assert.strictEqual(component.databaseKind, 'pongo');
-    assert.strictEqual(component.collections.length, 1);
-  });
-
-  it('adds collection components and migrations when collection is created lazily', () => {
-    const component = PongoDatabaseSchemaComponent({
-      driverType: 'test:test',
-      definition: pongoSchema.db('app', {}),
-      collectionFactory,
-    });
-
-    const collection = component.collection(pongoSchema.collection('users'));
-
-    assert.strictEqual(collection.collectionName, 'users');
-    assert.strictEqual(component.collections.length, 1);
-    assert.strictEqual(
-      component.components.has(
-        `sc:dumbo:table:pongo_collection:${dumboSchema.schema.defaultName}:users`,
-      ),
-      true,
-    );
-    assert.strictEqual(component.migrations.length, 1);
-  });
-
-  it('keeps same collection names in different schemas as separate components', () => {
-    const component = PongoDatabaseSchemaComponent({
-      driverType: 'test:test',
-      definition: pongoSchema.db('app', {}),
-      collectionFactory,
-    });
-
-    const defaultUsers = component.collection(pongoSchema.collection('users'));
-    const crmUsers = component.collection(
-      pongoSchema.collection('users', { schema: 'crm' }),
-    );
-
-    assert.notStrictEqual(defaultUsers, crmUsers);
-    assert.strictEqual(component.collections.length, 2);
-    assert.deepStrictEqual(
-      component.collections.map((collection) => collection.schemaComponentKey),
-      [
-        `sc:dumbo:table:pongo_collection:${dumboSchema.schema.defaultName}:users`,
-        'sc:dumbo:table:pongo_collection:crm:users',
-      ],
-    );
-  });
-
-  it('uses collections already bound by Pongo database schemas', () => {
-    const component = PongoDatabaseSchemaComponent({
-      driverType: 'test:test',
-      definition: pongoSchema.database('app', {
-        crm: pongoSchema.schema('crm', {
+describe('materializing a Pongo database declaration', () => {
+  it('materializes a Pongo database as a Dumbo database component', () => {
+    const component = materialize(
+      pongoSchema.db('app', {
+        collections: {
           users: pongoSchema.collection('users'),
-        }),
-        audit: pongoSchema.schema('audit', {
-          users: pongoSchema.collection('users'),
-        }),
-      }),
-      collectionFactory,
-    });
-
-    assert.deepStrictEqual(
-      component.collections.map((collection) => collection.schemaComponentKey),
-      [
-        'sc:dumbo:table:pongo_collection:crm:users',
-        'sc:dumbo:table:pongo_collection:audit:users',
-      ],
-    );
-    assert.strictEqual(component.migrations.length, 2);
-  });
-
-  it('uses Dumbo table identity as the collection URN shape', () => {
-    const collection = PongoCollectionSchemaComponent({
-      driverType: 'test:test',
-      definition: pongoSchema.collection('users'),
-      sqlBuilder: {} as never,
-    });
-
-    expectTypeOf(
-      collection.schemaComponentKey,
-    ).toMatchTypeOf<PongoCollectionURN>();
-    assert.strictEqual(
-      collection.schemaComponentKey,
-      `sc:dumbo:table:pongo_collection:${dumboSchema.schema.defaultName}:users`,
-    );
-    assert.strictEqual(
-      collection.databaseSchemaName,
-      dumboSchema.schema.defaultName,
-    );
-  });
-});
-
-describe('pongoCollectionsSchema', () => {
-  it('wraps Pongo database components as an opaque Dumbo feature', () => {
-    const feature = pongoCollectionsSchema(
-      'app',
-      pongoSchema.db({
-        users: pongoSchema.collection('users'),
-      }),
-      {
-        driverType: 'test:test',
-        collectionFactory,
-      },
-    );
-
-    assert.strictEqual(
-      feature.schemaComponentKey,
-      'sc:dumbo:feature:pongo_collections:app',
-    );
-    assert.strictEqual(
-      feature.database.schemaComponentKey,
-      'sc:dumbo:database:pongo:app',
-    );
-    assert.strictEqual(feature.database.databaseKind, 'pongo');
-    assert.strictEqual(feature.migrations.length, 1);
-
-    const database = feature.components.get('sc:dumbo:database:pongo:app');
-    const collections = Array.from(database?.components.values() ?? []);
-
-    assert.strictEqual(collections.length, 1);
-    assert.strictEqual(
-      (collections[0] as PongoCollectionSchemaComponentType | undefined)
-        ?.collectionName,
-      'users',
-    );
-  });
-});
-
-describe('pongoDatabaseSchemaFromPongoSchema', () => {
-  it('keeps plain Pongo DB definitions compatible', () => {
-    const component = pongoDatabaseSchemaFromPongoSchema({
-      databaseName: 'app',
-      driverType: 'test:test',
-      definition: pongoSchema.db({
-        users: pongoSchema.collection('users'),
-      }),
-      collectionFactory,
-    });
-
-    assert.strictEqual(component.definition.name, 'app');
-    assert.strictEqual(component.collections.length, 1);
-  });
-
-  it('gets a Pongo database component from a database schema component', () => {
-    const feature = pongoCollectionsSchema(
-      'app',
-      pongoSchema.db({
-        users: pongoSchema.collection('users'),
-      }),
-      {
-        driverType: 'test:test',
-        collectionFactory,
-      },
-    );
-    const database = databaseSchemaComponent({
-      databaseName: 'app',
-      components: [feature],
-    });
-
-    const component = pongoDatabaseSchemaFromDumboComponent({
-      databaseName: 'app',
-      definition: database,
-    });
-
-    assert.strictEqual(
-      component.schemaComponentKey,
-      feature.database.schemaComponentKey,
-    );
-    assert.strictEqual(component.collections.length, 1);
-  });
-
-  it('ignores non-Pongo table children in collections', () => {
-    const component = PongoDatabaseSchemaComponent({
-      driverType: 'test:test',
-      definition: pongoSchema.db('app', {}),
-      collectionFactory,
-    });
-
-    component.addComponent(
-      dumboSchema.table('users', {
-        columns: {
-          id: dumboSchema.column('id', SQL.column.type.Varchar('max')),
         },
       }),
     );
-    component.addComponent(
-      PongoCollectionSchemaComponent({
-        driverType: 'test:test',
-        definition: pongoSchema.collection('events'),
-        sqlBuilder: {} as never,
+
+    assert.strictEqual(isDatabaseComponent(component), true);
+    assert.strictEqual(component.databaseName, 'app');
+    assert.strictEqual(component.schemas.public?.schemaName, 'public');
+    assert.strictEqual(component.collections.length, 1);
+  });
+
+  it('registers a lazily created collection and its migrations in the live tree', () => {
+    const component = materialize(pongoSchema.db('app', { collections: {} }));
+
+    const collection = component.collection(
+      pongoSchema.collection('users'),
+      'public',
+    );
+
+    assert.strictEqual(collection.collectionName, 'users');
+    assert.strictEqual(component.collections.length, 1);
+    assert.strictEqual(component.schemas.public?.tables.users, collection);
+    assert.deepStrictEqual(
+      component.migrations.map((migration) => migration.name),
+      ['public.users:table'],
+    );
+  });
+
+  it('keeps the same collection name in different schemas as separate components', () => {
+    const component = materialize(pongoSchema.db('app', { collections: {} }));
+
+    const publicUsers = component.collection(
+      pongoSchema.collection('users'),
+      'public',
+    );
+    const crmUsers = component.collection(
+      pongoSchema.collection('users'),
+      'crm',
+    );
+
+    assert.notStrictEqual(publicUsers, crmUsers);
+    assert.strictEqual(publicUsers.databaseSchemaName, 'public');
+    assert.strictEqual(crmUsers.databaseSchemaName, 'crm');
+    assert.strictEqual(component.collections.length, 2);
+  });
+
+  it('materializes collections already grouped in named schemas', () => {
+    const component = materialize(
+      pongoSchema.db('app', {
+        schemas: {
+          crm: pongoSchema.schema({
+            users: pongoSchema.collection('users'),
+          }),
+          audit: pongoSchema.schema({
+            users: pongoSchema.collection('users'),
+          }),
+        },
       }),
     );
+
+    assert.deepStrictEqual(
+      component.collections.map((collection) => [
+        collection.databaseSchemaName,
+        collection.tableName,
+      ]),
+      [
+        ['crm', 'users'],
+        ['audit', 'users'],
+      ],
+    );
+  });
+
+  it('reuses a declared collection when its record alias differs from its table name', () => {
+    const component = materialize(
+      pongoSchema.db('app', {
+        schemas: {
+          crm: pongoSchema.schema({
+            crmUsers: pongoSchema.collection('users'),
+          }),
+        },
+      }),
+    );
+    const declared = component.schemas.crm!.tables.crmUsers!;
+
+    const resolved = component.collection(
+      pongoSchema.collection('users'),
+      'crm',
+    );
+
+    assert.strictEqual(resolved, declared);
+    assert.deepStrictEqual(
+      component.migrations.map((migration) => migration.name),
+      ['crm.users:table'],
+    );
+  });
+
+  it('rejects a direct collection constrained to a different default schema', () => {
+    assert.throws(
+      () =>
+        materialize(
+          pongoSchema.db('app', {
+            collections: {
+              entries: pongoSchema.collection('entries', {
+                databaseSchemaName: 'audit',
+              }),
+            },
+          }),
+        ),
+      /Table "entries" is constrained to database schema "audit" and cannot be placed in "public"/,
+    );
+  });
+
+  it('creates fresh contextual tables and indexes without changing declarations', () => {
+    const users = pongoSchema.collection('users', {
+      indexes: {
+        email: pongoSchema.index('users_email_idx', 'email'),
+      },
+    });
+    const component = materialize(
+      pongoSchema.db('app', {
+        schemas: {
+          crm: pongoSchema.schema({ users }),
+        },
+      }),
+    );
+    const materialized = component.schemas.crm!.tables.users!;
+
+    assert.notStrictEqual(materialized, users);
+    assert.notStrictEqual(materialized.indexes.email, users.indexes.email);
+    assert.strictEqual(users.databaseSchemaName, undefined);
+    assert.strictEqual(users.indexes.email.databaseSchemaName, undefined);
+    assert.strictEqual(materialized.databaseSchemaName, 'crm');
+    assert.strictEqual(materialized.indexes.email?.databaseSchemaName, 'crm');
+  });
+
+  it('orders table migrations before migrations owned by index children', () => {
+    const definition = pongoSchema.db('app', {
+      collections: {
+        users: pongoSchema.collection('users', {
+          indexes: {
+            email: pongoSchema.index('users_email_idx', 'email'),
+            document: pongoSchema.index.json('users_data_idx'),
+          },
+        }),
+      },
+    });
+    const component = materializePongoDatabaseComponent({
+      driverType: 'test:test',
+      databaseName: 'app',
+      defaultSchemaName: 'public',
+      definition,
+      sqlBuilderFor: () => unusedSQLBuilder,
+      migrationsFor: (schemaComponent) => {
+        if (isPongoCollectionComponent(schemaComponent)) {
+          return [sqlMigration('users:table', [SQL`SELECT 1`])];
+        }
+        if (isIndexComponent(schemaComponent)) {
+          return [
+            sqlMigration(`users:index:${schemaComponent.indexName}`, [
+              SQL`SELECT 1`,
+            ]),
+          ];
+        }
+        return [];
+      },
+    });
+
+    assert.deepStrictEqual(
+      component.migrations.map((migration) => migration.name),
+      [
+        'users:table',
+        'users:index:users_email_idx',
+        'users:index:users_data_idx',
+      ],
+    );
+  });
+
+  it('preserves collection specialization after materialization', () => {
+    const component = materialize(
+      pongoSchema.db('app', {
+        collections: {
+          users: pongoSchema.collection('users'),
+        },
+      }),
+    );
+    const collection = component.schemas.public!.tables.users!;
+
+    assert.strictEqual(collection[pongoCollectionComponentType], true);
+    assert.strictEqual(isPongoCollectionComponent(collection), true);
+    assert.strictEqual(collection.databaseSchemaName, 'public');
+  });
+
+  it('uses database and schema components directly without an extension wrapper', () => {
+    const component = materialize(
+      pongoSchema.db('app', {
+        collections: {
+          users: pongoSchema.collection('users'),
+        },
+      }),
+    );
+
+    assert.deepStrictEqual(Object.keys(component.extensions), []);
+    assert.deepStrictEqual(Object.keys(component.schemas), ['public']);
+    assert.deepStrictEqual(Object.keys(component.schemas.public!.tables), [
+      'users',
+    ]);
+  });
+
+  it('creates an empty declaration when runtime configuration has none', () => {
+    const component = materializePongoDatabaseComponent({
+      driverType: 'test:test',
+      databaseName: 'app',
+      defaultSchemaName: 'public',
+      sqlBuilderFor: () => unusedSQLBuilder,
+    });
+
+    assert.strictEqual(component.databaseName, 'app');
+    assert.deepStrictEqual(Object.keys(component.schemas.public!.tables), []);
+    assert.strictEqual(component.collections.length, 0);
+  });
+
+  it('finds a materialized Pongo database inside a Dumbo component tree', () => {
+    const database = materialize(
+      pongoSchema.db('app', {
+        collections: {
+          users: pongoSchema.collection('users'),
+        },
+      }),
+    );
+    const root = dumboSchema.extension('root', { database });
+
+    assert.strictEqual(findPongoDatabaseComponent(root, 'app'), database);
+  });
+
+  it('does not expose regular Dumbo tables as Pongo collections', () => {
+    const component = materialize(pongoSchema.db('app', { collections: {} }));
+    component.editor.setTable(
+      'public',
+      'regularUsers',
+      dumboSchema.table('users'),
+    );
+    component.collection(pongoSchema.collection('events'), 'public');
 
     assert.deepStrictEqual(
       component.collections.map((collection) => collection.collectionName),

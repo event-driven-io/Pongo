@@ -1,9 +1,22 @@
 export * from './components';
-export * from './componentDiscovery';
 export * from './databaseMetadata';
 export * from './dumboSchema';
-export * from './expandSchemaComponent';
-export * from './featureSchemaComponent';
 export * from './migrators';
-export * from './schemaComponent';
+export {
+  createSchemaComponent,
+  findComponent,
+  findComponents,
+  genericComponentType,
+  isSchemaComponent,
+  schemaComponent,
+  schemaComponentType,
+  type AnySchemaComponent,
+  type SchemaComponent,
+  type SchemaComponentKind,
+  type SchemaComponentOptions,
+  type SchemaComponentPredicate,
+  type SchemaComponentRecord,
+} from './schemaComponent';
+export * from './schemaMaterializer';
+export * from './extensionComponent';
 export * from './sqlMigration';

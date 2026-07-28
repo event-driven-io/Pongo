@@ -1,20 +1,18 @@
-import { dumbo, JSONSerializer } from '@event-driven-io/dumbo';
+import { dumbo } from '@event-driven-io/dumbo';
 import {
   sqlite3DumboDriver as dumboDriver,
   SQLite3DriverType,
   type SQLiteTransactionOptions,
 } from '@event-driven-io/dumbo/sqlite3';
 import {
-  PongoCollectionSchemaComponent,
   PongoDatabase,
   pongoDriverRegistry,
-  pongoDatabaseSchemaFromPongoSchema,
   type PongoDb,
   type PongoDriver,
   type PongoDriverOptions,
   withPongoTransactionOptions,
 } from '../../../core';
-import { pongoCollectionSQLiteMigrations, sqliteSQLBuilder } from '../core';
+import { materializePongoSQLiteDatabaseComponent } from '../core';
 
 export type SQLitePongoClientOptions = object;
 
@@ -29,8 +27,14 @@ const sqlite3PongoDriver: PongoDriver<
   SQLiteDatabaseDriverOptions
 > = {
   driverType: SQLite3DriverType,
+  dumboDriver,
   databaseFactory: (options) => {
-    const databaseName = options.databaseName ?? 'db:default';
+    const { databaseName, defaultSchemaName } = options;
+    if (databaseName === undefined || defaultSchemaName === undefined) {
+      throw new Error(
+        'SQLite driver requires resolved database and default schema names',
+      );
+    }
     const connectionOptions = withPongoTransactionOptions<
       SQLitePongoClientOptions,
       SQLiteTransactionOptions
@@ -45,22 +49,15 @@ const sqlite3PongoDriver: PongoDriver<
         ...connectionOptions,
         serialization: { serializer: options.serializer },
       }),
-      schemaComponent: pongoDatabaseSchemaFromPongoSchema({
+      schemaComponent: materializePongoSQLiteDatabaseComponent({
         driverType: SQLite3DriverType,
         databaseName,
-        collectionFactory: (schema) =>
-          PongoCollectionSchemaComponent({
-            driverType: SQLite3DriverType,
-            definition: schema,
-            migrations: pongoCollectionSQLiteMigrations(schema),
-            sqlBuilder: sqliteSQLBuilder(
-              schema,
-              options.serialization?.serializer ?? JSONSerializer,
-            ),
-          }),
+        defaultSchemaName,
+        serializer: options.serializer,
         definition: options.schema?.definition,
       }),
       databaseName,
+      defaultSchemaName,
     });
   },
 };

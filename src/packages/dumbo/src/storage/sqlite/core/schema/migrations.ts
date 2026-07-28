@@ -1,17 +1,18 @@
 import {
-  DatabaseURNType,
   assertLogicalSchemaComponentMapping,
-  findExpandedSchemaComponentsOfType,
+  findComponents,
+  isDatabaseComponent,
   registerDefaultMigratorOptions,
-  type AnyDatabaseSchemaComponent,
+  type AnyDatabaseComponent,
   type MigratorOptions,
   type SchemaComponent,
 } from '../../../../core';
 
 const validateLogicalSchemaMapping = (component: SchemaComponent): void => {
-  for (const database of findExpandedSchemaComponentsOfType<AnyDatabaseSchemaComponent>(
+  for (const database of findComponents(
     component,
-    DatabaseURNType,
+    (candidate): candidate is AnyDatabaseComponent =>
+      isDatabaseComponent(candidate),
   )) {
     assertLogicalSchemaComponentMapping(database);
   }

@@ -98,11 +98,16 @@ describe('Pongo D1 connections', () => {
 
   it('runs schema-prefixed migrations and collection calls', async () => {
     const collectionName = uniqueCollectionName();
-    const schemaTableName = `crm_${collectionName}`;
+    const escapedCollectionName = collectionName.replaceAll('_', '__');
+    const schemaTableName = `pongo_crm_table_${escapedCollectionName}`;
     const emailIndexName = `${collectionName}_email_idx`;
     const uniqueIndexName = `${collectionName}_external_id_uq`;
     const documentIndexName = `${collectionName}_data_idx`;
     const customIndexName = `${collectionName}_custom_idx`;
+    const physicalEmailIndexName = `${schemaTableName}_index_${emailIndexName.replaceAll('_', '__')}`;
+    const physicalUniqueIndexName = `${schemaTableName}_index_${uniqueIndexName.replaceAll('_', '__')}`;
+    const physicalDocumentIndexName = `${schemaTableName}_index_${documentIndexName.replaceAll('_', '__')}`;
+    const physicalCustomIndexName = `${schemaTableName}_index_${customIndexName.replaceAll('_', '__')}`;
     const pongo = pongoClient({
       driver: databaseDriver,
       connectionOptions: {
@@ -112,21 +117,28 @@ describe('Pongo D1 connections', () => {
       schema: {
         definition: pongoSchema.client({
           database: pongoSchema.db({
-            users: pongoSchema.collection(collectionName),
-            crmUsers: pongoSchema.collection(collectionName, {
-              schema: 'crm',
-              indexes: [
-                pongoSchema.index(emailIndexName, 'email'),
-                pongoSchema.index.unique(uniqueIndexName, ['external', 'id']),
-                pongoSchema.index.json(documentIndexName),
-                {
-                  name: customIndexName,
-                  type: 'custom_json_index',
-                  sql: ({ tableReference }) =>
-                    SQL`CREATE INDEX IF NOT EXISTS ${SQL.identifier(customIndexName)} ON ${tableReference} (data)`,
-                },
-              ],
-            }),
+            schemas: {
+              main: pongoSchema.schema({
+                users: pongoSchema.collection(collectionName),
+              }),
+              crm: pongoSchema.schema({
+                crmUsers: pongoSchema.collection(collectionName, {
+                  indexes: {
+                    email: pongoSchema.index(emailIndexName, 'email'),
+                    externalId: pongoSchema.index.unique(uniqueIndexName, [
+                      'external',
+                      'id',
+                    ]),
+                    document: pongoSchema.index.json(documentIndexName),
+                    custom: pongoSchema.index.custom(
+                      customIndexName,
+                      ({ tableReference, indexReference }) =>
+                        SQL`CREATE INDEX IF NOT EXISTS ${indexReference} ON ${tableReference} (data)`,
+                    ),
+                  },
+                }),
+              }),
+            },
           }),
         }),
       },
@@ -134,14 +146,13 @@ describe('Pongo D1 connections', () => {
     const pool = d1Pool({ database });
 
     try {
-      await pongo.db().schema.migrate();
-      await pongo
-        .db()
+      const db = pongo.db('database');
+      await db.schema.migrate();
+      await db
         .collection(collectionName)
         .insertOne({ _id: 'default-user', email: 'default@test' });
-      await pongo
-        .db()
-        .collection(collectionName, { schema: 'crm' })
+      await db
+        .collection(collectionName, { schemaName: 'crm' })
         .insertOne({ _id: 'crm-user', email: 'crm@test' });
 
       const objects = await pool.execute.query<{ name: string; type: string }>(
@@ -151,10 +162,10 @@ describe('Pongo D1 connections', () => {
           WHERE name IN (
             ${collectionName},
             ${schemaTableName},
-            ${emailIndexName},
-            ${uniqueIndexName},
-            ${documentIndexName},
-            ${customIndexName}
+            ${physicalEmailIndexName},
+            ${physicalUniqueIndexName},
+            ${physicalDocumentIndexName},
+            ${physicalCustomIndexName}
           )
           ORDER BY type, name`,
       );
@@ -166,8 +177,13 @@ describe('Pongo D1 connections', () => {
       );
 
       assert.deepStrictEqual(objects.rows, [
-        { name: collectionName, type: 'table' },
-        { name: schemaTableName, type: 'table' },
+        { name: physicalCustomIndexName, type: 'index' },
+        { name: physicalDocumentIndexName, type: 'index' },
+        { name: physicalEmailIndexName, type: 'index' },
+        { name: physicalUniqueIndexName, type: 'index' },
+        ...[collectionName, schemaTableName]
+          .sort()
+          .map((name) => ({ name, type: 'table' })),
       ]);
       assert.strictEqual(defaultCount.rows[0]?.count, 1);
       assert.strictEqual(schemaCount.rows[0]?.count, 1);

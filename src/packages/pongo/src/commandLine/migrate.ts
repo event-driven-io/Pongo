@@ -11,9 +11,7 @@ import {
   pongoDriverRegistry,
   pongoSchema,
   type AnyPongoDriverOptions,
-  type PongoCollectionSchema,
   type PongoDatabaseFactoryOptions,
-  type PongoDocument,
 } from '../core';
 import { loadConfigFile } from './configFile';
 
@@ -211,7 +209,7 @@ const getMigrations = ({
   const dbDefinition = pongoSchema.db.from(databaseName, collectionNames);
 
   const driverOptions: PongoDatabaseFactoryOptions<
-    Record<string, PongoCollectionSchema<PongoDocument>>,
+    typeof dbDefinition,
     AnyPongoDriverOptions
   > = {
     schema: { definition: dbDefinition },

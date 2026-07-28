@@ -62,7 +62,9 @@ describe('MongoDB Compatibility Tests', () => {
         autoMigration: 'CreateOrUpdate',
         definition: pongoSchema.client({
           database: pongoSchema.db(dbName, {
-            users: pongoSchema.collection<User>('users'),
+            collections: {
+              users: pongoSchema.collection<User>('users'),
+            },
           }),
         }),
       },

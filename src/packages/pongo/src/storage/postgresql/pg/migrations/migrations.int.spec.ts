@@ -17,33 +17,45 @@ describe('Migration Integration Tests', () => {
   let client: PongoClient;
 
   const crmUsers = pongoSchema.collection('users', {
-    schema: 'crm',
-    indexes: [
-      pongoSchema.index('users_email_idx', 'email'),
-      pongoSchema.index.unique('users_external_id_uq', ['external', 'id']),
-      pongoSchema.index.json('users_data_idx'),
-      {
-        name: 'users_custom_data_idx',
-        type: 'custom_jsonb_path',
-        sql: ({ tableReference }) =>
-          SQL`CREATE INDEX IF NOT EXISTS users_custom_data_idx ON ${tableReference} USING GIN (data jsonb_path_ops)`,
-      },
-    ],
+    indexes: {
+      email: pongoSchema.index('users_email_idx', 'email'),
+      externalId: pongoSchema.index.unique('users_external_id_uq', [
+        'external',
+        'id',
+      ]),
+      document: pongoSchema.index.json('users_data_idx'),
+      custom: pongoSchema.index.custom(
+        'users_custom_data_idx',
+        ({ tableReference, indexReference }) =>
+          SQL`CREATE INDEX IF NOT EXISTS ${indexReference} ON ${tableReference} USING GIN (data jsonb_path_ops)`,
+      ),
+    },
   });
 
   const schema = pongoSchema.client({
     database: pongoSchema.db({
-      users: pongoSchema.collection('users'),
-      explicitDefaultUsers: pongoSchema.collection('explicit_default_users', {
-        schema: pongoSchema.schema.defaultName,
-        indexes: [pongoSchema.index('explicit_default_email_idx', 'email')],
-      }),
-      roles: pongoSchema.collection('roles'),
-      crmUsers,
-      auditUsers: pongoSchema.collection('users', {
-        schema: 'audit',
-        indexes: [pongoSchema.index('audit_users_email_idx', 'email')],
-      }),
+      schemas: {
+        public: pongoSchema.schema({
+          users: pongoSchema.collection('users'),
+          explicitDefaultUsers: pongoSchema.collection(
+            'explicit_default_users',
+            {
+              indexes: {
+                email: pongoSchema.index('explicit_default_email_idx', 'email'),
+              },
+            },
+          ),
+          roles: pongoSchema.collection('roles'),
+        }),
+        crm: pongoSchema.schema({ crmUsers }),
+        audit: pongoSchema.schema({
+          auditUsers: pongoSchema.collection('users', {
+            indexes: {
+              email: pongoSchema.index('audit_users_email_idx', 'email'),
+            },
+          }),
+        }),
+      },
     }),
   });
 
@@ -70,8 +82,9 @@ describe('Migration Integration Tests', () => {
     );
   });
 
-  it('should apply multiple migrations sequentially', async () => {
-    await client.db().schema.migrate();
+  it('creates declared tables and indexes in default and named schemas', async () => {
+    const db = client.db('database');
+    await db.schema.migrate();
 
     const usersTableExists = await tableExists(pool.execute, 'users');
     const rolesTableExists = await tableExists(pool.execute, 'roles');
@@ -127,15 +140,25 @@ describe('Migration Integration Tests', () => {
     );
     assert.deepStrictEqual(
       indexNames.rows.map((row) => row.indexname),
-      [],
+      [
+        'audit_users_email_idx',
+        'explicit_default_email_idx',
+        'users_custom_data_idx',
+        'users_data_idx',
+        'users_email_idx',
+        'users_external_id_uq',
+      ],
     );
   });
 
   it('uses default and explicit schemas in runtime collection calls', async () => {
-    await client.db().schema.migrate();
+    const db = client.db('database');
+    await db.schema.migrate();
 
-    const defaultUsers = client.db().collection('users');
-    const crmUsers = client.db().collection('users', { schema: 'crm' });
+    const defaultUsers = db.collection('users');
+    const crmUsers = db.collection('users', {
+      schemaName: 'crm',
+    });
 
     await defaultUsers.insertOne({ _id: 'public-user', email: 'public@test' });
     await crmUsers.insertOne({ _id: 'crm-user', email: 'crm@test' });
@@ -155,29 +178,42 @@ describe('Migration Integration Tests', () => {
     assert.strictEqual(auditCount.rows[0]?.count, 0);
   });
 
-  it('should correctly apply a migration if the hash matches the previous migration with the same name', async () => {
-    await client.db().schema.migrate();
+  it('applies each schema, table, and index migration only once', async () => {
+    const db = client.db('database');
+    const expectedMigrationNames = [
+      'pongoCollection:users:001:createtable',
+      'pongoCollection:explicit_default_users:001:createtable',
+      'pongoIndex:public:explicit_default_users:explicit_default_email_idx:create',
+      'pongoCollection:roles:001:createtable',
+      'pongoSchema:crm:001:create',
+      'pongoCollection:crm:users:001:createtable',
+      'pongoIndex:crm:users:users_email_idx:create',
+      'pongoIndex:crm:users:users_external_id_uq:create',
+      'pongoIndex:crm:users:users_data_idx:create',
+      'pongoIndex:crm:users:users_custom_data_idx:create',
+      'pongoSchema:audit:001:create',
+      'pongoCollection:audit:users:001:createtable',
+      'pongoIndex:audit:users:audit_users_email_idx:create',
+    ];
 
-    // Attempt to run the same migration again with the same content
-    await client.db().schema.migrate();
+    assert.deepStrictEqual(
+      db.schema.migrations.map((migration) => migration.name),
+      expectedMigrationNames,
+    );
+    await db.schema.migrate();
+    await db.schema.migrate();
 
-    const migrationNames = await pool.execute.query<{ name: number }>(
-      SQL`SELECT name FROM dmb_migrations`,
+    const migrationNames = await pool.execute.query<{ name: string }>(
+      SQL`SELECT name FROM dmb_migrations ORDER BY id`,
     );
     assert.strictEqual(
       migrationNames.rowCount,
-      5,
+      expectedMigrationNames.length,
       'The migration should only be applied once.',
     );
-    assert.deepEqual(
+    assert.deepStrictEqual(
       migrationNames.rows.map((r) => r.name),
-      [
-        'pongoCollection:users:001:createtable',
-        'pongoCollection:explicit_default_users:001:createtable',
-        'pongoCollection:roles:001:createtable',
-        'pongoCollection:crm:users:001:createtable',
-        'pongoCollection:audit:users:001:createtable',
-      ],
+      expectedMigrationNames,
     );
   });
 });

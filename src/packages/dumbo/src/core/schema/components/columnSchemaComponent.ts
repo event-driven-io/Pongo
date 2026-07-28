@@ -1,52 +1,41 @@
 import type { AnyColumnTypeToken, SQLColumnToken } from '../../sql';
 import {
-  schemaComponent,
+  createSchemaComponent,
+  schemaComponentType,
+  type AnySchemaComponent,
   type SchemaComponent,
   type SchemaComponentOptions,
 } from '../schemaComponent';
 
-export type ColumnURNType = 'sc:dumbo:column';
-export type ColumnURN<ColumnName extends string = string> =
-  `${ColumnURNType}:${ColumnName}`;
-
-export const ColumnURNType: ColumnURNType = 'sc:dumbo:column';
-export const ColumnURN = <ColumnName extends string = string>({
-  name,
-}: {
-  name: ColumnName;
-}): ColumnURN<ColumnName> => `${ColumnURNType}:${name}`;
+export const columnComponentType: unique symbol = Symbol(
+  'dumbo.schemaComponent.column',
+);
 
 export type ColumnSchemaComponent<
   ColumnType extends AnyColumnTypeToken | string = AnyColumnTypeToken | string,
   ColumnName extends string = string,
-> = SchemaComponent<
-  ColumnURN<ColumnName>,
-  Readonly<{
-    columnName: ColumnName;
-  }>
-> &
+> = SchemaComponent<typeof columnComponentType> &
+  Readonly<{ columnName: ColumnName }> &
   SQLColumnToken<ColumnType>;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyColumnSchemaComponent = ColumnSchemaComponent<any>;
+export type AnyColumnSchemaComponent = ColumnSchemaComponent<
+  AnyColumnTypeToken | string,
+  string
+>;
 
 export type ColumnSchemaComponentOptions<
   ColumnType extends AnyColumnTypeToken | string = AnyColumnTypeToken | string,
 > = Omit<SQLColumnToken<ColumnType>, 'name' | 'sqlTokenType'> &
-  SchemaComponentOptions;
+  Omit<SchemaComponentOptions, 'components'>;
 
 export const columnSchemaComponent = <
-  const ColumnType extends AnyColumnTypeToken | string =
-    AnyColumnTypeToken | string,
-  const TOptions extends ColumnSchemaComponentOptions<ColumnType> =
-    ColumnSchemaComponentOptions<ColumnType>,
-  const ColumnName extends string = string,
+  const ColumnType extends AnyColumnTypeToken | string,
+  const Options extends ColumnSchemaComponentOptions<ColumnType>,
+  const ColumnName extends string,
 >(
-  params: {
-    columnName: ColumnName;
-  } & TOptions,
+  params: { columnName: ColumnName } & Options,
 ): ColumnSchemaComponent<ColumnType, ColumnName> &
-  (TOptions extends { notNull: true } | { primaryKey: true }
+  (Options extends { notNull: true } | { primaryKey: true }
     ? { notNull: true }
     : { notNull?: false }) => {
   const {
@@ -56,25 +45,30 @@ export const columnSchemaComponent = <
     unique,
     primaryKey,
     default: defaultValue,
-    ...schemaOptions
+    migrations,
   } = params;
+  const base = createSchemaComponent(columnComponentType, {
+    migrations,
+  });
 
-  const sc = schemaComponent(ColumnURN({ name: columnName }), schemaOptions);
+  Object.defineProperties(base, {
+    columnName: { value: columnName, enumerable: true },
+    sqlTokenType: { value: 'SQL_COLUMN', enumerable: true },
+    name: { value: columnName, enumerable: true },
+    type: { value: type, enumerable: true },
+    notNull: { value: notNull, enumerable: true },
+    unique: { value: unique, enumerable: true },
+    primaryKey: { value: primaryKey, enumerable: true },
+    default: { value: defaultValue, enumerable: true },
+  });
 
-  const result: Record<string, unknown> = {
-    ...sc,
-    columnName,
-    notNull,
-    unique,
-    primaryKey,
-    defaultValue,
-    sqlTokenType: 'SQL_COLUMN',
-    name: columnName,
-    type,
-  };
-
-  return result as ColumnSchemaComponent<ColumnType, ColumnName> &
-    (TOptions extends { notNull: true } | { primaryKey: true }
+  return base as unknown as ColumnSchemaComponent<ColumnType, ColumnName> &
+    (Options extends { notNull: true } | { primaryKey: true }
       ? { notNull: true }
       : { notNull?: false });
 };
+
+export const isColumnSchemaComponent = (
+  component: AnySchemaComponent,
+): component is AnyColumnSchemaComponent =>
+  component[schemaComponentType] === columnComponentType;

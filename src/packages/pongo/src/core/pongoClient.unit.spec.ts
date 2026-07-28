@@ -1,14 +1,9 @@
 import assert from 'node:assert';
-import { dumboSchema, type DatabaseDriverType } from '@event-driven-io/dumbo';
+import type { DatabaseDriverType } from '@event-driven-io/dumbo';
 import { describe, expectTypeOf, it } from 'vitest';
 import type { PongoDatabaseFactoryOptions, PongoDriver } from './drivers';
 import { pongoClient } from './pongoClient';
-import { pongoSchema, proxyPongoDbWithSchema } from './schema';
-import {
-  pongoClientSchemaFromDumboComponent,
-  pongoCollectionsSchema,
-} from './database';
-import { PongoCollectionSchemaComponent } from './collection';
+import { pongoSchema, projectPongoDb } from './schema';
 import type {
   PongoCollection,
   PongoDBCollectionOptions,
@@ -23,33 +18,45 @@ const testPongoDb = (options: {
   databaseName: string;
   onConnect: (databaseName: string) => void;
   onClose: (databaseName: string) => void;
-}): PongoDb<TestDriverType> => ({
-  driverType: TestDriverType,
-  databaseName: options.databaseName,
-  connect: () => {
-    options.onConnect(options.databaseName);
-    return Promise.resolve();
-  },
-  close: () => {
-    options.onClose(options.databaseName);
-    return Promise.resolve();
-  },
-  collection: () =>
-    ({
-      close: () => Promise.resolve(),
-    }) as never,
-  collections: () => [],
-  transaction: () => ({}) as never,
-  withTransaction: () => Promise.resolve(undefined as never),
-  schema: {
-    component: {} as never,
-    migrate: () => Promise.resolve({ applied: [], skipped: [] }),
-  },
-  sql: {
-    query: () => Promise.resolve([]),
-    command: () => Promise.resolve({ rows: [], rowCount: 0, changes: 0 }),
-  },
-});
+}): PongoDb<TestDriverType> => {
+  const schema = Object.assign(
+    () => ({
+      collection: () => ({}) as never,
+      collections: () => [],
+    }),
+    {
+      component: {} as never,
+      definition: pongoSchema.db({ collections: {} }),
+      migrations: [],
+      migrate: () => Promise.resolve({ applied: [], skipped: [] }),
+    },
+  );
+
+  return {
+    driverType: TestDriverType,
+    databaseName: options.databaseName,
+    connect: () => {
+      options.onConnect(options.databaseName);
+      return Promise.resolve();
+    },
+    close: () => {
+      options.onClose(options.databaseName);
+      return Promise.resolve();
+    },
+    collection: () =>
+      ({
+        close: () => Promise.resolve(),
+      }) as never,
+    collections: () => [],
+    transaction: () => ({}) as never,
+    withTransaction: () => Promise.resolve(undefined as never),
+    schema,
+    sql: {
+      query: () => Promise.resolve([]),
+      command: () => Promise.resolve({ rows: [], rowCount: 0, changes: 0 }),
+    },
+  };
+};
 
 type TestPongoDriverOptions = {
   connectionString?: string;
@@ -62,13 +69,35 @@ type TestPongoDriverOptions = {
   };
 };
 
-const testPongoDriver = () => {
+const testPongoDriver = ({
+  supportsMultipleDatabases = true,
+  parseDatabaseName = (connectionString?: string) =>
+    connectionString ? 'parsed-default' : undefined,
+}: {
+  supportsMultipleDatabases?: boolean;
+  parseDatabaseName?: (connectionString?: string) => string | undefined;
+} = {}) => {
   const databaseFactoryCalls: PongoDatabaseFactoryOptions[] = [];
   const connected: string[] = [];
   const closed: string[] = [];
 
   const driver = {
     driverType: TestDriverType,
+    dumboDriver: {
+      driverType: TestDriverType,
+      databaseMetadata: {
+        databaseType: 'Test',
+        defaultDatabaseName: 'driver-default',
+        defaultSchemaName: 'native',
+        capabilities: {
+          supportsMultipleDatabases,
+          supportsSchemas: true,
+          supportsFunctions: false,
+        },
+        parseDatabaseName,
+        tableExists: () => Promise.resolve(false),
+      },
+    } as never,
     databaseFactory: (options) => {
       databaseFactoryCalls.push(options);
 
@@ -89,12 +118,93 @@ const testPongoDriver = () => {
 };
 
 describe('pongoClient', () => {
+  it('resolves client database and default schema settings once', () => {
+    const { driver, databaseFactoryCalls } = testPongoDriver();
+    const client = pongoClient({
+      driver,
+      databaseName: 'application',
+      defaultSchemaName: 'public',
+    });
+
+    client.db();
+
+    assert.strictEqual(databaseFactoryCalls[0]?.databaseName, 'application');
+    assert.strictEqual(databaseFactoryCalls[0]?.defaultSchemaName, 'public');
+  });
+
+  it('allows database settings to override client defaults', () => {
+    const { driver, databaseFactoryCalls } = testPongoDriver();
+    const client = pongoClient({
+      driver,
+      databaseName: 'application',
+      defaultSchemaName: 'public',
+    });
+
+    client.db('reporting', { defaultSchemaName: 'analytics' });
+
+    assert.strictEqual(databaseFactoryCalls[0]?.databaseName, 'reporting');
+    assert.strictEqual(databaseFactoryCalls[0]?.defaultSchemaName, 'analytics');
+  });
+
+  it('uses a declared database name before driver metadata', () => {
+    const { driver, databaseFactoryCalls } = testPongoDriver();
+    const client = pongoClient({
+      driver,
+      connectionString: 'test://connection',
+      schema: {
+        definition: pongoSchema.db('declared', { collections: {} }),
+      },
+    });
+
+    client.db();
+
+    assert.strictEqual(databaseFactoryCalls[0]?.databaseName, 'declared');
+  });
+
+  it('uses connection metadata before the driver database default', () => {
+    const { driver, databaseFactoryCalls } = testPongoDriver();
+    const parsedClient = pongoClient({
+      driver,
+      connectionString: 'test://connection',
+    });
+
+    parsedClient.db();
+    assert.strictEqual(databaseFactoryCalls[0]?.databaseName, 'parsed-default');
+
+    const fallback = testPongoDriver({
+      parseDatabaseName: () => undefined,
+    });
+    pongoClient({ driver: fallback.driver }).db();
+    assert.strictEqual(
+      fallback.databaseFactoryCalls[0]?.databaseName,
+      'driver-default',
+    );
+  });
+
+  it('resolves migration-table settings with database precedence', () => {
+    const { driver, databaseFactoryCalls } = testPongoDriver();
+    const client = pongoClient({
+      driver,
+      migrationTable: { tableName: 'client_migrations' },
+    });
+
+    client.db('reporting', {
+      migrationTable: { tableName: 'reporting_migrations' },
+    });
+
+    assert.deepStrictEqual(databaseFactoryCalls[0]?.migrationTable, {
+      tableName: 'reporting_migrations',
+    });
+  });
+
   it('keeps typed client schema access', () => {
     type User = PongoDocument & { email: string };
     const { driver } = testPongoDriver();
     const schema = pongoSchema.client({
       app: pongoSchema.db('app', {
-        users: pongoSchema.collection<User>('users'),
+        collections: {
+          users: pongoSchema.collection<User>('users'),
+        },
       }),
     });
 
@@ -114,13 +224,15 @@ describe('pongoClient', () => {
     type User = PongoDocument & { email: string };
     type Audit = PongoDocument & { reason: string };
     const { driver } = testPongoDriver();
-    const schema = pongoSchema.database('app', {
-      crm: pongoSchema.schema('crm', {
-        users: pongoSchema.collection<User>('users'),
-      }),
-      audit: pongoSchema.schema('audit', {
-        entries: pongoSchema.collection<Audit>('entries'),
-      }),
+    const schema = pongoSchema.db('app', {
+      schemas: {
+        crm: pongoSchema.schema('crm', {
+          users: pongoSchema.collection<User>('users'),
+        }),
+        audit: pongoSchema.schema('audit', {
+          auditLogs: pongoSchema.collection<Audit>('audit_logs'),
+        }),
+      },
     });
 
     const _client = pongoClient({
@@ -133,7 +245,7 @@ describe('pongoClient', () => {
     expectTypeOf<Client['app']['crm']['users']>().toEqualTypeOf<
       PongoCollection<User>
     >();
-    expectTypeOf<Client['app']['audit']['entries']>().toEqualTypeOf<
+    expectTypeOf<Client['app']['audit']['auditLogs']>().toEqualTypeOf<
       PongoCollection<Audit>
     >();
   });
@@ -151,34 +263,64 @@ describe('pongoClient', () => {
         name: string,
         options?: PongoDBCollectionOptions<T, Payload>,
       ) => {
-        const schema =
-          typeof options?.schema === 'string' ? options.schema : undefined;
+        const schema = options?.schemaName;
 
         collectionCalls.push({ name, schema });
         return { name, schema } as never;
       },
     };
-    const schema = pongoSchema.database('app', {
-      crm: pongoSchema.schema('crm', {
-        users: pongoSchema.collection<User>('users'),
-      }),
+    const schema = pongoSchema.db('app', {
+      schemas: {
+        crm: pongoSchema.schema('crm', {
+          users: pongoSchema.collection<User>('users'),
+        }),
+      },
     });
-    const collections = new Map<string, PongoCollection<PongoDocument>>();
-    const projected = proxyPongoDbWithSchema(db, schema, collections);
+    const projected = projectPongoDb(db, schema);
 
     assert.deepStrictEqual(projected.crm.users, {
       name: 'users',
       schema: 'crm',
     });
-    assert.deepStrictEqual(collectionCalls, [
-      { name: 'users', schema: 'crm' },
-      { name: 'users', schema: 'crm' },
-    ]);
+    assert.deepStrictEqual(collectionCalls, [{ name: 'users', schema: 'crm' }]);
     type Projected = typeof projected;
 
     expectTypeOf<Projected['crm']['users']>().toEqualTypeOf<
       PongoCollection<User>
     >();
+  });
+
+  it('rejects projected aliases that conflict with the actual database API', () => {
+    const db = testPongoDb({
+      databaseName: 'app',
+      onConnect: () => undefined,
+      onClose: () => undefined,
+    });
+
+    assert.throws(
+      () =>
+        projectPongoDb(
+          db,
+          pongoSchema.db({
+            collections: {
+              schema: pongoSchema.collection('schema'),
+            },
+          }),
+        ),
+      /collection name schema conflicts with a database API member/,
+    );
+    assert.throws(
+      () =>
+        projectPongoDb(
+          db,
+          pongoSchema.db({
+            schemas: {
+              collection: pongoSchema.schema({}),
+            },
+          }),
+        ),
+      /schema name collection conflicts with a database API member/,
+    );
   });
 
   it('keeps duplicate schema-group collection aliases scoped at runtime', () => {
@@ -195,23 +337,25 @@ describe('pongoClient', () => {
       ) =>
         ({
           name,
-          schema:
-            typeof options?.schema === 'string' ? options.schema : undefined,
+          schema: options?.schemaName,
         }) as never,
     };
-    const schema = pongoSchema.database('app', {
-      crm: pongoSchema.schema('crm', {
-        users: pongoSchema.collection<User>('users'),
-      }),
-      audit: pongoSchema.schema('audit', {
-        users: pongoSchema.collection<User>('users'),
-      }),
+    const schema = pongoSchema.db('app', {
+      schemas: {
+        crm: pongoSchema.schema('crm', {
+          users: pongoSchema.collection<User>('users'),
+        }),
+        audit: pongoSchema.schema('audit', {
+          users: pongoSchema.collection<User>('users'),
+        }),
+      },
     });
-    const collections = new Map<string, PongoCollection<PongoDocument>>();
-    const projected = proxyPongoDbWithSchema(db, schema, collections);
+    const projected = projectPongoDb(db, schema);
 
-    assert.deepStrictEqual(Object.keys(schema.collections), []);
-    assert.strictEqual(projected.users, undefined);
+    assert.strictEqual(
+      (projected as unknown as Record<string, unknown>).users,
+      undefined,
+    );
     assert.deepStrictEqual(projected.crm.users, {
       name: 'users',
       schema: 'crm',
@@ -222,36 +366,96 @@ describe('pongoClient', () => {
     });
   });
 
-  it('projects typed Pongo features from a database schema component tree', () => {
-    type User = PongoDocument & { email: string };
-    const feature = pongoCollectionsSchema(
-      'app',
+  it('projects direct collection aliases onto the database object', () => {
+    const calls: string[] = [];
+    const base = testPongoDb({
+      databaseName: 'app',
+      onConnect: () => undefined,
+      onClose: () => undefined,
+    });
+    const db = {
+      ...base,
+      collection: <T extends PongoDocument, Payload extends PongoDocument = T>(
+        name: string,
+        options?: PongoDBCollectionOptions<T, Payload>,
+      ) => {
+        calls.push(name);
+        return base.collection<T, Payload>(name, options);
+      },
+    };
+    const projected = projectPongoDb(
+      db,
       pongoSchema.db('app', {
-        users: pongoSchema.collection<User>('users'),
+        collections: {
+          users: pongoSchema.collection('users'),
+        },
       }),
-      {
-        driverType: TestDriverType,
-        collectionFactory: (schema) =>
-          PongoCollectionSchemaComponent({
-            driverType: TestDriverType,
-            definition: schema,
-            sqlBuilder: {} as never,
-          }),
-      },
-    );
-    const schema = dumboSchema.database(
-      'app',
-      {},
-      {
-        components: [feature],
-      },
     );
 
-    const definition = pongoClientSchemaFromDumboComponent(schema)?.dbs.app;
+    assert.ok(projected.users);
+    assert.deepStrictEqual(calls, ['users']);
+  });
 
-    assert.deepStrictEqual(Object.keys(definition?.collections ?? {}), [
-      'users',
-    ]);
+  it('projects a database component supplied in the client definition record', () => {
+    type User = PongoDocument & { email: string };
+    const { driver, databaseFactoryCalls } = testPongoDriver();
+    const database = pongoSchema.db('app', {
+      collections: {
+        users: pongoSchema.collection<User>('users'),
+      },
+    });
+    const client = pongoClient({
+      driver,
+      schema: {
+        definition: pongoSchema.client({ app: database }),
+      },
+    });
+
+    const app = client.app;
+
+    assert.strictEqual(app.databaseName, 'app');
+    assert.strictEqual(databaseFactoryCalls[0]?.schema?.definition, database);
+    assert.deepStrictEqual(Object.keys(database.collections), ['users']);
+  });
+
+  it('does not select an unnamed database declaration for an unqualified db call', () => {
+    const { driver, databaseFactoryCalls } = testPongoDriver();
+    const definition = pongoSchema.db({
+      collections: {
+        users: pongoSchema.collection('users'),
+      },
+    });
+    const client = pongoClient({
+      driver,
+      schema: {
+        definition: pongoSchema.client({ reporting: definition }),
+      },
+    });
+
+    client.db();
+
+    assert.strictEqual(databaseFactoryCalls[0]?.databaseName, 'driver-default');
+    assert.strictEqual(databaseFactoryCalls[0]?.schema?.definition, undefined);
+  });
+
+  it('uses an unnamed database declaration when its projected alias is accessed', () => {
+    const { driver, databaseFactoryCalls } = testPongoDriver();
+    const definition = pongoSchema.db({
+      collections: {
+        users: pongoSchema.collection('users'),
+      },
+    });
+    const client = pongoClient({
+      driver,
+      schema: {
+        definition: pongoSchema.client({ reporting: definition }),
+      },
+    });
+
+    const reporting = client.reporting;
+
+    assert.strictEqual(reporting.databaseName, 'reporting');
+    assert.strictEqual(databaseFactoryCalls[0]?.schema?.definition, definition);
   });
 
   it('forwards connection options to the driver database factory', () => {
@@ -282,6 +486,7 @@ describe('pongoClient', () => {
         },
       },
       databaseName: 'custom-db',
+      defaultSchemaName: 'native',
       schema: {},
       serializer: databaseFactoryCalls[0]?.serializer,
       errors: undefined,
@@ -299,6 +504,20 @@ describe('pongoClient', () => {
 
     assert.strictEqual(first, second);
     assert.strictEqual(databaseFactoryCalls.length, 1);
+  });
+
+  it('rejects switching databases for fixed-database drivers', () => {
+    const { driver } = testPongoDriver({
+      supportsMultipleDatabases: false,
+    });
+    const client = pongoClient({ driver });
+
+    client.db('first-db');
+
+    assert.throws(
+      () => client.db('second-db'),
+      /already bound to database first-db and cannot switch to second-db/,
+    );
   });
 
   it('connects and closes created databases', async () => {

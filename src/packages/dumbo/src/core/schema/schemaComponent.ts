@@ -1,179 +1,252 @@
 import type { SQLMigration } from './sqlMigration';
 
+export const schemaComponentType: unique symbol = Symbol(
+  'dumbo.schemaComponent.type',
+);
+export const genericComponentType: unique symbol = Symbol(
+  'dumbo.schemaComponent.generic',
+);
+
+export type SchemaComponentKind = symbol;
+
 export type SchemaComponent<
-  ComponentKey extends string = string,
-  AdditionalData extends
-    | Exclude<
-        Record<string, unknown>,
-        | 'schemaComponentKey'
-        | 'components'
-        | 'migrations'
-        | 'addComponent'
-        | 'addMigration'
-      >
-    | undefined = undefined,
-> = {
-  schemaComponentKey: ComponentKey;
-  components: ReadonlyMap<string, SchemaComponent>;
+  Kind extends SchemaComponentKind = SchemaComponentKind,
+> = Readonly<{
+  [schemaComponentType]: Kind;
+  components: SchemaComponentRecord;
   migrations: ReadonlyArray<SQLMigration>;
+}>;
 
-  addComponent: <
-    SchemaComponentType extends SchemaComponent<
-      string,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      Record<string, any>
-    > = SchemaComponent<
-      string,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      Record<string, any>
-    >,
-  >(
-    component: SchemaComponentType,
-  ) => SchemaComponentType;
-  addMigration: (migration: SQLMigration) => void;
-} & Exclude<
-  // eslint-disable-next-line @typescript-eslint/no-empty-object-type
-  AdditionalData extends undefined ? {} : AdditionalData,
-  | 'schemaComponentKey'
-  | 'components'
-  | 'migrations'
-  | 'addComponent'
-  | 'addMigration'
->;
+export type AnySchemaComponent = SchemaComponent<SchemaComponentKind>;
 
-export type ExtractAdditionalData<T> =
-  T extends SchemaComponent<infer _ComponentType, infer Data> ? Data : never;
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnySchemaComponent = SchemaComponent<string, Record<string, any>>;
-
-export type AnySchemaComponentOfType<ComponentType extends string = string> =
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  SchemaComponent<ComponentType, any>;
+export type SchemaComponentRecord<
+  Component extends AnySchemaComponent = AnySchemaComponent,
+> = Readonly<Record<string, Component>>;
 
 export type SchemaComponentOptions<
-  AdditionalOptions extends Record<string, unknown> = Record<string, unknown>,
-> = {
-  migrations?: ReadonlyArray<SQLMigration>;
-  components?: ReadonlyArray<SchemaComponent>;
-} & Omit<AdditionalOptions, 'migrations' | 'components'>;
+  Components extends SchemaComponentRecord = SchemaComponentRecord,
+> = Readonly<{
+  migrations?: ReadonlyArray<SQLMigration> | undefined;
+  components?: Components | undefined;
+}>;
 
-export type SchemaComponentType<Kind extends string = string> = `sc:${Kind}`;
-
-export type DumboSchemaComponentType<Kind extends string = string> =
-  SchemaComponentType<`dumbo:${Kind}`>;
-
-export const schemaComponent = <const ComponentKey extends string = string>(
-  key: ComponentKey,
-  options: SchemaComponentOptions,
-): SchemaComponent<ComponentKey> => {
-  const componentsMap = new Map<string, AnySchemaComponent>(
-    options.components?.map((comp) => [comp.schemaComponentKey, comp]),
-  );
-
-  const migrations: SQLMigration[] = [...(options.migrations ?? [])];
-
-  return {
-    schemaComponentKey: key,
-    components: componentsMap,
-    get migrations(): SQLMigration[] {
-      return [
-        ...migrations,
-        ...Array.from(componentsMap.values()).flatMap((c) => c.migrations),
-      ];
-    },
-    addComponent: <
-      SchemaComponentType extends AnySchemaComponent = AnySchemaComponent,
-    >(
-      component: SchemaComponentType,
-    ): SchemaComponentType => {
-      componentsMap.set(component.schemaComponentKey, component);
-      return component;
-    },
-    addMigration: (migration: SQLMigration) => {
-      migrations.push(migration);
-    },
-  };
-};
-
-export const extendSchemaComponent = <T extends AnySchemaComponent>(
-  component: T,
-  options: SchemaComponentOptions,
-): T => {
-  const componentsMap = new Map<string, AnySchemaComponent>(
-    options.components?.map((comp) => [comp.schemaComponentKey, comp]),
-  );
-  const migrations: SQLMigration[] = [...(options.migrations ?? [])];
-
-  return {
-    ...component,
-    get components() {
-      return new Map([...component.components, ...componentsMap]);
-    },
-    get migrations(): SQLMigration[] {
-      return [
-        ...component.migrations,
-        ...migrations,
-        ...Array.from(componentsMap.values()).flatMap((c) => c.migrations),
-      ];
-    },
-    addComponent: <
-      SchemaComponentType extends AnySchemaComponent = AnySchemaComponent,
-    >(
-      child: SchemaComponentType,
-    ): SchemaComponentType => {
-      componentsMap.set(child.schemaComponentKey, child);
-      return child;
-    },
-    addMigration: (migration: SQLMigration) => {
-      migrations.push(migration);
-    },
-  };
-};
-
-export const isSchemaComponentOfType = <
-  SchemaComponentOfType extends AnySchemaComponent = AnySchemaComponent,
+export const createComponentRecord = <
+  const RecordType extends SchemaComponentRecord,
 >(
-  component: AnySchemaComponent,
-  prefix: string,
-): component is SchemaComponentOfType =>
-  component.schemaComponentKey.startsWith(prefix);
+  record: RecordType,
+): RecordType => {
+  const result = Object.assign(Object.create(null), record) as RecordType;
+  return Object.freeze(result);
+};
 
-export const filterSchemaComponentsOfType = <T extends AnySchemaComponent>(
-  components: ReadonlyMap<string, AnySchemaComponent>,
-  prefix: string,
-): ReadonlyMap<string, T> => mapSchemaComponentsOfType<T>(components, prefix);
+export const mergeComponentRecords = (
+  ...records: ReadonlyArray<SchemaComponentRecord>
+): SchemaComponentRecord => {
+  const merged: Record<string, AnySchemaComponent> = Object.create(
+    null,
+  ) as Record<string, AnySchemaComponent>;
 
-export const mapSchemaComponentsOfType = <T extends AnySchemaComponent>(
-  components: ReadonlyMap<string, AnySchemaComponent>,
-  prefix: string,
-  keyMapper?: (component: T) => string,
-): ReadonlyMap<string, T> =>
-  new Map(
-    Array.from(components.entries())
-      .filter(([urn]) => urn.startsWith(prefix))
-      .map(([urn, component]) => [
-        keyMapper ? keyMapper(component as T) : urn,
-        component as T,
-      ]),
-  );
+  for (const record of records) {
+    for (const [alias, component] of Object.entries(record)) {
+      if (Object.hasOwn(merged, alias)) {
+        throw new Error(`Duplicate component alias "${alias}"`);
+      }
+      merged[alias] = component;
+    }
+  }
 
-export const findSchemaComponentsOfType = <T extends AnySchemaComponent>(
+  return createComponentRecord(merged);
+};
+
+const schemaComponentState: unique symbol = Symbol(
+  'dumbo.schemaComponent.state',
+);
+
+type InternalSchemaComponent = AnySchemaComponent &
+  Readonly<{
+    [schemaComponentState]?: {
+      localMigrations: ReadonlyArray<SQLMigration>;
+      records: Record<string, SchemaComponentRecord>;
+    };
+  }>;
+
+const migrationsFor = (
   root: AnySchemaComponent,
-  prefix: string,
+): ReadonlyArray<SQLMigration> => {
+  const result: SQLMigration[] = [];
+  const visited = new Set<AnySchemaComponent>();
+  const migrationsByName = new Map<string, SQLMigration>();
+
+  const visit = (component: AnySchemaComponent): void => {
+    if (visited.has(component)) return;
+    visited.add(component);
+
+    const local =
+      (component as InternalSchemaComponent)[schemaComponentState]
+        ?.localMigrations ?? component.migrations;
+
+    for (const migration of local) {
+      const previous = migrationsByName.get(migration.name);
+      if (previous !== undefined && previous !== migration) {
+        throw new Error(
+          `Duplicate migration name "${migration.name}" in schema component tree`,
+        );
+      }
+      if (previous === undefined) {
+        migrationsByName.set(migration.name, migration);
+        result.push(migration);
+      }
+    }
+
+    for (const child of Object.values(component.components)) visit(child);
+  };
+
+  visit(root);
+  return result;
+};
+
+export const initializeSchemaComponent = <
+  const Kind extends SchemaComponentKind,
+  const Components extends SchemaComponentRecord = SchemaComponentRecord,
+>(
+  target: object,
+  kind: Kind,
+  options: SchemaComponentOptions<Components> = {},
+): SchemaComponent<Kind> & { components: Components } => {
+  const records: Record<string, SchemaComponentRecord> = Object.create(
+    null,
+  ) as Record<string, SchemaComponentRecord>;
+  records.components = createComponentRecord(
+    (options.components ?? {}) as Components,
+  );
+  const state = {
+    localMigrations: Object.freeze([...(options.migrations ?? [])]),
+    records,
+  };
+  const component = target as SchemaComponent<Kind> & {
+    components: Components;
+  };
+
+  Object.defineProperties(component, {
+    [schemaComponentType]: {
+      value: kind,
+      enumerable: true,
+    },
+    [schemaComponentState]: {
+      value: state,
+    },
+    components: {
+      get: () => state.records.components,
+      enumerable: true,
+    },
+    migrations: {
+      get: () => migrationsFor(component),
+      enumerable: true,
+    },
+  });
+
+  return component;
+};
+
+export const createSchemaComponent = <
+  const Kind extends SchemaComponentKind,
+  const Components extends SchemaComponentRecord = SchemaComponentRecord,
+>(
+  kind: Kind,
+  options: SchemaComponentOptions<Components> = {},
+): SchemaComponent<Kind> & { components: Components } =>
+  initializeSchemaComponent({}, kind, options);
+
+export const schemaComponent = <
+  const Components extends SchemaComponentRecord = SchemaComponentRecord,
+>(
+  options: SchemaComponentOptions<Components> = {},
+): SchemaComponent<typeof genericComponentType> & {
+  components: Components;
+} => createSchemaComponent(genericComponentType, options);
+
+export type SchemaComponentPredicate<T extends AnySchemaComponent> = (
+  component: AnySchemaComponent,
+) => component is T;
+
+export const findComponents = <T extends AnySchemaComponent>(
+  root: AnySchemaComponent,
+  predicate: SchemaComponentPredicate<T>,
 ): T[] => {
   const results: T[] = [];
+  const visited = new Set<AnySchemaComponent>();
 
-  const traverse = (component: AnySchemaComponent) => {
-    if (component.schemaComponentKey.startsWith(prefix)) {
-      results.push(component as T);
-    }
-    for (const child of component.components.values()) {
-      traverse(child);
-    }
+  const visit = (component: AnySchemaComponent): void => {
+    if (visited.has(component)) return;
+    visited.add(component);
+    if (predicate(component)) results.push(component);
+    for (const child of Object.values(component.components)) visit(child);
   };
 
-  traverse(root);
-
+  visit(root);
   return results;
+};
+
+export const findComponent = <T extends AnySchemaComponent>(
+  root: AnySchemaComponent,
+  predicate: SchemaComponentPredicate<T>,
+): T | undefined => findComponents(root, predicate)[0];
+
+export const isSchemaComponent = (
+  value: unknown,
+): value is AnySchemaComponent =>
+  typeof value === 'object' &&
+  value !== null &&
+  schemaComponentType in value &&
+  'components' in value &&
+  'migrations' in value;
+
+export const copySchemaComponentSpecialization = (
+  source: object,
+  target: object,
+  coreProperties: ReadonlySet<PropertyKey>,
+): void => {
+  for (const key of Reflect.ownKeys(source)) {
+    if (coreProperties.has(key) || Reflect.has(target, key)) continue;
+    const descriptor = Object.getOwnPropertyDescriptor(source, key);
+    if (descriptor !== undefined)
+      Object.defineProperty(target, key, descriptor);
+  }
+};
+
+export const localMigrationsOf = (
+  component: AnySchemaComponent,
+): ReadonlyArray<SQLMigration> =>
+  (component as InternalSchemaComponent)[schemaComponentState]
+    ?.localMigrations ?? component.migrations;
+
+export const defineSchemaComponentRecord = (
+  component: AnySchemaComponent,
+  name: string,
+  components: SchemaComponentRecord,
+): void => {
+  const state = (component as InternalSchemaComponent)[schemaComponentState];
+  if (state === undefined) {
+    throw new Error('Schema component does not support component records');
+  }
+  if (name in state.records || Reflect.has(component, name)) {
+    throw new Error(`Schema component record "${name}" is already defined`);
+  }
+  state.records[name] = createComponentRecord(components);
+  Object.defineProperty(component, name, {
+    get: () => state.records[name],
+    enumerable: true,
+  });
+};
+
+export const replaceSchemaComponentRecord = (
+  component: AnySchemaComponent,
+  name: string,
+  record: SchemaComponentRecord,
+): void => {
+  const state = (component as InternalSchemaComponent)[schemaComponentState];
+  if (state === undefined || state.records[name] === undefined) {
+    throw new Error(`Schema component has no "${name}" record`);
+  }
+  state.records[name] = createComponentRecord(record);
 };

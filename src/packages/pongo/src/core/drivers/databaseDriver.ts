@@ -1,11 +1,13 @@
 import type {
+  AnyDumboDatabaseDriver,
   DatabaseDriverType,
   JSONSerializationOptions,
   JSONSerializer,
+  MigrationTableOptions,
   MigrationStyle,
 } from '@event-driven-io/dumbo';
 import type { CacheConfig, PongoCache } from '../cache';
-import type { PongoCollectionSchema, PongoDbSchema } from '../schema';
+import type { PongoDbSchema } from '../schema';
 import type { AnyPongoDb, PongoDb } from '../typing';
 
 export type PongoDriverOptions<ConnectionOptions = unknown> = {
@@ -16,17 +18,16 @@ export type PongoDriverOptions<ConnectionOptions = unknown> = {
 export type AnyPongoDriverOptions = PongoDriverOptions<any>;
 
 export type PongoDatabaseFactoryOptions<
-  CollectionsSchema extends Record<string, PongoCollectionSchema> = Record<
-    string,
-    PongoCollectionSchema
-  >,
+  Definition extends PongoDbSchema = PongoDbSchema,
   DriverOptions extends AnyPongoDriverOptions = AnyPongoDriverOptions,
 > = {
   databaseName?: string | undefined;
+  defaultSchemaName?: string | undefined;
+  migrationTable?: MigrationTableOptions | undefined;
   schema?:
     | {
         autoMigration?: MigrationStyle;
-        definition?: PongoDbSchema<CollectionsSchema>;
+        definition?: Definition;
       }
     | undefined;
   serializer: JSONSerializer;
@@ -39,13 +40,9 @@ export interface PongoDriver<
   DriverOptions extends AnyPongoDriverOptions = AnyPongoDriverOptions,
 > {
   driverType: Database['driverType'];
-  databaseFactory<
-    CollectionsSchema extends Record<string, PongoCollectionSchema> = Record<
-      string,
-      PongoCollectionSchema
-    >,
-  >(
-    options: PongoDatabaseFactoryOptions<CollectionsSchema, DriverOptions>,
+  readonly dumboDriver: AnyDumboDatabaseDriver;
+  databaseFactory<Definition extends PongoDbSchema = PongoDbSchema>(
+    options: PongoDatabaseFactoryOptions<Definition, DriverOptions>,
   ): Database & PongoDb<Database['driverType']>;
 }
 

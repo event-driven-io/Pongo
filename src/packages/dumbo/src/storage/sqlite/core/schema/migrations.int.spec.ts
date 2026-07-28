@@ -6,15 +6,14 @@ import { fileURLToPath } from 'url';
 import { InMemorySQLiteDatabase, SQLiteConnectionString } from '..';
 import { count, dumbo, single, SQL, type Dumbo } from '../../../..';
 import {
-  databaseFeatureSchemaComponent,
+  databaseComponent,
   databaseSchemaComponent,
-  databaseSchemaFeatureSchemaComponent,
-  databaseSchemaSchemaComponent,
-  indexSchemaComponent,
+  indexComponent,
   runSQLMigrations,
+  extensionComponent,
   SchemaComponentMigrator,
   sqlMigration,
-  tableSchemaComponent,
+  tableComponent,
   type SQLMigration,
 } from '../../../../core/schema';
 import {
@@ -99,6 +98,47 @@ describe('Migration Integration Tests', () => {
         assert.ok(rolesTableExists, 'The roles table should exist.');
       });
 
+      it('uses a custom migration table for all ledger operations', async () => {
+        const migration = sqlMigration('custom-ledger:001', [
+          SQL`CREATE TABLE custom_ledger_result (id TEXT PRIMARY KEY);`,
+        ]);
+        const options = {
+          schema: {
+            migrationTable: { tableName: 'app_migrations' },
+          },
+        };
+
+        const first = await runSQLMigrations(pool, [migration], options);
+        const second = await runSQLMigrations(pool, [migration], options);
+        const recorded = await count(
+          pool.execute.query(
+            SQL`SELECT COUNT(*) AS count FROM app_migrations WHERE name = ${migration.name}`,
+          ),
+        );
+
+        assert.deepStrictEqual(first.applied, [migration]);
+        assert.deepStrictEqual(second.skipped, [migration]);
+        assert.strictEqual(recorded, 1);
+        assert.strictEqual(
+          await tableExists(pool.execute, 'dmb_migrations'),
+          false,
+        );
+      });
+
+      it('rejects a schema-qualified migration table', async () => {
+        await assert.rejects(
+          runSQLMigrations(pool, [], {
+            schema: {
+              migrationTable: {
+                schemaName: 'audit',
+                tableName: 'app_migrations',
+              },
+            },
+          }),
+          /does not support schema-qualified migration tables/,
+        );
+      });
+
       it('runs expanded database and schema feature component migrations in order', async () => {
         const schemaTableMigration = sqlMigration('schema-table:001', [
           SQL`CREATE TABLE component_users (id TEXT PRIMARY KEY);`,
@@ -109,30 +149,34 @@ describe('Migration Integration Tests', () => {
         const databaseFeatureMigration = sqlMigration('database-feature:001', [
           SQL`CREATE TABLE database_outbox (id TEXT PRIMARY KEY);`,
         ]);
-        const audit = databaseSchemaFeatureSchemaComponent({
-          featureKind: 'audit',
-          featureName: 'audit',
-          migrations: [schemaFeatureMigration],
-        });
-        const eventStore = databaseFeatureSchemaComponent({
-          featureKind: 'event_store',
-          featureName: 'eventStore',
-          migrations: [databaseFeatureMigration],
-        });
-        const users = tableSchemaComponent({
+        const audit = extensionComponent(
+          'audit',
+          {},
+          {
+            migrations: [schemaFeatureMigration],
+          },
+        );
+        const eventStore = extensionComponent(
+          'eventStore',
+          {},
+          {
+            migrations: [databaseFeatureMigration],
+          },
+        );
+        const users = tableComponent({
           tableName: 'users',
           migrations: [schemaTableMigration],
         });
-        const component = databaseSchemaComponent({
+        const component = databaseComponent({
           databaseName: 'app',
           schemas: {
-            main: databaseSchemaSchemaComponent({
+            main: databaseSchemaComponent({
               schemaName: 'main',
               tables: { users },
-              features: { audit },
+              extensions: { audit },
             }),
           },
-          features: { eventStore },
+          extensions: { eventStore },
         });
         const migrator = SchemaComponentMigrator(component, pool);
 
@@ -153,7 +197,7 @@ describe('Migration Integration Tests', () => {
       });
 
       it('runs migrations from indexes declared on tables', async () => {
-        const users = tableSchemaComponent({
+        const users = tableComponent({
           tableName: 'users',
           migrations: [
             sqlMigration('app:main:users:001:create-table', [
@@ -161,7 +205,7 @@ describe('Migration Integration Tests', () => {
             ]),
           ],
           indexes: {
-            users_email_idx: indexSchemaComponent({
+            users_email_idx: indexComponent({
               indexName: 'users_email_idx',
               columnNames: ['email'],
               isUnique: true,
@@ -176,10 +220,10 @@ describe('Migration Integration Tests', () => {
             }),
           },
         });
-        const component = databaseSchemaComponent({
+        const component = databaseComponent({
           databaseName: 'app',
           schemas: {
-            main: databaseSchemaSchemaComponent({
+            main: databaseSchemaComponent({
               schemaName: 'main',
               tables: { users },
             }),

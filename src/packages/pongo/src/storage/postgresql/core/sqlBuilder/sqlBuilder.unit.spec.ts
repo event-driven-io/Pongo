@@ -1,13 +1,86 @@
-import { JSONSerializer, SQL } from '@event-driven-io/dumbo';
+import {
+  findComponents,
+  JSONSerializer,
+  SQL,
+  type ComponentContext,
+} from '@event-driven-io/dumbo';
 import { pgFormatter } from '@event-driven-io/dumbo/pg';
 import assert from 'assert';
 import { describe, it } from 'vitest';
-import { postgresSQLBuilder, pongoCollectionPostgreSQLMigrations } from '.';
 import {
+  materializePongoPostgreSQLDatabaseComponent,
+  postgresSQLBuilder,
+} from '.';
+import {
+  isPongoCollectionComponent,
   pongoSchema,
   type ExpectedDocumentVersion,
+  type PongoCollectionComponent,
+  type PongoCollectionIndexes,
   type PongoCollectionSQLBuilder,
 } from '../../../../core';
+
+const formatSQL = (sql: SQL, formatter = pgFormatter) =>
+  formatter.format(sql, { serializer: JSONSerializer });
+
+const tableContext = (
+  schemaName: string,
+  tableName: string,
+): ComponentContext => ({
+  databaseName: 'app',
+  databaseSchemaName: schemaName,
+  tableName,
+});
+
+const databaseWithCollection = <const Indexes extends PongoCollectionIndexes>(
+  schemaName: string,
+  collectionName: string,
+  indexes: Indexes,
+) =>
+  materializePongoPostgreSQLDatabaseComponent({
+    driverType: 'PostgreSQL:test',
+    databaseName: 'app',
+    defaultSchemaName: 'public',
+    serializer: JSONSerializer,
+    definition: pongoSchema.db({
+      schemas: {
+        [schemaName]: pongoSchema.schema({
+          collection: pongoSchema.collection(collectionName, { indexes }),
+        }),
+      },
+    }),
+  });
+
+const collectionInSchemaWithIndexes = <
+  const Indexes extends PongoCollectionIndexes,
+>(
+  schemaName: string,
+  collectionName: string,
+  options: { indexes: Indexes },
+) => {
+  const database = databaseWithCollection(
+    schemaName,
+    collectionName,
+    options.indexes,
+  );
+  const collection = findComponents(database, isPongoCollectionComponent)[0];
+  assert.ok(collection);
+  return collection;
+};
+
+const collectionInSchema = (schemaName: string, collectionName: string) =>
+  collectionInSchemaWithIndexes(schemaName, collectionName, { indexes: {} });
+
+const builderFor = (
+  collection: PongoCollectionComponent,
+): PongoCollectionSQLBuilder => {
+  assert.ok(collection.databaseSchemaName);
+  return postgresSQLBuilder(
+    collection,
+    tableContext(collection.databaseSchemaName, collection.tableName),
+    JSONSerializer,
+  );
+};
 
 const specialDocument = {
   _id: 'special-id',
@@ -24,11 +97,11 @@ const specialDocument = {
 const specialDocumentJSON = JSONSerializer.serialize(specialDocument);
 
 describe('bound JSON params', () => {
-  const builder = postgresSQLBuilder('users', JSONSerializer);
+  const builder = builderFor(collectionInSchema('public', 'users'));
 
   it('insertOne binds serialized document JSON without SQL escaping', () => {
     const result = builder.insertOne(specialDocument);
-    const { params } = SQL.format(result, pgFormatter);
+    const { params } = formatSQL(result, pgFormatter);
 
     assert.deepStrictEqual(params, [
       specialDocument._id,
@@ -39,7 +112,7 @@ describe('bound JSON params', () => {
 
   it('insertMany binds serialized JSON without SQL escaping', () => {
     const result = builder.insertMany([specialDocument]);
-    const { params } = SQL.format(result, pgFormatter);
+    const { params } = formatSQL(result, pgFormatter);
 
     assert.deepStrictEqual(params, [
       specialDocument._id,
@@ -50,7 +123,7 @@ describe('bound JSON params', () => {
 
   it('insertOrReplace binds serialized JSON without SQL escaping', () => {
     const result = builder.insertOrReplace([specialDocument]);
-    const { params } = SQL.format(result, pgFormatter);
+    const { params } = formatSQL(result, pgFormatter);
 
     assert.deepStrictEqual(params, [
       specialDocument._id,
@@ -68,7 +141,7 @@ describe('bound JSON params', () => {
       { _id: specialDocument._id },
       { $set: patch },
     );
-    const { params } = SQL.format(result, pgFormatter);
+    const { params } = formatSQL(result, pgFormatter);
 
     assert.deepStrictEqual(params, [
       specialDocument._id,
@@ -85,7 +158,7 @@ describe('bound JSON params', () => {
       { title: specialDocument.title },
       { $set: patch },
     );
-    const { params } = SQL.format(result, pgFormatter);
+    const { params } = formatSQL(result, pgFormatter);
 
     assert.deepStrictEqual(params, [
       JSONSerializer.serialize(patch),
@@ -104,7 +177,7 @@ describe('bound JSON params', () => {
       { _id: specialDocument._id },
       replacement,
     );
-    const { params } = SQL.format(result, pgFormatter);
+    const { params } = formatSQL(result, pgFormatter);
 
     assert.deepStrictEqual(params, [
       specialDocument._id,
@@ -120,7 +193,7 @@ describe('bound JSON params', () => {
       _version: 7n,
     };
     const result = builder.replaceMany([specialDocument, secondDocument]);
-    const { params } = SQL.format(result, pgFormatter);
+    const { params } = formatSQL(result, pgFormatter);
 
     assert.deepStrictEqual(params, [
       specialDocument._id,
@@ -135,7 +208,7 @@ describe('bound JSON params', () => {
     const result = builder.find({
       title: specialDocument.title,
     });
-    const { query, params } = SQL.format(result, pgFormatter);
+    const { query, params } = formatSQL(result, pgFormatter);
 
     assert.ok(query.includes(`data -> 'title' = $1::jsonb`), `got: ${query}`);
     assert.ok(query.includes(`data -> 'title' @> $2::jsonb`), `got: ${query}`);
@@ -149,7 +222,7 @@ describe('bound JSON params', () => {
     const result = builder.find({
       nested: { quote: specialDocument.nested.quote },
     });
-    const { query, params } = SQL.format(result, pgFormatter);
+    const { query, params } = formatSQL(result, pgFormatter);
 
     assert.ok(
       query.includes(`data #> '{nested,quote}' = $1::jsonb`),
@@ -169,7 +242,7 @@ describe('bound JSON params', () => {
     const result = builder.find({
       "director's.title": specialDocument.title,
     });
-    const { query, params } = SQL.format(result, pgFormatter);
+    const { query, params } = formatSQL(result, pgFormatter);
 
     assert.ok(
       query.includes(`data #> '{"director''s",title}' = $1::jsonb`),
@@ -186,10 +259,8 @@ describe('postgres collection schema migrations', () => {
   const singleLine = (value: string) => value.replace(/\s+/g, ' ').trim();
 
   it('keeps default schema migrations unqualified for compatibility', () => {
-    const migrations = pongoCollectionPostgreSQLMigrations(
-      pongoSchema.collection('users'),
-    );
-    const { query } = SQL.format(migrations[0]!.sqls[0]!, pgFormatter);
+    const migrations = collectionInSchema('public', 'users').migrations;
+    const { query } = formatSQL(migrations[0]!.sqls[0]!, pgFormatter);
 
     assert.strictEqual(
       migrations[0]!.name,
@@ -198,30 +269,55 @@ describe('postgres collection schema migrations', () => {
     assert.ok(query.includes('CREATE TABLE IF NOT EXISTS users'));
   });
 
-  it('creates and uses explicit PostgreSQL schemas', () => {
-    const migrations = pongoCollectionPostgreSQLMigrations(
-      pongoSchema.collection('users', { schema: 'crm' }),
-    );
-    const createSchema = SQL.format(migrations[0]!.sqls[0]!, pgFormatter);
-    const createTable = SQL.format(migrations[0]!.sqls[1]!, pgFormatter);
-    const builder = postgresSQLBuilder(
-      pongoSchema.collection('users', { schema: 'crm' }),
-      JSONSerializer,
-    );
-    const insert = SQL.format(
+  it('creates an explicit PostgreSQL schema before its collection table', () => {
+    const database = databaseWithCollection('crm', 'users', {});
+    const collection = findComponents(database, isPongoCollectionComponent)[0];
+    assert.ok(collection);
+    const [schemaMigration, tableMigration] = database.migrations;
+    assert.ok(schemaMigration);
+    assert.ok(tableMigration);
+    const createSchema = formatSQL(schemaMigration.sqls[0]!, pgFormatter);
+    const createTable = formatSQL(tableMigration.sqls[0]!, pgFormatter);
+    const builder = builderFor(collection);
+    const insert = formatSQL(
       builder.insertOne({ _id: '1', name: 'Oskar' }),
       pgFormatter,
     );
 
     assert.strictEqual(
-      migrations[0]!.name,
+      tableMigration.name,
       'pongoCollection:crm:users:001:createtable',
     );
+    assert.strictEqual(schemaMigration.name, 'pongoSchema:crm:001:create');
     assert.ok(createSchema.query.includes('CREATE SCHEMA IF NOT EXISTS crm'));
     assert.ok(
       createTable.query.includes('CREATE TABLE IF NOT EXISTS crm.users'),
     );
     assert.ok(insert.query.includes('INSERT INTO crm.users'));
+  });
+
+  it('creates declared JSON indexes after the collection table', () => {
+    const migrations = collectionInSchemaWithIndexes('public', 'users', {
+      indexes: {
+        email: pongoSchema.index('users_email_idx', 'email'),
+        externalId: pongoSchema.index.unique('users_external_id_uq', [
+          'external',
+          'id',
+        ]),
+        document: pongoSchema.index.json('users_document_idx'),
+      },
+    }).migrations;
+    const queries = migrations.flatMap((migration) =>
+      migration.sqls.map((sql) => formatSQL(sql, pgFormatter).query),
+    );
+
+    assert.strictEqual(migrations.length, 4);
+    assert.ok(queries[1]?.includes('CREATE INDEX users_email_idx'));
+    assert.ok(queries[1]?.includes(`data #>> '{email}'`));
+    assert.ok(queries[2]?.includes('CREATE UNIQUE INDEX users_external_id_uq'));
+    assert.ok(queries[2]?.includes(`data #>> '{external,id}'`));
+    assert.ok(queries[3]?.includes('CREATE INDEX users_document_idx'));
+    assert.ok(queries[3]?.includes('USING GIN (data)'));
   });
 
   const runtimeSQLCases: {
@@ -343,19 +439,13 @@ describe('postgres collection schema migrations', () => {
 
   for (const testCase of runtimeSQLCases) {
     it(`uses default and explicit PostgreSQL schemas in ${testCase.name}`, () => {
-      const defaultBuilder = postgresSQLBuilder(
-        pongoSchema.collection('users'),
-        JSONSerializer,
-      );
-      const schemaBuilder = postgresSQLBuilder(
-        pongoSchema.collection('users', { schema: 'crm' }),
-        JSONSerializer,
-      );
+      const defaultBuilder = builderFor(collectionInSchema('public', 'users'));
+      const schemaBuilder = builderFor(collectionInSchema('crm', 'users'));
       const defaultSQL = singleLine(
-        SQL.format(testCase.sql(defaultBuilder), pgFormatter).query,
+        formatSQL(testCase.sql(defaultBuilder), pgFormatter).query,
       );
       const schemaSQL = singleLine(
-        SQL.format(testCase.sql(schemaBuilder), pgFormatter).query,
+        formatSQL(testCase.sql(schemaBuilder), pgFormatter).query,
       );
 
       assert.ok(
@@ -374,89 +464,93 @@ describe('postgres collection schema migrations', () => {
   }
 
   it('keeps declared JSON path indexes on the collection table', () => {
-    const collection = pongoSchema.collection('users', {
-      indexes: [
-        pongoSchema.index('users_email_idx', 'email'),
-        pongoSchema.index.unique('users_external_id_uq', ['external', 'id']),
-      ],
+    const collection = collectionInSchemaWithIndexes('public', 'users', {
+      indexes: {
+        email: pongoSchema.index('users_email_idx', 'email'),
+        externalId: pongoSchema.index.unique('users_external_id_uq', [
+          'external',
+          'id',
+        ]),
+      },
     });
-    const migrations = pongoCollectionPostgreSQLMigrations(collection);
+    const migrations = collection.migrations;
+    const emailIndex = collection.indexes.email;
+    const externalIdIndex = collection.indexes.externalId;
 
-    assert.strictEqual(migrations.length, 1);
-    assert.strictEqual(
-      collection.indexes.get('users_email_idx')?.name,
-      'users_email_idx',
-    );
-    assert.strictEqual(
-      collection.indexes.get('users_email_idx')?.schemaComponentKey,
-      'sc:dumbo:index:json_path:__default_database_schema__:users:users_email_idx',
-    );
-    assert.strictEqual(
-      collection.indexes.get('users_external_id_uq')?.unique,
-      true,
-    );
+    assert.strictEqual(migrations.length, 3);
+    assert.ok(emailIndex);
+    assert.ok(externalIdIndex);
+    assert.strictEqual(emailIndex.indexName, 'users_email_idx');
+    assert.strictEqual(emailIndex.tableName, 'users');
+    assert.strictEqual(externalIdIndex.isUnique, true);
   });
 
   it('keeps declared document JSON indexes on the collection table', () => {
-    const collection = pongoSchema.collection('users', {
-      indexes: [pongoSchema.index.json('users_data_idx')],
+    const collection = collectionInSchemaWithIndexes('public', 'users', {
+      indexes: {
+        document: pongoSchema.index.json('users_data_idx'),
+      },
     });
-    const migrations = pongoCollectionPostgreSQLMigrations(collection);
+    const migrations = collection.migrations;
+    const documentIndex = collection.indexes.document;
 
-    assert.strictEqual(migrations.length, 1);
-    assert.strictEqual(
-      collection.indexes.get('users_data_idx')?.type,
-      'json_document',
-    );
+    assert.strictEqual(migrations.length, 2);
+    assert.ok(documentIndex);
+    assert.strictEqual(documentIndex.indexName, 'users_data_idx');
   });
 
   it('keeps declared indexes on explicit PostgreSQL schema tables', () => {
-    const collection = pongoSchema.collection('users', {
-      schema: 'crm',
-      indexes: [pongoSchema.index('users_email_idx', 'email')],
+    const collection = collectionInSchemaWithIndexes('crm', 'users', {
+      indexes: {
+        email: pongoSchema.index('users_email_idx', 'email'),
+      },
     });
-    const migrations = pongoCollectionPostgreSQLMigrations(collection);
+    const migrations = collection.migrations;
+    const emailIndex = collection.indexes.email;
 
-    assert.strictEqual(migrations.length, 1);
+    assert.strictEqual(migrations.length, 2);
+    assert.ok(emailIndex);
     assert.strictEqual(collection.databaseSchemaName, 'crm');
-    assert.strictEqual(
-      collection.indexes.get('users_email_idx')?.path,
-      'email',
-    );
-    assert.strictEqual(
-      collection.indexes.get('users_email_idx')?.schemaComponentKey,
-      'sc:dumbo:index:json_path:crm:users:users_email_idx',
-    );
+    assert.strictEqual(emailIndex.path, 'email');
+    assert.strictEqual(emailIndex.databaseSchemaName, 'crm');
   });
 
   it('keeps custom index SQL hooks on the collection table', () => {
-    const collection = pongoSchema.collection('users', {
-      schema: 'crm',
-      indexes: [
-        {
-          name: 'users_custom_data_idx',
-          type: 'custom_jsonb_path',
-          sql: ({ tableReference }) =>
-            SQL`CREATE INDEX IF NOT EXISTS users_custom_data_idx ON ${tableReference} USING GIN (data jsonb_path_ops)`,
-        },
-      ],
+    let resolvedReferences:
+      { tableReference: string; indexReference: string } | undefined;
+    const collection = collectionInSchemaWithIndexes('crm', 'users', {
+      indexes: {
+        custom: pongoSchema.index.custom(
+          'users_custom_data_idx',
+          ({ tableReference, indexReference }) => {
+            resolvedReferences = {
+              tableReference: formatSQL(tableReference, pgFormatter).query,
+              indexReference: formatSQL(indexReference, pgFormatter).query,
+            };
+            return SQL`CREATE INDEX IF NOT EXISTS ${indexReference} ON ${tableReference} USING GIN (data jsonb_path_ops)`;
+          },
+        ),
+      },
     });
-    const migrations = pongoCollectionPostgreSQLMigrations(collection);
+    const migrations = collection.migrations;
+    const customIndex = collection.indexes.custom;
 
-    assert.strictEqual(migrations.length, 1);
-    assert.strictEqual(
-      typeof collection.indexes.get('users_custom_data_idx')?.sql,
-      'function',
-    );
+    assert.strictEqual(migrations.length, 2);
+    assert.ok(customIndex);
+    assert.deepStrictEqual(resolvedReferences, {
+      tableReference: 'crm.users',
+      indexReference: 'users_custom_data_idx',
+    });
+    assert.strictEqual(typeof customIndex.sql, 'function');
   });
 });
 
 describe('insertOrReplace()', () => {
-  const builder = postgresSQLBuilder('users', JSONSerializer);
+  const builder = builderFor(collectionInSchema('public', 'users'));
 
   it('inserts at version 1 and bumps on conflict in a single statement', () => {
     const query = builder.insertOrReplace([{ _id: 'u1', name: 'Alice' }]);
-    const { query: sql } = SQL.format(query, pgFormatter);
+    const { query: sql } = formatSQL(query, pgFormatter);
 
     assert.ok(sql.includes('INSERT INTO'), `got: ${sql}`);
     assert.ok(sql.includes('(_id, data, _version)'), `got: ${sql}`);
@@ -476,7 +570,7 @@ describe('insertOrReplace()', () => {
       { _id: 'a', name: 'A' },
       { _id: 'b', name: 'B' },
     ]);
-    const { params } = SQL.format(query, pgFormatter);
+    const { params } = formatSQL(query, pgFormatter);
     assert.ok(params.includes('a'));
     assert.ok(params.includes('b'));
   });
@@ -484,33 +578,33 @@ describe('insertOrReplace()', () => {
 
 describe('find() query options', () => {
   it('should apply limit correctly', () => {
-    const query = postgresSQLBuilder('users', JSONSerializer).find(
+    const query = builderFor(collectionInSchema('public', 'users')).find(
       {},
       { limit: 4 },
     );
-    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+    assert.deepStrictEqual(formatSQL(query, pgFormatter), {
       query: 'SELECT data, _id, _version FROM users LIMIT $1 ;',
       params: [4],
     });
   });
 
   it('should apply offset correctly', () => {
-    const query = postgresSQLBuilder('users', JSONSerializer).find(
+    const query = builderFor(collectionInSchema('public', 'users')).find(
       {},
       { skip: 123 },
     );
-    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+    assert.deepStrictEqual(formatSQL(query, pgFormatter), {
       query: 'SELECT data, _id, _version FROM users OFFSET $1 ;',
       params: [123],
     });
   });
 
   it('should apply limit and offset in correct order', () => {
-    const query = postgresSQLBuilder('users', JSONSerializer).find(
+    const query = builderFor(collectionInSchema('public', 'users')).find(
       {},
       { limit: 20, skip: 123 },
     );
-    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+    assert.deepStrictEqual(formatSQL(query, pgFormatter), {
       query: 'SELECT data, _id, _version FROM users LIMIT $1 OFFSET $2 ;',
       params: [20, 123],
     });
@@ -518,17 +612,17 @@ describe('find() query options', () => {
 });
 
 describe('find() sort option', () => {
-  const builder = postgresSQLBuilder('users', JSONSerializer);
+  const builder = builderFor(collectionInSchema('public', 'users'));
 
   it('sorts ASC by a single field', () => {
     const query = builder.find({}, { sort: { name: 1 } });
-    const { query: sql } = SQL.format(query, pgFormatter);
+    const { query: sql } = formatSQL(query, pgFormatter);
     assert.ok(sql.includes(`ORDER BY data -> 'name' ASC`), `got: ${sql}`);
   });
 
   it('sorts DESC by a single field', () => {
     const query = builder.find({}, { sort: { created_at: -1 } });
-    const { query: sql } = SQL.format(query, pgFormatter);
+    const { query: sql } = formatSQL(query, pgFormatter);
     assert.ok(
       sql.includes(`ORDER BY data -> 'created_at' DESC`),
       `got: ${sql}`,
@@ -537,26 +631,26 @@ describe('find() sort option', () => {
 
   it('ORDER BY appears before LIMIT', () => {
     const query = builder.find({}, { sort: { name: 1 }, limit: 10 });
-    const { query: sql } = SQL.format(query, pgFormatter);
+    const { query: sql } = formatSQL(query, pgFormatter);
     assert.ok(sql.indexOf('ORDER BY') < sql.indexOf('LIMIT'), `got: ${sql}`);
   });
 
   it('sort + limit + skip produces correct clause order', () => {
     const query = builder.find({}, { sort: { name: 1 }, limit: 10, skip: 5 });
-    const { query: sql, params } = SQL.format(query, pgFormatter);
+    const { query: sql, params } = formatSQL(query, pgFormatter);
     assert.ok(/ORDER BY.*LIMIT.*OFFSET/s.test(sql), `got: ${sql}`);
     assert.deepStrictEqual(params, [10, 5]);
   });
 
   it('empty sort object produces no ORDER BY clause', () => {
     const query = builder.find({}, { sort: {} });
-    const { query: sql } = SQL.format(query, pgFormatter);
+    const { query: sql } = formatSQL(query, pgFormatter);
     assert.ok(!sql.includes('ORDER BY'), `got: ${sql}`);
   });
 
   it('sorts by multiple fields', () => {
     const query = builder.find({}, { sort: { age: -1, name: 1 } });
-    const { query: sql } = SQL.format(query, pgFormatter);
+    const { query: sql } = formatSQL(query, pgFormatter);
     assert.ok(
       sql.includes(
         `ORDER BY data -> 'age' DESC NULLS LAST,data -> 'name' ASC NULLS FIRST`,
@@ -567,7 +661,7 @@ describe('find() sort option', () => {
 
   it('sorts by a nested field', () => {
     const query = builder.find({}, { sort: { 'address.city': 1 } });
-    const { query: sql } = SQL.format(query, pgFormatter);
+    const { query: sql } = formatSQL(query, pgFormatter);
     assert.ok(
       sql.includes(`ORDER BY data #> '{address,city}' ASC`),
       `got: ${sql}`,
@@ -576,39 +670,39 @@ describe('find() sort option', () => {
 
   it('sorts by a deeply nested field (3 levels)', () => {
     const query = builder.find({}, { sort: { 'a.b.c': -1 } });
-    const { query: sql } = SQL.format(query, pgFormatter);
+    const { query: sql } = formatSQL(query, pgFormatter);
     assert.ok(sql.includes(`ORDER BY data #> '{a,b,c}' DESC`), `got: ${sql}`);
   });
 
   it('places documents with missing field first on ASC sort (NULLS FIRST)', () => {
     const query = builder.find({}, { sort: { age: 1 } });
-    const { query: sql } = SQL.format(query, pgFormatter);
+    const { query: sql } = formatSQL(query, pgFormatter);
     assert.ok(sql.includes(`ASC NULLS FIRST`), `got: ${sql}`);
   });
 
   it('places documents with missing field last on DESC sort (NULLS LAST)', () => {
     const query = builder.find({}, { sort: { age: -1 } });
-    const { query: sql } = SQL.format(query, pgFormatter);
+    const { query: sql } = formatSQL(query, pgFormatter);
     assert.ok(sql.includes(`DESC NULLS LAST`), `got: ${sql}`);
   });
 
   it('sorts by _id using the native column, not the JSON field', () => {
     const query = builder.find({}, { sort: { _id: 1 } });
-    const { query: sql } = SQL.format(query, pgFormatter);
+    const { query: sql } = formatSQL(query, pgFormatter);
     assert.ok(sql.includes('ORDER BY _id ASC'), `got: ${sql}`);
     assert.ok(!sql.includes('data ->'), `got: ${sql}`);
   });
 
   it('sorts by _version using the native column, not the JSON field', () => {
     const query = builder.find({}, { sort: { _version: -1 } });
-    const { query: sql } = SQL.format(query, pgFormatter);
+    const { query: sql } = formatSQL(query, pgFormatter);
     assert.ok(sql.includes('ORDER BY _version DESC'), `got: ${sql}`);
     assert.ok(!sql.includes('data ->'), `got: ${sql}`);
   });
 });
 
 describe('expected version markers', () => {
-  const builder = postgresSQLBuilder('users', JSONSerializer);
+  const builder = builderFor(collectionInSchema('public', 'users'));
 
   const queryFor = (
     expectedVersion: Exclude<
@@ -616,7 +710,7 @@ describe('expected version markers', () => {
       'DOCUMENT_DOES_NOT_EXIST'
     >,
   ) =>
-    SQL.format(
+    formatSQL(
       builder.deleteOne({ _id: 'test-id' }, { expectedVersion }),
       pgFormatter,
     ).query;
@@ -637,13 +731,13 @@ describe('expected version markers', () => {
 });
 
 describe('find() logical operators', () => {
-  const builder = postgresSQLBuilder('users', JSONSerializer);
+  const builder = builderFor(collectionInSchema('public', 'users'));
 
   it('supports top-level $or', () => {
     const query = builder.find<{ flag: boolean }>({
       $or: [{ flag: true }, { flag: false }],
     });
-    const { query: sql } = SQL.format(query, pgFormatter);
+    const { query: sql } = formatSQL(query, pgFormatter);
 
     assert.ok(sql.includes(' OR '), `got: ${sql}`);
     assert.ok(!sql.includes('$.$or'), `got: ${sql}`);
@@ -656,7 +750,7 @@ describe('find() logical operators', () => {
       status: 'active',
       $or: [{ flag: true }, { flag: false }],
     });
-    const { query: sql } = SQL.format(query, pgFormatter);
+    const { query: sql } = formatSQL(query, pgFormatter);
 
     assert.ok(sql.includes(' AND '), `got: ${sql}`);
     assert.ok(sql.includes(' OR '), `got: ${sql}`);
@@ -666,7 +760,7 @@ describe('find() logical operators', () => {
     const query = builder.find<{ flag: boolean; status: string }>({
       $and: [{ status: 'active' }, { $or: [{ flag: true }, { flag: false }] }],
     });
-    const { query: sql } = SQL.format(query, pgFormatter);
+    const { query: sql } = formatSQL(query, pgFormatter);
 
     assert.ok(sql.includes(' AND '), `got: ${sql}`);
     assert.ok(sql.includes(' OR '), `got: ${sql}`);

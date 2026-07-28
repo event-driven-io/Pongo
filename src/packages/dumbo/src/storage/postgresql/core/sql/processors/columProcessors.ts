@@ -18,11 +18,17 @@ const mapColumnType = (
     case 'SQL_COLUMN_BIGINT':
       columnSQL = 'BIGINT';
       break;
+    case 'SQL_COLUMN_BOOLEAN':
+      columnSQL = 'BOOLEAN';
+      break;
     case 'SQL_COLUMN_SERIAL':
       columnSQL = 'SERIAL';
       break;
     case 'SQL_COLUMN_INTEGER':
       columnSQL = 'INTEGER';
+      break;
+    case 'SQL_COLUMN_JSON':
+      columnSQL = 'JSONB';
       break;
     case 'SQL_COLUMN_JSONB':
       columnSQL = 'JSONB';
@@ -35,6 +41,9 @@ const mapColumnType = (
       break;
     case 'SQL_COLUMN_TIMESTAMPTZ':
       columnSQL = 'TIMESTAMPTZ';
+      break;
+    case 'SQL_COLUMN_TEXT':
+      columnSQL = 'TEXT';
       break;
     case 'SQL_COLUMN_VARCHAR':
       columnSQL = `VARCHAR ${Number.isNaN(token.length) ? '' : `(${token.length})`}`;
