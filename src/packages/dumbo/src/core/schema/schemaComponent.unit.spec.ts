@@ -21,6 +21,7 @@ import {
   findFeatures,
   isFeatureSchemaComponent,
   indexSchemaComponent,
+  generatedIndexName,
   extendSchemaComponent,
   schemaComponent,
   sqlMigration,
@@ -482,6 +483,33 @@ describe('FeatureSchemaComponent', () => {
     assert.throws(
       () => users.addIndex(index),
       /Index accounts_email_idx belongs to database schema crm and cannot be added to __default_database_schema__\.users/,
+    );
+  });
+
+  it('generates index names from table, target names, and index kind', () => {
+    assert.strictEqual(
+      generatedIndexName({
+        tableName: 'users',
+        indexTargetNames: ['email'],
+        indexKind: 'json_path',
+      }),
+      'users_email_json_path_idx',
+    );
+    assert.strictEqual(
+      generatedIndexName({
+        tableName: 'users',
+        indexTargetNames: ['data'],
+        indexKind: 'json_document',
+      }),
+      'users_data_json_document_idx',
+    );
+    assert.strictEqual(
+      generatedIndexName({
+        tableName: 'users',
+        indexTargetNames: ['embedding'],
+        indexKind: 'vector',
+      }),
+      'users_embedding_vector_idx',
     );
   });
 });
