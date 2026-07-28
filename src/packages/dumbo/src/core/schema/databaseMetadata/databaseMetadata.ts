@@ -21,6 +21,12 @@ export type DatabaseMetadata<
   SupportsFunctions extends boolean = boolean,
 > = {
   readonly databaseType: DatabaseType;
+  /**
+   * Native schema used by the database when an object reference is unqualified.
+   * Undefined means that the native lookup rules (for example PostgreSQL
+   * search_path) must be preserved.
+   */
+  readonly defaultSchemaName?: string | undefined;
   readonly capabilities: DatabaseCapabilities<
     SupportsMultipleDatabases,
     SupportsSchemas,

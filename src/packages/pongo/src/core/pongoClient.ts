@@ -1,9 +1,6 @@
 import { JSONSerializer } from '@event-driven-io/dumbo';
 import { pongoCache } from './cache';
-import {
-  PongoDatabaseCache,
-  type PongoClientSchemaFromDefinition,
-} from './database';
+import { PongoDatabaseCache, PONGO_DEFAULT_DATABASE_NAME } from './database';
 import type {
   AnyPongoDriver,
   ExtractPongoDatabaseTypeFromDriver,
@@ -11,8 +8,9 @@ import type {
 import { pongoSession } from './pongoSession';
 import {
   pongoSchema,
-  proxyClientWithSchema,
+  projectPongoClient,
   type PongoClientSchema,
+  type PongoClientSchemaFromDefinition,
   type PongoClientWithSchema,
   type PongoDbSchema,
 } from './schema';
@@ -47,6 +45,9 @@ export const pongoClient = <
     errors,
     cache: cacheOptions,
     serialization,
+    databaseName: defaultDatabaseName,
+    defaultSchemaName,
+    migrationTable,
     ...connectionOptions
   } = options;
 
@@ -57,7 +58,7 @@ export const pongoClient = <
       : isPongoClientSchema(schemaDefinition)
         ? schemaDefinition
         : pongoSchema.client({
-            [schemaDefinition.name ?? pongoSchema.database.defaultName]:
+            [schemaDefinition.databaseName ?? PONGO_DEFAULT_DATABASE_NAME]:
               schemaDefinition,
           })
   ) as TypedClientSchema | undefined;
@@ -76,6 +77,10 @@ export const pongoClient = <
     cacheOptions === 'disabled' || cacheOptions === undefined
       ? 'disabled'
       : pongoCache(cacheOptions);
+  const schemaOptions =
+    schema?.autoMigration === undefined
+      ? {}
+      : { autoMigration: schema.autoMigration };
 
   const pongoClient: PongoClient<
     DatabaseDriver['driverType'],
@@ -93,14 +98,17 @@ export const pongoClient = <
       dbName?: string,
       options?: PongoDbOptions,
     ): ExtractPongoDatabaseTypeFromDriver<DatabaseDriver> => {
+      const resolvedMigrationTable = options?.migrationTable ?? migrationTable;
       const db = dbClients.getOrCreate({
         ...connectionOptions,
-        databaseName: dbName,
+        databaseName: dbName ?? defaultDatabaseName,
+        defaultSchemaName: options?.defaultSchemaName ?? defaultSchemaName,
+        ...(resolvedMigrationTable === undefined
+          ? {}
+          : { migrationTable: resolvedMigrationTable }),
         serializer,
         errors,
-        ...(schema?.autoMigration
-          ? { schema: { autoMigration: schema.autoMigration } }
-          : {}),
+        schema: schemaOptions,
         cache: options?.cache ?? cache,
         serialization,
       });
@@ -121,5 +129,5 @@ export const pongoClient = <
     },
   };
 
-  return proxyClientWithSchema(pongoClient, typedSchema);
+  return projectPongoClient(pongoClient, typedSchema);
 };

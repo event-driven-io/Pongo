@@ -12,9 +12,6 @@ import { SQL } from '../sql';
 import { isTokenizedSQL, TokenizedSQL } from '../tokenizedSQL';
 import { SQLValueMapper, type MapSQLParamValueOptions } from '../valueMappers';
 
-export type FormatContext = Partial<SQLProcessorContext> &
-  Pick<SQLProcessorContext, 'serializer'>;
-
 export interface SQLFormatter {
   format: (sql: SQL | SQL[], context: FormatContext) => ParametrizedSQL;
   describe: (sql: SQL | SQL[], context: FormatContext) => string;
@@ -26,6 +23,9 @@ export type FormatSQLOptions = {
   processorsRegistry?: SQLProcessorsReadonlyRegistry;
   serializer?: JSONSerializer;
 };
+
+export type FormatContext = Partial<SQLProcessorContext> &
+  Pick<SQLProcessorContext, 'serializer'>;
 
 export type SQLFormatterOptions = Partial<Omit<SQLFormatter, 'valueMapper'>> & {
   valueMapper?: MapSQLParamValueOptions;

@@ -3,7 +3,7 @@ import { SQL } from '../../../sql';
 import type { Equals, Expect, IsError } from '../../../testing';
 import type { TypeValidationResult } from '../../../typing';
 import { dumboSchema } from '../../dumboSchema';
-import type { InferTableSchemaComponentColumns } from '../tableSchemaComponent';
+import type { InferTableComponentColumns } from '../tableComponent';
 import type { ValidateRelationship } from './relationshipValidation';
 
 const { schema, table, column } = dumboSchema;
@@ -41,7 +41,7 @@ describe('ValidateRelationship', () => {
   };
 
   type PostsTable = typeof postsTable;
-  type ExistingColumns = InferTableSchemaComponentColumns<PostsTable>;
+  type ExistingColumns = InferTableComponentColumns<PostsTable>;
 
   it('fails when columns and references have different lengths', () => {
     type MismatchedLengthRel = {
@@ -376,8 +376,7 @@ describe('ValidateRelationship', () => {
 
   it('collects type mismatch errors', () => {
     type TypeMismatchTable = typeof typeMismatchTable;
-    type TypeMismatchColumns =
-      InferTableSchemaComponentColumns<TypeMismatchTable>;
+    type TypeMismatchColumns = InferTableComponentColumns<TypeMismatchTable>;
 
     type TypeMismatchRel = {
       columns: ['user_id'];

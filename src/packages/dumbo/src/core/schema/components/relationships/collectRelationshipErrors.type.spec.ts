@@ -3,7 +3,7 @@ import { SQL } from '../../../sql';
 import type { Equals, Expect } from '../../../testing';
 import type { TypeValidationResult } from '../../../typing';
 import { dumboSchema } from '../../dumboSchema';
-import type { InferTableSchemaComponentColumns } from '../tableSchemaComponent';
+import type { InferTableComponentColumns } from '../tableComponent';
 import { relationship } from './relationshipTypes';
 import type { CollectRelationshipErrors } from './relationshipValidation';
 
@@ -50,7 +50,7 @@ describe('CollectRelationshipErrors', () => {
   };
 
   type PostsTable = typeof postsTable;
-  type PostsColumns = InferTableSchemaComponentColumns<PostsTable>;
+  type PostsColumns = InferTableComponentColumns<PostsTable>;
 
   it('returns empty array when all relationships are valid', () => {
     type Result = CollectRelationshipErrors<
@@ -82,7 +82,7 @@ describe('CollectRelationshipErrors', () => {
     type BadPostsTable = typeof _postsTableWithBadRef;
 
     type Result = CollectRelationshipErrors<
-      InferTableSchemaComponentColumns<BadPostsTable>,
+      InferTableComponentColumns<BadPostsTable>,
       BadPostsTable['relationships'],
       BadPostsTable,
       typeof _publicSchema,
@@ -131,7 +131,7 @@ describe('CollectRelationshipErrors', () => {
     type MultiErrorTable = typeof _postsTableMultipleErrors;
 
     type Result = CollectRelationshipErrors<
-      InferTableSchemaComponentColumns<MultiErrorTable>,
+      InferTableComponentColumns<MultiErrorTable>,
       MultiErrorTable['relationships'],
       MultiErrorTable,
       typeof _publicSchema,
@@ -182,7 +182,7 @@ describe('CollectRelationshipErrors', () => {
     type MismatchTable = typeof _postsTableTypeMismatch;
 
     type Result = CollectRelationshipErrors<
-      InferTableSchemaComponentColumns<MismatchTable>,
+      InferTableComponentColumns<MismatchTable>,
       MismatchTable['relationships'],
       MismatchTable,
       typeof _publicSchema,
@@ -228,7 +228,7 @@ describe('CollectRelationshipErrors', () => {
     type LengthMismatchTable = typeof _postsTableLengthMismatch;
 
     type Result = CollectRelationshipErrors<
-      InferTableSchemaComponentColumns<LengthMismatchTable>,
+      InferTableComponentColumns<LengthMismatchTable>,
       LengthMismatchTable['relationships'],
       LengthMismatchTable,
       typeof _publicSchema,
@@ -274,7 +274,7 @@ describe('CollectRelationshipErrors', () => {
     type MixedTable = typeof _postsTableMixed;
 
     type Result = CollectRelationshipErrors<
-      InferTableSchemaComponentColumns<MixedTable>,
+      InferTableComponentColumns<MixedTable>,
       MixedTable['relationships'],
       MixedTable,
       typeof _publicSchema,
@@ -334,7 +334,7 @@ describe('CollectRelationshipErrors', () => {
     type CompositePostsTable = typeof compositePostsTable;
 
     type Result = CollectRelationshipErrors<
-      InferTableSchemaComponentColumns<CompositePostsTable>,
+      InferTableComponentColumns<CompositePostsTable>,
       CompositePostsTable['relationships'],
       CompositePostsTable,
       typeof _compositeSchema,

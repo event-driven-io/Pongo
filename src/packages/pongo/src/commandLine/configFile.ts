@@ -43,7 +43,9 @@ ${types}
 export default {
   schema: pongoSchema.client({
     database: pongoSchema.db({
+      collections: {
 ${collections}
+      },
     }),
   }),
 };`;
@@ -110,23 +112,18 @@ export const parseDefaultDbSchema = (
 
   const dbs = objectEntries(imported.default.schema.dbs).map((db) => db[1]);
 
-  const defaultDb = dbs.find((db) => db.name === undefined);
+  const defaultDb = dbs.find((db) => db.databaseName === undefined);
 
   if (!defaultDb) {
     return missingDefaultDb;
   }
 
-  if (!defaultDb.collections) {
+  const metadata = toDbSchemaMetadata(defaultDb);
+  if (metadata.collections.length === 0) {
     return missingCollections;
   }
 
-  const collections = objectEntries(defaultDb.collections).map((col) => col[1]);
-
-  if (collections.length === 0) {
-    return missingCollections;
-  }
-
-  return toDbSchemaMetadata(defaultDb);
+  return metadata;
 };
 
 type SampleConfigOptions =

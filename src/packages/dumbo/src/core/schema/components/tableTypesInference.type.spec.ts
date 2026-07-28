@@ -106,7 +106,7 @@ type _Test17 = Expect<
   >
 >;
 
-// InferTableType - infer from TableSchemaComponent
+// InferTableType - infer from TableComponent
 const _productsTable = table('products', {
   columns: {
     id: column('id', BigSerial, { primaryKey: true }),

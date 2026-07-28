@@ -1,158 +1,152 @@
 import {
-  mapSchemaComponentsOfType,
-  schemaComponent,
+  copySchemaComponentSpecialization,
+  createSchemaComponent,
+  defineSchemaComponentRecord,
+  localMigrationsOf,
+  mergeComponentRecords,
+  schemaComponentType,
+  type AnySchemaComponent,
   type SchemaComponent,
   type SchemaComponentOptions,
 } from '../schemaComponent';
+import type { ExtensionComponent } from '../extensionComponent';
 import {
-  FeatureSchemaComponentURNType,
-  type DatabaseFeatureSchemaComponent,
-} from '../featureSchemaComponent';
-import {
-  DatabaseSchemaURNType,
-  bindDatabaseSchemaToDatabase,
-  databaseSchemaSchemaComponent,
-  type BindDatabaseSchemasToDatabase,
-  type AnyDatabaseSchemaSchemaComponent,
-  type DatabaseSchemaSchemaComponent,
-} from './databaseSchemaSchemaComponent';
+  contextualTableComponent,
+  type AnyTableComponent,
+} from './tableComponent';
 
-export type DatabaseURNType = 'sc:dumbo:database';
-export type DatabaseKind = 'regular';
-export const DatabaseKind: DatabaseKind = 'regular';
-export type DatabaseURN<
-  DatabaseKindName extends string = string,
-  DatabaseName extends string = string,
-> = `${DatabaseURNType}:${DatabaseKindName}:${DatabaseName}`;
+export const databaseSchemaComponentType: unique symbol = Symbol(
+  'dumbo.schemaComponent.databaseSchema',
+);
 
-export const DatabaseURNType: DatabaseURNType = 'sc:dumbo:database';
-export const DatabaseURN = <
-  DatabaseKindName extends string = string,
-  DatabaseName extends string = string,
->({
-  kind,
-  name,
-}: {
-  kind: DatabaseKindName;
-  name: DatabaseName;
-}): DatabaseURN<DatabaseKindName, DatabaseName> =>
-  `${DatabaseURNType}:${kind}:${name}`;
+export type DatabaseSchemaTables = Readonly<Record<string, AnyTableComponent>>;
+export type SchemaExtensions = Readonly<Record<string, ExtensionComponent>>;
 
-export type DatabaseSchemas<
-  Schemas extends AnyDatabaseSchemaSchemaComponent =
-    AnyDatabaseSchemaSchemaComponent,
-> = Record<string, Schemas>;
-
-export type DatabaseFeatures<
-  Features extends DatabaseFeatureSchemaComponent =
-    DatabaseFeatureSchemaComponent,
-> = Record<string, Features>;
-
-export type DatabaseSchemaComponent<
-  Schemas extends DatabaseSchemas = DatabaseSchemas,
-  DatabaseName extends string = string,
-  DatabaseKindName extends string = DatabaseKind,
-  Features extends DatabaseFeatures = DatabaseFeatures,
-> = SchemaComponent<
-  DatabaseURN<DatabaseKindName, DatabaseName>,
-  Readonly<{
-    databaseKind: DatabaseKindName;
-    databaseName: DatabaseName;
-    schemas: ReadonlyMap<string, DatabaseSchemaSchemaComponent> &
-      BindDatabaseSchemasToDatabase<Schemas, DatabaseName>;
-    features: ReadonlyMap<string, DatabaseFeatureSchemaComponent> & Features;
-    addSchema: (
-      schema: string | DatabaseSchemaSchemaComponent,
-    ) => DatabaseSchemaSchemaComponent;
-  }>
->;
-
-export type AnyDatabaseSchemaComponent =
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  DatabaseSchemaComponent<any, any, any, any>;
-
-export const databaseSchemaComponent = <
-  Schemas extends DatabaseSchemas = DatabaseSchemas,
-  const DatabaseName extends string = string,
-  const DatabaseKindName extends string = DatabaseKind,
-  Features extends DatabaseFeatures = DatabaseFeatures,
->({
-  databaseName,
-  databaseKind,
-  schemas,
-  features,
-  ...migrationsOrComponents
-}: {
-  databaseName: DatabaseName;
-  databaseKind?: DatabaseKindName;
-  schemas?: Schemas;
-  features?: Features;
-} & SchemaComponentOptions): DatabaseSchemaComponent<
-  Schemas,
-  DatabaseName,
-  DatabaseKindName,
-  Features
-> => {
-  schemas ??= {} as Schemas;
-  features ??= {} as Features;
-  databaseKind ??= DatabaseKind as DatabaseKindName;
-  const boundSchemas = Object.fromEntries(
-    Object.entries(schemas).map(([key, schema]) => [
-      key,
-      bindDatabaseSchemaToDatabase(schema, databaseName),
-    ]),
-  ) as BindDatabaseSchemasToDatabase<Schemas, DatabaseName>;
-  const schemaComponents = Object.values(
-    boundSchemas as Record<string, DatabaseSchemaSchemaComponent>,
-  );
-
-  const base = schemaComponent(
-    DatabaseURN({ kind: databaseKind, name: databaseName }),
-    {
-      migrations: migrationsOrComponents.migrations ?? [],
-      components: [
-        ...(migrationsOrComponents.components ?? []),
-        ...schemaComponents,
-        ...Object.values(features),
-      ],
-    },
-  );
-
-  return {
-    ...base,
-    databaseKind,
-    databaseName,
-    get migrations() {
-      return base.migrations;
-    },
-    get schemas() {
-      const schemasMap =
-        mapSchemaComponentsOfType<DatabaseSchemaSchemaComponent>(
-          base.components,
-          DatabaseSchemaURNType,
-          (c) => c.schemaName,
-        );
-
-      return Object.assign(schemasMap, boundSchemas);
-    },
-    get features() {
-      const featuresMap =
-        mapSchemaComponentsOfType<DatabaseFeatureSchemaComponent>(
-          base.components,
-          FeatureSchemaComponentURNType,
-          (c) => c.featureName,
-        );
-
-      return Object.assign(featuresMap, features);
-    },
-    addSchema: (schema: string | DatabaseSchemaSchemaComponent) =>
-      base.addComponent(
-        typeof schema === 'string'
-          ? databaseSchemaSchemaComponent({
-              databaseName,
-              schemaName: schema,
-            })
-          : bindDatabaseSchemaToDatabase(schema, databaseName),
-      ),
+type ContextualTables<Tables extends DatabaseSchemaTables> = {
+  readonly [Key in keyof Tables]: Tables[Key] & {
+    databaseSchemaName: string;
   };
 };
+
+export type DatabaseSchemaComponent<
+  Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
+  SchemaName extends string | undefined = string | undefined,
+  Extensions extends SchemaExtensions = SchemaExtensions,
+> = SchemaComponent<typeof databaseSchemaComponentType> &
+  Readonly<{
+    schemaName: SchemaName;
+    databaseName?: string;
+    tables: SchemaName extends string ? ContextualTables<Tables> : Tables;
+    extensions: Extensions;
+  }>;
+
+export type AnyDatabaseSchemaComponent = DatabaseSchemaComponent<
+  DatabaseSchemaTables,
+  string | undefined,
+  SchemaExtensions
+>;
+
+export type DatabaseSchemaComponentOptions<
+  Tables extends DatabaseSchemaTables,
+  SchemaName extends string | undefined,
+  Extensions extends SchemaExtensions,
+> = Readonly<{
+  schemaName?: SchemaName | undefined;
+  databaseName?: string | undefined;
+  tables?: Tables | undefined;
+  extensions?: Extensions | undefined;
+}> &
+  Omit<SchemaComponentOptions, 'components'>;
+
+export const databaseSchemaComponent = <
+  const Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
+  const SchemaName extends string | undefined = undefined,
+  const Extensions extends SchemaExtensions = SchemaExtensions,
+>(
+  options: DatabaseSchemaComponentOptions<Tables, SchemaName, Extensions>,
+): DatabaseSchemaComponent<Tables, SchemaName, Extensions> => {
+  const sourceTables = (options.tables ?? {}) as Tables;
+  const tables =
+    options.schemaName === undefined
+      ? sourceTables
+      : (Object.fromEntries(
+          Object.entries(sourceTables).map(([alias, table]) => [
+            alias,
+            contextualTableComponent(table, options.schemaName as string),
+          ]),
+        ) as ContextualTables<Tables>);
+  const extensions = (options.extensions ?? {}) as Extensions;
+  const base = createSchemaComponent(databaseSchemaComponentType, {
+    components: mergeComponentRecords(tables, extensions),
+    migrations: options.migrations,
+  });
+
+  Object.defineProperties(base, {
+    schemaName: { value: options.schemaName, enumerable: true },
+    databaseName: { value: options.databaseName, enumerable: true },
+  });
+  defineSchemaComponentRecord(base, 'tables', tables);
+  defineSchemaComponentRecord(base, 'extensions', extensions);
+
+  return base as unknown as DatabaseSchemaComponent<
+    Tables,
+    SchemaName,
+    Extensions
+  >;
+};
+
+export const contextualDatabaseSchemaComponent = <
+  Schema extends AnyDatabaseSchemaComponent,
+>(
+  schema: Schema,
+  context: {
+    databaseName?: string | undefined;
+    schemaName: string;
+  },
+): Schema & { databaseName?: string; schemaName: string } => {
+  if (
+    context.databaseName !== undefined &&
+    schema.databaseName !== undefined &&
+    schema.databaseName !== context.databaseName
+  ) {
+    throw new Error(
+      `Database schema "${context.schemaName}" is constrained to database "${schema.databaseName}" and cannot be placed in "${context.databaseName}"`,
+    );
+  }
+  if (
+    schema.schemaName !== undefined &&
+    schema.schemaName !== context.schemaName
+  ) {
+    throw new Error(
+      `Database schema record key "${context.schemaName}" conflicts with its explicit name "${schema.schemaName}"`,
+    );
+  }
+
+  const contextual = databaseSchemaComponent({
+    schemaName: context.schemaName,
+    databaseName: context.databaseName ?? schema.databaseName,
+    tables: schema.tables,
+    extensions: schema.extensions,
+    migrations: localMigrationsOf(schema),
+  });
+  copySchemaComponentSpecialization(schema, contextual, schemaProperties);
+  return contextual as unknown as Schema & {
+    databaseName?: string;
+    schemaName: string;
+  };
+};
+
+const schemaProperties = new Set<PropertyKey>([
+  schemaComponentType,
+  'components',
+  'migrations',
+  'schemaName',
+  'databaseName',
+  'tables',
+  'extensions',
+]);
+
+export const isDatabaseSchemaComponent = (
+  component: AnySchemaComponent,
+): component is AnyDatabaseSchemaComponent =>
+  component[schemaComponentType] === databaseSchemaComponentType;

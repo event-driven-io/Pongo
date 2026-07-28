@@ -1,10 +1,10 @@
-import type { JSONSerializer } from '@event-driven-io/dumbo';
 import {
-  dumboSchema,
+  createTableSQL,
   isSQL,
   JSONParam,
   SQL,
-  sqlMigration,
+  type ComponentContext,
+  type JSONSerializer,
 } from '@event-driven-io/dumbo';
 import { SQLiteJSON } from '@event-driven-io/dumbo/sqlite';
 import {
@@ -13,7 +13,7 @@ import {
   type ExpectedDocumentVersion,
   type FindOptions,
   type OptionalUnlessRequiredIdAndVersion,
-  type PongoCollectionSchema,
+  type PongoCollectionComponent,
   type PongoCollectionSQLBuilder,
   type PongoFilter,
   type PongoUpdate,
@@ -25,6 +25,7 @@ import {
 } from '../../../../core';
 import { constructFilterQuery } from './filter';
 import { buildUpdateQuery } from './update';
+import { resolveSQLiteCollectionReference } from '../schemaMapping';
 
 const versionCheckClause = (
   expectedVersion: ExpectedDocumentVersion | undefined,
@@ -35,81 +36,16 @@ const versionCheckClause = (
     : SQL`AND _version = ${predicate.value}`;
 };
 
-const createCollection = (tableName: string): SQL =>
-  SQL`
-    CREATE TABLE IF NOT EXISTS ${SQL.identifier(tableName)} (
-      _id           TEXT           PRIMARY KEY,
-      data          JSON           NOT NULL,
-      metadata      JSON           NOT NULL     DEFAULT '{}',
-      _version      INTEGER        NOT NULL     DEFAULT 1,
-      _partition    TEXT           NOT NULL     DEFAULT 'png_global',
-      _archived     INTEGER        NOT NULL     DEFAULT 0,
-      _created      TEXT           NOT NULL     DEFAULT (datetime('now')),
-      _updated      TEXT           NOT NULL     DEFAULT (datetime('now'))
-  )`;
-
-const collectionIdentity = (
-  schemaOrName: PongoCollectionSchema | string,
-): {
-  collectionName: string;
-  databaseSchemaName?: string | undefined;
-  migrationName: string;
-  physicalName: string;
-} => {
-  const schema =
-    typeof schemaOrName === 'string'
-      ? {
-          tableName: schemaOrName,
-          databaseSchemaName: dumboSchema.schema.defaultName,
-        }
-      : schemaOrName;
-
-  if (schema.databaseSchemaName === dumboSchema.schema.defaultName) {
-    return {
-      migrationName: schema.tableName,
-      collectionName: schema.tableName,
-      physicalName: schema.tableName,
-    };
-  }
-
-  if (schema.databaseSchemaName === 'main') {
-    return {
-      migrationName: `main:${schema.tableName}`,
-      collectionName: schema.tableName,
-      physicalName: schema.tableName,
-    };
-  }
-
-  return {
-    collectionName: schema.tableName,
-    databaseSchemaName: schema.databaseSchemaName,
-    migrationName: `${schema.databaseSchemaName}:${schema.tableName}`,
-    physicalName: `${schema.databaseSchemaName}_${schema.tableName}`,
-  };
-};
-
-export const pongoCollectionSQLiteMigrations = (
-  schemaOrName: PongoCollectionSchema | string,
-) => {
-  const collection = collectionIdentity(schemaOrName);
-
-  return [
-    sqlMigration(
-      `pongoCollection:${collection.migrationName}:001:createtable`,
-      [createCollection(collection.physicalName)],
-    ),
-    ...(typeof schemaOrName === 'string' ? [] : schemaOrName.migrations),
-  ];
-};
-
 export const sqliteSQLBuilder = (
-  schemaOrName: PongoCollectionSchema | string,
+  collection: PongoCollectionComponent,
+  context: ComponentContext,
   serializer: JSONSerializer,
 ): PongoCollectionSQLBuilder => {
-  const tableName = collectionIdentity(schemaOrName).physicalName;
+  const { physicalName: tableName, tableReference } =
+    resolveSQLiteCollectionReference(context);
 
   return {
-    createCollection: (): SQL => createCollection(tableName),
+    createCollection: (): SQL => createTableSQL(collection, tableReference),
     insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
       const serialized = JSONParam.document(document, serializer);
       const id = document._id;
@@ -388,10 +324,14 @@ export const sqliteSQLBuilder = (
         : constructFilterQuery(filter, serializer);
       return SQL`SELECT COUNT(1) as count FROM ${SQL.identifier(tableName)} ${where(filterQuery)};`;
     },
-    rename: (newName: string): SQL =>
-      SQL`ALTER TABLE ${SQL.identifier(tableName)} RENAME TO ${SQL.identifier(newName)};`,
-    drop: (targetName: string = tableName): SQL =>
-      SQL`DROP TABLE IF EXISTS ${SQL.identifier(targetName)}`,
+    rename: (newName: string): SQL => {
+      const destination = resolveSQLiteCollectionReference({
+        ...context,
+        tableName: newName,
+      });
+      return SQL`ALTER TABLE ${SQL.identifier(tableName)} RENAME TO ${SQL.identifier(destination.physicalName)};`;
+    },
+    drop: (): SQL => SQL`DROP TABLE IF EXISTS ${SQL.identifier(tableName)}`,
   };
 };
 

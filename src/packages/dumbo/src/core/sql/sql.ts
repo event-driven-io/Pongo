@@ -1,6 +1,4 @@
 import { JSONSerializer } from '../serializer';
-import type { dumboSchema } from '../schema/dumboSchema';
-import { columnSchemaComponent } from '../schema/components/columnSchemaComponent';
 import type { SQLFormatter } from './formatters';
 import { describeSQL, formatSQL, type FormatSQLOptions } from './formatters';
 import type { ParametrizedSQL } from './parametrizedSQL';
@@ -96,12 +94,6 @@ export type SQLTag = {
 
   /** Creates a schema column token for SQL generation. */
   column: typeof SQLColumnToken.from & {
-    /** Column type token factory. */
-    type: typeof SQLColumnTypeTokensFactory;
-  };
-
-  /** Creates a schema column token using Dumbo schema metadata. */
-  columnN: typeof dumboSchema.column & {
     /** Column type token factory. */
     type: typeof SQLColumnTypeTokensFactory;
   };
@@ -203,13 +195,6 @@ const columnFactory: typeof SQLColumnToken.from & {
 };
 columnFactory.type = SQLColumnTypeTokensFactory;
 
-const schemaColumnFactory = ((name: string, type: unknown, options?: object) =>
-  columnSchemaComponent({
-    columnName: name,
-    type,
-    ...options,
-  } as never)) as typeof dumboSchema.column;
-
 export const SQL: SQLTag = Object.assign(createSQL, {
   EMPTY: emptySQL,
   concat: concatSQL,
@@ -251,7 +236,4 @@ export const SQL: SQLTag = Object.assign(createSQL, {
     isSQLIn: SQLIn.check,
   },
   column: columnFactory,
-  columnN: Object.assign(schemaColumnFactory, {
-    type: SQLColumnTypeTokensFactory,
-  }),
 });

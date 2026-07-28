@@ -1,43 +1,22 @@
-import { findExpandedSchemaComponentsOfType } from '../expandSchemaComponent';
-import type { AnySchemaComponent } from '../schemaComponent';
-import type { AnyDatabaseSchemaComponent } from './databaseSchemaComponent';
-import { DatabaseSchemaURNType } from './databaseSchemaSchemaComponent';
-import { TableURNType } from './tableSchemaComponent';
+import { findComponents, type AnySchemaComponent } from '../schemaComponent';
+import type { AnyDatabaseComponent } from './databaseComponent';
+import { isDatabaseSchemaComponent } from './databaseSchemaComponent';
+import { isTableComponent } from './tableComponent';
 
-type LogicalSchemaTable = {
-  tableName: string;
-};
-
-type LogicalSchema = {
-  schemaName: string;
-  tables: ReadonlyMap<string, LogicalSchemaTable>;
-};
-
-type DatabaseSchemaComponentView = AnySchemaComponent & {
-  schemaName: string;
-};
-
-type TableComponentView = AnySchemaComponent & {
-  tableName: string;
-};
-
-export type LogicalSchemaMapping =
-  { mode: 'strict' } | { mode: 'prefix'; separator?: string };
+type SchemaView = AnySchemaComponent & { schemaName: string };
+type TableView = AnySchemaComponent & { tableName: string };
 
 export type LogicalSchemaCollision = {
   physicalName: string;
-  first: {
-    schemaName: string;
-    tableName: string;
-  };
-  second: {
-    schemaName: string;
-    tableName: string;
-  };
+  first: { schemaName: string; tableName: string };
+  second: { schemaName: string; tableName: string };
 };
 
 export const collectLogicalSchemaCollisions = (
-  schemas: Iterable<LogicalSchema>,
+  schemas: Iterable<{
+    schemaName: string;
+    tables: Iterable<{ tableName: string }>;
+  }>,
 ): LogicalSchemaCollision[] => {
   const physicalTables = new Map<
     string,
@@ -46,26 +25,22 @@ export const collectLogicalSchemaCollisions = (
   const collisions: LogicalSchemaCollision[] = [];
 
   for (const schema of schemas) {
-    for (const table of schema.tables.values()) {
-      const physicalName = table.tableName;
-      const previous = physicalTables.get(physicalName);
+    for (const table of schema.tables) {
+      const previous = physicalTables.get(table.tableName);
+      const current = {
+        schemaName: schema.schemaName,
+        tableName: table.tableName,
+      };
 
       if (previous && previous.schemaName !== schema.schemaName) {
         collisions.push({
-          physicalName,
+          physicalName: table.tableName,
           first: previous,
-          second: {
-            schemaName: schema.schemaName,
-            tableName: table.tableName,
-          },
+          second: current,
         });
-        continue;
+      } else {
+        physicalTables.set(table.tableName, current);
       }
-
-      physicalTables.set(physicalName, {
-        schemaName: schema.schemaName,
-        tableName: table.tableName,
-      });
     }
   }
 
@@ -73,57 +48,31 @@ export const collectLogicalSchemaCollisions = (
 };
 
 export const assertLogicalSchemaMapping = (
-  database: AnyDatabaseSchemaComponent,
-  mapping: LogicalSchemaMapping = { mode: 'strict' },
-): void => {
-  assertLogicalSchemaComponentMapping(database, mapping);
-};
+  database: AnyDatabaseComponent,
+): void => assertLogicalSchemaComponentMapping(database);
 
 export const assertLogicalSchemaComponentMapping = (
   component: AnySchemaComponent,
-  mapping: LogicalSchemaMapping = { mode: 'strict' },
 ): void => {
-  assertLogicalSchemas(
-    findExpandedSchemaComponentsOfType<AnySchemaComponent>(
-      component,
-      DatabaseSchemaURNType,
-    ).map((schemaComponent) => {
-      const schema = schemaComponent as unknown as DatabaseSchemaComponentView;
-
-      return {
-        schemaName: schema.schemaName,
-        tables: findExpandedSchemaComponentsOfType<AnySchemaComponent>(
-          schema,
-          TableURNType,
-        ).reduce((tables, tableComponent) => {
-          const table = tableComponent as unknown as TableComponentView;
-          const tableName = table.tableName;
-
-          tables.set(tableName, { tableName });
-          return tables;
-        }, new Map<string, LogicalSchemaTable>()),
-      };
-    }),
-    mapping,
-  );
-};
-
-const assertLogicalSchemas = (
-  schemas: Iterable<LogicalSchema>,
-  mapping: LogicalSchemaMapping,
-): void => {
-  if (mapping.mode !== 'strict') {
-    throw new Error(`Unsupported logical schema mapping mode: ${mapping.mode}`);
-  }
-
+  const schemas = findComponents(
+    component,
+    (candidate): candidate is SchemaView =>
+      isDatabaseSchemaComponent(candidate) &&
+      candidate.schemaName !== undefined,
+  ).map((schema) => ({
+    schemaName: schema.schemaName,
+    tables: findComponents(schema, (candidate): candidate is TableView =>
+      isTableComponent(candidate),
+    ),
+  }));
   const collisions = collectLogicalSchemaCollisions(schemas);
 
   if (collisions.length === 0) return;
 
   const details = collisions
     .map(
-      (collision) =>
-        `${collision.physicalName} (${collision.first.schemaName}.${collision.first.tableName}, ${collision.second.schemaName}.${collision.second.tableName})`,
+      ({ physicalName, first, second }) =>
+        `${physicalName} (${first.schemaName}.${first.tableName}, ${second.schemaName}.${second.tableName})`,
     )
     .join(', ');
 

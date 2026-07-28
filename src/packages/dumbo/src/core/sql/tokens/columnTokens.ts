@@ -153,6 +153,39 @@ export const BigIntegerToken = ColumnTypeToken<BigIntegerToken>(
   'value_type:js:bigint',
 );
 
+export type TextToken = ColumnTypeToken<'value_type:js:string', 'TEXT'>;
+export const TextToken = ColumnTypeToken<TextToken>(
+  'SQL_COLUMN_TEXT',
+  'value_type:js:string',
+);
+
+export type BooleanToken = ColumnTypeToken<'value_type:js:boolean', 'BOOLEAN'>;
+export const BooleanToken = ColumnTypeToken<BooleanToken>(
+  'SQL_COLUMN_BOOLEAN',
+  'value_type:js:boolean',
+);
+
+export type JSONToken<ValueType = JSONValueType> = ColumnTypeToken<
+  'value_type:js:object',
+  'JSON',
+  undefined,
+  ValueType
+>;
+
+export const JSONToken = {
+  type: 'SQL_COLUMN_JSON',
+  from: <ValueType = JSONValueType>(): JSONToken<ValueType> =>
+    ({
+      sqlTokenType: 'SQL_COLUMN_JSON',
+      SQL_COLUMN_JSON: true,
+      jsTypeName: 'value_type:js:object',
+    }) as unknown as JSONToken<ValueType>,
+  check: <ValueType = JSONValueType>(
+    token: unknown,
+  ): token is JSONToken<ValueType> =>
+    SQLToken.check(token) && token.sqlTokenType === 'SQL_COLUMN_JSON',
+};
+
 export type JSONBToken<
   ValueType extends Record<string, unknown> = Record<string, unknown>,
 > = ColumnTypeToken<'value_type:js:object', 'JSONB', undefined, ValueType>;
@@ -212,7 +245,7 @@ export type NotNullableSQLColumnTokenProps<
       notNull: true;
       unique?: boolean;
       primaryKey?: boolean;
-      default?: ColumnType | SQLToken;
+      default?: SQLColumnDefault<ColumnType>;
     }
   | {
       name: string;
@@ -220,7 +253,7 @@ export type NotNullableSQLColumnTokenProps<
       notNull?: false;
       unique?: boolean;
       primaryKey: never;
-      default?: ColumnType | SQLToken;
+      default?: SQLColumnDefault<ColumnType>;
     };
 
 export type NullableSQLColumnTokenProps<
@@ -231,8 +264,14 @@ export type NullableSQLColumnTokenProps<
   notNull?: false;
   unique?: boolean;
   primaryKey?: false;
-  default?: ColumnType | SQLToken;
+  default?: SQLColumnDefault<ColumnType>;
 };
+
+export type SQLColumnDefault<ColumnType extends AnyColumnTypeToken | string> =
+  | (ColumnType extends AnyColumnTypeToken
+      ? ColumnType['__brand']
+      : JavaScriptValueType)
+  | SQLToken;
 
 export type SQLColumnToken<
   ColumnType extends AnyColumnTypeToken | string = AnyColumnTypeToken | string,
@@ -261,9 +300,12 @@ export const SQLColumnTypeTokens = {
   AutoIncrement: AutoIncrementSQLColumnToken,
   BigInteger: BigIntegerToken,
   BigSerial: BigSerialToken,
+  Boolean: BooleanToken,
   Integer: IntegerToken,
+  JSON: JSONToken,
   JSONB: JSONBToken,
   Serial: SerialToken,
+  Text: TextToken,
   Timestamp: TimestampToken,
   Timestamptz: TimestamptzToken,
   Varchar: VarcharToken,
@@ -273,9 +315,12 @@ export type SQLColumnTypeTokens = {
   AutoIncrement: AutoIncrementSQLColumnToken;
   BigInteger: BigIntegerToken;
   BigSerial: BigSerialToken;
+  Boolean: BooleanToken;
   Integer: IntegerToken;
+  JSON: JSONToken;
   JSONB: JSONBToken;
   Serial: SerialToken;
+  Text: TextToken;
   Timestamp: TimestampToken;
   Timestamptz: TimestamptzToken;
   Varchar: VarcharToken;
@@ -285,9 +330,12 @@ export const SQLColumnTypeTokensFactory = {
   AutoIncrement: AutoIncrementSQLColumnToken.from,
   BigInteger: BigIntegerToken.from(),
   BigSerial: BigSerialToken.from(),
+  Boolean: BooleanToken.from(),
   Integer: IntegerToken.from(),
+  JSON: JSONToken.from,
   JSONB: JSONBToken.from,
   Serial: SerialToken.from(),
+  Text: TextToken.from(),
   Timestamp: TimestampToken.from(),
   Timestamptz: TimestamptzToken.from(),
   Varchar: VarcharToken.from,
@@ -297,9 +345,12 @@ export type DefaultSQLColumnToken =
   | AutoIncrementSQLColumnToken
   | SerialToken
   | BigSerialToken
+  | BooleanToken
   | IntegerToken
+  | JSONToken
   | JSONBToken
   | BigIntegerToken
+  | TextToken
   | TimestampToken
   | TimestamptzToken
   | VarcharToken;

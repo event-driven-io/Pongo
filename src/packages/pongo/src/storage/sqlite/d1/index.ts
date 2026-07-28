@@ -1,20 +1,21 @@
-import { JSONSerializer } from '@event-driven-io/dumbo';
 import type {
   D1PoolOptions,
   D1TransactionOptions,
 } from '@event-driven-io/dumbo/cloudflare';
-import { D1DriverType, d1Pool } from '@event-driven-io/dumbo/cloudflare';
 import {
-  PongoCollectionSchemaComponent,
+  D1DriverType,
+  d1DumboDriver as dumboDriver,
+  d1Pool,
+} from '@event-driven-io/dumbo/cloudflare';
+import {
   PongoDatabase,
   pongoDriverRegistry,
-  pongoDatabaseSchemaFromPongoSchema,
   type PongoDb,
   type PongoDriver,
   type PongoDriverOptions,
   withPongoTransactionOptions,
 } from '../../../core';
-import { pongoCollectionSQLiteMigrations, sqliteSQLBuilder } from '../core';
+import { materializePongoSQLiteDatabaseComponent } from '../core';
 
 export type SQLitePongoClientOptions = object;
 
@@ -26,8 +27,14 @@ const d1PongoDriver: PongoDriver<
   D1DatabaseDriverOptions
 > = {
   driverType: D1DriverType,
+  dumboDriver,
   databaseFactory: (options) => {
-    const databaseName = options.databaseName ?? 'db:default';
+    const { databaseName, defaultSchemaName } = options;
+    if (databaseName === undefined || defaultSchemaName === undefined) {
+      throw new Error(
+        'D1 driver requires resolved database and default schema names',
+      );
+    }
     const connectionOptions = {
       ...options,
       ...options.connectionOptions,
@@ -43,22 +50,15 @@ const d1PongoDriver: PongoDriver<
       pool: d1Pool({
         ...pongoConnectionOptions,
       }),
-      schemaComponent: pongoDatabaseSchemaFromPongoSchema({
+      schemaComponent: materializePongoSQLiteDatabaseComponent({
         driverType: D1DriverType,
         databaseName,
-        collectionFactory: (schema) =>
-          PongoCollectionSchemaComponent({
-            driverType: D1DriverType,
-            definition: schema,
-            migrations: pongoCollectionSQLiteMigrations(schema),
-            sqlBuilder: sqliteSQLBuilder(
-              schema,
-              options.serialization?.serializer ?? JSONSerializer,
-            ),
-          }),
+        defaultSchemaName,
+        serializer: options.serializer,
         definition: options.schema?.definition,
       }),
       databaseName,
+      defaultSchemaName,
     });
   },
 };

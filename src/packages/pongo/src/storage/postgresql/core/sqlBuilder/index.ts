@@ -1,21 +1,32 @@
-import type { JSONSerializer } from '@event-driven-io/dumbo';
 import {
-  dumboSchema,
+  createTableSQL,
+  isDatabaseSchemaComponent,
   isSQL,
   JSONParam,
   SQL,
   sqlMigration,
+  type AnySchemaComponent,
+  type ComponentContext,
+  type DatabaseDriverType,
+  type JSONSerializer,
 } from '@event-driven-io/dumbo';
 import { PostgreSQLJSON } from '@event-driven-io/dumbo/postgresql';
 import {
   expectedVersionPredicate,
+  isPongoCollectionComponent,
+  isPongoIndexComponent,
+  materializePongoDatabaseComponent,
+  pongoIndexStrategy,
+  pongoJsonDocumentIndex,
   type DeleteOneOptions,
   type ExpectedDocumentVersion,
   type FindOptions,
   type OptionalUnlessRequiredIdAndVersion,
-  type PongoCollectionSchema,
+  type PongoCollectionComponent,
   type PongoCollectionSQLBuilder,
+  type PongoDatabaseComponent,
   type PongoFilter,
+  type PongoRuntimeDatabaseComponent,
   type PongoUpdate,
   type ReplaceOneOptions,
   type UpdateOneOptions,
@@ -36,97 +47,112 @@ const versionCheckClause = (
     : SQL`AND ${collection}._version = ${predicate.value}`;
 };
 
-const collectionIdentity = (
-  schemaOrName: PongoCollectionSchema | string,
-): {
-  databaseSchemaName?: string | undefined;
-  migrationName: string;
-  reference: SQL;
-  tableName: string;
-} => {
-  const schema =
-    typeof schemaOrName === 'string'
-      ? {
-          tableName: schemaOrName,
-          databaseSchemaName: dumboSchema.schema.defaultName,
-        }
-      : schemaOrName;
-
-  if (schema.databaseSchemaName === dumboSchema.schema.defaultName) {
-    return {
-      migrationName: schema.tableName,
-      reference: SQL`${SQL.identifier(schema.tableName)}`,
-      tableName: schema.tableName,
-    };
+const tableLocation = (
+  context: ComponentContext,
+): Readonly<{ databaseSchemaName: string; tableName: string }> => {
+  if (
+    context.databaseSchemaName === undefined ||
+    context.tableName === undefined
+  ) {
+    throw new Error(
+      'PostgreSQL collection resolution requires a materialized table context',
+    );
   }
 
   return {
-    databaseSchemaName: schema.databaseSchemaName,
-    migrationName: `${schema.databaseSchemaName}:${schema.tableName}`,
-    reference: SQL`${SQL.identifier(schema.databaseSchemaName)}.${SQL.identifier(schema.tableName)}`,
-    tableName: schema.tableName,
+    databaseSchemaName: context.databaseSchemaName,
+    tableName: context.tableName,
   };
 };
 
-const createDatabaseSchema = (
-  schemaOrName: PongoCollectionSchema | string,
-): SQL | undefined => {
-  if (
-    typeof schemaOrName === 'string' ||
-    schemaOrName.databaseSchemaName === dumboSchema.schema.defaultName
-  ) {
-    return undefined;
-  }
-
-  return SQL`CREATE SCHEMA IF NOT EXISTS ${SQL.identifier(schemaOrName.databaseSchemaName)}`;
+const tableReference = (context: ComponentContext): SQL => {
+  const { databaseSchemaName, tableName } = tableLocation(context);
+  return databaseSchemaName === 'public'
+    ? SQL`${SQL.identifier(tableName)}`
+    : SQL`${SQL.identifier(databaseSchemaName)}.${SQL.identifier(tableName)}`;
 };
 
-const createCollection = (schemaOrName: PongoCollectionSchema | string): SQL =>
-  SQL`
-    CREATE TABLE IF NOT EXISTS ${collectionIdentity(schemaOrName).reference} (
-      _id           TEXT           PRIMARY KEY,
-      data          JSONB          NOT NULL,
-      metadata      JSONB          NOT NULL     DEFAULT '{}',
-      _version      BIGINT         NOT NULL     DEFAULT 1,
-      _partition    TEXT           NOT NULL     DEFAULT 'png_global',
-      _archived     BOOLEAN        NOT NULL     DEFAULT FALSE,
-      _created      TIMESTAMPTZ    NOT NULL     DEFAULT now(),
-      _updated      TIMESTAMPTZ    NOT NULL     DEFAULT now()
-	  )`;
+const indexReference = (indexName: string): SQL =>
+  SQL`${SQL.identifier(indexName)}`;
 
-export const pongoCollectionPostgreSQLMigrations = (
-  schemaOrName: PongoCollectionSchema | string,
+const migrationsFor = (
+  component: AnySchemaComponent,
+  context: ComponentContext,
 ) => {
-  const collection = collectionIdentity(schemaOrName);
-  const schemaMigration = createDatabaseSchema(schemaOrName);
+  if (isDatabaseSchemaComponent(component)) {
+    const databaseSchemaName = context.databaseSchemaName;
+    if (databaseSchemaName === undefined || databaseSchemaName === 'public') {
+      return [];
+    }
+    return [
+      sqlMigration(`pongoSchema:${databaseSchemaName}:001:create`, [
+        SQL`CREATE SCHEMA IF NOT EXISTS ${SQL.identifier(databaseSchemaName)}`,
+      ]),
+    ];
+  }
+
+  if (isPongoCollectionComponent(component)) {
+    const { databaseSchemaName, tableName } = tableLocation(context);
+    const migrationName =
+      databaseSchemaName === 'public'
+        ? tableName
+        : `${databaseSchemaName}:${tableName}`;
+    return [
+      sqlMigration(`pongoCollection:${migrationName}:001:createtable`, [
+        createTableSQL(component, tableReference(context)),
+      ]),
+    ];
+  }
+
+  if (!isPongoIndexComponent(component)) return [];
+
+  const { databaseSchemaName, tableName } = tableLocation(context);
+  const table = tableReference(context);
+  const index = indexReference(component.indexName);
+  const path =
+    typeof component.path === 'string'
+      ? component.path
+      : component.path?.join('.');
+  const sqlContext = {
+    databaseName: context.databaseName,
+    databaseSchemaName,
+    tableName,
+    indexName: component.indexName,
+    tableReference: table,
+    indexReference: index,
+  };
+  const sql =
+    component.sql?.(sqlContext) ??
+    (component[pongoIndexStrategy] === pongoJsonDocumentIndex
+      ? SQL`CREATE INDEX ${index} ON ${table} USING GIN (data)`
+      : component.isUnique
+        ? SQL`CREATE UNIQUE INDEX ${index} ON ${table} ((data #>> ${PostgreSQLJSON.path(path ?? component.indexTargetNames.join('.'))}))`
+        : SQL`CREATE INDEX ${index} ON ${table} ((data #>> ${PostgreSQLJSON.path(path ?? component.indexTargetNames.join('.'))}))`);
 
   return [
     sqlMigration(
-      `pongoCollection:${collection.migrationName}:001:createtable`,
-      [
-        ...(schemaMigration ? [schemaMigration] : []),
-        createCollection(schemaOrName),
-      ],
+      `pongoIndex:${databaseSchemaName}:${tableName}:${component.indexName}:create`,
+      [sql],
     ),
-    ...(typeof schemaOrName === 'string' ? [] : schemaOrName.migrations),
   ];
 };
 
 export const postgresSQLBuilder = (
-  schemaOrName: PongoCollectionSchema | string,
+  collection: PongoCollectionComponent,
+  context: ComponentContext,
   serializer: JSONSerializer,
 ): PongoCollectionSQLBuilder => {
-  const collection = collectionIdentity(schemaOrName);
+  const reference = tableReference(context);
 
   return {
-    createCollection: (): SQL => createCollection(schemaOrName),
+    createCollection: (): SQL => createTableSQL(collection, reference),
     insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
       const serialized = JSONParam.document(document, serializer);
       const id = document._id;
       const version = document._version ?? 1n;
 
       return SQL`
-      INSERT INTO ${collection.reference} (_id, data, _version)
+      INSERT INTO ${reference} (_id, data, _version)
       VALUES (${id}, ${serialized}, ${version}) ON CONFLICT(_id) DO NOTHING;`;
     },
     insertMany: <T>(
@@ -141,12 +167,12 @@ export const postgresSQLBuilder = (
       );
 
       return SQL`
-      INSERT INTO ${collection.reference} (_id, data, _version) VALUES ${values}
+      INSERT INTO ${reference} (_id, data, _version) VALUES ${values}
       ON CONFLICT(_id) DO NOTHING
       RETURNING _id;`;
     },
     insertOrReplace: <T>(documents: Array<WithId<T>>): SQL => {
-      const col = collection.reference;
+      const col = reference;
       const values = SQL.merge(
         documents.map(
           (d) =>
@@ -171,7 +197,7 @@ export const postgresSQLBuilder = (
       options?: UpdateOneOptions,
     ): SQL => {
       const expectedVersionUpdate = versionCheckClause(
-        collection.reference,
+        reference,
         options?.expectedVersion,
       );
 
@@ -185,17 +211,17 @@ export const postgresSQLBuilder = (
       return SQL`
       WITH existing AS (
         SELECT _id, _version as current_version
-        FROM ${collection.reference} ${where(filterQuery)}
+        FROM ${reference} ${where(filterQuery)}
         LIMIT 1
       ),
       updated AS (
-        UPDATE ${collection.reference}
+        UPDATE ${reference}
         SET
-          data = ${updateQuery} || jsonb_build_object('_id', ${collection.reference}._id) || jsonb_build_object('_version', (_version + 1)::text),
+          data = ${updateQuery} || jsonb_build_object('_id', ${reference}._id) || jsonb_build_object('_version', (_version + 1)::text),
           _version = _version + 1
         FROM existing
-        WHERE ${collection.reference}._id = existing._id ${expectedVersionUpdate}
-        RETURNING ${collection.reference}._id, ${collection.reference}._version
+        WHERE ${reference}._id = existing._id ${expectedVersionUpdate}
+        RETURNING ${reference}._id, ${reference}._version
       )
       SELECT
         existing._id,
@@ -212,7 +238,7 @@ export const postgresSQLBuilder = (
       options?: ReplaceOneOptions,
     ): SQL => {
       const expectedVersionUpdate = versionCheckClause(
-        collection.reference,
+        reference,
         options?.expectedVersion,
       );
 
@@ -223,17 +249,17 @@ export const postgresSQLBuilder = (
       return SQL`
       WITH existing AS (
         SELECT _id, _version as current_version
-        FROM ${collection.reference} ${where(filterQuery)}
+        FROM ${reference} ${where(filterQuery)}
         LIMIT 1
       ),
       updated AS (
-        UPDATE ${collection.reference}
+        UPDATE ${reference}
         SET
-          data = ${JSONParam.document(document, serializer)} || jsonb_build_object('_id', ${collection.reference}._id) || jsonb_build_object('_version', (_version + 1)::text),
+          data = ${JSONParam.document(document, serializer)} || jsonb_build_object('_id', ${reference}._id) || jsonb_build_object('_version', (_version + 1)::text),
           _version = _version + 1
         FROM existing
-        WHERE ${collection.reference}._id = existing._id ${expectedVersionUpdate}
-        RETURNING ${collection.reference}._id, ${collection.reference}._version
+        WHERE ${reference}._id = existing._id ${expectedVersionUpdate}
+        RETURNING ${reference}._id, ${reference}._version
       )
       SELECT
         existing._id,
@@ -256,7 +282,7 @@ export const postgresSQLBuilder = (
         : buildUpdateQuery(update, serializer);
 
       return SQL`
-      UPDATE ${collection.reference}
+      UPDATE ${reference}
       SET
         data = ${updateQuery} || jsonb_build_object('_version', (_version + 1)::text),
         _version = _version + 1
@@ -267,7 +293,7 @@ export const postgresSQLBuilder = (
       options?: DeleteOneOptions,
     ): SQL => {
       const expectedVersionUpdate = versionCheckClause(
-        collection.reference,
+        reference,
         options?.expectedVersion,
       );
 
@@ -278,14 +304,14 @@ export const postgresSQLBuilder = (
       return SQL`
       WITH existing AS (
         SELECT _id
-        FROM ${collection.reference} ${where(filterQuery)}
+        FROM ${reference} ${where(filterQuery)}
         LIMIT 1
       ),
       deleted AS (
-        DELETE FROM ${collection.reference}
+        DELETE FROM ${reference}
         USING existing
-        WHERE ${collection.reference}._id = existing._id ${expectedVersionUpdate}
-        RETURNING ${collection.reference}._id
+        WHERE ${reference}._id = existing._id ${expectedVersionUpdate}
+        RETURNING ${reference}._id
       )
       SELECT
         existing._id,
@@ -300,7 +326,7 @@ export const postgresSQLBuilder = (
         ? filter
         : constructFilterQuery(filter, serializer);
 
-      return SQL`DELETE FROM ${collection.reference} ${where(filterQuery)}`;
+      return SQL`DELETE FROM ${reference} ${where(filterQuery)}`;
     },
     replaceMany: <T>(
       documents: Array<WithIdAndVersion<T>> | Array<WithId<T>>,
@@ -323,7 +349,7 @@ export const postgresSQLBuilder = (
         WITH replacements(_id, data, expected_version) AS (
           VALUES ${values}
         )
-        UPDATE ${collection.reference} t
+        UPDATE ${reference} t
         SET
           data = r.data
             || jsonb_build_object('_id', t._id)
@@ -345,7 +371,7 @@ export const postgresSQLBuilder = (
       WITH replacements(_id, data) AS (
         VALUES ${values}
       )
-      UPDATE ${collection.reference} t
+      UPDATE ${reference} t
       SET
         data = r.data
           || jsonb_build_object('_id', t._id)
@@ -369,7 +395,7 @@ export const postgresSQLBuilder = (
           VALUES ${values}
         ),
         deleted AS (
-          DELETE FROM ${collection.reference} t
+          DELETE FROM ${reference} t
           USING targets r
           WHERE t._id = r._id AND t._version = r.expected_version
           RETURNING t._id
@@ -390,7 +416,7 @@ export const postgresSQLBuilder = (
         VALUES ${values}
       ),
       deleted AS (
-        DELETE FROM ${collection.reference} t
+        DELETE FROM ${reference} t
         USING targets r
         WHERE t._id = r._id
         RETURNING t._id
@@ -405,7 +431,7 @@ export const postgresSQLBuilder = (
         ? filter
         : constructFilterQuery(filter, serializer);
 
-      return SQL`SELECT data, _id, _version FROM ${collection.reference} ${where(filterQuery)} LIMIT 1;`;
+      return SQL`SELECT data, _id, _version FROM ${reference} ${where(filterQuery)} LIMIT 1;`;
     },
     find: <T>(filter: PongoFilter<T> | SQL, options?: FindOptions): SQL => {
       const filterQuery = isSQL(filter)
@@ -413,7 +439,7 @@ export const postgresSQLBuilder = (
         : constructFilterQuery(filter, serializer);
       const query: SQL[] = [];
 
-      query.push(SQL`SELECT data, _id, _version FROM ${collection.reference}`);
+      query.push(SQL`SELECT data, _id, _version FROM ${reference}`);
 
       query.push(where(filterQuery));
 
@@ -449,16 +475,32 @@ export const postgresSQLBuilder = (
       const filterQuery = SQL.check.isSQL(filter)
         ? filter
         : constructFilterQuery(filter, serializer);
-      return SQL`SELECT COUNT(1) as count FROM ${collection.reference} ${where(filterQuery)};`;
+      return SQL`SELECT COUNT(1) as count FROM ${reference} ${where(filterQuery)};`;
     },
     rename: (newName: string): SQL =>
-      SQL`ALTER TABLE ${collection.reference} RENAME TO ${SQL.identifier(newName)};`,
-    drop: (targetName?: string): SQL =>
-      targetName === undefined
-        ? SQL`DROP TABLE IF EXISTS ${collection.reference}`
-        : SQL`DROP TABLE IF EXISTS ${SQL.identifier(targetName)}`,
+      SQL`ALTER TABLE ${reference} RENAME TO ${SQL.identifier(newName)};`,
+    drop: (): SQL => SQL`DROP TABLE IF EXISTS ${reference}`,
   };
 };
+
+export const materializePongoPostgreSQLDatabaseComponent = <
+  DriverType extends DatabaseDriverType,
+>(options: {
+  driverType: DriverType;
+  databaseName: string;
+  defaultSchemaName: string;
+  definition?: PongoDatabaseComponent | undefined;
+  serializer: JSONSerializer;
+}): PongoRuntimeDatabaseComponent<DriverType> =>
+  materializePongoDatabaseComponent({
+    driverType: options.driverType,
+    databaseName: options.databaseName,
+    defaultSchemaName: options.defaultSchemaName,
+    definition: options.definition,
+    migrationsFor,
+    sqlBuilderFor: (collection, context) =>
+      postgresSQLBuilder(collection, context, options.serializer),
+  });
 
 const where = (filterQuery: SQL): SQL =>
   SQL.check.isEmpty(filterQuery)

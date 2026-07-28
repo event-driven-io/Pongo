@@ -12,7 +12,7 @@ import { SQL, getFormatter } from '../../sql';
 import { tracer } from '../../tracing';
 import type { SchemaComponent } from '../schemaComponent';
 import type { SQLMigration } from '../sqlMigration';
-import { migrationTableSchemaComponent } from './schemaComponentMigrator';
+import { migrationTableComponentFor } from './schemaComponentMigrator';
 
 export const MIGRATIONS_LOCK_ID = 999956789;
 
@@ -41,9 +41,14 @@ export const getDefaultMigratorOptionsFromRegistry = (
   return defaultMigratorOptions[databaseType];
 };
 
+export type MigrationTableOptions = {
+  schemaName?: string | undefined;
+  tableName?: string | undefined;
+};
+
 export type MigratorOptions = {
   schema?: {
-    migrationTable?: SchemaComponent;
+    migrationTable?: MigrationTableOptions;
     validateComponent?: (component: SchemaComponent) => void;
   };
   lock?: {
@@ -87,12 +92,12 @@ export const runSQLMigrations = (
           ...partialOptions?.lock?.options,
         },
       },
-      dryRun: defaultOptions.dryRun ?? partialOptions?.dryRun,
+      dryRun: partialOptions?.dryRun ?? defaultOptions.dryRun,
       ignoreMigrationHashMismatch:
-        defaultOptions.ignoreMigrationHashMismatch ??
-        partialOptions?.ignoreMigrationHashMismatch,
+        partialOptions?.ignoreMigrationHashMismatch ??
+        defaultOptions.ignoreMigrationHashMismatch,
       migrationTimeoutMs:
-        defaultOptions.migrationTimeoutMs ?? partialOptions?.migrationTimeoutMs,
+        partialOptions?.migrationTimeoutMs ?? defaultOptions.migrationTimeoutMs,
     };
 
     const { databaseLock: _, ...rest } = options.lock ?? {};
@@ -104,10 +109,29 @@ export const runSQLMigrations = (
       ...rest,
     };
 
-    const migrationTable =
-      options.schema?.migrationTable ?? migrationTableSchemaComponent;
+    const migrationTableOptions = options.schema?.migrationTable;
+    const schemaName = migrationTableOptions?.schemaName;
 
-    const coreMigrations = migrationTable.migrations;
+    if (
+      databaseType === 'SQLite' &&
+      schemaName !== undefined &&
+      schemaName !== 'main'
+    ) {
+      throw new Error(
+        'SQLite does not support schema-qualified migration tables',
+      );
+    }
+
+    const tableName = migrationTableOptions?.tableName ?? 'dmb_migrations';
+    const migrationTableReference =
+      databaseType === 'PostgreSQL' && schemaName
+        ? SQL`${SQL.identifier(schemaName)}.${SQL.identifier(tableName)}`
+        : SQL`${SQL.identifier(tableName)}`;
+    const coreMigrations = migrationTableComponentFor({
+      schemaName: databaseType === 'PostgreSQL' ? schemaName : undefined,
+      tableName,
+      createSchema: databaseType === 'PostgreSQL',
+    }).migrations;
 
     const result: RunSQLMigrationsResult = { applied: [], skipped: [] };
 
@@ -125,6 +149,7 @@ export const runSQLMigrations = (
             databaseType,
             execute,
             migration,
+            migrationTableReference,
             {
               ignoreMigrationHashMismatch:
                 options.ignoreMigrationHashMismatch ?? false,
@@ -148,6 +173,7 @@ const runSQLMigration = async (
   databaseType: DatabaseType,
   execute: SQLExecutor,
   migration: SQLMigration,
+  migrationTableReference: SQL,
   options?: {
     ignoreMigrationHashMismatch?: boolean;
     migrationTimeoutMs?: number | undefined;
@@ -165,6 +191,7 @@ const runSQLMigration = async (
     const checkResult = await ensureMigrationWasNotAppliedYet(
       execute,
       newMigration,
+      migrationTableReference,
     );
 
     if (checkResult.exists === true) {
@@ -185,7 +212,7 @@ const runSQLMigration = async (
         actualHash: checkResult.hashFromDB,
       });
 
-      await updateMigrationHash(execute, newMigration);
+      await updateMigrationHash(execute, newMigration, migrationTableReference);
 
       return false;
     }
@@ -194,7 +221,7 @@ const runSQLMigration = async (
       timeoutMs: options?.migrationTimeoutMs,
     });
 
-    await recordMigration(execute, newMigration);
+    await recordMigration(execute, newMigration, migrationTableReference);
     return true;
     // console.log(`Migration "${newMigration.name}" applied successfully.`);
   } catch (error) {
@@ -233,10 +260,11 @@ type EnsureMigrationResult =
 const ensureMigrationWasNotAppliedYet = async (
   execute: SQLExecutor,
   migration: { name: string; sqlHash: string },
+  migrationTableReference: SQL,
 ): Promise<EnsureMigrationResult> => {
   const result = await singleOrNull(
     execute.query<{ sqlHash: string }>(
-      SQL`SELECT sql_hash as "sqlHash" FROM dmb_migrations WHERE name = ${migration.name}`,
+      SQL`SELECT sql_hash as "sqlHash" FROM ${migrationTableReference} WHERE name = ${migration.name}`,
     ),
   );
 
@@ -254,10 +282,11 @@ const ensureMigrationWasNotAppliedYet = async (
 const recordMigration = async (
   execute: SQLExecutor,
   migration: { name: string; sqlHash: string },
+  migrationTableReference: SQL,
 ): Promise<void> => {
   await execute.command(
     SQL`
-      INSERT INTO dmb_migrations (name, sql_hash)
+      INSERT INTO ${migrationTableReference} (name, sql_hash)
       VALUES (${migration.name}, ${migration.sqlHash})`,
   );
 };
@@ -265,10 +294,11 @@ const recordMigration = async (
 const updateMigrationHash = async (
   execute: SQLExecutor,
   migration: { name: string; sqlHash: string },
+  migrationTableReference: SQL,
 ): Promise<void> => {
   await execute.command(
     SQL`
-      UPDATE dmb_migrations
+      UPDATE ${migrationTableReference}
       SET sql_hash = ${migration.sqlHash}, timestamp = ${new Date()}
       WHERE name = ${migration.name}
       `,

@@ -27,7 +27,7 @@ describe('dumboSchema', () => {
     assert.strictEqual(idx.isUnique, true);
   });
 
-  it('should create a table with columns and indexes', () => {
+  it('creates a table with typed column and index records', () => {
     const emailIndex = index('idx_email', ['email']);
     const tbl = table('users', {
       columns: {
@@ -40,20 +40,14 @@ describe('dumboSchema', () => {
     });
 
     assert.strictEqual(tbl.tableName, 'users');
-    assert.strictEqual(tbl.columns.size, 2);
-    assert.strictEqual(tbl.indexes.size, 1);
-    assert.ok(tbl.columns.has('id'));
-    assert.ok(tbl.columns.has('email'));
-    assert.ok(tbl.indexes.has('idx_email'));
-    const boundEmailIndex = tbl.indexes.get('idx_email');
-    assert.strictEqual(
-      boundEmailIndex?.schemaComponentKey,
-      'sc:dumbo:index:regular:__default_database_schema__:users:idx_email',
-    );
-    assert.strictEqual(
-      tbl.components.get(boundEmailIndex.schemaComponentKey),
-      boundEmailIndex,
-    );
+    assert.deepStrictEqual(Object.keys(tbl.columns), ['id', 'email']);
+    assert.deepStrictEqual(Object.keys(tbl.indexes), ['idx_email']);
+    assert.ok(tbl.columns.id);
+    assert.ok(tbl.columns.email);
+    const boundEmailIndex = tbl.indexes.idx_email;
+    assert.strictEqual(boundEmailIndex?.databaseSchemaName, undefined);
+    assert.strictEqual(boundEmailIndex?.tableName, 'users');
+    assert.strictEqual(tbl.components.idx_email, boundEmailIndex);
     assert.ok(tbl.columns.id !== undefined);
     assert.ok(tbl.columns.email !== undefined);
   });
@@ -68,8 +62,7 @@ describe('dumboSchema', () => {
     });
 
     assert.strictEqual(sch.schemaName, 'public');
-    assert.strictEqual(sch.tables.size, 1);
-    assert.ok(sch.tables.has('users'));
+    assert.deepStrictEqual(Object.keys(sch.tables), ['users']);
     assert.ok(sch.tables.users.columns.id !== undefined);
   });
 
@@ -82,8 +75,9 @@ describe('dumboSchema', () => {
       }),
     });
 
-    assert.strictEqual(sch.schemaName, dumboSchema.schema.defaultName);
-    assert.strictEqual(sch.tables.size, 1);
+    assert.strictEqual(sch.schemaName, undefined);
+    assert.strictEqual(sch.tables.users.databaseSchemaName, undefined);
+    assert.deepStrictEqual(Object.keys(sch.tables), ['users']);
   });
 
   it('should create a default database', () => {
@@ -97,9 +91,8 @@ describe('dumboSchema', () => {
       }),
     });
 
-    assert.strictEqual(db.databaseName, dumboSchema.database.defaultName);
-    assert.strictEqual(db.schemas.size, 1);
-    assert.ok(db.schemas.has('public'));
+    assert.strictEqual(db.databaseName, undefined);
+    assert.deepStrictEqual(Object.keys(db.schemas), ['public']);
   });
 
   it('should create a named database', () => {
@@ -114,40 +107,78 @@ describe('dumboSchema', () => {
     });
 
     assert.strictEqual(db.databaseName, 'myapp');
-    assert.strictEqual(db.schemas.size, 1);
-    assert.ok(db.schemas.has('public'));
+    assert.deepStrictEqual(Object.keys(db.schemas), ['public']);
     assert.ok(db.schemas.public !== undefined);
     assert.ok(db.schemas.public.tables.users !== undefined);
     assert.ok(db.schemas.public.tables.users.columns.id !== undefined);
   });
 
-  it('should handle DEFAULT_SCHEMA', () => {
-    const db = database(
-      'myapp',
-      schema({
-        users: table('users', {
-          columns: {
-            id: column('id', Varchar('max')),
-          },
-        }),
+  it('should resolve an unnamed reusable schema from its record key', () => {
+    const reusable = schema({
+      users: table('users', {
+        columns: {
+          id: column('id', Varchar('max')),
+        },
       }),
-    );
+    });
+    const db = database('myapp', {
+      public: reusable,
+    });
 
+    assert.strictEqual(reusable.schemaName, undefined);
+    assert.strictEqual(reusable.tables.users.databaseSchemaName, undefined);
     assert.strictEqual(db.databaseName, 'myapp');
-    assert.strictEqual(db.schemas.size, 1);
-    assert.ok(db.schemas.has(dumboSchema.schema.defaultName));
+    assert.deepStrictEqual(Object.keys(db.schemas), ['public']);
+    assert.strictEqual(db.schemas.public.schemaName, 'public');
+    assert.strictEqual(
+      db.schemas.public.tables.users.databaseSchemaName,
+      'public',
+    );
+  });
+
+  it('should reject a schema record key conflicting with an explicit name', () => {
+    assert.throws(
+      () =>
+        database('myapp', {
+          public: schema('audit', {
+            users: table('users', {
+              columns: {
+                id: column('id', Varchar('max')),
+              },
+            }),
+          }),
+        }),
+      /record key "public" conflicts with its explicit name "audit"/,
+    );
+  });
+
+  it('should preserve the reusable schema declaration', () => {
+    const reusable = schema({
+      users: table('users', {
+        columns: {
+          id: column('id', Varchar('max')),
+        },
+      }),
+    });
+
+    database('myapp', {
+      public: reusable,
+    });
+
+    assert.strictEqual(reusable.schemaName, undefined);
+    assert.strictEqual(reusable.tables.users.databaseSchemaName, undefined);
   });
 
   it('should create schema from table names', () => {
     const sch = schema.from('public', ['users', 'posts']);
     assert.strictEqual(sch.schemaName, 'public');
-    assert.strictEqual(sch.tables.size, 2);
+    assert.deepStrictEqual(Object.keys(sch.tables), ['users', 'posts']);
   });
 
   it('should create database from schema names', () => {
     const db = database.from('myapp', ['public', 'analytics']);
     assert.strictEqual(db.databaseName, 'myapp');
-    assert.strictEqual(db.schemas.size, 2);
+    assert.deepStrictEqual(Object.keys(db.schemas), ['public', 'analytics']);
   });
 });
 
@@ -181,12 +212,11 @@ const _users2 = table('users', {
   },
 });
 
-export const simpleDb = database(
-  'myapp',
-  schema({
+export const simpleDb = database('myapp', {
+  public: schema({
     users,
   }),
-);
+});
 
 // Database with multiple schemas
 const multiSchemaDb = database('myapp', {

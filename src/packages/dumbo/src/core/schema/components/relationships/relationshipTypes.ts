@@ -1,44 +1,41 @@
 import type {
-  AnyDatabaseSchemaSchemaComponent,
-  AnyTableSchemaComponent,
-  DatabaseSchemaComponent,
+  AnyDatabaseSchemaComponent,
+  AnyTableComponent,
+  DatabaseComponent,
   DatabaseSchemas,
-  DatabaseSchemaSchemaComponent,
+  DatabaseSchemaComponent,
   DatabaseSchemaTables,
   TableColumnNames,
   TableColumns,
-  TableSchemaComponent,
+  TableComponent,
   Writable,
 } from '..';
 import type { ColumnTypeToken } from '../../../sql/tokens/columnTokens';
 import type { NotEmptyTuple } from '../../../typing';
 
 export type ExtractSchemaNames<DB> =
-  DB extends DatabaseSchemaComponent<infer Schemas extends DatabaseSchemas>
+  DB extends DatabaseComponent<infer Schemas extends DatabaseSchemas>
     ? keyof Schemas
     : never;
 
-export type ExtractTableNames<Schema extends AnyDatabaseSchemaSchemaComponent> =
-  Schema extends DatabaseSchemaSchemaComponent<
+export type ExtractTableNames<Schema extends AnyDatabaseSchemaComponent> =
+  Schema extends DatabaseSchemaComponent<
     infer Tables extends DatabaseSchemaTables
   >
     ? keyof Tables
     : never;
 
-export type ExtractColumnNames<Table extends AnyTableSchemaComponent> =
-  Table extends TableSchemaComponent<infer Columns extends TableColumns>
-    ? TableColumnNames<TableSchemaComponent<Columns>>
+export type ExtractColumnNames<Table extends AnyTableComponent> =
+  Table extends TableComponent<infer Columns extends TableColumns>
+    ? TableColumnNames<TableComponent<Columns>>
     : never;
 
 export type ExtractColumnTypeName<T> =
   T extends ColumnTypeToken<
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any,
+    infer _JSType,
     infer TypeName,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    any
+    infer _Props,
+    infer _ValueType
   >
     ? Uppercase<TypeName>
     : never;
@@ -46,11 +43,11 @@ export type ExtractColumnTypeName<T> =
 export type AllColumnTypes<Schemas extends DatabaseSchemas> = {
   [
     SchemaName in keyof Schemas
-  ]: Schemas[SchemaName] extends DatabaseSchemaSchemaComponent<infer Tables>
+  ]: Schemas[SchemaName] extends DatabaseSchemaComponent<infer Tables>
     ? Writable<{
-        [
-          TableName in keyof Tables
-        ]: Tables[TableName] extends TableSchemaComponent<infer Columns>
+        [TableName in keyof Tables]: Tables[TableName] extends TableComponent<
+          infer Columns
+        >
           ? Writable<{
               [ColumnName in keyof Columns]: {
                 columnTypeName: ExtractColumnTypeName<
@@ -66,11 +63,11 @@ export type AllColumnTypes<Schemas extends DatabaseSchemas> = {
 export type AllColumnReferences<Schemas extends DatabaseSchemas> = {
   [
     SchemaName in keyof Schemas
-  ]: Schemas[SchemaName] extends DatabaseSchemaSchemaComponent<infer Tables>
+  ]: Schemas[SchemaName] extends DatabaseSchemaComponent<infer Tables>
     ? {
-        [
-          TableName in keyof Tables
-        ]: Tables[TableName] extends TableSchemaComponent<infer Columns>
+        [TableName in keyof Tables]: Tables[TableName] extends TableComponent<
+          infer Columns
+        >
           ? {
               [ColumnName in keyof Columns]: `${SchemaName &
                 string}.${TableName & string}.${ColumnName & string}`;
@@ -80,14 +77,12 @@ export type AllColumnReferences<Schemas extends DatabaseSchemas> = {
     : never;
 }[keyof Schemas];
 
-export type AllColumnTypesInSchema<
-  Schema extends AnyDatabaseSchemaSchemaComponent,
-> =
-  Schema extends DatabaseSchemaSchemaComponent<infer Tables>
+export type AllColumnTypesInSchema<Schema extends AnyDatabaseSchemaComponent> =
+  Schema extends DatabaseSchemaComponent<infer Tables>
     ? {
-        [
-          TableName in keyof Tables
-        ]: Tables[TableName] extends TableSchemaComponent<infer Columns>
+        [TableName in keyof Tables]: Tables[TableName] extends TableComponent<
+          infer Columns
+        >
           ? {
               [ColumnName in keyof Columns]: {
                 columnTypeName: ExtractColumnTypeName<
@@ -100,14 +95,14 @@ export type AllColumnTypesInSchema<
     : never;
 
 export type AllColumnReferencesInSchema<
-  Schema extends AnyDatabaseSchemaSchemaComponent,
+  Schema extends AnyDatabaseSchemaComponent,
   SchemaName extends string,
 > =
-  Schema extends DatabaseSchemaSchemaComponent<infer Tables>
+  Schema extends DatabaseSchemaComponent<infer Tables>
     ? {
-        [
-          TableName in keyof Tables
-        ]: Tables[TableName] extends TableSchemaComponent<infer Columns>
+        [TableName in keyof Tables]: Tables[TableName] extends TableComponent<
+          infer Columns
+        >
           ? {
               [
                 ColumnName in keyof Columns
@@ -222,23 +217,14 @@ export type RelationshipDefinition<
 };
 
 export type AnyTableRelationshipDefinition = RelationshipDefinition<
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  any
+  string,
+  string,
+  RelationshipType
 >;
 
 export type AnyTableRelationshipDefinitionWithColumns<
   Columns extends string = string,
-> = RelationshipDefinition<
-  Columns,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  any,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  any
->;
+> = RelationshipDefinition<Columns, string, RelationshipType>;
 
 export type TableRelationships<Columns extends string = string> = Record<
   string,
@@ -260,5 +246,4 @@ export const relationship = <
     type,
   } as const;
 };
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyRelationshipDefinition = RelationshipDefinition<any, any, any>;
+export type AnyRelationshipDefinition = RelationshipDefinition;

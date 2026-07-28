@@ -1,36 +1,32 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
 import {
+  databaseComponent,
   databaseSchemaComponent,
-  databaseSchemaSchemaComponent,
-  featureSchemaComponent,
-  tableSchemaComponent,
+  extensionComponent,
+  tableComponent,
 } from '../../../../core';
 import { DefaultSQLiteMigratorOptions } from './migrations';
 
 describe('SQLite logical schema mapping', () => {
   it('validates expanded database schema components in strict mode', () => {
-    const auditUsers = tableSchemaComponent({ tableName: 'users' });
-    const publicUsers = tableSchemaComponent({ tableName: 'users' });
-    const feature = featureSchemaComponent({
-      featureKind: 'tenant_storage',
-      featureName: 'audit',
-      components: [
-        databaseSchemaSchemaComponent({
-          schemaName: 'audit',
-          tables: { users: auditUsers },
-        }),
-      ],
+    const auditUsers = tableComponent({ tableName: 'users' });
+    const publicUsers = tableComponent({ tableName: 'users' });
+    const feature = extensionComponent('audit', {
+      audit: databaseSchemaComponent({
+        schemaName: 'audit',
+        tables: { users: auditUsers },
+      }),
     });
-    const database = databaseSchemaComponent({
+    const database = databaseComponent({
       databaseName: 'app',
       schemas: {
-        public: databaseSchemaSchemaComponent({
+        public: databaseSchemaComponent({
           schemaName: 'public',
           tables: { users: publicUsers },
         }),
       },
-      components: [feature],
+      extensions: { feature },
     });
 
     assert.throws(

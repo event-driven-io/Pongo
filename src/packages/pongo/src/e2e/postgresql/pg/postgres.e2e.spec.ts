@@ -1729,7 +1729,9 @@ describe('MongoDB Compatibility Tests', () => {
   describe('Pongo Schema', () => {
     const schema = pongoSchema.client({
       database: pongoSchema.db({
-        users: pongoSchema.collection<User>('users'),
+        collections: {
+          users: pongoSchema.collection<User>('users'),
+        },
       }),
     });
 

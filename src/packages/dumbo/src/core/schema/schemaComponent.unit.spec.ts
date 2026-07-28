@@ -1,492 +1,574 @@
 import assert from 'node:assert';
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { describe, expectTypeOf, it } from 'vitest';
 import { SQL } from '../sql';
 import {
-  DatabaseSchemaURNType,
-  FeatureSchemaComponentURNType,
   SchemaComponentMigrator,
-  TableURNType,
   assertLogicalSchemaMapping,
   columnSchemaComponent,
+  databaseComponent,
+  databaseComponentType,
   databaseSchemaComponent,
-  databaseFeatureSchemaComponent,
-  databaseSchemaSchemaComponent,
-  databaseSchemaFeatureSchemaComponent,
-  featureSchemaComponent,
+  databaseSchemaComponentType,
+  extensionComponent,
+  extensionComponentType,
   findComponent,
   findComponents,
-  findExpandedSchemaComponentsOfType,
-  findFeature,
-  findFeatures,
-  isFeatureSchemaComponent,
-  indexSchemaComponent,
   generatedIndexName,
-  extendSchemaComponent,
+  genericComponentType,
+  indexComponent,
+  indexComponentType,
+  isExtensionComponent,
+  isTableComponent,
   schemaComponent,
+  schemaComponentType,
   sqlMigration,
-  tableSchemaComponent,
+  tableComponent,
+  tableComponentType,
   type AnySchemaComponent,
-  type TableSchemaComponent,
+  type DatabaseComponent,
+  type DatabaseSchemaComponent,
+  type ExtensionComponent,
+  type IndexComponent,
+  type TableComponent,
 } from './index';
 
-const requireSingleComponent = <T extends AnySchemaComponent>(
-  root: AnySchemaComponent,
-  keyPrefix: string,
-  label: string,
-): T => {
-  const matches = findComponents<T>(root, keyPrefix);
+const extensionWith = (
+  extensionName: string,
+  components: Readonly<Record<string, AnySchemaComponent>> = {},
+  migrations: ReturnType<typeof sqlMigration>[] = [],
+): ExtensionComponent =>
+  extensionComponent(extensionName, components, { migrations });
 
-  if (matches.length === 1) return matches[0]!;
+const findExtensions = (root: AnySchemaComponent): ExtensionComponent[] =>
+  findComponents(root, isExtensionComponent);
 
-  if (matches.length === 0) {
-    throw new Error(`Expected one ${label}, found none`);
-  }
-
-  throw new Error(
-    `Expected one ${label}, found ${matches.length}: ${matches
-      .map((component) => component.schemaComponentKey)
-      .join(', ')}`,
-  );
-};
-
-describe('SchemaComponent', () => {
-  it('collects child migrations exactly once when component is created upfront', () => {
-    const migration = sqlMigration('child:001', [SQL`SELECT 1`]);
-    const child = schemaComponent('sc:test:child', {
-      migrations: [migration],
-    });
-    const parent = schemaComponent('sc:test:parent', {
-      components: [child],
-    });
-
-    assert.deepStrictEqual(parent.migrations, [migration]);
-  });
-
-  it('does not duplicate child migrations when addComponent is used', () => {
-    const migration = sqlMigration('child:001', [SQL`SELECT 1`]);
-    const child = schemaComponent('sc:test:child', {
-      migrations: [migration],
-    });
-    const parent = schemaComponent('sc:test:parent', {});
-
-    parent.addComponent(child);
-
-    assert.deepStrictEqual(parent.migrations, [migration]);
-  });
-
-  it('extends a component with additional children without mutating the source', () => {
-    const sourceMigration = sqlMigration('source:001', [SQL`SELECT 1`]);
-    const extraMigration = sqlMigration('extra:001', [SQL`SELECT 2`]);
-    const sourceChild = schemaComponent('sc:test:source-child', {
-      migrations: [sourceMigration],
-    });
-    const extraChild = schemaComponent('sc:test:extra-child', {
-      migrations: [extraMigration],
-    });
-    const source = schemaComponent('sc:test:source', {
-      components: [sourceChild],
-    });
-
-    const extended = extendSchemaComponent(source, {
-      components: [extraChild],
-    });
+describe('composing schema components', () => {
+  it('identifies every component kind without relying on string keys', () => {
+    expectTypeOf<DatabaseComponent>().toHaveProperty('schemas');
+    expectTypeOf<DatabaseSchemaComponent>().toHaveProperty('tables');
+    expectTypeOf<TableComponent>().toHaveProperty('indexes');
+    expectTypeOf<IndexComponent>().toHaveProperty('indexName');
 
     assert.strictEqual(
-      source.components.has(extraChild.schemaComponentKey),
-      false,
+      databaseComponent({ databaseName: 'app' })[schemaComponentType],
+      databaseComponentType,
     );
     assert.strictEqual(
-      extended.components.has(extraChild.schemaComponentKey),
-      true,
+      databaseSchemaComponent({ schemaName: 'public' })[schemaComponentType],
+      databaseSchemaComponentType,
     );
-    assert.deepStrictEqual(extended.migrations, [
-      sourceMigration,
-      extraMigration,
+    assert.strictEqual(
+      tableComponent({ tableName: 'users' })[schemaComponentType],
+      tableComponentType,
+    );
+    assert.strictEqual(
+      indexComponent({
+        indexName: 'users_email_idx',
+        columnNames: ['email'],
+        isUnique: false,
+      })[schemaComponentType],
+      indexComponentType,
+    );
+  });
+
+  it('runs a parent migration before child migrations in declaration order', () => {
+    const rootMigration = sqlMigration('root:001', [SQL`SELECT 0`]);
+    const firstMigration = sqlMigration('first:001', [SQL`SELECT 1`]);
+    const secondMigration = sqlMigration('second:001', [SQL`SELECT 2`]);
+    const root = schemaComponent({
+      migrations: [rootMigration],
+      components: {
+        first: schemaComponent({ migrations: [firstMigration] }),
+        second: schemaComponent({ migrations: [secondMigration] }),
+      },
+    });
+
+    assert.deepStrictEqual(root.migrations, [
+      rootMigration,
+      firstMigration,
+      secondMigration,
     ]);
   });
 
-  it('keeps extension migration order deterministic', () => {
-    const sourceMigration = sqlMigration('source:001', [SQL`SELECT 1`]);
-    const localMigration = sqlMigration('local:001', [SQL`SELECT 2`]);
-    const firstChildMigration = sqlMigration('first-child:001', [
+  it('runs a shared child migration once when the child has multiple aliases', () => {
+    const migration = sqlMigration('child:001', [SQL`SELECT 1`]);
+    const child = schemaComponent({ migrations: [migration] });
+    const root = schemaComponent({
+      components: { child, childAgain: child },
+    });
+
+    assert.deepStrictEqual(root.migrations, [migration]);
+    assert.deepStrictEqual(
+      findComponents(
+        root,
+        (component): component is typeof child => component === child,
+      ),
+      [child],
+    );
+  });
+
+  it('rejects two different migrations that would share one ledger identity', () => {
+    const root = schemaComponent({
+      components: {
+        first: schemaComponent({
+          migrations: [sqlMigration('duplicate:001', [SQL`SELECT 1`])],
+        }),
+        second: schemaComponent({
+          migrations: [sqlMigration('duplicate:001', [SQL`SELECT 2`])],
+        }),
+      },
+    });
+
+    assert.throws(
+      () => root.migrations,
+      /Duplicate migration name "duplicate:001"/,
+    );
+  });
+
+  it('accepts one migration reused by multiple components', () => {
+    const migration = sqlMigration('shared:001', [SQL`SELECT 1`]);
+    const root = schemaComponent({
+      components: {
+        first: schemaComponent({ migrations: [migration] }),
+        second: schemaComponent({ migrations: [migration] }),
+      },
+    });
+
+    assert.deepStrictEqual(root.migrations, [migration]);
+  });
+
+  it('finds a nested table from a composed root', () => {
+    const leaf = tableComponent({ tableName: 'users' });
+    const middle = schemaComponent({ components: { leaf } });
+    const root = schemaComponent({ components: { middle } });
+
+    assert.deepStrictEqual(findComponents(root, isTableComponent), [leaf]);
+    assert.strictEqual(findComponent(root, isTableComponent), leaf);
+  });
+
+  it('finishes traversal when reusable components form a cycle', () => {
+    const migration = sqlMigration('leaf:001', [SQL`SELECT 1`]);
+    const leafChildren = Object.create(null) as Record<
+      string,
+      AnySchemaComponent
+    >;
+    const leaf: AnySchemaComponent = {
+      [schemaComponentType]: genericComponentType,
+      components: leafChildren,
+      migrations: [migration],
+    };
+    const root = schemaComponent({ components: { leaf } });
+    leafChildren.root = root;
+
+    assert.deepStrictEqual(
+      findComponents(
+        root,
+        (_component): _component is AnySchemaComponent => true,
+      ),
+      [root, leaf],
+    );
+    assert.deepStrictEqual(root.migrations, [migration]);
+  });
+
+  it('accesses declared children through typed record aliases', () => {
+    const users = tableComponent({ tableName: 'users' });
+    const root = schemaComponent({ components: { users } });
+
+    expectTypeOf(root.components.users).toEqualTypeOf(users);
+    assert.strictEqual(root.components.users, users);
+    assert.deepStrictEqual(Object.keys(root.components), ['users']);
+    assert.strictEqual(Object.getPrototypeOf(root.components), null);
+  });
+
+  it('accepts domain aliases that overlap collection and object API names', () => {
+    const entries = schemaComponent();
+    const get = schemaComponent();
+    const size = schemaComponent();
+    const constructor = schemaComponent();
+    const root = schemaComponent({
+      components: { entries, get, size, constructor },
+    });
+
+    assert.strictEqual(root.components.entries, entries);
+    assert.strictEqual(root.components.get, get);
+    assert.strictEqual(root.components.size, size);
+    assert.strictEqual(root.components.constructor, constructor);
+  });
+
+  it('keeps a composed declaration read-only after construction', () => {
+    const child = schemaComponent();
+    const root = schemaComponent({ components: { child } });
+
+    assert.strictEqual('addComponent' in root, false);
+    assert.strictEqual('addMigration' in root, false);
+    assert.strictEqual(Object.isFrozen(root.components), true);
+    assert.throws(() => {
+      (root.components as unknown as Record<string, AnySchemaComponent>).other =
+        schemaComponent();
+    }, TypeError);
+    assert.deepStrictEqual(Object.keys(root.components), ['child']);
+  });
+
+  it('composes a frozen child record without changing it', () => {
+    const child = schemaComponent();
+    const source = Object.freeze({ child });
+    const root = schemaComponent({ components: source });
+
+    assert.deepStrictEqual(Object.keys(source), ['child']);
+    assert.strictEqual(source.child, child);
+    assert.strictEqual(root.components.child, child);
+  });
+});
+
+describe('grouping components in extensions', () => {
+  it('attaches an extension to a database without exposing its internals as schemas', () => {
+    const eventStoreSchema = databaseSchemaComponent({
+      schemaName: 'event_store',
+      tables: {
+        events: tableComponent({ tableName: 'events' }),
+      },
+    });
+    const checkpoints = tableComponent({
+      tableName: 'processor_checkpoints',
+    });
+    const eventStore = extensionComponent('event-store', {
+      eventStore: eventStoreSchema,
+      checkpoints,
+    });
+    const database = databaseComponent({
+      databaseName: 'app',
+      extensions: { eventStore },
+    });
+
+    expectTypeOf(eventStore.components.eventStore).toEqualTypeOf(
+      eventStoreSchema,
+    );
+    expectTypeOf(eventStore.components.checkpoints).toEqualTypeOf(checkpoints);
+    assert.strictEqual(eventStore.components.eventStore, eventStoreSchema);
+    assert.strictEqual(database.extensions.eventStore, eventStore);
+    assert.deepStrictEqual(Object.keys(database.schemas), []);
+  });
+
+  it('attaches an extension to a schema without exposing its internals as tables', () => {
+    const internalTable = tableComponent({ tableName: 'audit_log' });
+    const audit = extensionComponent('audit', { internalTable });
+    const schema = databaseSchemaComponent({
+      schemaName: 'public',
+      extensions: { audit },
+    });
+
+    assert.deepStrictEqual(Object.keys(schema.tables), []);
+    assert.strictEqual(schema.extensions.audit, audit);
+    assert.strictEqual(schema.components.audit, audit);
+  });
+
+  it('allows two extension aliases to reference the same component once', () => {
+    const migration = sqlMigration('users:001', [SQL`SELECT 1`]);
+    const users = tableComponent({
+      tableName: 'users',
+      migrations: [migration],
+    });
+    const extension = extensionComponent('shared', {
+      users,
+      usersAgain: users,
+    });
+
+    assert.strictEqual(extension.components.users, users);
+    assert.strictEqual(extension.components.usersAgain, users);
+    assert.deepStrictEqual(extension.migrations, [migration]);
+    assert.deepStrictEqual(findComponents(extension, isTableComponent), [
+      users,
+    ]);
+  });
+
+  it('distinguishes an extension from a table without inspecting names', () => {
+    const extension = extensionWith('audit');
+    const table = tableComponent({ tableName: 'audit_log' });
+
+    assert.strictEqual(extension[schemaComponentType], extensionComponentType);
+    assert.strictEqual(isExtensionComponent(extension), true);
+    assert.strictEqual(isExtensionComponent(table), false);
+  });
+
+  it('finds tables and extensions nested inside another extension', () => {
+    const auditLog = tableComponent({ tableName: 'audit_log' });
+    const nested = extensionComponent('nested-audit', { auditLog });
+    const audit = extensionComponent('audit', { nested });
+    const schema = databaseSchemaComponent({
+      schemaName: 'public',
+      extensions: { audit },
+    });
+
+    assert.deepStrictEqual(findComponents(schema, isTableComponent), [
+      auditLog,
+    ]);
+    assert.deepStrictEqual(findExtensions(schema), [audit, nested]);
+  });
+
+  it('accepts the same direct extension-map shape on databases and schemas', () => {
+    const eventStore = extensionWith('event-store');
+    const audit = extensionWith('audit');
+    const schema = databaseSchemaComponent({
+      schemaName: 'crm',
+      extensions: { audit },
+    });
+    const database = databaseComponent({
+      databaseName: 'app',
+      schemas: { crm: schema },
+      extensions: { eventStore },
+    });
+
+    assert.strictEqual(database.extensions.eventStore, eventStore);
+    assert.strictEqual(database.schemas.crm.extensions.audit, audit);
+    assert.deepStrictEqual(Object.keys(database.components), [
+      'crm',
+      'eventStore',
+    ]);
+  });
+
+  it('runs schema extensions before database extensions in structural order', () => {
+    const tableMigration = sqlMigration('table:001', [SQL`SELECT 1`]);
+    const schemaExtensionMigration = sqlMigration('schema-extension:001', [
+      SQL`SELECT 2`,
+    ]);
+    const databaseExtensionMigration = sqlMigration('database-extension:001', [
       SQL`SELECT 3`,
     ]);
-    const secondChildMigration = sqlMigration('second-child:001', [
-      SQL`SELECT 4`,
+    const audit = extensionWith('audit', {}, [schemaExtensionMigration]);
+    const eventStore = extensionWith('event-store', {}, [
+      databaseExtensionMigration,
     ]);
-    const source = schemaComponent('sc:test:source', {
-      migrations: [sourceMigration],
-    });
-    const firstChild = schemaComponent('sc:test:first-child', {
-      migrations: [firstChildMigration],
-    });
-    const secondChild = schemaComponent('sc:test:second-child', {
-      migrations: [secondChildMigration],
+    const database = databaseComponent({
+      databaseName: 'app',
+      schemas: {
+        crm: databaseSchemaComponent({
+          schemaName: 'crm',
+          tables: {
+            users: tableComponent({
+              tableName: 'users',
+              migrations: [tableMigration],
+            }),
+          },
+          extensions: { audit },
+        }),
+      },
+      extensions: { eventStore },
     });
 
-    const extended = extendSchemaComponent(source, {
-      migrations: [localMigration],
-      components: [firstChild],
-    });
-    extended.addComponent(secondChild);
+    assert.deepStrictEqual(database.migrations, [
+      tableMigration,
+      schemaExtensionMigration,
+      databaseExtensionMigration,
+    ]);
+  });
 
-    assert.deepStrictEqual(extended.migrations, [
-      sourceMigration,
-      localMigration,
-      firstChildMigration,
-      secondChildMigration,
+  it('behaves the same when migrated directly or from a database root', () => {
+    const migration = sqlMigration('audit:001', [SQL`SELECT 1`]);
+    const auditLog = tableComponent({
+      tableName: 'audit_log',
+      migrations: [migration],
+    });
+    const audit = extensionComponent('audit', { auditLog });
+    const database = databaseComponent({
+      databaseName: 'app',
+      extensions: { audit },
+    });
+
+    assert.deepStrictEqual(audit.migrations, [migration]);
+    assert.deepStrictEqual(database.migrations, [migration]);
+    assert.deepStrictEqual(findComponents(audit, isTableComponent), [auditLog]);
+    assert.deepStrictEqual(findComponents(database, isTableComponent), [
+      auditLog,
     ]);
   });
 });
 
-describe('FeatureSchemaComponent', () => {
-  it('detects Dumbo feature components by key', () => {
-    const feature = featureSchemaComponent({
-      featureKind: 'test_feature',
-      featureName: 'audit',
-    });
-    const table = tableSchemaComponent({ tableName: 'audit_log' });
-
-    assert.strictEqual(
-      feature.schemaComponentKey,
-      `${FeatureSchemaComponentURNType}:test_feature:audit`,
-    );
-    assert.strictEqual(isFeatureSchemaComponent(feature), true);
-    assert.strictEqual(isFeatureSchemaComponent(table), false);
-  });
-
-  it('keeps feature internals out of direct schema table access', () => {
-    const internalTable = tableSchemaComponent({ tableName: 'audit_log' });
-    const feature = featureSchemaComponent({
-      featureKind: 'audit',
-      featureName: 'audit',
-      components: [internalTable],
-    });
-    const schema = databaseSchemaSchemaComponent({
-      schemaName: 'public',
-      components: [feature],
-    });
-
-    assert.strictEqual(schema.tables.size, 0);
-    assert.strictEqual(schema.features.get('audit'), feature);
-    assert.strictEqual(schema.components.has(feature.schemaComponentKey), true);
-  });
-
-  it('finds internals through expanded traversal, including nested features', () => {
-    const internalTable = tableSchemaComponent({
-      tableName: 'audit_log',
-      columns: {
-        id: columnSchemaComponent({ columnName: 'id', type: 'varchar' }),
-      },
-    });
-    const nestedFeature = featureSchemaComponent({
-      featureKind: 'audit_storage',
-      featureName: 'audit',
-      components: [internalTable],
-    });
-    const feature = featureSchemaComponent({
-      featureKind: 'audit',
-      featureName: 'audit',
-      components: [nestedFeature],
-    });
-    const schema = databaseSchemaSchemaComponent({
-      schemaName: 'public',
-      components: [feature],
-    });
-
-    const tables = findExpandedSchemaComponentsOfType<TableSchemaComponent>(
-      schema,
-      TableURNType,
-    );
-
-    assert.strictEqual(tables.length, 1);
-    assert.strictEqual(tables[0]?.tableName, 'audit_log');
-  });
-
-  it('supports scoped feature maps on databases and schemas', () => {
-    const eventStore = databaseFeatureSchemaComponent({
-      featureKind: 'event_store',
-      featureName: 'eventStore',
-      components: [
-        databaseSchemaSchemaComponent({
-          schemaName: 'events',
-          tables: {
-            events: tableSchemaComponent({ tableName: 'events' }),
-          },
-        }),
-      ],
-    });
-    const audit = databaseSchemaFeatureSchemaComponent({
-      featureKind: 'audit',
-      featureName: 'audit',
-      components: [tableSchemaComponent({ tableName: 'audit_log' })],
-    });
-    const schema = databaseSchemaSchemaComponent({
-      schemaName: 'crm',
-      features: { audit },
-    });
-    const database = databaseSchemaComponent({
+describe('placing reusable declarations in the database hierarchy', () => {
+  it('places a schema in a database without changing the schema declaration', () => {
+    const declaration = databaseSchemaComponent({ schemaName: 'crm' });
+    const database = databaseComponent({
       databaseName: 'app',
-      schemas: { crm: schema },
-      features: { eventStore },
+      schemas: { crm: declaration },
     });
 
-    assert.strictEqual(database.features.eventStore, eventStore);
-    assert.strictEqual(database.features.eventStore.featureScope, 'database');
-    assert.strictEqual(schema.features.audit, audit);
-    assert.strictEqual(schema.features.audit.featureScope, 'database_schema');
-
-    expectTypeOf(database.features.eventStore).toEqualTypeOf(eventStore);
-    expectTypeOf(schema.features.audit).toEqualTypeOf(audit);
-  });
-
-  it('includes scoped feature migrations in deterministic database order', () => {
-    const schemaTableMigration = sqlMigration('schema-table:001', [
-      SQL`SELECT 1`,
-    ]);
-    const schemaFeatureMigration = sqlMigration('schema-feature:001', [
-      SQL`SELECT 2`,
-    ]);
-    const databaseFeatureMigration = sqlMigration('database-feature:001', [
-      SQL`SELECT 3`,
-    ]);
-    const audit = databaseSchemaFeatureSchemaComponent({
-      featureKind: 'audit',
-      featureName: 'audit',
-      migrations: [schemaFeatureMigration],
-    });
-    const eventStore = databaseFeatureSchemaComponent({
-      featureKind: 'event_store',
-      featureName: 'eventStore',
-      migrations: [databaseFeatureMigration],
-    });
-    const database = databaseSchemaComponent({
-      databaseName: 'app',
-      schemas: {
-        crm: databaseSchemaSchemaComponent({
-          schemaName: 'crm',
-          tables: {
-            users: tableSchemaComponent({
-              tableName: 'users',
-              migrations: [schemaTableMigration],
-            }),
-          },
-          features: { audit },
-        }),
-      },
-      features: { eventStore },
-    });
-
-    assert.deepStrictEqual(database.migrations, [
-      schemaTableMigration,
-      schemaFeatureMigration,
-      databaseFeatureMigration,
-    ]);
-  });
-
-  it('binds nested database schemas to their parent database identity', () => {
-    const database = databaseSchemaComponent({
-      databaseName: 'app',
-      schemas: {
-        crm: databaseSchemaSchemaComponent({
-          schemaName: 'crm',
-        }),
-      },
-    });
-
+    assert.strictEqual(declaration.databaseName, undefined);
     assert.strictEqual(database.schemas.crm.databaseName, 'app');
-    assert.strictEqual(
-      database.schemas.crm.schemaComponentKey,
-      'sc:dumbo:database_schema:regular:app:crm',
-    );
-    assert.strictEqual(
-      database.components.has('sc:dumbo:database_schema:regular:app:crm'),
-      true,
-    );
+    assert.strictEqual(database.schemas.crm.schemaName, 'crm');
   });
 
-  it('binds schemas added lazily to their parent database identity', () => {
-    const database = databaseSchemaComponent({
+  it('uses the database record key as the name of an unnamed schema', () => {
+    const users = tableComponent({ tableName: 'users' });
+    const reusable = databaseSchemaComponent({ tables: { users } });
+    const database = databaseComponent({
       databaseName: 'app',
+      schemas: { public: reusable },
     });
 
-    const schema = database.addSchema('crm');
-
-    assert.strictEqual(schema.databaseName, 'app');
+    assert.strictEqual(reusable.schemaName, undefined);
+    assert.strictEqual(users.databaseSchemaName, undefined);
+    assert.strictEqual(database.schemas.public.schemaName, 'public');
     assert.strictEqual(
-      schema.schemaComponentKey,
-      'sc:dumbo:database_schema:regular:app:crm',
-    );
-    assert.strictEqual(
-      database.components.has('sc:dumbo:database_schema:regular:app:crm'),
-      true,
+      database.schemas.public.tables.users.databaseSchemaName,
+      'public',
     );
   });
 
-  it('keeps wrapper migrations live after dynamic child additions', () => {
-    const tableMigration = sqlMigration('table:001', [SQL`SELECT 1`]);
-    const indexMigration = sqlMigration('index:001', [SQL`SELECT 2`]);
-    const featureMigration = sqlMigration('feature:001', [SQL`SELECT 3`]);
-
-    const schema = databaseSchemaSchemaComponent({
-      schemaName: 'crm',
-    });
-    const table = tableSchemaComponent({ tableName: 'users' });
-    const feature = featureSchemaComponent({
-      featureKind: 'audit',
-      featureName: 'audit',
-    });
-
-    const events = schema.addTable(
-      tableSchemaComponent({
-        tableName: 'events',
-        migrations: [tableMigration],
-      }),
-    );
-    table.addIndex(
-      indexSchemaComponent({
-        indexName: 'users_email_idx',
-        columnNames: ['email'],
-        isUnique: false,
-        migrations: [indexMigration],
-      }),
-    );
-    feature.addComponent(
-      schemaComponent('sc:test:feature-child', {
-        migrations: [featureMigration],
-      }),
-    );
-
-    assert.deepStrictEqual(schema.migrations, [tableMigration]);
-    assert.strictEqual(events.databaseSchemaName, 'crm');
-    assert.strictEqual(
-      events.schemaComponentKey,
-      'sc:dumbo:table:regular:crm:events',
-    );
-    assert.deepStrictEqual(table.migrations, [indexMigration]);
-    assert.deepStrictEqual(feature.migrations, [featureMigration]);
-  });
-
-  it('scopes standalone indexes to the default unbound table identity', () => {
-    const index = indexSchemaComponent({
+  it('places a declared index in its containing schema and table', () => {
+    const index = indexComponent({
       indexName: 'users_email_idx',
       columnNames: ['email'],
       isUnique: false,
     });
-
-    assert.strictEqual(index.databaseSchemaName, '__default_database_schema__');
-    assert.strictEqual(index.tableName, '__default_table__');
-    assert.strictEqual(
-      index.schemaComponentKey,
-      'sc:dumbo:index:regular:__default_database_schema__:__default_table__:users_email_idx',
-    );
-  });
-
-  it('binds table-declared indexes to the table scope', () => {
-    const users = tableSchemaComponent({
+    const users = tableComponent({
       tableName: 'users',
-      indexes: {
-        users_email_idx: indexSchemaComponent({
-          indexName: 'users_email_idx',
-          columnNames: ['email'],
-          isUnique: false,
-        }),
-      },
+      indexes: { email: index },
     });
-
-    const index = users.indexes.get('users_email_idx');
-
-    assert.strictEqual(
-      index?.databaseSchemaName,
-      '__default_database_schema__',
-    );
-    assert.strictEqual(index?.tableName, 'users');
-    assert.strictEqual(
-      index?.schemaComponentKey,
-      'sc:dumbo:index:regular:__default_database_schema__:users:users_email_idx',
-    );
-    assert.strictEqual(users.components.get(index.schemaComponentKey), index);
-  });
-
-  it('binds schema-qualified table indexes to the schema and table scope', () => {
-    const users = tableSchemaComponent({
-      databaseSchemaName: 'crm',
-      tableName: 'users',
-      indexes: {
-        users_email_idx: indexSchemaComponent({
-          indexName: 'users_email_idx',
-          columnNames: ['email'],
-          isUnique: false,
-        }),
-      },
-    });
-
-    assert.strictEqual(
-      users.indexes.get('users_email_idx')?.schemaComponentKey,
-      'sc:dumbo:index:regular:crm:users:users_email_idx',
-    );
-  });
-
-  it('rebinds indexes when a default table is added to a database schema', () => {
-    const users = tableSchemaComponent({
-      tableName: 'users',
-      indexes: {
-        users_email_idx: indexSchemaComponent({
-          indexName: 'users_email_idx',
-          columnNames: ['email'],
-          isUnique: false,
-        }),
-      },
-    });
-    const schema = databaseSchemaSchemaComponent({
+    const schema = databaseSchemaComponent({
       schemaName: 'crm',
       tables: { users },
     });
+    const contextualIndex = schema.tables.users.indexes.email;
 
-    assert.strictEqual(
-      schema.tables.users.indexes.get('users_email_idx')?.schemaComponentKey,
-      'sc:dumbo:index:regular:crm:users:users_email_idx',
+    assert.strictEqual(index.databaseSchemaName, undefined);
+    assert.strictEqual(index.tableName, undefined);
+    assert.strictEqual(contextualIndex.databaseSchemaName, 'crm');
+    assert.strictEqual(contextualIndex.tableName, 'users');
+  });
+
+  it('rejects placing an index under a table other than its constraint', () => {
+    assert.throws(
+      () =>
+        tableComponent({
+          tableName: 'users',
+          indexes: {
+            email: indexComponent({
+              indexName: 'accounts_email_idx',
+              tableName: 'accounts',
+              columnNames: ['email'],
+              isUnique: false,
+            }),
+          },
+        }),
+      /constrained to table "accounts".*placed in "users"/,
     );
   });
 
-  it('binds dynamically added indexes and keeps migrations live', () => {
-    const migration = sqlMigration('index:001', [SQL`SELECT 1`]);
-    const users = tableSchemaComponent({ tableName: 'users' });
-
-    const index = users.addIndex(
-      indexSchemaComponent({
-        indexName: 'users_email_idx',
-        columnNames: ['email'],
-        isUnique: false,
-        migrations: [migration],
-      }),
+  it('rejects placing an index under a schema other than its constraint', () => {
+    assert.throws(
+      () =>
+        tableComponent({
+          tableName: 'users',
+          databaseSchemaName: 'public',
+          indexes: {
+            email: indexComponent({
+              indexName: 'users_email_idx',
+              databaseSchemaName: 'audit',
+              columnNames: ['email'],
+              isUnique: false,
+            }),
+          },
+        }),
+      /constrained to database schema "audit".*placed in "public\.users"/,
     );
-
-    assert.strictEqual(
-      index.schemaComponentKey,
-      'sc:dumbo:index:regular:__default_database_schema__:users:users_email_idx',
-    );
-    assert.deepStrictEqual(users.migrations, [migration]);
   });
 
-  it('rejects indexes already bound to a different table or schema', () => {
-    const users = tableSchemaComponent({ tableName: 'users' });
-    const index = indexSchemaComponent({
-      databaseSchemaName: 'crm',
-      tableName: 'accounts',
-      indexName: 'accounts_email_idx',
-      columnNames: ['email'],
+  it('rejects placing a table under a schema other than its constraint', () => {
+    const users = tableComponent({
+      tableName: 'users',
+      databaseSchemaName: 'audit',
+    });
+
+    assert.throws(
+      () =>
+        databaseSchemaComponent({
+          schemaName: 'public',
+          tables: { users },
+        }),
+      /constrained to database schema "audit".*placed in "public"/,
+    );
+  });
+
+  it('rejects placing a schema under a database other than its constraint', () => {
+    const audit = databaseSchemaComponent({
+      schemaName: 'audit',
+      databaseName: 'other',
+    });
+
+    assert.throws(
+      () =>
+        databaseComponent({
+          databaseName: 'app',
+          schemas: { audit },
+        }),
+      /constrained to database "other".*placed in "app"/,
+    );
+  });
+
+  it('rejects an explicitly named schema stored under a different record key', () => {
+    const audit = databaseSchemaComponent({ schemaName: 'audit' });
+
+    assert.throws(
+      () =>
+        databaseComponent({
+          databaseName: 'app',
+          schemas: { public: audit },
+        }),
+      /record key "public" conflicts with its explicit name "audit"/,
+    );
+  });
+
+  it('reuses one table declaration in two independent schemas', () => {
+    const users = tableComponent({ tableName: 'users' });
+    const publicSchema = databaseSchemaComponent({
+      schemaName: 'public',
+      tables: { users },
+    });
+    const auditSchema = databaseSchemaComponent({
+      schemaName: 'audit',
+      tables: { users },
+    });
+
+    assert.strictEqual(users.databaseSchemaName, undefined);
+    assert.strictEqual(publicSchema.tables.users.databaseSchemaName, 'public');
+    assert.strictEqual(auditSchema.tables.users.databaseSchemaName, 'audit');
+    assert.notStrictEqual(publicSchema.tables.users, auditSchema.tables.users);
+  });
+
+  it('rejects using one alias for both a schema and a database extension', () => {
+    const auditSchema = databaseSchemaComponent({ schemaName: 'audit' });
+    const auditExtension = extensionWith('audit-extension');
+
+    assert.throws(
+      () =>
+        databaseComponent({
+          databaseName: 'app',
+          schemas: { audit: auditSchema },
+          extensions: { audit: auditExtension },
+        }),
+      /Duplicate component alias "audit"/,
+    );
+  });
+
+  it('rejects using one alias for both a table column and index', () => {
+    const id = columnSchemaComponent({ columnName: 'id', type: 'varchar' });
+    const index = indexComponent({
+      indexName: 'users_id_idx',
+      columnNames: ['id'],
       isUnique: false,
     });
 
     assert.throws(
-      () => users.addIndex(index),
-      /Index accounts_email_idx belongs to database schema crm and cannot be added to __default_database_schema__\.users/,
+      () =>
+        tableComponent({
+          tableName: 'users',
+          columns: { id },
+          indexes: { id: index },
+        }),
+      /Duplicate component alias "id"/,
     );
   });
 
-  it('generates index names from table, target names, and index kind', () => {
+  it('derives a readable default index name from its logical target', () => {
     assert.strictEqual(
       generatedIndexName({
         tableName: 'users',
@@ -503,73 +585,37 @@ describe('FeatureSchemaComponent', () => {
       }),
       'users_data_json_document_idx',
     );
-    assert.strictEqual(
-      generatedIndexName({
-        tableName: 'users',
-        indexTargetNames: ['embedding'],
-        indexKind: 'vector',
-      }),
-      'users_embedding_vector_idx',
-    );
   });
 });
 
-describe('Schema component discovery', () => {
-  it('finds components and features through expanded traversal', () => {
-    const table = tableSchemaComponent({ tableName: 'audit_log' });
-    const feature = featureSchemaComponent({
-      featureKind: 'audit',
-      featureName: 'audit',
-      components: [table],
-    });
-    const root = databaseSchemaComponent({
+describe('validating a composed database', () => {
+  it('discovers an extension table without exposing it as a database schema', () => {
+    const auditLog = tableComponent({ tableName: 'audit_log' });
+    const audit = extensionComponent('audit', { auditLog });
+    const database = databaseComponent({
       databaseName: 'app',
-      components: [feature],
+      extensions: { audit },
     });
 
-    assert.strictEqual(
-      findComponent(root, table.schemaComponentKey)?.schemaComponentKey,
-      table.schemaComponentKey,
-    );
-    assert.strictEqual(findFeatures(root).length, 1);
-    assert.strictEqual(findFeature(root, 'audit', 'audit'), feature);
-    assert.strictEqual(
-      requireSingleComponent(root, TableURNType, 'table').schemaComponentKey,
-      table.schemaComponentKey,
-    );
+    assert.strictEqual(findComponent(database, isTableComponent), auditLog);
+    assert.deepStrictEqual(findExtensions(database), [audit]);
+    assert.deepStrictEqual(Object.keys(database.schemas), []);
   });
 
-  it('reports duplicate discovery matches with component keys', () => {
-    const root = databaseSchemaComponent({
-      databaseName: 'app',
-      components: [
-        tableSchemaComponent({ tableName: 'users' }),
-        tableSchemaComponent({ tableName: 'audit' }),
-      ],
-    });
-
-    assert.throws(
-      () => requireSingleComponent(root, TableURNType, 'table'),
-      /Expected one table, found 2: sc:dumbo:table:regular:__default_database_schema__:users, sc:dumbo:table:regular:__default_database_schema__:audit/,
-    );
-  });
-});
-
-describe('logical schema mapping', () => {
-  it('allows unique physical table names across logical schemas in strict mode', () => {
-    const database = databaseSchemaComponent({
+  it('accepts distinct physical table names across logical schemas', () => {
+    const database = databaseComponent({
       databaseName: 'app',
       schemas: {
-        public: databaseSchemaSchemaComponent({
+        public: databaseSchemaComponent({
           schemaName: 'public',
           tables: {
-            users: tableSchemaComponent({ tableName: 'users' }),
+            users: tableComponent({ tableName: 'users' }),
           },
         }),
-        audit: databaseSchemaSchemaComponent({
+        audit: databaseSchemaComponent({
           schemaName: 'audit',
           tables: {
-            audit_events: tableSchemaComponent({ tableName: 'audit_events' }),
+            auditEvents: tableComponent({ tableName: 'audit_events' }),
           },
         }),
       },
@@ -578,20 +624,20 @@ describe('logical schema mapping', () => {
     assert.doesNotThrow(() => assertLogicalSchemaMapping(database));
   });
 
-  it('rejects physical table collisions across logical schemas in strict mode', () => {
-    const database = databaseSchemaComponent({
+  it('rejects one physical table name reused across logical schemas', () => {
+    const database = databaseComponent({
       databaseName: 'app',
       schemas: {
-        public: databaseSchemaSchemaComponent({
+        public: databaseSchemaComponent({
           schemaName: 'public',
           tables: {
-            users: tableSchemaComponent({ tableName: 'users' }),
+            users: tableComponent({ tableName: 'users' }),
           },
         }),
-        audit: databaseSchemaSchemaComponent({
+        audit: databaseSchemaComponent({
           schemaName: 'audit',
           tables: {
-            users: tableSchemaComponent({ tableName: 'users' }),
+            users: tableComponent({ tableName: 'users' }),
           },
         }),
       },
@@ -603,63 +649,51 @@ describe('logical schema mapping', () => {
     );
   });
 
-  it('does not treat tables in the same logical schema as cross-schema collisions', () => {
-    const schema = databaseSchemaSchemaComponent({
+  it('accepts a shared table discovered twice within one logical schema', () => {
+    const users = tableComponent({ tableName: 'users' });
+    const shared = extensionComponent('shared', { users });
+    const schema = databaseSchemaComponent({
       schemaName: 'public',
-      components: [
-        tableSchemaComponent({ tableName: 'users' }),
-        schemaComponent('sc:test:unrelated', {}),
-      ],
+      tables: { users },
+      extensions: { shared },
     });
-    const database = databaseSchemaComponent({
+    const database = databaseComponent({
       databaseName: 'app',
-      components: [schema],
+      schemas: { public: schema },
     });
 
-    assert.strictEqual(
-      database.components.has(
-        `${DatabaseSchemaURNType}:regular:__default_database__:public`,
-      ),
-      true,
-    );
     assert.doesNotThrow(() => assertLogicalSchemaMapping(database));
   });
 
-  it('checks schemas exposed by feature expansion', () => {
-    const feature = featureSchemaComponent({
-      featureKind: 'tenant_storage',
-      featureName: 'audit',
-      components: [
-        databaseSchemaSchemaComponent({
-          schemaName: 'audit',
-          tables: {
-            users: tableSchemaComponent({ tableName: 'users' }),
-          },
-        }),
-      ],
+  it('detects physical table collisions inside database extensions', () => {
+    const extensionSchema = databaseSchemaComponent({
+      schemaName: 'audit',
+      tables: {
+        users: tableComponent({ tableName: 'users' }),
+      },
     });
-    const database = databaseSchemaComponent({
+    const audit = extensionComponent('audit', { extensionSchema });
+    const database = databaseComponent({
       databaseName: 'app',
       schemas: {
-        public: databaseSchemaSchemaComponent({
+        public: databaseSchemaComponent({
           schemaName: 'public',
           tables: {
-            users: tableSchemaComponent({ tableName: 'users' }),
+            users: tableComponent({ tableName: 'users' }),
           },
         }),
       },
-      components: [feature],
+      extensions: { audit },
     });
 
-    assert.strictEqual(database.features.get('audit'), feature);
     assert.throws(
       () => assertLogicalSchemaMapping(database),
       /Logical schema collision detected: users/,
     );
   });
 
-  it('runs migrator schema validation before migrations', async () => {
-    const component = schemaComponent('sc:test:root', {
+  it('reports schema validation failure before executing migrations', async () => {
+    const component = schemaComponent({
       migrations: [sqlMigration('root:001', [SQL`SELECT 1`])],
     });
     const migrator = SchemaComponentMigrator(component, {
