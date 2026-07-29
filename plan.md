@@ -23,12 +23,18 @@ Current checkpoint:
 - `[done]` Commit `98f856be` is the last checkpoint known to pass every gate.
 - `[done]` At that checkpoint, TypeScript, lint, package builds, 988 unit
   tests, and focused PostgreSQL/SQLite integrations passed.
-- `[done]` Current HEAD `619f476f` contains Slice 1 and passes its complete
-  gate.
-- `[active]` Slice 2: simplify the Dumbo base component.
-- `[queued]` All other audit findings listed below, in numbered order.
-
-Only the plan document differs from the committed Slice 1 checkpoint.
+- `[done]` Current HEAD `c07390a5` contains the hierarchy/traversal/runtime
+  rewrite through Slice 8.
+- `[done]` The current physical-reference and driver-resolution slices pass
+  TypeScript, 995
+  unit tests, ESLint/Prettier, package builds, and focused real
+  PostgreSQL/SQLite/D1 migration and connection integrations.
+- `[done]` Slice 5 keeps persisted Pongo ledger names in one internal naming
+  module while Dumbo owns traversal, references, and dialect SQL.
+- `[done]` Slice 9 resolves database/schema names once and requires concrete
+  names at the internal driver boundary.
+- `[active]` Slice 12: final naming/dead-code sweep and the full verification
+  sequence.
 
 ## Non-negotiable design decisions
 
@@ -207,7 +213,7 @@ must not be weakened merely to make a rewrite pass.
 | Runtime component model  | Runtime components carry `collectionName`, `sqlBuilder`, `.editor`, `.collection()`, and `.collections`, duplicating table and database concepts | Runtime behavior is held by the runtime DB/collection objects; schema components stay schema components              | 7     |
 | Projection and cache     | Declared access, lazy access, aliases, and cache identity have overlapping paths                                                                 | One nested cache and one lookup/registration path per logical schema/table                                           | 8     |
 | Driver resolution        | Configuration fallback logic has historically been split between client, cache, and drivers                                                      | Values are resolved once before the internal driver factory                                                          | 9     |
-| SQLite identity          | Mapping must cover every SQL path without codecs or duplicated resolver layers                                                                   | One readable Pongo SQLite reference resolver for tables and indexes                                                  | 10    |
+| SQLite identity          | Mapping must cover every SQL path without codecs or duplicated resolver layers                                                                   | One readable Dumbo SQLite reference resolver for tables and indexes                                                  | 10    |
 | Migration ledger         | Legacy component-ledger ideas and scattered reference handling add concepts without user value                                                   | Only schema/table ledger configuration; one resolved SQL reference                                                   | 11    |
 | Naming/dead code         | Transitional aliases, sentinels, casts, and obsolete exports remain possible                                                                     | Canonical names only; no dead compatibility layer                                                                    | 12    |
 
@@ -269,7 +275,7 @@ const users = table("users", {
 
 No Slice 2 work starts until every item passes.
 
-## Slice 2 — Simplify the Dumbo base component `[active]`
+## Slice 2 — Simplify the Dumbo base component `[done]`
 
 ### Tests first
 
@@ -301,7 +307,7 @@ Keep or add usage tests for:
 - Dumbo TypeScript, unit tests, lint, and package build.
 - Full Pongo TypeScript and unit tests remain green.
 
-## Slice 3 — Simplify Dumbo ownership and extensions `[queued]`
+## Slice 3 — Simplify Dumbo ownership and extensions `[done]`
 
 ### Tests first
 
@@ -331,7 +337,7 @@ Keep or add usage tests for:
 - Dumbo build/lint/package build.
 - Full Pongo TypeScript and unit tests.
 
-## Slice 4 — Replace materialization with explicit hierarchy composition `[queued]`
+## Slice 4 — Replace materialization with explicit hierarchy composition `[done]`
 
 ### Tests first
 
@@ -396,7 +402,7 @@ type IndexIdentifier = TableIdentifier & { indexName: string };
 - Dumbo hierarchy/identifier tests, TypeScript, lint, package build.
 - Pongo declarations and existing runtime tests stay green.
 
-## Slice 5 — Generate driver migrations through Dumbo traversal `[queued]`
+## Slice 5 — Generate driver migrations through Dumbo traversal `[done]`
 
 This slice directly addresses the current SQLite and PostgreSQL
 `migrationsFor` functions.
@@ -469,6 +475,19 @@ driver should only turn one fully identified component into SQL.
   identities are preserved only where compatibility requires them.
 - Do not export new `pongoSQLiteMigrationsFor` or similar helper APIs.
 
+### Current progress
+
+- `[done]` Dumbo owns identified traversal, structural ordering, cycle
+  handling, declared-migration aggregation, and duplicate-name detection.
+- `[done]` Dumbo owns PostgreSQL/SQLite table references, SQLite logical-name
+  mapping, and ordinary/JSON-path/JSON-document/custom index SQL.
+- `[done]` Pongo index declarations are ordinary Dumbo indexes with typed
+  Dumbo targets; Pongo strategy symbols and dialect dispatch are removed.
+- `[done]` Pongo CRUD builders receive resolved table references.
+- `[done]` Pongo retains only small migration wrappers and one internal naming
+  module for persisted `pongoCollection:*` ledger identities. They call
+  Dumbo-owned dialect SQL and do not resolve references.
+
 ### Gate
 
 - Dumbo traversal and migration aggregation tests.
@@ -477,7 +496,7 @@ driver should only turn one fully identified component into SQL.
 - Repeat-migration and migration-order tests.
 - Full build/lint/package build.
 
-## Slice 6 — Normalize Pongo declarations `[queued]`
+## Slice 6 — Normalize Pongo declarations `[done]`
 
 ### Tests first
 
@@ -507,7 +526,7 @@ driver should only turn one fully identified component into SQL.
 
 - Pongo type tests, schema unit tests, Dumbo compatibility tests, build/lint.
 
-## Slice 7 — Remove runtime behavior from schema components `[queued]`
+## Slice 7 — Remove runtime behavior from schema components `[done]`
 
 ### Tests first
 
@@ -539,7 +558,7 @@ database migration aggregation owns declared and driver-generated migrations.
 - Pongo runtime tests, TypeScript, lint, package build.
 - PostgreSQL and SQLite collection operations remain green.
 
-## Slice 8 — Unify runtime lookup, cache, and projection `[queued]`
+## Slice 8 — Unify runtime lookup, cache, and projection `[done]`
 
 ### Tests first
 
@@ -570,7 +589,7 @@ Map<schemaName, Map<tableName, PongoCollection>>;
 
 - Runtime unit tests, type tests, build/lint, both storage integrations.
 
-## Slice 9 — Resolve driver configuration once `[queued]`
+## Slice 9 — Resolve driver configuration once `[done]`
 
 ### Tests first
 
@@ -600,7 +619,7 @@ Every Pongo driver exposes its exact Dumbo driver.
 
 - Driver unit tests, TypeScript, lint, PostgreSQL/SQLite connection tests.
 
-## Slice 10 — Finish physical reference handling `[queued]`
+## Slice 10 — Finish physical reference handling `[done]`
 
 ### Tests first
 
@@ -608,22 +627,22 @@ Every Pongo driver exposes its exact Dumbo driver.
 - `crm.users` maps readably and reversibly.
 - Underscores are escaped without numeric codecs.
 - Table and index namespaces cannot collide.
-- Reserved `pongo_` prefix is rejected for native names.
+- Dumbo's private mapped-name prefix is rejected for native names.
 - Every SQLite SQL builder uses the same resolver.
 - PostgreSQL table qualification and unqualified create-index names are valid.
 
 ### Required changes
 
-- Keep one Pongo SQLite resolver for physical table/index references.
-- Remove duplicate logical identity wrappers and decoders.
-- Pass resolved references to every builder.
-- Keep generic Dumbo SQLite collision validation separate and strict.
+- Keep one Dumbo SQLite resolver for physical table/index references.
+- Remove Pongo logical identity wrappers, mapping options, and decoders.
+- Pass Dumbo-resolved references to Pongo builders.
+- Keep Dumbo SQLite collision validation strict.
 
 ### Gate
 
 - SQL resolver/unit tests and SQLite/PostgreSQL integrations.
 
-## Slice 11 — Simplify migration-ledger configuration `[queued]`
+## Slice 11 — Simplify migration-ledger configuration `[done]`
 
 The supported public configuration is:
 
@@ -656,7 +675,7 @@ There is no component-ledger option.
 
 - Dumbo migrator tests, both database integrations, build/lint.
 
-## Slice 12 — Final naming and dead-code sweep `[queued]`
+## Slice 12 — Final naming and dead-code sweep `[active]`
 
 Remove only code proven obsolete by completed slices:
 

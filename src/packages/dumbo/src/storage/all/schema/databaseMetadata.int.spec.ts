@@ -15,6 +15,7 @@ describe('dumboDatabaseMetadataRegistry - automatic registrations', () => {
       assert.ok(metadata, 'PostgreSQL metadata should be registered');
       assert.strictEqual(metadata.databaseType, 'PostgreSQL');
       assert.strictEqual(metadata.defaultDatabaseName, 'postgres');
+      assert.strictEqual(metadata.defaultSchemaName, 'public');
     });
 
     it('has correct capabilities', () => {
@@ -50,9 +51,11 @@ describe('dumboDatabaseMetadataRegistry - automatic registrations', () => {
       const metadata = dumboDatabaseMetadataRegistry.tryGet('PostgreSQL');
 
       assert.ok(metadata);
+      const parseDatabaseName = metadata.parseDatabaseName;
+      assert.ok(parseDatabaseName);
       assert.strictEqual(metadata.defaultDatabaseName, 'postgres');
       assert.strictEqual(
-        metadata.parseDatabaseName('postgresql://localhost/mydb'),
+        parseDatabaseName('postgresql://localhost/mydb'),
         'mydb',
       );
     });
@@ -68,7 +71,8 @@ describe('dumboDatabaseMetadataRegistry - automatic registrations', () => {
 
       assert.ok(metadata, 'SQLite metadata should be registered');
       assert.strictEqual(metadata.databaseType, 'SQLite');
-      assert.strictEqual(metadata.defaultDatabaseName, undefined);
+      assert.strictEqual(metadata.defaultDatabaseName, 'main');
+      assert.strictEqual(metadata.defaultSchemaName, 'main');
     });
 
     it('has correct capabilities', () => {
@@ -97,7 +101,7 @@ describe('dumboDatabaseMetadataRegistry - automatic registrations', () => {
       const metadata = dumboDatabaseMetadataRegistry.tryGet('SQLite');
 
       assert.ok(metadata);
-      assert.strictEqual(metadata.defaultDatabaseName, undefined);
+      assert.strictEqual(metadata.defaultDatabaseName, 'main');
       assert.strictEqual(metadata.parseDatabaseName, undefined);
     });
   });

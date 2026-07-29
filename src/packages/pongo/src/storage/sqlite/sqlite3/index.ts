@@ -4,6 +4,7 @@ import {
   SQLite3DriverType,
   type SQLiteTransactionOptions,
 } from '@event-driven-io/dumbo/sqlite3';
+import { sqliteTableReference } from '@event-driven-io/dumbo/sqlite';
 import {
   PongoDatabase,
   pongoDriverRegistry,
@@ -30,11 +31,6 @@ const sqlite3PongoDriver: PongoDriver<
   dumboDriver,
   databaseFactory: (options) => {
     const { databaseName, defaultSchemaName } = options;
-    if (databaseName === undefined || defaultSchemaName === undefined) {
-      throw new Error(
-        'SQLite driver requires resolved database and default schema names',
-      );
-    }
     const connectionOptions = withPongoTransactionOptions<
       SQLitePongoClientOptions,
       SQLiteTransactionOptions
@@ -50,8 +46,16 @@ const sqlite3PongoDriver: PongoDriver<
         serialization: { serializer: options.serializer },
       }),
       migrationBuilder: pongoSQLiteMigrationBuilder,
-      sqlBuilderFor: (collection, identifier) =>
-        sqliteSQLBuilder(collection, identifier, options.serializer),
+      sqlBuilderFor: (collection, identifier) => {
+        const referenceFor = (tableName: string) =>
+          sqliteTableReference({ ...identifier, tableName });
+        return sqliteSQLBuilder(
+          collection,
+          referenceFor(identifier.tableName),
+          referenceFor,
+          options.serializer,
+        );
+      },
       databaseName,
       defaultSchemaName,
     });

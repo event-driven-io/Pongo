@@ -5,6 +5,7 @@ import {
   type PgConnection,
   type PgTransactionOptions,
 } from '@event-driven-io/dumbo/pg';
+import { postgreSQLTableReference } from '@event-driven-io/dumbo/postgresql';
 import type pg from 'pg';
 import {
   PongoDatabase,
@@ -61,11 +62,6 @@ const pgPongoDriver: PongoDriver<
   dumboDriver,
   databaseFactory: (options) => {
     const { databaseName, defaultSchemaName } = options;
-    if (databaseName === undefined || defaultSchemaName === undefined) {
-      throw new Error(
-        'PostgreSQL driver requires resolved database and default schema names',
-      );
-    }
     const connectionOptions = withPongoTransactionOptions<
       PgPongoClientOptions,
       PgTransactionOptions
@@ -96,7 +92,11 @@ const pgPongoDriver: PongoDriver<
       }),
       migrationBuilder: pongoPostgreSQLMigrationBuilder,
       sqlBuilderFor: (collection, identifier) =>
-        postgresSQLBuilder(collection, identifier, options.serializer),
+        postgresSQLBuilder(
+          collection,
+          postgreSQLTableReference(identifier),
+          options.serializer,
+        ),
       databaseName,
       defaultSchemaName,
     });

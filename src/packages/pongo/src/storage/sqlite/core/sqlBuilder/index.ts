@@ -4,9 +4,8 @@ import {
   JSONParam,
   SQL,
   type JSONSerializer,
-  type TableIdentifier,
 } from '@event-driven-io/dumbo';
-import { SQLiteJSON, sqliteTableName } from '@event-driven-io/dumbo/sqlite';
+import { SQLiteJSON } from '@event-driven-io/dumbo/sqlite';
 import {
   expectedVersionPredicate,
   type DeleteOneOptions,
@@ -37,12 +36,10 @@ const versionCheckClause = (
 
 export const sqliteSQLBuilder = (
   collection: PongoCollectionComponent,
-  context: TableIdentifier,
+  tableReference: SQL,
+  tableReferenceFor: (tableName: string) => SQL,
   serializer: JSONSerializer,
 ): PongoCollectionSQLBuilder => {
-  const tableName = sqliteTableName(context);
-  const tableReference = SQL.identifier(tableName);
-
   return {
     createCollection: (): SQL => createTableSQL(collection, tableReference),
     insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
@@ -51,7 +48,7 @@ export const sqliteSQLBuilder = (
       const version = document._version ?? 1n;
 
       return SQL`
-      INSERT OR IGNORE INTO ${SQL.identifier(tableName)} (_id, data, _version)
+      INSERT OR IGNORE INTO ${tableReference} (_id, data, _version)
       VALUES (${id}, ${serialized}, ${version})
       RETURNING _id;`;
     },
@@ -67,11 +64,11 @@ export const sqliteSQLBuilder = (
       );
 
       return SQL`
-      INSERT OR IGNORE INTO ${SQL.identifier(tableName)} (_id, data, _version) VALUES ${values}
+      INSERT OR IGNORE INTO ${tableReference} (_id, data, _version) VALUES ${values}
       RETURNING _id;`;
     },
     insertOrReplace: <T>(documents: Array<WithId<T>>): SQL => {
-      const col = SQL.identifier(tableName);
+      const col = tableReference;
       const values = SQL.merge(
         documents.map(
           (d) =>
@@ -103,13 +100,13 @@ export const sqliteSQLBuilder = (
         : buildUpdateQuery(update, serializer);
 
       return SQL`
-      UPDATE ${SQL.identifier(tableName)}
+      UPDATE ${tableReference}
       SET
         data = json_patch(${updateQuery}, json_object('_id', _id, '_version', cast(_version + 1 as TEXT))),
         _version = _version + 1,
         _updated = datetime('now')
       WHERE _id = (
-        SELECT _id FROM ${SQL.identifier(tableName)}
+        SELECT _id FROM ${tableReference}
         ${where(filterQuery)}
         LIMIT 1
       ) ${expectedVersionCheck}
@@ -131,13 +128,13 @@ export const sqliteSQLBuilder = (
         : constructFilterQuery(filter, serializer);
 
       return SQL`
-      UPDATE ${SQL.identifier(tableName)}
+      UPDATE ${tableReference}
       SET
         data = json_patch(${JSONParam.document(document, serializer)}, json_object('_id', _id, '_version', cast(_version + 1 as TEXT))),
         _version = _version + 1,
         _updated = datetime('now')
       WHERE _id = (
-        SELECT _id FROM ${SQL.identifier(tableName)}
+        SELECT _id FROM ${tableReference}
         ${where(filterQuery)}
         LIMIT 1
       ) ${expectedVersionCheck}
@@ -159,7 +156,7 @@ export const sqliteSQLBuilder = (
         : buildUpdateQuery(update, serializer);
 
       return SQL`
-      UPDATE ${SQL.identifier(tableName)}
+      UPDATE ${tableReference}
       SET
         data = json_patch(${updateQuery}, json_object('_version', cast(_version + 1 as TEXT))),
         _version = _version + 1,
@@ -178,9 +175,9 @@ export const sqliteSQLBuilder = (
         : constructFilterQuery(filter, serializer);
 
       return SQL`
-      DELETE FROM ${SQL.identifier(tableName)}
+      DELETE FROM ${tableReference}
       WHERE _id = (
-        SELECT _id FROM ${SQL.identifier(tableName)}
+        SELECT _id FROM ${tableReference}
         ${where(filterQuery)}
         LIMIT 1
       ) ${expectedVersionCheck}
@@ -194,12 +191,12 @@ export const sqliteSQLBuilder = (
         ? filter
         : constructFilterQuery(filter, serializer);
 
-      return SQL`DELETE FROM ${SQL.identifier(tableName)} ${where(filterQuery)} RETURNING _id`;
+      return SQL`DELETE FROM ${tableReference} ${where(filterQuery)} RETURNING _id`;
     },
     replaceMany: <T>(
       documents: Array<WithIdAndVersion<T>> | Array<WithId<T>>,
     ): SQL => {
-      const col = SQL.identifier(tableName);
+      const col = tableReference;
       const hasVersions = documents.some(
         (d) => '_version' in d && d._version !== undefined,
       );
@@ -260,9 +257,9 @@ export const sqliteSQLBuilder = (
         WITH targets(_id, expected_version) AS (
           VALUES ${values}
         )
-        DELETE FROM ${SQL.identifier(tableName)}
+        DELETE FROM ${tableReference}
         WHERE _id IN (SELECT _id FROM targets)
-          AND _version = (SELECT expected_version FROM targets WHERE targets._id = ${SQL.identifier(tableName)}._id)
+          AND _version = (SELECT expected_version FROM targets WHERE targets._id = ${tableReference}._id)
         RETURNING _id;`;
       }
 
@@ -272,7 +269,7 @@ export const sqliteSQLBuilder = (
       );
 
       return SQL`
-      DELETE FROM ${SQL.identifier(tableName)}
+      DELETE FROM ${tableReference}
       WHERE _id IN (${idList})
       RETURNING _id;`;
     },
@@ -281,7 +278,7 @@ export const sqliteSQLBuilder = (
         ? filter
         : constructFilterQuery(filter, serializer);
 
-      return SQL`SELECT data, _id, _version FROM ${SQL.identifier(tableName)} ${where(filterQuery)} LIMIT 1;`;
+      return SQL`SELECT data, _id, _version FROM ${tableReference} ${where(filterQuery)} LIMIT 1;`;
     },
     find: <T>(filter: PongoFilter<T> | SQL, options?: FindOptions): SQL => {
       const filterQuery = isSQL(filter)
@@ -289,9 +286,7 @@ export const sqliteSQLBuilder = (
         : constructFilterQuery(filter, serializer);
       const query: SQL[] = [];
 
-      query.push(
-        SQL`SELECT data, _id, _version FROM ${SQL.identifier(tableName)}`,
-      );
+      query.push(SQL`SELECT data, _id, _version FROM ${tableReference}`);
 
       query.push(where(filterQuery));
 
@@ -321,16 +316,12 @@ export const sqliteSQLBuilder = (
       const filterQuery = SQL.check.isSQL(filter)
         ? filter
         : constructFilterQuery(filter, serializer);
-      return SQL`SELECT COUNT(1) as count FROM ${SQL.identifier(tableName)} ${where(filterQuery)};`;
+      return SQL`SELECT COUNT(1) as count FROM ${tableReference} ${where(filterQuery)};`;
     },
     rename: (newName: string): SQL => {
-      const destination = sqliteTableName({
-        ...context,
-        tableName: newName,
-      });
-      return SQL`ALTER TABLE ${SQL.identifier(tableName)} RENAME TO ${SQL.identifier(destination)};`;
+      return SQL`ALTER TABLE ${tableReference} RENAME TO ${tableReferenceFor(newName)};`;
     },
-    drop: (): SQL => SQL`DROP TABLE IF EXISTS ${SQL.identifier(tableName)}`,
+    drop: (): SQL => SQL`DROP TABLE IF EXISTS ${tableReference}`,
   };
 };
 

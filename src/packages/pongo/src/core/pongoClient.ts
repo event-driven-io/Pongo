@@ -1,6 +1,6 @@
 import { JSONSerializer } from '@event-driven-io/dumbo';
 import { pongoCache } from './cache';
-import { PongoDatabaseCache, PONGO_DEFAULT_DATABASE_NAME } from './database';
+import { PongoDatabaseCache } from './database';
 import type {
   AnyPongoDriver,
   ExtractPongoDatabaseTypeFromDriver,
@@ -58,7 +58,8 @@ export const pongoClient = <
       : isPongoClientSchema(schemaDefinition)
         ? schemaDefinition
         : pongoSchema.client({
-            [schemaDefinition.databaseName ?? PONGO_DEFAULT_DATABASE_NAME]:
+            [schemaDefinition.databaseName ??
+            driver.dumboDriver.databaseMetadata.defaultDatabaseName]:
               schemaDefinition,
           })
   ) as TypedClientSchema | undefined;

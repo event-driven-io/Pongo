@@ -10,6 +10,7 @@ import { Command } from 'commander';
 import {
   pongoDriverRegistry,
   pongoSchema,
+  resolvePongoDatabaseNames,
   type AnyPongoDriverOptions,
   type PongoDatabaseFactoryOptions,
 } from '../core';
@@ -207,18 +208,24 @@ const getMigrations = ({
   }
 
   const dbDefinition = pongoSchema.db.from(databaseName, collectionNames);
+  const resolvedNames = resolvePongoDatabaseNames({
+    metadata: driver.dumboDriver.databaseMetadata,
+    databaseName,
+    declaredDatabaseName: dbDefinition.databaseName,
+    connectionString,
+  });
 
   const driverOptions: PongoDatabaseFactoryOptions<
     typeof dbDefinition,
     AnyPongoDriverOptions
   > = {
+    ...resolvedNames,
     schema: { definition: dbDefinition },
     serializer: JSONSerializer,
   };
 
   const customOptions = {
     connectionString,
-    databaseName,
   };
 
   const db = driver.databaseFactory({ ...driverOptions, ...customOptions });

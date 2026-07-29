@@ -1,4 +1,5 @@
 import type {
+  DatabaseMetadata,
   DatabaseDriverType,
   JSONSerializationOptions,
   MigrationStyle,
@@ -7,8 +8,26 @@ import type { PongoDatabaseFactoryOptions, PongoDriver } from '../drivers';
 import type { PongoClientSchema, PongoDbSchema } from '../schema';
 import type { PongoDb } from '../typing';
 
-export const PONGO_DEFAULT_DATABASE_NAME = 'db:default';
-export const PONGO_DEFAULT_SCHEMA_NAME = 'schema:default';
+export const resolvePongoDatabaseNames = ({
+  metadata,
+  databaseName,
+  declaredDatabaseName,
+  defaultSchemaName,
+  connectionString,
+}: {
+  metadata: DatabaseMetadata;
+  databaseName?: string | undefined;
+  declaredDatabaseName?: string | undefined;
+  defaultSchemaName?: string | undefined;
+  connectionString?: string | undefined;
+}): { databaseName: string; defaultSchemaName: string } => ({
+  databaseName:
+    databaseName ??
+    declaredDatabaseName ??
+    metadata.parseDatabaseName?.(connectionString) ??
+    metadata.defaultDatabaseName,
+  defaultSchemaName: defaultSchemaName ?? metadata.defaultSchemaName,
+});
 
 export const PongoDatabaseCache = <
   Database extends PongoDb<DatabaseDriverType> = PongoDb<DatabaseDriverType>,
@@ -36,8 +55,13 @@ export const PongoDatabaseCache = <
 
   return {
     getOrCreate: (
-      createOptions: Omit<PongoDatabaseFactoryOptions, 'schema'> &
-        JSONSerializationOptions & {
+      createOptions: Omit<
+        PongoDatabaseFactoryOptions,
+        'databaseName' | 'defaultSchemaName' | 'schema'
+      > & {
+        databaseName?: string | undefined;
+        defaultSchemaName?: string | undefined;
+      } & JSONSerializationOptions & {
           schema?: {
             autoMigration?: MigrationStyle;
             definition?: PongoDbSchema;
@@ -48,21 +72,19 @@ export const PongoDatabaseCache = <
       const declaredDefinition = getDatabaseDefinition(
         createOptions.databaseName,
       );
-      const dbName =
-        createOptions.databaseName ??
-        declaredDefinition?.databaseName ??
-        schemaDefinition?.databaseName ??
-        metadata?.parseDatabaseName?.(
+      const resolvedNames = resolvePongoDatabaseNames({
+        metadata,
+        databaseName: createOptions.databaseName,
+        declaredDatabaseName:
+          declaredDefinition?.databaseName ?? schemaDefinition?.databaseName,
+        defaultSchemaName: createOptions.defaultSchemaName,
+        connectionString:
           'connectionString' in createOptions
             ? (createOptions.connectionString as string)
             : undefined,
-        ) ??
-        metadata.defaultDatabaseName ??
-        PONGO_DEFAULT_DATABASE_NAME;
-      const defaultSchemaName =
-        createOptions.defaultSchemaName ??
-        metadata.defaultSchemaName ??
-        PONGO_DEFAULT_SCHEMA_NAME;
+      });
+      const dbName = resolvedNames.databaseName;
+      const defaultSchemaName = resolvedNames.defaultSchemaName;
 
       if (!metadata.capabilities.supportsMultipleDatabases) {
         if (fixedDatabaseName !== undefined && fixedDatabaseName !== dbName) {

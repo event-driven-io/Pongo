@@ -174,26 +174,25 @@ export const PongoDatabase = <
           PongoDBCollectionOptions<T, Payload>,
           'databaseSchemaName'
         >,
-      ) =>
-        {
-          const requestedDatabaseSchemaName =
-            collectionOptions !== undefined &&
-            'databaseSchemaName' in collectionOptions
-              ? collectionOptions.databaseSchemaName
-              : undefined;
-          if (
-            typeof requestedDatabaseSchemaName === 'string' &&
-            requestedDatabaseSchemaName !== schemaName
-          ) {
-            throw new Error(
-              `Pongo schema scope "${schemaName}" cannot place a collection in database schema "${requestedDatabaseSchemaName}"`,
-            );
-          }
-          return db.collection<T, Payload>(collectionName, {
-            ...collectionOptions,
-            databaseSchemaName: schemaName,
-          });
-        },
+      ) => {
+        const requestedDatabaseSchemaName =
+          collectionOptions !== undefined &&
+          'databaseSchemaName' in collectionOptions
+            ? collectionOptions.databaseSchemaName
+            : undefined;
+        if (
+          typeof requestedDatabaseSchemaName === 'string' &&
+          requestedDatabaseSchemaName !== schemaName
+        ) {
+          throw new Error(
+            `Pongo schema scope "${schemaName}" cannot place a collection in database schema "${requestedDatabaseSchemaName}"`,
+          );
+        }
+        return db.collection<T, Payload>(collectionName, {
+          ...collectionOptions,
+          databaseSchemaName: schemaName,
+        });
+      },
       collections: () => [...(collections.get(schemaName)?.values() ?? [])],
     };
     schemaScopes.set(schemaName, scope);

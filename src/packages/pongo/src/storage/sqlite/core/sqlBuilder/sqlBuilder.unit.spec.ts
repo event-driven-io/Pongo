@@ -5,7 +5,10 @@ import {
   SQL,
   type TableIdentifier,
 } from '@event-driven-io/dumbo';
-import { sqliteFormatter } from '@event-driven-io/dumbo/sqlite';
+import {
+  sqliteFormatter,
+  sqliteTableReference,
+} from '@event-driven-io/dumbo/sqlite';
 import { randomUUID } from 'crypto';
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
@@ -83,7 +86,12 @@ const builderFor = (
     identifier: TableIdentifier;
   }>,
 ): PongoCollectionSQLBuilder =>
-  sqliteSQLBuilder(fixture.collection, fixture.identifier, JSONSerializer);
+  sqliteSQLBuilder(
+    fixture.collection,
+    sqliteTableReference(fixture.identifier),
+    (tableName) => sqliteTableReference({ ...fixture.identifier, tableName }),
+    JSONSerializer,
+  );
 
 const migrationsFor = (
   database: ReturnType<typeof databaseInSchemaWithIndexes>,
@@ -430,7 +438,7 @@ describe('sqliteSQLBuilder', () => {
       assert.equal(collection.databaseSchemaName, undefined);
       const email = collection.indexes.email;
       assert.ok(email);
-      assert.equal(email.path, 'email');
+      assert.strictEqual(email, indexes.email);
       assert.ok(
         indexSQL.includes(
           'CREATE INDEX dumbo_crm_table_users_index_users__email__idx ON dumbo_crm_table_users',

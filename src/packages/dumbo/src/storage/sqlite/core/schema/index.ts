@@ -1,3 +1,4 @@
+export * from './databaseObjectSQL';
 export * from './migrations';
 export * from './schema';
 export * from './sqliteObjectNames';
