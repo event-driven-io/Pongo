@@ -3,10 +3,10 @@ import {
   isSQL,
   JSONParam,
   SQL,
-  type ComponentContext,
   type JSONSerializer,
+  type TableIdentifier,
 } from '@event-driven-io/dumbo';
-import { SQLiteJSON } from '@event-driven-io/dumbo/sqlite';
+import { SQLiteJSON, sqliteTableName } from '@event-driven-io/dumbo/sqlite';
 import {
   expectedVersionPredicate,
   type DeleteOneOptions,
@@ -25,7 +25,6 @@ import {
 } from '../../../../core';
 import { constructFilterQuery } from './filter';
 import { buildUpdateQuery } from './update';
-import { resolveSQLiteCollectionReference } from '../schemaMapping';
 
 const versionCheckClause = (
   expectedVersion: ExpectedDocumentVersion | undefined,
@@ -38,11 +37,11 @@ const versionCheckClause = (
 
 export const sqliteSQLBuilder = (
   collection: PongoCollectionComponent,
-  context: ComponentContext,
+  context: TableIdentifier,
   serializer: JSONSerializer,
 ): PongoCollectionSQLBuilder => {
-  const { physicalName: tableName, tableReference } =
-    resolveSQLiteCollectionReference(context);
+  const tableName = sqliteTableName(context);
+  const tableReference = SQL.identifier(tableName);
 
   return {
     createCollection: (): SQL => createTableSQL(collection, tableReference),
@@ -325,11 +324,11 @@ export const sqliteSQLBuilder = (
       return SQL`SELECT COUNT(1) as count FROM ${SQL.identifier(tableName)} ${where(filterQuery)};`;
     },
     rename: (newName: string): SQL => {
-      const destination = resolveSQLiteCollectionReference({
+      const destination = sqliteTableName({
         ...context,
         tableName: newName,
       });
-      return SQL`ALTER TABLE ${SQL.identifier(tableName)} RENAME TO ${SQL.identifier(destination.physicalName)};`;
+      return SQL`ALTER TABLE ${SQL.identifier(tableName)} RENAME TO ${SQL.identifier(destination)};`;
     },
     drop: (): SQL => SQL`DROP TABLE IF EXISTS ${SQL.identifier(tableName)}`,
   };

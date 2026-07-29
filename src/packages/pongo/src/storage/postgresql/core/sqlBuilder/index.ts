@@ -1,21 +1,23 @@
 import {
   createTableSQL,
-  isDatabaseSchemaComponent,
   isSQL,
   JSONParam,
   SQL,
   sqlMigration,
-  type AnySchemaComponent,
-  type ComponentContext,
-  type DatabaseDriverType,
+  type AnyDatabaseSchemaComponent,
+  type AnyIndexComponent,
+  type AnyTableComponent,
+  type DatabaseSchemaIdentifier,
+  type DatabaseMigrationBuilder,
+  type IndexIdentifier,
   type JSONSerializer,
+  type TableIdentifier,
 } from '@event-driven-io/dumbo';
 import { PostgreSQLJSON } from '@event-driven-io/dumbo/postgresql';
 import {
   expectedVersionPredicate,
   isPongoCollectionComponent,
   isPongoIndexComponent,
-  materializePongoDatabaseComponent,
   pongoIndexStrategy,
   pongoJsonDocumentIndex,
   type DeleteOneOptions,
@@ -24,9 +26,7 @@ import {
   type OptionalUnlessRequiredIdAndVersion,
   type PongoCollectionComponent,
   type PongoCollectionSQLBuilder,
-  type PongoDatabaseComponent,
   type PongoFilter,
-  type PongoRuntimeDatabaseComponent,
   type PongoUpdate,
   type ReplaceOneOptions,
   type UpdateOneOptions,
@@ -47,26 +47,8 @@ const versionCheckClause = (
     : SQL`AND ${collection}._version = ${predicate.value}`;
 };
 
-const tableLocation = (
-  context: ComponentContext,
-): Readonly<{ databaseSchemaName: string; tableName: string }> => {
-  if (
-    context.databaseSchemaName === undefined ||
-    context.tableName === undefined
-  ) {
-    throw new Error(
-      'PostgreSQL collection resolution requires a materialized table context',
-    );
-  }
-
-  return {
-    databaseSchemaName: context.databaseSchemaName,
-    tableName: context.tableName,
-  };
-};
-
-const tableReference = (context: ComponentContext): SQL => {
-  const { databaseSchemaName, tableName } = tableLocation(context);
+const tableReference = (context: TableIdentifier): SQL => {
+  const { databaseSchemaName, tableName } = context;
   return databaseSchemaName === 'public'
     ? SQL`${SQL.identifier(tableName)}`
     : SQL`${SQL.identifier(databaseSchemaName)}.${SQL.identifier(tableName)}`;
@@ -75,46 +57,55 @@ const tableReference = (context: ComponentContext): SQL => {
 const indexReference = (indexName: string): SQL =>
   SQL`${SQL.identifier(indexName)}`;
 
-const migrationsFor = (
-  component: AnySchemaComponent,
-  context: ComponentContext,
+const schemaMigrations = (
+  _schema: AnyDatabaseSchemaComponent,
+  identifier: DatabaseSchemaIdentifier,
 ) => {
-  if (isDatabaseSchemaComponent(component)) {
-    const databaseSchemaName = context.databaseSchemaName;
-    if (databaseSchemaName === undefined || databaseSchemaName === 'public') {
-      return [];
-    }
-    return [
-      sqlMigration(`pongoSchema:${databaseSchemaName}:001:create`, [
-        SQL`CREATE SCHEMA IF NOT EXISTS ${SQL.identifier(databaseSchemaName)}`,
-      ]),
-    ];
+  const { databaseSchemaName } = identifier;
+  if (databaseSchemaName === 'public') {
+    return [];
   }
+  return [
+    sqlMigration(`pongoSchema:${databaseSchemaName}:001:create`, [
+      SQL`CREATE SCHEMA IF NOT EXISTS ${SQL.identifier(databaseSchemaName)}`,
+    ]),
+  ];
+};
 
+const tableMigrations = (
+  component: AnyTableComponent,
+  identifier: TableIdentifier,
+) => {
   if (isPongoCollectionComponent(component)) {
-    const { databaseSchemaName, tableName } = tableLocation(context);
+    const { databaseSchemaName, tableName } = identifier;
     const migrationName =
       databaseSchemaName === 'public'
         ? tableName
         : `${databaseSchemaName}:${tableName}`;
     return [
       sqlMigration(`pongoCollection:${migrationName}:001:createtable`, [
-        createTableSQL(component, tableReference(context)),
+        createTableSQL(component, tableReference(identifier)),
       ]),
     ];
   }
+  return [];
+};
 
+const indexMigrations = (
+  component: AnyIndexComponent,
+  identifier: IndexIdentifier,
+) => {
   if (!isPongoIndexComponent(component)) return [];
 
-  const { databaseSchemaName, tableName } = tableLocation(context);
-  const table = tableReference(context);
+  const { databaseSchemaName, tableName } = identifier;
+  const table = tableReference(identifier);
   const index = indexReference(component.indexName);
   const path =
     typeof component.path === 'string'
       ? component.path
       : component.path?.join('.');
   const sqlContext = {
-    databaseName: context.databaseName,
+    databaseName: identifier.databaseName,
     databaseSchemaName,
     tableName,
     indexName: component.indexName,
@@ -139,7 +130,7 @@ const migrationsFor = (
 
 export const postgresSQLBuilder = (
   collection: PongoCollectionComponent,
-  context: ComponentContext,
+  context: TableIdentifier,
   serializer: JSONSerializer,
 ): PongoCollectionSQLBuilder => {
   const reference = tableReference(context);
@@ -483,24 +474,11 @@ export const postgresSQLBuilder = (
   };
 };
 
-export const materializePongoPostgreSQLDatabaseComponent = <
-  DriverType extends DatabaseDriverType,
->(options: {
-  driverType: DriverType;
-  databaseName: string;
-  defaultSchemaName: string;
-  definition?: PongoDatabaseComponent | undefined;
-  serializer: JSONSerializer;
-}): PongoRuntimeDatabaseComponent<DriverType> =>
-  materializePongoDatabaseComponent({
-    driverType: options.driverType,
-    databaseName: options.databaseName,
-    defaultSchemaName: options.defaultSchemaName,
-    definition: options.definition,
-    migrationsFor,
-    sqlBuilderFor: (collection, context) =>
-      postgresSQLBuilder(collection, context, options.serializer),
-  });
+export const pongoPostgreSQLMigrationBuilder: DatabaseMigrationBuilder = {
+  databaseSchema: schemaMigrations,
+  table: tableMigrations,
+  index: indexMigrations,
+};
 
 const where = (filterQuery: SQL): SQL =>
   SQL.check.isEmpty(filterQuery)

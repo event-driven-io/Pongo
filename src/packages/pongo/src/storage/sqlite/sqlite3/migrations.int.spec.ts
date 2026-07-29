@@ -105,7 +105,7 @@ describe('SQLite3 migration integration', () => {
         .collection('users')
         .insertOne({ _id: 'default-user', email: 'default@test' });
       await db
-        .collection('users', { schemaName: 'crm' })
+        .collection('users', { databaseSchemaName: 'crm' })
         .insertOne({ _id: 'crm-user', email: 'crm@test' });
 
       const objects = await pool.execute.query<{ name: string; type: string }>(
@@ -115,14 +115,14 @@ describe('SQLite3 migration integration', () => {
           WHERE name IN (
             'users',
             'explicit_default_users',
-            'pongo_crm_table_users',
-            'pongo_audit_table_users',
+            'dumbo_crm_table_users',
+            'dumbo_audit_table_users',
             'explicit_default_email_idx',
-            'pongo_crm_table_users_index_users__email__idx',
-            'pongo_crm_table_users_index_users__external__id__uq',
-            'pongo_crm_table_users_index_users__data__idx',
-            'pongo_crm_table_users_index_users__custom__data__idx',
-            'pongo_audit_table_users_index_audit__users__email__idx'
+            'dumbo_crm_table_users_index_users__email__idx',
+            'dumbo_crm_table_users_index_users__external__id__uq',
+            'dumbo_crm_table_users_index_users__data__idx',
+            'dumbo_crm_table_users_index_users__custom__data__idx',
+            'dumbo_audit_table_users_index_audit__users__email__idx'
           )
           ORDER BY type, name`,
       );
@@ -133,37 +133,37 @@ describe('SQLite3 migration integration', () => {
         SQL`SELECT COUNT(*) as count FROM users`,
       );
       const crmCount = await pool.execute.query<{ count: number }>(
-        SQL`SELECT COUNT(*) as count FROM ${SQL.identifier('pongo_crm_table_users')}`,
+        SQL`SELECT COUNT(*) as count FROM ${SQL.identifier('dumbo_crm_table_users')}`,
       );
       const auditCount = await pool.execute.query<{ count: number }>(
-        SQL`SELECT COUNT(*) as count FROM ${SQL.identifier('pongo_audit_table_users')}`,
+        SQL`SELECT COUNT(*) as count FROM ${SQL.identifier('dumbo_audit_table_users')}`,
       );
 
       assert.deepStrictEqual(objects.rows, [
+        {
+          name: 'dumbo_audit_table_users_index_audit__users__email__idx',
+          type: 'index',
+        },
+        {
+          name: 'dumbo_crm_table_users_index_users__custom__data__idx',
+          type: 'index',
+        },
+        {
+          name: 'dumbo_crm_table_users_index_users__data__idx',
+          type: 'index',
+        },
+        {
+          name: 'dumbo_crm_table_users_index_users__email__idx',
+          type: 'index',
+        },
+        {
+          name: 'dumbo_crm_table_users_index_users__external__id__uq',
+          type: 'index',
+        },
         { name: 'explicit_default_email_idx', type: 'index' },
-        {
-          name: 'pongo_audit_table_users_index_audit__users__email__idx',
-          type: 'index',
-        },
-        {
-          name: 'pongo_crm_table_users_index_users__custom__data__idx',
-          type: 'index',
-        },
-        {
-          name: 'pongo_crm_table_users_index_users__data__idx',
-          type: 'index',
-        },
-        {
-          name: 'pongo_crm_table_users_index_users__email__idx',
-          type: 'index',
-        },
-        {
-          name: 'pongo_crm_table_users_index_users__external__id__uq',
-          type: 'index',
-        },
+        { name: 'dumbo_audit_table_users', type: 'table' },
+        { name: 'dumbo_crm_table_users', type: 'table' },
         { name: 'explicit_default_users', type: 'table' },
-        { name: 'pongo_audit_table_users', type: 'table' },
-        { name: 'pongo_crm_table_users', type: 'table' },
         { name: 'users', type: 'table' },
       ]);
       assert.deepStrictEqual(

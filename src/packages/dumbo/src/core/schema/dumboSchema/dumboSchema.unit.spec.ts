@@ -46,7 +46,8 @@ describe('dumboSchema', () => {
     assert.ok(tbl.columns.email);
     const boundEmailIndex = tbl.indexes.idx_email;
     assert.strictEqual(boundEmailIndex?.databaseSchemaName, undefined);
-    assert.strictEqual(boundEmailIndex?.tableName, 'users');
+    assert.strictEqual(boundEmailIndex?.tableName, undefined);
+    assert.strictEqual(boundEmailIndex, emailIndex);
     assert.strictEqual(tbl.components.idx_email, boundEmailIndex);
     assert.ok(tbl.columns.id !== undefined);
     assert.ok(tbl.columns.email !== undefined);
@@ -113,7 +114,7 @@ describe('dumboSchema', () => {
     assert.ok(db.schemas.public.tables.users.columns.id !== undefined);
   });
 
-  it('should resolve an unnamed reusable schema from its record key', () => {
+  it('should keep an unnamed reusable schema under its record key', () => {
     const reusable = schema({
       users: table('users', {
         columns: {
@@ -129,10 +130,11 @@ describe('dumboSchema', () => {
     assert.strictEqual(reusable.tables.users.databaseSchemaName, undefined);
     assert.strictEqual(db.databaseName, 'myapp');
     assert.deepStrictEqual(Object.keys(db.schemas), ['public']);
-    assert.strictEqual(db.schemas.public.schemaName, 'public');
+    assert.strictEqual(db.schemas.public, reusable);
+    assert.strictEqual(db.schemas.public.schemaName, undefined);
     assert.strictEqual(
       db.schemas.public.tables.users.databaseSchemaName,
-      'public',
+      undefined,
     );
   });
 

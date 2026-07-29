@@ -1,8 +1,6 @@
 import {
-  copySchemaComponentSpecialization,
+  createComponentRecord,
   createSchemaComponent,
-  defineSchemaComponentRecord,
-  localMigrationsOf,
   mergeComponentRecords,
   schemaComponentType,
   type AnySchemaComponent,
@@ -10,10 +8,7 @@ import {
   type SchemaComponentOptions,
 } from '../schemaComponent';
 import type { ExtensionComponent } from '../extensionComponent';
-import {
-  contextualTableComponent,
-  type AnyTableComponent,
-} from './tableComponent';
+import type { AnyTableComponent } from './tableComponent';
 
 export const databaseSchemaComponentType: unique symbol = Symbol(
   'dumbo.schemaComponent.databaseSchema',
@@ -21,12 +16,6 @@ export const databaseSchemaComponentType: unique symbol = Symbol(
 
 export type DatabaseSchemaTables = Readonly<Record<string, AnyTableComponent>>;
 export type SchemaExtensions = Readonly<Record<string, ExtensionComponent>>;
-
-type ContextualTables<Tables extends DatabaseSchemaTables> = {
-  readonly [Key in keyof Tables]: Tables[Key] & {
-    databaseSchemaName: string;
-  };
-};
 
 export type DatabaseSchemaComponent<
   Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
@@ -36,7 +25,7 @@ export type DatabaseSchemaComponent<
   Readonly<{
     schemaName: SchemaName;
     databaseName?: string;
-    tables: SchemaName extends string ? ContextualTables<Tables> : Tables;
+    tables: Tables;
     extensions: Extensions;
   }>;
 
@@ -65,16 +54,19 @@ export const databaseSchemaComponent = <
 >(
   options: DatabaseSchemaComponentOptions<Tables, SchemaName, Extensions>,
 ): DatabaseSchemaComponent<Tables, SchemaName, Extensions> => {
-  const sourceTables = (options.tables ?? {}) as Tables;
-  const tables =
-    options.schemaName === undefined
-      ? sourceTables
-      : (Object.fromEntries(
-          Object.entries(sourceTables).map(([alias, table]) => [
-            alias,
-            contextualTableComponent(table, options.schemaName as string),
-          ]),
-        ) as ContextualTables<Tables>);
+  const tables = (options.tables ?? {}) as Tables;
+  if (options.schemaName !== undefined) {
+    for (const table of Object.values(tables)) {
+      if (
+        table.databaseSchemaName !== undefined &&
+        table.databaseSchemaName !== options.schemaName
+      ) {
+        throw new Error(
+          `Table "${table.tableName}" is constrained to database schema "${table.databaseSchemaName}" and cannot be placed in "${options.schemaName}"`,
+        );
+      }
+    }
+  }
   const extensions = (options.extensions ?? {}) as Extensions;
   const base = createSchemaComponent(databaseSchemaComponentType, {
     components: mergeComponentRecords(tables, extensions),
@@ -85,8 +77,16 @@ export const databaseSchemaComponent = <
     schemaName: { value: options.schemaName, enumerable: true },
     databaseName: { value: options.databaseName, enumerable: true },
   });
-  defineSchemaComponentRecord(base, 'tables', tables);
-  defineSchemaComponentRecord(base, 'extensions', extensions);
+  Object.defineProperties(base, {
+    tables: {
+      value: createComponentRecord(tables),
+      enumerable: true,
+    },
+    extensions: {
+      value: createComponentRecord(extensions),
+      enumerable: true,
+    },
+  });
 
   return base as unknown as DatabaseSchemaComponent<
     Tables,
@@ -94,57 +94,6 @@ export const databaseSchemaComponent = <
     Extensions
   >;
 };
-
-export const contextualDatabaseSchemaComponent = <
-  Schema extends AnyDatabaseSchemaComponent,
->(
-  schema: Schema,
-  context: {
-    databaseName?: string | undefined;
-    schemaName: string;
-  },
-): Schema & { databaseName?: string; schemaName: string } => {
-  if (
-    context.databaseName !== undefined &&
-    schema.databaseName !== undefined &&
-    schema.databaseName !== context.databaseName
-  ) {
-    throw new Error(
-      `Database schema "${context.schemaName}" is constrained to database "${schema.databaseName}" and cannot be placed in "${context.databaseName}"`,
-    );
-  }
-  if (
-    schema.schemaName !== undefined &&
-    schema.schemaName !== context.schemaName
-  ) {
-    throw new Error(
-      `Database schema record key "${context.schemaName}" conflicts with its explicit name "${schema.schemaName}"`,
-    );
-  }
-
-  const contextual = databaseSchemaComponent({
-    schemaName: context.schemaName,
-    databaseName: context.databaseName ?? schema.databaseName,
-    tables: schema.tables,
-    extensions: schema.extensions,
-    migrations: localMigrationsOf(schema),
-  });
-  copySchemaComponentSpecialization(schema, contextual, schemaProperties);
-  return contextual as unknown as Schema & {
-    databaseName?: string;
-    schemaName: string;
-  };
-};
-
-const schemaProperties = new Set<PropertyKey>([
-  schemaComponentType,
-  'components',
-  'migrations',
-  'schemaName',
-  'databaseName',
-  'tables',
-  'extensions',
-]);
 
 export const isDatabaseSchemaComponent = (
   component: AnySchemaComponent,

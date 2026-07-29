@@ -10,9 +10,16 @@ import {
 } from '@event-driven-io/dumbo';
 import { describe, it } from 'vitest';
 import type { PongoCollectionSQLBuilder } from '../collection';
-import { isPongoCollectionComponent, pongoSchema } from '../schema';
+import {
+  isPongoCollectionComponent,
+  pongoSchema,
+  type PongoDbSchema,
+} from '../schema';
+import type { PongoDBCollectionOptions } from '../typing';
 import { PongoDatabase } from './pongoDb';
-import { materializePongoDatabaseComponent } from './pongoDatabaseSchemaComponent';
+
+const migrationNames = (migrations: ReadonlyArray<{ name: string }>) =>
+  migrations.map(({ name }) => name);
 
 const emptySQL = () => SQL``;
 const stubSQLBuilder: PongoCollectionSQLBuilder = {
@@ -34,7 +41,10 @@ const stubSQLBuilder: PongoCollectionSQLBuilder = {
   drop: emptySQL,
 };
 
-const createTestDb = (options?: { allowNestedTransactions?: boolean }) => {
+const createTestDb = (options?: {
+  allowNestedTransactions?: boolean;
+  definition?: PongoDbSchema;
+}) => {
   let transactionOptions: DatabaseTransactionOptions | undefined;
   let withTransactionOptions: DatabaseTransactionOptions | undefined;
   const abort: Abort = {
@@ -74,22 +84,25 @@ const createTestDb = (options?: { allowNestedTransactions?: boolean }) => {
     serializer: JSONSerializer,
     defaultSchemaName: 'public',
     transactionOptions: options,
-    schemaComponent: materializePongoDatabaseComponent({
-      driverType: 'test:test',
-      databaseName: 'test',
-      defaultSchemaName: 'public',
-      definition: pongoSchema.db('test', { collections: {} }),
-      sqlBuilderFor: () => stubSQLBuilder,
-      migrationsFor: (component, context) =>
+    schema: {
+      definition:
+        options?.definition ??
+        pongoSchema.db('test', {
+          collections: {},
+        }),
+    },
+    sqlBuilderFor: () => stubSQLBuilder,
+    migrationBuilder: {
+      table: (component, identifier) =>
         isPongoCollectionComponent(component)
           ? [
               sqlMigration(
-                `${context.databaseSchemaName}.${component.tableName}:table`,
+                `${identifier.databaseSchemaName}.${component.tableName}:table`,
                 [SQL`SELECT 1`],
               ),
             ]
           : [],
-    }),
+    },
   });
 
   return {
@@ -99,7 +112,7 @@ const createTestDb = (options?: { allowNestedTransactions?: boolean }) => {
   };
 };
 
-describe('PongoDatabase transactions', () => {
+describe('using a Pongo database', () => {
   it('accepts database schema and document schema settings together', () => {
     const { db } = createTestDb();
 
@@ -107,7 +120,7 @@ describe('PongoDatabase transactions', () => {
       { _id: string; displayName: string },
       { _id: string; name: string }
     >('users', {
-      schemaName: 'crm',
+      databaseSchemaName: 'crm',
       schema: {
         versioning: {
           upcast: (stored) => ({
@@ -122,7 +135,10 @@ describe('PongoDatabase transactions', () => {
       },
     });
 
-    assert.strictEqual(collection.schema.component.databaseSchemaName, 'crm');
+    assert.strictEqual(
+      db.schema.component.schemas.crm?.tables.users,
+      collection.schema.component,
+    );
   });
 
   it('uses the default schema when the callable schema accessor has no name', () => {
@@ -132,7 +148,10 @@ describe('PongoDatabase transactions', () => {
     const direct = db.collection('users');
 
     assert.strictEqual(scoped, direct);
-    assert.strictEqual(scoped.schema.component.databaseSchemaName, 'public');
+    assert.strictEqual(
+      db.schema.component.schemas.public?.tables.users,
+      scoped.schema.component,
+    );
   });
 
   it('returns the same schema scope for repeated access', () => {
@@ -145,41 +164,50 @@ describe('PongoDatabase transactions', () => {
 
   it('keeps schema metadata live while collections are registered', () => {
     const { db } = createTestDb();
-    const component = db.schema.component;
+    const initialComponent = db.schema.component;
     const definition = db.schema.definition;
 
     assert.deepStrictEqual(db.schema.migrations, []);
 
     const scoped = db.schema('audit').collection('entries');
-    const direct = db.collection('entries', { schemaName: 'audit' });
+    const direct = db.collection('entries', {
+      databaseSchemaName: 'audit',
+    });
 
     assert.strictEqual(scoped, direct);
-    assert.strictEqual(db.schema.component, component);
+    assert.notStrictEqual(db.schema.component, initialComponent);
     assert.strictEqual(db.schema.definition, definition);
     assert.deepStrictEqual(
       scoped.schema.component.migrations.map((migration) => migration.name),
-      ['audit.entries:table'],
+      [],
     );
-    assert.deepStrictEqual(
-      db.schema.migrations,
-      scoped.schema.component.migrations,
-    );
+    assert.deepStrictEqual(migrationNames(db.schema.migrations), [
+      'audit.entries:table',
+    ]);
     assert.strictEqual(
-      component.schemas.audit?.tables.entries,
+      db.schema.component.schemas.audit?.tables.entries,
       scoped.schema.component,
+    );
+    assert.strictEqual(initialComponent.schemas.audit, undefined);
+    assert.deepStrictEqual(
+      'collections' in definition
+        ? Object.keys(definition.collections)
+        : Object.keys(definition.schemas),
+      [],
     );
   });
 
   it('creates schema-qualified collection components lazily', () => {
     const { db } = createTestDb();
 
-    const collection = db.collection('users', { schemaName: 'crm' });
+    const collection = db.collection('users', {
+      databaseSchemaName: 'crm',
+    });
 
     assert.strictEqual(collection.collectionName, 'users');
-    assert.strictEqual(collection.schema.component.databaseSchemaName, 'crm');
     assert.strictEqual(
-      db.schema.component.schemas.crm?.tables.users !== undefined,
-      true,
+      db.schema.component.schemas.crm?.tables.users,
+      collection.schema.component,
     );
   });
 
@@ -188,16 +216,90 @@ describe('PongoDatabase transactions', () => {
 
     const defaultUsers = db.collection('users');
     const explicitDefaultUsers = db.collection('users', {
-      schemaName: 'public',
+      databaseSchemaName: 'public',
     });
-    const crmUsers = db.collection('users', { schemaName: 'crm' });
+    const crmUsers = db.collection('users', {
+      databaseSchemaName: 'crm',
+    });
 
     assert.strictEqual(defaultUsers, explicitDefaultUsers);
     assert.notStrictEqual(defaultUsers, crmUsers);
     assert.strictEqual(db.collections().length, 2);
     assert.strictEqual(
-      defaultUsers.schema.component.databaseSchemaName,
-      'public',
+      db.schema.component.schemas.public?.tables.users,
+      defaultUsers.schema.component,
+    );
+    assert.strictEqual(
+      db.schema.component.schemas.crm?.tables.users,
+      crmUsers.schema.component,
+    );
+  });
+
+  it('projects a direct collection into its requested database schema', () => {
+    const users = pongoSchema.collection('users', {
+      databaseSchemaName: 'audit',
+    });
+    const { db } = createTestDb({
+      definition: pongoSchema.db('test', {
+        collections: { auditUsers: users },
+      }),
+    });
+    const projected = db as typeof db & {
+      auditUsers: ReturnType<typeof db.collection>;
+    };
+
+    assert.strictEqual(
+      projected.auditUsers,
+      db.collection('users', { databaseSchemaName: 'audit' }),
+    );
+    assert.strictEqual(db.schema.component.schemas.audit?.tables.auditUsers, users);
+    assert.deepStrictEqual(
+      Object.keys(db.schema.component.schemas.public!.tables),
+      [],
+    );
+  });
+
+  it('reuses a declared collection when its alias differs from its table name', () => {
+    const users = pongoSchema.collection('users');
+    const { db } = createTestDb({
+      definition: pongoSchema.db('test', {
+        schemas: {
+          crm: pongoSchema.schema({
+            customerDirectory: users,
+          }),
+        },
+      }),
+    });
+    const projected = db as typeof db & {
+      crm: {
+        customerDirectory: ReturnType<typeof db.collection>;
+      };
+    };
+    const direct = db.collection('users', {
+      databaseSchemaName: 'crm',
+    });
+
+    assert.strictEqual(projected.crm.customerDirectory, direct);
+    assert.strictEqual(direct.schema.component, users);
+    assert.strictEqual(
+      db.schema.component.schemas.crm?.tables.customerDirectory,
+      users,
+    );
+  });
+
+  it('rejects a collection placement conflicting with its schema scope', () => {
+    const { db } = createTestDb();
+    const collection = db.schema('crm').collection as (
+      name: string,
+      options?: PongoDBCollectionOptions<{ _id: string }>,
+    ) => unknown;
+
+    assert.throws(
+      () =>
+        collection('users', {
+          databaseSchemaName: 'audit',
+        }),
+      /schema scope "crm".*database schema "audit"/,
     );
   });
 

@@ -23,13 +23,12 @@ Current checkpoint:
 - `[done]` Commit `98f856be` is the last checkpoint known to pass every gate.
 - `[done]` At that checkpoint, TypeScript, lint, package builds, 988 unit
   tests, and focused PostgreSQL/SQLite integrations passed.
-- `[active]` Current HEAD is `619f476f`; it contains the Slice 1 source changes,
-  but its Pongo declaration bundle does not pass yet.
-- `[active]` Slice 1: express Pongo collection columns through Dumbo.
+- `[done]` Current HEAD `619f476f` contains Slice 1 and passes its complete
+  gate.
+- `[active]` Slice 2: simplify the Dumbo base component.
 - `[queued]` All other audit findings listed below, in numbered order.
 
-The worktree for Slice 1 is not yet a clean checkpoint. Its package declaration
-bundle currently fails and must be fixed before any queued slice starts.
+Only the plan document differs from the committed Slice 1 checkpoint.
 
 ## Non-negotiable design decisions
 
@@ -168,6 +167,8 @@ component.
 - Parent names do not flow through every public generic parameter.
 - Resolved placement uses the appropriate full identifier type rather than an
   optional `ComponentContext` bag.
+- Schema composition, specialization, projection, and tests do not use the
+  `Reflect` API.
 - Pongo’s `Document` type is retained through a small symbol-backed phantom
   type only where TypeScript needs it.
 - Public Pongo types use readable domain generics:
@@ -210,7 +211,7 @@ must not be weakened merely to make a rewrite pass.
 | Migration ledger         | Legacy component-ledger ideas and scattered reference handling add concepts without user value                                                   | Only schema/table ledger configuration; one resolved SQL reference                                                   | 11    |
 | Naming/dead code         | Transitional aliases, sentinels, casts, and obsolete exports remain possible                                                                     | Canonical names only; no dead compatibility layer                                                                    | 12    |
 
-## Slice 1 — Pongo collection columns through Dumbo `[active]`
+## Slice 1 — Pongo collection columns through Dumbo `[done]`
 
 ### User-facing behavior
 
@@ -251,9 +252,8 @@ const users = table("users", {
 - `[done]` Pongo now uses Dumbo `table` and `column` factories.
 - `[done]` Focused tests, full TypeScript, full unit tests, lint, and
   PostgreSQL/SQLite migration integrations passed.
-- `[failing gate]` `tsdown` declaration bundling reports TS2527 for
-  the inferred internal Pongo table constructor. This must be solved without
-  restoring the manual column type maze or suppressing declaration checks.
+- `[done]` Dumbo and Pongo declaration bundles pass without restoring the
+  manual column type maze or suppressing declaration checks.
 
 ### Gate
 
@@ -269,7 +269,7 @@ const users = table("users", {
 
 No Slice 2 work starts until every item passes.
 
-## Slice 2 — Simplify the Dumbo base component `[next]`
+## Slice 2 — Simplify the Dumbo base component `[active]`
 
 ### Tests first
 

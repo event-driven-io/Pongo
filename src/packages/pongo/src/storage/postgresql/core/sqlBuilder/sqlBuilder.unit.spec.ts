@@ -1,17 +1,16 @@
 import {
+  databaseMigrations,
   findComponents,
   JSONSerializer,
   SQL,
-  type ComponentContext,
+  type TableIdentifier,
 } from '@event-driven-io/dumbo';
 import { pgFormatter } from '@event-driven-io/dumbo/pg';
 import assert from 'assert';
 import { describe, it } from 'vitest';
+import { pongoPostgreSQLMigrationBuilder, postgresSQLBuilder } from '.';
 import {
-  materializePongoPostgreSQLDatabaseComponent,
-  postgresSQLBuilder,
-} from '.';
-import {
+  composePongoDatabase,
   isPongoCollectionComponent,
   pongoSchema,
   type ExpectedDocumentVersion,
@@ -26,7 +25,7 @@ const formatSQL = (sql: SQL, formatter = pgFormatter) =>
 const tableContext = (
   schemaName: string,
   tableName: string,
-): ComponentContext => ({
+): TableIdentifier => ({
   databaseName: 'app',
   databaseSchemaName: schemaName,
   tableName,
@@ -37,15 +36,15 @@ const databaseWithCollection = <const Indexes extends PongoCollectionIndexes>(
   collectionName: string,
   indexes: Indexes,
 ) =>
-  materializePongoPostgreSQLDatabaseComponent({
-    driverType: 'PostgreSQL:test',
+  composePongoDatabase({
     databaseName: 'app',
     defaultSchemaName: 'public',
-    serializer: JSONSerializer,
     definition: pongoSchema.db({
       schemas: {
         [schemaName]: pongoSchema.schema({
-          collection: pongoSchema.collection(collectionName, { indexes }),
+          collection: pongoSchema.collection(collectionName, {
+            indexes,
+          }),
         }),
       },
     }),
@@ -65,22 +64,25 @@ const collectionInSchemaWithIndexes = <
   );
   const collection = findComponents(database, isPongoCollectionComponent)[0];
   assert.ok(collection);
-  return collection;
+  return {
+    collection,
+    identifier: tableContext(schemaName, collectionName),
+  };
 };
 
 const collectionInSchema = (schemaName: string, collectionName: string) =>
   collectionInSchemaWithIndexes(schemaName, collectionName, { indexes: {} });
 
 const builderFor = (
-  collection: PongoCollectionComponent,
-): PongoCollectionSQLBuilder => {
-  assert.ok(collection.databaseSchemaName);
-  return postgresSQLBuilder(
-    collection,
-    tableContext(collection.databaseSchemaName, collection.tableName),
-    JSONSerializer,
-  );
-};
+  fixture: Readonly<{
+    collection: PongoCollectionComponent;
+    identifier: TableIdentifier;
+  }>,
+): PongoCollectionSQLBuilder =>
+  postgresSQLBuilder(fixture.collection, fixture.identifier, JSONSerializer);
+
+const migrationsFor = (database: ReturnType<typeof databaseWithCollection>) =>
+  databaseMigrations(database, pongoPostgreSQLMigrationBuilder);
 
 const specialDocument = {
   _id: 'special-id',
@@ -259,7 +261,9 @@ describe('postgres collection schema migrations', () => {
   const singleLine = (value: string) => value.replace(/\s+/g, ' ').trim();
 
   it('keeps default schema migrations unqualified for compatibility', () => {
-    const migrations = collectionInSchema('public', 'users').migrations;
+    const migrations = migrationsFor(
+      databaseWithCollection('public', 'users', {}),
+    );
     const { query } = formatSQL(migrations[0]!.sqls[0]!, pgFormatter);
 
     assert.strictEqual(
@@ -273,12 +277,15 @@ describe('postgres collection schema migrations', () => {
     const database = databaseWithCollection('crm', 'users', {});
     const collection = findComponents(database, isPongoCollectionComponent)[0];
     assert.ok(collection);
-    const [schemaMigration, tableMigration] = database.migrations;
+    const [schemaMigration, tableMigration] = migrationsFor(database);
     assert.ok(schemaMigration);
     assert.ok(tableMigration);
     const createSchema = formatSQL(schemaMigration.sqls[0]!, pgFormatter);
     const createTable = formatSQL(tableMigration.sqls[0]!, pgFormatter);
-    const builder = builderFor(collection);
+    const builder = builderFor({
+      collection,
+      identifier: tableContext('crm', 'users'),
+    });
     const insert = formatSQL(
       builder.insertOne({ _id: '1', name: 'Oskar' }),
       pgFormatter,
@@ -297,16 +304,17 @@ describe('postgres collection schema migrations', () => {
   });
 
   it('creates declared JSON indexes after the collection table', () => {
-    const migrations = collectionInSchemaWithIndexes('public', 'users', {
-      indexes: {
-        email: pongoSchema.index('users_email_idx', 'email'),
-        externalId: pongoSchema.index.unique('users_external_id_uq', [
-          'external',
-          'id',
-        ]),
-        document: pongoSchema.index.json('users_document_idx'),
-      },
-    }).migrations;
+    const indexes = {
+      email: pongoSchema.index('users_email_idx', 'email'),
+      externalId: pongoSchema.index.unique('users_external_id_uq', [
+        'external',
+        'id',
+      ]),
+      document: pongoSchema.index.json('users_document_idx'),
+    };
+    const migrations = migrationsFor(
+      databaseWithCollection('public', 'users', indexes),
+    );
     const queries = migrations.flatMap((migration) =>
       migration.sqls.map((sql) => formatSQL(sql, pgFormatter).query),
     );
@@ -464,16 +472,16 @@ describe('postgres collection schema migrations', () => {
   }
 
   it('keeps declared JSON path indexes on the collection table', () => {
-    const collection = collectionInSchemaWithIndexes('public', 'users', {
-      indexes: {
-        email: pongoSchema.index('users_email_idx', 'email'),
-        externalId: pongoSchema.index.unique('users_external_id_uq', [
-          'external',
-          'id',
-        ]),
-      },
-    });
-    const migrations = collection.migrations;
+    const indexes = {
+      email: pongoSchema.index('users_email_idx', 'email'),
+      externalId: pongoSchema.index.unique('users_external_id_uq', [
+        'external',
+        'id',
+      ]),
+    };
+    const database = databaseWithCollection('public', 'users', indexes);
+    const collection = findComponents(database, isPongoCollectionComponent)[0]!;
+    const migrations = migrationsFor(database);
     const emailIndex = collection.indexes.email;
     const externalIdIndex = collection.indexes.externalId;
 
@@ -481,17 +489,17 @@ describe('postgres collection schema migrations', () => {
     assert.ok(emailIndex);
     assert.ok(externalIdIndex);
     assert.strictEqual(emailIndex.indexName, 'users_email_idx');
-    assert.strictEqual(emailIndex.tableName, 'users');
+    assert.strictEqual(emailIndex.tableName, undefined);
     assert.strictEqual(externalIdIndex.isUnique, true);
   });
 
   it('keeps declared document JSON indexes on the collection table', () => {
-    const collection = collectionInSchemaWithIndexes('public', 'users', {
-      indexes: {
-        document: pongoSchema.index.json('users_data_idx'),
-      },
-    });
-    const migrations = collection.migrations;
+    const indexes = {
+      document: pongoSchema.index.json('users_data_idx'),
+    };
+    const database = databaseWithCollection('public', 'users', indexes);
+    const collection = findComponents(database, isPongoCollectionComponent)[0]!;
+    const migrations = migrationsFor(database);
     const documentIndex = collection.indexes.document;
 
     assert.strictEqual(migrations.length, 2);
@@ -500,42 +508,42 @@ describe('postgres collection schema migrations', () => {
   });
 
   it('keeps declared indexes on explicit PostgreSQL schema tables', () => {
-    const collection = collectionInSchemaWithIndexes('crm', 'users', {
-      indexes: {
-        email: pongoSchema.index('users_email_idx', 'email'),
-      },
-    });
-    const migrations = collection.migrations;
+    const indexes = {
+      email: pongoSchema.index('users_email_idx', 'email'),
+    };
+    const database = databaseWithCollection('crm', 'users', indexes);
+    const collection = findComponents(database, isPongoCollectionComponent)[0]!;
+    const migrations = migrationsFor(database);
     const emailIndex = collection.indexes.email;
 
-    assert.strictEqual(migrations.length, 2);
+    assert.strictEqual(migrations.length, 3);
     assert.ok(emailIndex);
-    assert.strictEqual(collection.databaseSchemaName, 'crm');
+    assert.strictEqual(collection.databaseSchemaName, undefined);
     assert.strictEqual(emailIndex.path, 'email');
-    assert.strictEqual(emailIndex.databaseSchemaName, 'crm');
+    assert.strictEqual(emailIndex.databaseSchemaName, undefined);
   });
 
   it('keeps custom index SQL hooks on the collection table', () => {
     let resolvedReferences:
       { tableReference: string; indexReference: string } | undefined;
-    const collection = collectionInSchemaWithIndexes('crm', 'users', {
-      indexes: {
-        custom: pongoSchema.index.custom(
-          'users_custom_data_idx',
-          ({ tableReference, indexReference }) => {
-            resolvedReferences = {
-              tableReference: formatSQL(tableReference, pgFormatter).query,
-              indexReference: formatSQL(indexReference, pgFormatter).query,
-            };
-            return SQL`CREATE INDEX IF NOT EXISTS ${indexReference} ON ${tableReference} USING GIN (data jsonb_path_ops)`;
-          },
-        ),
-      },
-    });
-    const migrations = collection.migrations;
+    const indexes = {
+      custom: pongoSchema.index.custom(
+        'users_custom_data_idx',
+        ({ tableReference, indexReference }) => {
+          resolvedReferences = {
+            tableReference: formatSQL(tableReference, pgFormatter).query,
+            indexReference: formatSQL(indexReference, pgFormatter).query,
+          };
+          return SQL`CREATE INDEX IF NOT EXISTS ${indexReference} ON ${tableReference} USING GIN (data jsonb_path_ops)`;
+        },
+      ),
+    };
+    const database = databaseWithCollection('crm', 'users', indexes);
+    const collection = findComponents(database, isPongoCollectionComponent)[0]!;
+    const migrations = migrationsFor(database);
     const customIndex = collection.indexes.custom;
 
-    assert.strictEqual(migrations.length, 2);
+    assert.strictEqual(migrations.length, 3);
     assert.ok(customIndex);
     assert.deepStrictEqual(resolvedReferences, {
       tableReference: 'crm.users',

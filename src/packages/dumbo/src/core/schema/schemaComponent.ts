@@ -64,10 +64,9 @@ const schemaComponentState: unique symbol = Symbol(
 
 type InternalSchemaComponent = AnySchemaComponent &
   Readonly<{
-    [schemaComponentState]?: {
+    [schemaComponentState]?: Readonly<{
       localMigrations: ReadonlyArray<SQLMigration>;
-      records: Record<string, SchemaComponentRecord>;
-    };
+    }>;
   }>;
 
 const migrationsFor = (
@@ -81,9 +80,8 @@ const migrationsFor = (
     if (visited.has(component)) return;
     visited.add(component);
 
-    const local =
-      (component as InternalSchemaComponent)[schemaComponentState]
-        ?.localMigrations ?? component.migrations;
+    const state = (component as InternalSchemaComponent)[schemaComponentState];
+    const local = state?.localMigrations ?? component.migrations;
 
     for (const migration of local) {
       const previous = migrationsByName.get(migration.name);
@@ -105,25 +103,20 @@ const migrationsFor = (
   return result;
 };
 
-export const initializeSchemaComponent = <
+export const createSchemaComponent = <
   const Kind extends SchemaComponentKind,
   const Components extends SchemaComponentRecord = SchemaComponentRecord,
 >(
-  target: object,
   kind: Kind,
   options: SchemaComponentOptions<Components> = {},
 ): SchemaComponent<Kind> & { components: Components } => {
-  const records: Record<string, SchemaComponentRecord> = Object.create(
-    null,
-  ) as Record<string, SchemaComponentRecord>;
-  records.components = createComponentRecord(
+  const components = createComponentRecord(
     (options.components ?? {}) as Components,
   );
   const state = {
     localMigrations: Object.freeze([...(options.migrations ?? [])]),
-    records,
   };
-  const component = target as SchemaComponent<Kind> & {
+  const component = {} as SchemaComponent<Kind> & {
     components: Components;
   };
 
@@ -136,7 +129,7 @@ export const initializeSchemaComponent = <
       value: state,
     },
     components: {
-      get: () => state.records.components,
+      value: components,
       enumerable: true,
     },
     migrations: {
@@ -147,15 +140,6 @@ export const initializeSchemaComponent = <
 
   return component;
 };
-
-export const createSchemaComponent = <
-  const Kind extends SchemaComponentKind,
-  const Components extends SchemaComponentRecord = SchemaComponentRecord,
->(
-  kind: Kind,
-  options: SchemaComponentOptions<Components> = {},
-): SchemaComponent<Kind> & { components: Components } =>
-  initializeSchemaComponent({}, kind, options);
 
 export const schemaComponent = <
   const Components extends SchemaComponentRecord = SchemaComponentRecord,
@@ -201,52 +185,8 @@ export const isSchemaComponent = (
   'components' in value &&
   'migrations' in value;
 
-export const copySchemaComponentSpecialization = (
-  source: object,
-  target: object,
-  coreProperties: ReadonlySet<PropertyKey>,
-): void => {
-  for (const key of Reflect.ownKeys(source)) {
-    if (coreProperties.has(key) || Reflect.has(target, key)) continue;
-    const descriptor = Object.getOwnPropertyDescriptor(source, key);
-    if (descriptor !== undefined)
-      Object.defineProperty(target, key, descriptor);
-  }
-};
-
 export const localMigrationsOf = (
   component: AnySchemaComponent,
 ): ReadonlyArray<SQLMigration> =>
   (component as InternalSchemaComponent)[schemaComponentState]
     ?.localMigrations ?? component.migrations;
-
-export const defineSchemaComponentRecord = (
-  component: AnySchemaComponent,
-  name: string,
-  components: SchemaComponentRecord,
-): void => {
-  const state = (component as InternalSchemaComponent)[schemaComponentState];
-  if (state === undefined) {
-    throw new Error('Schema component does not support component records');
-  }
-  if (name in state.records || Reflect.has(component, name)) {
-    throw new Error(`Schema component record "${name}" is already defined`);
-  }
-  state.records[name] = createComponentRecord(components);
-  Object.defineProperty(component, name, {
-    get: () => state.records[name],
-    enumerable: true,
-  });
-};
-
-export const replaceSchemaComponentRecord = (
-  component: AnySchemaComponent,
-  name: string,
-  record: SchemaComponentRecord,
-): void => {
-  const state = (component as InternalSchemaComponent)[schemaComponentState];
-  if (state === undefined || state.records[name] === undefined) {
-    throw new Error(`Schema component has no "${name}" record`);
-  }
-  state.records[name] = createComponentRecord(record);
-};

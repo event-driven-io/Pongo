@@ -1,12 +1,10 @@
 import type { SQL } from '../../sql';
 import {
-  copySchemaComponentSpecialization,
   createSchemaComponent,
   schemaComponentType,
   type AnySchemaComponent,
   type SchemaComponent,
   type SchemaComponentOptions,
-  localMigrationsOf,
 } from '../schemaComponent';
 
 export const indexComponentType: unique symbol = Symbol(
@@ -85,58 +83,6 @@ export const indexComponent = <
 
   return base as IndexComponent<IndexName, ColumnNames>;
 };
-
-export const contextualIndexComponent = <Index extends AnyIndexComponent>(
-  index: Index,
-  context: {
-    databaseSchemaName?: string | undefined;
-    tableName: string;
-  },
-): Index & { databaseSchemaName?: string; tableName: string } => {
-  if (
-    index.databaseSchemaName !== undefined &&
-    context.databaseSchemaName !== undefined &&
-    index.databaseSchemaName !== context.databaseSchemaName
-  ) {
-    throw new Error(
-      `Index "${index.indexName}" is constrained to database schema "${index.databaseSchemaName}" and cannot be placed in "${context.databaseSchemaName}.${context.tableName}"`,
-    );
-  }
-  if (index.tableName !== undefined && index.tableName !== context.tableName) {
-    throw new Error(
-      `Index "${index.indexName}" is constrained to table "${index.tableName}" and cannot be placed in "${context.tableName}"`,
-    );
-  }
-
-  const contextual = indexComponent({
-    indexName: index.indexName,
-    indexTargetNames: index.indexTargetNames,
-    tableName: context.tableName,
-    columnNames: index.columnNames,
-    isUnique: index.isUnique,
-    databaseSchemaName: context.databaseSchemaName ?? index.databaseSchemaName,
-    sql: index.sql,
-    migrations: localMigrationsOf(index),
-  });
-  copySchemaComponentSpecialization(index, contextual, indexProperties);
-  return contextual as Index & {
-    databaseSchemaName?: string;
-    tableName: string;
-  };
-};
-
-const indexProperties = new Set<PropertyKey>([
-  schemaComponentType,
-  'components',
-  'migrations',
-  'indexName',
-  'indexTargetNames',
-  'columnNames',
-  'isUnique',
-  'databaseSchemaName',
-  'tableName',
-  'sql',
-]);
 
 export const isIndexComponent = (
   component: AnySchemaComponent,

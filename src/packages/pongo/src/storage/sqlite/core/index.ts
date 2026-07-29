@@ -1,2 +1,2 @@
 export * from './sqlBuilder';
-export * from './materializeSQLiteDatabase';
+export * from './databaseMigrations';
