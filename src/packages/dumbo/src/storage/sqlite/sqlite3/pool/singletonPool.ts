@@ -14,28 +14,28 @@ import type { AnySQLiteConnection } from '../../core';
 
 export const DEFAULT_SQLITE_MAX_TASK_IDLE_TIME_MS = 30_000;
 
-export type SQLiteActiveTransaction<SQLiteConnectionType> = {
+export type SQLiteActiveConnection<SQLiteConnectionType> = {
   connection: SQLiteConnectionType;
 };
 
-export type SQLiteTransactionContext<SQLiteConnectionType> = {
-  current: () => SQLiteActiveTransaction<SQLiteConnectionType> | undefined;
+export type SQLiteConnectionContext<SQLiteConnectionType> = {
+  current: () => SQLiteActiveConnection<SQLiteConnectionType> | undefined;
   run: <Result>(
-    active: SQLiteActiveTransaction<SQLiteConnectionType>,
+    active: SQLiteActiveConnection<SQLiteConnectionType>,
     handle: () => Promise<Result>,
   ) => Promise<Result>;
 };
 
-export const createSQLiteTransactionContext = <
+export const createSQLiteConnectionContext = <
   SQLiteConnectionType extends AnySQLiteConnection,
->(): SQLiteTransactionContext<SQLiteConnectionType> | undefined => {
+>(): SQLiteConnectionContext<SQLiteConnectionType> | undefined => {
   if (typeof process === 'undefined') return undefined;
 
   const asyncHooks = process.getBuiltinModule?.('node:async_hooks');
   if (!asyncHooks) return undefined;
 
   const context = new asyncHooks.AsyncLocalStorage<
-    SQLiteActiveTransaction<SQLiteConnectionType>
+    SQLiteActiveConnection<SQLiteConnectionType>
   >();
 
   return {
@@ -54,7 +54,7 @@ export type SQLite3SingletonPoolOptions<
   closeConnection?: (connection: SQLiteConnectionType) => void | Promise<void>;
   maxQueueSize?: number;
   maxTaskIdleTime?: number;
-  transactionContext?: SQLiteTransactionContext<SQLiteConnectionType>;
+  connectionContext?: SQLiteConnectionContext<SQLiteConnectionType>;
 };
 
 export const sqlite3SingletonPool = <
@@ -74,28 +74,28 @@ export const sqlite3SingletonPool = <
     maxTaskIdleTime:
       options.maxTaskIdleTime ?? DEFAULT_SQLITE_MAX_TASK_IDLE_TIME_MS,
   });
-  const transactionContext =
-    options.transactionContext ?? createSQLiteTransactionContext();
+  const connectionContext =
+    options.connectionContext ?? createSQLiteConnectionContext();
 
   const activeConnection = (): SQLiteConnectionType | undefined =>
-    transactionContext?.current()?.connection;
+    connectionContext?.current()?.connection;
 
-  const runInTransactionContext = <Result>(
+  const runInConnectionContext = <Result>(
     connection: SQLiteConnectionType,
     operation: () => Promise<Result>,
   ): Promise<Result> =>
-    transactionContext
-      ? transactionContext.run({ connection }, operation)
+    connectionContext
+      ? connectionContext.run({ connection }, operation)
       : operation();
 
   const transactionAwareConnection = (
     connection: SQLiteConnectionType,
   ): SQLiteConnectionType =>
-    transactionContext
+    connectionContext
       ? {
           ...connection,
           withTransaction: (handle, transactionOptions) =>
-            runInTransactionContext(connection, () =>
+            runInConnectionContext(connection, () =>
               connection.withTransaction(handle, transactionOptions),
             ),
         }
@@ -152,7 +152,9 @@ export const sqlite3SingletonPool = <
   ): Promise<Result> =>
     runOnWriterConnection(
       (connection, context) =>
-        handle(transactionAwareConnection(connection), context),
+        runInConnectionContext(connection, () =>
+          handle(transactionAwareConnection(connection), context),
+        ),
       options,
     );
 
@@ -181,7 +183,7 @@ export const sqlite3SingletonPool = <
 
       return runOnWriterConnection(
         (connection, context) =>
-          runInTransactionContext(connection, () =>
+          runInConnectionContext(connection, () =>
             runConnectionTransaction(
               connection,
               handle,

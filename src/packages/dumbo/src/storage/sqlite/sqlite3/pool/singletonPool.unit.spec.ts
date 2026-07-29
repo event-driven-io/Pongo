@@ -22,8 +22,36 @@ const fakeConnection = (
     },
     open: () => Promise.resolve(undefined),
     transaction: () => undefined,
-    withTransaction: () => Promise.resolve(undefined),
+    withTransaction: async (
+      handle: (transaction: unknown) => Promise<unknown>,
+    ) => {
+      const result = await handle({});
+
+      return result !== null &&
+        typeof result === 'object' &&
+        'success' in result
+        ? (result as unknown as { result: unknown }).result
+        : result;
+    },
   }) as unknown as SQLite3Connection;
+
+const withDeadline = async <Result>(
+  work: Promise<Result>,
+  ms = 500,
+): Promise<Result | 'timed out'> => {
+  let timeoutId: NodeJS.Timeout | undefined;
+
+  try {
+    return await Promise.race([
+      work,
+      new Promise<'timed out'>((resolve) => {
+        timeoutId = setTimeout(() => resolve('timed out'), ms);
+      }),
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+};
 
 describe('sqlite3SingletonPool', () => {
   it('does not start queued writer work when the caller aborts while waiting', async () => {
@@ -62,5 +90,69 @@ describe('sqlite3SingletonPool', () => {
     await pool.close();
 
     assert.strictEqual(commandCallCount, 1);
+  });
+
+  describe('reentrancy', () => {
+    const poolOnFakeConnection = () =>
+      sqlite3SingletonPool({
+        driverType: SQLite3DriverType,
+        getConnection: () =>
+          fakeConnection(() => Promise.resolve(queryResult())),
+      });
+
+    it('lets withConnection nest inside withConnection', async () => {
+      const pool = poolOnFakeConnection();
+
+      try {
+        const result = await withDeadline(
+          pool.withConnection(() =>
+            pool.withConnection(() => Promise.resolve('inner ran')),
+          ),
+        );
+
+        assert.strictEqual(result, 'inner ran');
+      } finally {
+        await pool.close();
+      }
+    });
+
+    it('lets withConnection nest inside withTransaction', async () => {
+      const pool = poolOnFakeConnection();
+
+      try {
+        const result = await withDeadline(
+          pool.withTransaction(() =>
+            pool
+              .withConnection(() => Promise.resolve('inner ran'))
+              .then((value) => ({
+                success: true as const,
+                result: value,
+              })),
+          ),
+        );
+
+        assert.strictEqual(result, 'inner ran');
+      } finally {
+        await pool.close();
+      }
+    });
+
+    it('lets withTransaction nest inside withConnection', async () => {
+      const pool = poolOnFakeConnection();
+
+      try {
+        const result = await withDeadline(
+          pool.withConnection(() =>
+            pool.withTransaction(() =>
+              Promise.resolve({ success: true as const, result: 'inner ran' }),
+            ),
+          ),
+        );
+
+        assert.strictEqual(result, 'inner ran');
+      } finally {
+        await pool.close();
+      }
+    });
   });
 });
