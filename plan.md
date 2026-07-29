@@ -1,140 +1,73 @@
-# Rebuild Dumbo Schema Composition and Pongo Materialization
+# Schema Composition Audit — Execution Ledger
 
-## 1. Outcome
+This document is the execution plan for applying the Dumbo/Pongo audit.
+It is deliberately organized as small vertical slices rather than as one
+repository-wide rewrite.
 
-Replace the committed schema-feature implementation with a simpler component
-model in which Dumbo owns composition, typing, traversal, materialization, and
-table DDL, while Pongo declares specialized Dumbo components.
+## Status
 
-The resulting hierarchy is:
+Status values:
+
+- `[done]` validated and committed baseline behavior.
+- `[active]` the only slice currently allowed to change.
+- `[next]` ready after the active slice is green and reviewed.
+- `[queued]` required work whose preceding slices are not green yet.
+
+The numbered slices are dependency order, not broad work buckets. A queued
+slice becomes `next` only after the active slice passes its complete gate. This
+keeps failures attributable to one change and prevents half of one
+architectural change from leaking into another slice.
+
+Current checkpoint:
+
+- `[done]` Commit `98f856be` is the last checkpoint known to pass every gate.
+- `[done]` At that checkpoint, TypeScript, lint, package builds, 988 unit
+  tests, and focused PostgreSQL/SQLite integrations passed.
+- `[active]` Current HEAD is `619f476f`; it contains the Slice 1 source changes,
+  but its Pongo declaration bundle does not pass yet.
+- `[active]` Slice 1: express Pongo collection columns through Dumbo.
+- `[queued]` All other audit findings listed below, in numbered order.
+
+The worktree for Slice 1 is not yet a clean checkpoint. Its package declaration
+bundle currently fails and must be fixed before any queued slice starts.
+
+## Non-negotiable design decisions
+
+### Dumbo owns the abstractions
+
+Dumbo owns:
+
+- schema component construction and discrimination;
+- typed component records and recursive traversal;
+- ownership hierarchy and contextual placement;
+- construction of the resolved database hierarchy;
+- derivation of full logical identifiers while traversing that hierarchy;
+- table and index DDL primitives;
+- aggregation of declared and driver-generated migrations;
+- database metadata and physical-reference contracts;
+- migration execution and ledger behavior.
+
+Pongo specializes Dumbo database, schema, table, and index components. It must
+not convert Pongo declarations into unrelated Dumbo objects through adapters
+such as `toTableComponent`.
+
+### Public component model
+
+The ownership hierarchy is:
 
 ```text
 DatabaseComponent
 └── DatabaseSchemaComponent
     └── TableComponent
+        ├── ColumnSchemaComponent
         └── IndexComponent
 ```
 
-`ExtensionComponent` remains a named composition boundary. Its children
-participate in traversal and migration aggregation but are not promoted into
-the ownership records above.
+`ExtensionComponent` is a named composition boundary. Its direct record may
+contain arbitrary schema components. Extension children participate in
+traversal and migrations but are never promoted into `.schemas` or `.tables`.
 
-All Pongo declarations use the corresponding Dumbo abstraction:
-
-```text
-PongoDatabaseComponent   is a specialized DatabaseComponent
-PongoSchemaComponent     is a specialized DatabaseSchemaComponent
-PongoCollectionComponent is a specialized TableComponent
-PongoIndexComponent      is a specialized IndexComponent
-```
-
-There must be no Pongo-to-Dumbo conversion API. In particular, do not add
-`toTableComponent`, `toDatabaseComponent`, or equivalent adapters.
-
-## 2. Architectural Decisions
-
-### 2.1 Immutable declarations
-
-- Schema factory results are immutable declarations.
-- Construction composes children from records; declarations expose no public
-  `addComponent`, `addSchema`, `addTable`, `addColumn`, `addIndex`, or
-  `addMigration` mutators.
-- Driver materialization creates a separate runtime tree of the same concrete
-  component kinds.
-- Lazily created Pongo collections are registered only in the runtime tree.
-- Materialization and runtime registration never mutate a declaration or
-  insert resolved names into it.
-
-### 2.2 No public URN system
-
-- Remove component-specific URN types, factories, constants, and exports.
-- Remove `schemaComponentKey` from the public component model.
-- Do not discriminate component types by parsing strings or calling
-  `startsWith`.
-- Give each Dumbo component kind an exported `unique symbol` discriminator.
-- Give Pongo specializations symbol-backed markers in addition to their Dumbo
-  component discriminator.
-- Use object identity for cycle detection and traversal deduplication.
-- Use record aliases and domain names as keys in ownership/component records.
-- Use `SQLMigration.name` as the stable persisted migration identity.
-- Detect two distinct migrations with the same name while aggregating a root
-  and fail before executing SQL.
-
-### 2.3 Containment resolves and validates child context
-
-- A database may have an optional declared database name.
-- A database schema may have optional `schemaName` and `databaseName`
-  placement constraints.
-- A table may have an optional `databaseSchemaName` placement constraint.
-- An index may have optional `databaseSchemaName` and `tableName` placement
-  constraints.
-- These parent fields are ordinary optional data, not component identity,
-  string discriminators, or public generic parameters.
-- A parent record is authoritative. Composing a child into a parent produces
-  an immutable contextual copy of the same component kind with its resolved
-  parent fields populated.
-- If an explicit child constraint conflicts with its containing database,
-  schema, or table, composition throws instead of moving the child.
-- A standalone declaration remains unchanged and can be reused when it has no
-  explicit placement constraint.
-- Remove default-name sentinels from component declarations.
-- Remove all public and internal `Bind*` conditional types and `bind*`
-  functions.
-- Remove `TableTypeState` and the hidden type-state generic tuple.
-- During materialization, resolve an effective context:
-
-```ts
-type ComponentContext = Readonly<{
-  databaseName: string;
-  databaseSchemaName?: string;
-  tableName?: string;
-}>;
-```
-
-- A schema record key supplies the effective name for an unnamed schema.
-- If an explicitly named schema is stored under a conflicting record key,
-  materialization throws.
-- Tables exposed from a contextual schema have their resolved
-  `databaseSchemaName`.
-- Indexes exposed from a contextual table have their resolved
-  `databaseSchemaName` and `tableName`.
-- Effective names are also passed to SQL and migration builders through
-  context; they are never written back to the original standalone
-  declarations.
-
-### 2.4 Keep generics small and meaningful
-
-- `SchemaComponent` must not carry a component-key template-literal generic or
-  an arbitrary `AdditionalData` generic.
-- `DatabaseComponent` needs only the declared schema record type and, if
-  required for literal inference, its name.
-- `DatabaseSchemaComponent` needs only the declared table record type and, if
-  required, its name.
-- `TableComponent` may carry table name, columns, indexes, and a plain optional
-  `databaseSchemaName`. Relationship literals can be returned as an
-  intersection from the factory instead of occupying another public
-  positional generic.
-- `IndexComponent` may carry index name, column-name literals, and plain
-  optional `databaseSchemaName`/`tableName` placement data. Parent names must
-  not become public generic parameters.
-- Pongo exposes readable aliases so consumers never write Dumbo's internal
-  generic parameters:
-
-```ts
-PongoDatabaseComponent<Definition>
-PongoSchemaComponent<Collections>
-PongoCollectionComponent<Document, Name, Indexes>
-PongoIndexComponent<Name>
-```
-
-- Use symbol-backed phantom properties only where TypeScript needs to retain
-  `Document`; do not store `undefined as unknown as Document` as runtime data.
-
-## 3. Target Public APIs
-
-### 3.1 Dumbo factories and types
-
-Use these canonical names only:
+Only these canonical public factories remain:
 
 ```ts
 databaseComponent(...)
@@ -144,649 +77,555 @@ indexComponent(...)
 extensionComponent(...)
 ```
 
-```ts
-DatabaseComponent
-DatabaseSchemaComponent
-TableComponent
-IndexComponent
-ExtensionComponent
-```
+and the corresponding `dumboSchema` convenience factories.
 
-Remove the replaced `*SchemaSchemaComponent`, `FeatureSchemaComponent`,
-partial alias names, and deprecated discovery aliases rather than adding
-compatibility aliases.
+### No public URN or string-discriminator system
 
-Keep:
+- Component kinds use exported `unique symbol` discriminators.
+- Pongo specializations use symbol markers.
+- Record aliases and domain names identify children.
+- Object identity handles traversal cycles and shared children.
+- `SQLMigration.name` is the persisted migration identity.
+- Runtime type checks never parse prefixes or call `startsWith`.
 
-```ts
-findComponents(root, predicate)
-findComponent(root, predicate)
-```
+### Immutable declarations
 
-Discovery accepts typed predicates. It must not accept component-key prefixes.
+- Factory output is a declaration.
+- Definitions are never rebound or mutated.
+- A Pongo collection remains a Dumbo `TableComponent`; it is not converted
+  through a `toTableComponent`-style adapter.
+- Pongo constructs one ordinary resolved Dumbo database hierarchy after the
+  database name and default schema name have been resolved.
+- Existing schema, table, column, index, and extension declarations are placed
+  directly into that hierarchy. There is no generic recursive clone,
+  reflective specialization copier, or mutable component editor.
+- A collection's `databaseSchemaName` is a declarative placement request.
+- A collection without `databaseSchemaName` is placed into the once-resolved
+  default schema.
+- A requested schema is created in the resolved hierarchy when it was not
+  declared upfront.
+- The resolved hierarchy is authoritative for parent/child placement.
+- Lazily created Pongo collections enter only the runtime tree.
 
-### 3.2 Typed component records
-
-Dumbo uses immutable typed records for:
-
-- `DatabaseComponent.schemas`
-- `DatabaseComponent.extensions`
-- `DatabaseSchemaComponent.tables`
-- `DatabaseSchemaComponent.extensions`
-- `TableComponent.columns`
-- `TableComponent.indexes`
-- `ExtensionComponent.components`
-
-Each record:
-
-- Is a null-prototype `Readonly<Record<string, Component>>`.
-- Preserves the declared property order.
-- Exposes record keys directly as typed readonly aliases.
-- Accepts arbitrary domain names, including `entries`, `get`, `size`,
-  `constructor`, and `__proto__`.
-- Is immutable at runtime; declarations expose no mutation escape hatch.
-- Is the authoritative collection of children rather than an alias layer over
-  another public collection.
-
-Dynamic lookup uses `record[name]`, membership uses
-`Object.hasOwn(record, name)`, and traversal uses `Object.values(record)`.
-Component kinds remain symbol-discriminated; record keys are aliases and
-domain names, not string component-type discriminators.
-
-Database schemas, schema tables, and extensions are constructed from their
-direct records. A database/schema extension record accepts only
-`ExtensionComponent` values. Arbitrary components must first be grouped inside
-an extension. Extension children do not appear in `.schemas` or `.tables`.
-
-### 3.3 Extensions
-
-```ts
-const eventStore = dumboSchema.extension('event-store', {
-  eventStore: dumboSchema.schema('event_store', {
-    events: dumboSchema.table('events', { columns: { /* ... */ } }),
-  }),
-  checkpoints: dumboSchema.table('processor_checkpoints', {
-    columns: { /* ... */ },
-  }),
-  readModels: pongoReadModelComponent,
-});
-```
-
-An extension can be attached to a database:
-
-```ts
-dumboSchema.database('app', schemas, { eventStore });
-```
-
-or to a database schema:
-
-```ts
-dumboSchema.schema('audit', tables, { eventStore });
-```
-
-Rules:
-
-- Record keys are stable typed aliases.
-- Values may be any Dumbo schema components.
-- `DatabaseComponent` and `DatabaseSchemaComponent` both accept an immutable
-  extension record directly as their third facade argument.
-- That record accepts only `ExtensionComponent` values; it is not a generic
-  component/options bag.
-- The record is exposed directly as typed `.extensions`, using the same
-  immutable-record behavior as `.schemas`, `.tables`, and extension
-  `.components`.
-- Attaching an extension to a database includes its migrations after the
-  database's direct ownership children according to the declared structural
-  order.
-- Attaching an extension to a database schema includes its migrations within
-  that schema's structural position.
-- Dumbo makes no ownership-versus-reference distinction.
-- A repeated object reference is traversed once.
-- Cycles terminate safely.
-- Two distinct migrations with the same name fail clearly.
-- Extension children are never promoted into ownership records.
-- An extension behaves identically as a migration root or nested child.
-- Remove visibility, expansion, database-feature, and schema-feature variants.
-
-### 3.4 Pongo definitions
-
-Keep the tagged exclusive database API:
+Examples:
 
 ```ts
 pongoSchema.db('app', {
   collections: {
-    users: pongoSchema.collection<User>('users'),
-  },
-});
-```
-
-```ts
-pongoSchema.db('app', {
-  schemas: {
-    public: pongoSchema.schema({
-      users: pongoSchema.collection<User>('users'),
-    }),
-    audit: pongoSchema.schema('audit', {
-      entries: pongoSchema.collection<AuditEntry>('entries'),
+    users: pongoSchema.collection('users', {
+      databaseSchemaName: 'audit',
     }),
   },
 });
-```
 
-Because Pongo database and schema declarations are specialized Dumbo
-components, both accept the same direct extension record:
-
-```ts
-pongoSchema.db(
-  'app',
-  {
-    collections: {
-      users: pongoSchema.collection<User>('users'),
-    },
-  },
-  { eventStore },
-);
-
-pongoSchema.schema(
-  'audit',
-  {
-    entries: pongoSchema.collection<AuditEntry>('entries'),
-  },
-  { eventStore },
-);
-```
-
-Rules:
-
-- Exactly one of `collections` and `schemas` is accepted.
-- `pongoSchema.db()` returns a specialized `DatabaseComponent`.
-- Pongo database and schema factories forward immutable extension records to
-  the corresponding Dumbo component factories, so extensions attach at either
-  level without a Pongo-specific extension variant or `{ components: ... }`
-  wrapper.
-- Collection-only mode contains an unnamed Dumbo schema declaration.
-- `pongoSchema.schema(collections)` returns a reusable unnamed specialized
-  `DatabaseSchemaComponent`.
-- `pongoSchema.schema(name, collections)` returns an explicitly named
-  specialized `DatabaseSchemaComponent`.
-- A schema record key conflicting with an explicit schema name throws during
-  materialization.
-- `pongoSchema.collection()` returns a specialized `TableComponent`.
-- A Pongo collection declaration accepts an optional
-  `databaseSchemaName` placement constraint:
-
-```ts
-const entries = pongoSchema.collection<AuditEntry>('entries', {
+db.collection('entries', {
   databaseSchemaName: 'audit',
 });
 ```
 
-- Placing that collection under schema `audit` is valid; placing it under a
-  different schema throws.
-- A collection without `databaseSchemaName` inherits the containing schema and
-  remains reusable.
-- A collection retrieved from a composed/materialized schema always exposes
-  its resolved `databaseSchemaName`.
-- In collection-only database mode, an explicit `databaseSchemaName` must
-  match the resolved default schema. It does not silently route the collection
-  into another schema; multiple logical schemas require tagged `schemas` mode.
-- `pongoSchema.index()` and its built-in variants return specialized
-  `IndexComponent` objects.
-- Collection index options accept Pongo index components, not a union of raw
-  object definitions and components.
-- Remove component detection based on `"schemaComponentKey" in value`.
-- Remove parallel `PongoDbSchema`,
-  `PongoDatabaseSchemaSchema`, and definition/component wrapper types once all
-  consumers use the component types.
-- `pongoSchema.client()` remains a typed record of Pongo database components.
+Neither example requires an upfront `schemas.audit` declaration. Both place
+the table beneath the `audit` `DatabaseSchemaComponent`, creating that schema
+in the resolved runtime hierarchy if necessary.
 
-### 3.5 Runtime API
+### Identifiers, references, and traversal
 
-Keep:
+These are separate concepts:
+
+- A full logical identifier names a component in the resolved hierarchy.
+- A physical SQL reference is produced by a database driver from that
+  identifier.
+- `SQLMigration.name` is the persisted migration identity.
+
+Dumbo derives identifiers during its own traversal:
 
 ```ts
-db.collection('users', {
-  schemaName: 'audit',
-  schema: { versioning: /* ... */ },
-});
-
-db.schema().collection('users');
-db.schema('audit').collection('entries');
-
-db.users;
-db.audit.entries;
-```
-
-Do not expose:
-
-```ts
-db.schemas
-db.defaultSchemaName
-```
-
-`db.schema` remains one callable accessor with live:
-
-```ts
-db.schema.component
-db.schema.definition
-db.schema.migrations
-db.schema.migrate(...)
-```
-
-`definition` is the original immutable Pongo database component.
-`component` is the driver-materialized runtime database component.
-
-## 4. Detailed Implementation Steps
-
-### Phase 0 — Protect the baseline
-
-1. Confirm the worktree contains only the committed schema-feature change.
-2. Record the current unit-test, TypeScript-build, and lint status.
-3. Classify current tests:
-   - Keep tests that express desired behavior.
-   - Rewrite tests asserting URN strings, sentinels, binding wrappers, or
-     duplicated definition/component behavior.
-   - Remove tests added only to support obsolete aliases or feature variants.
-4. Add characterization tests before deleting code for:
-   - Migration traversal order.
-   - Shared-child deduplication.
-   - Cycle termination.
-   - Extension non-promotion.
-   - Tagged Pongo definitions.
-   - Runtime schema scopes.
-   - Driver resolution precedence.
-   - Custom migration ledgers.
-
-Gate: the retained baseline tests pass before core replacement begins.
-
-### Phase 1 — Replace the Dumbo base component
-
-1. Define symbol discriminators for generic, database, schema, table, column,
-   index, and extension components.
-2. Redefine `SchemaComponent` without key and additional-data generics.
-3. Store immutable local migrations and child entries in the component
-   constructor's closure or one internal symbol-backed state. Do not use a
-   cross-module `WeakMap` with opaque-leaf fallback.
-4. Implement one small immutable null-prototype component-record constructor.
-5. Implement recursive migration aggregation:
-   - Pre-order: component-local migrations, then children in structural order.
-   - `Set<SchemaComponent>` for cycle and shared-reference handling.
-   - `Map<migrationName, migration>` for duplicate-name detection.
-6. Implement `findComponents` and `findComponent` with typed predicates and
-   object-identity cycle handling.
-7. Delete:
-   - Prefix-based discovery.
-   - `filterSchemaComponentsOfType`.
-   - `mapSchemaComponentsOfType`.
-   - `findSchemaComponentsOfType`.
-   - `isSchemaComponentOfType`.
-   - `extendSchemaComponent`.
-   - All public component URN helpers and template-literal URN types.
-8. Ensure a custom component created through Dumbo behaves exactly like a
-   built-in component during traversal.
-
-Gate: base-component tests cover empty trees, order, shared references,
-cycles, arbitrary domain aliases, runtime immutability, and duplicate migration
-names.
-
-### Phase 2 — Rebuild the Dumbo ownership hierarchy
-
-1. Reimplement `DatabaseComponent` from an immutable schema record.
-2. Reimplement `DatabaseSchemaComponent` from an immutable table record.
-3. Reimplement `TableComponent` from immutable column and index records, with
-   optional non-generic `databaseSchemaName` placement data.
-4. Reimplement `IndexComponent` with optional non-generic
-   `databaseSchemaName` and `tableName` placement data.
-5. Make domain records authoritative:
-   - `.schemas` comes only from the database's schema record.
-   - `.tables` comes only from the schema's table record.
-   - `.columns` and `.indexes` come only from the table definition.
-6. Give databases and database schemas typed `.extensions` records built from
-   direct extension records:
-   - Only `ExtensionComponent` values are accepted at these boundaries.
-   - Arbitrary components are allowed only inside an extension's
-     `.components`.
-   - Extension values participate in structural traversal after the direct
-     ownership children but never appear in `.schemas` or `.tables`.
-7. Implement one recursive contextual-composition helper in Dumbo:
-   - Populate `databaseName` on schemas.
-   - Populate `databaseSchemaName` on tables.
-   - Populate `databaseSchemaName` and `tableName` on indexes.
-   - Preserve the original child declaration.
-   - Throw on an explicit placement conflict.
-8. Implement schema explicit-name validation against the containing record key.
-9. Update relationship inference to derive paths from database/schema/table
-   records instead of bound child-name generics.
-10. Isolate relationship conditional types in the relationship module; they
-   must not force parent identity generics onto every component.
-11. Remove:
-    - Default database/schema/table sentinels from component code.
-    - All bind helpers and bind inference types.
-    - `tableTypeState`.
-    - `databaseKind`, `schemaKind`, `tableKind`, and `indexKind` string
-      discriminators used only for runtime type detection.
-
-Gate: type tests prove table/column/relationship inference without passing
-parent names through table and index generic arguments, while runtime tests
-prove contextual child copies expose their resolved ownership fields.
-
-### Phase 3 — Add Dumbo materialization
-
-1. Add one Dumbo materializer that accepts an immutable component root,
-   resolved root context, and an optional migration-enrichment callback:
-
-```ts
-materializeSchemaComponent(root, {
-  context,
-  migrationsFor(component, context),
-});
-```
-
-2. Preserve the concrete component kind and domain data in the materialized
-   result; this is cloning/enrichment, not type conversion.
-3. Use a `WeakMap<declaration, materializedComponent>` during recursion so:
-   - Shared references remain shared.
-   - Cycles remain safe.
-   - Migrations are emitted once.
-4. Resolve database/schema/table paths while descending.
-5. Populate the resolved ownership fields on materialized contextual copies:
-   - Schema `databaseName`.
-   - Table `databaseSchemaName`.
-   - Index `databaseSchemaName` and `tableName`.
-6. Keep effective context in internal materialized state and pass it directly
-   to migration builders. Do not add parent-name generics back to declarations.
-7. Provide an internal runtime-tree editor owned by Dumbo for Pongo:
-   - Add an effective schema.
-   - Add or replace a table in a schema.
-   - Remove a table after drop.
-   - Preserve live immutable public records.
-   - Replace records atomically when registering or removing runtime children;
-     do not mutate a supposedly readonly public collection.
-8. Do not expose public mutation methods on schema declarations.
-
-Gate: materializing one declaration into two different database/schema
-contexts produces independent runtime trees and leaves the declaration
-unchanged.
-
-### Phase 4 — Make Dumbo columns render complete table DDL
-
-1. Add portable Dumbo column types required by Pongo:
-   - `Text`.
-   - `JSON<Value>`.
-   - `Boolean`.
-   - Existing bigint and timestamp-with-time-zone support.
-2. Render portable types by dialect:
-   - PostgreSQL JSON as `JSONB`.
-   - SQLite JSON as JSON/TEXT affinity suitable for SQLite JSON functions,
-     never BLOB.
-   - PostgreSQL Boolean as `BOOLEAN`.
-   - SQLite Boolean as its supported integer/boolean representation.
-3. Implement a complete `SQL_COLUMN` processor:
-   - Identifier.
-   - Dialect-rendered type.
-   - `PRIMARY KEY`.
-   - `NOT NULL`.
-   - `UNIQUE`.
-   - Literal or SQL-expression default.
-4. Correct column default typings so defaults represent column values or SQL
-   expressions, not column-type tokens.
-5. Add a Dumbo `createTableSQL(table, tableReference)` builder using the
-   ordered `table.columns` map.
-6. Ensure the same tokenized SQL formats correctly under PostgreSQL, SQLite3,
-   and D1 formatters.
-7. Add a dialect-neutral current-timestamp expression usable as a column
-   default.
-
-Gate: SQL unit tests format a complete representative table correctly for
-PostgreSQL and SQLite without handwritten column lists.
-
-### Phase 5 — Rebuild Pongo declarations on Dumbo components
-
-1. Define the fixed `PongoCollectionColumns<Document>` record:
-
-| Column | Logical Dumbo type | Constraints/default |
-| --- | --- | --- |
-| `_id` | Text | primary key, not null |
-| `data` | JSON of `Document` | not null |
-| `metadata` | JSON record | not null, default `{}` |
-| `_version` | BigInteger | not null, default `1` |
-| `_partition` | Text | not null, default `png_global` |
-| `_archived` | Boolean | not null, default `false` |
-| `_created` | timestamp with time zone | not null, current timestamp |
-| `_updated` | timestamp with time zone | not null, current timestamp |
-
-2. Make `pongoSchema.collection()` pass those columns and its optional
-   `databaseSchemaName` placement constraint to `tableComponent`.
-3. Derive the table primary key from `_id`; remove `[] as never[]`.
-4. Store the document type under a Pongo-only unique-symbol phantom field.
-5. Define built-in Pongo index strategies with symbols:
-   - JSON path.
-   - Unique JSON path.
-   - JSON document.
-   - Custom SQL.
-6. Make every Pongo index factory return an `IndexComponent` immediately.
-7. Make `pongoSchema.schema()` return a specialized
-   `DatabaseSchemaComponent`.
-8. Make `pongoSchema.db()` return a specialized `DatabaseComponent`.
-9. Represent direct-collection mode with one unnamed schema component.
-10. When a collection is composed beneath a named Pongo schema, expose a
-    contextual collection component carrying that schema's
-    `databaseSchemaName`; never mutate the standalone collection declaration.
-11. Validate an explicit collection `databaseSchemaName` against its
-    containing schema.
-12. In collection-only mode, validate explicit collection placement against
-    the resolved default schema rather than auto-routing it.
-13. Retain the compile-time and runtime XOR between `collections` and
-    `schemas`.
-14. Freeze declaration objects and their source records in development tests,
-    then verify materialization never writes to them.
-15. Remove:
-    - Empty Pongo columns/relationships aliases.
-    - `document: undefined as unknown as T`.
-    - Raw index-definition/component unions.
-    - Definition rebinding.
-    - `PongoCollectionSchemaComponent` table/index reconstruction.
-    - `PongoDatabaseSchemaComponent` naming ambiguity; use
-      `PongoDatabaseComponent`.
-
-Gate: a Pongo collection can be inserted directly into a Dumbo schema beside
-a regular Dumbo table, and its columns and indexes remain fully typed.
-
-### Phase 6 — Materialize Pongo database components
-
-1. Resolve the effective database and default schema names before
-   materialization.
-2. Materialize a Pongo database through Dumbo's materializer.
-3. Enrich component migrations by visiting symbols:
-   - PostgreSQL schema component: create schema migration when required.
-   - Pongo table: one create-table migration using Dumbo `createTableSQL`.
-   - Pongo index: one driver-specific create-index migration.
-4. Do not clone indexes manually in Pongo.
-5. Do not flatten table and index migrations in driver functions.
-6. Let structural traversal guarantee:
-   - Schema creation before tables.
-   - Table creation before its indexes.
-   - Record order among sibling tables/indexes.
-7. Generate migration names from effective logical names, never array
-   positions.
-8. Preserve released table migration names where they already identify the
-   same logical operation. Replace unfinished positional index identities with
-   stable index-name identities.
-9. Built-in create-index SQL should be idempotent where supported. Custom SQL
-   remains responsible for its explicitly supplied statement.
-
-Gate: inspecting a materialized collection shows real columns, one local
-table migration, and one migration on each child index.
-
-### Phase 7 — Centralize driver configuration resolution
-
-1. Add a pure resolver in Pongo core returning required internal values:
-
-```ts
-type ResolvedPongoDatabaseOptions = {
+type DatabaseIdentifier = {
   databaseName: string;
-  defaultSchemaName: string;
-  migrationTable?: MigrationTableOptions;
-  definition?: PongoDatabaseComponent;
-  // remaining resolved connection/runtime options
 };
-```
 
-2. Resolve database name once in this order:
-   1. Per-`db()` request.
-   2. Client default.
-   3. Explicit name on the selected Pongo database declaration.
-   4. Dumbo connection-string/database metadata.
-   5. Dumbo driver default database.
-   6. Pongo's internal fallback.
-3. Do not select the first unnamed database declaration when `db()` has no
-   name.
-4. A projected typed database getter passes its selected declaration
-   explicitly.
-5. Resolve default schema once:
-   1. Per-`db()` option.
-   2. Client default.
-   3. Dumbo driver metadata.
-   4. Pongo internal fallback.
-6. Resolve migration-table configuration:
-   1. Individual `migrate()` call.
-   2. Resolved database configuration.
-   3. Client configuration.
-7. Require each Pongo driver to expose its exact Dumbo driver.
-8. Change `databaseFactory` to accept resolved required values; remove driver
-   non-null assertions and driver-local fallback chains.
-9. PostgreSQL-created pools receive the resolved database name.
-10. Ambient PostgreSQL pools/clients reject a requested database that differs
-    from the connected database.
-11. SQLite3 and D1 bind one logical database name per Pongo client and reject
-    later switching.
-
-Gate: resolver unit tests cover every precedence edge and drivers contain no
-independent database/default-schema fallback.
-
-### Phase 8 — Rebuild runtime registration, caching, and projection
-
-1. Keep the nested cache:
-
-```ts
-Map<schemaName, Map<collectionName, PongoCollection>>
-```
-
-2. Declared and lazy collections use the same lookup and runtime component
-   registration path.
-3. A lazy collection:
-   - Creates a normal Pongo collection declaration with fixed columns.
-   - Materializes it in the selected effective schema.
-   - Registers it in the Dumbo-owned runtime tree.
-   - Uses the same identity/cache path as a declared collection.
-4. A call with runtime overrides remains transient, but every transient
-   collection is tracked in a separate set and closed with the database.
-5. Construct `db.schema` with `Object.defineProperties`, not `Object.assign`,
-   so `component`, `definition`, and `migrations` remain live.
-6. Construct typed database, schema, and client properties with descriptors;
-   remove nested and client proxies.
-7. Validate projected properties using `Reflect.has` against the actual target
-   before defining them.
-8. Exclude direct database aliases using `keyof PongoDb` at compile time.
-9. Use null-prototype schema-scope objects and validate their actual members;
-   do not reserve an unrelated hard-coded list.
-10. Cache schema-scope objects so repeated property access has stable identity.
-11. Ensure two schemas can contain collections with the same physical logical
-    collection name while retaining separate cache identities.
-12. On rename:
-    - Resolve the destination's physical identity through the driver resolver.
-    - Execute SQL against the current resolved identity.
-    - Rebuild/update the collection SQL builder for the destination.
-    - Atomically update the nested cache and runtime component tree.
-    - Reject a destination already registered in the same schema.
-13. On drop, remove the cached runtime collection/table entry after successful
-    SQL execution.
-
-Gate: runtime tests cover live metadata, declared/lazy identity, overrides,
-close behavior, rename, drop, and definition immutability.
-
-### Phase 9 — Centralize PostgreSQL and SQLite SQL identities
-
-1. Reuse Dumbo's `ComponentContext` as the one logical input to storage
-   resolvers. Do not introduce a Pongo table-identity copy with renamed
-   fields. A table resolver validates that `databaseSchemaName` and
-   `tableName` are present because it only operates on materialized table
-   context.
-
-2. PostgreSQL resolves:
-   - Schema-qualified table references.
-   - Schema-qualified index references where required.
-   - Logical migration identity.
-3. Pongo SQLite resolves every physical table and index reference through one
-   shared module used by:
-   - CRUD SQL builders.
-   - Create-table migrations.
-   - Create-index migrations.
-   - Custom index SQL contexts.
-   - Rename.
-   - Drop.
-4. Native `main` collections remain unprefixed.
-5. Reserve `pongo_` for Pongo-mapped SQLite tables and indexes.
-6. Use readable labeled boundaries and escape underscores inside logical
-   components:
-
-```text
-crm.users -> pongo_crm_table_users
-a.b_c     -> pongo_a_table_b__c
-a_b.c     -> pongo_a__b_table_c
-```
-
-7. Indexes append `_index_` and their escaped logical index name. Keep name
-   encoding internal. Pongo never decodes physical catalog names back into
-   declarations; test observable resolved table/index names and collision
-   cases instead of exposing a codec API.
-8. Encode tables from `[schemaName, tableName]`.
-9. Encode indexes from `[schemaName, tableName, indexName]`.
-10. Map indexes because SQLite object names share a global namespace.
-11. Keep generic Dumbo SQLite collision validation strict and unchanged;
-    Pongo-specific physical mapping belongs only to the Pongo SQLite driver.
-
-Gate: resolver tests prove distinct physical table/index names for
-underscores, prefix-like names, dots, quotes, and Unicode.
-
-### Phase 10 — Rebuild index migrations
-
-1. PostgreSQL supports:
-   - JSON-path index.
-   - Unique JSON-path index.
-   - JSON-document GIN index.
-   - Custom SQL.
-2. SQLite supports:
-   - JSON-path index.
-   - Unique JSON-path index.
-   - JSON-document index.
-   - Custom SQL.
-3. Each index component owns exactly one materialized create-index migration.
-4. Built-in builders use the index strategy symbol, not a string `indexKind`.
-5. Custom SQL receives:
-
-```ts
-type IndexSQLContext = {
-  databaseName: string;
+type DatabaseSchemaIdentifier = DatabaseIdentifier & {
   databaseSchemaName: string;
+};
+
+type TableIdentifier = DatabaseSchemaIdentifier & {
   tableName: string;
+};
+
+type IndexIdentifier = TableIdentifier & {
   indexName: string;
-  tableReference: SQL;
-  indexReference: SQL;
 };
 ```
 
-6. Logical names remain logical even when SQLite references are mapped.
-7. Index migration names include schema, table, and index names, but not
-   numeric position.
-8. Validate duplicate logical index names before materialization.
+PostgreSQL and SQLite code never recursively walks component records. Dumbo
+owns recursion, structural order, extension traversal, cycle handling, and
+migration-name duplicate detection. A driver receives one already identified
+schema, table, or index at a time and returns SQL migrations only for that
+component.
 
-Gate: SQL unit tests cover every built-in/custom form and actual integration
-tests verify the indexes exist after repeat migrations.
+### No stringly or generic-maze replacement
 
-### Phase 11 — Finish migration-ledger configuration
+- Names are typed domain fields, not encoded component identities.
+- Parent names do not flow through every public generic parameter.
+- Resolved placement uses the appropriate full identifier type rather than an
+  optional `ComponentContext` bag.
+- Pongo’s `Document` type is retained through a small symbol-backed phantom
+  type only where TypeScript needs it.
+- Public Pongo types use readable domain generics:
 
-Keep one API:
+```ts
+PongoDatabaseComponent<Definition>;
+PongoSchemaComponent<Collections>;
+PongoCollectionComponent<Document, Name, Indexes>;
+PongoIndexComponent<Name>;
+```
+
+### Tests lead every change
+
+For every slice:
+
+1. Map existing tests to keep, adjust, remove, or add.
+2. Add or adjust usage-facing tests first.
+3. Run the new test and observe the intended failure.
+4. Implement only that slice.
+5. Remove superseded code and obsolete tests in the same slice.
+6. Pass the slice gate before continuing.
+
+Tests are named from user behavior, not implementation mechanics. Assertions
+must not be weakened merely to make a rewrite pass.
+
+## Audit findings
+
+| Area                     | Current problem                                                                                                                                  | Required outcome                                                                                                     | Slice |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ----- |
+| Collection columns       | Pongo repeated a manual eight-column component type and used `SQL.columnN`                                                                       | One readable Dumbo table declaration using `dumboSchema.table`/`column`; types derived from it; no `columnN`         | 1     |
+| Dumbo base               | Internal mutable record registry and helper surface make the base harder to reason about                                                         | One small immutable component core with recursive identified traversal and migration aggregation                     | 2     |
+| Ownership records        | `.components`, `.schemas`, `.tables`, `.columns`, `.indexes`, and `.extensions` are assembled through multiple mutation helpers                  | Records remain authoritative, typed, immutable, ordered, and non-promoting                                           | 3     |
+| Hierarchy composition    | `ComponentContext`, reflection-based specialization copying, and runtime editor behavior obscure what is being resolved                          | Direct construction of one resolved Dumbo hierarchy plus full identifiers derived by Dumbo traversal                | 4     |
+| Driver schema migrations | PostgreSQL and SQLite `migrationsFor` callbacks mix dispatch, validation, references, SQL generation, and migration identity                     | Dumbo-owned traversal/aggregation plus small per-component dialect functions                                         | 5     |
+| Pongo definition model   | Definitions and effective placement are still easy to confuse                                                                                    | Tagged immutable definitions that remain direct Dumbo specializations                                                | 6     |
+| Runtime component model  | Runtime components carry `collectionName`, `sqlBuilder`, `.editor`, `.collection()`, and `.collections`, duplicating table and database concepts | Runtime behavior is held by the runtime DB/collection objects; schema components stay schema components              | 7     |
+| Projection and cache     | Declared access, lazy access, aliases, and cache identity have overlapping paths                                                                 | One nested cache and one lookup/registration path per logical schema/table                                           | 8     |
+| Driver resolution        | Configuration fallback logic has historically been split between client, cache, and drivers                                                      | Values are resolved once before the internal driver factory                                                          | 9     |
+| SQLite identity          | Mapping must cover every SQL path without codecs or duplicated resolver layers                                                                   | One readable Pongo SQLite reference resolver for tables and indexes                                                  | 10    |
+| Migration ledger         | Legacy component-ledger ideas and scattered reference handling add concepts without user value                                                   | Only schema/table ledger configuration; one resolved SQL reference                                                   | 11    |
+| Naming/dead code         | Transitional aliases, sentinels, casts, and obsolete exports remain possible                                                                     | Canonical names only; no dead compatibility layer                                                                    | 12    |
+
+## Slice 1 — Pongo collection columns through Dumbo `[active]`
+
+### User-facing behavior
+
+Pongo’s physical collection schema is visible in one place and follows the
+same style as an ordinary Dumbo table:
+
+```ts
+const { table, column } = dumboSchema;
+const { BigInteger, Boolean, JSON, Text, Timestamptz } = SQL.column.type;
+
+const users = table("users", {
+  columns: {
+    _id: column("_id", Text, { primaryKey: true, notNull: true }),
+    data: column("data", JSON<User>(), { notNull: true }),
+    // remaining physical Pongo columns
+  },
+  primaryKey: ["_id"],
+});
+```
+
+### Required changes
+
+- Keep the Pongo schema as one contiguous Dumbo table declaration.
+- Derive `PongoCollectionColumns<Document>` and
+  `PongoCollectionComponent<Document, Name, Indexes>` from that declaration
+  without manually repeating eight `ColumnSchemaComponent<...>` types.
+- Remove `SQL.columnN` from runtime, types, tests, and exports.
+- Keep `SQL.column` as the low-level SQL column token factory and
+  `dumboSchema.column` as the schema-component factory.
+- Preserve exact PostgreSQL and SQLite table DDL.
+- Preserve exact row inference for all eight Pongo physical columns.
+
+### Current progress
+
+- `[done]` Negative compile-time test proves `SQL.columnN` is not public.
+- `[done]` Pongo physical row inference test added.
+- `[done]` `SQL.columnN` implementation and runtime test removed.
+- `[done]` Pongo now uses Dumbo `table` and `column` factories.
+- `[done]` Focused tests, full TypeScript, full unit tests, lint, and
+  PostgreSQL/SQLite migration integrations passed.
+- `[failing gate]` `tsdown` declaration bundling reports TS2527 for
+  the inferred internal Pongo table constructor. This must be solved without
+  restoring the manual column type maze or suppressing declaration checks.
+
+### Gate
+
+- Dumbo TypeScript build.
+- Dumbo schema/SQL unit tests.
+- Pongo TypeScript build and type tests.
+- Exact PostgreSQL and SQLite collection DDL tests.
+- Full unit suite.
+- PostgreSQL and SQLite migration integrations.
+- ESLint and Prettier.
+- Dumbo and Pongo package builds, including declaration bundles.
+- `rg '\bcolumnN\b'` finds only the intentional negative type assertion.
+
+No Slice 2 work starts until every item passes.
+
+## Slice 2 — Simplify the Dumbo base component `[next]`
+
+### Tests first
+
+Keep or add usage tests for:
+
+- a custom component with arbitrary record aliases;
+- parent-local migration before child migrations;
+- structural child order;
+- one shared child visited once;
+- a cycle terminating without recursion failure;
+- duplicate migration names failing before SQL execution;
+- immutable component records;
+- typed predicate traversal through `findComponents`/`findComponent`.
+
+### Required changes
+
+- Keep one symbol discriminator on `SchemaComponent`.
+- Keep one immutable local migration list.
+- Keep one immutable child record.
+- Remove any public construction/mutation helpers not required by users.
+- Remove materializer-only state and operations from the public barrel as soon
+  as Slice 4 no longer needs them.
+- Remove opaque fallback behavior that treats an unknown object as a mutable
+  leaf.
+- Do not add URNs, component keys, string kinds, or `AdditionalData` generics.
+
+### Gate
+
+- Dumbo TypeScript, unit tests, lint, and package build.
+- Full Pongo TypeScript and unit tests remain green.
+
+## Slice 3 — Simplify Dumbo ownership and extensions `[queued]`
+
+### Tests first
+
+- Database schema aliases remain typed.
+- Explicit schema name conflicting with its record key throws.
+- Table aliases remain typed independently from table names.
+- Table placement constraints are validated.
+- Index placement constraints are validated.
+- Database/schema extensions use `{ eventStore }`.
+- Extension internals are not promoted.
+- Extensions work both as migration roots and nested components.
+- Duplicate aliases at one structural boundary fail clearly.
+
+### Required changes
+
+- Build `.schemas`, `.tables`, `.columns`, `.indexes`, and `.extensions`
+  directly from their input records.
+- Keep those domain records authoritative.
+- Derive `.components` structurally from those records once.
+- Remove generic component-map mutation from declaration constructors.
+- Preserve record order.
+- Preserve reusable child declarations.
+
+### Gate
+
+- Dumbo runtime and type tests.
+- Dumbo build/lint/package build.
+- Full Pongo TypeScript and unit tests.
+
+## Slice 4 — Replace materialization with explicit hierarchy composition `[queued]`
+
+### Tests first
+
+- A collections-only Pongo database places collections in the resolved default
+  schema.
+- A collection with `databaseSchemaName: 'audit'` is nested under `audit`
+  without an upfront schema declaration.
+- `db.collection('users', { databaseSchemaName: 'audit' })` creates or reuses
+  the `audit` schema in the runtime hierarchy.
+- `db.schema('audit').collection('users')` has the same resolved placement.
+- Passing a `databaseSchemaName` that conflicts with the active schema scope
+  throws.
+- A schema-group record key that conflicts with a collection's explicit
+  `databaseSchemaName` throws.
+- Original and frozen declarations remain unchanged.
+- A reusable collection declaration can be used by separately resolved
+  databases without retaining names from the first database.
+- Full database, schema, table, and index identifiers are derived correctly by
+  Dumbo traversal.
+- Lazy collection registration changes only the resolved runtime hierarchy.
+
+### Required changes
+
+- Delete `materializeSchemaComponent`, its reflection-based specialization
+  copying, and the public/general-purpose materialization options.
+- Delete `editMaterializedDatabase` and the mutable record replacement path
+  used by Pongo.
+- After resolving `databaseName` and `defaultSchemaName`, build a normal
+  `DatabaseComponent` from normal `DatabaseSchemaComponent` records.
+- Group top-level collection declarations by:
+  1. the collection's explicit `databaseSchemaName`, when present;
+  2. otherwise the once-resolved default schema name.
+- If a target schema does not yet exist, construct it as part of the resolved
+  database hierarchy.
+- For a collection already contained by an explicit schema group, validate an
+  explicit `databaseSchemaName` against the containing record key.
+- Keep `databaseSchemaName` as a placement request on the Pongo collection
+  declaration; do not copy resolved parent names into all descendants.
+- Add only the small immutable Dumbo operation needed to return a database
+  hierarchy with one table added, including creation of the containing schema
+  when absent. It is not a general component editor.
+- Introduce explicit full logical identifier types:
+
+```ts
+type DatabaseIdentifier = { databaseName: string };
+type DatabaseSchemaIdentifier = DatabaseIdentifier & {
+  databaseSchemaName: string;
+};
+type TableIdentifier = DatabaseSchemaIdentifier & { tableName: string };
+type IndexIdentifier = TableIdentifier & { indexName: string };
+```
+
+- Extend Dumbo traversal internally so the callback for a database, schema,
+  table, or index receives its correctly narrowed identifier.
+- Keep recursion, ordering, extension traversal, and cycle handling inside
+  Dumbo. Pongo and database drivers must not implement a component walk.
+- Do not add encoded identifiers, generic parent-name parameters, visitor
+  classes, registries, lifecycle hooks, or public mutation APIs.
+
+### Gate
+
+- Dumbo hierarchy/identifier tests, TypeScript, lint, package build.
+- Pongo declarations and existing runtime tests stay green.
+
+## Slice 5 — Generate driver migrations through Dumbo traversal `[queued]`
+
+This slice directly addresses the current SQLite and PostgreSQL
+`migrationsFor` functions.
+
+### Why the current code is wrong
+
+The callback currently:
+
+1. detects component kinds;
+2. validates location fields;
+3. resolves physical table/index references;
+4. interprets Pongo index strategy;
+5. builds dialect SQL;
+6. creates persisted migration names;
+7. returns migrations to the generic materializer.
+
+That is too much responsibility in one Pongo function. It also hides the
+boundary: Dumbo should own traversal and aggregation, while the selected
+driver should only turn one fully identified component into SQL.
+
+### Tests first
+
+- Dumbo asks for exactly one create-table migration for each identified Pongo
+  collection.
+- Dumbo asks for exactly one create-index migration for each identified Pongo
+  index.
+- Database migration order is schema, table, then index children.
+- PostgreSQL schema creation precedes contained tables.
+- PostgreSQL supports path, unique path, document GIN, and custom indexes.
+- SQLite supports path, unique path, document, and custom indexes.
+- Custom SQL receives logical names and resolved references.
+- Table/index callbacks receive complete identifiers, without optional parent
+  fields or defensive `undefined` checks.
+- Reusable declarations are never mutated.
+- Declared migrations remain component-local. Dumbo aggregates them together
+  with driver-generated migrations exactly once.
+- A test driver proves it receives identified components without performing
+  traversal itself.
+
+### Required changes
+
+- Remove the monolithic SQLite and PostgreSQL `migrationsFor` dispatch
+  functions.
+- Add one Dumbo database-migration aggregation entry point. It performs the
+  traversal and calls separately typed schema, table, and index migration
+  functions with the matching full identifier.
+- The driver functions do not inspect child records and do not call
+  `findComponents`; they only resolve physical references and generate SQL for
+  the component they receive.
+- Keep declared migrations on their declarations.
+- Keep driver-generated migrations in the Dumbo database migration result;
+  do not inject them into recursively cloned table/index components.
+- Keep only Pongo-specific JSON index target/strategy selection in Pongo.
+- Share common unique/non-unique index construction instead of duplicating the
+  full SQL ternary.
+- Custom index callbacks receive:
+
+```ts
+{
+  databaseName,
+  databaseSchemaName,
+  tableName,
+  indexName,
+  tableReference,
+  indexReference,
+}
+```
+
+- Migration names are produced in one place. Existing released table migration
+  identities are preserved only where compatibility requires them.
+- Do not export new `pongoSQLiteMigrationsFor` or similar helper APIs.
+
+### Gate
+
+- Dumbo traversal and migration aggregation tests.
+- PostgreSQL and SQLite SQL unit tests.
+- PostgreSQL and SQLite real-index integration tests.
+- Repeat-migration and migration-order tests.
+- Full build/lint/package build.
+
+## Slice 6 — Normalize Pongo declarations `[queued]`
+
+### Tests first
+
+- Exactly one of `collections` or `schemas`.
+- Reusable unnamed schema.
+- Explicitly named schema.
+- Record-key/name conflict.
+- `databaseSchemaName: 'audit'` placement constraint.
+- A collection can select an undeclared schema.
+- A collection without an explicit schema uses the resolved default schema.
+- Explicit schema scope and `databaseSchemaName` conflicts fail.
+- Frozen definitions remain unchanged.
+- Pongo collections/indexes remain assignable to Dumbo table/index types.
+- Extensions attach directly to databases and schemas.
+
+### Required changes
+
+- Keep the tagged XOR definition API.
+- Keep Pongo declarations as direct Dumbo specializations.
+- Use `databaseSchemaName` only to select placement while composing the
+  resolved database hierarchy.
+- Do not require a `schemas` definition merely to target a non-default schema.
+- Remove sentinels from declarations.
+- Remove definition/component aliases that represent the same object twice.
+
+### Gate
+
+- Pongo type tests, schema unit tests, Dumbo compatibility tests, build/lint.
+
+## Slice 7 — Remove runtime behavior from schema components `[queued]`
+
+### Tests first
+
+- `db.schema().collection('users')`.
+- `db.schema('audit').collection('entries')`.
+- `db.collection('users', { databaseSchemaName: 'audit' })` without a prior
+  `audit` schema declaration.
+- `db.users` and `db.audit.entries`.
+- Live `db.schema.component`, `definition`, `migrations`, and `migrate`.
+- No public `db.schemas` or `db.defaultSchemaName`.
+- Runtime overrides do not replace cached default collections.
+
+### Required changes
+
+Remove schema-component fields that duplicate runtime concepts:
+
+- `collectionName` duplicates `tableName`;
+- component `sqlBuilder` is runtime behavior;
+- component `.editor` is materializer machinery;
+- component `.collection()` is runtime registration;
+- component `.collections` duplicates hierarchy traversal.
+
+The runtime database owns collection creation, caching, SQL builders, and
+registration. The resolved Dumbo component tree owns schema structure. Dumbo's
+database migration aggregation owns declared and driver-generated migrations.
+
+### Gate
+
+- Pongo runtime tests, TypeScript, lint, package build.
+- PostgreSQL and SQLite collection operations remain green.
+
+## Slice 8 — Unify runtime lookup, cache, and projection `[queued]`
+
+### Tests first
+
+- Same collection name in two schemas has distinct identity.
+- Repeated access in one schema returns the same collection.
+- Declared alias differing from table name resolves the declared table.
+- Lazy and projected access converge on the same cached instance.
+- Registering a lazy collection creates its target schema when absent.
+- Runtime name collisions with `keyof PongoDb` fail.
+- Definitions are never mutated by projection.
+
+### Required changes
+
+- Use one nested runtime cache:
+
+```ts
+Map<schemaName, Map<tableName, PongoCollection>>;
+```
+
+- Use one declared-table lookup by effective schema/table name.
+- Register a lazy collection once in the Dumbo runtime tree.
+- Project properties with explicit descriptors/getters.
+- Do not use nested proxies.
+- Do not store runtime aliases in definition records.
+- Keep one callable `db.schema` accessor.
+
+### Gate
+
+- Runtime unit tests, type tests, build/lint, both storage integrations.
+
+## Slice 9 — Resolve driver configuration once `[queued]`
+
+### Tests first
+
+- Per-`db()` option beats client default.
+- Client default beats declaration/metadata.
+- Declared database name participates at its documented precedence.
+- Connection-string database beats driver fallback.
+- Dumbo default schema metadata beats Pongo sentinel.
+- Ambient PostgreSQL mismatch throws.
+- SQLite/D1 reject switching logical database names.
+- Migration-table precedence is per-call, database, client.
+
+### Required changes
+
+Resolve before calling the internal driver database factory:
+
+1. Per-database options.
+2. Client defaults.
+3. Declared database name where applicable.
+4. Dumbo metadata/connection parsing.
+5. Pongo internal fallback.
+
+Drivers receive required resolved values and do not run another fallback chain.
+Every Pongo driver exposes its exact Dumbo driver.
+
+### Gate
+
+- Driver unit tests, TypeScript, lint, PostgreSQL/SQLite connection tests.
+
+## Slice 10 — Finish physical reference handling `[queued]`
+
+### Tests first
+
+- SQLite `main.users` remains `users`.
+- `crm.users` maps readably and reversibly.
+- Underscores are escaped without numeric codecs.
+- Table and index namespaces cannot collide.
+- Reserved `pongo_` prefix is rejected for native names.
+- Every SQLite SQL builder uses the same resolver.
+- PostgreSQL table qualification and unqualified create-index names are valid.
+
+### Required changes
+
+- Keep one Pongo SQLite resolver for physical table/index references.
+- Remove duplicate logical identity wrappers and decoders.
+- Pass resolved references to every builder.
+- Keep generic Dumbo SQLite collision validation separate and strict.
+
+### Gate
+
+- SQL resolver/unit tests and SQLite/PostgreSQL integrations.
+
+## Slice 11 — Simplify migration-ledger configuration `[queued]`
+
+The supported public configuration is:
 
 ```ts
 migrationTable: {
@@ -795,219 +634,87 @@ migrationTable: {
 }
 ```
 
-1. Remove legacy bare-component unions.
-2. Resolve the ledger configuration once before starting the transaction.
-3. Compute one SQL reference from `schemaName` and `tableName`.
-4. Use that same reference for:
-   - Table creation.
-   - Applied-migration reads.
-   - Migration inserts.
-   - Hash updates.
-5. Dumbo creates the configured migration table itself.
-6. Default `tableName` to `dmb_migrations`.
-7. When PostgreSQL has `schemaName`, create that schema before creating the
-   migration table.
-8. SQLite accepts absent schema or `main`; reject every other schema before
-   executing SQL.
-9. Preserve precedence from Phase 7 when Pongo calls the Dumbo migrator.
+There is no component-ledger option.
 
-Gate: custom schema/table ledger integration tests run twice and prove all
-operations use the same table.
+### Tests first
 
-### Phase 12 — Remove obsolete implementation and normalize naming
+- Default ledger.
+- Custom table.
+- PostgreSQL custom schema/table.
+- SQLite absent or `main` schema only.
+- Creation, reads, inserts, and updates use one resolved reference.
+- Repeated migrations remain idempotent.
 
-Delete or replace:
+### Required changes
 
-- Component URN types/factories/constants and `schemaComponentURN`.
-- Prefix-based component detection.
-- Default-name sentinels in component definitions.
-- All bind/rebind helpers and conditional types.
-- `TableTypeState`.
-- `AdditionalData` component generics.
-- WeakMap opaque migration handling.
-- `extendSchemaComponent`.
-- Extension alias-map patching.
-- Pongo empty column/relationship records.
-- Pongo table/index reconstruction.
-- Hardcoded PostgreSQL and SQLite Pongo create-table column lists.
-- Positional index migration identities.
-- String index/database/table kind discriminators.
-- Definition-versus-component guards.
-- Descriptor functions still named `proxy*`.
-- Driver non-null assertions for resolved options.
+- Remove legacy component unions and component-ledger implementation.
+- Resolve the ledger reference once.
+- PostgreSQL may create the configured ledger schema.
+- SQLite rejects unsupported schema qualification.
 
-Rename remaining Pongo symbols so they describe their actual role:
+### Gate
 
-```text
-PongoDatabaseComponent
-PongoSchemaComponent
-PongoCollectionComponent
-PongoIndexComponent
-projectPongoDb
-projectPongoClient
-```
+- Dumbo migrator tests, both database integrations, build/lint.
 
-Run an unused-export search after removal. Do not retain deprecated aliases for
-the unfinished names.
+## Slice 12 — Final naming and dead-code sweep `[queued]`
 
-## 5. Test Plan
+Remove only code proven obsolete by completed slices:
 
-### Dumbo unit and type tests
+- old aliases and transitional exports;
+- sentinels no longer used;
+- `as never` and `unknown` casts introduced to bridge old/new models;
+- old materializers and flattened migration helpers;
+- duplicate predicates/resolvers;
+- stale tests asserting removed behavior;
+- comments and names such as `pongoCollection...` where they describe
+  implementation rather than a required persisted migration identity.
 
-- Canonical public names and removed exports.
-- Typed component-record aliases.
-- Arbitrary aliases that overlap object or collection API names.
-- Direct ownership records versus arbitrary component children.
-- Extension record composition.
-- Extension attachment at database and database-schema levels.
-- No extension-child promotion.
-- Pre-order migration aggregation.
-- Shared child migrations exactly once.
-- Duplicate migration names fail.
-- Cyclic graphs terminate.
-- Predicate-based recursive discovery.
-- Immutable declarations.
-- Materialization into multiple contexts.
-- Schema record-key versus explicit-name validation.
-- Relationship inference without bound parent generics.
-- Full column and create-table rendering for each dialect.
+Rename tests from the usage perspective while preserving their coverage.
 
-### Pongo type tests
+### Gate
 
-- Tagged XOR rejects neither/both collections and schemas.
-- Direct collection mode inference.
-- Direct schema-group inference.
-- Unnamed and explicitly named reusable schemas.
-- Pongo collection assignable to Dumbo `TableComponent`.
-- Pongo index assignable to Dumbo `IndexComponent`.
-- Document inference from collection components.
-- Optional collection `databaseSchemaName` remains a placement constraint and
-  does not become a parent-name generic.
-- Direct database aliases reject `keyof PongoDb`.
-- Schema aliases do not promote collections to the database.
-- No empty placeholder generic arguments in exported Pongo types.
+- `rg` audit for every removed symbol.
+- Public API/type tests.
+- Full verification sequence below.
 
-### Pongo runtime tests
+## Full verification sequence
 
-- Callable default and named schema scopes.
-- Direct property projection.
-- Live schema component/definition/migrations.
-- Default-schema binding at materialization only.
-- Contextual collections expose their resolved `databaseSchemaName`.
-- Explicit collection/schema placement conflicts throw.
-- Collection-only mode rejects, rather than auto-routes, a conflicting
-  `databaseSchemaName`.
-- Same collection name in two schemas.
-- Nested cache identity.
-- Lazy collection registration in the runtime tree.
-- Transient override collections close correctly.
-- Definitions remain frozen and unchanged.
-- Projection collisions against real runtime objects.
-- Rename updates physical identity, cache, SQL builder, and runtime tree.
-- Drop removes runtime registration.
+Run after every relevant slice, and run the entire sequence after Slice 12:
 
-### Driver and SQL tests
+1. `npx tsc -b packages/dumbo/tsconfig.json --force --pretty false`
+2. Dumbo unit/type tests.
+3. Dumbo PostgreSQL integration/e2e.
+4. Dumbo SQLite integration/e2e.
+5. `npx tsc -b packages/pongo/tsconfig.json --force --pretty false`
+6. Pongo unit/type tests.
+7. Pongo PostgreSQL integration/e2e.
+8. Pongo SQLite/D1 integration/e2e.
+9. `npm run lint`
+10. `npm run build`
+11. `git diff --check`
+12. Dead-code/export searches for the slice.
 
-- Database/default-schema/migration-table precedence.
-- No accidental unnamed-definition selection.
-- Exact Dumbo driver requirement.
-- PostgreSQL pool receives resolved database.
-- Ambient PostgreSQL mismatch.
-- SQLite/D1 fixed logical database.
-- All PostgreSQL and SQLite table/index SQL forms.
-- Custom SQL logical names and resolved references.
-- Reversible SQLite table/index names.
-- Reserved `pongo_` prefix.
-- Native `main` behavior.
+If a gate fails, the current slice remains active. Do not begin the next slice,
+leave compatibility debris, disable a lint rule, weaken a test, or hide the
+failure with a cast.
 
-### Integration and end-to-end tests
+## Final acceptance criteria
 
-- PostgreSQL named schemas and schema creation order.
-- SQLite logical schemas with same collection names.
-- Real index creation for all built-in index strategies.
-- Custom index SQL.
-- Table-before-index migration order.
-- Repeat migrations skip cleanly.
-- Custom PostgreSQL ledger schema/table.
-- Custom SQLite ledger table.
-- Lazy collection auto-migration.
-- Rename and drop in native and mapped SQLite schemas.
-
-## 6. Verification Sequence
-
-Run checks in this order and stop at the first failure:
-
-1. Dumbo TypeScript build.
-2. Dumbo unit tests.
-3. Pongo TypeScript build.
-4. Pongo unit tests.
-5. SQLite unit tests.
-6. SQLite integration tests.
-7. SQLite end-to-end tests.
-8. PostgreSQL unit tests.
-9. PostgreSQL integration tests.
-10. PostgreSQL end-to-end tests.
-11. Root TypeScript build.
-12. ESLint without fixes.
-13. Prettier check without writes.
-14. Dumbo package build.
-15. Pongo package build.
-16. Bundle/export tests.
-17. Final `git diff --check`.
-18. Final public-export and obsolete-symbol search.
-
-The final report must list:
-
-- Commands run.
-- Passed/failed/skipped suites.
-- Any environment-dependent PostgreSQL or D1 suites not executed.
-- Remaining compatibility changes.
-- Confirmation that the original declarations are unchanged after runtime
-  materialization tests.
-
-## 7. Acceptance Criteria
-
-The work is complete only when:
-
-- Pongo collection declarations contain their actual table columns.
-- Pongo database, schema, collection, and index declarations are Dumbo
-  components from construction onward.
-- No public conversion adapter exists.
-- No public component URNs or string-prefix type checks remain.
-- No parent-name sentinels or bind wrappers remain.
-- Contextual schema, table, and index copies expose resolved ownership fields
-  without mutating standalone declarations.
-- Declarations are immutable and reusable.
-- Dumbo materializes resolved context and driver migrations once.
-- Dumbo renders Pongo create-table SQL from table columns.
-- Table and index migrations follow the structural hierarchy.
-- Extensions aggregate migrations without promoting children.
-- Extensions attach consistently to both databases and database schemas.
-- SQLite logical names are reversible and used by every SQL path.
-- Runtime caches, projection, rename, drop, and cleanup are coherent.
-- Driver resolution happens exactly once.
-- Migration-ledger creation and operations use one resolved reference.
-- Full builds, tests, lint, and package builds pass, except explicitly reported
-  environment-unavailable suites.
-
-## 8. Assumptions
-
-- Breaking removal of the unfinished component names, URN exports, sentinels,
-  bind helpers, and definition wrappers is acceptable.
-- The schema-feature branch has not established positional Pongo index
-  migration names as a stable compatibility contract.
-- Released table migration identities are preserved where their logical
-  operation remains unchanged.
-- Record keys are typed aliases; physical table names still come from table
-  declarations.
-- An unnamed schema receives its effective name only from materialization
-  context.
-- Optional schema/table/index parent fields are placement constraints and
-  resolved contextual data, not component identity or generic parameters.
-- Extension children remain intentionally hidden from database/schema
-  ownership records.
-- SQLite logical-schema portability justifies Pongo-specific physical mapping,
-  but generic Dumbo SQLite behavior remains strict.
-- PostgreSQL and SQLite dialect differences belong in Dumbo's SQL/column
-  abstractions; Pongo owns only document-table semantics and JSON index
-  strategies.
+- Dumbo supplies the component, ownership, identified traversal, DDL,
+  migration aggregation, reference, and ledger abstractions Pongo needs.
+- Pongo collections are real Dumbo tables with real Dumbo columns.
+- Pongo indexes are real Dumbo indexes.
+- Dumbo traverses the resolved hierarchy and aggregates declared plus
+  driver-generated migrations; drivers never traverse components.
+- Collections may select an undeclared schema with `databaseSchemaName`, and
+  collections without it use the once-resolved default schema.
+- Definitions remain immutable and reusable.
+- Extensions attach directly and do not promote internals.
+- Runtime lookup/cache/projection has one path.
+- Driver values are resolved once.
+- SQLite mapping is readable, centralized, and complete.
+- No public URN system, `columnN`, generic clone/editor materializer,
+  default-name binding wrappers, component ledger, flattened migration arrays,
+  or monolithic driver `migrationsFor` dispatch remains.
+- Full TypeScript, tests, lint, integrations, e2e, and package declaration
+  builds pass.
