@@ -23,8 +23,9 @@ Current checkpoint:
 - `[done]` Commit `98f856be` is the last checkpoint known to pass every gate.
 - `[done]` At that checkpoint, TypeScript, lint, package builds, 988 unit
   tests, and focused PostgreSQL/SQLite integrations passed.
-- `[done]` Current HEAD `c07390a5` contains the hierarchy/traversal/runtime
-  rewrite through Slice 8.
+- `[done]` Current HEAD `880f1e40` contains the completed hierarchy,
+  traversal, runtime, physical-reference, migration, and driver-resolution
+  slices.
 - `[done]` The current physical-reference and driver-resolution slices pass
   TypeScript, 995
   unit tests, ESLint/Prettier, package builds, and focused real
@@ -33,8 +34,10 @@ Current checkpoint:
   module while Dumbo owns traversal, references, and dialect SQL.
 - `[done]` Slice 9 resolves database/schema names once and requires concrete
   names at the internal driver boundary.
-- `[active]` Slice 12: final naming/dead-code sweep and the full verification
-  sequence.
+- `[done]` Slice 12 dead-code/export searches are clean.
+- `[done]` Final verification passes: forced Dumbo/Pongo TypeScript, 995 unit
+  tests, 367 integration tests, 465 e2e tests (5 intentionally skipped),
+  ESLint/Prettier, package builds, and `git diff --check`.
 
 ## Non-negotiable design decisions
 
@@ -115,16 +118,16 @@ and the corresponding `dumboSchema` convenience factories.
 Examples:
 
 ```ts
-pongoSchema.db('app', {
+pongoSchema.db("app", {
   collections: {
-    users: pongoSchema.collection('users', {
-      databaseSchemaName: 'audit',
+    users: pongoSchema.collection("users", {
+      databaseSchemaName: "audit",
     }),
   },
 });
 
-db.collection('entries', {
-  databaseSchemaName: 'audit',
+db.collection("entries", {
+  databaseSchemaName: "audit",
 });
 ```
 
@@ -202,20 +205,20 @@ must not be weakened merely to make a rewrite pass.
 
 ## Audit findings
 
-| Area                     | Current problem                                                                                                                                  | Required outcome                                                                                                     | Slice |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ----- |
-| Collection columns       | Pongo repeated a manual eight-column component type and used `SQL.columnN`                                                                       | One readable Dumbo table declaration using `dumboSchema.table`/`column`; types derived from it; no `columnN`         | 1     |
-| Dumbo base               | Internal mutable record registry and helper surface make the base harder to reason about                                                         | One small immutable component core with recursive identified traversal and migration aggregation                     | 2     |
-| Ownership records        | `.components`, `.schemas`, `.tables`, `.columns`, `.indexes`, and `.extensions` are assembled through multiple mutation helpers                  | Records remain authoritative, typed, immutable, ordered, and non-promoting                                           | 3     |
-| Hierarchy composition    | `ComponentContext`, reflection-based specialization copying, and runtime editor behavior obscure what is being resolved                          | Direct construction of one resolved Dumbo hierarchy plus full identifiers derived by Dumbo traversal                | 4     |
-| Driver schema migrations | PostgreSQL and SQLite `migrationsFor` callbacks mix dispatch, validation, references, SQL generation, and migration identity                     | Dumbo-owned traversal/aggregation plus small per-component dialect functions                                         | 5     |
-| Pongo definition model   | Definitions and effective placement are still easy to confuse                                                                                    | Tagged immutable definitions that remain direct Dumbo specializations                                                | 6     |
-| Runtime component model  | Runtime components carry `collectionName`, `sqlBuilder`, `.editor`, `.collection()`, and `.collections`, duplicating table and database concepts | Runtime behavior is held by the runtime DB/collection objects; schema components stay schema components              | 7     |
-| Projection and cache     | Declared access, lazy access, aliases, and cache identity have overlapping paths                                                                 | One nested cache and one lookup/registration path per logical schema/table                                           | 8     |
-| Driver resolution        | Configuration fallback logic has historically been split between client, cache, and drivers                                                      | Values are resolved once before the internal driver factory                                                          | 9     |
-| SQLite identity          | Mapping must cover every SQL path without codecs or duplicated resolver layers                                                                   | One readable Dumbo SQLite reference resolver for tables and indexes                                                  | 10    |
-| Migration ledger         | Legacy component-ledger ideas and scattered reference handling add concepts without user value                                                   | Only schema/table ledger configuration; one resolved SQL reference                                                   | 11    |
-| Naming/dead code         | Transitional aliases, sentinels, casts, and obsolete exports remain possible                                                                     | Canonical names only; no dead compatibility layer                                                                    | 12    |
+| Area                     | Current problem                                                                                                                                  | Required outcome                                                                                             | Slice |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ | ----- |
+| Collection columns       | Pongo repeated a manual eight-column component type and used `SQL.columnN`                                                                       | One readable Dumbo table declaration using `dumboSchema.table`/`column`; types derived from it; no `columnN` | 1     |
+| Dumbo base               | Internal mutable record registry and helper surface make the base harder to reason about                                                         | One small immutable component core with recursive identified traversal and migration aggregation             | 2     |
+| Ownership records        | `.components`, `.schemas`, `.tables`, `.columns`, `.indexes`, and `.extensions` are assembled through multiple mutation helpers                  | Records remain authoritative, typed, immutable, ordered, and non-promoting                                   | 3     |
+| Hierarchy composition    | `ComponentContext`, reflection-based specialization copying, and runtime editor behavior obscure what is being resolved                          | Direct construction of one resolved Dumbo hierarchy plus full identifiers derived by Dumbo traversal         | 4     |
+| Driver schema migrations | PostgreSQL and SQLite `migrationsFor` callbacks mix dispatch, validation, references, SQL generation, and migration identity                     | Dumbo-owned traversal/aggregation plus small per-component dialect functions                                 | 5     |
+| Pongo definition model   | Definitions and effective placement are still easy to confuse                                                                                    | Tagged immutable definitions that remain direct Dumbo specializations                                        | 6     |
+| Runtime component model  | Runtime components carry `collectionName`, `sqlBuilder`, `.editor`, `.collection()`, and `.collections`, duplicating table and database concepts | Runtime behavior is held by the runtime DB/collection objects; schema components stay schema components      | 7     |
+| Projection and cache     | Declared access, lazy access, aliases, and cache identity have overlapping paths                                                                 | One nested cache and one lookup/registration path per logical schema/table                                   | 8     |
+| Driver resolution        | Configuration fallback logic has historically been split between client, cache, and drivers                                                      | Values are resolved once before the internal driver factory                                                  | 9     |
+| SQLite identity          | Mapping must cover every SQL path without codecs or duplicated resolver layers                                                                   | One readable Dumbo SQLite reference resolver for tables and indexes                                          | 10    |
+| Migration ledger         | Legacy component-ledger ideas and scattered reference handling add concepts without user value                                                   | Only schema/table ledger configuration; one resolved SQL reference                                           | 11    |
+| Naming/dead code         | Transitional aliases, sentinels, casts, and obsolete exports remain possible                                                                     | Canonical names only; no dead compatibility layer                                                            | 12    |
 
 ## Slice 1 — Pongo collection columns through Dumbo `[done]`
 
@@ -675,7 +678,7 @@ There is no component-ledger option.
 
 - Dumbo migrator tests, both database integrations, build/lint.
 
-## Slice 12 — Final naming and dead-code sweep `[active]`
+## Slice 12 — Final naming and dead-code sweep `[done]`
 
 Remove only code proven obsolete by completed slices:
 
