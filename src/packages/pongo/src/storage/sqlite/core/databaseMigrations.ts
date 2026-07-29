@@ -1,6 +1,4 @@
 import {
-  createTableSQL,
-  SQL,
   sqlMigration,
   type AnyIndexComponent,
   type AnyTableComponent,
@@ -9,17 +7,15 @@ import {
   type TableIdentifier,
 } from '@event-driven-io/dumbo';
 import {
-  SQLiteJSON,
-  sqliteIndexName,
+  sqliteIndexSQL,
   sqliteMetadata,
-  sqliteTableName,
+  sqliteTableSQL,
 } from '@event-driven-io/dumbo/sqlite';
+import { isPongoCollectionComponent } from '../../../core';
 import {
-  isPongoCollectionComponent,
-  isPongoIndexComponent,
-  pongoIndexStrategy,
-  pongoJsonDocumentIndex,
-} from '../../../core';
+  pongoCollectionMigrationName,
+  pongoIndexMigrationName,
+} from '../../migrationNames';
 
 const tableMigrations = (
   component: AnyTableComponent,
@@ -27,15 +23,14 @@ const tableMigrations = (
 ) => {
   if (!isPongoCollectionComponent(component)) return [];
 
-  const physicalName = sqliteTableName(identifier);
-  const migrationName =
-    identifier.databaseSchemaName === sqliteMetadata.defaultSchemaName
-      ? identifier.tableName
-      : `${identifier.databaseSchemaName}:${identifier.tableName}`;
   return [
-    sqlMigration(`pongoCollection:${migrationName}:001:createtable`, [
-      createTableSQL(component, SQL.identifier(physicalName)),
-    ]),
+    sqlMigration(
+      pongoCollectionMigrationName(
+        identifier,
+        sqliteMetadata.defaultSchemaName,
+      ),
+      [sqliteTableSQL(component, identifier)],
+    ),
   ];
 };
 
@@ -43,32 +38,10 @@ const indexMigrations = (
   component: AnyIndexComponent,
   identifier: IndexIdentifier,
 ) => {
-  if (!isPongoIndexComponent(component)) return [];
-
-  const tableReference = SQL`${SQL.identifier(sqliteTableName(identifier))}`;
-  const indexReference = SQL`${SQL.identifier(sqliteIndexName(identifier))}`;
-  const path =
-    typeof component.path === 'string'
-      ? component.path
-      : component.path?.join('.');
-  const context = {
-    ...identifier,
-    tableReference,
-    indexReference,
-  };
-  const target = SQLiteJSON.path(path ?? component.indexTargetNames.join('.'));
-  const sql =
-    component.sql?.(context) ??
-    (component[pongoIndexStrategy] === pongoJsonDocumentIndex
-      ? SQL`CREATE INDEX ${indexReference} ON ${tableReference} (data)`
-      : component.isUnique
-        ? SQL`CREATE UNIQUE INDEX ${indexReference} ON ${tableReference} (json_extract(data, ${target}))`
-        : SQL`CREATE INDEX ${indexReference} ON ${tableReference} (json_extract(data, ${target}))`);
-
   return [
     sqlMigration(
-      `pongoIndex:${identifier.databaseSchemaName}:${identifier.tableName}:${component.indexName}:create`,
-      [sql],
+      pongoIndexMigrationName(identifier),
+      [sqliteIndexSQL(component, identifier)],
     ),
   ];
 };

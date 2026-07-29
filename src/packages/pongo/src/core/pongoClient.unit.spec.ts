@@ -100,9 +100,12 @@ const testPongoDriver = ({
     } as never,
     databaseFactory: (options) => {
       databaseFactoryCalls.push(options);
+      if (options.databaseName === undefined) {
+        throw new Error('Expected the database name to be resolved');
+      }
 
       return testPongoDb({
-        databaseName: options.databaseName ?? 'db:default',
+        databaseName: options.databaseName,
         onConnect: (databaseName) => connected.push(databaseName),
         onClose: (databaseName) => closed.push(databaseName),
       });
@@ -118,6 +121,15 @@ const testPongoDriver = ({
 };
 
 describe('pongoClient', () => {
+  it('requires resolved names at the internal driver boundary', () => {
+    type FactoryOptions = Parameters<
+      PongoDriver<PongoDb<TestDriverType>>['databaseFactory']
+    >[0];
+
+    expectTypeOf<FactoryOptions['databaseName']>().toEqualTypeOf<string>();
+    expectTypeOf<FactoryOptions['defaultSchemaName']>().toEqualTypeOf<string>();
+  });
+
   it('resolves client database and default schema settings once', () => {
     const { driver, databaseFactoryCalls } = testPongoDriver();
     const client = pongoClient({
@@ -179,6 +191,17 @@ describe('pongoClient', () => {
       fallback.databaseFactoryCalls[0]?.databaseName,
       'driver-default',
     );
+  });
+
+  it('uses metadata defaults for a fixed-database driver', () => {
+    const { driver, databaseFactoryCalls } = testPongoDriver({
+      supportsMultipleDatabases: false,
+    });
+
+    pongoClient({ driver }).db();
+
+    assert.strictEqual(databaseFactoryCalls[0]?.databaseName, 'driver-default');
+    assert.strictEqual(databaseFactoryCalls[0]?.defaultSchemaName, 'native');
   });
 
   it('resolves migration-table settings with database precedence', () => {

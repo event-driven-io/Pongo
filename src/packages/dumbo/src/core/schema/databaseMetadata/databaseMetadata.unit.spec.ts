@@ -5,38 +5,21 @@ import {
   type DatabaseMetadata,
 } from './databaseMetadata';
 
-const stubMetadata = <
-  SupportsMultipleDatabases extends boolean = boolean,
-  SupportsSchemas extends boolean = boolean,
-  SupportsFunctions extends boolean = boolean,
->(
+const stubMetadata = (
   databaseType: string,
-  overrides?: Partial<
-    DatabaseMetadata<
-      SupportsMultipleDatabases,
-      SupportsSchemas,
-      SupportsFunctions
-    >
-  >,
-): DatabaseMetadata<
-  SupportsMultipleDatabases,
-  SupportsSchemas,
-  SupportsFunctions
-> =>
-  ({
-    databaseType,
-    capabilities: {
-      supportsSchemas: false,
-      supportsFunctions: false,
-      supportsMultipleDatabases: false,
-    },
-    tableExists: () => Promise.resolve(false),
-    ...overrides,
-  }) as unknown as DatabaseMetadata<
-    SupportsMultipleDatabases,
-    SupportsSchemas,
-    SupportsFunctions
-  >;
+  overrides?: Partial<DatabaseMetadata<false, false, false>>,
+): DatabaseMetadata<false, false, false> => ({
+  databaseType,
+  defaultDatabaseName: 'default',
+  defaultSchemaName: 'default',
+  capabilities: {
+    supportsSchemas: false,
+    supportsFunctions: false,
+    supportsMultipleDatabases: false,
+  },
+  tableExists: () => Promise.resolve(false),
+  ...overrides,
+});
 
 describe('DumboDatabaseMetadataRegistry', () => {
   describe('register and tryGet', () => {

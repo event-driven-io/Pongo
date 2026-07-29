@@ -4,6 +4,8 @@ import {
   isDatabaseComponent,
   isDatabaseSchemaComponent,
   isIndexComponent,
+  isJSONDocumentIndexTarget,
+  isJSONPathIndexTarget,
   isTableComponent,
   SQL,
 } from '@event-driven-io/dumbo';
@@ -11,17 +13,12 @@ import { describe, expectTypeOf, it } from 'vitest';
 import {
   isPongoCollectionComponent,
   isPongoDatabaseComponent,
-  isPongoIndexComponent,
   isPongoSchemaComponent,
   pongoCollectionComponentType,
   pongoDatabaseComponentType,
   pongoDocumentType,
-  pongoIndexStrategy,
-  pongoJsonDocumentIndex,
-  pongoJsonPathIndex,
   pongoSchema,
   pongoSchemaComponentType,
-  pongoUniqueJsonPathIndex,
   type PongoCollectionIndexSQLContext,
 } from './index';
 
@@ -39,18 +36,15 @@ describe('declaring Pongo indexes', () => {
     const document = pongoSchema.index.json('users_data_idx');
 
     assert.strictEqual(email.indexName, 'users_email_idx');
-    assert.strictEqual(email.path, 'email');
-    assert.strictEqual(email[pongoIndexStrategy], pongoJsonPathIndex);
+    assert.ok(email.target && isJSONPathIndexTarget(email.target));
+    assert.strictEqual(email.target.path, 'email');
     assert.strictEqual(externalId.indexName, 'users_external_id_uq');
-    assert.deepStrictEqual(externalId.path, ['external', 'id']);
-    assert.strictEqual(
-      externalId[pongoIndexStrategy],
-      pongoUniqueJsonPathIndex,
-    );
+    assert.ok(externalId.target && isJSONPathIndexTarget(externalId.target));
+    assert.deepStrictEqual(externalId.target.path, ['external', 'id']);
+    assert.strictEqual(externalId.isUnique, true);
     assert.strictEqual(document.indexName, 'users_data_idx');
-    assert.strictEqual(document[pongoIndexStrategy], pongoJsonDocumentIndex);
+    assert.ok(document.target && isJSONDocumentIndexTarget(document.target));
     assert.strictEqual(isIndexComponent(email), true);
-    assert.strictEqual(isPongoIndexComponent(email), true);
   });
 
   it('keeps explicit index names as typed collection aliases', () => {
@@ -78,7 +72,7 @@ describe('declaring Pongo indexes', () => {
 
     assert.strictEqual(custom.indexName, 'users_search_idx');
     assert.strictEqual(custom.sql, sql);
-    assert.strictEqual(isPongoIndexComponent(custom), true);
+    assert.strictEqual(isIndexComponent(custom), true);
   });
 });
 

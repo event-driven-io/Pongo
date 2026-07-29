@@ -252,7 +252,10 @@ describe('using a Pongo database', () => {
       projected.auditUsers,
       db.collection('users', { databaseSchemaName: 'audit' }),
     );
-    assert.strictEqual(db.schema.component.schemas.audit?.tables.auditUsers, users);
+    assert.strictEqual(
+      db.schema.component.schemas.audit?.tables.auditUsers,
+      users,
+    );
     assert.deepStrictEqual(
       Object.keys(db.schema.component.schemas.public!.tables),
       [],
@@ -289,14 +292,16 @@ describe('using a Pongo database', () => {
 
   it('rejects a collection placement conflicting with its schema scope', () => {
     const { db } = createTestDb();
-    const collection = db.schema('crm').collection as (
-      name: string,
-      options?: PongoDBCollectionOptions<{ _id: string }>,
-    ) => unknown;
+    const scope = db.schema('crm') as {
+      collection: (
+        name: string,
+        options?: PongoDBCollectionOptions<{ _id: string }>,
+      ) => unknown;
+    };
 
     assert.throws(
       () =>
-        collection('users', {
+        scope.collection('users', {
           databaseSchemaName: 'audit',
         }),
       /schema scope "crm".*database schema "audit"/,

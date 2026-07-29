@@ -10,7 +10,8 @@ import {
   indexComponent,
   isDatabaseComponent,
   isDatabaseSchemaComponent,
-  isIndexComponent,
+  jsonDocumentIndexTarget,
+  jsonPathIndexTarget,
   isSchemaComponent,
   isTableComponent,
   SQL,
@@ -42,35 +43,13 @@ export const pongoCollectionComponentType: unique symbol = Symbol(
   'pongo.collectionComponent',
 );
 export const pongoDocumentType: unique symbol = Symbol('pongo.documentType');
-export const pongoIndexStrategy: unique symbol = Symbol('pongo.indexStrategy');
-
-export const pongoJsonPathIndex: unique symbol = Symbol('pongo.index.jsonPath');
-export const pongoUniqueJsonPathIndex: unique symbol = Symbol(
-  'pongo.index.uniqueJsonPath',
-);
-export const pongoJsonDocumentIndex: unique symbol = Symbol(
-  'pongo.index.jsonDocument',
-);
-export const pongoCustomIndex: unique symbol = Symbol('pongo.index.custom');
 
 type EmptyComponentRecord = Readonly<Record<never, never>>;
 
-type PongoIndexStrategy =
-  | typeof pongoJsonPathIndex
-  | typeof pongoUniqueJsonPathIndex
-  | typeof pongoJsonDocumentIndex
-  | typeof pongoCustomIndex;
-
-export type PongoIndexComponent<
-  Name extends string = string,
-  Strategy extends PongoIndexStrategy = PongoIndexStrategy,
-  Path extends string | readonly string[] | undefined =
-    string | readonly string[] | undefined,
-> = IndexComponent<Name, readonly ['data']> &
-  Readonly<{
-    [pongoIndexStrategy]: Strategy;
-    path: Path;
-  }>;
+export type PongoIndexComponent<Name extends string = string> = IndexComponent<
+  Name,
+  readonly ['data']
+>;
 
 export type PongoCollectionIndex = PongoIndexComponent;
 export type PongoCollectionIndexSQLContext = IndexSQLContext;
@@ -295,23 +274,19 @@ const defineValue = (
 const pongoIndex = <
   const Name extends string,
   const Path extends string | readonly string[],
-  const Strategy extends
-    typeof pongoJsonPathIndex | typeof pongoUniqueJsonPathIndex =
-    typeof pongoJsonPathIndex,
 >(
   name: Name,
   path: Path,
-  strategy: Strategy = pongoJsonPathIndex as Strategy,
-): PongoIndexComponent<Name, Strategy, Path> => {
+  unique = false,
+): PongoIndexComponent<Name> => {
   const index = indexComponent({
     indexName: name,
     indexTargetNames: typeof path === 'string' ? [path] : path,
     columnNames: ['data'] as const,
-    isUnique: strategy === pongoUniqueJsonPathIndex,
+    isUnique: unique,
+    target: jsonPathIndexTarget('data', path),
   });
-  defineValue(index, pongoIndexStrategy, strategy);
-  defineValue(index, 'path', path);
-  return index as PongoIndexComponent<Name, Strategy, Path>;
+  return index;
 };
 
 const pongoUniqueIndex = <
@@ -320,31 +295,25 @@ const pongoUniqueIndex = <
 >(
   name: Name,
   path: Path,
-): PongoIndexComponent<Name, typeof pongoUniqueJsonPathIndex, Path> =>
-  pongoIndex(name, path, pongoUniqueJsonPathIndex);
+): PongoIndexComponent<Name> => pongoIndex(name, path, true);
 
 const pongoDocumentIndex = <const Name extends string>(
   name: Name,
-): PongoIndexComponent<Name, typeof pongoJsonDocumentIndex, undefined> => {
+): PongoIndexComponent<Name> => {
   const index = indexComponent({
     indexName: name,
     indexTargetNames: ['data'],
     columnNames: ['data'] as const,
     isUnique: false,
+    target: jsonDocumentIndexTarget('data'),
   });
-  defineValue(index, pongoIndexStrategy, pongoJsonDocumentIndex);
-  defineValue(index, 'path', undefined);
-  return index as PongoIndexComponent<
-    Name,
-    typeof pongoJsonDocumentIndex,
-    undefined
-  >;
+  return index;
 };
 
 const pongoCustomSQLIndex = <const Name extends string>(
   name: Name,
   sql: (context: PongoCollectionIndexSQLContext) => SQLStatement,
-): PongoIndexComponent<Name, typeof pongoCustomIndex, undefined> => {
+): PongoIndexComponent<Name> => {
   const index = indexComponent({
     indexName: name,
     indexTargetNames: ['data'],
@@ -352,9 +321,7 @@ const pongoCustomSQLIndex = <const Name extends string>(
     isUnique: false,
     sql,
   });
-  defineValue(index, pongoIndexStrategy, pongoCustomIndex);
-  defineValue(index, 'path', undefined);
-  return index as PongoIndexComponent<Name, typeof pongoCustomIndex, undefined>;
+  return index;
 };
 
 const pongoCollection = <
@@ -528,13 +495,6 @@ export const pongoSchema = {
   collection: pongoCollection,
   index: pongoIndexFactory,
 };
-
-export const isPongoIndexComponent = (
-  value: unknown,
-): value is PongoIndexComponent =>
-  isSchemaComponent(value) &&
-  isIndexComponent(value) &&
-  pongoIndexStrategy in value;
 
 export const isPongoCollectionComponent = (
   value: unknown,

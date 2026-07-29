@@ -6,9 +6,11 @@ import {
   type TableIdentifier,
 } from '@event-driven-io/dumbo';
 import { pgFormatter } from '@event-driven-io/dumbo/pg';
+import { postgreSQLTableReference } from '@event-driven-io/dumbo/postgresql';
 import assert from 'assert';
 import { describe, it } from 'vitest';
-import { pongoPostgreSQLMigrationBuilder, postgresSQLBuilder } from '.';
+import { postgresSQLBuilder } from '.';
+import { pongoPostgreSQLMigrationBuilder } from '../databaseMigrations';
 import {
   composePongoDatabase,
   isPongoCollectionComponent,
@@ -79,7 +81,11 @@ const builderFor = (
     identifier: TableIdentifier;
   }>,
 ): PongoCollectionSQLBuilder =>
-  postgresSQLBuilder(fixture.collection, fixture.identifier, JSONSerializer);
+  postgresSQLBuilder(
+    fixture.collection,
+    postgreSQLTableReference(fixture.identifier),
+    JSONSerializer,
+  );
 
 const migrationsFor = (database: ReturnType<typeof databaseWithCollection>) =>
   databaseMigrations(database, pongoPostgreSQLMigrationBuilder);
@@ -519,7 +525,7 @@ describe('postgres collection schema migrations', () => {
     assert.strictEqual(migrations.length, 3);
     assert.ok(emailIndex);
     assert.strictEqual(collection.databaseSchemaName, undefined);
-    assert.strictEqual(emailIndex.path, 'email');
+    assert.strictEqual(emailIndex, indexes.email);
     assert.strictEqual(emailIndex.databaseSchemaName, undefined);
   });
 

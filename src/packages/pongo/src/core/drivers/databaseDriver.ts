@@ -21,8 +21,8 @@ export type PongoDatabaseFactoryOptions<
   Definition extends PongoDbSchema = PongoDbSchema,
   DriverOptions extends AnyPongoDriverOptions = AnyPongoDriverOptions,
 > = {
-  databaseName?: string | undefined;
-  defaultSchemaName?: string | undefined;
+  databaseName: string;
+  defaultSchemaName: string;
   migrationTable?: MigrationTableOptions | undefined;
   schema?:
     | {

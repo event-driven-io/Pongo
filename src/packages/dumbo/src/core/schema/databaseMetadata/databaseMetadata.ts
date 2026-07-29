@@ -23,10 +23,9 @@ export type DatabaseMetadata<
   readonly databaseType: DatabaseType;
   /**
    * Native schema used by the database when an object reference is unqualified.
-   * Undefined means that the native lookup rules (for example PostgreSQL
-   * search_path) must be preserved.
    */
-  readonly defaultSchemaName?: string | undefined;
+  readonly defaultSchemaName: string;
+  readonly defaultDatabaseName: string;
   readonly capabilities: DatabaseCapabilities<
     SupportsMultipleDatabases,
     SupportsSchemas,
@@ -38,13 +37,11 @@ export type DatabaseMetadata<
   ) => Promise<boolean>;
 } & (SupportsMultipleDatabases extends true
   ? {
-      readonly defaultDatabaseName: string;
       readonly parseDatabaseName: (
         connectionString?: string,
       ) => string | undefined;
     }
   : {
-      readonly defaultDatabaseName?: never;
       readonly parseDatabaseName?: never;
     }) &
   (SupportsFunctions extends true

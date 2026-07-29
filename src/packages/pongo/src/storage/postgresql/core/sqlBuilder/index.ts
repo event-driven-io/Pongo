@@ -3,23 +3,11 @@ import {
   isSQL,
   JSONParam,
   SQL,
-  sqlMigration,
-  type AnyDatabaseSchemaComponent,
-  type AnyIndexComponent,
-  type AnyTableComponent,
-  type DatabaseSchemaIdentifier,
-  type DatabaseMigrationBuilder,
-  type IndexIdentifier,
   type JSONSerializer,
-  type TableIdentifier,
 } from '@event-driven-io/dumbo';
 import { PostgreSQLJSON } from '@event-driven-io/dumbo/postgresql';
 import {
   expectedVersionPredicate,
-  isPongoCollectionComponent,
-  isPongoIndexComponent,
-  pongoIndexStrategy,
-  pongoJsonDocumentIndex,
   type DeleteOneOptions,
   type ExpectedDocumentVersion,
   type FindOptions,
@@ -47,94 +35,11 @@ const versionCheckClause = (
     : SQL`AND ${collection}._version = ${predicate.value}`;
 };
 
-const tableReference = (context: TableIdentifier): SQL => {
-  const { databaseSchemaName, tableName } = context;
-  return databaseSchemaName === 'public'
-    ? SQL`${SQL.identifier(tableName)}`
-    : SQL`${SQL.identifier(databaseSchemaName)}.${SQL.identifier(tableName)}`;
-};
-
-const indexReference = (indexName: string): SQL =>
-  SQL`${SQL.identifier(indexName)}`;
-
-const schemaMigrations = (
-  _schema: AnyDatabaseSchemaComponent,
-  identifier: DatabaseSchemaIdentifier,
-) => {
-  const { databaseSchemaName } = identifier;
-  if (databaseSchemaName === 'public') {
-    return [];
-  }
-  return [
-    sqlMigration(`pongoSchema:${databaseSchemaName}:001:create`, [
-      SQL`CREATE SCHEMA IF NOT EXISTS ${SQL.identifier(databaseSchemaName)}`,
-    ]),
-  ];
-};
-
-const tableMigrations = (
-  component: AnyTableComponent,
-  identifier: TableIdentifier,
-) => {
-  if (isPongoCollectionComponent(component)) {
-    const { databaseSchemaName, tableName } = identifier;
-    const migrationName =
-      databaseSchemaName === 'public'
-        ? tableName
-        : `${databaseSchemaName}:${tableName}`;
-    return [
-      sqlMigration(`pongoCollection:${migrationName}:001:createtable`, [
-        createTableSQL(component, tableReference(identifier)),
-      ]),
-    ];
-  }
-  return [];
-};
-
-const indexMigrations = (
-  component: AnyIndexComponent,
-  identifier: IndexIdentifier,
-) => {
-  if (!isPongoIndexComponent(component)) return [];
-
-  const { databaseSchemaName, tableName } = identifier;
-  const table = tableReference(identifier);
-  const index = indexReference(component.indexName);
-  const path =
-    typeof component.path === 'string'
-      ? component.path
-      : component.path?.join('.');
-  const sqlContext = {
-    databaseName: identifier.databaseName,
-    databaseSchemaName,
-    tableName,
-    indexName: component.indexName,
-    tableReference: table,
-    indexReference: index,
-  };
-  const sql =
-    component.sql?.(sqlContext) ??
-    (component[pongoIndexStrategy] === pongoJsonDocumentIndex
-      ? SQL`CREATE INDEX ${index} ON ${table} USING GIN (data)`
-      : component.isUnique
-        ? SQL`CREATE UNIQUE INDEX ${index} ON ${table} ((data #>> ${PostgreSQLJSON.path(path ?? component.indexTargetNames.join('.'))}))`
-        : SQL`CREATE INDEX ${index} ON ${table} ((data #>> ${PostgreSQLJSON.path(path ?? component.indexTargetNames.join('.'))}))`);
-
-  return [
-    sqlMigration(
-      `pongoIndex:${databaseSchemaName}:${tableName}:${component.indexName}:create`,
-      [sql],
-    ),
-  ];
-};
-
 export const postgresSQLBuilder = (
   collection: PongoCollectionComponent,
-  context: TableIdentifier,
+  reference: SQL,
   serializer: JSONSerializer,
 ): PongoCollectionSQLBuilder => {
-  const reference = tableReference(context);
-
   return {
     createCollection: (): SQL => createTableSQL(collection, reference),
     insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
@@ -472,12 +377,6 @@ export const postgresSQLBuilder = (
       SQL`ALTER TABLE ${reference} RENAME TO ${SQL.identifier(newName)};`,
     drop: (): SQL => SQL`DROP TABLE IF EXISTS ${reference}`,
   };
-};
-
-export const pongoPostgreSQLMigrationBuilder: DatabaseMigrationBuilder = {
-  databaseSchema: schemaMigrations,
-  table: tableMigrations,
-  index: indexMigrations,
 };
 
 const where = (filterQuery: SQL): SQL =>
