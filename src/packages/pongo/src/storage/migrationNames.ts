@@ -19,7 +19,5 @@ export const pongoCollectionMigrationName = (
   return `pongoCollection:${table}:001:createtable`;
 };
 
-export const pongoIndexMigrationName = (
-  identifier: IndexIdentifier,
-): string =>
+export const pongoIndexMigrationName = (identifier: IndexIdentifier): string =>
   `pongoIndex:${identifier.databaseSchemaName}:${identifier.tableName}:${identifier.indexName}:create`;

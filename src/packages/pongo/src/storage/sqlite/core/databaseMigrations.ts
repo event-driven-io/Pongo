@@ -39,10 +39,9 @@ const indexMigrations = (
   identifier: IndexIdentifier,
 ) => {
   return [
-    sqlMigration(
-      pongoIndexMigrationName(identifier),
-      [sqliteIndexSQL(component, identifier)],
-    ),
+    sqlMigration(pongoIndexMigrationName(identifier), [
+      sqliteIndexSQL(component, identifier),
+    ]),
   ];
 };
 

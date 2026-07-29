@@ -213,6 +213,8 @@ describe('pongoCollection cache integration', () => {
   });
 
   describe('behavioral cache correctness', () => {
+    const defaultUsersCacheKey = (id: string) => `db:main.users:${id}`;
+
     beforeEach(async () => {
       client = pongoClient({
         driver: sqlite3Driver,
@@ -300,7 +302,9 @@ describe('pongoCollection cache integration', () => {
 
       const result1 = await col.findOne({ _id: 'ghost-id' });
       expect(result1).toBeNull();
-      expect(spies.delete).toHaveBeenCalledWith('db:users:ghost-id');
+      expect(spies.delete).toHaveBeenCalledWith(
+        defaultUsersCacheKey('ghost-id'),
+      );
 
       spies.set.mockClear();
       const result2 = await col.findOne({ _id: 'ghost-id' });
@@ -366,7 +370,7 @@ describe('pongoCollection cache integration', () => {
       await col.deleteMany({ _id: { $in: ids } } as unknown as { _id: string });
 
       expect(spies.deleteMany).toHaveBeenCalledWith(
-        expect.arrayContaining(ids.map((id) => `db:users:${id}`)),
+        expect.arrayContaining(ids.map(defaultUsersCacheKey)),
       );
     });
 
@@ -382,7 +386,7 @@ describe('pongoCollection cache integration', () => {
       expect(spies.setMany).toHaveBeenCalledWith(
         expect.arrayContaining([
           expect.objectContaining({
-            key: `db:users:${insertedId!}`,
+            key: defaultUsersCacheKey(insertedId!),
             value: {
               _id: insertedId!,
               name: 'After',
@@ -402,7 +406,7 @@ describe('pongoCollection cache integration', () => {
 
       expect(result.conflictIds.includes(ghostId)).toBe(true);
       expect(spies.deleteMany).toHaveBeenCalledWith(
-        expect.arrayContaining([`db:users:${ghostId}`]),
+        expect.arrayContaining([defaultUsersCacheKey(ghostId)]),
       );
     });
 
@@ -419,8 +423,25 @@ describe('pongoCollection cache integration', () => {
 
       expect(result.conflictIds.includes(insertedId!)).toBe(true);
       expect(spies.deleteMany).toHaveBeenCalledWith(
-        expect.arrayContaining([`db:users:${insertedId!}`]),
+        expect.arrayContaining([defaultUsersCacheKey(insertedId!)]),
       );
+    });
+
+    it('separates cache entries for the same collection name in different schemas', async () => {
+      const { cache, spies } = spyCache('schemas');
+      const db = client.db('db');
+      const main = db.collection<User>('users', { cache });
+      const audit = db.collection<User>('users', {
+        databaseSchemaName: 'audit',
+        cache,
+      });
+
+      await main.insertOne({ _id: 'same-id', name: 'Main' });
+      await audit.insertOne({ _id: 'same-id', name: 'Audit' });
+
+      const keys = spies.set.mock.calls.map(([key]) => key);
+      expect(keys).toContain('db:main.users:same-id');
+      expect(keys).toContain('db:audit.users:same-id');
     });
 
     it('find with $in caches null for IDs not in DB', async () => {

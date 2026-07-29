@@ -28,9 +28,7 @@ const schemaMigrations = (
   const sql = postgreSQLDatabaseSchemaSQL(identifier);
   if (sql === undefined) return [];
 
-  return [
-    sqlMigration(pongoDatabaseSchemaMigrationName(identifier), [sql]),
-  ];
+  return [sqlMigration(pongoDatabaseSchemaMigrationName(identifier), [sql])];
 };
 
 const tableMigrations = (
@@ -54,10 +52,9 @@ const indexMigrations = (
   component: AnyIndexComponent,
   identifier: IndexIdentifier,
 ) => [
-  sqlMigration(
-    pongoIndexMigrationName(identifier),
-    [postgreSQLIndexSQL(component, identifier)],
-  ),
+  sqlMigration(pongoIndexMigrationName(identifier), [
+    postgreSQLIndexSQL(component, identifier),
+  ]),
 ];
 
 export const pongoPostgreSQLMigrationBuilder: DatabaseMigrationBuilder = {
