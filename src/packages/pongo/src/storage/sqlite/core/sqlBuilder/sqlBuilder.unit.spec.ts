@@ -1,14 +1,16 @@
 import {
+  databaseMigrations,
   findComponents,
   JSONSerializer,
   SQL,
-  type ComponentContext,
+  type TableIdentifier,
 } from '@event-driven-io/dumbo';
 import { sqliteFormatter } from '@event-driven-io/dumbo/sqlite';
 import { randomUUID } from 'crypto';
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 import {
+  composePongoDatabase,
   isPongoCollectionComponent,
   pongoSchema,
   type ExpectedDocumentVersion,
@@ -16,7 +18,7 @@ import {
   type PongoCollectionIndexes,
   type PongoCollectionSQLBuilder,
 } from '../../../../core';
-import { materializePongoSQLiteDatabaseComponent } from '../materializeSQLiteDatabase';
+import { pongoSQLiteMigrationBuilder } from '../databaseMigrations';
 import { sqliteSQLBuilder } from './index';
 
 const formatSQL = (sql: SQL, formatter = sqliteFormatter) =>
@@ -25,7 +27,7 @@ const formatSQL = (sql: SQL, formatter = sqliteFormatter) =>
 const tableContext = (
   databaseSchemaName: string,
   tableName: string,
-): ComponentContext => ({
+): TableIdentifier => ({
   databaseName: 'app',
   databaseSchemaName,
   tableName,
@@ -41,32 +43,51 @@ const collectionInSchemaWithIndexes = <
   collectionName: string,
   options: { indexes: Indexes },
 ) => {
-  const database = materializePongoSQLiteDatabaseComponent({
-    driverType: 'SQLite:test',
+  const database = databaseInSchemaWithIndexes(
+    schemaName,
+    collectionName,
+    options,
+  );
+  const collection = findComponents(database, isPongoCollectionComponent)[0];
+  assert.ok(collection);
+  return {
+    collection,
+    identifier: tableContext(schemaName, collectionName),
+  };
+};
+
+const databaseInSchemaWithIndexes = <
+  const Indexes extends PongoCollectionIndexes,
+>(
+  schemaName: string,
+  collectionName: string,
+  options: { indexes: Indexes },
+) =>
+  composePongoDatabase({
     databaseName: 'app',
     defaultSchemaName: 'main',
-    serializer: JSONSerializer,
     definition: pongoSchema.db({
       schemas: {
         [schemaName]: pongoSchema.schema({
-          collection: pongoSchema.collection(collectionName, options),
+          collection: pongoSchema.collection(collectionName, {
+            ...options,
+          }),
         }),
       },
     }),
   });
-  const collection = findComponents(database, isPongoCollectionComponent)[0];
-  assert.ok(collection);
-  return collection;
-};
 
 const builderFor = (
-  collection: PongoCollectionComponent,
+  fixture: Readonly<{
+    collection: PongoCollectionComponent;
+    identifier: TableIdentifier;
+  }>,
 ): PongoCollectionSQLBuilder =>
-  sqliteSQLBuilder(
-    collection,
-    tableContext(collection.databaseSchemaName!, collection.tableName),
-    JSONSerializer,
-  );
+  sqliteSQLBuilder(fixture.collection, fixture.identifier, JSONSerializer);
+
+const migrationsFor = (
+  database: ReturnType<typeof databaseInSchemaWithIndexes>,
+) => databaseMigrations(database, pongoSQLiteMigrationBuilder);
 
 describe('sqliteSQLBuilder', () => {
   const collectionName = 'testCollection';
@@ -101,7 +122,11 @@ describe('sqliteSQLBuilder', () => {
     const singleLine = (value: string) => value.replace(/\s+/g, ' ').trim();
 
     it('keeps default schema migrations unprefixed', () => {
-      const migrations = collectionInSchema('main', 'users').migrations;
+      const migrations = migrationsFor(
+        databaseInSchemaWithIndexes('main', 'users', {
+          indexes: {},
+        }),
+      );
       const { query } = formatSQL(migrations[0]!.sqls[0]!, sqliteFormatter);
 
       assert.equal(
@@ -113,7 +138,11 @@ describe('sqliteSQLBuilder', () => {
 
     it('keeps concrete main schema migrations unprefixed', () => {
       const collection = collectionInSchema('main', 'users');
-      const migrations = collection.migrations;
+      const migrations = migrationsFor(
+        databaseInSchemaWithIndexes('main', 'users', {
+          indexes: {},
+        }),
+      );
       const { query } = formatSQL(migrations[0]!.sqls[0]!, sqliteFormatter);
       const builder = builderFor(collection);
       const insert = formatSQL(
@@ -133,7 +162,11 @@ describe('sqliteSQLBuilder', () => {
 
     it('prefixes explicit schema migrations and runtime SQL', () => {
       const collection = collectionInSchema('crm', 'users');
-      const migrations = collection.migrations;
+      const migrations = migrationsFor(
+        databaseInSchemaWithIndexes('crm', 'users', {
+          indexes: {},
+        }),
+      );
       const { query } = formatSQL(migrations[0]!.sqls[0]!, sqliteFormatter);
       const builder = builderFor(collection);
       const insert = formatSQL(
@@ -146,43 +179,49 @@ describe('sqliteSQLBuilder', () => {
         'pongoCollection:crm:users:001:createtable',
       );
       assert.ok(
-        query.includes('CREATE TABLE IF NOT EXISTS pongo_crm_table_users'),
+        query.includes('CREATE TABLE IF NOT EXISTS dumbo_crm_table_users'),
       );
       assert.ok(
-        insert.query.includes('INSERT OR IGNORE INTO pongo_crm_table_users'),
+        insert.query.includes('INSERT OR IGNORE INTO dumbo_crm_table_users'),
       );
     });
 
     it('keeps ambiguous logical schema tuples on distinct physical tables', () => {
-      const first = collectionInSchema('a', 'b_c');
-      const second = collectionInSchema('a_b', 'c');
+      const first = databaseInSchemaWithIndexes('a', 'b_c', {
+        indexes: {},
+      });
+      const second = databaseInSchemaWithIndexes('a_b', 'c', {
+        indexes: {},
+      });
       const firstSQL = formatSQL(
-        first.migrations[0]!.sqls[0]!,
+        migrationsFor(first)[0]!.sqls[0]!,
         sqliteFormatter,
       ).query;
       const secondSQL = formatSQL(
-        second.migrations[0]!.sqls[0]!,
+        migrationsFor(second)[0]!.sqls[0]!,
         sqliteFormatter,
       ).query;
 
       assert.notEqual(firstSQL, secondSQL);
-      assert.ok(firstSQL.includes('pongo_a_table_b__c'));
-      assert.ok(secondSQL.includes('pongo_a__b_table_c'));
+      assert.ok(firstSQL.includes('dumbo_a_table_b__c'));
+      assert.ok(secondSQL.includes('dumbo_a__b_table_c'));
     });
 
     it('reserves the mapped-name prefix for native tables and indexes', () => {
       assert.throws(
-        () => collectionInSchema('main', 'pongo_users'),
-        /SQLite collection names starting with pongo_ are reserved/,
+        () => builderFor(collectionInSchema('main', 'dumbo_users')),
+        /SQLite table names starting with dumbo_ are reserved/,
       );
       assert.throws(
         () =>
-          collectionInSchemaWithIndexes('main', 'users', {
-            indexes: {
-              email: pongoSchema.index('pongo_users_email_idx', 'email'),
-            },
-          }),
-        /SQLite index names starting with pongo_ are reserved/,
+          migrationsFor(
+            databaseInSchemaWithIndexes('main', 'users', {
+              indexes: {
+                email: pongoSchema.index('dumbo_users_email_idx', 'email'),
+              },
+            }),
+          ),
+        /SQLite index names starting with dumbo_ are reserved/,
       );
     });
 
@@ -196,26 +235,26 @@ describe('sqliteSQLBuilder', () => {
         name: 'createCollection',
         sql: (builder) => builder.createCollection(),
         defaultIncludes: 'CREATE TABLE IF NOT EXISTS users',
-        schemaIncludes: 'CREATE TABLE IF NOT EXISTS pongo_crm_table_users',
+        schemaIncludes: 'CREATE TABLE IF NOT EXISTS dumbo_crm_table_users',
       },
       {
         name: 'insertOne',
         sql: (builder) => builder.insertOne({ _id: '1', email: 'a@test' }),
         defaultIncludes: 'INSERT OR IGNORE INTO users',
-        schemaIncludes: 'INSERT OR IGNORE INTO pongo_crm_table_users',
+        schemaIncludes: 'INSERT OR IGNORE INTO dumbo_crm_table_users',
       },
       {
         name: 'insertMany',
         sql: (builder) => builder.insertMany([{ _id: '1', email: 'a@test' }]),
         defaultIncludes: 'INSERT OR IGNORE INTO users',
-        schemaIncludes: 'INSERT OR IGNORE INTO pongo_crm_table_users',
+        schemaIncludes: 'INSERT OR IGNORE INTO dumbo_crm_table_users',
       },
       {
         name: 'insertOrReplace',
         sql: (builder) =>
           builder.insertOrReplace([{ _id: '1', email: 'a@test' }]),
         defaultIncludes: 'INSERT INTO users',
-        schemaIncludes: 'INSERT INTO pongo_crm_table_users',
+        schemaIncludes: 'INSERT INTO dumbo_crm_table_users',
       },
       {
         name: 'updateOne',
@@ -225,7 +264,7 @@ describe('sqliteSQLBuilder', () => {
             { $set: { name: 'A' } },
           ),
         defaultIncludes: 'UPDATE users',
-        schemaIncludes: 'UPDATE pongo_crm_table_users',
+        schemaIncludes: 'UPDATE dumbo_crm_table_users',
       },
       {
         name: 'replaceOne',
@@ -235,7 +274,7 @@ describe('sqliteSQLBuilder', () => {
             { email: 'b@test', name: 'B' },
           ),
         defaultIncludes: 'UPDATE users',
-        schemaIncludes: 'UPDATE pongo_crm_table_users',
+        schemaIncludes: 'UPDATE dumbo_crm_table_users',
       },
       {
         name: 'updateMany',
@@ -245,62 +284,62 @@ describe('sqliteSQLBuilder', () => {
             { $set: { name: 'A' } },
           ),
         defaultIncludes: 'UPDATE users',
-        schemaIncludes: 'UPDATE pongo_crm_table_users',
+        schemaIncludes: 'UPDATE dumbo_crm_table_users',
       },
       {
         name: 'deleteOne',
         sql: (builder) => builder.deleteOne({ email: 'a@test' }),
         defaultIncludes: 'DELETE FROM users',
-        schemaIncludes: 'DELETE FROM pongo_crm_table_users',
+        schemaIncludes: 'DELETE FROM dumbo_crm_table_users',
       },
       {
         name: 'deleteMany',
         sql: (builder) => builder.deleteMany({ email: 'a@test' }),
         defaultIncludes: 'DELETE FROM users',
-        schemaIncludes: 'DELETE FROM pongo_crm_table_users',
+        schemaIncludes: 'DELETE FROM dumbo_crm_table_users',
       },
       {
         name: 'replaceMany',
         sql: (builder) => builder.replaceMany([{ _id: '1', email: 'a@test' }]),
         defaultIncludes: 'UPDATE users',
-        schemaIncludes: 'UPDATE pongo_crm_table_users',
+        schemaIncludes: 'UPDATE dumbo_crm_table_users',
       },
       {
         name: 'deleteManyByIds',
         sql: (builder) => builder.deleteManyByIds([{ _id: '1' }]),
         defaultIncludes: 'DELETE FROM users',
-        schemaIncludes: 'DELETE FROM pongo_crm_table_users',
+        schemaIncludes: 'DELETE FROM dumbo_crm_table_users',
       },
       {
         name: 'findOne',
         sql: (builder) => builder.findOne({ email: 'a@test' }),
         defaultIncludes: 'FROM users',
-        schemaIncludes: 'FROM pongo_crm_table_users',
+        schemaIncludes: 'FROM dumbo_crm_table_users',
       },
       {
         name: 'find',
         sql: (builder) => builder.find({}),
         defaultIncludes: 'FROM users',
-        schemaIncludes: 'FROM pongo_crm_table_users',
+        schemaIncludes: 'FROM dumbo_crm_table_users',
       },
       {
         name: 'countDocuments',
         sql: (builder) => builder.countDocuments({}),
         defaultIncludes: 'FROM users',
-        schemaIncludes: 'FROM pongo_crm_table_users',
+        schemaIncludes: 'FROM dumbo_crm_table_users',
       },
       {
         name: 'rename',
         sql: (builder) => builder.rename('archived_users'),
         defaultIncludes: 'ALTER TABLE users RENAME TO archived_users',
         schemaIncludes:
-          'ALTER TABLE pongo_crm_table_users RENAME TO pongo_crm_table_archived__users',
+          'ALTER TABLE dumbo_crm_table_users RENAME TO dumbo_crm_table_archived__users',
       },
       {
         name: 'drop',
         sql: (builder) => builder.drop(),
         defaultIncludes: 'DROP TABLE IF EXISTS users',
-        schemaIncludes: 'DROP TABLE IF EXISTS pongo_crm_table_users',
+        schemaIncludes: 'DROP TABLE IF EXISTS dumbo_crm_table_users',
       },
     ];
 
@@ -320,7 +359,7 @@ describe('sqliteSQLBuilder', () => {
           `${testCase.name} default got: ${defaultSQL}`,
         );
         assert.ok(
-          !defaultSQL.includes('pongo_crm_table_users'),
+          !defaultSQL.includes('dumbo_crm_table_users'),
           `${testCase.name} default should not use the CRM table: ${defaultSQL}`,
         );
         assert.ok(
@@ -331,16 +370,21 @@ describe('sqliteSQLBuilder', () => {
     }
 
     it('keeps declared JSON path indexes on the collection table', () => {
-      const collection = collectionInSchemaWithIndexes('main', 'users', {
-        indexes: {
-          email: pongoSchema.index('users_email_idx', 'email'),
-          externalId: pongoSchema.index.unique('users_external_id_uq', [
-            'external',
-            'id',
-          ]),
-        },
+      const indexes = {
+        email: pongoSchema.index('users_email_idx', 'email'),
+        externalId: pongoSchema.index.unique('users_external_id_uq', [
+          'external',
+          'id',
+        ]),
+      };
+      const database = databaseInSchemaWithIndexes('main', 'users', {
+        indexes,
       });
-      const migrations = collection.migrations;
+      const collection = findComponents(
+        database,
+        isPongoCollectionComponent,
+      )[0]!;
+      const migrations = migrationsFor(database);
       const queries = migrations.map(
         (migration) => formatSQL(migration.sqls[0]!, sqliteFormatter).query,
       );
@@ -361,44 +405,54 @@ describe('sqliteSQLBuilder', () => {
       assert.ok(email);
       assert.ok(externalId);
       assert.strictEqual(email.indexName, 'users_email_idx');
-      assert.strictEqual(email.tableName, 'users');
+      assert.strictEqual(email.tableName, undefined);
       assert.strictEqual(externalId.isUnique, true);
     });
 
     it('keeps declared indexes on prefixed schema tables', () => {
-      const collection = collectionInSchemaWithIndexes('crm', 'users', {
-        indexes: {
-          email: pongoSchema.index('users_email_idx', 'email'),
-        },
+      const indexes = {
+        email: pongoSchema.index('users_email_idx', 'email'),
+      };
+      const database = databaseInSchemaWithIndexes('crm', 'users', {
+        indexes,
       });
-      const migrations = collection.migrations;
+      const collection = findComponents(
+        database,
+        isPongoCollectionComponent,
+      )[0]!;
+      const migrations = migrationsFor(database);
       const indexSQL = formatSQL(
         migrations[1]!.sqls[0]!,
         sqliteFormatter,
       ).query;
 
       assert.equal(migrations.length, 2);
-      assert.equal(collection.databaseSchemaName, 'crm');
+      assert.equal(collection.databaseSchemaName, undefined);
       const email = collection.indexes.email;
       assert.ok(email);
       assert.equal(email.path, 'email');
       assert.ok(
         indexSQL.includes(
-          'CREATE INDEX pongo_crm_table_users_index_users__email__idx ON pongo_crm_table_users',
+          'CREATE INDEX dumbo_crm_table_users_index_users__email__idx ON dumbo_crm_table_users',
         ),
         `got: ${indexSQL}`,
       );
-      assert.equal(email.databaseSchemaName, 'crm');
+      assert.equal(email.databaseSchemaName, undefined);
     });
 
     it('keeps declared document JSON indexes on the collection table', () => {
-      const collection = collectionInSchemaWithIndexes('main', 'users', {
-        indexes: {
-          email: pongoSchema.index('users_email_idx', 'email'),
-          document: pongoSchema.index.json('users_data_idx'),
-        },
+      const indexes = {
+        email: pongoSchema.index('users_email_idx', 'email'),
+        document: pongoSchema.index.json('users_data_idx'),
+      };
+      const database = databaseInSchemaWithIndexes('main', 'users', {
+        indexes,
       });
-      const migrations = collection.migrations;
+      const collection = findComponents(
+        database,
+        isPongoCollectionComponent,
+      )[0]!;
+      const migrations = migrationsFor(database);
 
       assert.deepStrictEqual(
         migrations.map((migration) => migration.name),
@@ -416,28 +470,31 @@ describe('sqliteSQLBuilder', () => {
     it('keeps custom index SQL hooks on the collection table', () => {
       let resolvedReferences:
         { tableReference: string; indexReference: string } | undefined;
-      const collection = collectionInSchemaWithIndexes('crm', 'users', {
-        indexes: {
-          custom: pongoSchema.index.custom(
-            'users_custom_data_idx',
-            ({ tableReference, indexReference }) => {
-              resolvedReferences = {
-                tableReference: formatSQL(tableReference, sqliteFormatter)
-                  .query,
-                indexReference: formatSQL(indexReference, sqliteFormatter)
-                  .query,
-              };
-              return SQL`CREATE INDEX IF NOT EXISTS ${indexReference} ON ${tableReference} (data)`;
-            },
-          ),
-        },
+      const indexes = {
+        custom: pongoSchema.index.custom(
+          'users_custom_data_idx',
+          ({ tableReference, indexReference }) => {
+            resolvedReferences = {
+              tableReference: formatSQL(tableReference, sqliteFormatter).query,
+              indexReference: formatSQL(indexReference, sqliteFormatter).query,
+            };
+            return SQL`CREATE INDEX IF NOT EXISTS ${indexReference} ON ${tableReference} (data)`;
+          },
+        ),
+      };
+      const database = databaseInSchemaWithIndexes('crm', 'users', {
+        indexes,
       });
-      const migrations = collection.migrations;
+      const collection = findComponents(
+        database,
+        isPongoCollectionComponent,
+      )[0]!;
+      const migrations = migrationsFor(database);
 
       assert.equal(migrations.length, 2);
       assert.deepStrictEqual(resolvedReferences, {
-        tableReference: 'pongo_crm_table_users',
-        indexReference: 'pongo_crm_table_users_index_users__custom__data__idx',
+        tableReference: 'dumbo_crm_table_users',
+        indexReference: 'dumbo_crm_table_users_index_users__custom__data__idx',
       });
       const custom = collection.indexes.custom;
       assert.ok(custom);

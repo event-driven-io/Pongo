@@ -3,7 +3,6 @@ export * from './databaseMetadata';
 export * from './dumboSchema';
 export * from './migrators';
 export {
-  createSchemaComponent,
   findComponent,
   findComponents,
   genericComponentType,
@@ -17,6 +16,5 @@ export {
   type SchemaComponentPredicate,
   type SchemaComponentRecord,
 } from './schemaComponent';
-export * from './schemaMaterializer';
 export * from './extensionComponent';
 export * from './sqlMigration';

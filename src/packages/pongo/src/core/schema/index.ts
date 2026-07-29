@@ -1,3 +1,8 @@
+import type {
+  schemaComponentType,
+  tableComponentType,
+  columnComponentType,
+} from '@event-driven-io/dumbo';
 import {
   databaseComponent,
   databaseSchemaComponent,
@@ -10,8 +15,6 @@ import {
   isTableComponent,
   SQL,
   type SQL as SQLStatement,
-  type schemaComponentType,
-  type tableComponentType,
   type DatabaseComponent,
   type DatabaseDriverType,
   type DatabaseExtensions,
@@ -19,6 +22,7 @@ import {
   type IndexComponent,
   type IndexSQLContext,
   type SchemaExtensions,
+  type TableComponent,
 } from '@event-driven-io/dumbo';
 import {
   type PongoClient,
@@ -49,10 +53,6 @@ export const pongoJsonDocumentIndex: unique symbol = Symbol(
 );
 export const pongoCustomIndex: unique symbol = Symbol('pongo.index.custom');
 
-export const pongoDefaultSchemaComponent: unique symbol = Symbol(
-  'pongo.database.defaultSchemaComponent',
-);
-
 type EmptyComponentRecord = Readonly<Record<never, never>>;
 
 type PongoIndexStrategy =
@@ -81,6 +81,48 @@ export type PongoCollectionIndexes = Readonly<
 const { column, table } = dumboSchema;
 const { BigInteger, Boolean, JSON, Text, Timestamptz } = SQL.column.type;
 
+const pongoCollectionColumns = <Document extends PongoDocument>() =>
+  ({
+    _id: column('_id', Text, {
+      primaryKey: true,
+      notNull: true,
+    }),
+    data: column('data', JSON<Document>(), {
+      notNull: true,
+    }),
+    metadata: column('metadata', JSON<Record<string, unknown>>(), {
+      notNull: true,
+      default: SQL.literal('{}'),
+    }),
+    _version: column('_version', BigInteger, {
+      notNull: true,
+      default: 1n,
+    }),
+    _partition: column('_partition', Text, {
+      notNull: true,
+      default: 'png_global',
+    }),
+    _archived: column('_archived', Boolean, {
+      notNull: true,
+      default: false,
+    }),
+    _created: column('_created', Timestamptz, {
+      notNull: true,
+      default: SQL.plain('CURRENT_TIMESTAMP'),
+    }),
+    _updated: column('_updated', Timestamptz, {
+      notNull: true,
+      default: SQL.plain('CURRENT_TIMESTAMP'),
+    }),
+  }) satisfies Record<
+    string,
+    { [schemaComponentType]: typeof columnComponentType }
+  >;
+
+export type PongoCollectionColumns<Document extends PongoDocument> = ReturnType<
+  typeof pongoCollectionColumns<Document>
+>;
+
 const pongoCollectionTable = <
   Document extends PongoDocument,
   const Name extends string,
@@ -91,65 +133,23 @@ const pongoCollectionTable = <
     databaseSchemaName?: string;
     indexes?: Indexes;
   }>,
-) =>
+): TableComponent<PongoCollectionColumns<Document>, Name, Indexes> =>
   table(name, {
-    columns: {
-      _id: column('_id', Text, {
-        primaryKey: true,
-        notNull: true,
-      }),
-      data: column('data', JSON<Document>(), {
-        notNull: true,
-      }),
-      metadata: column('metadata', JSON<Record<string, unknown>>(), {
-        notNull: true,
-        default: SQL.literal('{}'),
-      }),
-      _version: column('_version', BigInteger, {
-        notNull: true,
-        default: 1n,
-      }),
-      _partition: column('_partition', Text, {
-        notNull: true,
-        default: 'png_global',
-      }),
-      _archived: column('_archived', Boolean, {
-        notNull: true,
-        default: false,
-      }),
-      _created: column('_created', Timestamptz, {
-        notNull: true,
-        default: SQL.plain('CURRENT_TIMESTAMP'),
-      }),
-      _updated: column('_updated', Timestamptz, {
-        notNull: true,
-        default: SQL.plain('CURRENT_TIMESTAMP'),
-      }),
-    },
+    columns: pongoCollectionColumns<Document>(),
     ...options,
     primaryKey: ['_id'],
   });
-
-export type PongoCollectionColumns<Document extends PongoDocument> = ReturnType<
-  typeof pongoCollectionTable<Document, string, EmptyComponentRecord>
->['columns'];
 
 export type PongoCollectionComponent<
   Document extends PongoDocument = PongoDocument,
   Name extends string = string,
   Indexes extends PongoCollectionIndexes = PongoCollectionIndexes,
-> = ReturnType<typeof pongoCollectionTable<Document, Name, Indexes>> &
+> = TableComponent<PongoCollectionColumns<Document>, Name, Indexes> &
   Readonly<{
     [schemaComponentType]: typeof tableComponentType;
     [pongoCollectionComponentType]: true;
     [pongoDocumentType]: Document;
   }>;
-
-export type PongoCollectionSchema<
-  Document extends PongoDocument = PongoDocument,
-  Name extends string = string,
-  Indexes extends PongoCollectionIndexes = PongoCollectionIndexes,
-> = PongoCollectionComponent<Document, Name, Indexes>;
 
 export type PongoSchemaComponent<
   Collections extends Readonly<Record<string, PongoCollectionComponent>> =
@@ -190,10 +190,6 @@ type PongoDatabaseShape<
     ? DatabaseComponent<EmptyComponentRecord, Name, Extensions> &
         Readonly<{
           collections: Collections;
-          [pongoDefaultSchemaComponent]: PongoSchemaComponent<
-            Collections,
-            undefined
-          >;
         }>
     : Definition extends PongoDbSchemasDefinition<infer Schemas>
       ? DatabaseComponent<Schemas, Name, Extensions>
@@ -475,16 +471,14 @@ function pongoDatabase(
   }
 
   if (hasCollections) {
-    const collections = definition.collections;
-    const defaultSchema = pongoDatabaseSchema(collections);
+    const collections = Object.freeze({ ...definition.collections });
     const database = databaseComponent({
       databaseName,
       schemas: {},
       extensions: databaseExtensions,
     });
     defineValue(database, pongoDatabaseComponentType, true);
-    defineValue(database, 'collections', defaultSchema.tables);
-    defineValue(database, pongoDefaultSchemaComponent, defaultSchema);
+    defineValue(database, 'collections', collections);
     return database as PongoDatabaseComponent;
   }
 
@@ -592,7 +586,10 @@ export const projectPongoDb = <
       Object.defineProperty(pongoDb, alias, {
         enumerable: true,
         configurable: false,
-        get: () => pongoDb.collection(collection.tableName),
+        get: () =>
+          pongoDb.collection(collection.tableName, {
+            databaseSchemaName: collection.databaseSchemaName,
+          }),
       });
     }
   } else {
@@ -611,7 +608,7 @@ export const projectPongoDb = <
           configurable: false,
           get: () =>
             pongoDb.collection(collection.tableName, {
-              schemaName,
+              databaseSchemaName: schemaName,
             }),
         });
       }

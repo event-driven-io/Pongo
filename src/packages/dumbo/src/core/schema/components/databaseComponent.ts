@@ -1,6 +1,6 @@
 import {
+  createComponentRecord,
   createSchemaComponent,
-  defineSchemaComponentRecord,
   mergeComponentRecords,
   schemaComponentType,
   type AnySchemaComponent,
@@ -8,10 +8,7 @@ import {
   type SchemaComponentOptions,
 } from '../schemaComponent';
 import type { ExtensionComponent } from '../extensionComponent';
-import {
-  contextualDatabaseSchemaComponent,
-  type AnyDatabaseSchemaComponent,
-} from './databaseSchemaComponent';
+import type { AnyDatabaseSchemaComponent } from './databaseSchemaComponent';
 
 export const databaseComponentType: unique symbol = Symbol(
   'dumbo.schemaComponent.database',
@@ -22,20 +19,6 @@ export type DatabaseSchemas = Readonly<
 >;
 export type DatabaseExtensions = Readonly<Record<string, ExtensionComponent>>;
 
-type ContextualSchemas<
-  Schemas extends DatabaseSchemas,
-  DatabaseName extends string | undefined,
-> = {
-  readonly [Key in keyof Schemas]: Omit<
-    Schemas[Key],
-    'databaseName' | 'schemaName'
-  > & {
-    schemaName: Key & string;
-  } & (DatabaseName extends string
-      ? { databaseName: DatabaseName }
-      : { databaseName?: string });
-};
-
 export type DatabaseComponent<
   Schemas extends DatabaseSchemas = DatabaseSchemas,
   DatabaseName extends string | undefined = string | undefined,
@@ -43,7 +26,7 @@ export type DatabaseComponent<
 > = SchemaComponent<typeof databaseComponentType> &
   Readonly<{
     databaseName: DatabaseName;
-    schemas: ContextualSchemas<Schemas, DatabaseName>;
+    schemas: Schemas;
     extensions: Extensions;
   }>;
 
@@ -71,20 +54,27 @@ export const databaseComponent = <
 >(
   options: DatabaseComponentOptions<Schemas, DatabaseName, Extensions>,
 ): DatabaseComponent<Schemas, DatabaseName, Extensions> => {
-  const sourceSchemas = (options.schemas ?? {}) as Schemas;
+  const schemas = (options.schemas ?? {}) as Schemas;
   const databaseName = options.databaseName;
-  const contextualSchemas = Object.fromEntries(
-    Object.entries(sourceSchemas).map(([schemaName, schema]) => [
-      schemaName,
-      contextualDatabaseSchemaComponent(schema, {
-        schemaName,
-        databaseName,
-      }),
-    ]),
-  ) as unknown as ContextualSchemas<Schemas, DatabaseName>;
+  for (const [schemaName, schema] of Object.entries(schemas)) {
+    if (
+      databaseName !== undefined &&
+      schema.databaseName !== undefined &&
+      schema.databaseName !== databaseName
+    ) {
+      throw new Error(
+        `Database schema "${schemaName}" is constrained to database "${schema.databaseName}" and cannot be placed in "${databaseName}"`,
+      );
+    }
+    if (schema.schemaName !== undefined && schema.schemaName !== schemaName) {
+      throw new Error(
+        `Database schema record key "${schemaName}" conflicts with its explicit name "${schema.schemaName}"`,
+      );
+    }
+  }
   const extensions = (options.extensions ?? {}) as Extensions;
   const base = createSchemaComponent(databaseComponentType, {
-    components: mergeComponentRecords(contextualSchemas, extensions),
+    components: mergeComponentRecords(schemas, extensions),
     migrations: options.migrations,
   });
 
@@ -92,8 +82,16 @@ export const databaseComponent = <
     value: databaseName,
     enumerable: true,
   });
-  defineSchemaComponentRecord(base, 'schemas', contextualSchemas);
-  defineSchemaComponentRecord(base, 'extensions', extensions);
+  Object.defineProperties(base, {
+    schemas: {
+      value: createComponentRecord(schemas),
+      enumerable: true,
+    },
+    extensions: {
+      value: createComponentRecord(extensions),
+      enumerable: true,
+    },
+  });
 
   return base as unknown as DatabaseComponent<
     Schemas,

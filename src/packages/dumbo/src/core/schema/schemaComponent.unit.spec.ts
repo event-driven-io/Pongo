@@ -209,6 +209,39 @@ describe('composing schema components', () => {
     assert.deepStrictEqual(Object.keys(root.components), ['child']);
   });
 
+  it('keeps each ownership record immutable after composition', () => {
+    const email = columnSchemaComponent({
+      columnName: 'email',
+      type: 'varchar',
+    });
+    const emailIndex = indexComponent({
+      indexName: 'users_email_idx',
+      columnNames: ['email'],
+      isUnique: true,
+    });
+    const users = tableComponent({
+      tableName: 'users',
+      columns: { email },
+      indexes: { emailLookup: emailIndex },
+    });
+    const publicSchema = databaseSchemaComponent({
+      tables: { users },
+      extensions: {},
+    });
+    const database = databaseComponent({
+      databaseName: 'app',
+      schemas: { public: publicSchema },
+      extensions: {},
+    });
+
+    assert.strictEqual(Object.isFrozen(database.schemas), true);
+    assert.strictEqual(Object.isFrozen(database.extensions), true);
+    assert.strictEqual(Object.isFrozen(publicSchema.tables), true);
+    assert.strictEqual(Object.isFrozen(publicSchema.extensions), true);
+    assert.strictEqual(Object.isFrozen(users.columns), true);
+    assert.strictEqual(Object.isFrozen(users.indexes), true);
+  });
+
   it('composes a frozen child record without changing it', () => {
     const child = schemaComponent();
     const source = Object.freeze({ child });
@@ -392,11 +425,12 @@ describe('placing reusable declarations in the database hierarchy', () => {
     });
 
     assert.strictEqual(declaration.databaseName, undefined);
-    assert.strictEqual(database.schemas.crm.databaseName, 'app');
+    assert.strictEqual(database.schemas.crm, declaration);
+    assert.strictEqual(database.schemas.crm.databaseName, undefined);
     assert.strictEqual(database.schemas.crm.schemaName, 'crm');
   });
 
-  it('uses the database record key as the name of an unnamed schema', () => {
+  it('keeps an unnamed schema under its typed database record key', () => {
     const users = tableComponent({ tableName: 'users' });
     const reusable = databaseSchemaComponent({ tables: { users } });
     const database = databaseComponent({
@@ -406,14 +440,12 @@ describe('placing reusable declarations in the database hierarchy', () => {
 
     assert.strictEqual(reusable.schemaName, undefined);
     assert.strictEqual(users.databaseSchemaName, undefined);
-    assert.strictEqual(database.schemas.public.schemaName, 'public');
-    assert.strictEqual(
-      database.schemas.public.tables.users.databaseSchemaName,
-      'public',
-    );
+    assert.strictEqual(database.schemas.public, reusable);
+    assert.strictEqual(database.schemas.public.schemaName, undefined);
+    assert.strictEqual(database.schemas.public.tables.users, users);
   });
 
-  it('places a declared index in its containing schema and table', () => {
+  it('keeps a declared index in its containing table without rebinding it', () => {
     const index = indexComponent({
       indexName: 'users_email_idx',
       columnNames: ['email'],
@@ -431,8 +463,9 @@ describe('placing reusable declarations in the database hierarchy', () => {
 
     assert.strictEqual(index.databaseSchemaName, undefined);
     assert.strictEqual(index.tableName, undefined);
-    assert.strictEqual(contextualIndex.databaseSchemaName, 'crm');
-    assert.strictEqual(contextualIndex.tableName, 'users');
+    assert.strictEqual(contextualIndex, index);
+    assert.strictEqual(contextualIndex.databaseSchemaName, undefined);
+    assert.strictEqual(contextualIndex.tableName, undefined);
   });
 
   it('rejects placing an index under a table other than its constraint', () => {
@@ -529,9 +562,8 @@ describe('placing reusable declarations in the database hierarchy', () => {
     });
 
     assert.strictEqual(users.databaseSchemaName, undefined);
-    assert.strictEqual(publicSchema.tables.users.databaseSchemaName, 'public');
-    assert.strictEqual(auditSchema.tables.users.databaseSchemaName, 'audit');
-    assert.notStrictEqual(publicSchema.tables.users, auditSchema.tables.users);
+    assert.strictEqual(publicSchema.tables.users, users);
+    assert.strictEqual(auditSchema.tables.users, users);
   });
 
   it('rejects using one alias for both a schema and a database extension', () => {

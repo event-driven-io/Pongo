@@ -263,7 +263,7 @@ describe('pongoClient', () => {
         name: string,
         options?: PongoDBCollectionOptions<T, Payload>,
       ) => {
-        const schema = options?.schemaName;
+        const schema = options?.databaseSchemaName;
 
         collectionCalls.push({ name, schema });
         return { name, schema } as never;
@@ -337,7 +337,7 @@ describe('pongoClient', () => {
       ) =>
         ({
           name,
-          schema: options?.schemaName,
+          schema: options?.databaseSchemaName,
         }) as never,
     };
     const schema = pongoSchema.db('app', {

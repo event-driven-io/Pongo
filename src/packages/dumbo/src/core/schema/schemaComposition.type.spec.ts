@@ -49,7 +49,9 @@ void dumboPublicAPI.setComponentMapEntry;
 void dumboPublicAPI.deleteComponentMapEntry;
 // @ts-expect-error Component initialization is internal to Dumbo.
 void dumboPublicAPI.initializeSchemaComponent;
-// @ts-expect-error Materialization internals are not public composition APIs.
+// @ts-expect-error Kind-specific construction is internal to Dumbo.
+void dumboPublicAPI.createSchemaComponent;
+// @ts-expect-error Removed component-cloning helpers are not public APIs.
 void dumboPublicAPI.copySchemaComponentSpecialization;
 // @ts-expect-error Local migration storage is internal to Dumbo.
 void dumboPublicAPI.localMigrationsOf;

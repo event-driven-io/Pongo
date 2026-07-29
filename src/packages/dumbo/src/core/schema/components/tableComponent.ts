@@ -1,8 +1,6 @@
 import {
-  copySchemaComponentSpecialization,
+  createComponentRecord,
   createSchemaComponent,
-  defineSchemaComponentRecord,
-  localMigrationsOf,
   mergeComponentRecords,
   schemaComponentType,
   type AnySchemaComponent,
@@ -10,10 +8,7 @@ import {
   type SchemaComponentOptions,
 } from '../schemaComponent';
 import type { AnyColumnSchemaComponent } from './columnSchemaComponent';
-import {
-  contextualIndexComponent,
-  type AnyIndexComponent,
-} from './indexComponent';
+import type { AnyIndexComponent } from './indexComponent';
 import type { TableRelationships } from './relationships/relationshipTypes';
 
 export const tableComponentType: unique symbol = Symbol(
@@ -22,13 +17,6 @@ export const tableComponentType: unique symbol = Symbol(
 
 export type TableColumns = Readonly<Record<string, AnyColumnSchemaComponent>>;
 export type TableIndexes = Readonly<Record<string, AnyIndexComponent>>;
-
-type ContextualIndexes<Indexes extends TableIndexes> = {
-  readonly [Key in keyof Indexes]: Indexes[Key] & {
-    databaseSchemaName?: string;
-    tableName: string;
-  };
-};
 
 export type TableComponent<
   Columns extends TableColumns = TableColumns,
@@ -43,7 +31,7 @@ export type TableComponent<
     columns: Columns;
     primaryKey: ReadonlyArray<Extract<keyof Columns, string>>;
     relationships: Relationships;
-    indexes: ContextualIndexes<Indexes>;
+    indexes: Indexes;
   }>;
 
 export type AnyTableComponent = TableComponent<
@@ -97,16 +85,26 @@ export const tableComponent = <
 ): TableComponent<Columns, TableName, Indexes, Relationships> => {
   const columns = (options.columns ?? {}) as Columns;
   const indexes = (options.indexes ?? {}) as Indexes;
-  const contextualIndexes = Object.fromEntries(
-    Object.entries(indexes).map(([alias, index]) => [
-      alias,
-      contextualIndexComponent(index, {
-        tableName: options.tableName,
-        databaseSchemaName: options.databaseSchemaName,
-      }),
-    ]),
-  ) as ContextualIndexes<Indexes>;
-  const children = mergeComponentRecords(columns, contextualIndexes);
+  for (const index of Object.values(indexes)) {
+    if (
+      index.databaseSchemaName !== undefined &&
+      options.databaseSchemaName !== undefined &&
+      index.databaseSchemaName !== options.databaseSchemaName
+    ) {
+      throw new Error(
+        `Index "${index.indexName}" is constrained to database schema "${index.databaseSchemaName}" and cannot be placed in "${options.databaseSchemaName}.${options.tableName}"`,
+      );
+    }
+    if (
+      index.tableName !== undefined &&
+      index.tableName !== options.tableName
+    ) {
+      throw new Error(
+        `Index "${index.indexName}" is constrained to table "${index.tableName}" and cannot be placed in "${options.tableName}"`,
+      );
+    }
+  }
+  const children = mergeComponentRecords(columns, indexes);
   const base = createSchemaComponent(tableComponentType, {
     components: children,
     migrations: options.migrations,
@@ -126,9 +124,15 @@ export const tableComponent = <
       value: Object.freeze({ ...(options.relationships ?? {}) }),
       enumerable: true,
     },
+    columns: {
+      value: createComponentRecord(columns),
+      enumerable: true,
+    },
+    indexes: {
+      value: createComponentRecord(indexes),
+      enumerable: true,
+    },
   });
-  defineSchemaComponentRecord(base, 'columns', columns);
-  defineSchemaComponentRecord(base, 'indexes', contextualIndexes);
 
   return base as unknown as TableComponent<
     Columns,
@@ -137,44 +141,6 @@ export const tableComponent = <
     Relationships
   >;
 };
-
-export const contextualTableComponent = <Table extends AnyTableComponent>(
-  table: Table,
-  databaseSchemaName: string,
-): Table & { databaseSchemaName: string } => {
-  if (
-    table.databaseSchemaName !== undefined &&
-    table.databaseSchemaName !== databaseSchemaName
-  ) {
-    throw new Error(
-      `Table "${table.tableName}" is constrained to database schema "${table.databaseSchemaName}" and cannot be placed in "${databaseSchemaName}"`,
-    );
-  }
-
-  const contextual = tableComponent({
-    tableName: table.tableName,
-    databaseSchemaName,
-    columns: table.columns,
-    primaryKey: table.primaryKey,
-    relationships: table.relationships,
-    indexes: table.indexes,
-    migrations: localMigrationsOf(table),
-  });
-  copySchemaComponentSpecialization(table, contextual, tableProperties);
-  return contextual as unknown as Table & { databaseSchemaName: string };
-};
-
-const tableProperties = new Set<PropertyKey>([
-  schemaComponentType,
-  'components',
-  'migrations',
-  'tableName',
-  'databaseSchemaName',
-  'columns',
-  'primaryKey',
-  'relationships',
-  'indexes',
-]);
 
 export const isTableComponent = (
   component: AnySchemaComponent,

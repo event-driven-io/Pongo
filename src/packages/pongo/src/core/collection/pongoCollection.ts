@@ -15,7 +15,8 @@ import {
 } from '@event-driven-io/dumbo';
 import { v7 as uuid } from 'uuid';
 import type {
-  PongoCollectionSchemaComponent,
+  PongoCollectionComponent,
+  PongoCollectionSQLBuilder,
   PongoDocumentCacheKey,
   WithId,
 } from '..';
@@ -61,7 +62,9 @@ export type PongoCollectionOptions<
   db: PongoDb<DriverType>;
   collectionName: string;
   pool: Dumbo<DatabaseDriverType>;
-  schemaComponent: PongoCollectionSchemaComponent;
+  component: PongoCollectionComponent;
+  databaseSchemaName: string;
+  sqlBuilder: PongoCollectionSQLBuilder;
   schema?: {
     autoMigration?: MigrationStyle;
     versioning?: {
@@ -106,13 +109,15 @@ export const pongoCollection = <
   db,
   collectionName,
   pool,
-  schemaComponent,
+  component,
+  databaseSchemaName,
+  sqlBuilder,
   schema,
   errors,
   serializer,
   cache: cacheOptions,
 }: PongoCollectionOptions<T, DriverType, Payload>): PongoCollection<T> => {
-  const SqlFor = schemaComponent.sqlBuilder;
+  const SqlFor = sqlBuilder;
   const sqlExecutor = pool.execute;
 
   const cache = pongoCache(cacheOptions);
@@ -194,7 +199,7 @@ export const pongoCollection = <
   };
 
   const cacheKey = (id: string): PongoDocumentCacheKey =>
-    `${db.databaseName}:${schemaComponent.databaseSchemaName}.${collectionName}:${id}`;
+    `${db.databaseName}:${databaseSchemaName}.${collectionName}:${id}`;
 
   const txCacheFor = (options: CollectionOperationOptions | undefined) =>
     options?.session?.transaction?.cache ?? null;
@@ -912,9 +917,9 @@ export const pongoCollection = <
       },
     },
     schema: {
-      component: schemaComponent,
+      component,
       migrate: (options?: PongoMigrationOptions) =>
-        runSQLMigrations(pool, schemaComponent.migrations, options),
+        runSQLMigrations(pool, component.migrations, options),
     },
   };
 

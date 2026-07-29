@@ -112,13 +112,22 @@ describe('declaring Pongo collections', () => {
   });
 
   it('places a reusable collection in a Dumbo schema without changing it', () => {
-    const users = pongoSchema.collection<User>('users');
+    const email = pongoSchema.index('users_email_idx', 'email');
+    const users = pongoSchema.collection<
+      User,
+      'users',
+      { email: typeof email }
+    >('users', {
+      indexes: { email },
+    });
     const accounts = dumboSchema.table('accounts');
     const crm = dumboSchema.schema('crm', { accounts, users });
 
+    assert.strictEqual(crm.tables.users, users);
+    assert.strictEqual(crm.tables.users.indexes.email, email);
     assert.strictEqual(users.databaseSchemaName, undefined);
-    assert.strictEqual(crm.tables.users.databaseSchemaName, 'crm');
-    assert.strictEqual(crm.tables.accounts.databaseSchemaName, 'crm');
+    assert.strictEqual(crm.tables.users.databaseSchemaName, undefined);
+    assert.strictEqual(crm.tables.accounts.databaseSchemaName, undefined);
     assert.strictEqual(isPongoCollectionComponent(crm.tables.users), true);
     expectTypeOf(crm.tables.users[pongoDocumentType]).toEqualTypeOf<User>();
   });
@@ -165,7 +174,7 @@ describe('declaring Pongo schemas and databases', () => {
     assert.strictEqual(schema[pongoSchemaComponentType], true);
   });
 
-  it('uses a schema record key to place an unnamed reusable schema', () => {
+  it('keeps an unnamed reusable schema under its database record key', () => {
     const reusable = pongoSchema.schema({
       users: pongoSchema.collection<User>('users'),
     });
@@ -174,10 +183,11 @@ describe('declaring Pongo schemas and databases', () => {
     });
 
     assert.strictEqual(reusable.schemaName, undefined);
-    assert.strictEqual(database.schemas.public.schemaName, 'public');
+    assert.strictEqual(database.schemas.public, reusable);
+    assert.strictEqual(database.schemas.public.schemaName, undefined);
     assert.strictEqual(
       database.schemas.public.tables.users.databaseSchemaName,
-      'public',
+      undefined,
     );
   });
 

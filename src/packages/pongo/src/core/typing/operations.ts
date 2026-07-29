@@ -18,14 +18,15 @@ import type {
 import { v7 as uuid } from 'uuid';
 import type { MaybePromise } from '.';
 import type { CacheConfig, PongoCache, PongoTransactionCache } from '../cache';
-import type {
-  DocumentCommandHandlerInput,
-  PongoCollectionSchemaComponent,
-} from '../collection';
-import type { PongoRuntimeDatabaseComponent } from '../database/pongoDatabaseSchemaComponent';
+import type { DocumentCommandHandlerInput } from '../collection';
+import type { DatabaseComponent } from '@event-driven-io/dumbo';
 import type { AnyPongoDriver, ExtractPongoDriverOptions } from '../drivers';
 import { ConcurrencyError } from '../errors';
-import type { PongoClientSchema, PongoDbSchema } from '../schema';
+import type {
+  PongoClientSchema,
+  PongoCollectionComponent,
+  PongoDbSchema,
+} from '../schema';
 
 export interface PongoClient<
   DriverType extends DatabaseDriverType = DatabaseDriverType,
@@ -119,7 +120,7 @@ export type PongoDBCollectionOptions<
   T extends PongoDocument,
   Payload extends PongoDocument = T,
 > = {
-  schemaName?: string | undefined;
+  databaseSchemaName?: string | undefined;
   schema?: {
     versioning?: {
       upcast?: (document: Payload) => T;
@@ -139,18 +140,16 @@ export type PongoDbOptions = {
 export interface PongoSchemaScope {
   collection<T extends PongoDocument, Payload extends PongoDocument = T>(
     name: string,
-    options?: Omit<PongoDBCollectionOptions<T, Payload>, 'schemaName'>,
+    options?: Omit<PongoDBCollectionOptions<T, Payload>, 'databaseSchemaName'>,
   ): PongoCollection<T>;
   collections(): ReadonlyArray<PongoCollection<PongoDocument>>;
 }
 
-export type PongoSchemaAccessor<
-  DriverType extends DatabaseDriverType = DatabaseDriverType,
-> = ((schemaName?: string) => PongoSchemaScope) &
+export type PongoSchemaAccessor = ((schemaName?: string) => PongoSchemaScope) &
   Readonly<{
-    component: PongoRuntimeDatabaseComponent<DriverType>;
+    component: DatabaseComponent;
     definition: PongoDbSchema;
-    migrations: PongoRuntimeDatabaseComponent<DriverType>['migrations'];
+    migrations: DatabaseComponent['migrations'];
     migrate(options?: PongoMigrationOptions): Promise<RunSQLMigrationsResult>;
   }>;
 
@@ -166,7 +165,7 @@ export interface PongoDb<
     options?: PongoDBCollectionOptions<T, Payload>,
   ): PongoCollection<T>;
   collections(): ReadonlyArray<PongoCollection<PongoDocument>>;
-  readonly schema: PongoSchemaAccessor<DriverType>;
+  readonly schema: PongoSchemaAccessor;
   sql: {
     query<Result extends QueryResultRow = QueryResultRow>(
       sql: SQL,
@@ -333,7 +332,7 @@ export interface PongoCollection<T extends PongoDocument> {
     options?: ReplaceManyOptions,
   ): Promise<PongoReplaceManyResult>;
   readonly schema: Readonly<{
-    component: PongoCollectionSchemaComponent;
+    component: PongoCollectionComponent;
     migrate(options?: PongoMigrationOptions): Promise<RunSQLMigrationsResult>;
   }>;
   close: () => MaybePromise<void>;

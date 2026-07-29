@@ -14,7 +14,7 @@ import {
   type PongoDriverOptions,
   withPongoTransactionOptions,
 } from '../../../core';
-import { materializePongoPostgreSQLDatabaseComponent } from '../core';
+import { pongoPostgreSQLMigrationBuilder, postgresSQLBuilder } from '../core';
 
 export type PgPongoClientOptions =
   PooledPongoClientOptions | NotPooledPongoOptions;
@@ -94,13 +94,9 @@ const pgPongoDriver: PongoDriver<
         ...connectionOptions,
         serialization: { serializer: options.serializer },
       }),
-      schemaComponent: materializePongoPostgreSQLDatabaseComponent({
-        driverType: PgDriverType,
-        databaseName,
-        defaultSchemaName,
-        serializer: options.serializer,
-        definition: options.schema?.definition,
-      }),
+      migrationBuilder: pongoPostgreSQLMigrationBuilder,
+      sqlBuilderFor: (collection, identifier) =>
+        postgresSQLBuilder(collection, identifier, options.serializer),
       databaseName,
       defaultSchemaName,
     });

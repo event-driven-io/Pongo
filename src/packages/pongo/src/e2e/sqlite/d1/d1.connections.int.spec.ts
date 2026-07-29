@@ -99,7 +99,7 @@ describe('Pongo D1 connections', () => {
   it('runs schema-prefixed migrations and collection calls', async () => {
     const collectionName = uniqueCollectionName();
     const escapedCollectionName = collectionName.replaceAll('_', '__');
-    const schemaTableName = `pongo_crm_table_${escapedCollectionName}`;
+    const schemaTableName = `dumbo_crm_table_${escapedCollectionName}`;
     const emailIndexName = `${collectionName}_email_idx`;
     const uniqueIndexName = `${collectionName}_external_id_uq`;
     const documentIndexName = `${collectionName}_data_idx`;
@@ -152,7 +152,7 @@ describe('Pongo D1 connections', () => {
         .collection(collectionName)
         .insertOne({ _id: 'default-user', email: 'default@test' });
       await db
-        .collection(collectionName, { schemaName: 'crm' })
+        .collection(collectionName, { databaseSchemaName: 'crm' })
         .insertOne({ _id: 'crm-user', email: 'crm@test' });
 
       const objects = await pool.execute.query<{ name: string; type: string }>(

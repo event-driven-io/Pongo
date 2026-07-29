@@ -1,8 +1,8 @@
-import { pongoSchema } from '../core';
+import { pongoSchema, type PongoSchemaConfig } from '../core';
 
 type User = { name: string };
 
-export default {
+const config: PongoSchemaConfig = {
   schema: pongoSchema.client({
     database: pongoSchema.db({
       collections: {
@@ -11,3 +11,5 @@ export default {
     }),
   }),
 };
+
+export default config;

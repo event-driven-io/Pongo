@@ -17,7 +17,7 @@ import {
   pongoSchema,
   type PongoClient,
   type PongoClientOptions,
-  type PongoCollectionSchema,
+  type PongoCollectionComponent,
   type PongoDb,
 } from '../core';
 
@@ -195,7 +195,7 @@ const startRepl = async (options: {
   let db: PongoDb;
 
   if (options.schema.collections.length > 0) {
-    const collectionsSchema: Record<string, PongoCollectionSchema> = {};
+    const collectionsSchema: Record<string, PongoCollectionComponent> = {};
 
     for (const collectionName of options.schema.collections) {
       collectionsSchema[collectionName] =

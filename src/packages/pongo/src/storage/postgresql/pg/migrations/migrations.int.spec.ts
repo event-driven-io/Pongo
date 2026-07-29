@@ -157,7 +157,7 @@ describe('Migration Integration Tests', () => {
 
     const defaultUsers = db.collection('users');
     const crmUsers = db.collection('users', {
-      schemaName: 'crm',
+      databaseSchemaName: 'crm',
     });
 
     await defaultUsers.insertOne({ _id: 'public-user', email: 'public@test' });

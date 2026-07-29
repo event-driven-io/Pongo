@@ -15,7 +15,7 @@ import {
   type PongoDriverOptions,
   withPongoTransactionOptions,
 } from '../../../core';
-import { materializePongoSQLiteDatabaseComponent } from '../core';
+import { pongoSQLiteMigrationBuilder, sqliteSQLBuilder } from '../core';
 
 export type SQLitePongoClientOptions = object;
 
@@ -50,13 +50,9 @@ const d1PongoDriver: PongoDriver<
       pool: d1Pool({
         ...pongoConnectionOptions,
       }),
-      schemaComponent: materializePongoSQLiteDatabaseComponent({
-        driverType: D1DriverType,
-        databaseName,
-        defaultSchemaName,
-        serializer: options.serializer,
-        definition: options.schema?.definition,
-      }),
+      migrationBuilder: pongoSQLiteMigrationBuilder,
+      sqlBuilderFor: (collection, identifier) =>
+        sqliteSQLBuilder(collection, identifier, options.serializer),
       databaseName,
       defaultSchemaName,
     });
