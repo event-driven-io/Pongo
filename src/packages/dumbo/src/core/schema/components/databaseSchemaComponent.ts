@@ -1,13 +1,13 @@
+import type { ExtensionComponent } from '../extensionComponent';
 import {
-  createComponentRecord,
   createSchemaComponent,
-  mergeComponentRecords,
+  mergeSchemaComponentMaps,
+  schemaComponentMap,
   schemaComponentType,
   type AnySchemaComponent,
   type SchemaComponent,
   type SchemaComponentOptions,
 } from '../schemaComponent';
-import type { ExtensionComponent } from '../extensionComponent';
 import type { AnyTableComponent } from './tableComponent';
 
 export const databaseSchemaComponentType: unique symbol = Symbol(
@@ -69,7 +69,7 @@ export const databaseSchemaComponent = <
   }
   const extensions = (options.extensions ?? {}) as Extensions;
   const base = createSchemaComponent(databaseSchemaComponentType, {
-    components: mergeComponentRecords(tables, extensions),
+    components: mergeSchemaComponentMaps(tables, extensions),
     migrations: options.migrations,
   });
 
@@ -79,11 +79,11 @@ export const databaseSchemaComponent = <
   });
   Object.defineProperties(base, {
     tables: {
-      value: createComponentRecord(tables),
+      value: schemaComponentMap(tables),
       enumerable: true,
     },
     extensions: {
-      value: createComponentRecord(extensions),
+      value: schemaComponentMap(extensions),
       enumerable: true,
     },
   });

@@ -3,15 +3,15 @@ import {
   schemaComponentType,
   type AnySchemaComponent,
   type SchemaComponent,
+  type SchemaComponentMap,
   type SchemaComponentOptions,
-  type SchemaComponentRecord,
 } from './schemaComponent';
 
 export const extensionComponentType: unique symbol = Symbol(
   'dumbo.schemaComponent.extension',
 );
 
-export type ExtensionComponents = SchemaComponentRecord;
+export type ExtensionComponents = SchemaComponentMap;
 
 export type ExtensionComponent<
   Name extends string = string,

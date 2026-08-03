@@ -68,6 +68,10 @@ export const SQLIdentifier = SQLToken<SQLIdentifier, string>(
     value,
   }),
 );
+export type SQLDefaultSchemaNameToken = SQLToken<'SQLDefaultSchemaNameToken'>;
+export const SQLDefaultSchemaNameToken = SQLToken<SQLDefaultSchemaNameToken>(
+  'SQLDefaultSchemaNameToken',
+);
 
 export type SQLPlain = SQLToken<'SQL_RAW', { value: string }>;
 export const SQLPlain = SQLToken<SQLPlain, string>('SQL_RAW', (value) => ({

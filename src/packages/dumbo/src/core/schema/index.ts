@@ -1,6 +1,7 @@
 export * from './components';
 export * from './databaseMetadata';
 export * from './dumboSchema';
+export * from './extensionComponent';
 export * from './migrators';
 export {
   findComponent,
@@ -14,7 +15,6 @@ export {
   type SchemaComponentKind,
   type SchemaComponentOptions,
   type SchemaComponentPredicate,
-  type SchemaComponentRecord,
+  type SchemaComponentMap as SchemaComponentRecord,
 } from './schemaComponent';
-export * from './extensionComponent';
 export * from './sqlMigration';

@@ -13,35 +13,35 @@ export type SchemaComponent<
   Kind extends SchemaComponentKind = SchemaComponentKind,
 > = Readonly<{
   [schemaComponentType]: Kind;
-  components: SchemaComponentRecord;
+  components: SchemaComponentMap;
   migrations: ReadonlyArray<SQLMigration>;
 }>;
 
 export type AnySchemaComponent = SchemaComponent<SchemaComponentKind>;
 
-export type SchemaComponentRecord<
+export type SchemaComponentMap<
   Component extends AnySchemaComponent = AnySchemaComponent,
 > = Readonly<Record<string, Component>>;
 
 export type SchemaComponentOptions<
-  Components extends SchemaComponentRecord = SchemaComponentRecord,
+  Components extends SchemaComponentMap = SchemaComponentMap,
 > = Readonly<{
   migrations?: ReadonlyArray<SQLMigration> | undefined;
   components?: Components | undefined;
 }>;
 
-export const createComponentRecord = <
-  const RecordType extends SchemaComponentRecord,
+export const schemaComponentMap = <
+  const ComponentMap extends SchemaComponentMap,
 >(
-  record: RecordType,
-): RecordType => {
-  const result = Object.assign(Object.create(null), record) as RecordType;
+  record: ComponentMap,
+): ComponentMap => {
+  const result = Object.assign(Object.create(null), record) as ComponentMap;
   return Object.freeze(result);
 };
 
-export const mergeComponentRecords = (
-  ...records: ReadonlyArray<SchemaComponentRecord>
-): SchemaComponentRecord => {
+export const mergeSchemaComponentMaps = (
+  ...records: ReadonlyArray<SchemaComponentMap>
+): SchemaComponentMap => {
   const merged: Record<string, AnySchemaComponent> = Object.create(
     null,
   ) as Record<string, AnySchemaComponent>;
@@ -55,7 +55,7 @@ export const mergeComponentRecords = (
     }
   }
 
-  return createComponentRecord(merged);
+  return schemaComponentMap(merged);
 };
 
 const schemaComponentState: unique symbol = Symbol(
@@ -105,12 +105,12 @@ const migrationsFor = (
 
 export const createSchemaComponent = <
   const Kind extends SchemaComponentKind,
-  const Components extends SchemaComponentRecord = SchemaComponentRecord,
+  const Components extends SchemaComponentMap = SchemaComponentMap,
 >(
   kind: Kind,
   options: SchemaComponentOptions<Components> = {},
 ): SchemaComponent<Kind> & { components: Components } => {
-  const components = createComponentRecord(
+  const components = schemaComponentMap(
     (options.components ?? {}) as Components,
   );
   const state = {
@@ -142,7 +142,7 @@ export const createSchemaComponent = <
 };
 
 export const schemaComponent = <
-  const Components extends SchemaComponentRecord = SchemaComponentRecord,
+  const Components extends SchemaComponentMap = SchemaComponentMap,
 >(
   options: SchemaComponentOptions<Components> = {},
 ): SchemaComponent<typeof genericComponentType> & {
