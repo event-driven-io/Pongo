@@ -919,7 +919,7 @@ export const pongoCollection = <
     schema: {
       component,
       migrate: (options?: PongoMigrationOptions) =>
-        runSQLMigrations(pool, component.migrations, options),
+        runSQLMigrations(pool, component.migrations(), options),
     },
   };
 

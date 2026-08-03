@@ -13,9 +13,8 @@ export type SchemaComponent<
   Kind extends SchemaComponentKind = SchemaComponentKind,
 > = Readonly<{
   [schemaComponentType]: Kind;
-  declare: SchemaComponentDeclaration;
   components: SchemaComponentMap;
-  migrations: ReadonlyArray<SQLMigration>;
+  migrations: () => ReadonlyArray<SQLMigration>;
 }>;
 
 export type SchemaComponentDeclaration = (
@@ -63,8 +62,6 @@ export const mergeSchemaComponentMaps = (
   return schemaComponentMap(merged);
 };
 
-const noMigrations: SchemaComponentDeclaration = () => [];
-
 export const createSchemaComponent = <
   const Kind extends SchemaComponentKind,
   const Components extends SchemaComponentMap = SchemaComponentMap,
@@ -76,16 +73,16 @@ export const createSchemaComponent = <
   Object.freeze({
     ...fields,
     [schemaComponentType]: kind,
-    declare: options.migrations ?? noMigrations,
     components: schemaComponentMap((options.components ?? {}) as Components),
-    get migrations(): ReadonlyArray<SQLMigration> {
-      const self = this as AnySchemaComponent;
+    migrations(this: AnySchemaComponent): ReadonlyArray<SQLMigration> {
       const result: SQLMigration[] = [];
       const migrationsByName = new Map<string, SQLMigration>();
 
       for (const migration of [
-        ...self.declare(self),
-        ...Object.values(self.components).flatMap((child) => child.migrations),
+        ...(options.migrations?.(this) ?? []),
+        ...Object.values(this.components).flatMap((child) =>
+          child.migrations(),
+        ),
       ]) {
         const previous = migrationsByName.get(migration.name);
         if (previous !== undefined && previous !== migration) {

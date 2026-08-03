@@ -72,9 +72,9 @@ export const SchemaComponentMigrator = <DriverType extends DatabaseDriverType>(
 
       validateComponent?.(component);
 
-      const pendingMigrations = component.migrations.filter(
-        (migration) => !completedMigrations.includes(migration.name),
-      );
+      const pendingMigrations = component
+        .migrations()
+        .filter((migration) => !completedMigrations.includes(migration.name));
 
       if (pendingMigrations.length === 0) return;
 
