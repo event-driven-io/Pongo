@@ -105,34 +105,21 @@ export const tableComponent = <
     }
   }
   const children = mergeSchemaComponentMaps(columns, indexes);
-  const base = createSchemaComponent(tableComponentType, {
-    components: children,
-    migrations: options.migrations,
-  });
-
-  Object.defineProperties(base, {
-    tableName: { value: options.tableName, enumerable: true },
-    databaseSchemaName: {
-      value: options.databaseSchemaName,
-      enumerable: true,
+  const base = createSchemaComponent(
+    tableComponentType,
+    {
+      components: children,
+      migrations: options.migrations,
     },
-    primaryKey: {
-      value: Object.freeze([...(options.primaryKey ?? [])]),
-      enumerable: true,
+    {
+      tableName: options.tableName,
+      databaseSchemaName: options.databaseSchemaName,
+      primaryKey: Object.freeze([...(options.primaryKey ?? [])]),
+      relationships: Object.freeze({ ...(options.relationships ?? {}) }),
+      columns: schemaComponentMap(columns),
+      indexes: schemaComponentMap(indexes),
     },
-    relationships: {
-      value: Object.freeze({ ...(options.relationships ?? {}) }),
-      enumerable: true,
-    },
-    columns: {
-      value: schemaComponentMap(columns),
-      enumerable: true,
-    },
-    indexes: {
-      value: schemaComponentMap(indexes),
-      enumerable: true,
-    },
-  });
+  );
 
   return base as unknown as TableComponent<
     Columns,

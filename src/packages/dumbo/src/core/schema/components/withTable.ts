@@ -1,4 +1,3 @@
-import { localMigrationsOf } from '../schemaComponent';
 import {
   databaseComponent,
   type AnyDatabaseComponent,
@@ -21,8 +20,7 @@ export const withTable = (
       [alias]: table,
     },
     extensions: existingSchema?.extensions,
-    migrations:
-      existingSchema === undefined ? [] : localMigrationsOf(existingSchema),
+    migrations: existingSchema?.declare,
   });
 
   return databaseComponent({
@@ -32,6 +30,6 @@ export const withTable = (
       [databaseSchemaName]: schema,
     },
     extensions: database.extensions,
-    migrations: localMigrationsOf(database),
+    migrations: database.declare,
   });
 };

@@ -77,13 +77,13 @@ describe('building migrations for a database hierarchy', () => {
           tables: {
             users: tableComponent({
               tableName: 'users',
-              migrations: [declaredTable],
+              migrations: () => [declaredTable],
               indexes: {
                 email: indexComponent({
                   indexName: 'users_email_idx',
                   columnNames: ['email'],
                   isUnique: false,
-                  migrations: [declaredIndex],
+                  migrations: () => [declaredIndex],
                 }),
               },
             }),
@@ -147,7 +147,7 @@ describe('building migrations for a database hierarchy', () => {
           tables: {
             users: tableComponent({
               tableName: 'users',
-              migrations: [
+              migrations: () => [
                 sqlMigration('users:create', [SQL`SELECT 'declared'`]),
               ],
             }),

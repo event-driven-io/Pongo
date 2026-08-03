@@ -37,7 +37,9 @@ const extensionWith = (
   components: Readonly<Record<string, AnySchemaComponent>> = {},
   migrations: ReturnType<typeof sqlMigration>[] = [],
 ): ExtensionComponent =>
-  extensionComponent(extensionName, components, { migrations });
+  extensionComponent(extensionName, components, {
+    migrations: () => migrations,
+  });
 
 const findExtensions = (root: AnySchemaComponent): ExtensionComponent[] =>
   findComponents(root, isExtensionComponent);
@@ -76,10 +78,10 @@ describe('composing schema components', () => {
     const firstMigration = sqlMigration('first:001', [SQL`SELECT 1`]);
     const secondMigration = sqlMigration('second:001', [SQL`SELECT 2`]);
     const root = schemaComponent({
-      migrations: [rootMigration],
+      migrations: () => [rootMigration],
       components: {
-        first: schemaComponent({ migrations: [firstMigration] }),
-        second: schemaComponent({ migrations: [secondMigration] }),
+        first: schemaComponent({ migrations: () => [firstMigration] }),
+        second: schemaComponent({ migrations: () => [secondMigration] }),
       },
     });
 
@@ -92,7 +94,7 @@ describe('composing schema components', () => {
 
   it('runs a shared child migration once when the child has multiple aliases', () => {
     const migration = sqlMigration('child:001', [SQL`SELECT 1`]);
-    const child = schemaComponent({ migrations: [migration] });
+    const child = schemaComponent({ migrations: () => [migration] });
     const root = schemaComponent({
       components: { child, childAgain: child },
     });
@@ -111,10 +113,10 @@ describe('composing schema components', () => {
     const root = schemaComponent({
       components: {
         first: schemaComponent({
-          migrations: [sqlMigration('duplicate:001', [SQL`SELECT 1`])],
+          migrations: () => [sqlMigration('duplicate:001', [SQL`SELECT 1`])],
         }),
         second: schemaComponent({
-          migrations: [sqlMigration('duplicate:001', [SQL`SELECT 2`])],
+          migrations: () => [sqlMigration('duplicate:001', [SQL`SELECT 2`])],
         }),
       },
     });
@@ -129,8 +131,8 @@ describe('composing schema components', () => {
     const migration = sqlMigration('shared:001', [SQL`SELECT 1`]);
     const root = schemaComponent({
       components: {
-        first: schemaComponent({ migrations: [migration] }),
-        second: schemaComponent({ migrations: [migration] }),
+        first: schemaComponent({ migrations: () => [migration] }),
+        second: schemaComponent({ migrations: () => [migration] }),
       },
     });
 
@@ -154,6 +156,7 @@ describe('composing schema components', () => {
     >;
     const leaf: AnySchemaComponent = {
       [schemaComponentType]: genericComponentType,
+      declare: () => [migration],
       components: leafChildren,
       migrations: [migration],
     };
@@ -253,6 +256,129 @@ describe('composing schema components', () => {
   });
 });
 
+describe('exposing a component as a plain frozen value', () => {
+  it('returns exactly what its declaration returned when it has no children', () => {
+    const first = sqlMigration('leaf:001', [SQL`SELECT 1`]);
+    const second = sqlMigration('leaf:002', [SQL`SELECT 2`]);
+    const leaf = schemaComponent({ migrations: () => [first, second] });
+
+    assert.deepStrictEqual(leaf.migrations, [first, second]);
+  });
+
+  it('returns its own migrations before its children in insertion order', () => {
+    const own = sqlMigration('root:001', [SQL`SELECT 0`]);
+    const firstChild = sqlMigration('first:001', [SQL`SELECT 1`]);
+    const secondChild = sqlMigration('second:001', [SQL`SELECT 2`]);
+    const root = schemaComponent({
+      migrations: () => [own],
+      components: {
+        first: schemaComponent({ migrations: () => [firstChild] }),
+        second: schemaComponent({ migrations: () => [secondChild] }),
+      },
+    });
+
+    assert.deepStrictEqual(root.migrations, [own, firstChild, secondChild]);
+  });
+
+  it('composes migrations transitively through a three-level tree', () => {
+    const leafMigration = sqlMigration('leaf:001', [SQL`SELECT 3`]);
+    const middleMigration = sqlMigration('middle:001', [SQL`SELECT 2`]);
+    const rootMigration = sqlMigration('root:001', [SQL`SELECT 1`]);
+    const leaf = schemaComponent({ migrations: () => [leafMigration] });
+    const middle = schemaComponent({
+      migrations: () => [middleMigration],
+      components: { leaf },
+    });
+    const root = schemaComponent({
+      migrations: () => [rootMigration],
+      components: { middle },
+    });
+
+    assert.deepStrictEqual(middle.migrations, [middleMigration, leafMigration]);
+    assert.deepStrictEqual(root.migrations, [
+      rootMigration,
+      middleMigration,
+      leafMigration,
+    ]);
+  });
+
+  it('passes the component itself to its declaration', () => {
+    const declared: AnySchemaComponent[] = [];
+    const component = schemaComponent({
+      migrations: (self) => {
+        declared.push(self);
+        return [];
+      },
+    });
+
+    assert.deepStrictEqual(declared, []);
+
+    void component.migrations;
+
+    assert.deepStrictEqual(declared, [component]);
+  });
+
+  it('declares against the component it is read from, not the one it was built from', () => {
+    const original = schemaComponent({
+      migrations: (self) => [
+        sqlMigration(`declared:${Object.keys(self.components).join()}`, [
+          SQL`SELECT 1`,
+        ]),
+      ],
+      components: { first: schemaComponent() },
+    });
+    const clone = Object.freeze(
+      Object.defineProperties(
+        {},
+        {
+          ...Object.getOwnPropertyDescriptors(original),
+          components: {
+            value: Object.freeze({ second: schemaComponent() }),
+            enumerable: true,
+          },
+        },
+      ),
+    ) as AnySchemaComponent;
+
+    assert.deepStrictEqual(
+      original.migrations.map((migration) => migration.name),
+      ['declared:first'],
+    );
+    assert.deepStrictEqual(
+      clone.migrations.map((migration) => migration.name),
+      ['declared:second'],
+    );
+  });
+
+  it('exposes a frozen component with nothing hidden behind it', () => {
+    const migration = sqlMigration('root:001', [SQL`SELECT 1`]);
+    const child = schemaComponent();
+    const root = schemaComponent({
+      migrations: () => [migration],
+      components: { child },
+    });
+
+    assert.strictEqual(Object.isFrozen(root), true);
+    assert.deepStrictEqual(Object.getOwnPropertyNames(root), Object.keys(root));
+    assert.deepStrictEqual(Object.getOwnPropertySymbols(root), [
+      schemaComponentType,
+    ]);
+
+    const copy = { ...root };
+    assert.strictEqual(copy[schemaComponentType], genericComponentType);
+    assert.strictEqual(copy.components, root.components);
+    assert.deepStrictEqual(copy.migrations, [migration]);
+  });
+
+  it('keeps its own keys to the declared component shape', () => {
+    assert.deepStrictEqual(Object.keys(schemaComponent()), [
+      'declare',
+      'components',
+      'migrations',
+    ]);
+  });
+});
+
 describe('grouping components in extensions', () => {
   it('attaches an extension to a database without exposing its internals as schemas', () => {
     const eventStoreSchema = databaseSchemaComponent({
@@ -299,7 +425,7 @@ describe('grouping components in extensions', () => {
     const migration = sqlMigration('users:001', [SQL`SELECT 1`]);
     const users = tableComponent({
       tableName: 'users',
-      migrations: [migration],
+      migrations: () => [migration],
     });
     const extension = extensionComponent('shared', {
       users,
@@ -379,7 +505,7 @@ describe('grouping components in extensions', () => {
           tables: {
             users: tableComponent({
               tableName: 'users',
-              migrations: [tableMigration],
+              migrations: () => [tableMigration],
             }),
           },
           extensions: { audit },
@@ -399,7 +525,7 @@ describe('grouping components in extensions', () => {
     const migration = sqlMigration('audit:001', [SQL`SELECT 1`]);
     const auditLog = tableComponent({
       tableName: 'audit_log',
-      migrations: [migration],
+      migrations: () => [migration],
     });
     const audit = extensionComponent('audit', { auditLog });
     const database = databaseComponent({
@@ -726,7 +852,7 @@ describe('validating a composed database', () => {
 
   it('reports schema validation failure before executing migrations', async () => {
     const component = schemaComponent({
-      migrations: [sqlMigration('root:001', [SQL`SELECT 1`])],
+      migrations: () => [sqlMigration('root:001', [SQL`SELECT 1`])],
     });
     const migrator = SchemaComponentMigrator(component, {
       driverType: 'Test:test',

@@ -170,3 +170,133 @@
 
 > It should include the example, so we could later move it to emmett, and treat this example as also some verification of whether our concept actually works. But make it a last step.
 
+## Q16
+
+> Should hand-written migrations be expected to use the reference tokens (so schema resolution happens in the formatter and attach-time requalification never needs to touch them) — or do you want an escape hatch where someone writes a literal `CREATE TRIGGER reporting.foo ...` string and we accept that it's their job to get the schema right?
+
+**A16 (verbatim):**
+
+> The hand written migration should be possible to do the same and use references
+
+## Q17
+
+> A hand-written migration wants to reference its own table but doesn't know the schema at authoring time, and a generic component has no fields to regenerate from. Which of A (default token), B (author states the schema literally), or C (migrations as a function of the resolved qualifier, i.e. lazy) — or is referencing your own parent's schema out of scope?
+
+**A17 (verbatim):**
+
+> It's not an issue that migrations are lazy, the issue is that there's a lot of fancy tree-traversal and other bs that needs to be simplified
+
+## Q18
+
+> Is it acceptable that components stay context-free and only the root produces correct migrations (resolve-at-read), or do you need a plucked-out child to be self-describing, which is what forces cloning?
+
+**A18 (verbatim):**
+
+> I don't like any of that, it still brings massive complexity imho as you're now handwaving with "just migrationsIn(ctx). I don't think that this is so simple.
+>
+> he schema re-invokes each child's factory with its name. - I don't think that's simple, this would recreate this maze of traversal we have already
+
+## Q19
+
+> Is the shape you want: mutate the qualifier on attach, lazy `migrations` getter that concatenates own + children — and on a second attach, throw or keep the first?
+
+**A19 (verbatim):**
+
+> // databaseSchemaComponent — the whole attach step
+> for (const table of Object.values(tables)) table.databaseSchemaName ??= schemaName;
+>   this is also handwaving as table may have numerous children and we'll need to consider each type of them and loop.
+>
+> Can't we just:
+> - copy objects on clone with parent,
+> - have migrations in options being function,
+> - have migrations on schema component be getter
+>
+> then when we call getter it'll call the function from options, and having that we cloned with parent assigned then all should be already available and when we rerun we will have a proper reference?
+
+## Q20
+
+> Reparent the children with a five-line generic recursive clone, or keep components parentless and pass the parent down through the getter?
+
+**A20 (verbatim):**
+
+> I mean, I'm fine having generic parent, but I'm also fine having explicit wrapper for them like table for index and schema for table.
+>
+> I still don't understand why would it need to be generic. When we're cloning then we're already assigning parent, and function from options will have then the proper one from this? Am I missing something?
+
+## Q21
+
+> Should the table own its indexes' DDL — so cloning is a one-level spread with no recursion at all — or do indexes stay independent components emitting their own migrations, accepting the recursive reparent?
+
+**A21 (verbatim):**
+
+> Man, they can emit their own DDL, they can be separate statements, right? And can be altered, aye?
+
+## Q22
+
+> Should `options.migrations` always be a function of the component, or should a plain array still be accepted as sugar?
+
+**A22 (verbatim):**
+
+> That's also why I initially suggested to make parent mutable and a reference. If it's always clone, then it's safe, or not?
+>
+> And no, we don't need to accept array for now, we can add it later.
+
+## Q23
+
+> A table's `declare` needs the schema name: direct hops (`this.parent?.parent?.schemaName`), or walk the parent chain until something has a `schemaName`?
+
+**A23 (verbatim):**
+
+> no, this.parent?.parent?.schemaName but this.table?.schema?.schemaName, right?
+
+## Q24
+
+> Named accessors over a generic `parent` — or the stored field itself named per kind, with the key passed into the clone?
+
+**A24 (verbatim):**
+
+> I think that I'm fine o fhaving getters as you showed/
+
+## Q25
+
+> `Object.getOwnPropertyDescriptors` is the one non-obvious line in the design — a reader has to know that spread invokes getters and descriptor-copy does not. Keep the getter and pay for it with the descriptor copy, or drop accessors entirely (`component.migrations()`, `schema`/`table` as plain fields) so `withParent` is an ordinary spread?
+
+**A25 (verbatim):**
+
+> Man, eventually yes, migration will be a function, but if it's getter then it's the same for now, right, if we make it consistently a getter, right?
+
+## Q26
+
+> Should attaching an already-attached component silently re-parent, or throw and force the unattached definition to be passed?
+
+**A26 (verbatim):**
+
+> I mean, if you can make this a function already, I'm fine.if that helps.
+>
+> Also reparenting, could you get back to my original question, maybe it's just easier to make parent mutable?
+
+## Q27
+
+> "No accessors" has to mean all of them — one surviving getter and the spread is silently wrong again. Do `schema` and `table` become functions too (`this.table().schema().schemaName`), or stay getters and put the descriptor copy back just for those two?
+
+**A27 (verbatim):**
+
+> I'm fine making them functions if that helps a lot
+
+## Q28
+
+> Two functions want the name `migrations`: the one passed in (own only, takes the component) and the one exposed (own plus descendants, takes nothing). Rename the options side, rename the component side, or keep both?
+
+**A28 (verbatim):**
+
+> Dude, I don't watn any additional property, that's the whole story of this refactoring!
+
+## Q29
+
+> Dry run of the agreed shape, before implementation.
+
+**A29 (verbatim):**
+
+> Could you do a dry run testing if what you think will work? I'm not sure if you're not making it up again
+
+**Result:** first run failed — an unattached table's index rendered `<default>.undefined`, because attachment was modelled as something a schema does to its tables. Fixed by attaching children inside `createSchemaComponent` itself, which also removed the two-phase construction in the schema factory and the whole per-kind attach step. Nine assertions then passed, including the deliberately broken variant that closes over `component` instead of `this` and silently emits unqualified SQL.

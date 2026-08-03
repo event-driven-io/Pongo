@@ -30,15 +30,14 @@ export const extensionComponent = <
   components: Components,
   options: Omit<SchemaComponentOptions, 'components'> = {},
 ): ExtensionComponent<Name, Components> => {
-  const base = createSchemaComponent(extensionComponentType, {
-    components,
-    migrations: options.migrations,
-  });
-
-  Object.defineProperty(base, 'extensionName', {
-    value: extensionName,
-    enumerable: true,
-  });
+  const base = createSchemaComponent(
+    extensionComponentType,
+    {
+      components,
+      migrations: options.migrations,
+    },
+    { extensionName },
+  );
 
   return base as ExtensionComponent<Name, Components>;
 };

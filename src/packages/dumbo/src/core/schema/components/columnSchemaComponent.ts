@@ -47,20 +47,22 @@ export const columnSchemaComponent = <
     default: defaultValue,
     migrations,
   } = params;
-  const base = createSchemaComponent(columnComponentType, {
-    migrations,
-  });
-
-  Object.defineProperties(base, {
-    columnName: { value: columnName, enumerable: true },
-    sqlTokenType: { value: 'SQL_COLUMN', enumerable: true },
-    name: { value: columnName, enumerable: true },
-    type: { value: type, enumerable: true },
-    notNull: { value: notNull, enumerable: true },
-    unique: { value: unique, enumerable: true },
-    primaryKey: { value: primaryKey, enumerable: true },
-    default: { value: defaultValue, enumerable: true },
-  });
+  const base = createSchemaComponent(
+    columnComponentType,
+    {
+      migrations,
+    },
+    {
+      columnName,
+      sqlTokenType: 'SQL_COLUMN',
+      name: columnName,
+      type,
+      notNull,
+      unique,
+      primaryKey,
+      default: defaultValue,
+    },
+  );
 
   return base as unknown as ColumnSchemaComponent<ColumnType, ColumnName> &
     (Options extends { notNull: true } | { primaryKey: true }

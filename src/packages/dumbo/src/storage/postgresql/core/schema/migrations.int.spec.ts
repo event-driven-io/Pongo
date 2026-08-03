@@ -121,19 +121,19 @@ describe('Migration Integration Tests', () => {
       'audit',
       {},
       {
-        migrations: [schemaFeatureMigration],
+        migrations: () => [schemaFeatureMigration],
       },
     );
     const eventStore = extensionComponent(
       'eventStore',
       {},
       {
-        migrations: [databaseFeatureMigration],
+        migrations: () => [databaseFeatureMigration],
       },
     );
     const users = tableComponent({
       tableName: 'users',
-      migrations: [schemaTableMigration],
+      migrations: () => [schemaTableMigration],
     });
     const component = databaseComponent({
       databaseName: 'app',
@@ -167,7 +167,7 @@ describe('Migration Integration Tests', () => {
   it('runs migrations from indexes declared on tables', async () => {
     const users = tableComponent({
       tableName: 'users',
-      migrations: [
+      migrations: () => [
         sqlMigration('app:public:users:001:create-table', [
           SQL`CREATE TABLE users (id TEXT PRIMARY KEY, email TEXT NOT NULL);`,
         ]),
@@ -177,7 +177,7 @@ describe('Migration Integration Tests', () => {
           indexName: 'users_email_idx',
           columnNames: ['email'],
           isUnique: true,
-          migrations: [
+          migrations: () => [
             sqlMigration('app:public:users:users_email_idx:002:create-index', [
               SQL`CREATE UNIQUE INDEX IF NOT EXISTS users_email_idx ON users (email);`,
             ]),
