@@ -1,5 +1,5 @@
 import type { SQLMigration } from '../sqlMigration';
-import { localMigrationsOf, type AnySchemaComponent } from '../schemaComponent';
+import type { AnySchemaComponent } from '../schemaComponent';
 import type { AnyDatabaseComponent } from './databaseComponent';
 import {
   isDatabaseSchemaComponent,
@@ -124,7 +124,7 @@ export const databaseMigrations = (
     visited.add(component);
     const identifier = identify(component, parentIdentifier);
 
-    for (const migration of localMigrationsOf(component)) {
+    for (const migration of component.declare(component)) {
       addMigration(result, migrationsByName, migration);
     }
 

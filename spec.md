@@ -31,31 +31,77 @@ A schema component is a **self-contained value**. `component.migrations` returns
 
 ## 3. Design decisions
 
-### D1 — Attach by cloning (option B)
+### D1 — Attach by cloning with a parent pointer
 
-When a component is attached to a parent, the parent produces a **requalified clone**; the original stays untouched and reusable.
+When a component is attached to a parent, the parent produces a **clone carrying a `parent` reference**; the original stays untouched and reusable.
 
 Rejected alternatives:
-- *Mutate on attach* — components stop being values; attaching the same table twice silently rewires the first parent.
-- *Attach at construction* (definition is a function the parent applies) — every standalone use needs a terminal `users({})` call and every signature has to distinguish definition from component. Rejected as tedious and inaccessible.
+- *Mutate on attach* — components stop being values; attaching the same table twice silently rewires the first parent. Also requires the parent to know every child kind it must stamp.
+- *Attach at construction* (definition is a function the parent applies) — every standalone use needs a terminal `users({})` call and every signature has to distinguish definition from component. Rejected as tedious and inaccessible (Q7).
+- *Per-kind requalifiers re-invoking each factory* (`withDatabaseSchema` on table, `withTable` on index, plus a capability-sniffing generic map) — rejected as recreating the traversal maze it was meant to remove (Q18–Q19).
+- *Resolve-at-read, passing context down through the getter* — rejected for the same reason (Q18).
 
-A clone cannot be a bare spread: the clone's schema qualifier differs, so both its DDL **and** its migration name differ and must be recomputed. Each component type therefore exposes a one-line requalifier that re-invokes its own factory:
+The clone is one generic recursive function. It needs no knowledge of component kinds:
 
-| Component | Requalifier | Requalifies |
-|---|---|---|
-| table | `withDatabaseSchema(schemaName)` | its indexes |
-| index | `withTable(schemaName, tableName)` | — |
-| column | *none* — no qualifier of its own; rendered inside `CREATE TABLE`; user-declared migrations are opaque SQL | — |
-| extension | `withDatabaseSchema(schemaName)` | its children, generically |
-| database schema | — (it is the qualifier) | its tables and extensions |
+```ts
+const withParent = (component, parent) => {
+  const clone = { ...component, parent };
+  clone.components = Object.freeze(
+    mapValues(component.components, (c) => withParent(c, clone)),
+  );
+  return Object.freeze(clone);
+};
+```
 
-The extension case is the only one needing a generic recursive helper, since it holds an arbitrary component map. That is one base-level function, not a visitor with an `identify`.
+`parent` is assigned once during construction — the clone must exist before its children can point at it — and the object is frozen immediately after. The original is never touched and nothing can observe a half-built clone, so a mutable field yields an immutable value.
 
-### D2 — Components become plain frozen objects
+Reparenting is recursive because grandchildren go stale otherwise: a bare spread gives the table clone a correct `parent`, but its index still points at the original, unparented table. Indexes stay independent components — they are separate statements and can be altered on their own (Q21) — so they must be reparented, not absorbed into the table's DDL.
 
-`createSchemaComponent`'s `Object.defineProperties` construction (enumerable value props, a non-enumerable `schemaComponentState` holding `localMigrations`, and an enumerable `migrations` getter) exists only to serve the lazy getter and hidden local-migration list. Both disappear. Components become plain frozen object literals, which also makes them safe to inspect, log and shallow-copy.
+**Attaching is not something schemas do to tables; it is what every component does to its own children.** `createSchemaComponent` runs its `components` through `withParent` at construction, so a table attaches its indexes exactly as a schema attaches its tables:
 
-`localMigrationsOf` and the `schemaComponentState` symbol are deleted. Declared migrations live in a plain field; `migrations` is the recursive composition of that field and the children's.
+```ts
+component.components = Object.freeze(
+  mapValues(options.components ?? {}, (c) => withParent(c, component)),
+);
+```
+
+Without this, an unattached table's index has no parent at all and resolves its table name to `undefined` — verified by dry run before implementation (Q29). There is therefore no per-kind attach step to write anywhere.
+
+Each kind exposes a named accessor over the generic field, one line each, so authoring code reads properly (Q23–Q24):
+
+```ts
+// indexComponent
+table() { return this.parent; }
+// tableComponent
+schema() { return this.parent; }
+```
+
+An index resolves its qualifier as `this.table()?.schema()?.schemaName`. `withParent` never needs to know which kind it is cloning.
+
+**No accessor properties anywhere.** `{ ...component }` *invokes* getters and stores their values, so a single surviving getter would be silently frozen at the original's parent — a wrong migration, not an error. Every member is a plain data property; the ones that compute are functions (Q25, Q27). Descriptor-copying the clone (`Object.getOwnPropertyDescriptors`) would preserve getters, but was rejected as clever-over-simple for the sake of two one-line accessors (Q25).
+
+### D2 — Components are plain frozen objects and `migrations` is a function
+
+`createSchemaComponent`'s `Object.defineProperties` construction (enumerable value props and a non-enumerable `schemaComponentState` holding `localMigrations`) disappears. Components become plain frozen object literals, safe to inspect, log and shallow-copy — which is what makes `withParent` a spread.
+
+Laziness is not the problem; the tree traversal is (Q17). Resolution stays deferred, and does exactly what was asked for in A3 — "take my migrations and add migrations of my children":
+
+```ts
+migrations() {
+  return [
+    ...(options.migrations?.(this) ?? []),
+    ...Object.values(this.components).flatMap((c) => c.migrations()),
+  ];
+}
+```
+
+`migrations` is a **method, not a getter** (D1, Q26–Q27): read sites gain `()` but the spread stays honest. It must resolve through `this`, never through the `component` binding captured by the factory closure — the captured-binding variant compiles, runs, and silently emits unqualified SQL for every clone (verified by dry run, Q29).
+
+**No property is added to carry the declaration.** The function passed as `options.migrations` stays in the factory closure; the component exposes exactly one `migrations` member (Q28). It is **always a function** of the component; a plain array is not accepted for now and can be added as sugar later (Q22). Because it runs at read time against an already-parented clone, it sees the correct qualifier — which is why nothing has to rewrite SQL at attach time.
+
+Hand-written migrations use the same reference tokens as generated ones (Q16), so they resolve in the formatter too and need no special handling.
+
+Deleted: `migrationsFor`, both `visited` sets, the `schemaComponentState` symbol, `InternalSchemaComponent`, `localMigrationsOf`, and the `declaredMigrations` field currently declared on `SchemaComponent` at `schemaComponent.ts:17` and never assigned. A component does **not** retain its own migrations as data. Nothing is added in their place.
 
 ### D3 — Dedupe by name, not by object identity
 
@@ -79,10 +125,10 @@ Dialect-specific DDL stays possible: the formatter is per-dialect, and the token
 
 ### D6 — A table's schema qualifier
 
-Resolution order, decided at construction/attach time:
+Resolution order, evaluated when `migrations()` is called:
 
 1. `databaseSchemaName` declared on the component → use it.
-2. Otherwise, the schema it was attached to (via D1 clone) → use that name.
+2. Otherwise, `this.schema()?.schemaName` reached through the D1 parent pointer → use that name.
 3. Otherwise → `SQLDefaultSchemaNameToken`, resolved by the formatter.
 
 Existing conflict checks stay: a child declaring a schema different from its parent's throws.
@@ -153,11 +199,11 @@ Extensions are produced by factories over user options (emmett registers project
 Rules for every phase: test-first; build, linter and tests green before moving on; no phase may leave the repo broken for long. Tasks are executed through subagents.
 
 ### Phase 1 — Component core (sequential)
-Plain frozen components (D2), recursive `migrations` (Goal), name-based dedupe (D3). Delete `schemaComponentState`, `localMigrationsOf`, `migrationsFor`.
+Plain frozen components with `migrations` as a method composing own-plus-children (D2), name-based dedupe (D3). Delete `schemaComponentState`, `InternalSchemaComponent`, `localMigrationsOf`, `migrationsFor` and the unassigned `declaredMigrations` field.
 *Green state:* declared migrations still compose; `databaseMigrations` temporarily still works on top.
 
-### Phase 2 — Requalification (parallel per component type, after Phase 1)
-`withDatabaseSchema` / `withTable` one-liners and the generic extension recursion (D1, D6). Table, index and extension can be done concurrently by separate subagents; the generic base helper lands first.
+### Phase 2 — Parent pointers (sequential, after Phase 1)
+The generic `withParent` clone applied by the factory to its own children, the per-kind named accessors, and qualifier resolution through the chain (D1, D6). One base helper, then one line per kind — no per-component requalifiers and no per-kind attach step.
 
 ### Phase 3 — Drop `databaseName` (sequential, after Phase 2)
 D7 across dumbo and pongo, including the removed validations and the removed throw.
@@ -180,7 +226,10 @@ Every phase ships unit, integration and end-to-end coverage; nothing is marked "
 
 - **Migration name back-compat:** a golden test asserting that a default-schema pongo collection still produces `pongoCollection:users:001:createtable`, byte-identical to `main`.
 - **Default token resolution:** the same component tree renders `public`-qualified DDL under the Postgres formatter and unqualified under SQLite.
-- **Clone semantics:** attaching a table to a schema leaves the original untouched; the clone carries the new qualifier, requalified indexes and recomputed migration names.
+- **Clone semantics:** attaching a table to a schema leaves the original untouched; the clone carries the parent pointer, reparented indexes and recomputed migration names.
+- **Grandchild reparenting:** an index under a cloned table resolves `this.table().schema().schemaName` to the *new* schema, never the original's.
+- **Self-attachment:** an *unattached* table's index still resolves its own table — the factory attaches children, so no component is ever built with dangling grandchildren.
+- **No accessors:** no component exposes an accessor property; asserted structurally, because a stray getter breaks the clone silently rather than loudly.
 - **Reuse:** the same table definition attached to two schemas yields two independent, correctly qualified components.
 - **Dedupe:** identical migration name + identical SQL collapses; identical name + different SQL throws.
 - **Database-level extension:** its tables now produce `CREATE TABLE` (regression test for the current silent drop).

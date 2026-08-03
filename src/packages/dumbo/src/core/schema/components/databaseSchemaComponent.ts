@@ -68,25 +68,19 @@ export const databaseSchemaComponent = <
     }
   }
   const extensions = (options.extensions ?? {}) as Extensions;
-  const base = createSchemaComponent(databaseSchemaComponentType, {
-    components: mergeSchemaComponentMaps(tables, extensions),
-    migrations: options.migrations,
-  });
-
-  Object.defineProperties(base, {
-    schemaName: { value: options.schemaName, enumerable: true },
-    databaseName: { value: options.databaseName, enumerable: true },
-  });
-  Object.defineProperties(base, {
-    tables: {
-      value: schemaComponentMap(tables),
-      enumerable: true,
+  const base = createSchemaComponent(
+    databaseSchemaComponentType,
+    {
+      components: mergeSchemaComponentMaps(tables, extensions),
+      migrations: options.migrations,
     },
-    extensions: {
-      value: schemaComponentMap(extensions),
-      enumerable: true,
+    {
+      schemaName: options.schemaName,
+      databaseName: options.databaseName,
+      tables: schemaComponentMap(tables),
+      extensions: schemaComponentMap(extensions),
     },
-  });
+  );
 
   return base as unknown as DatabaseSchemaComponent<
     Tables,

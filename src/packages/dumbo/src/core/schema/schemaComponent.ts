@@ -13,9 +13,14 @@ export type SchemaComponent<
   Kind extends SchemaComponentKind = SchemaComponentKind,
 > = Readonly<{
   [schemaComponentType]: Kind;
+  declare: SchemaComponentDeclaration;
   components: SchemaComponentMap;
   migrations: ReadonlyArray<SQLMigration>;
 }>;
+
+export type SchemaComponentDeclaration = (
+  component: AnySchemaComponent,
+) => ReadonlyArray<SQLMigration>;
 
 export type AnySchemaComponent = SchemaComponent<SchemaComponentKind>;
 
@@ -26,7 +31,7 @@ export type SchemaComponentMap<
 export type SchemaComponentOptions<
   Components extends SchemaComponentMap = SchemaComponentMap,
 > = Readonly<{
-  migrations?: ReadonlyArray<SQLMigration> | undefined;
+  migrations?: SchemaComponentDeclaration | undefined;
   components?: Components | undefined;
 }>;
 
@@ -58,50 +63,7 @@ export const mergeSchemaComponentMaps = (
   return schemaComponentMap(merged);
 };
 
-const schemaComponentState: unique symbol = Symbol(
-  'dumbo.schemaComponent.state',
-);
-
-type InternalSchemaComponent = AnySchemaComponent &
-  Readonly<{
-    [schemaComponentState]?: Readonly<{
-      localMigrations: ReadonlyArray<SQLMigration>;
-    }>;
-  }>;
-
-const migrationsFor = (
-  root: AnySchemaComponent,
-): ReadonlyArray<SQLMigration> => {
-  const result: SQLMigration[] = [];
-  const visited = new Set<AnySchemaComponent>();
-  const migrationsByName = new Map<string, SQLMigration>();
-
-  const visit = (component: AnySchemaComponent): void => {
-    if (visited.has(component)) return;
-    visited.add(component);
-
-    const state = (component as InternalSchemaComponent)[schemaComponentState];
-    const local = state?.localMigrations ?? component.migrations;
-
-    for (const migration of local) {
-      const previous = migrationsByName.get(migration.name);
-      if (previous !== undefined && previous !== migration) {
-        throw new Error(
-          `Duplicate migration name "${migration.name}" in schema component tree`,
-        );
-      }
-      if (previous === undefined) {
-        migrationsByName.set(migration.name, migration);
-        result.push(migration);
-      }
-    }
-
-    for (const child of Object.values(component.components)) visit(child);
-  };
-
-  visit(root);
-  return result;
-};
+const noMigrations: SchemaComponentDeclaration = () => [];
 
 export const createSchemaComponent = <
   const Kind extends SchemaComponentKind,
@@ -109,37 +71,37 @@ export const createSchemaComponent = <
 >(
   kind: Kind,
   options: SchemaComponentOptions<Components> = {},
-): SchemaComponent<Kind> & { components: Components } => {
-  const components = schemaComponentMap(
-    (options.components ?? {}) as Components,
-  );
-  const state = {
-    localMigrations: Object.freeze([...(options.migrations ?? [])]),
-  };
-  const component = {} as SchemaComponent<Kind> & {
-    components: Components;
-  };
+  fields: Readonly<Record<string, unknown>> = {},
+): SchemaComponent<Kind> & { components: Components } =>
+  Object.freeze({
+    ...fields,
+    [schemaComponentType]: kind,
+    declare: options.migrations ?? noMigrations,
+    components: schemaComponentMap((options.components ?? {}) as Components),
+    get migrations(): ReadonlyArray<SQLMigration> {
+      const self = this as AnySchemaComponent;
+      const result: SQLMigration[] = [];
+      const migrationsByName = new Map<string, SQLMigration>();
 
-  Object.defineProperties(component, {
-    [schemaComponentType]: {
-      value: kind,
-      enumerable: true,
-    },
-    [schemaComponentState]: {
-      value: state,
-    },
-    components: {
-      value: components,
-      enumerable: true,
-    },
-    migrations: {
-      get: () => migrationsFor(component),
-      enumerable: true,
+      for (const migration of [
+        ...self.declare(self),
+        ...Object.values(self.components).flatMap((child) => child.migrations),
+      ]) {
+        const previous = migrationsByName.get(migration.name);
+        if (previous !== undefined && previous !== migration) {
+          throw new Error(
+            `Duplicate migration name "${migration.name}" in schema component tree`,
+          );
+        }
+        if (previous === undefined) {
+          migrationsByName.set(migration.name, migration);
+          result.push(migration);
+        }
+      }
+
+      return result;
     },
   });
-
-  return component;
-};
 
 export const schemaComponent = <
   const Components extends SchemaComponentMap = SchemaComponentMap,
@@ -184,9 +146,3 @@ export const isSchemaComponent = (
   schemaComponentType in value &&
   'components' in value &&
   'migrations' in value;
-
-export const localMigrationsOf = (
-  component: AnySchemaComponent,
-): ReadonlyArray<SQLMigration> =>
-  (component as InternalSchemaComponent)[schemaComponentState]
-    ?.localMigrations ?? component.migrations;

@@ -23,48 +23,51 @@ If a review gate returns STOP: halt, summarise for Oskar, agree what to drop. Do
 
 ## Phase 1 — Component core
 
-### S1 — Plain frozen components, recursive `migrations`
+### S1 — Plain frozen components, `migrations` as a method
 - [ ] Tests written and failing
 - [ ] Plain frozen object literal replaces `Object.defineProperties`
-- [ ] `declaredMigrations` field added; `migrations` composes own + children
-- [ ] Deleted: `schemaComponentState`
+- [ ] `options.migrations` is a function of the component, kept in the closure — no field added
+- [ ] `migrations()` = own + children's `migrations()`, recursively, resolved through `this`
+- [ ] No accessor properties on any component — asserted structurally in the spec
+- [ ] Array form of `options.migrations` no longer accepted; call sites updated
+- [ ] Every `.migrations` read site becomes `.migrations()`
+- [ ] Deleted: `declaredMigrations` from the `SchemaComponent` type (declared, never assigned)
+- [ ] Deleted: `schemaComponentState`, `InternalSchemaComponent`
 - [ ] Deleted: `localMigrationsOf`
-- [ ] Deleted: `migrationsFor`
+- [ ] Deleted: `migrationsFor` and its `visited` set
 - [ ] Callers updated (`withTable.ts`, `databaseMigrations.ts`, `schemaComposition.type.spec.ts`)
+- [ ] No stale re-exports in any `index.ts`
 - [ ] Gate: build, fix, unit
 - [ ] Review gate R — verdict: ____
 
 ### S2 — Dedupe by name, not identity
 - [ ] Tests written and failing
-- [ ] Name-based dedupe in the recursive composition
+- [ ] Name-based dedupe in the `migrations()` composition
 - [ ] Same name + different SQL still throws
-- [ ] Identity-based `visited` set removed
 - [ ] Same rule applied in `databaseMigrations.ts`
 - [ ] Gate: build, fix, unit
 - [ ] Review gate R — verdict: ____
 
 ---
 
-## Phase 2 — Requalification on attach
+## Phase 2 — Parent pointers
 
-### S3 — `withDatabaseSchema` on table, `withTable` on index
-- [ ] Tests written and failing (clone, reuse, conflict, column-has-none)
-- [ ] `tableComponent.withDatabaseSchema(schemaName)`, requalifies indexes
-- [ ] `indexComponent.withTable(schemaName, tableName)`
-- [ ] Index conflict validation moved out of the tableComponent constructor loop
+### S3 — Generic `withParent` clone, applied by the factory
+- [ ] Tests written and failing (clone, original untouched, **grandchild reparented**, **unattached component's own children attached**, frozen, re-parent harmless)
+- [ ] Five-line generic recursive `withParent` in `schemaComponent.ts` — no kind switch
+- [ ] `createSchemaComponent` runs its own `components` through `withParent`
+- [ ] `parent` assigned before freeze; original never mutated
+- [ ] Existing `mapValues`-shaped helper reused if one exists
 - [ ] Gate: build, fix, unit
 - [ ] Review gate R — verdict: ____
 
-### S4 — Generic requalification for extensions
-- [ ] Tests written and failing (nesting, pass-through, original untouched)
-- [ ] Single capability-based generic helper in `schemaComponent.ts` — no kind switch
-- [ ] `extensionComponent.withDatabaseSchema`
-- [ ] Gate: build, fix, unit
-- [ ] Review gate R — verdict: ____
-
-### S5 — Schemas requalify children on attach
-- [ ] Tests written and failing
-- [ ] `databaseSchemaComponent` requalifies tables and extensions
+### S4 — Named accessors and qualifier resolution
+- [ ] Tests written and failing (`this.table().schema().schemaName`, unattached → default token)
+- [ ] `tableComponent.schema()`, `indexComponent.table()` — one-line methods, **not getters**
+- [ ] One shared resolution helper: declared → parent chain → `SQLDefaultSchemaNameToken`
+- [ ] Conflict rule kept: child declaring a different schema throws
+- [ ] Column gets no accessor
+- [ ] `databaseSchemaComponent` exposes clones of its tables — with no attach code of its own
 - [ ] Deleted: ad-hoc conflict loop at `databaseSchemaComponent.ts:58-69`
 - [ ] Gate: build, fix, unit, **int**
 - [ ] Review gate R — verdict: ____
@@ -106,9 +109,9 @@ If a review gate returns STOP: halt, summarise for Oskar, agree what to drop. Do
 
 ### S9 — Components emit their own DDL
 - [ ] Tests written and failing, including the database-level-extension regression
-- [ ] `tableComponent` emits create-table
-- [ ] `indexComponent` emits create-index
-- [ ] `databaseSchemaComponent` emits create-schema
+- [ ] `tableComponent`'s migrations function emits create-table
+- [ ] `indexComponent`'s migrations function emits create-index
+- [ ] `databaseSchemaComponent`'s migrations function emits create-schema
 - [ ] Deleted: `databaseMigrations.ts`
 - [ ] Deleted: `DatabaseMigrationBuilder`
 - [ ] Deleted: the four identifier types (if unused)
@@ -116,7 +119,7 @@ If a review gate returns STOP: halt, summarise for Oskar, agree what to drop. Do
 - [ ] Deleted: `sqliteTableSQL`, `sqliteIndexSQL`
 - [ ] Deleted: pongo `databaseMigrations.ts` × 2, `pongoPostgreSQLMigrationBuilder`, `pongoSQLiteMigrationBuilder`
 - [ ] Deleted: `migrationBuilder` option on `pongoDb`
-- [ ] Both `sqlBuilder.unit.spec.ts` files read `.migrations`
+- [ ] Both `sqlBuilder.unit.spec.ts` files read `.migrations()`
 - [ ] Gate: build, fix, unit, **int**
 - [ ] Review gate R — verdict: ____ (must show a large net deletion)
 
@@ -155,7 +158,7 @@ If a review gate returns STOP: halt, summarise for Oskar, agree what to drop. Do
 
 ### S13 — Extensions declare schemas
 - [ ] Type spec written and failing: `db.schemas.readmodels.tables.users`
-- [ ] Placement tests (schema-attached requalifies, database-attached does not)
+- [ ] Placement tests (schema-attached resolves that schema, database-attached does not)
 - [ ] Two-extension schema merge test
 - [ ] Projection-factory test
 - [ ] `extensionComponent` gains `schemas` / `extensions`

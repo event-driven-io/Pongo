@@ -38,7 +38,7 @@ export const migrationTableComponentFor = ({
 `;
 
   return schemaComponent({
-    migrations: [
+    migrations: () => [
       sqlMigration('dumbo:migrationTable:001', [
         ...createSchemaSQL,
         migrationTableSQL,

@@ -108,31 +108,24 @@ export const indexComponent = <
 >(
   options: IndexComponentOptions<IndexName, ColumnNames>,
 ): IndexComponent<IndexName, ColumnNames> => {
-  const base = createSchemaComponent(indexComponentType, {
-    migrations: options.migrations,
-  });
-
-  Object.defineProperties(base, {
-    indexName: { value: options.indexName, enumerable: true },
-    indexTargetNames: {
-      value: Object.freeze([
+  const base = createSchemaComponent(
+    indexComponentType,
+    {
+      migrations: options.migrations,
+    },
+    {
+      indexName: options.indexName,
+      indexTargetNames: Object.freeze([
         ...(options.indexTargetNames ?? options.columnNames),
       ]),
-      enumerable: true,
+      columnNames: Object.freeze([...options.columnNames]),
+      isUnique: options.isUnique,
+      target: options.target,
+      databaseSchemaName: options.databaseSchemaName,
+      tableName: options.tableName,
+      sql: options.sql,
     },
-    columnNames: {
-      value: Object.freeze([...options.columnNames]),
-      enumerable: true,
-    },
-    isUnique: { value: options.isUnique, enumerable: true },
-    target: { value: options.target, enumerable: true },
-    databaseSchemaName: {
-      value: options.databaseSchemaName,
-      enumerable: true,
-    },
-    tableName: { value: options.tableName, enumerable: true },
-    sql: { value: options.sql, enumerable: true },
-  });
+  );
 
   return base as IndexComponent<IndexName, ColumnNames>;
 };

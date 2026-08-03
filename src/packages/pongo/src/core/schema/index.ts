@@ -258,18 +258,25 @@ export type PongoClientWithSchema<
 > = DBsMap<Schema['dbs'], DriverType, Database> &
   PongoClient<DriverType, Database>;
 
-const defineValue = (
-  target: object,
+const withValue = <Component extends object>(
+  component: Component,
   key: PropertyKey,
   value: unknown,
-): void => {
-  Object.defineProperty(target, key, {
-    value,
-    enumerable: typeof key === 'string',
-    configurable: false,
-    writable: false,
-  });
-};
+): Component =>
+  Object.freeze(
+    Object.defineProperties(
+      {},
+      {
+        ...Object.getOwnPropertyDescriptors(component),
+        [key]: {
+          value,
+          enumerable: typeof key === 'string',
+          configurable: false,
+          writable: false,
+        },
+      },
+    ),
+  ) as Component;
 
 const pongoIndex = <
   const Name extends string,
@@ -339,8 +346,11 @@ const pongoCollection = <
     name,
     options,
   );
-  defineValue(collection, pongoCollectionComponentType, true);
-  return collection as PongoCollectionComponent<Document, Name, Indexes>;
+  return withValue(
+    collection,
+    pongoCollectionComponentType,
+    true,
+  ) as PongoCollectionComponent<Document, Name, Indexes>;
 };
 
 pongoCollection.from = (
@@ -387,8 +397,7 @@ function pongoDatabaseSchema(
           tables: nameOrCollections,
           extensions: collectionsOrExtensions as SchemaExtensions | undefined,
         });
-  defineValue(schema, pongoSchemaComponentType, true);
-  return schema as PongoSchemaComponent;
+  return withValue(schema, pongoSchemaComponentType, true) as PongoSchemaComponent;
 }
 
 function pongoDatabase<
@@ -444,9 +453,11 @@ function pongoDatabase(
       schemas: {},
       extensions: databaseExtensions,
     });
-    defineValue(database, pongoDatabaseComponentType, true);
-    defineValue(database, 'collections', collections);
-    return database as PongoDatabaseComponent;
+    return withValue(
+      withValue(database, pongoDatabaseComponentType, true),
+      'collections',
+      collections,
+    ) as PongoDatabaseComponent;
   }
 
   const database = databaseComponent({
@@ -454,8 +465,11 @@ function pongoDatabase(
     schemas: definition.schemas,
     extensions: databaseExtensions,
   });
-  defineValue(database, pongoDatabaseComponentType, true);
-  return database as PongoDatabaseComponent;
+  return withValue(
+    database,
+    pongoDatabaseComponentType,
+    true,
+  ) as PongoDatabaseComponent;
 }
 
 pongoDatabase.from = (
