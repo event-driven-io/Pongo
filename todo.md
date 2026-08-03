@@ -54,13 +54,44 @@ Logged from review gate R, not blocking:
   with the markers, since the two migration builders are their only runtime readers.
 - Duplicate-name detection moved inside `migrations()` — S2's job, done early; re-runs per level.
 
-### S2 — Dedupe by name, not identity
-- [ ] Tests written and failing
-- [ ] Name-based dedupe in the `migrations()` composition
-- [ ] Same name + different SQL still throws
-- [ ] Same rule applied in `databaseMigrations.ts`
-- [ ] Gate: build, fix, unit
-- [ ] Review gate R — verdict: ____
+### S2 — Dedupe by name, not identity ✅
+- [x] Tests written and failing (4 failed under the old identity check, confirmed by mutation)
+- [x] Name-based dedupe in the `migrations()` composition
+- [x] Same name + different SQL still throws — message shape byte-identical
+- [x] Same rule applied in `databaseMigrations.ts`, with its own collapse test
+- [x] Test names rewritten from the usage perspective (new rule: spec.md §5, plan.md ground rules)
+- [x] Gate: build, fix, unit — 1007/1007, pristine
+- [x] Review gate R — verdict: **STOP**, overridden by Oskar on both counts (see below)
+
+`haveSameSQL(a, b)` in `sqlMigration.ts` compares `JSONSerializer.serialize(migration.sqls)`. Not
+the real SHA-256 hash from `migrator.ts:236` — that one is async and needs a dialect formatter,
+which `migrations()` has neither of. Content equality yields the same collapse-or-throw decision
+without dragging dialect knowledge into the component core.
+
+Review gate R said STOP on two mechanical rules; Oskar accepted both:
+- Non-test source **+2** (22,825 → 22,827). Inlining the comparison at both call sites would have
+  been −2, but Oskar rejected the inline form as unreadable. Readability outranks a two-line budget.
+- `haveSameSQL` replaces zero existing abstractions, so the gate scored it purely additive. It is a
+  two-line predicate beside the type it compares — not an indirection layer, factory, registry or
+  config hook, which is what the rule exists to catch. It reaches the public barrel via the
+  pre-existing `export * from './sqlMigration'`; no new re-export line.
+
+The gate also called the diamond test vacuous. It was wrong: `migrations` is a function, called once
+per branch, so each branch mints a distinct migration object with the same name — exactly what the
+old identity check rejected. Verified by swapping `haveSameSQL` for identity and watching it fail.
+
+Pre-existing test names that break the new usage-perspective rule. Not swept in S2 — S15 owns them,
+except where an earlier step already touches the file:
+- `schemaComponent.unit.spec.ts` — "rejects two different migrations that would share one ledger
+  identity", "exposes migrations as a method and never as an accessor", "exposes a frozen component
+  with nothing hidden behind it", "identifies every component kind without relying on string keys",
+  "declares against the component it is read from, not the one it was built from", "returns exactly
+  what its declaration returned when it has no children", "finishes traversal when reusable
+  components form a cycle", "keeps its own keys to the declared component shape", "accepts a shared
+  table discovered twice within one logical schema"
+- `components/databaseMigrations.unit.spec.ts` — "gives the driver complete identifiers in schema,
+  table, and index order", "keeps declared migrations before driver migrations on each component".
+  Both die with the file in S9; not worth renaming before then.
 
 ---
 

@@ -164,4 +164,31 @@ describe('building migrations for a database hierarchy', () => {
       /Duplicate migration name "users:create"/,
     );
   });
+
+  it('applies one migration when a table and its builder declare the same one', () => {
+    const database = databaseComponent({
+      databaseName: 'app',
+      schemas: {
+        public: databaseSchemaComponent({
+          tables: {
+            users: tableComponent({
+              tableName: 'users',
+              migrations: () => [
+                sqlMigration('users:create', [SQL`SELECT 'shared'`]),
+              ],
+            }),
+          },
+        }),
+      },
+    });
+
+    const migrations = databaseMigrations(database, {
+      table: () => [sqlMigration('users:create', [SQL`SELECT 'shared'`])],
+    });
+
+    assert.deepStrictEqual(
+      migrations.map((migration) => migration.name),
+      ['users:create'],
+    );
+  });
 });

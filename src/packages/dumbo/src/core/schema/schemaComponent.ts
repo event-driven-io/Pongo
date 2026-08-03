@@ -1,4 +1,4 @@
-import type { SQLMigration } from './sqlMigration';
+import { haveSameSQL, type SQLMigration } from './sqlMigration';
 
 export const schemaComponentType: unique symbol = Symbol(
   'dumbo.schemaComponent.type',
@@ -85,14 +85,13 @@ export const createSchemaComponent = <
         ),
       ]) {
         const previous = migrationsByName.get(migration.name);
-        if (previous !== undefined && previous !== migration) {
-          throw new Error(
-            `Duplicate migration name "${migration.name}" in schema component tree`,
-          );
-        }
         if (previous === undefined) {
           migrationsByName.set(migration.name, migration);
           result.push(migration);
+        } else if (!haveSameSQL(previous, migration)) {
+          throw new Error(
+            `Duplicate migration name "${migration.name}" in schema component tree`,
+          );
         }
       }
 

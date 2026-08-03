@@ -1,3 +1,4 @@
+import { JSONSerializer } from '../serializer';
 import type { SQL } from '../sql';
 
 export type MigrationStyle = 'None' | 'CreateOrUpdate';
@@ -11,6 +12,9 @@ export const sqlMigration = (name: string, sqls: SQL[]): SQLMigration => ({
   name,
   sqls,
 });
+
+export const haveSameSQL = (a: SQLMigration, b: SQLMigration): boolean =>
+  JSONSerializer.serialize(a.sqls) === JSONSerializer.serialize(b.sqls);
 
 export type MigrationRecord = {
   id: number;

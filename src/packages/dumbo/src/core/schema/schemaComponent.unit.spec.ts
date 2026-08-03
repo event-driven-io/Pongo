@@ -139,6 +139,64 @@ describe('composing schema components', () => {
     assert.deepStrictEqual(root.migrations(), [migration]);
   });
 
+  it('applies an identical migration declared in two components only once', () => {
+    const root = schemaComponent({
+      components: {
+        first: schemaComponent({
+          migrations: () => [sqlMigration('same:001', [SQL`SELECT 1`])],
+        }),
+        second: schemaComponent({
+          migrations: () => [sqlMigration('same:001', [SQL`SELECT 1`])],
+        }),
+      },
+    });
+
+    assert.deepStrictEqual(root.migrations(), [
+      sqlMigration('same:001', [SQL`SELECT 1`]),
+    ]);
+  });
+
+  it('applies a repeated migration in the order it was first declared', () => {
+    const root = schemaComponent({
+      components: {
+        first: schemaComponent({
+          migrations: () => [
+            sqlMigration('same:001', [SQL`SELECT 1`]),
+            sqlMigration('first:002', [SQL`SELECT 2`]),
+          ],
+        }),
+        second: schemaComponent({
+          migrations: () => [
+            sqlMigration('second:003', [SQL`SELECT 3`]),
+            sqlMigration('same:001', [SQL`SELECT 1`]),
+          ],
+        }),
+      },
+    });
+
+    assert.deepStrictEqual(
+      root.migrations().map((migration) => migration.name),
+      ['same:001', 'first:002', 'second:003'],
+    );
+  });
+
+  it('applies a migration once when the component declaring it is reused in two places', () => {
+    const child = schemaComponent({
+      migrations: () => [sqlMigration('child:001', [SQL`SELECT 1`])],
+    });
+    const root = schemaComponent({
+      components: {
+        left: schemaComponent({ components: { child } }),
+        right: schemaComponent({ components: { child } }),
+      },
+    });
+
+    assert.deepStrictEqual(
+      root.migrations().map((migration) => migration.name),
+      ['child:001'],
+    );
+  });
+
   it('finds a nested table from a composed root', () => {
     const leaf = tableComponent({ tableName: 'users' });
     const middle = schemaComponent({ components: { leaf } });
