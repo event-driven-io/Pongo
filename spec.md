@@ -222,7 +222,11 @@ A concrete event-store-shaped extension in this repo: a `messages` table in its 
 
 ## 5. Testing
 
-Every phase ships unit, integration and end-to-end coverage; nothing is marked "not applicable". Specifically required:
+Every phase ships unit, integration and end-to-end coverage; nothing is marked "not applicable".
+
+**Test names describe the use case, not the implementation.** A name states what someone using the library can rely on, in their vocabulary, and must still read correctly after the implementation is rewritten. "declaring the same migration in two places applies it once" is a use case; "collapses two structurally identical migrations built separately" is our internals leaking. A name that mentions a private symbol, a data structure or a call site is wrong.
+
+Specifically required:
 
 - **Migration name back-compat:** a golden test asserting that a default-schema pongo collection still produces `pongoCollection:users:001:createtable`, byte-identical to `main`.
 - **Default token resolution:** the same component tree renders `public`-qualified DDL under the Postgres formatter and unqualified under SQLite.

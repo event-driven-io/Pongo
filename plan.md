@@ -5,6 +5,11 @@ Companion to [spec.md](spec.md) and [qa.md](qa.md). Everything in the spec ships
 ## Ground rules for every step
 
 - **Test-first.** Write the failing test, run it, see it fail for the right reason, then implement.
+- **Name tests from the usage perspective, never the implementation.** A test name states what
+  someone using the library can rely on, in their vocabulary. It must survive the implementation
+  being rewritten. "collapses two structurally identical migrations built separately" describes our
+  internals; "declaring the same migration in two places applies it once" describes the use case.
+  If a name mentions a private symbol, a data structure, a call site or a line number, it is wrong.
 - **Green gate after every step**, run from `/home/oskar/Repos/Pongo/src`:
   ```
   npm run build:ts
