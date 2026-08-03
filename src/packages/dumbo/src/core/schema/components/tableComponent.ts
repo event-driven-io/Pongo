@@ -1,7 +1,7 @@
 import {
-  createComponentRecord,
   createSchemaComponent,
-  mergeComponentRecords,
+  mergeSchemaComponentMaps,
+  schemaComponentMap,
   schemaComponentType,
   type AnySchemaComponent,
   type SchemaComponent,
@@ -104,7 +104,7 @@ export const tableComponent = <
       );
     }
   }
-  const children = mergeComponentRecords(columns, indexes);
+  const children = mergeSchemaComponentMaps(columns, indexes);
   const base = createSchemaComponent(tableComponentType, {
     components: children,
     migrations: options.migrations,
@@ -125,11 +125,11 @@ export const tableComponent = <
       enumerable: true,
     },
     columns: {
-      value: createComponentRecord(columns),
+      value: schemaComponentMap(columns),
       enumerable: true,
     },
     indexes: {
-      value: createComponentRecord(indexes),
+      value: schemaComponentMap(indexes),
       enumerable: true,
     },
   });
