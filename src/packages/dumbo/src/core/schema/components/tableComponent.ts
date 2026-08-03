@@ -112,7 +112,6 @@ export const tableComponent = <
       migrations: options.migrations,
     },
     {
-      tableName: options.tableName,
       databaseSchemaName: options.databaseSchemaName,
       primaryKey: Object.freeze([...(options.primaryKey ?? [])]),
       relationships: Object.freeze({ ...(options.relationships ?? {}) }),
@@ -121,12 +120,7 @@ export const tableComponent = <
     },
   );
 
-  return base as unknown as TableComponent<
-    Columns,
-    TableName,
-    Indexes,
-    Relationships
-  >;
+  return base as TableComponent<Columns, TableName, Indexes, Relationships>;
 };
 
 export const isTableComponent = (

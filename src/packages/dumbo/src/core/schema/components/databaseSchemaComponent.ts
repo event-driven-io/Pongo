@@ -82,11 +82,7 @@ export const databaseSchemaComponent = <
     },
   );
 
-  return base as unknown as DatabaseSchemaComponent<
-    Tables,
-    SchemaName,
-    Extensions
-  >;
+  return base as DatabaseSchemaComponent<Tables, SchemaName, Extensions>;
 };
 
 export const isDatabaseSchemaComponent = (

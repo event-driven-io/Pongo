@@ -13,6 +13,7 @@ export type SchemaComponent<
   Kind extends SchemaComponentKind = SchemaComponentKind,
 > = Readonly<{
   [schemaComponentType]: Kind;
+  parent?: AnySchemaComponent | undefined;
   components: SchemaComponentMap;
   migrations: () => ReadonlyArray<SQLMigration>;
 }>;
@@ -62,18 +63,43 @@ export const mergeSchemaComponentMaps = (
   return schemaComponentMap(merged);
 };
 
+export const withParent = (
+  component: AnySchemaComponent,
+  parent: AnySchemaComponent,
+): AnySchemaComponent => {
+  const clone = { ...component, parent };
+  clone.components = componentsWithParent(component.components, clone);
+  return Object.freeze(clone);
+};
+
+const componentsWithParent = (
+  components: SchemaComponentMap,
+  parent: AnySchemaComponent,
+): SchemaComponentMap =>
+  schemaComponentMap(
+    Object.fromEntries(
+      Object.entries(components).map(([alias, child]) => [
+        alias,
+        withParent(child, parent),
+      ]),
+    ),
+  );
+
 export const createSchemaComponent = <
   const Kind extends SchemaComponentKind,
   const Components extends SchemaComponentMap = SchemaComponentMap,
+  const Fields extends Readonly<Record<string, unknown>> = Readonly<
+    Record<string, never>
+  >,
 >(
   kind: Kind,
   options: SchemaComponentOptions<Components> = {},
-  fields: Readonly<Record<string, unknown>> = {},
-): SchemaComponent<Kind> & { components: Components } =>
-  Object.freeze({
+  fields: Fields = {} as Fields,
+): SchemaComponent<Kind> & Fields & { components: Components } => {
+  const component = {
     ...fields,
     [schemaComponentType]: kind,
-    components: schemaComponentMap((options.components ?? {}) as Components),
+    components: schemaComponentMap<SchemaComponentMap>({}),
     migrations(this: AnySchemaComponent): ReadonlyArray<SQLMigration> {
       const result: SQLMigration[] = [];
       const migrationsByName = new Map<string, SQLMigration>();
@@ -97,7 +123,17 @@ export const createSchemaComponent = <
 
       return result;
     },
-  });
+  };
+  component.components = componentsWithParent(
+    options.components ?? {},
+    component,
+  );
+
+  return Object.freeze(component) as SchemaComponent<Kind> &
+    Fields & {
+      components: Components;
+    };
+};
 
 export const schemaComponent = <
   const Components extends SchemaComponentMap = SchemaComponentMap,

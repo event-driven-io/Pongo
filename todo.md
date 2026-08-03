@@ -97,14 +97,55 @@ except where an earlier step already touches the file:
 
 ## Phase 2 — Parent pointers
 
-### S3 — Generic `withParent` clone, applied by the factory
-- [ ] Tests written and failing (clone, original untouched, **grandchild reparented**, **unattached component's own children attached**, frozen, re-parent harmless)
-- [ ] Five-line generic recursive `withParent` in `schemaComponent.ts` — no kind switch
-- [ ] `createSchemaComponent` runs its own `components` through `withParent`
-- [ ] `parent` assigned before freeze; original never mutated
-- [ ] Existing `mapValues`-shaped helper reused if one exists
-- [ ] Gate: build, fix, unit
-- [ ] Review gate R — verdict: ____
+### S3 — Generic `withParent` clone, applied by the factory ✅
+- [x] Tests written and failing (clone, original untouched, **grandchild reparented**, **unattached component's own children attached**, frozen, re-parent harmless)
+- [x] Generic recursive `withParent` in `schemaComponent.ts` — kind-blind, no kind switch; exported
+      from `schemaComponent.ts` but deliberately not re-exported from `core/schema/index.ts`
+- [x] `createSchemaComponent` runs its own `components` through `withParent`
+- [x] `parent` assigned before freeze; original never mutated
+- [x] Existing `mapValues`-shaped helper reused if one exists — none existed; a module-private
+      `componentsWithParent` (12 lines) does that job, with `schemaComponentMap` supplying the
+      null-prototype freeze
+- [x] `parent?: AnySchemaComponent | undefined` added to the `SchemaComponent` type
+- [x] Gate: build, fix, unit — 1015/1015, pristine
+- [x] Review gate R — verdict: **STOP**, overridden by Oskar (see below)
+
+Construction is two-step in both places — the component literal first, `component.components`
+assigned after it, then frozen. The parent/child reference is cyclic: children must point at the
+component, so the component has to exist before its children can be cloned against it. `withParent`
+does the same dance for the same reason.
+
+Tests: eight new tests under the `placing a component under a parent` describe, plus a vacuity fix.
+"does not change the migrations of the definition it was built from" had no children in its fixture,
+so it survived every mutation of `withParent` and `createSchemaComponent` — including one that broke
+39 other tests. It now places a table carrying an index, both declaring migrations named after their
+placement depth, and asserts the definition's full `migrations()` before and after placement plus the
+parent's. Mutation-proved: making `withParent` non-recursive fails it (`users_email_idx:under-1`
+instead of `under-2`), and mutating the component in place fails it too.
+
+Thirteen pre-existing tests were rewritten because cloning breaks reference equality — more than the
+plan anticipated at this step; it expected this at S4. Nine came out equal or stronger. Two are mildly
+weaker but still assert their named subject: "runs a shared child migration once when the child has
+multiple aliases" lost its identity-traversal assertion, and "accesses declared children through typed
+record aliases" went from identity to `tableName`. Two lost coverage deliberately and acceptably: the
+cycle test can no longer construct a cycle through the factory at all, and the extension-alias test
+lost an assertion that cloning makes unstateable.
+
+Review gate R said STOP on the mechanical net-lines rule; Oskar accepted it:
+- Non-test source 144 → 176, **+32**; test source +139. Oskar: "I'm fine with +32".
+- The gate found no new exported type, options bag, registry or config hook, judged all growth to be
+  machinery plan.md pre-authorised, and found nothing droppable. S3 is the one purely additive step in
+  Phase 2 — the deletions it unlocks land in S4 and S9.
+
+Small cleanup applied after the gate: `components: {} as SchemaComponentMap` became
+`components: schemaComponentMap<SchemaComponentMap>({})`, removing a cast.
+
+Follow-ups S3 leaves behind:
+- **S4 inherits a gap**: `tables`, `indexes` and `columns` field maps still hold the ORIGINAL child
+  components — only `components` holds clones. S4's spec expects `.tables.users` to be a clone, so that
+  field-map re-derivation is still owed.
+- `findComponents` now returns one entry per ALIAS rather than one per identity, since clones are
+  distinct objects. No test pins the new arity directly.
 
 ### S4 — Named accessors and qualifier resolution
 - [ ] Tests written and failing (`this.table().schema().schemaName`, unattached → default token)
