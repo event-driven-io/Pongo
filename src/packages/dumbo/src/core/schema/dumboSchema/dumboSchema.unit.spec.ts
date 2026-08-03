@@ -48,7 +48,7 @@ describe('dumboSchema', () => {
     assert.strictEqual(boundEmailIndex?.databaseSchemaName, undefined);
     assert.strictEqual(boundEmailIndex?.tableName, undefined);
     assert.strictEqual(boundEmailIndex, emailIndex);
-    assert.strictEqual(tbl.components.idx_email, boundEmailIndex);
+    assert.strictEqual(tbl.components.idx_email!.parent, tbl);
     assert.ok(tbl.columns.id !== undefined);
     assert.ok(tbl.columns.email !== undefined);
   });
