@@ -262,21 +262,7 @@ const withValue = <Component extends object>(
   component: Component,
   key: PropertyKey,
   value: unknown,
-): Component =>
-  Object.freeze(
-    Object.defineProperties(
-      {},
-      {
-        ...Object.getOwnPropertyDescriptors(component),
-        [key]: {
-          value,
-          enumerable: typeof key === 'string',
-          configurable: false,
-          writable: false,
-        },
-      },
-    ),
-  ) as Component;
+): Component => Object.freeze({ ...component, [key]: value });
 
 const pongoIndex = <
   const Name extends string,
@@ -397,7 +383,11 @@ function pongoDatabaseSchema(
           tables: nameOrCollections,
           extensions: collectionsOrExtensions as SchemaExtensions | undefined,
         });
-  return withValue(schema, pongoSchemaComponentType, true) as PongoSchemaComponent;
+  return withValue(
+    schema,
+    pongoSchemaComponentType,
+    true,
+  ) as PongoSchemaComponent;
 }
 
 function pongoDatabase<

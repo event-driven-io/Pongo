@@ -20,7 +20,6 @@ export const withTable = (
       [alias]: table,
     },
     extensions: existingSchema?.extensions,
-    migrations: existingSchema?.declare,
   });
 
   return databaseComponent({
@@ -30,6 +29,5 @@ export const withTable = (
       [databaseSchemaName]: schema,
     },
     extensions: database.extensions,
-    migrations: database.declare,
   });
 };

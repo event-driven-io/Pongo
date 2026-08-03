@@ -131,7 +131,7 @@ export const runSQLMigrations = (
       schemaName: databaseType === 'PostgreSQL' ? schemaName : undefined,
       tableName,
       createSchema: databaseType === 'PostgreSQL',
-    }).migrations;
+    }).migrations();
 
     const result: RunSQLMigrationsResult = { applied: [], skipped: [] };
 

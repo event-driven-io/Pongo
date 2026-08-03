@@ -204,6 +204,15 @@ THEN IMPLEMENT in schemaComponent.ts:
 Do NOT change duplicate-name detection in this step; S2 owns that.
 Do NOT introduce parent pointers in this step; S3 owns that.
 
+ACCEPTED DEBT, agreed with Oskar: databaseMigrations.ts runs its own traversal and needs a
+node's OWN migrations, interleaved before the driver's DDL for that node — a contract its unit
+spec asserts ("keeps declared migrations before driver migrations on each component"). Once the
+declaration lives only in the closure there is no way to ask for it, so that one call site reads
+`{ ...component, components: {} }.migrations()`. Seeding the result from `database.migrations()`
+instead was tried and FAILS that spec: it hoists every declared migration above every generated
+one. Do not add an own-migrations accessor to fix this (qa.md A28). S9 deletes the file, the
+builder and the traversal, and the interleaving then falls out for free.
+
 CONSTRAINTS: smallest reasonable change; no new abstractions, helper layers or wrapper
 functions; no new comments unless the code is genuinely tricky; do not remove existing
 comments; do not commit, add or stage anything.
@@ -487,6 +496,17 @@ THEN IMPLEMENT:
   option on pongoDb (pongoDb.ts:209 and :226 become plain `databaseComponent.migrations()`).
 - Rewrite the two sqlBuilder unit specs that call databaseMigrations(...) to read
   `.migrations()` instead.
+- Verify the S1 accepted debt died with the file: `{ ...component, components: {} }.migrations()`
+  must not survive anywhere. Grep for `components: {} }` and expect zero hits.
+- The pongo marker symbols exist ONLY because dumbo's traversal calls the builders for every
+  table in the tree, pongo's or not, so `isPongoCollectionComponent` has to stop pongo naming
+  tables it did not create. Deleting the builders removes both runtime readers. Therefore also
+  delete: `pongoCollectionComponentType`, `pongoSchemaComponentType`,
+  `pongoDatabaseComponentType`, the three `isPongo*Component` guards, and `withValue` in
+  pongo/src/core/schema/index.ts. The ONLY thing that may survive is a type-level brand for the
+  narrowing at pongoDb.ts:255 — a type, never a value on the object. If a runtime marker still
+  looks necessary after the builders are gone, stop and tell Oskar; it means S9 did not actually
+  move DDL into the components.
 
 Then: `npm run build:ts`, `npm run fix`, `npm run test:unit`, `npm run test:int` from src/.
 

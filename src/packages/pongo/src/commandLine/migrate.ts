@@ -230,5 +230,5 @@ const getMigrations = ({
 
   const db = driver.databaseFactory({ ...driverOptions, ...customOptions });
 
-  return db.schema.component.migrations;
+  return db.schema.component.migrations();
 };

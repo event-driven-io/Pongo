@@ -178,7 +178,7 @@ describe('using a Pongo database', () => {
     assert.notStrictEqual(db.schema.component, initialComponent);
     assert.strictEqual(db.schema.definition, definition);
     assert.deepStrictEqual(
-      scoped.schema.component.migrations.map((migration) => migration.name),
+      scoped.schema.component.migrations().map((migration) => migration.name),
       [],
     );
     assert.deepStrictEqual(migrationNames(db.schema.migrations), [

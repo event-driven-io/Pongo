@@ -85,7 +85,7 @@ describe('composing schema components', () => {
       },
     });
 
-    assert.deepStrictEqual(root.migrations, [
+    assert.deepStrictEqual(root.migrations(), [
       rootMigration,
       firstMigration,
       secondMigration,
@@ -99,7 +99,7 @@ describe('composing schema components', () => {
       components: { child, childAgain: child },
     });
 
-    assert.deepStrictEqual(root.migrations, [migration]);
+    assert.deepStrictEqual(root.migrations(), [migration]);
     assert.deepStrictEqual(
       findComponents(
         root,
@@ -122,7 +122,7 @@ describe('composing schema components', () => {
     });
 
     assert.throws(
-      () => root.migrations,
+      () => root.migrations(),
       /Duplicate migration name "duplicate:001"/,
     );
   });
@@ -136,7 +136,7 @@ describe('composing schema components', () => {
       },
     });
 
-    assert.deepStrictEqual(root.migrations, [migration]);
+    assert.deepStrictEqual(root.migrations(), [migration]);
   });
 
   it('finds a nested table from a composed root', () => {
@@ -156,9 +156,8 @@ describe('composing schema components', () => {
     >;
     const leaf: AnySchemaComponent = {
       [schemaComponentType]: genericComponentType,
-      declare: () => [migration],
       components: leafChildren,
-      migrations: [migration],
+      migrations: () => [migration],
     };
     const root = schemaComponent({ components: { leaf } });
     leafChildren.root = root;
@@ -170,7 +169,7 @@ describe('composing schema components', () => {
       ),
       [root, leaf],
     );
-    assert.deepStrictEqual(root.migrations, [migration]);
+    assert.deepStrictEqual(root.migrations(), [migration]);
   });
 
   it('accesses declared children through typed record aliases', () => {
@@ -262,7 +261,7 @@ describe('exposing a component as a plain frozen value', () => {
     const second = sqlMigration('leaf:002', [SQL`SELECT 2`]);
     const leaf = schemaComponent({ migrations: () => [first, second] });
 
-    assert.deepStrictEqual(leaf.migrations, [first, second]);
+    assert.deepStrictEqual(leaf.migrations(), [first, second]);
   });
 
   it('returns its own migrations before its children in insertion order', () => {
@@ -277,7 +276,7 @@ describe('exposing a component as a plain frozen value', () => {
       },
     });
 
-    assert.deepStrictEqual(root.migrations, [own, firstChild, secondChild]);
+    assert.deepStrictEqual(root.migrations(), [own, firstChild, secondChild]);
   });
 
   it('composes migrations transitively through a three-level tree', () => {
@@ -294,8 +293,11 @@ describe('exposing a component as a plain frozen value', () => {
       components: { middle },
     });
 
-    assert.deepStrictEqual(middle.migrations, [middleMigration, leafMigration]);
-    assert.deepStrictEqual(root.migrations, [
+    assert.deepStrictEqual(middle.migrations(), [
+      middleMigration,
+      leafMigration,
+    ]);
+    assert.deepStrictEqual(root.migrations(), [
       rootMigration,
       middleMigration,
       leafMigration,
@@ -313,7 +315,7 @@ describe('exposing a component as a plain frozen value', () => {
 
     assert.deepStrictEqual(declared, []);
 
-    void component.migrations;
+    component.migrations();
 
     assert.deepStrictEqual(declared, [component]);
   });
@@ -327,25 +329,17 @@ describe('exposing a component as a plain frozen value', () => {
       ],
       components: { first: schemaComponent() },
     });
-    const clone = Object.freeze(
-      Object.defineProperties(
-        {},
-        {
-          ...Object.getOwnPropertyDescriptors(original),
-          components: {
-            value: Object.freeze({ second: schemaComponent() }),
-            enumerable: true,
-          },
-        },
-      ),
-    ) as AnySchemaComponent;
+    const clone = Object.freeze({
+      ...original,
+      components: Object.freeze({ second: schemaComponent() }),
+    }) as AnySchemaComponent;
 
     assert.deepStrictEqual(
-      original.migrations.map((migration) => migration.name),
+      original.migrations().map((migration) => migration.name),
       ['declared:first'],
     );
     assert.deepStrictEqual(
-      clone.migrations.map((migration) => migration.name),
+      clone.migrations().map((migration) => migration.name),
       ['declared:second'],
     );
   });
@@ -367,15 +361,40 @@ describe('exposing a component as a plain frozen value', () => {
     const copy = { ...root };
     assert.strictEqual(copy[schemaComponentType], genericComponentType);
     assert.strictEqual(copy.components, root.components);
-    assert.deepStrictEqual(copy.migrations, [migration]);
+    assert.deepStrictEqual(copy.migrations(), [migration]);
   });
 
   it('keeps its own keys to the declared component shape', () => {
     assert.deepStrictEqual(Object.keys(schemaComponent()), [
-      'declare',
       'components',
       'migrations',
     ]);
+  });
+
+  it('exposes migrations as a method and never as an accessor', () => {
+    const component = schemaComponent({
+      migrations: () => [sqlMigration('root:001', [SQL`SELECT 1`])],
+      components: { child: tableComponent({ tableName: 'users' }) },
+    });
+
+    assert.strictEqual(typeof component.migrations, 'function');
+
+    for (const key of [
+      ...Object.getOwnPropertyNames(component),
+      ...Object.getOwnPropertySymbols(component),
+    ]) {
+      const descriptor = Object.getOwnPropertyDescriptor(component, key)!;
+      assert.strictEqual(
+        typeof descriptor.get,
+        'undefined',
+        `${String(key)} is a getter`,
+      );
+      assert.strictEqual(
+        typeof descriptor.set,
+        'undefined',
+        `${String(key)} is a setter`,
+      );
+    }
   });
 });
 
@@ -434,7 +453,7 @@ describe('grouping components in extensions', () => {
 
     assert.strictEqual(extension.components.users, users);
     assert.strictEqual(extension.components.usersAgain, users);
-    assert.deepStrictEqual(extension.migrations, [migration]);
+    assert.deepStrictEqual(extension.migrations(), [migration]);
     assert.deepStrictEqual(findComponents(extension, isTableComponent), [
       users,
     ]);
@@ -514,7 +533,7 @@ describe('grouping components in extensions', () => {
       extensions: { eventStore },
     });
 
-    assert.deepStrictEqual(database.migrations, [
+    assert.deepStrictEqual(database.migrations(), [
       tableMigration,
       schemaExtensionMigration,
       databaseExtensionMigration,
@@ -533,8 +552,8 @@ describe('grouping components in extensions', () => {
       extensions: { audit },
     });
 
-    assert.deepStrictEqual(audit.migrations, [migration]);
-    assert.deepStrictEqual(database.migrations, [migration]);
+    assert.deepStrictEqual(audit.migrations(), [migration]);
+    assert.deepStrictEqual(database.migrations(), [migration]);
     assert.deepStrictEqual(findComponents(audit, isTableComponent), [auditLog]);
     assert.deepStrictEqual(findComponents(database, isTableComponent), [
       auditLog,

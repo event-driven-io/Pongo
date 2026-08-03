@@ -149,7 +149,7 @@ export type PongoSchemaAccessor = ((schemaName?: string) => PongoSchemaScope) &
   Readonly<{
     component: DatabaseComponent;
     definition: PongoDbSchema;
-    migrations: DatabaseComponent['migrations'];
+    migrations: ReturnType<DatabaseComponent['migrations']>;
     migrate(options?: PongoMigrationOptions): Promise<RunSQLMigrationsResult>;
   }>;
 

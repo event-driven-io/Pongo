@@ -124,7 +124,7 @@ export const databaseMigrations = (
     visited.add(component);
     const identifier = identify(component, parentIdentifier);
 
-    for (const migration of component.declare(component)) {
+    for (const migration of { ...component, components: {} }.migrations()) {
       addMigration(result, migrationsByName, migration);
     }
 

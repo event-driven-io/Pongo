@@ -23,22 +23,36 @@ If a review gate returns STOP: halt, summarise for Oskar, agree what to drop. Do
 
 ## Phase 1 — Component core
 
-### S1 — Plain frozen components, `migrations` as a method
-- [ ] Tests written and failing
-- [ ] Plain frozen object literal replaces `Object.defineProperties`
-- [ ] `options.migrations` is a function of the component, kept in the closure — no field added
-- [ ] `migrations()` = own + children's `migrations()`, recursively, resolved through `this`
-- [ ] No accessor properties on any component — asserted structurally in the spec
-- [ ] Array form of `options.migrations` no longer accepted; call sites updated
-- [ ] Every `.migrations` read site becomes `.migrations()`
-- [ ] Deleted: `declaredMigrations` from the `SchemaComponent` type (declared, never assigned)
-- [ ] Deleted: `schemaComponentState`, `InternalSchemaComponent`
-- [ ] Deleted: `localMigrationsOf`
-- [ ] Deleted: `migrationsFor` and its `visited` set
-- [ ] Callers updated (`withTable.ts`, `databaseMigrations.ts`, `schemaComposition.type.spec.ts`)
-- [ ] No stale re-exports in any `index.ts`
-- [ ] Gate: build, fix, unit
-- [ ] Review gate R — verdict: ____
+### S1 — Plain frozen components, `migrations` as a method ✅
+- [x] Tests written and failing (15 failed / 31 passed, `root.migrations is not a function`)
+- [x] Plain frozen object literal replaces `Object.defineProperties`
+- [x] `options.migrations` is a function of the component, kept in the closure — no field added
+- [x] `migrations()` = own + children's `migrations()`, recursively, resolved through `this`
+- [x] No accessor properties on any component — asserted structurally in the spec
+- [x] Array form of `options.migrations` no longer accepted; call sites updated
+- [x] Every `.migrations` read site becomes `.migrations()`
+- [x] Deleted: `declaredMigrations` — already absent at baseline; the plan's note was stale
+- [x] Deleted: `schemaComponentState`, `InternalSchemaComponent`
+- [x] Deleted: `localMigrationsOf`
+- [x] Deleted: `migrationsFor` and its `visited` set
+- [x] Callers updated (`withTable.ts`, `databaseMigrations.ts`, `schemaComposition.type.spec.ts`)
+- [x] No stale re-exports in any `index.ts`
+- [x] Gate: build, fix, unit — 1003/1003, pristine
+- [x] Review gate R — verdict: **PASS** (source −65 lines; tests +145)
+
+Accepted debt, agreed with Oskar — `databaseMigrations.ts:127` reads a node's own migrations as
+`{ ...component, components: {} }.migrations()`. It preserves the declared-before-driver
+interleaving its unit spec asserts; the clean alternative was tried and broke that spec. S9
+deletes the file and the debt with it.
+
+Logged from review gate R, not blocking:
+- `createSchemaComponent` gained a `fields` bag — replaces 6 `Object.defineProperties` blocks,
+  so net-negative, but the bag is untyped and the factories keep `as unknown as` casts.
+- `SchemaComponentDeclaration` type alias, one use site, not re-exported — inline it if S2 touches it.
+- pongo's `defineValue` became `withValue` — reduced to a one-line `Object.freeze({ ...c, [k]: v })`
+  after review. It stamps pongo marker symbols on frozen dumbo components; S9 deletes it along
+  with the markers, since the two migration builders are their only runtime readers.
+- Duplicate-name detection moved inside `migrations()` — S2's job, done early; re-runs per level.
 
 ### S2 — Dedupe by name, not identity
 - [ ] Tests written and failing
@@ -120,6 +134,12 @@ If a review gate returns STOP: halt, summarise for Oskar, agree what to drop. Do
 - [ ] Deleted: pongo `databaseMigrations.ts` × 2, `pongoPostgreSQLMigrationBuilder`, `pongoSQLiteMigrationBuilder`
 - [ ] Deleted: `migrationBuilder` option on `pongoDb`
 - [ ] Both `sqlBuilder.unit.spec.ts` files read `.migrations()`
+- [ ] S1's accepted debt gone: `grep "components: {} }"` returns nothing
+- [ ] Deleted: `pongoCollectionComponentType`, `pongoSchemaComponentType`,
+      `pongoDatabaseComponentType` and the three `isPongo*Component` guards — the builders were
+      their only runtime readers
+- [ ] Deleted: `withValue` (pongo/src/core/schema/index.ts) — nothing left to stamp
+- [ ] Any surviving discrimination is a type-level brand, never a value on the component
 - [ ] Gate: build, fix, unit, **int**
 - [ ] Review gate R — verdict: ____ (must show a large net deletion)
 
