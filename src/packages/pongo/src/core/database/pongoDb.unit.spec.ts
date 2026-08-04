@@ -139,10 +139,7 @@ describe('using a Pongo database', () => {
       db.schema.component.schemas.crm?.tables.users?.tableName,
       collection.schema.component.tableName,
     );
-    assert.strictEqual(
-      db.schema.component.schemas.crm?.tables.users?.schema()?.schemaName,
-      'crm',
-    );
+    assert.strictEqual(db.schema.component.schemas.crm?.schemaName, 'crm');
   });
 
   it('uses the default schema when the callable schema accessor has no name', () => {
@@ -153,7 +150,7 @@ describe('using a Pongo database', () => {
 
     assert.strictEqual(scoped, direct);
     assert.strictEqual(
-      db.schema.component.schemas.public?.tables.users?.schema()?.schemaName,
+      db.schema.component.schemas.public?.schemaName,
       'public',
     );
     assert.strictEqual(
@@ -213,9 +210,10 @@ describe('using a Pongo database', () => {
     });
 
     assert.strictEqual(collection.collectionName, 'users');
+    assert.strictEqual(db.schema.component.schemas.crm?.schemaName, 'crm');
     assert.strictEqual(
-      db.schema.component.schemas.crm?.tables.users?.schema()?.schemaName,
-      'crm',
+      db.schema.component.schemas.crm?.tables.users?.tableName,
+      'users',
     );
   });
 
@@ -234,12 +232,17 @@ describe('using a Pongo database', () => {
     assert.notStrictEqual(defaultUsers, crmUsers);
     assert.strictEqual(db.collections().length, 2);
     assert.strictEqual(
-      db.schema.component.schemas.public?.tables.users?.schema()?.schemaName,
+      db.schema.component.schemas.public?.schemaName,
       'public',
     );
     assert.strictEqual(
-      db.schema.component.schemas.crm?.tables.users?.schema()?.schemaName,
-      'crm',
+      db.schema.component.schemas.public?.tables.users?.tableName,
+      'users',
+    );
+    assert.strictEqual(db.schema.component.schemas.crm?.schemaName, 'crm');
+    assert.strictEqual(
+      db.schema.component.schemas.crm?.tables.users?.tableName,
+      'users',
     );
   });
 

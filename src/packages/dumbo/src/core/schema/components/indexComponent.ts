@@ -6,7 +6,6 @@ import {
   type SchemaComponent,
   type SchemaComponentOptions,
 } from '../schemaComponent';
-import type { AnyTableComponent } from './tableComponent';
 
 export const indexComponentType: unique symbol = Symbol(
   'dumbo.schemaComponent.index',
@@ -84,7 +83,6 @@ export type IndexComponent<
     tableName?: string;
     target?: IndexTarget;
     sql?: ((context: IndexSQLContext) => SQL) | undefined;
-    table: () => AnyTableComponent | undefined;
   }>;
 
 export type AnyIndexComponent = IndexComponent<string, readonly string[]>;
@@ -126,13 +124,10 @@ export const indexComponent = <
       databaseSchemaName: options.databaseSchemaName,
       tableName: options.tableName,
       sql: options.sql,
-      table(this: AnyIndexComponent): AnyTableComponent | undefined {
-        return this.parent as AnyTableComponent | undefined;
-      },
     },
   );
 
-  return base as IndexComponent<IndexName, ColumnNames>;
+  return base as unknown as IndexComponent<IndexName, ColumnNames>;
 };
 
 export const isIndexComponent = (

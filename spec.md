@@ -3,270 +3,314 @@
 Branch: `schema_features`
 Status: agreed design, ready for implementation
 
+This replaces the parent-pointer design. See `qa.md` Q48–Q61 for the decisions that overturned it.
+
 ## 1. Problem
 
 The `schema_features` branch made schema components ("nodes" of the database structure: database, schema, table, column, index, extension) strongly typed and database-agnostic. Migration resolution did not keep up, and now exists twice:
 
-- `migrationsFor` in `src/packages/dumbo/src/core/schema/schemaComponent.ts` — walks the component tree collecting _declared_ migrations, with no naming context.
-- `databaseMigrations` in `src/packages/dumbo/src/core/schema/components/databaseMigrations.ts` — walks the same tree again, collecting declared migrations _plus_ builder-generated DDL, threading a widening `Identifier` (`databaseName` → `+databaseSchemaName` → `+tableName` → `+indexName`) down as it goes.
+- `SchemaComponent.migrations` in `core/schema/schemaComponent.ts` — walks the component tree collecting _declared_ migrations, with no naming context.
+- `databaseMigrations` in `core/schema/components/databaseMigrations.ts` — walks the same tree again, collecting declared migrations _plus_ builder-generated DDL, reconstructing a widening identifier (`databaseName` → `+databaseSchemaName` → `+tableName` → `+indexName`) as it descends.
 
-Both walks maintain their own `visited` set and their own duplicate-name check. The complexity concentrates in `identify`, which has to decide, per component, whether the schema name comes from the component itself, from the parent map key, from the parent's `schemaName`, or is unknown — and bail out when it can't tell.
+Both walks keep their own duplicate-name check. The complexity concentrates in deciding, per component, where the schema qualifier comes from — the component itself, the parent map key, the parent's `schemaName`, or nowhere — and bailing out when it can't tell.
 
 Root causes:
 
-1. **A component doesn't know where it lives.** A table is defined before it is attached to a schema, so at definition time its schema qualifier is unknown. The identifier has to be reconstructed top-down on every traversal.
-2. **A component can't emit its own DDL.** The tree is deliberately dialect-agnostic, so `CREATE TABLE` comes from a per-storage `DatabaseMigrationBuilder` passed in from outside. That makes `component.migrations` structurally incapable of being complete, which is precisely why the second traversal exists.
+1. **A component doesn't know where it lives.** A table is defined before it is put into a schema, so at definition time its schema qualifier is unknown.
+2. **A component can't emit its own DDL.** The tree is deliberately dialect-agnostic, so `CREATE TABLE` comes from a per-storage `DatabaseMigrationBuilder` passed in from outside. That makes `component.migrations` structurally incapable of being complete, which is why the second walk exists.
 3. **`databaseName` is threaded everywhere and used nowhere.**
+4. **"No schema" has two encodings** — a missing schema component, and a schema component with `schemaName: undefined` — so every consumer needs an `undefined` branch.
 
-Consequences visible today: a table inside a database-level extension is silently dropped (the `'databaseSchemaName' in identifier` guard in `databaseMigrations.ts:139-146` fails, so no `CREATE TABLE` is emitted); `pongoCollectionMigrationName` needs the dialect's default schema name just to strip it back out again.
+Visible consequences today: a table inside a database-level extension is silently dropped (the `databaseSchemaName !== undefined` guard at `databaseMigrations.ts:94-97` fails, so no `CREATE TABLE` is emitted); `pongoCollectionMigrationName` needs the dialect's default schema name only to strip it back out; `logicalSchemaMapping` rejects valid SQLite schemas that the physical-name mapping already disambiguates.
 
 ## 2. Goal
 
-A schema component is a **self-contained value**. `component.migrations` returns that component's own migrations plus its children's, recursively — no visitor, no builder argument, no identifier threading. Everything a component cannot know at definition time is either resolved when it is attached to a parent, or deferred to the dialect-aware formatter at execution time.
+A schema component is an **immutable value that is never rewritten**. Putting it into a parent does not clone it, stamp it, or freeze it — the parent holds the same object.
+
+`component.migrations(context)` returns that component's own migrations plus its children's, recursively. Each component extends the context with what it alone knows — a schema contributes its schema name, a table its table name — before passing it down. There is one walk and it is the components' own: no visitor, no builder argument, no second traversal.
+
+**Context threading is the mechanism.** The previous version of this spec said "no identifier threading" and specified a stored `parent` back-pointer instead. Withdrawn (Q49): the back-pointer forced attach-time cloning, which forced every child map to be repointed, which produced `attachChildren`, `withParent`, `isAliasedComponents` and the component-level freeze. Threading context down at read time gets the same result with none of that.
 
 ### Non-goals
 
-- No new dialect features (pgvector, PostGIS). The DDL token vocabulary must leave room for a dialect to contribute its own tokens, but only what dumbo has today gets implemented.
-- No behavioural change to the migration runner itself (it already dedupes by name and hash).
+- No new dialect features (pgvector, PostGIS). The DDL token vocabulary must leave room for a dialect to add its own tokens, but only what dumbo has today gets implemented.
+- No behavioural change to the migration runner (it already dedupes by name and hash).
+- `components/relationships/` is out of scope — 971 lines of type-level validation, orthogonal to migration resolution.
 
 ## 3. Design decisions
 
-### D1 — Attach by cloning with a parent pointer
+### D1 — Components are immutable values; placement never rewrites them
 
-When a component is attached to a parent, the parent produces a **clone carrying a `parent` reference**; the original stays untouched and reusable.
+A component put into a parent is the **same object**. The parent's erased child list and its typed maps (`tables`, `indexes`, `columns`, `schemas`, `extensions`) hold that same object, so there is nothing to keep in sync and no attach step to write.
+
+Deleted: `attachChildren`, `withParent`, `isAliasedComponents`, the `parent` field, the per-kind accessors `tableComponent.schema()` and `indexComponent.table()`, and `Object.freeze` on the component itself. Records built from user input (`schemaComponentMap`) stay frozen — that is about not aliasing caller-owned objects, not about component identity.
+
+A component therefore **cannot report where it lives**. `table.schema()` does not exist. Verified against every consumer before adopting this (Q49): pongo's DML path never asked — `pongoDb.ts:248-249` already knows `databaseSchemaName` locally and builds the identifier itself before calling `sqlBuilderFor`; both SQL builders take an identifier argument and never read placement off a component. The only readers were tests written against the withdrawn design.
 
 Rejected alternatives:
 
-- _Mutate on attach_ — components stop being values; attaching the same table twice silently rewires the first parent. Also requires the parent to know every child kind it must stamp.
-- _Attach at construction_ (definition is a function the parent applies) — every standalone use needs a terminal `users({})` call and every signature has to distinguish definition from component. Rejected as tedious and inaccessible (Q7).
-- _Per-kind requalifiers re-invoking each factory_ (`withDatabaseSchema` on table, `withTable` on index, plus a capability-sniffing generic map) — rejected as recreating the traversal maze it was meant to remove (Q18–Q19).
-- _Resolve-at-read, passing context down through the getter_ — rejected for the same reason (Q18).
+- _Attach by cloning with a parent pointer_ (the previous D1) — every transform had to repoint both the erased and the typed child maps, producing `attachChildren`'s duck-typed mutation through a `Record<string, unknown>` cast.
+- _Mutate `parent` on attach_ — components stop being values; putting the same table in two parents silently rewires the first (Q48).
+- _Parent as the context object_ — breaks at depth 2. A schema calls `table.migrations(schema)`; the table calls `index.migrations(table)`; the index needs the schema name and cannot reach it, because the table holds no back-pointer. Passing both is a context object again (Q14).
 
-The clone is one generic recursive function. It needs no knowledge of component kinds:
+### D2 — `migrations` is a function on a plain object literal, written by the factory
+
+Each factory builds and returns its own object literal. There is no generic constructor assembling one from a kind, an options bag and a fields bag.
 
 ```ts
-const withParent = (component, parent) => {
-  const clone = { ...component, parent };
-  clone.components = Object.freeze(
-    mapValues(component.components, (c) => withParent(c, clone)),
-  );
-  return Object.freeze(clone);
+export const databaseSchemaComponent = (options) => {
+  const tables = options.tables ?? {};
+  const extensions = options.extensions ?? {};
+  const children = [...Object.values(tables), ...Object.values(extensions)];
+
+  const component = {
+    [schemaComponentType]: databaseSchemaComponentType,
+    schemaName: options.schemaName,
+    tables: schemaComponentMap(tables),
+    extensions: schemaComponentMap(extensions),
+    components: children,
+    migrations: (context: SchemaComponentContext = {}) =>
+      componentMigrations(component, children, {
+        ...context,
+        databaseSchemaName: options.schemaName,
+      }),
+  };
+
+  return component;
 };
 ```
 
-`parent` is assigned once during construction — the clone must exist before its children can point at it — and the object is frozen immediately after. The original is never touched and nothing can observe a half-built clone, so a mutable field yields an immutable value.
+Deleted: `createSchemaComponent`, its `fields` bag, its `context` option, `scopedContext`, the `this: AnySchemaComponent` binding, and the `as unknown as` casts the bag required. `createSchemaComponent` is not public API — `schemaComposition.type.spec.ts:52-53` asserts its absence with `@ts-expect-error` and it appears zero times in `dist` — so removing it breaks no consumer.
 
-Reparenting is recursive because grandchildren go stale otherwise: a bare spread gives the table clone a correct `parent`, but its index still points at the original, unparented table. Indexes stay independent components — they are separate statements and can be altered on their own (Q21) — so they must be reparented, not absorbed into the table's DDL.
-
-**Attaching is not something schemas do to tables; it is what every component does to its own children.** `createSchemaComponent` runs its `components` through `withParent` at construction, so a table attaches its indexes exactly as a schema attaches its tables:
+One helper survives as shared code:
 
 ```ts
-component.components = Object.freeze(
-  mapValues(options.components ?? {}, (c) => withParent(c, component)),
-);
+componentMigrations(component, children, context): ReadonlyArray<SQLMigration>
 ```
 
-Without this, an unattached table's index has no parent at all and resolves its table name to `undefined` — verified by dry run before implementation (Q29). There is therefore no per-kind attach step to write anywhere.
+It runs the component's own declaration, then every child's `migrations(context)`, deduping by name (D3). Nothing else is shared.
 
-Each kind exposes a named accessor over the generic field, one line each, so authoring code reads properly (Q23–Q24):
+`migrations` is a **method, not a getter**, and the declaration function is kept in the factory closure — no property carries it. It is **always a function**; a plain array is not accepted and can be added as sugar later.
+
+### D3 — The erased child list is an array, not a keyed record
 
 ```ts
-// indexComponent
-table() { return this.parent; }
-// tableComponent
-schema() { return this.parent; }
+components: ReadonlyArray<AnySchemaComponent>
 ```
 
-An index resolves its qualifier as `this.table()?.schema()?.schemaName`. `withParent` never needs to know which kind it is cloning.
+Nothing outside the recursion reads it, and the recursion only ever iterates. Making it an array deletes `mergeSchemaComponentMaps`, its duplicate-key throw and the test asserting that throw: a key reused for both a column and an index is no longer a collision — both children are present and both migrate. The typed maps keep their keys, and `schemaComponentMap` stays for them.
 
-**No accessor properties anywhere.** `{ ...component }` _invokes_ getters and stores their values, so a single surviving getter would be silently frozen at the original's parent — a wrong migration, not an error. Every member is a plain data property; the ones that compute are functions (Q25, Q27). Descriptor-copying the clone (`Object.getOwnPropertyDescriptors`) would preserve getters, but was rejected as clever-over-simple for the sake of two one-line accessors (Q25).
+Building the list once at construction is what makes it impossible to forget a child map when a kind gains one — the reason the erased list survives at all (D18).
 
-### D2 — Components are plain frozen objects and `migrations` is a function
+### D4 — Dedupe by name, not by object identity
 
-`createSchemaComponent`'s `Object.defineProperties` construction (enumerable value props and a non-enumerable `schemaComponentState` holding `localMigrations`) disappears. Components become plain frozen object literals, safe to inspect, log and shallow-copy — which is what makes `withParent` a spread.
+Duplicate detection keys on migration name. Same name + same SQL collapses; same name + different SQL throws. `haveSameSQL` in `sqlMigration.ts` compares serialised SQL — not the runner's SHA-256 hash, which is async and needs a dialect formatter that `migrations()` does not have.
 
-Laziness is not the problem; the tree traversal is (Q17). Resolution stays deferred, and does exactly what was asked for in A3 — "take my migrations and add migrations of my children":
+### D5 — Cross-component references are by name, never by object
 
-```ts
-migrations() {
-  return [
-    ...(options.migrations?.(this) ?? []),
-    ...Object.values(this.components).flatMap((c) => c.migrations()),
-  ];
-}
-```
+A component may reference another (e.g. a projection referencing the read-model table it builds) only by a strongly typed **name**, in the style of foreign keys. Resolution happens against the root at migration time.
 
-`migrations` is a **method, not a getter** (D1, Q26–Q27): read sites gain `()` but the spread stays honest. It must resolve through `this`, never through the `component` binding captured by the factory closure — the captured-binding variant compiles, runs, and silently emits unqualified SQL for every clone (verified by dry run, Q29).
+### D6 — DDL as dialect-agnostic tokens
 
-**No property is added to carry the declaration.** The function passed as `options.migrations` stays in the factory closure; the component exposes exactly one `migrations` member (Q28). It is **always a function** of the component; a plain array is not accepted for now and can be added as sugar later (Q22). Because it runs at read time against an already-parented clone, it sees the correct qualifier — which is why nothing has to rewrite SQL at attach time.
-
-Hand-written migrations use the same reference tokens as generated ones (Q16), so they resolve in the formatter too and need no special handling.
-
-Deleted: `migrationsFor`, both `visited` sets, the `schemaComponentState` symbol, `InternalSchemaComponent`, `localMigrationsOf`, and the `declaredMigrations` field currently declared on `SchemaComponent` at `schemaComponent.ts:17` and never assigned. A component does **not** retain its own migrations as data. Nothing is added in their place.
-
-### D3 — Dedupe by name, not by object identity
-
-Both current walks compare with `visited.has(component)` and `previous !== migration`. Cloning breaks reference equality, so duplicate detection keys on `(component path, migration name)`. Two migrations with the same name and the same SQL collapse; the same name with different SQL still throws.
-
-### D4 — Cross-component references are by name, never by object
-
-A component may reference another (e.g. a projection referencing the read-model table it builds) only by a strongly typed **name**, in the same style as foreign keys. Resolution happens against the root at migration time. Holding an object reference would alias against the requalified clone and silently emit SQL for the wrong identifier.
-
-### D5 — DDL as dialect-agnostic tokens (option i)
-
-A component emits its DDL as SQL tokens; the dialect-aware formatter renders them. `SQLDefaultSchemaNameToken` — currently declared in `sqlToken.ts:71-74` and consumed nowhere — becomes the value of an unresolved schema qualifier and is resolved by the formatter at execution time.
+A component emits its DDL as SQL tokens; the dialect-aware formatter renders them. `createTableSQL` is already the shared table-DDL builder both dialects call — this changes what it emits, not that it exists.
 
 Deleted as a result:
 
-- `DatabaseMigrationBuilder` (type and all plumbing)
-- `databaseMigrations`
-- `pongoPostgreSQLMigrationBuilder`, `pongoSQLiteMigrationBuilder`
-- `postgreSQLTableSQL` / `postgreSQLIndexSQL` / `postgreSQLDatabaseSchemaSQL` as _public migration-building_ functions — their logic moves behind the formatter.
+- `DatabaseMigrationBuilder` and all its plumbing
+- `databaseMigrations`, and the four identifier types it defines — `DatabaseIdentifier`, `DatabaseSchemaIdentifier`, `TableIdentifier`, `IndexIdentifier` — which collapse into `SchemaComponentContext`
+- `pongoPostgreSQLMigrationBuilder`, `pongoSQLiteMigrationBuilder`, pongo's two `databaseMigrations.ts`, and the `migrationBuilder` option on `pongoDb`
+- `postgreSQLTableSQL` / `postgreSQLIndexSQL` / `postgreSQLDatabaseSchemaSQL` as _public migration-building_ functions — their logic moves behind the formatter
 
-Dialect-specific DDL stays possible: the formatter is per-dialect, and the token vocabulary is open so a dialect can add its own tokens and typing later.
+Dialect-specific DDL stays possible: the formatter is per-dialect and the token vocabulary is open.
 
-### D6 — A table's schema qualifier
+### D7 — A schema always has a name; the default schema is a real schema
 
-Resolution order, evaluated when `migrations()` is called:
+`dumboSchema.schema` **requires** a name. There is no unnamed schema component and no schema-less table.
 
-1. `this.schema()` reached through the D1 parent pointer → use the name that schema resolves for itself.
-2. Otherwise → `SQLDefaultSchemaNameToken`, resolved by the formatter.
+```ts
+schemaName: string | SQLDefaultSchemaNameToken   // always present, never undefined
+```
 
-A schema resolves its own name as `schemaName` → the alias it is keyed under → `SQLDefaultSchemaNameToken`. The alias link is why the D1 clone records the key alongside `parent`. It applies only to schemas the user keyed in a `schemas` block; per D9 a schema created without a name carries the token and its key is never read as a name.
+- `dumboSchema.schema('crm', { users })` — a named schema.
+- `dumboSchema.defaultSchema({ users })` — the default schema, carrying `SQLDefaultSchemaNameToken`.
 
-`databaseSchemaName` on a table is **not** a step in this chain. It is declaration-time placement input: `pongoSchema.collection('users', { databaseSchemaName: 'crm' })` exists so the flat `{ collections }` form can say where a collection belongs, and the grouping consumes it before the tree exists. Construction guarantees it agrees with the parent schema, so a "declared wins" step could never differ from step 1. The field stays on the built component because the grouping reads it there, not from raw options.
+"No schema" means "the default schema", with exactly one encoding: a schema component carrying the token. The formatter resolves it — no prefix on SQLite, no prefix on Postgres (resolved through `search_path`).
 
-An index resolves the same way through its parent table. Indexes are supported on tables only — there is no free-floating index carrying its own `databaseSchemaName` and `tableName`, and no fallback for one.
+Consequences:
 
-**The conflict check lives in `databaseSchemaComponent`, not in the builders.** `pongoSchema.schema` and `dumboSchema.schema` each call the constructor directly rather than routing through one another, so a builder-level check would be two copies that must agree with a third door still open. The constructor is where both meet, and where `tableComponent` already keeps the equivalent index guard. A table declaring a schema different from the one holding it throws there; the duplicate at `pongoDatabaseSchemaComponent.ts:58-65` is deleted.
+- `SchemaComponentContext.databaseSchemaName` is `string | SQLDefaultSchemaNameToken`. There is no unknown-qualifier state, so the `databaseSchemaName !== undefined` guard at `databaseMigrations.ts:94-97` disappears and with it the silently-dropped table of §1.
+- `databaseComponent` gains **no** `tables` map. Dumbo stays schema-aware: a database holds schemas and extensions, nothing else.
 
-### D7 — `databaseName` leaves the resolution chain
+**Placement conflicts throw at construction.** A table declaring `databaseSchemaName: 'crm'` put into schema `audit` throws. The check lives in `databaseSchemaComponent`, not in the builders: `pongoSchema.schema` and `dumboSchema.schema` each call the constructor directly rather than routing through one another, so a builder-level check would be two copies with a third door open. `tableComponent` already keeps the equivalent index guard. The duplicate at `pongoDatabaseSchemaComponent.ts:58-65` is deleted.
 
-No migration name uses it, and no DDL can: Postgres does not cross-database-qualify `CREATE TABLE`, SQLite has no such concept. Removed from schema components, from migration identifiers, and the `'A database name is required to build migrations'` throw is deleted. `databaseComponent` keeps `databaseName` as metadata for connection and reporting only. `databaseComponent`'s validation of `schema.databaseName` and `databaseSchemaComponent.databaseName` are removed.
+`databaseSchemaName` on a table is **not** a resolution step. It is declaration-time placement input: `pongoSchema.collection('users', { databaseSchemaName: 'crm' })` exists so the flat `{ collections }` form can say where a collection belongs, and pongo's grouping consumes it before the tree exists.
+
+An index resolves its qualifier from the same threaded context. Indexes are supported on tables only.
+
+### D8 — Schemas are keyed by their own name
+
+The multi-schema form stays a keyed record, and the key must equal the schema's name:
+
+```ts
+dumboSchema.database('app', { crm: dumboSchema.schema('crm', { users }) })
+```
+
+A key that disagrees with the name throws. The check already exists at `databaseComponent.ts:69-73`; with names mandatory it becomes total rather than firing only when a name happened to be present.
+
+A map key is **never** read as a schema name. The single-schema overload (`dumboSchema.database('app', dumboSchema.schema('crm', {...}))`) derives the key from the name and is the form to prefer when there is one schema.
+
+### D9 — `databaseName` leaves the resolution chain
+
+No migration name uses it and no DDL can: Postgres does not cross-database-qualify `CREATE TABLE`, SQLite has no such concept. Removed from schema components, from migration identifiers, and the `'A database name is required to build migrations'` throw is deleted. `databaseComponent` keeps `databaseName` as metadata for connection and reporting only. `databaseComponent`'s validation of `schema.databaseName` and `databaseSchemaComponent.databaseName` are removed.
 
 The only qualifier ever propagated is the schema name.
 
-### D8 — Migration names mirror what was declared
+### D10 — Migration names mirror what was declared
 
 ```
-no schema declared/attached  ->  pongoCollection:users:001:createtable
-schema "reporting"           ->  pongoCollection:reporting:users:001:createtable
+default schema      ->  pongoCollection:users:001:createtable
+schema "reporting"  ->  pongoCollection:reporting:users:001:createtable
 ```
 
-The `identifier.databaseSchemaName === defaultSchemaName` comparison in `pongoCollectionMigrationName` is deleted, and with it the `defaultSchemaName` parameter — the last place the dialect leaked into naming.
+A schema carrying `SQLDefaultSchemaNameToken` contributes **no segment**, so names stay byte-identical to `main` for the default case. The `identifier.databaseSchemaName === defaultSchemaName` comparison in `pongoCollectionMigrationName` is deleted and with it the `defaultSchemaName` parameter — the last place the dialect leaked into naming. `pongo/storage/migrationNames.ts` is deleted; naming moves into dumbo behind a `migrationNamePrefix` option.
 
-**Back-compat:** names stay byte-identical to `main` for the default case _only because_ of D9. The one accepted divergence is a user explicitly writing the dialect's own default schema name (`databaseSchemaName: 'public'` on Postgres): that now yields `pongoCollection:public:users:001:createtable` and will re-run for such a database. Accepted.
+**Accepted divergence:** a user explicitly writing the dialect's own default schema name (`databaseSchemaName: 'public'` on Postgres) now yields `pongoCollection:public:users:001:createtable` and will re-run for such a database.
 
-### D9 — `defaultSchemaName` becomes optional in `pongoDb`
+### D11 — `defaultSchemaName` is an optional override in `pongoDb`
 
-Today `pongoDb.ts:100` resolves `defaultSchemaName` eagerly and `pongoDb.ts:251` uses it as the fallback, so every collection lands in a schema component literally named `public` on Postgres. With D8 that would rename every existing migration.
+- **not given** → collections go into `dumboSchema.defaultSchema(...)`, carrying the token. Names unchanged from `main`.
+- **given** → an explicit override meaning "put every collection here unless told otherwise". Names carry that segment.
 
-New behaviour:
+### D12 — Pongo is sugar over dumbo
 
-- `defaultSchemaName` **not given** → collections go into an _unnamed_ default schema component whose qualifier is `SQLDefaultSchemaNameToken`. Names unchanged from `main`.
-- `defaultSchemaName` **given** → an explicit override meaning "put every collection here unless told otherwise". Names carry that segment.
+`PongoDatabaseComponent` exposes `collections` flat, plus `schemas` when schemas are declared. It adds typed accessors and pongo marker types; it adds no structure dumbo does not have. Pongo owns the collection-to-schema mapping: it creates the default schema when none is given, and adds a named schema alongside it when a collection declares its own `databaseSchemaName`.
 
-### D10 — Adding a collection normalises into the tree
+Of pongo's three marker symbols, only `pongoCollectionComponentType` has a production reader once D6 deletes pongo's migration builders — `pongoDb.ts:255`. `pongoSchemaComponentType`, `pongoDatabaseComponentType`, `isPongoSchemaComponent`, `isPongoDatabaseComponent` and `withValue` are deleted; any surviving discrimination is a type-level brand, never a value on the component.
 
-`db.collection('users', { databaseSchemaName: 'readmodels' })` does not build a detached table. It get-or-creates the `readmodels` schema component, clones the table into it, and swaps in a new database component — the mechanism `pongoDb.ts:276-281` already implements as `withTable`. `CREATE SCHEMA` therefore comes from the schema component as usual; no table-level ensure-schema rule is needed.
+### D13 — Adding a collection normalises into the tree
 
-This makes the database component an immutable value behind a mutable holder, and `db.schema.migrate()` reads `databaseComponent.migrations` at call time — the laziness the refactor was after.
+`db.collection('users', { databaseSchemaName: 'readmodels' })` does not build a detached table. It get-or-creates the `readmodels` schema component, puts the table into it and swaps in a new database component — the mechanism `pongoDb.ts:276-281` already implements as `withTable`. `CREATE SCHEMA` therefore comes from the schema component as usual.
 
-`mergeSchemaComponentMaps` must allow **merging** two schema components sharing an alias (union of their tables) while still throwing on duplicate _table_ names within a schema.
+This makes the database component an immutable value behind a mutable holder, and `db.schema.migrate()` reads `databaseComponent.migrations()` at call time.
 
-### D11 — Ordering
+`composePongoDatabase` is deleted. `pongoSchema.db` already returns a real `databaseComponent` in both branches; in the `{ schemas }` form the composer takes it apart and rebuilds identical copies, and in the `{ collections }` form `pongoSchema.db` builds `schemas: {}` and stashes raw collections via `withValue` purely so the composer can group them later. D11 and this decision remove its reason to exist.
 
-A collection added after `db.schema.migrate()` has run migrates its own component on first use. All migrations are written idempotently, and the runner already skips what was applied by name and hash, so a re-run is harmless.
+### D14 — Ordering
 
-### D12 — An extension has the same shape as a database
+A collection added after `db.schema.migrate()` has run migrates its own component on first use. All migrations are idempotent and the runner already skips what was applied by name and hash, so a re-run is harmless.
+
+### D15 — An extension has the same shape as a database
 
 `extensionComponent` stops being an opaque bag of components and becomes a composable _fragment of a database_: `schemas`, `extensions`, `migrations`. `databaseComponent` merges extension-contributed schemas into `schemas`.
 
 ```ts
-const eventStore = extensionComponent("emmett:eventStore", {
+const eventStore = extensionComponent('emmett:eventStore', {
   schemas: {
-    emt: databaseSchemaComponent({ tables: { messages } }),
-    readmodels: databaseSchemaComponent({ tables: { users } }),
+    emt: dumboSchema.schema('emt', { messages }),
+    readmodels: dumboSchema.schema('readmodels', { users }),
   },
 });
 
 const db = databaseComponent({ extensions: { eventStore } });
-db.schemas.readmodels.tables.users; // typed, plain record merge
+db.schemas.readmodels.tables.users; // typed, plain record intersection
 ```
 
-Typing is a record intersection — no inference over nested component maps. Because a real schema component exists, `CREATE SCHEMA readmodels` is emitted with no implicit-creation rule.
+Typing is a record intersection — no inference over nested component maps.
 
 Placement rules:
 
-- **Extension on a schema** → requalified with that schema name; a child declaring a different schema throws.
-- **Extension on the database** → no requalification; each child keeps its declared schema or falls back to the default token. This also fixes the current silent drop.
+- **Extension on a schema** → its children migrate with that schema's context; a child declaring a different schema throws.
+- **Extension on the database** → its children keep their own schemas. A table directly inside a database-level extension migrates under the default schema rather than being dropped, which fixes the §1 bug.
 
-Extensions are produced by factories over user options (emmett registers projections as `projections?: ProjectionRegistration<...>[]`), each projection contributing its table into whichever schema it names.
+Two schema components sharing a key merge (union of their tables); a duplicate table name within a schema still throws.
 
-### D13 — `composePongoDatabase` is deleted
+### D16 — `logicalSchemaMapping` is deleted
 
-`pongoSchema.db` already returns a real `databaseComponent` in both branches. In the `{ schemas }` form the composer takes that component apart and rebuilds identical copies. In the `{ collections }` form `pongoSchema.db` deliberately builds `schemas: {}` and stashes the raw collections under a `collections` property via `withValue`, purely so the composer can group them later.
+`assertLogicalSchemaMapping` rejects one physical table name reused across logical schemas, registered as SQLite's `validateComponent`. It is unreachable dead weight: `sqliteTableName` already maps every non-default schema to a distinct physical name, and both DDL and DML go through it (`databaseObjectSQL.ts:14-15`, `pongo/storage/sqlite/sqlite3/index.ts:51`, `pongo/storage/sqlite/d1/index.ts:52`). Its own fixture — `public.users` alongside `audit.users` — maps to two distinct SQLite tables.
 
-D10 removes its reason to exist: `pongoDb` get-or-creates schema components through `withTable` as collections are added, holding the database component as an immutable value behind a mutable holder. The composer, the `withValue(database, 'collections', ...)` stash and its duplicate placement throw all go with it.
+Deleted: `logicalSchemaMapping.ts` entirely (`collectLogicalSchemaCollisions`, `assertLogicalSchemaMapping`, `assertLogicalSchemaComponentMapping`, `LogicalSchemaCollision`, the `SchemaView`/`TableView` casts), `validateLogicalSchemaMapping` in `sqlite/core/schema/migrations.ts`, and `logicalSchemaMapping.unit.spec.ts`.
 
-This lands in Phase 5 rather than Phase 3. `defaultSchemaName` does not disappear — D9 keeps it as an optional explicit override, so it stays a runtime input and the grouping cannot simply move to declaration time.
+That leaves `findComponents`, `findComponent` and `SchemaComponentPredicate` with **zero production callers**, so they go too. The erased child list stops being a publicly walkable API.
 
-## 4. Work plan
+`assertNativeName` **stays** — it is what actually keeps the physical-name mapping injective.
 
-Rules for every phase: test-first; build, linter and tests green before moving on; no phase may leave the repo broken for long. Tasks are executed through subagents.
+### D17 — The SQLite physical-name mapping uses the logical name
 
-### Phase 1 — Component core (sequential)
+Today: `dumbo_` plus `_`-doubling escapes, e.g. `crm.users` → `dumbo_crm_table_users`. That reserves the entire `dumbo_` prefix in the default schema and produces unreadable names for any identifier containing an underscore.
 
-Plain frozen components with `migrations` as a method composing own-plus-children (D2), name-based dedupe (D3). Delete `schemaComponentState`, `InternalSchemaComponent`, `localMigrationsOf`, `migrationsFor` and the unassigned `declaredMigrations` field.
-_Green state:_ declared migrations still compose; `databaseMigrations` temporarily still works on top.
+SQLite quoted identifiers accept `.`, so the physical name becomes the logical name:
 
-### Phase 2 — Parent pointers (sequential, after Phase 1)
+```
+default schema  ->  "users"
+schema "crm"    ->  "crm.users"
+index in "crm"  ->  "crm.users_email_idx"
+```
 
-The generic `withParent` clone applied by the factory to its own children, the per-kind named accessors, and qualifier resolution through the chain (D1, D6). One base helper, then one line per kind — no per-component requalifiers and no per-kind attach step.
+Injective without escaping, readable in the sqlite shell, and it reserves only "a default-schema identifier containing a dot" instead of a whole prefix — which `assertNativeName` enforces in place of the prefix check.
 
-### Phase 3 — Drop `databaseName` (sequential, after Phase 2)
+**Accepted break:** this renames existing SQLite tables in non-default schemas. Databases using only the default schema are unaffected — which is every database that never set `defaultSchemaName` or a per-collection `databaseSchemaName`.
 
-D7 across dumbo and pongo, including the removed validations and the removed throw.
+### D18 — Context is one flat type
 
-### Phase 4 — DDL tokens and formatters (parallel: token vocabulary, then pg and SQLite formatters concurrently)
+```ts
+export type SchemaComponentContext = Readonly<{
+  databaseSchemaName?: string | SQLDefaultSchemaNameToken;
+  tableName?: string;
+}>;
+```
 
-D5 and the `SQLDefaultSchemaNameToken` resolution. Delete `DatabaseMigrationBuilder`, `databaseMigrations` and both per-storage builders once both formatters pass.
+Fields are optional because a database has no schema name yet and a schema has no table name. A column therefore carries two fields it never reads — an accepted cost.
 
-### Phase 5 — Naming and `pongoDb` (sequential, after Phase 4)
+The alternative — a generic context each component extends, so a table sees `databaseSchemaName` as present and typed — is better typed but collapses to `unknown` the moment it crosses the erased child list. Making it work requires each kind to recurse over its own typed maps, and that is **rejected** (Q58): if a kind later gains a child map and someone forgets to add it to `migrations`, those children silently never migrate. One list built at construction cannot be forgotten.
 
-D8, D9, D10, D11, D13. This is the phase where back-compat is proven.
+### D19 — The migration table is a real table component
 
-### Phase 6 — Extension as database fragment (sequential, after Phase 5)
+`migrationTableComponentFor` hand-writes `CREATE TABLE IF NOT EXISTS` with `AutoIncrement`/`Varchar`/`Timestamp` column tokens through the generic `schemaComponent()` bag — its only production caller. Under D6 it becomes a real `tableComponent` in a real schema, emitting its DDL the same way every other table does.
 
-D12, including the `mergeSchemaComponentMaps` merge semantics.
+Deleted: `schemaComponent()`, `genericComponentType`, and with them the last untyped component kind.
 
-### Phase 7 — Event-store example (last)
+### D20 — Dead capability flags are removed
 
-A concrete event-store-shaped extension in this repo: a `messages` table in its own schema plus projection-contributed read-model tables in another, composed into a `pongoDb` and exercised end to end. It doubles as verification that the concept carries emmett's case, and is written so it can later move into emmett.
+`supportsSchemas` and `supportsFunctions` are declared in `DatabaseCapabilities` and set in both metadata objects, and read nowhere. Both are deleted. `supportsMultipleDatabases` is read at `pongoDatabaseCache.ts:89` and stays.
+
+### Deliberately not touched
+
+`InferColumnType`, `TableColumnType`, `InferTableRow`, `InferSchemaTables` and `InferDatabaseSchemas` in `tableTypesInference.ts` have zero consumers but reach the public barrel, so they may be deliberate user-facing API. Left alone.
+
+## 4. Ground rules for implementation
+
+See `plan.md` for the steps and `todo.md` for state.
+
+- Test-first. Build, linter and tests green before moving on.
+- **Redundant concepts are deleted as early as their dependents allow.** A step that only adds machinery is a smell; every step should end with less than it started with, or say plainly why not.
+- No step may leave the repo red for longer than itself. Where a deletion would strand a large test surface, the step that deletes the concept also rewrites those tests.
+- After each step, a review gate checks two things: no new abstraction was introduced, and no deleted concept left a hacked-around remnant. A remnant is what makes the implementation drift from this spec.
 
 ## 5. Testing
 
 Every phase ships unit, integration and end-to-end coverage; nothing is marked "not applicable".
 
-**Test names describe the use case, not the implementation.** A name states what someone using the library can rely on, in their vocabulary, and must still read correctly after the implementation is rewritten. "declaring the same migration in two places applies it once" is a use case; "collapses two structurally identical migrations built separately" is our internals leaking. A name that mentions a private symbol, a data structure or a call site is wrong.
+**Test names describe the use case, not the implementation.** A name states what someone using the library can rely on, in their vocabulary, and must still read correctly after the implementation is rewritten. "declaring the same migration in two places applies it once" is a use case; "collapses two structurally identical migrations built separately" is our internals leaking.
 
 Specifically required:
 
-- **Migration name back-compat:** a golden test asserting that a default-schema pongo collection still produces `pongoCollection:users:001:createtable`, byte-identical to `main`.
-- **Default token resolution:** the same component tree renders `public`-qualified DDL under the Postgres formatter and unqualified under SQLite.
-- **Clone semantics:** attaching a table to a schema leaves the original untouched; the clone carries the parent pointer, reparented indexes and recomputed migration names.
-- **Grandchild reparenting:** an index under a cloned table resolves `this.table().schema().schemaName` to the _new_ schema, never the original's.
-- **Self-attachment:** an _unattached_ table's index still resolves its own table — the factory attaches children, so no component is ever built with dangling grandchildren.
-- **No accessors:** no component exposes an accessor property; asserted structurally, because a stray getter breaks the clone silently rather than loudly.
-- **Reuse:** the same table definition attached to two schemas yields two independent, correctly qualified components.
-- **Dedupe:** identical migration name + identical SQL collapses; identical name + different SQL throws.
-- **Database-level extension:** its tables now produce `CREATE TABLE` (regression test for the current silent drop).
-- **Schema merge:** two extensions contributing the same schema alias merge their tables; a duplicate table name within a schema throws.
+- **Migration name back-compat:** a golden test asserting a default-schema pongo collection still produces `pongoCollection:users:001:createtable`, byte-identical to `main`.
+- **Default token resolution:** the same tree renders unqualified DDL under both formatters; a named schema renders qualified under Postgres and dot-mapped under SQLite.
+- **Reuse:** the same table definition put into two schemas yields correct SQL for both, and the definition itself is unchanged — asserted by object identity, since nothing clones.
+- **Placement is not readable off a component:** asserted structurally, because a reintroduced back-pointer would silently reintroduce cloning.
+- **Dedupe:** identical name + identical SQL collapses; identical name + different SQL throws.
+- **Database-level extension:** its tables produce `CREATE TABLE` under the default schema — regression test for the §1 silent drop.
+- **Schema merge:** two extensions contributing the same schema key merge their tables; a duplicate table name within a schema throws.
+- **Required schema name:** `dumboSchema.schema({ tables })` does not compile; `dumboSchema.defaultSchema({ tables })` does.
+- **Key/name disagreement:** `{ crm: dumboSchema.schema('audit', {...}) }` throws.
+- **SQLite name mapping:** `crm.users` maps to `"crm.users"`; a default-schema table named `a.b` is rejected.
+- **Migration table:** the migration table's own DDL is byte-identical to `main`'s.
 - **Ad-hoc collection:** `db.collection('users', { databaseSchemaName: 'readmodels' })` emits `CREATE SCHEMA readmodels` before its `CREATE TABLE`, and re-running is a no-op.
 - **Late collection:** a collection added after `migrate()` migrates itself on first use.
 
 ## 6. Accepted risks
 
-- Explicitly declaring the dialect's default schema name changes the migration name and re-runs that migration (D8).
-- The clone and its original can drift if a caller holds the pre-attach object and reads `.migrations` from it. Mitigated by name-based references (D4) and by the public API always handing back the attached component.
-- Moving DDL behind the formatter is the largest single piece of work in the plan and gates Phases 5-7.
+- Explicitly declaring the dialect's default schema name changes the migration name and re-runs that migration (D10).
+- The SQLite physical-name mapping change renames tables in non-default schemas (D17).
+- A component cannot report its placement (D1). If a future consumer needs it, the answer is to pass context at the call site, not to reintroduce a back-pointer.
+- Moving DDL behind the formatter is the largest single piece of work and gates the pongo phases.

@@ -63,137 +63,65 @@ export const databaseMigrations = (
   const migrationsByName = new Map<string, SQLMigration>();
   const visited = new Set<AnySchemaComponent>();
 
-  type Identifier =
-    | DatabaseIdentifier
-    | DatabaseSchemaIdentifier
-    | TableIdentifier
-    | IndexIdentifier;
-
-  const identify = (
-    component: AnySchemaComponent,
-    parent: Identifier,
-  ): Identifier => {
-    if (isDatabaseSchemaComponent(component)) {
-      if ('databaseSchemaName' in parent) return parent;
-      if (component.schemaName === undefined) return parent;
-      return {
-        databaseName: parent.databaseName,
-        databaseSchemaName: component.schemaName,
-      };
-    }
-
-    if (isTableComponent(component)) {
-      const databaseSchemaName =
-        'databaseSchemaName' in parent
-          ? parent.databaseSchemaName
-          : component.databaseSchemaName;
-      if (databaseSchemaName === undefined) return parent;
-      return {
-        databaseName: parent.databaseName,
-        databaseSchemaName,
-        tableName: component.tableName,
-      };
-    }
-
-    if (isIndexComponent(component)) {
-      if ('tableName' in parent) {
-        return { ...parent, indexName: component.indexName };
-      }
-      if (
-        component.databaseSchemaName !== undefined &&
-        component.tableName !== undefined
-      ) {
-        return {
-          databaseName: parent.databaseName,
-          databaseSchemaName: component.databaseSchemaName,
-          tableName: component.tableName,
-          indexName: component.indexName,
-        };
-      }
-    }
-
-    return parent;
-  };
+  const databaseName = database.databaseName;
 
   const visit = (
     component: AnySchemaComponent,
-    parentIdentifier: Identifier,
+    databaseSchemaName: string | undefined,
+    tableName: string | undefined,
   ): void => {
     if (visited.has(component)) return;
     visited.add(component);
-    const identifier = identify(component, parentIdentifier);
 
     for (const migration of { ...component, components: {} }.migrations()) {
       addMigration(result, migrationsByName, migration);
     }
 
+    if (isDatabaseSchemaComponent(component))
+      databaseSchemaName = component.schemaName;
+    if (isTableComponent(component)) tableName = component.tableName;
+
     if (
       isDatabaseSchemaComponent(component) &&
-      'databaseSchemaName' in identifier
+      databaseSchemaName !== undefined
     ) {
-      for (const migration of builder.databaseSchema?.(component, identifier) ??
-        []) {
+      for (const migration of builder.databaseSchema?.(component, {
+        databaseName,
+        databaseSchemaName,
+      }) ?? []) {
         addMigration(result, migrationsByName, migration);
       }
     } else if (
       isTableComponent(component) &&
-      'databaseSchemaName' in identifier &&
-      'tableName' in identifier
+      databaseSchemaName !== undefined
     ) {
-      for (const migration of builder.table?.(component, identifier) ?? []) {
+      for (const migration of builder.table?.(component, {
+        databaseName,
+        databaseSchemaName,
+        tableName: component.tableName,
+      }) ?? []) {
         addMigration(result, migrationsByName, migration);
       }
     } else if (
       isIndexComponent(component) &&
-      'databaseSchemaName' in identifier &&
-      'tableName' in identifier &&
-      'indexName' in identifier
+      databaseSchemaName !== undefined &&
+      tableName !== undefined
     ) {
-      for (const migration of builder.index?.(component, identifier) ?? []) {
+      for (const migration of builder.index?.(component, {
+        databaseName,
+        databaseSchemaName,
+        tableName,
+        indexName: component.indexName,
+      }) ?? []) {
         addMigration(result, migrationsByName, migration);
       }
     }
 
-    if (component === database) {
-      for (const [databaseSchemaName, schema] of Object.entries(
-        database.schemas,
-      )) {
-        visit(schema, {
-          databaseName: identifier.databaseName,
-          databaseSchemaName,
-        });
-      }
-      for (const extension of Object.values(database.extensions)) {
-        visit(extension, identifier);
-      }
-      return;
-    }
-
-    if (isDatabaseSchemaComponent(component)) {
-      for (const table of Object.values(component.tables)) {
-        visit(table, identifier);
-      }
-      for (const extension of Object.values(component.extensions)) {
-        visit(extension, identifier);
-      }
-      return;
-    }
-
-    if (isTableComponent(component)) {
-      for (const child of Object.values(component.columns)) {
-        visit(child, identifier);
-      }
-      for (const index of Object.values(component.indexes)) {
-        visit(index, identifier);
-      }
-      return;
-    }
-
     for (const child of Object.values(component.components)) {
-      visit(child, identifier);
+      visit(child, databaseSchemaName, tableName);
     }
   };
 
-  visit(database, { databaseName: database.databaseName });
+  visit(database, undefined, undefined);
   return result;
 };

@@ -1,6 +1,5 @@
 import {
   databaseMigrations,
-  findComponents,
   JSONSerializer,
   SQL,
   type TableIdentifier,
@@ -14,7 +13,6 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 import {
   composePongoDatabase,
-  isPongoCollectionComponent,
   pongoSchema,
   type ExpectedDocumentVersion,
   type PongoCollectionComponent,
@@ -45,19 +43,11 @@ const collectionInSchemaWithIndexes = <
   schemaName: string,
   collectionName: string,
   options: { indexes: Indexes },
-) => {
-  const database = databaseInSchemaWithIndexes(
-    schemaName,
-    collectionName,
-    options,
-  );
-  const collection = findComponents(database, isPongoCollectionComponent)[0];
-  assert.ok(collection);
-  return {
-    collection,
-    identifier: tableContext(schemaName, collectionName),
-  };
-};
+) => ({
+  collection: databaseInSchemaWithIndexes(schemaName, collectionName, options)
+    .collection,
+  identifier: tableContext(schemaName, collectionName),
+});
 
 const databaseInSchemaWithIndexes = <
   const Indexes extends PongoCollectionIndexes,
@@ -65,20 +55,22 @@ const databaseInSchemaWithIndexes = <
   schemaName: string,
   collectionName: string,
   options: { indexes: Indexes },
-) =>
-  composePongoDatabase({
-    databaseName: 'app',
-    defaultSchemaName: 'main',
-    definition: pongoSchema.db({
-      schemas: {
-        [schemaName]: pongoSchema.schema({
-          collection: pongoSchema.collection(collectionName, {
-            ...options,
-          }),
-        }),
-      },
+) => {
+  const collection = pongoSchema.collection(collectionName, { ...options });
+
+  return {
+    collection,
+    database: composePongoDatabase({
+      databaseName: 'app',
+      defaultSchemaName: 'main',
+      definition: pongoSchema.db({
+        schemas: {
+          [schemaName]: pongoSchema.schema({ collection }),
+        },
+      }),
     }),
-  });
+  };
+};
 
 const builderFor = (
   fixture: Readonly<{
@@ -94,7 +86,7 @@ const builderFor = (
   );
 
 const migrationsFor = (
-  database: ReturnType<typeof databaseInSchemaWithIndexes>,
+  database: ReturnType<typeof databaseInSchemaWithIndexes>['database'],
 ) => databaseMigrations(database, pongoSQLiteMigrationBuilder);
 
 describe('sqliteSQLBuilder', () => {
@@ -133,7 +125,7 @@ describe('sqliteSQLBuilder', () => {
       const migrations = migrationsFor(
         databaseInSchemaWithIndexes('main', 'users', {
           indexes: {},
-        }),
+        }).database,
       );
       const { query } = formatSQL(migrations[0]!.sqls[0]!, sqliteFormatter);
 
@@ -149,7 +141,7 @@ describe('sqliteSQLBuilder', () => {
       const migrations = migrationsFor(
         databaseInSchemaWithIndexes('main', 'users', {
           indexes: {},
-        }),
+        }).database,
       );
       const { query } = formatSQL(migrations[0]!.sqls[0]!, sqliteFormatter);
       const builder = builderFor(collection);
@@ -173,7 +165,7 @@ describe('sqliteSQLBuilder', () => {
       const migrations = migrationsFor(
         databaseInSchemaWithIndexes('crm', 'users', {
           indexes: {},
-        }),
+        }).database,
       );
       const { query } = formatSQL(migrations[0]!.sqls[0]!, sqliteFormatter);
       const builder = builderFor(collection);
@@ -197,10 +189,10 @@ describe('sqliteSQLBuilder', () => {
     it('keeps ambiguous logical schema tuples on distinct physical tables', () => {
       const first = databaseInSchemaWithIndexes('a', 'b_c', {
         indexes: {},
-      });
+      }).database;
       const second = databaseInSchemaWithIndexes('a_b', 'c', {
         indexes: {},
-      });
+      }).database;
       const firstSQL = formatSQL(
         migrationsFor(first)[0]!.sqls[0]!,
         sqliteFormatter,
@@ -227,7 +219,7 @@ describe('sqliteSQLBuilder', () => {
               indexes: {
                 email: pongoSchema.index('dumbo_users_email_idx', 'email'),
               },
-            }),
+            }).database,
           ),
         /SQLite index names starting with dumbo_ are reserved/,
       );
@@ -385,13 +377,13 @@ describe('sqliteSQLBuilder', () => {
           'id',
         ]),
       };
-      const database = databaseInSchemaWithIndexes('main', 'users', {
-        indexes,
-      });
-      const collection = findComponents(
-        database,
-        isPongoCollectionComponent,
-      )[0]!;
+      const { database, collection } = databaseInSchemaWithIndexes(
+        'main',
+        'users',
+        {
+          indexes,
+        },
+      );
       const migrations = migrationsFor(database);
       const queries = migrations.map(
         (migration) => formatSQL(migration.sqls[0]!, sqliteFormatter).query,
@@ -421,13 +413,13 @@ describe('sqliteSQLBuilder', () => {
       const indexes = {
         email: pongoSchema.index('users_email_idx', 'email'),
       };
-      const database = databaseInSchemaWithIndexes('crm', 'users', {
-        indexes,
-      });
-      const collection = findComponents(
-        database,
-        isPongoCollectionComponent,
-      )[0]!;
+      const { database, collection } = databaseInSchemaWithIndexes(
+        'crm',
+        'users',
+        {
+          indexes,
+        },
+      );
       const migrations = migrationsFor(database);
       const indexSQL = formatSQL(
         migrations[1]!.sqls[0]!,
@@ -453,13 +445,13 @@ describe('sqliteSQLBuilder', () => {
         email: pongoSchema.index('users_email_idx', 'email'),
         document: pongoSchema.index.json('users_data_idx'),
       };
-      const database = databaseInSchemaWithIndexes('main', 'users', {
-        indexes,
-      });
-      const collection = findComponents(
-        database,
-        isPongoCollectionComponent,
-      )[0]!;
+      const { database, collection } = databaseInSchemaWithIndexes(
+        'main',
+        'users',
+        {
+          indexes,
+        },
+      );
       const migrations = migrationsFor(database);
 
       assert.deepStrictEqual(
@@ -490,13 +482,13 @@ describe('sqliteSQLBuilder', () => {
           },
         ),
       };
-      const database = databaseInSchemaWithIndexes('crm', 'users', {
-        indexes,
-      });
-      const collection = findComponents(
-        database,
-        isPongoCollectionComponent,
-      )[0]!;
+      const { database, collection } = databaseInSchemaWithIndexes(
+        'crm',
+        'users',
+        {
+          indexes,
+        },
+      );
       const migrations = migrationsFor(database);
 
       assert.equal(migrations.length, 2);

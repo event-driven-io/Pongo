@@ -4,8 +4,6 @@ export * from './dumboSchema';
 export * from './extensionComponent';
 export * from './migrators';
 export {
-  findComponent,
-  findComponents,
   genericComponentType,
   isSchemaComponent,
   schemaComponent,
@@ -14,7 +12,6 @@ export {
   type SchemaComponent,
   type SchemaComponentKind,
   type SchemaComponentOptions,
-  type SchemaComponentPredicate,
   type SchemaComponentMap as SchemaComponentRecord,
 } from './schemaComponent';
 export * from './sqlMigration';

@@ -9,17 +9,23 @@ export const genericComponentType: unique symbol = Symbol(
 
 export type SchemaComponentKind = symbol;
 
+export type SchemaComponentContext = Readonly<{
+  databaseName?: string | undefined;
+  databaseSchemaName?: string | undefined;
+  tableName?: string | undefined;
+}>;
+
 export type SchemaComponent<
   Kind extends SchemaComponentKind = SchemaComponentKind,
 > = Readonly<{
   [schemaComponentType]: Kind;
-  parent?: AnySchemaComponent | undefined;
   components: SchemaComponentMap;
-  migrations: () => ReadonlyArray<SQLMigration>;
+  migrations: (context?: SchemaComponentContext) => ReadonlyArray<SQLMigration>;
 }>;
 
 export type SchemaComponentDeclaration = (
   component: AnySchemaComponent,
+  context: SchemaComponentContext,
 ) => ReadonlyArray<SQLMigration>;
 
 export type AnySchemaComponent = SchemaComponent<SchemaComponentKind>;
@@ -32,6 +38,7 @@ export type SchemaComponentOptions<
   Components extends SchemaComponentMap = SchemaComponentMap,
 > = Readonly<{
   migrations?: SchemaComponentDeclaration | undefined;
+  context?: SchemaComponentContext | undefined;
   components?: Components | undefined;
 }>;
 
@@ -63,44 +70,17 @@ export const mergeSchemaComponentMaps = (
   return schemaComponentMap(merged);
 };
 
-export const withParent = (
-  component: AnySchemaComponent,
-  parent: AnySchemaComponent,
-): AnySchemaComponent => attachChildren({ ...component, parent });
+const scopedContext = (
+  context: SchemaComponentContext,
+  scope: SchemaComponentContext | undefined,
+): SchemaComponentContext => {
+  if (scope === undefined) return context;
 
-const isAliasedComponents = (value: unknown): value is SchemaComponentMap =>
-  typeof value === 'object' &&
-  value !== null &&
-  Object.values(value).length > 0 &&
-  Object.values(value).every(isSchemaComponent);
-
-// Named maps such as `tables` or `indexes` list the same children as `components`
-// under the same aliases, so they are repointed at the attached children instead of
-// being cloned a second time.
-const attachChildren = <Component extends AnySchemaComponent>(
-  component: Component,
-): Component => {
-  const attached = schemaComponentMap(
-    Object.fromEntries(
-      Object.entries(component.components).map(([alias, child]) => [
-        alias,
-        withParent(child, component),
-      ]),
-    ),
-  );
-
-  const fields = component as unknown as Record<string, unknown>;
-  for (const [key, value] of Object.entries(component)) {
-    if (isAliasedComponents(value))
-      fields[key] = schemaComponentMap(
-        Object.fromEntries(
-          Object.keys(value).map((alias) => [alias, attached[alias]!]),
-        ),
-      );
+  const merged = { ...context };
+  for (const [key, value] of Object.entries(scope)) {
+    if (value !== undefined) (merged as Record<string, unknown>)[key] = value;
   }
-  fields.components = attached;
-
-  return Object.freeze(component);
+  return merged;
 };
 
 export const createSchemaComponent = <
@@ -117,15 +97,21 @@ export const createSchemaComponent = <
   const component = {
     ...fields,
     [schemaComponentType]: kind,
-    components: (options.components ?? {}) as SchemaComponentMap,
-    migrations(this: AnySchemaComponent): ReadonlyArray<SQLMigration> {
+    components: schemaComponentMap(
+      (options.components ?? {}) as SchemaComponentMap,
+    ),
+    migrations(
+      this: AnySchemaComponent,
+      context: SchemaComponentContext = {},
+    ): ReadonlyArray<SQLMigration> {
+      const scoped = scopedContext(context, options.context);
       const result: SQLMigration[] = [];
       const migrationsByName = new Map<string, SQLMigration>();
 
       for (const migration of [
-        ...(options.migrations?.(this) ?? []),
+        ...(options.migrations?.(this, scoped) ?? []),
         ...Object.values(this.components).flatMap((child) =>
-          child.migrations(),
+          child.migrations(scoped),
         ),
       ]) {
         const previous = migrationsByName.get(migration.name);
@@ -143,7 +129,7 @@ export const createSchemaComponent = <
     },
   };
 
-  return attachChildren(component) as SchemaComponent<Kind> &
+  return Object.freeze(component) as SchemaComponent<Kind> &
     Fields & {
       components: Components;
     };
@@ -156,33 +142,6 @@ export const schemaComponent = <
 ): SchemaComponent<typeof genericComponentType> & {
   components: Components;
 } => createSchemaComponent(genericComponentType, options);
-
-export type SchemaComponentPredicate<T extends AnySchemaComponent> = (
-  component: AnySchemaComponent,
-) => component is T;
-
-export const findComponents = <T extends AnySchemaComponent>(
-  root: AnySchemaComponent,
-  predicate: SchemaComponentPredicate<T>,
-): T[] => {
-  const results: T[] = [];
-  const visited = new Set<AnySchemaComponent>();
-
-  const visit = (component: AnySchemaComponent): void => {
-    if (visited.has(component)) return;
-    visited.add(component);
-    if (predicate(component)) results.push(component);
-    for (const child of Object.values(component.components)) visit(child);
-  };
-
-  visit(root);
-  return results;
-};
-
-export const findComponent = <T extends AnySchemaComponent>(
-  root: AnySchemaComponent,
-  predicate: SchemaComponentPredicate<T>,
-): T | undefined => findComponents(root, predicate)[0];
 
 export const isSchemaComponent = (
   value: unknown,

@@ -4,7 +4,6 @@ export * from './databaseComponent';
 export * from './databaseMigrations';
 export * from './databaseSchemaComponent';
 export * from './indexComponent';
-export * from './logicalSchemaMapping';
 export * from './relationships';
 export * from './tableComponent';
 export * from './tableTypesInference';

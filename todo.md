@@ -1,287 +1,206 @@
 # TODO — Self-contained schema components
 
-State for [plan.md](plan.md). One step at a time, in order. A step is done only when every
-box under it is ticked — including the review gate.
+State for [plan.md](plan.md). One step at a time, in order. A step is done only when every box under it is ticked — including the review gate.
 
 Per-step gate, run from `/home/oskar/Repos/Pongo/src`:
 `npm run build:ts` → `npm run fix` → `npm run test:unit` (+ `test:int` / `test:e2e` where marked).
 
-If a review gate returns STOP: halt, summarise for Oskar, agree what to drop. Do not continue.
+If review gate R returns STOP: halt, summarise for Oskar, agree what to drop. Do not continue.
 
 ---
 
-## Phase 0 — Baseline
+## Superseded work
 
-### S0 — Record the baseline ✅
-- [x] `metrics/baseline.md` written: source LOC per directory, test LOC, exported symbol counts
-- [x] Deletion checklist recorded (16 symbols)
-- [x] `npm run build:ts` clean
-- [x] `npm run fix` clean
-- [x] Anything already broken before our changes reported to Oskar — nothing broken
+Steps S0–S3 of the previous plan were completed against the parent-pointer design. `qa.md` Q49 overturned that design; `spec.md` D1 now says components are never rewritten. The code those steps produced — `withParent`, `attachChildren`, `isAliasedComponents`, the `parent` field, the per-kind `schema()` / `table()` accessors — has already been removed from the working tree.
 
----
+What survives from them and does not need redoing:
 
-## Phase 1 — Component core
+- `migrations` is a method composing own-plus-children (old S1)
+- name-based dedupe with `haveSameSQL` (old S2)
+- `schemaComponentState`, `InternalSchemaComponent`, `localMigrationsOf`, `migrationsFor`, `declaredMigrations` are gone (old S1)
+- the baseline in `metrics/baseline.md` (old S0)
 
-### S1 — Plain frozen components, `migrations` as a method ✅
-- [x] Tests written and failing (15 failed / 31 passed, `root.migrations is not a function`)
-- [x] Plain frozen object literal replaces `Object.defineProperties`
-- [x] `options.migrations` is a function of the component, kept in the closure — no field added
-- [x] `migrations()` = own + children's `migrations()`, recursively, resolved through `this`
-- [x] No accessor properties on any component — asserted structurally in the spec
-- [x] Array form of `options.migrations` no longer accepted; call sites updated
-- [x] Every `.migrations` read site becomes `.migrations()`
-- [x] Deleted: `declaredMigrations` — already absent at baseline; the plan's note was stale
-- [x] Deleted: `schemaComponentState`, `InternalSchemaComponent`
-- [x] Deleted: `localMigrationsOf`
-- [x] Deleted: `migrationsFor` and its `visited` set
-- [x] Callers updated (`withTable.ts`, `databaseMigrations.ts`, `schemaComposition.type.spec.ts`)
-- [x] No stale re-exports in any `index.ts`
-- [x] Gate: build, fix, unit — 1003/1003, pristine
-- [x] Review gate R — verdict: **PASS** (source −65 lines; tests +145)
+What that work left behind, now owed:
 
-Accepted debt, agreed with Oskar — `databaseMigrations.ts:127` reads a node's own migrations as
-`{ ...component, components: {} }.migrations()`. It preserves the declared-before-driver
-interleaving its unit spec asserts; the clean alternative was tried and broke that spec. S9
-deletes the file and the debt with it.
-
-Logged from review gate R, not blocking:
-- `createSchemaComponent` gained a `fields` bag — replaces 6 `Object.defineProperties` blocks,
-  so net-negative, but the bag is untyped and the factories keep `as unknown as` casts.
-  **Closed after S3** — the bag is generic now and three of the four casts are gone; see the post-S3
-  cleanup under S3.
-- `SchemaComponentDeclaration` type alias, one use site, not re-exported — inline it if S2 touches it.
-- pongo's `defineValue` became `withValue` — reduced to a one-line `Object.freeze({ ...c, [k]: v })`
-  after review. It stamps pongo marker symbols on frozen dumbo components; S9 deletes it along
-  with the markers, since the two migration builders are their only runtime readers.
-- Duplicate-name detection moved inside `migrations()` — S2's job, done early; re-runs per level.
-
-### S2 — Dedupe by name, not identity ✅
-- [x] Tests written and failing (4 failed under the old identity check, confirmed by mutation)
-- [x] Name-based dedupe in the `migrations()` composition
-- [x] Same name + different SQL still throws — message shape byte-identical
-- [x] Same rule applied in `databaseMigrations.ts`, with its own collapse test
-- [x] Test names rewritten from the usage perspective (new rule: spec.md §5, plan.md ground rules)
-- [x] Gate: build, fix, unit — 1007/1007, pristine
-- [x] Review gate R — verdict: **STOP**, overridden by Oskar on both counts (see below)
-
-`haveSameSQL(a, b)` in `sqlMigration.ts` compares `JSONSerializer.serialize(migration.sqls)`. Not
-the real SHA-256 hash from `migrator.ts:236` — that one is async and needs a dialect formatter,
-which `migrations()` has neither of. Content equality yields the same collapse-or-throw decision
-without dragging dialect knowledge into the component core.
-
-Review gate R said STOP on two mechanical rules; Oskar accepted both:
-- Non-test source **+2** (22,825 → 22,827). Inlining the comparison at both call sites would have
-  been −2, but Oskar rejected the inline form as unreadable. Readability outranks a two-line budget.
-- `haveSameSQL` replaces zero existing abstractions, so the gate scored it purely additive. It is a
-  two-line predicate beside the type it compares — not an indirection layer, factory, registry or
-  config hook, which is what the rule exists to catch. It reaches the public barrel via the
-  pre-existing `export * from './sqlMigration'`; no new re-export line.
-
-The gate also called the diamond test vacuous. It was wrong: `migrations` is a function, called once
-per branch, so each branch mints a distinct migration object with the same name — exactly what the
-old identity check rejected. Verified by swapping `haveSameSQL` for identity and watching it fail.
-
-Pre-existing test names that break the new usage-perspective rule. Not swept in S2 — S15 owns them,
-except where an earlier step already touches the file:
-- `schemaComponent.unit.spec.ts` — "rejects two different migrations that would share one ledger
-  identity", "exposes migrations as a method and never as an accessor", "exposes a frozen component
-  with nothing hidden behind it", "identifies every component kind without relying on string keys",
-  "declares against the component it is read from, not the one it was built from", "returns exactly
-  what its declaration returned when it has no children", "finishes traversal when reusable
-  components form a cycle", "keeps its own keys to the declared component shape", "accepts a shared
-  table discovered twice within one logical schema"
-- `components/databaseMigrations.unit.spec.ts` — "gives the driver complete identifiers in schema,
-  table, and index order", "keeps declared migrations before driver migrations on each component".
-  Both die with the file in S9; not worth renaming before then.
+- the spec files do not compile — **S1**
+- `createSchemaComponent` still carries a `fields` bag and a `context` option — **S4**
+- `databaseMigrations.ts` threads two identifiers by hand as scaffolding — **S9**
 
 ---
 
-## Phase 2 — Parent pointers
+## S1 — Retire placement-reading tests, restore the placement throw
+- [x] `schemaComponent.unit.spec.ts`: describe `placing a component under a parent` deleted — done pre-compaction
+- [x] `schemaComponent.unit.spec.ts`: describe `resolving the schema a component belongs to` — deleted wholesale pre-compaction, which was wrong. Of its 7 tests only 2 were genuinely obsolete (`reports no schema for a table that was never placed in one`, `reports the schema a table was placed in` — D1 deletes that guarantee) and 1 had already moved (`rejects declaring a collection for one schema and putting it in another`). Restored now:
+  - `lets a table declared for a schema be put in that same schema` — positive half of D7's placement rule, was dropped while the negative half was kept
+  - `gives a column no way to reach the table it belongs to` — §5's structural assertion, passes unchanged under D1
+  - `resolves an index's schema through the table it was placed in` (and its duplicate `lets an index find the schema of the table it was put in`) — guarantee survives via D18, assertable only on emitted DDL → **owed to S9**
+- [x] `.schema()` assertions rewritten in `pongoDb.unit.spec.ts` as `schemas.<name>?.schemaName` plus a table-presence assertion — the claim survives D1, only the back-pointer expressing it dies. `pongoDatabaseSchemaComponent.unit.spec.ts` had none left
+- [x] Placement throw present in `databaseSchemaComponent`'s constructor — added pre-compaction
+- [x] No duplicate throw in pongo; `pongoDatabaseSchemaComponent.ts` never had one
+- [x] `databaseSchemaComponent.unit.spec.ts` restored from `98124594` after being deleted wholesale, and rewritten per D1/§5:
+  - `exposes its own copy of a table…` **inverted** to `holds the very table declaration it was given` (`strictEqual`) — §5 asserts identity, since nothing clones
+  - `leaves the table declaration…reusable in another schema` kept, `.schema()` dropped
+  - `places extensions the same way it places tables` kept as identity; its ordering half moves to S9
+  - `never lets a table report which schema it was placed in` added — §5 requires this asserted structurally
+  - `leaves the tables of an unnamed schema without a schema name` deleted — D7 removes unnamed schemas; replaced at S6
+  - indexes-in-the-same-schema deferred to S9: it can only be asserted on emitted DDL
+- [x] Unused imports left by the deleted `.table()` / token removed (`indexComponent.ts`, `schemaComponent.unit.spec.ts`)
+- [x] The 4 placement-conflict tests pass
+- [x] Gate: build:ts green, fix green
+- [x] `databaseMigrations.unit.spec.ts` × 4 fixed: every fixture built a nameless schema and relied on the map key for the schema name, so `databaseSchemaName` was undefined and the guard dropped every builder call. Naming them explicitly is what D7/D8 require anyway
+- [ ] Gate: unit — 1011 pass, **2 carried to S3** (see below)
+- [ ] Review gate R — verdict: ____
 
-### S3 — Generic `withParent` clone, applied by the factory ✅
-- [x] Tests written and failing (clone, original untouched, **grandchild reparented**, **unattached component's own children attached**, frozen, re-parent harmless)
-- [x] Generic recursive `withParent` in `schemaComponent.ts` — kind-blind, no kind switch; exported
-      from `schemaComponent.ts` but deliberately not re-exported from `core/schema/index.ts`
-- [x] `createSchemaComponent` runs its own `components` through `withParent`
-- [x] `parent` assigned before freeze; original never mutated
-- [x] Existing `mapValues`-shaped helper reused if one exists — none existed; a module-private
-      `componentsWithParent` (12 lines) does that job, with `schemaComponentMap` supplying the
-      null-prototype freeze
-- [x] `parent?: AnySchemaComponent | undefined` added to the `SchemaComponent` type
-- [x] Gate: build, fix, unit — 1015/1015, pristine
-- [x] Review gate R — verdict: **STOP**, overridden by Oskar (see below)
+**Debt carried out of S1 — resolved during S2, not carried.** `accesses declared children through typed record aliases` and `keeps a composed declaration read-only after construction` assert `components` is a frozen null-prototype record. Commit `98124594` had `createSchemaComponent` assign `components` a plain `{}` instead of routing it through `schemaComponentMap`. Restoring that one call fixes both. The S1 reasoning for deferring — "repairing the freeze means writing code S3 removes" — was wrong: it is a single function call, not a body of code, and §4 says no step may leave the repo red for longer than itself.
 
-Construction is two-step in both places — the component literal first, `component.components`
-assigned after it, then frozen. The parent/child reference is cyclic: children must point at the
-component, so the component has to exist before its children can be cloned against it. `withParent`
-does the same dance for the same reason.
+## S2 — Dead-code sweep
+- [x] Proof test written and run green: `main.users` → `users`, `audit.users` → `dumbo_audit_table_users`. The collision detector's own fixture never collides, so it can never fire
+- [x] `logicalSchemaMapping.ts` deleted in full; `components/index.ts` re-export dropped
+- [x] `validateLogicalSchemaMapping` and `logicalSchemaMapping.unit.spec.ts` deleted. `DefaultSQLiteMigratorOptions` stays as `{}` — `getDefaultMigratorOptions` throws for an unregistered database type, and sqlite3 and d1 both read it
+- [x] `findComponents`, `findComponent`, `SchemaComponentPredicate` deleted, plus their `core/schema/index.ts` exports
+- [x] pongo `sqlBuilder` specs reach the collection through the fixture that placed it
+- [x] The 4 collision tests deleted (they sat at 901–989, not 1008–1097)
+- [x] `assertNativeName` still present — untouched
+- [x] Gate: build green, fix green, unit **1006 pass / 0 fail**, int — see below
+- [x] Review gate R — verdict: **pass**. (1) No new abstraction — zero new production symbols; the two spec fixture helpers changed return shape, none were added. (2) No remnant — grep for `findComponent`, `SchemaComponentPredicate`, `logicalSchemaMapping`, `LogicalSchemaCollision`, `assertLogicalSchema`, `validateLogicalSchemaMapping` returns nothing across both packages; `isPongoCollectionComponent` kept its production callers. (3) Line count down both sides. (4) No spec contradiction — D16 and D20 satisfied; the one plan.md bullet left undone is recorded directly below.
 
-Tests: eight new tests under the `placing a component under a parent` describe, plus a vacuity fix.
-"does not change the migrations of the definition it was built from" had no children in its fixture,
-so it survived every mutation of `withParent` and `createSchemaComponent` — including one that broke
-39 other tests. It now places a table carrying an index, both declaring migrations named after their
-placement depth, and asserts the definition's full `migrations()` before and after placement plus the
-parent's. Mutation-proved: making `withParent` non-recursive fails it (`users_email_idx:under-1`
-instead of `under-2`), and mutating the component in place fails it too.
+**`supportsSchemas` / `supportsFunctions` NOT deleted.** plan.md called for it; reverted on Oskar's call. Two reasons. `supportsSchemas` is the natural place to decide whether a driver needs the `dumbo_<schema>_table_` prefix — today that choice is hardcoded per driver. And `supportsFunctions` was not a bare flag: it gated a conditional type making `functionExists` **required** when true. Deleting it silently downgraded PostgreSQL's metadata to optional — a type-guarantee loss inside a step billed as pure deletion. plan.md's S2 bullet is wrong and stays undone.
 
-Thirteen pre-existing tests were rewritten because cloning breaks reference equality — more than the
-plan anticipated at this step; it expected this at S4. Nine came out equal or stronger. Two are mildly
-weaker but still assert their named subject: "runs a shared child migration once when the child has
-multiple aliases" lost its identity-traversal assertion, and "accesses declared children through typed
-record aliases" went from identity to `tableName`. Two lost coverage deliberately and acceptably: the
-cycle test can no longer construct a cycle through the factory at all, and the extension-alias test
-lost an assertion that cloning makes unstateable.
+**Deleted tests, with reasons:**
+- `finds a nested table from a composed root` — its subject was `findComponents`/`findComponent`. No claim survives them.
+- `finishes traversal when reusable components form a cycle` — asserted `findComponents` terminates on a cycle. Not transferable: `migrations()` has no cycle guard and never claimed one, and the fixture bypassed the factories with raw object literals to build a cycle the public API cannot produce.
+- 4 collision tests (`accepts distinct physical table names across logical schemas`, `rejects one physical table name reused across logical schemas`, `accepts a shared table discovered twice within one logical schema`, `detects physical table collisions inside database extensions`) — all four asserted `assertLogicalSchemaMapping`, deleted with it. `sqliteObjectNames.unit.spec.ts` > `keeps underscore-containing logical tuples distinct` already carries the injectivity claim that makes the detector unnecessary.
+- `SQLite logical schema mapping` > `validates expanded database schema components in strict mode` — asserted the deleted `validateComponent` hook body. The hook mechanism itself is still covered by `reports schema validation failure before executing migrations`.
+- The proof test itself, per the plan — it duplicates `keeps underscore-containing logical tuples distinct`.
 
-Review gate R said STOP on the mechanical net-lines rule; Oskar accepted it:
-- Non-test source 144 → 176, **+32**; test source +139. Oskar: "I'm fine with +32".
-- The gate found no new exported type, options bag, registry or config hook, judged all growth to be
-  machinery plan.md pre-authorised, and found nothing droppable. S3 is the one purely additive step in
-  Phase 2 — the deletions it unlocks land in S4 and S9.
+**Rewritten, not deleted:** `finds tables and extensions nested inside another extension` and `discovers an extension table without exposing it as a database schema` both made real claims (extensions don't promote their contents into `tables`/`schemas`). Rewritten to reach through `extensions.<alias>.components`. `behaves the same when migrated directly or from a database root` kept its two migration assertions; only the two `findComponents` restatements went.
 
-Small cleanup applied after the gate: `components: {} as SchemaComponentMap` became
-`components: schemaComponentMap<SchemaComponentMap>({})`, removing a cast.
+**Int gate:** the one int spec covering the production change, `sqlite/core/schema/migrations.int.spec.ts`, passes 18/18. The remaining int failures are environmental — `SQLITE_IOERR: disk I/O error` on file-based databases and PostgreSQL connection specs with no live server. None of the failing specs reference a symbol this step touched (grep for `findComponent|logicalSchema|validateComponent|schemaComponent` returns 0 in all three).
 
-Post-S3 cleanup, agreed with Oskar — the `fields` bag is now typed. This closes the first of the two
-findings logged from S1's review gate, which had noted that the bag was untyped and left the factories
-casting. `createSchemaComponent` gained a `const Fields extends Readonly<Record<string, unknown>>`
-parameter, so the return type is `SchemaComponent<Kind> & Fields & { components: Components }` and the
-per-kind data survives into it.
+**Line delta (S1+S2 cumulative vs `main`):** non-test **−128**, tests **−193**.
 
-Three of the four `as unknown as` casts are now gone entirely — `tableComponent`,
-`databaseSchemaComponent` and `databaseComponent` all `return base;`. The typing bites: renaming
-`tableName` to `tableNameTYPO` in the fields bag now fails the build with "Property 'tableName' is
-missing". Before, all four factories compiled with that typo.
+## S3 — The erased child list becomes an array
+- [ ] `accesses declared children through typed record aliases` and `keeps a composed declaration read-only after construction` — repaired in S2, green today. Under D3 there is no keyed record left to assert, so both get deleted with the concept here; record that when it happens
+- [ ] `components` is `ReadonlyArray<AnySchemaComponent>`
+- [ ] Each factory builds it from its own typed maps
+- [ ] `mergeSchemaComponentMaps` and its duplicate-key throw deleted
+- [ ] The duplicate-key test deleted and recorded here
+- [ ] `schemaComponentMap` still used for the typed maps
+- [ ] Gate: build, fix, unit
+- [ ] Review gate R — verdict: ____
 
-Getting there exposed two declarations the casts had been hiding, both fixed:
-`TableComponent.databaseSchemaName` and `DatabaseSchemaComponent.databaseName` were declared
-`?: string` while their own options types said `?: string | undefined` — different things under
-`exactOptionalPropertyTypes`, and the component types had the wrong one.
+## S4 — The factory owns its literal
+- [ ] All six factories return their own object literal
+- [ ] `componentMigrations` is the only shared helper, module-private
+- [ ] `createSchemaComponent` deleted
+- [ ] `fields` bag deleted
+- [ ] `context` option deleted
+- [ ] `scopedContext` deleted
+- [ ] `Object.freeze` on the component deleted (records stay frozen)
+- [ ] No `this` in any factory
+- [ ] `as unknown as` casts removed where the bag was their cause
+- [ ] Gate: build, fix, unit
+- [ ] Review gate R — verdict: ____
 
-Three narrow casts remain, one per value TS genuinely loses through a spread-then-freeze:
-`relationships as Relationships`, `schemaName as SchemaName`, `databaseName as DatabaseName`. Each
-covers one property and leaves the rest of the return checked, rather than one blanket cast disabling
-it all.
-
-`columnSchemaComponent` keeps its `as unknown as`. Its return type is intersected with an
-uninstantiated conditional (`Options extends { notNull: true } | { primaryKey: true } ? ... : ...`),
-and TS will not compare against that. The blocker is the `notNull` inference in its own signature, not
-the fields bag; unpicking it means the conditional-type gymnastics plan.md says to walk away from.
-
-Cost: +3 lines across the three factories plus the generic parameter. Build, fix, `tsc -b --force` and
-1015/1015 unit tests all green.
-
-Follow-ups S3 leaves behind:
-- **S4 inherits a gap**: `tables`, `indexes` and `columns` field maps still hold the ORIGINAL child
-  components — only `components` holds clones. S4's spec expects `.tables.users` to be a clone, so that
-  field-map re-derivation is still owed.
-- `findComponents` now returns one entry per ALIAS rather than one per identity, since clones are
-  distinct objects. No test pins the new arity directly.
-
-### S4 — Named accessors and qualifier resolution
-- [ ] Tests written and failing (`this.table().schema().schemaName`, unattached → default token)
-- [ ] `tableComponent.schema()`, `indexComponent.table()` — one-line methods, **not getters**
-- [ ] One shared resolution helper: declared → parent chain → `SQLDefaultSchemaNameToken`
-- [ ] Conflict rule kept: child declaring a different schema throws
-- [ ] Column gets no accessor
-- [ ] `databaseSchemaComponent` exposes clones of its tables — with no attach code of its own
-- [ ] Deleted: ad-hoc conflict loop at `databaseSchemaComponent.ts:58-69`
+## S5 — Drop `databaseName` from the chain
+- [ ] Tests written and failing (type spec + name-independence)
+- [ ] `databaseName` gone from `DatabaseSchemaComponent` and its options
+- [ ] Cross-database validation at `databaseComponent.ts:59-68` deleted, record-key check kept
+- [ ] `databaseName` gone from every identifier type
+- [ ] `'A database name is required to build migrations'` throw deleted
+- [ ] `databaseName` gone from `pongoDb.ts`'s identifier and `withTable.ts`
 - [ ] Gate: build, fix, unit, **int**
 - [ ] Review gate R — verdict: ____
 
----
-
-## Phase 3 — Drop `databaseName`
-
-### S6 — Remove `databaseName` from the chain
-- [ ] Tests written and failing (type spec + no-name migrations + name-independence)
-- [ ] Deleted: `databaseName` from `DatabaseSchemaComponent` and its options
-- [ ] Deleted: cross-database validation in `databaseComponent.ts:59-68` (record-key check kept)
-- [ ] Deleted: `databaseName` from all four identifier types; `DatabaseIdentifier` itself if empty
-- [ ] Deleted: the `'A database name is required to build migrations'` throw
-- [ ] Deleted: `databaseName` from `pongoDb.ts` identifier and `withTable.ts`
+## S6 — Schema names are required; `defaultSchema` exists
+- [ ] Tests written and failing (no-compile, defaultSchema, key/name throw, no name segment)
+- [ ] `schemaName: string | SQLDefaultSchemaNameToken`, always present
+- [ ] Nameless overload deleted from `dumboSchema.schema` and `pongoSchema.schema`
+- [ ] `dumboSchema.defaultSchema` added
+- [ ] `SchemaComponentContext.databaseSchemaName` widened to include the token
+- [ ] Key-vs-name check at `databaseComponent.ts:69-73` is total
+- [ ] Every nameless-schema fixture rewritten in this step
 - [ ] Gate: build, fix, unit, **int**
 - [ ] Review gate R — verdict: ____
 
----
-
-## Phase 4 — DDL as tokens
-
-### S7 — `SQLTableReference` + `SQLCreateSchema`
-- [ ] Read the existing processor registry first — no second dispatch mechanism
-- [ ] Tests written and failing, both dialects (qualified, default token, explicit `public`, create-schema)
+## S7 — `SQLTableReference` + `SQLCreateSchema`
+- [ ] Existing processor registry read first — no second dispatch mechanism
+- [ ] Tests written and failing, both dialects
 - [ ] Tokens added to `core/sql/tokens/sqlToken.ts`
 - [ ] Processors registered per dialect
 - [ ] `postgreSQLTableReference` / `sqliteTableReference` / `postgreSQLDatabaseSchemaSQL` emit tokens
 - [ ] Gate: build, fix, unit
 - [ ] Review gate R — verdict: ____
 
-### S8 — `SQLIndexReference` + JSON target tokens
-- [ ] Tests written and failing, both dialects (reference, GIN vs plain, path extraction, unique, multi-column, custom `sql`)
+## S8 — `SQLIndexReference` + JSON target tokens
+- [ ] Tests written and failing, both dialects
 - [ ] `SQLIndexReference`, `SQLJSONDocumentIndexTarget`, `SQLJSONPathTarget` + processors
 - [ ] `postgreSQLIndexSQL` / `sqliteIndexSQL` rebuilt on tokens
 - [ ] If the two bodies became identical: hoisted to core, both deleted
 - [ ] Gate: build, fix, unit
 - [ ] Review gate R — verdict: ____
 
-### S9 — Components emit their own DDL
+## S9 — Components emit their own DDL
 - [ ] Tests written and failing, including the database-level-extension regression
-- [ ] `tableComponent`'s migrations function emits create-table
-- [ ] `indexComponent`'s migrations function emits create-index
-- [ ] `databaseSchemaComponent`'s migrations function emits create-schema
+- [ ] `tableComponent` emits create-table via `createTableSQL`
+- [ ] `indexComponent` emits create-index
+- [ ] `databaseSchemaComponent` emits create-schema
 - [ ] Deleted: `databaseMigrations.ts`
 - [ ] Deleted: `DatabaseMigrationBuilder`
-- [ ] Deleted: the four identifier types (if unused)
-- [ ] Deleted: `postgreSQLTableSQL`, `postgreSQLIndexSQL`, `postgreSQLDatabaseSchemaSQL`
-- [ ] Deleted: `sqliteTableSQL`, `sqliteIndexSQL`
-- [ ] Deleted: pongo `databaseMigrations.ts` × 2, `pongoPostgreSQLMigrationBuilder`, `pongoSQLiteMigrationBuilder`
-- [ ] Deleted: `migrationBuilder` option on `pongoDb`
+- [ ] Deleted: the four identifier types
+- [ ] Deleted: `postgreSQLTableSQL`, `postgreSQLIndexSQL`, `postgreSQLDatabaseSchemaSQL`, `sqliteTableSQL`, `sqliteIndexSQL`
+- [ ] Deleted: pongo `databaseMigrations.ts` × 2, both migration builders, the `migrationBuilder` option
 - [ ] Both `sqlBuilder.unit.spec.ts` files read `.migrations()`
-- [ ] S1's accepted debt gone: `grep "components: {} }"` returns nothing
-- [ ] Deleted: `pongoCollectionComponentType`, `pongoSchemaComponentType`,
-      `pongoDatabaseComponentType` and the three `isPongo*Component` guards — the builders were
-      their only runtime readers
-- [ ] Deleted: `withValue` (pongo/src/core/schema/index.ts) — nothing left to stamp
-- [ ] Any surviving discrimination is a type-level brand, never a value on the component
+- [ ] `grep "components: {} }"` returns nothing
 - [ ] Gate: build, fix, unit, **int**
 - [ ] Review gate R — verdict: ____ (must show a large net deletion)
 
----
+## S10 — The migration table is a real table component
+- [ ] Golden test written and failing: DDL byte-identical to `main`
+- [ ] `migrationTableComponentFor` returns a `tableComponent` in a real schema
+- [ ] Deleted: `schemaComponent()`, `genericComponentType`
+- [ ] Gate: build, fix, unit, **int**
+- [ ] Review gate R — verdict: ____
 
-## Phase 5 — Naming and `pongoDb`
-
-### S10 — Naming moves into dumbo
+## S11 — Migration naming moves into dumbo
 - [ ] Golden test written and failing: `pongoCollection:users:001:createtable`, literal string
 - [ ] Schema-qualified, schema-component, index and plain-dumbo name tests
 - [ ] Accepted divergence asserted deliberately (explicit `public` on pg)
 - [ ] `migrationNamePrefix` option added; pongo passes its three prefixes
-- [ ] Deleted: `src/packages/pongo/src/storage/migrationNames.ts` and all three functions
+- [ ] Deleted: `packages/pongo/src/storage/migrationNames.ts` and all three functions
 - [ ] Gate: build, fix, unit, **int**
 - [ ] Review gate R — verdict: ____ (watch: is `migrationNamePrefix` net-negative?)
 
-### S11 — `defaultSchemaName` optional
-- [ ] Tests written and failing (unnamed default, explicit override, per-collection override, scope guard)
-- [ ] `defaultSchemaName` optional throughout `pongoDb`
-- [ ] Unnamed default keyed on one sentinel, not a dialect string
-- [ ] Unnamed default schema component carries `SQLDefaultSchemaNameToken`
-- [ ] Gate: build, fix, unit, **int**
-- [ ] Review gate R — verdict: ____
-
-### S12 — Collections normalise into the tree
-- [ ] Tests written and failing (ad-hoc schema, merge, duplicate-table throw, late collection, idempotence)
-- [ ] `mergeSchemaComponentMaps` merges same-alias schema components
-- [ ] Duplicate table name within a schema still throws
-- [ ] `withTable` uses the merge instead of its spread
+## S12 — SQLite physical names use the logical name
+- [ ] Tests written and failing (mapped name, default name, dot rejection, index name)
+- [ ] `crm.users` maps to `crm.users`; default schema maps to `users`
+- [ ] Deleted: `escapeName`, `SQLiteMappedNamePrefix`
+- [ ] `assertNativeName` rejects a default-schema identifier containing a dot
+- [ ] Break stated in the step summary; no migration attempted
 - [ ] Gate: build, fix, unit, **int**, **e2e**
 - [ ] Review gate R — verdict: ____
 
----
+## S13 — `defaultSchemaName` optional in `pongoDb`
+- [ ] Tests written and failing (unnamed default, explicit override, per-collection override, scope guard)
+- [ ] `defaultSchemaName` optional throughout `pongoDb`
+- [ ] `pongoDb.ts:100` no longer resolves it eagerly
+- [ ] Collections without one go into `dumboSchema.defaultSchema(...)`
+- [ ] Gate: build, fix, unit, **int**
+- [ ] Review gate R — verdict: ____
 
-## Phase 6 — Extension as database fragment
+## S14 — Collections normalise into the tree
+- [ ] Tests written and failing (ad-hoc schema, merge, duplicate-table throw, late collection, idempotence)
+- [ ] `withTable` get-or-creates the schema component
+- [ ] Schema components sharing a key merge; duplicate table name within a schema throws
+- [ ] Deleted: `composePongoDatabase`, the `withValue` stash and its duplicate throw
+- [ ] Deleted: `pongoSchemaComponentType`, `pongoDatabaseComponentType`, `isPongoSchemaComponent`, `isPongoDatabaseComponent`, `withValue`
+- [ ] `pongoCollectionComponentType` kept only if `pongoDb.ts:255` still needs it, else a type-level brand
+- [ ] Gate: build, fix, unit, **int**, **e2e**
+- [ ] Review gate R — verdict: ____
 
-### S13 — Extensions declare schemas
+## S15 — Extension as a database fragment
 - [ ] Type spec written and failing: `db.schemas.readmodels.tables.users`
-- [ ] Placement tests (schema-attached resolves that schema, database-attached does not)
+- [ ] Placement tests (schema-attached resolves that schema, database-attached keeps its own)
 - [ ] Two-extension schema merge test
 - [ ] Projection-factory test
 - [ ] `extensionComponent` gains `schemas` / `extensions`
@@ -290,11 +209,7 @@ Follow-ups S3 leaves behind:
 - [ ] Gate: build, fix, unit, **int**
 - [ ] Review gate R — verdict: ____
 
----
-
-## Phase 7 — Example and sweep
-
-### S14 — Event-store example
+## S16 — Event-store example
 - [ ] `eventStore` extension factory over projection registrations
 - [ ] `messages` in `emt`; one read-model table per projection in its own schema
 - [ ] Composed into a `pongoDb`
@@ -305,10 +220,10 @@ Follow-ups S3 leaves behind:
 - [ ] Gate: build, fix, full suite
 - [ ] Review gate R — verdict: ____
 
-### S15 — Final sweep
-- [ ] All 16 deletion-checklist symbols verified gone, including re-exports
+## S17 — Final sweep
+- [ ] Every deleted symbol verified gone, including re-exports and `dist` barrels
 - [ ] Dead code, orphaned specs, stale index entries cleaned
-- [ ] Docs and samples updated
+- [ ] Docs and samples updated for `dumboSchema.defaultSchema` and required names
 - [ ] `metrics/final.md` written with before/after and the net delta
 - [ ] `npm run build:ts`, `npm run fix`, `npm run test` — pristine, no skips
 - [ ] Summary written for Oskar
