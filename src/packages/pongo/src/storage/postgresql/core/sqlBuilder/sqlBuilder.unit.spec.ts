@@ -525,7 +525,7 @@ describe('postgres collection schema migrations', () => {
     assert.strictEqual(migrations.length, 3);
     assert.ok(emailIndex);
     assert.strictEqual(collection.databaseSchemaName, undefined);
-    assert.strictEqual(emailIndex, indexes.email);
+    assert.strictEqual(emailIndex.indexName, indexes.email.indexName);
     assert.strictEqual(emailIndex.databaseSchemaName, undefined);
   });
 

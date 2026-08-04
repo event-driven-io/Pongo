@@ -12,7 +12,7 @@
 
 ## Q2
 
-> How does an extension like the event store use the table it references — does it only need the table's *identifier* (schema + table name) to emit SQL like `INSERT INTO myschema.read_model ...`, or does it need the table's *structure* (columns, types, primary key) to generate the projection?
+> How does an extension like the event store use the table it references — does it only need the table's _identifier_ (schema + table name) to emit SQL like `INSERT INTO myschema.read_model ...`, or does it need the table's _structure_ (columns, types, primary key) to generate the projection?
 
 **A2 (verbatim):**
 
@@ -25,6 +25,7 @@
 > Still, we could also make some tradeoff to just merge by the schema component key and the migration id, or just ignore component from extension if it's defined in the "main schema".
 >
 > See the Pongo projection in emmett here:
+>
 > - /home/oskar/Repos/emmett/src/packages/emmett-postgresql/src/eventStore/projections/pongo/pongoProjections.ts
 > - /home/oskar/Repos/emmett/src/packages/emmett-sqlite/src/eventStore/projections/pongo/pongoProjections.ts
 
@@ -34,7 +35,7 @@
 
 **A3 (verbatim):**
 
-> >  First, they don't hold a component reference at all
+> > First, they don't hold a component reference at all
 >
 > Yes, the trick is that's also why we're making this whole exercise to make this possible. I think that we should also early come up here in this repo how this extension could look like.
 >
@@ -128,7 +129,7 @@
 
 ## Q12
 
-> If a collection is added *after* `db.schema.migrate()` has already run, should the new collection migrate itself on first use, or should adding a collection mark the database component dirty so the next operation re-runs the full migration set?
+> If a collection is added _after_ `db.schema.migrate()` has already run, should the new collection migrate itself on first use, or should adding a collection mark the database component dirty so the next operation re-runs the full migration set?
 
 **A12 (verbatim):**
 
@@ -204,9 +205,10 @@
 
 > // databaseSchemaComponent — the whole attach step
 > for (const table of Object.values(tables)) table.databaseSchemaName ??= schemaName;
->   this is also handwaving as table may have numerous children and we'll need to consider each type of them and loop.
+> this is also handwaving as table may have numerous children and we'll need to consider each type of them and loop.
 >
 > Can't we just:
+>
 > - copy objects on clone with parent,
 > - have migrations in options being function,
 > - have migrations on schema component be getter
@@ -300,3 +302,236 @@
 > Could you do a dry run testing if what you think will work? I'm not sure if you're not making it up again
 
 **Result:** first run failed — an unattached table's index rendered `<default>.undefined`, because attachment was modelled as something a schema does to its tables. Fixed by attaching children inside `createSchemaComponent` itself, which also removed the two-phase construction in the schema factory and the whole per-kind attach step. Nine assertions then passed, including the deliberately broken variant that closes over `component` instead of `this` and silently emits unqualified SQL.
+
+## Q30
+
+> Why `this: AnySchemaComponent` on `indexComponent`'s `table()` instead of `AnyIndexComponent`?
+
+**A30 (verbatim):**
+
+> table(this: AnySchemaComponent): AnyTableComponent | undefined {
+> return this.parent as AnyTableComponent | undefined;
+> }, - why AnySchemaComponent instead of AnyIndexComponent?
+
+**Finding:** no technical reason. `AnySchemaComponent` was simply the weakest type carrying `parent`. Because a `this` parameter is contravariant, the wide type let anything with a `parent` call `.table()` — exactly the misuse worth rejecting. Narrowed in both places (`AnyIndexComponent` on `table()`, `AnyTableComponent` on `schema()`); `tsc -b --force` clean, 1028 unit tests pass, lint clean.
+
+## Q31
+
+> Should the narrowing apply to `tableComponent.schema()` as well, and does the review gate's `attachChildren` finding stand?
+
+**A31 (verbatim):**
+
+> Plus same for review, agreed that attachChildren this looks phishy
+
+**Review gate R verdict on S4: STOP.** Non-test source 22,770 → 22,810 (+40). New purely-additive exported symbol `resolveDatabaseSchemaName` with zero production callers, replacing one inline loop rather than two or more, and not replacing even that one everywhere — `pongoDatabaseSchemaComponent.ts:63` still carries a copy. `attachChildren` faulted on three counts: `attached[alias]!` silently yields a map of `undefined` if a named alias is absent from `components`; the `length > 0` guard makes empty named maps behave differently from non-empty ones; and it scans every own property, with `parent` escaping only by accident. The S1 accessor assertion walks only a generic `schemaComponent`, never a table or index — the two that just gained methods. Four tests went soft, comparing a string to itself.
+
+## Q32
+
+> Why is `.table()` not used in production?
+
+**A32 (verbatim):**
+
+> Also, it's not acceptable that stuff is neither tested nor used in production like index .table(), why isn't it used in migrations?
+
+**Finding:** confirmed by grep — `.table()`, `.schema()` and `resolveDatabaseSchemaName` have zero references outside spec files. `databaseMigrations.ts` answers the same question with its own mechanism: it pushes an `Identifier` down the tree through `visit`. Worse, the two disagree. `databaseMigrations.ts:86-89` resolves a table's schema as parent-wins, declared-as-fallback; the new resolver implements declared-wins, throw-on-conflict. Both rules ship; the one that runs is the wrong one.
+
+## Q33
+
+> Pull S9's rewiring forward so the accessors get production callers?
+
+**A33 (verbatim):**
+
+> I could be fine doing those s9 parts now, but first I'd like you to review other points you raised, asnd redundant stuff, plus I personally don't like methods that start with "resolve", "provide", they're usually smelly and those vague prefixes usually suggest some missing bit. So yes, note down what we potentially like to plug now, but consider other review feedback, redundant abstractions etc.
+>
+> I still don't understand why do we need attachChildren, and other stuff you highlighted
+
+**On the naming:** the `resolve` prefix was hiding a missing bit. The function answers a question a component has about itself — "what schema am I in?" — so it belongs inside that component's own `migrations()`, not in a free helper.
+
+## Q34
+
+> A component's position in the tree is answered three ways: declared fields on the component, `identify` in `databaseMigrations.ts` which pushes position down through the walk and lets the parent win, and the S4 parent chain which pulls position up and lets the declaration win. Only `identify` runs in production. Which is the single answer?
+
+**A34 (verbatim):**
+
+> Dude, the whole reason why we added migrations as a function in options and made migrations a function in schema component is to be able to resolve it on call, and that's why we plugged the parent, to have it at the time when it's run, and put it into migration. Literaliilly wtf
+
+**Also asked (verbatim):**
+
+> I also don't get what's event databaSeMigrations.identify. And why is it computed, I don't think that's what we agreed
+
+**Finding:** the question was already settled and should not have been asked. `databaseMigrations.ts` does not exist on `main`. All 199 lines — `DatabaseMigrationBuilder`, the `Identifier` union, `identify`, and the downward `parentIdentifier` threading — were introduced on this branch by commit `b6f27ec5` "Refactoring step 1". It is the machinery `migrations()` as a method was meant to replace, not something that predates it.
+
+## Q35
+
+> Collapse S4 and S9 into one piece, or do the smaller version now and leave `DatabaseMigrationBuilder` for S9?
+
+**A35 (verbatim):**
+
+> No, I want to to do it step by step but endure that you're not creating useless abstractions that will then to be a substance of big refactoring ontheir own
+
+**Rule adopted:** every symbol added from here must have a production caller the moment it lands, and must already be in its final shape. Nothing is added now that a later step would tear out.
+
+## Q36
+
+> Should the alias under which a schema is stored keep naming an unnamed schema — which needs a component to know its own alias — or should an unnamed schema resolve to the default token, making the alias purely a lookup key?
+
+**A36 (verbatim):**
+
+> If it's not a big burden or refactoring, then yes, it can be one of the pieces in the chaing to detect the schema name, but could you expand why is it a blocker?
+
+**Correction:** it was not a blocker, and calling it one was an overstatement. The parent chain carries `parent` but not the alias, and the alias lives in the map rather than on the child — but `componentsWithParent` already holds `[alias, child]` at the exact moment it sets `parent`, so setting `alias` there is the same line.
+
+## Q37
+
+> Confirming the shape before implementation.
+
+**A37 (verbatim):**
+
+> Dude, I thought that we agreed that attachChildren needs to go. Also why do you need reverse lookup by identity?!
+
+**Agreed shape.** `attachChildren` and `isAliasedComponents` are deleted outright. `componentsWithParent` clones each child setting `parent` and `alias` — no own-property scanning, no duck-typing, no non-null assertion, and no reverse lookup, which was an option the design makes pointless.
+
+`resolveDatabaseSchemaName` is deleted. `identify`, the `Identifier` union and the `parentIdentifier` threading are deleted. The walker iterates `components` rather than the named maps, which is what made the repoint load-bearing. `DatabaseMigrationBuilder` survives untouched for S9 to remove properly.
+
+Resolution chain, evaluated at `migrations()` call time by the component itself:
+
+- schema: `schemaName` → its alias under the database → default schema token
+- table: `databaseSchemaName` → its schema's resolved name → default schema token
+- index: `databaseSchemaName` → its table's resolved name → default schema token
+
+`databaseComponent.ts:69-73` already throws when a declared `schemaName` disagrees with its alias, so the two can never conflict; the alias only fills in where nothing was declared.
+
+## Q38
+
+> "the walker's rule today is parent-wins, and we're switching it to declared-wins with a throw on conflict — the integration suite is what tells us whether any emitted SQL moves."
+>
+> Expand on what you said here. I never seen such discussion
+
+**Correction — the claim was overstated, and Oskar is right that no such discussion happened.**
+
+What is actually in the code:
+
+- `databaseMigrations.ts:86-89` picks a table's schema as `'databaseSchemaName' in parent ? parent.databaseSchemaName : component.databaseSchemaName`. Read alone, that is parent-wins.
+- `databaseMigrations.ts:76-83` returns the parent identifier for a schema whenever the parent already carries `databaseSchemaName`, and the database branch at `:157-165` always supplies it from the `database.schemas` alias — so `component.schemaName` at `:78` is unreachable for any schema entered through the database.
+
+What "declared-wins with a throw" referred to: the construction-time loop S4 deleted from `databaseSchemaComponent.ts` (old lines 58-69), which threw when a table's declared `databaseSchemaName` disagreed with the schema holding it, plus `resolveDatabaseSchemaName`, which reimplements that rule and which nothing calls.
+
+**Why the precedence question is not observable.** A disagreement cannot reach the walker:
+
+- `composePongoDatabase` groups collections _by_ `collection.databaseSchemaName ?? defaultSchemaName`, so a table lands in the schema it declares; the explicit-schemas branch throws on mismatch (`pongoDatabaseSchemaComponent.ts:58-65`).
+- `pongoDb.ts:184-188` throws when a schema scope is asked for a collection in another database schema.
+- `databaseComponent.ts:69-73` throws when a schema's declared `schemaName` disagrees with its alias.
+- `tableComponent.ts:88-106` throws when an index's declared names disagree with its table.
+
+So line `:86-89` only ever chooses between a parent value and `undefined`, where parent is the only answer. Emitted SQL cannot move, and the integration suite cannot tell us anything about it — saying it would was wrong.
+
+**The finding that survives.** S4 deleted the only code that threw for a table constructed directly against dumbo's `databaseSchemaComponent`, below every pongo guard, and no test failed. That gap is untested, not merely unenforced.
+
+## Q39
+
+> should dumbo's databaseSchemaComponent throw on a table whose declared databaseSchemaName disagrees with its schema at all - dude, what do you mean, how would that be even possible?
+
+**How it is possible.** Only by calling dumbo's own component API, below every pongo guard:
+
+```ts
+databaseSchemaComponent({
+  schemaName: "crm",
+  tables: {
+    users: tableComponent({ tableName: "users", databaseSchemaName: "audit" }),
+  },
+});
+```
+
+`schemaName` (`databaseSchemaComponent.ts:44`) and `databaseSchemaName` (`tableComponent.ts:118`) are independent free-form options, and after S4 deleted the loop nothing compares them. Both constructors are re-exported through `components/index.ts`, so this is `@event-driven-io/dumbo`'s public surface, not an internal back door. Every pongo path is safe because pongo groups by the declared name and throws first.
+
+Today the call above builds without complaint and the walker emits `crm.users`, silently discarding `audit`. On `main` it threw.
+
+## Q40
+
+> I mean why would table have schemaname as options param
+
+**Where it comes from.** It is a _declaration-time placement hint_ for the flat definition form. `pongoSchema.db({ collections: { users, orders } })` has no schemas block, so the collection itself is the only place to say where it lives:
+
+```
+pongoSchema.collection('users', { databaseSchemaName: 'crm' })
+  → pongoCollectionTable (pongo/core/schema/index.ts:104)
+  → dumboSchema.table (dumboSchema.ts:81)
+  → tableComponent({ tableName, databaseSchemaName })
+```
+
+`composePongoDatabase` then _groups by it_ — `collection.databaseSchemaName ?? defaultSchemaName` (`pongoDatabaseSchemaComponent.ts:46`) — to synthesise the schema components. So the field's whole job is to decide which schema a table gets filed under, and it is consumed **before the tree exists**.
+
+**What reads it afterwards.** Nothing in production. The only post-composition reads are:
+
+- `databaseMigrations.ts:89` — the parent-vs-declared fallback, unreachable once the composer has grouped
+- `databaseSchemaComponent.ts:86` — `resolveDatabaseSchemaName`, which nothing calls
+- `tableComponent.ts:92` — reads an _index's_ field, not a table's, at construction time
+
+The `identifier.databaseSchemaName` reads in `databaseObjectSQL.ts` and `migrationNames.ts` are the walker's identifier, not the component field.
+
+**So the field is vestigial on the built component.** Once the table sits under a schema, its position already carries the answer; the copy on the component is leftover input, and that leftover is the only reason a conflict can be expressed at all.
+
+## Q41
+
+> That's also why we have dumboSchema.database, dumboSchema.table etc. to make it smoother keeping the component intenral, don't we? THen we could have this schemaname, and potentially throw on assignment if it's different or just override it on the assignment. But dumboSchema helpers shouldn't allow that (same pongoSchema). Thoughts?
+
+**Agreed on the layering, but the check cannot live in the builders.** `pongoSchema.schema` does not route through `dumboSchema.schema` — `pongo/core/schema/index.ts:372-385` calls `databaseSchemaComponent` directly, and `dumboSchema.schema` calls it directly too. A guard in the builders is therefore two copies that must agree, and a third front door (the component) still open.
+
+The component is where both builders meet, and it is where the check already lived before S4 deleted it. `tableComponent.ts:88-106` puts the equivalent index guard in exactly that place, so restoring it is consistency rather than a new rule.
+
+**Throw, not override.** Overriding turns `databaseSchemaName: 'crm'` into `audit` with no signal, and every other placement conflict in the codebase throws — `databaseComponent.ts:69-73`, `tableComponent.ts:88-106`, `pongoDb.ts:184-188`, `pongoDatabaseSchemaComponent.ts:58-65`.
+
+**Net effect is deletion.** One restored loop in `databaseSchemaComponent` makes `pongoDatabaseSchemaComponent.ts:58-65` redundant, and removes the need for `resolveDatabaseSchemaName`, `identify` and the `Identifier` threading. A table's `migrations()` then reads its schema from its parent with no fallback, because construction has already guaranteed they agree.
+
+## Q42
+
+> I don't think that we should be pushing checks to Pongo, instead of having them in Dumbo, what's the use of that?
+
+**Agreed — `pongoDatabaseSchemaComponent.ts:58-65` goes.** The conflict still surfaces: `composePongoDatabase` builds each schema through `pongoSchema.schema(databaseSchemaName, collections, ...)`, which calls `databaseSchemaComponent` directly, so the restored dumbo loop throws inside the same call. The message text at `pongoDatabaseSchemaComponent.ts:63` is already a copy of dumbo's wording, so the only observable change is where the throw originates.
+
+`collection.databaseSchemaName` at `pongoDatabaseSchemaComponent.ts:46` stays — that is the grouping read, not a check, and it is the reason the field must remain on the built component rather than being options-only.
+
+## Q43
+
+> Tbt, I'm also not a huge fan of composePongoDatabase
+>
+> About databaseMigrations.ts:102-112 - didn't we agree to drop int entirely?
+>
+> I think that for now we should support just on tables and don't go crazy
+
+**Yes — Q37 already agreed `identify` and the `Identifier` union go entirely; the branch should not have been raised again.**
+
+**Indexes are supported only on tables.** No free-floating index, no fallback in an index's `migrations()`: it reads its parent table, which reads its parent schema, which resolves `schemaName` → alias → default. `tableComponent.ts:88-106` already forces a nested index to agree with its table, so nothing else is needed.
+
+## Q44
+
+> Yes, I don't see a reason why should it exist, especially with this weird throwing etc.
+
+**`composePongoDatabase` dissolves.** `pongoSchema.db` already builds a real `databaseComponent` in both branches (`pongo/core/schema/index.ts:441-460`). In the schemas form the composer tears that component apart and rebuilds identical copies — pure waste. In the collections form `pongoSchema.db` builds `schemas: {}` and stashes the raw collections under a `collections` property via `withValue`; that stash exists _only_ so the composer can group them later.
+
+Two runtime values are the composer's stated reason to be deferred:
+
+- `defaultSchemaName` — dissolved by Q37. An unnamed schema resolves to `SQLDefaultSchemaNameToken` at `migrations()` time, so the flat form can group at declaration time without knowing whether the driver says `public` or `main`.
+- `databaseName` — still only known at connection time. It reaches no emitted SQL: `migrationNames.ts` and `databaseObjectSQL.ts` read `databaseSchemaName`, `tableName` and `indexName` only. Its live uses are the guard at `databaseComponent.ts:58-66`, the throw at `databaseMigrations.ts:58-60`, and `IndexSQLContext.databaseName` exposed to custom index SQL callbacks.
+
+## Q45
+
+> Dude, didn't we already agree that we don't need database name in the migrations (besides creating database potentially_ and the whole databaseMigration should be removed eventually? DId you even read the fng spec?
+
+**Yes — D7 removes `databaseName` from the resolution chain and Phase 4 deletes `databaseMigrations` entirely. The question should not have been asked.**
+
+With `defaultSchemaName` dissolved by D5 and `databaseName` reduced to connection metadata by D7, `composePongoDatabase` has no runtime input left, so it collapses into `pongoSchema.db` along with the `withValue(database, 'collections', ...)` stash and the duplicate throw at `pongoDatabaseSchemaComponent.ts:58-65`.
+
+## Q46
+
+> If that makes sense, yes
+
+**Recorded as a new spec item.** One wrinkle found while placing it: the flat form groups collections that declare no `databaseSchemaName` into a schema that has no name. Under the Q37 chain (`schemaName` → alias → default) that group's map key would be read as its schema name, so the alias link must not fill in for it.
+
+## Q47
+
+> Dude, we were already discussing it, read the spec.md
+
+**D9 already answers it:** with no `defaultSchemaName`, collections go into an _unnamed_ default schema component whose qualifier is `SQLDefaultSchemaNameToken`. A schema created without a name carries the token; its map key is never read as a name. The alias fills in only for schemas the user keyed in a `schemas` block.
+
+**Correction to Q44/Q46:** `defaultSchemaName` does not dissolve — D9 keeps it as an optional explicit override, so it remains a runtime input. `composePongoDatabase` therefore is not replaced by declaration-time grouping; it is replaced by D10, where `pongoDb` get-or-creates schema components through `withTable` and holds the database component as an immutable value behind a mutable holder. Its removal belongs with D9/D10 in **Phase 5**, not Phase 3.

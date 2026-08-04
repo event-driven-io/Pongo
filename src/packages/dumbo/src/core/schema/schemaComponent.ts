@@ -66,24 +66,42 @@ export const mergeSchemaComponentMaps = (
 export const withParent = (
   component: AnySchemaComponent,
   parent: AnySchemaComponent,
-): AnySchemaComponent => {
-  const clone = { ...component, parent };
-  clone.components = componentsWithParent(component.components, clone);
-  return Object.freeze(clone);
-};
+): AnySchemaComponent => attachChildren({ ...component, parent });
 
-const componentsWithParent = (
-  components: SchemaComponentMap,
-  parent: AnySchemaComponent,
-): SchemaComponentMap =>
-  schemaComponentMap(
+const isAliasedComponents = (value: unknown): value is SchemaComponentMap =>
+  typeof value === 'object' &&
+  value !== null &&
+  Object.values(value).length > 0 &&
+  Object.values(value).every(isSchemaComponent);
+
+// Named maps such as `tables` or `indexes` list the same children as `components`
+// under the same aliases, so they are repointed at the attached children instead of
+// being cloned a second time.
+const attachChildren = <Component extends AnySchemaComponent>(
+  component: Component,
+): Component => {
+  const attached = schemaComponentMap(
     Object.fromEntries(
-      Object.entries(components).map(([alias, child]) => [
+      Object.entries(component.components).map(([alias, child]) => [
         alias,
-        withParent(child, parent),
+        withParent(child, component),
       ]),
     ),
   );
+
+  const fields = component as unknown as Record<string, unknown>;
+  for (const [key, value] of Object.entries(component)) {
+    if (isAliasedComponents(value))
+      fields[key] = schemaComponentMap(
+        Object.fromEntries(
+          Object.keys(value).map((alias) => [alias, attached[alias]!]),
+        ),
+      );
+  }
+  fields.components = attached;
+
+  return Object.freeze(component);
+};
 
 export const createSchemaComponent = <
   const Kind extends SchemaComponentKind,
@@ -99,7 +117,7 @@ export const createSchemaComponent = <
   const component = {
     ...fields,
     [schemaComponentType]: kind,
-    components: schemaComponentMap<SchemaComponentMap>({}),
+    components: (options.components ?? {}) as SchemaComponentMap,
     migrations(this: AnySchemaComponent): ReadonlyArray<SQLMigration> {
       const result: SQLMigration[] = [];
       const migrationsByName = new Map<string, SQLMigration>();
@@ -124,12 +142,8 @@ export const createSchemaComponent = <
       return result;
     },
   };
-  component.components = componentsWithParent(
-    options.components ?? {},
-    component,
-  );
 
-  return Object.freeze(component) as SchemaComponent<Kind> &
+  return attachChildren(component) as SchemaComponent<Kind> &
     Fields & {
       components: Components;
     };

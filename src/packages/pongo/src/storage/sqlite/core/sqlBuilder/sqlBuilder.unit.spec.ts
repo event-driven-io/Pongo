@@ -438,7 +438,7 @@ describe('sqliteSQLBuilder', () => {
       assert.equal(collection.databaseSchemaName, undefined);
       const email = collection.indexes.email;
       assert.ok(email);
-      assert.strictEqual(email, indexes.email);
+      assert.strictEqual(email.indexName, indexes.email.indexName);
       assert.ok(
         indexSQL.includes(
           'CREATE INDEX dumbo_crm_table_users_index_users__email__idx ON dumbo_crm_table_users',

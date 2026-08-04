@@ -8,6 +8,7 @@ import {
   type SchemaComponentOptions,
 } from '../schemaComponent';
 import type { AnyColumnSchemaComponent } from './columnSchemaComponent';
+import type { AnyDatabaseSchemaComponent } from './databaseSchemaComponent';
 import type { AnyIndexComponent } from './indexComponent';
 import type { TableRelationships } from './relationships/relationshipTypes';
 
@@ -27,11 +28,12 @@ export type TableComponent<
 > = SchemaComponent<typeof tableComponentType> &
   Readonly<{
     tableName: TableName;
-    databaseSchemaName?: string;
+    databaseSchemaName?: string | undefined;
     columns: Columns;
     primaryKey: ReadonlyArray<Extract<keyof Columns, string>>;
     relationships: Relationships;
     indexes: Indexes;
+    schema: () => AnyDatabaseSchemaComponent | undefined;
   }>;
 
 export type AnyTableComponent = TableComponent<
@@ -112,15 +114,21 @@ export const tableComponent = <
       migrations: options.migrations,
     },
     {
+      tableName: options.tableName,
       databaseSchemaName: options.databaseSchemaName,
       primaryKey: Object.freeze([...(options.primaryKey ?? [])]),
-      relationships: Object.freeze({ ...(options.relationships ?? {}) }),
+      relationships: Object.freeze({
+        ...(options.relationships ?? {}),
+      }) as Relationships,
       columns: schemaComponentMap(columns),
       indexes: schemaComponentMap(indexes),
+      schema(this: AnyTableComponent): AnyDatabaseSchemaComponent | undefined {
+        return this.parent as AnyDatabaseSchemaComponent | undefined;
+      },
     },
   );
 
-  return base as TableComponent<Columns, TableName, Indexes, Relationships>;
+  return base;
 };
 
 export const isTableComponent = (

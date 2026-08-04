@@ -136,8 +136,12 @@ describe('using a Pongo database', () => {
     });
 
     assert.strictEqual(
-      db.schema.component.schemas.crm?.tables.users,
-      collection.schema.component,
+      db.schema.component.schemas.crm?.tables.users?.tableName,
+      collection.schema.component.tableName,
+    );
+    assert.strictEqual(
+      db.schema.component.schemas.crm?.tables.users?.schema()?.schemaName,
+      'crm',
     );
   });
 
@@ -149,8 +153,12 @@ describe('using a Pongo database', () => {
 
     assert.strictEqual(scoped, direct);
     assert.strictEqual(
-      db.schema.component.schemas.public?.tables.users,
-      scoped.schema.component,
+      db.schema.component.schemas.public?.tables.users?.schema()?.schemaName,
+      'public',
+    );
+    assert.strictEqual(
+      db.schema.component.schemas.public?.tables.users?.tableName,
+      scoped.schema.component.tableName,
     );
   });
 
@@ -185,8 +193,8 @@ describe('using a Pongo database', () => {
       'audit.entries:table',
     ]);
     assert.strictEqual(
-      db.schema.component.schemas.audit?.tables.entries,
-      scoped.schema.component,
+      db.schema.component.schemas.audit?.tables.entries?.tableName,
+      scoped.schema.component.tableName,
     );
     assert.strictEqual(initialComponent.schemas.audit, undefined);
     assert.deepStrictEqual(
@@ -206,8 +214,8 @@ describe('using a Pongo database', () => {
 
     assert.strictEqual(collection.collectionName, 'users');
     assert.strictEqual(
-      db.schema.component.schemas.crm?.tables.users,
-      collection.schema.component,
+      db.schema.component.schemas.crm?.tables.users?.schema()?.schemaName,
+      'crm',
     );
   });
 
@@ -226,12 +234,12 @@ describe('using a Pongo database', () => {
     assert.notStrictEqual(defaultUsers, crmUsers);
     assert.strictEqual(db.collections().length, 2);
     assert.strictEqual(
-      db.schema.component.schemas.public?.tables.users,
-      defaultUsers.schema.component,
+      db.schema.component.schemas.public?.tables.users?.schema()?.schemaName,
+      'public',
     );
     assert.strictEqual(
-      db.schema.component.schemas.crm?.tables.users,
-      crmUsers.schema.component,
+      db.schema.component.schemas.crm?.tables.users?.schema()?.schemaName,
+      'crm',
     );
   });
 
@@ -253,8 +261,8 @@ describe('using a Pongo database', () => {
       db.collection('users', { databaseSchemaName: 'audit' }),
     );
     assert.strictEqual(
-      db.schema.component.schemas.audit?.tables.auditUsers,
-      users,
+      db.schema.component.schemas.audit?.tables.auditUsers?.tableName,
+      users.tableName,
     );
     assert.deepStrictEqual(
       Object.keys(db.schema.component.schemas.public!.tables),
@@ -283,10 +291,10 @@ describe('using a Pongo database', () => {
     });
 
     assert.strictEqual(projected.crm.customerDirectory, direct);
-    assert.strictEqual(direct.schema.component, users);
+    assert.strictEqual(direct.schema.component.tableName, users.tableName);
     assert.strictEqual(
-      db.schema.component.schemas.crm?.tables.customerDirectory,
-      users,
+      db.schema.component.schemas.crm?.tables.customerDirectory?.tableName,
+      users.tableName,
     );
   });
 

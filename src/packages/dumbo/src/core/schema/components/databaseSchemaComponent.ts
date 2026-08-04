@@ -1,3 +1,4 @@
+import { SQLDefaultSchemaNameToken } from '../../sql';
 import type { ExtensionComponent } from '../extensionComponent';
 import {
   createSchemaComponent,
@@ -24,7 +25,7 @@ export type DatabaseSchemaComponent<
 > = SchemaComponent<typeof databaseSchemaComponentType> &
   Readonly<{
     schemaName: SchemaName;
-    databaseName?: string;
+    databaseName?: string | undefined;
     tables: Tables;
     extensions: Extensions;
   }>;
@@ -55,18 +56,6 @@ export const databaseSchemaComponent = <
   options: DatabaseSchemaComponentOptions<Tables, SchemaName, Extensions>,
 ): DatabaseSchemaComponent<Tables, SchemaName, Extensions> => {
   const tables = (options.tables ?? {}) as Tables;
-  if (options.schemaName !== undefined) {
-    for (const table of Object.values(tables)) {
-      if (
-        table.databaseSchemaName !== undefined &&
-        table.databaseSchemaName !== options.schemaName
-      ) {
-        throw new Error(
-          `Table "${table.tableName}" is constrained to database schema "${table.databaseSchemaName}" and cannot be placed in "${options.schemaName}"`,
-        );
-      }
-    }
-  }
   const extensions = (options.extensions ?? {}) as Extensions;
   const base = createSchemaComponent(
     databaseSchemaComponentType,
@@ -75,17 +64,41 @@ export const databaseSchemaComponent = <
       migrations: options.migrations,
     },
     {
-      schemaName: options.schemaName,
+      schemaName: options.schemaName as SchemaName,
       databaseName: options.databaseName,
       tables: schemaComponentMap(tables),
       extensions: schemaComponentMap(extensions),
     },
   );
 
-  return base as DatabaseSchemaComponent<Tables, SchemaName, Extensions>;
+  return base;
 };
 
 export const isDatabaseSchemaComponent = (
   component: AnySchemaComponent,
 ): component is AnyDatabaseSchemaComponent =>
   component[schemaComponentType] === databaseSchemaComponentType;
+
+export const resolveDatabaseSchemaName = (
+  component: AnySchemaComponent & { databaseSchemaName?: string | undefined },
+  label: string,
+): string | SQLDefaultSchemaNameToken => {
+  const declared = component.databaseSchemaName;
+
+  let ancestor = component.parent;
+  let placedIn: string | undefined;
+  while (ancestor !== undefined && placedIn === undefined) {
+    placedIn = isDatabaseSchemaComponent(ancestor)
+      ? ancestor.schemaName
+      : (ancestor as { databaseSchemaName?: string | undefined })
+          .databaseSchemaName;
+    ancestor = ancestor.parent;
+  }
+
+  if (declared !== undefined && placedIn !== undefined && declared !== placedIn)
+    throw new Error(
+      `${label} is constrained to database schema "${declared}" and cannot be placed in "${placedIn}"`,
+    );
+
+  return declared ?? placedIn ?? SQLDefaultSchemaNameToken.from();
+};

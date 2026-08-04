@@ -7,6 +7,7 @@ import {
   isJSONDocumentIndexTarget,
   isJSONPathIndexTarget,
   isTableComponent,
+  resolveDatabaseSchemaName,
   SQL,
 } from '@event-driven-io/dumbo';
 import { describe, expectTypeOf, it } from 'vitest';
@@ -117,8 +118,12 @@ describe('declaring Pongo collections', () => {
     const accounts = dumboSchema.table('accounts');
     const crm = dumboSchema.schema('crm', { accounts, users });
 
-    assert.strictEqual(crm.tables.users, users);
-    assert.strictEqual(crm.tables.users.indexes.email, email);
+    assert.strictEqual(crm.tables.users, crm.components.users);
+    assert.strictEqual(crm.tables.users.tableName, users.tableName);
+    assert.strictEqual(
+      crm.tables.users.indexes.email.indexName,
+      email.indexName,
+    );
     assert.strictEqual(users.databaseSchemaName, undefined);
     assert.strictEqual(crm.tables.users.databaseSchemaName, undefined);
     assert.strictEqual(crm.tables.accounts.databaseSchemaName, undefined);
@@ -136,13 +141,19 @@ describe('declaring Pongo collections', () => {
     assert.strictEqual(audit.tables.auditEntries.databaseSchemaName, 'audit');
   });
 
-  it('rejects placing a constrained collection in another schema', () => {
-    const entries = pongoSchema.collection('entries', {
-      databaseSchemaName: 'audit',
+  it('rejects qualifying a constrained collection placed in another schema', () => {
+    const publicSchema = pongoSchema.schema('public', {
+      entries: pongoSchema.collection('entries', {
+        databaseSchemaName: 'audit',
+      }),
     });
 
     assert.throws(
-      () => pongoSchema.schema('public', { entries }),
+      () =>
+        resolveDatabaseSchemaName(
+          publicSchema.tables.entries,
+          'Collection "entries"',
+        ),
       /constrained to database schema "audit".*placed in "public"/,
     );
   });
@@ -177,7 +188,7 @@ describe('declaring Pongo schemas and databases', () => {
     });
 
     assert.strictEqual(reusable.schemaName, undefined);
-    assert.strictEqual(database.schemas.public, reusable);
+    assert.strictEqual(database.schemas.public, database.components.public);
     assert.strictEqual(database.schemas.public.schemaName, undefined);
     assert.strictEqual(
       database.schemas.public.tables.users.databaseSchemaName,
@@ -246,8 +257,18 @@ describe('declaring Pongo schemas and databases', () => {
       { eventStore },
     );
 
-    assert.strictEqual(audit.extensions.eventStore, eventStore);
-    assert.strictEqual(database.extensions.eventStore, eventStore);
+    assert.strictEqual(
+      audit.extensions.eventStore,
+      audit.components.eventStore,
+    );
+    assert.strictEqual(
+      database.extensions.eventStore,
+      database.components.eventStore,
+    );
+    assert.strictEqual(
+      database.extensions.eventStore.extensionName,
+      eventStore.extensionName,
+    );
   });
 
   it('leaves frozen collection and schema source records unchanged', () => {
