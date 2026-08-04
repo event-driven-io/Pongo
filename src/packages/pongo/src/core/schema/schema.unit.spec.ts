@@ -7,7 +7,6 @@ import {
   isJSONDocumentIndexTarget,
   isJSONPathIndexTarget,
   isTableComponent,
-  resolveDatabaseSchemaName,
   SQL,
 } from '@event-driven-io/dumbo';
 import { describe, expectTypeOf, it } from 'vitest';
@@ -141,20 +140,15 @@ describe('declaring Pongo collections', () => {
     assert.strictEqual(audit.tables.auditEntries.databaseSchemaName, 'audit');
   });
 
-  it('rejects qualifying a constrained collection placed in another schema', () => {
-    const publicSchema = pongoSchema.schema('public', {
-      entries: pongoSchema.collection('entries', {
-        databaseSchemaName: 'audit',
-      }),
-    });
-
+  it('rejects declaring a collection for one schema and putting it in another', () => {
     assert.throws(
       () =>
-        resolveDatabaseSchemaName(
-          publicSchema.tables.entries,
-          'Collection "entries"',
-        ),
-      /constrained to database schema "audit".*placed in "public"/,
+        pongoSchema.schema('public', {
+          entries: pongoSchema.collection('entries', {
+            databaseSchemaName: 'audit',
+          }),
+        }),
+      /constrained to database schema "audit".*cannot be placed in "public"/,
     );
   });
 

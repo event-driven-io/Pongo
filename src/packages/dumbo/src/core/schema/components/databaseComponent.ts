@@ -78,6 +78,7 @@ export const databaseComponent = <
     {
       components: mergeSchemaComponentMaps(schemas, extensions),
       migrations: options.migrations,
+      context: { databaseName },
     },
     {
       databaseName: databaseName as DatabaseName,

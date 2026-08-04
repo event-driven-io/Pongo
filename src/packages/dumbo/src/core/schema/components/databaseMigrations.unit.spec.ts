@@ -26,7 +26,10 @@ describe('building migrations for a database hierarchy', () => {
     const database = databaseComponent({
       databaseName: 'app',
       schemas: {
-        crm: databaseSchemaComponent({ tables: { crmUsers: users } }),
+        crm: databaseSchemaComponent({
+          schemaName: 'crm',
+          tables: { crmUsers: users },
+        }),
       },
     });
     const seen: unknown[] = [];
@@ -74,6 +77,7 @@ describe('building migrations for a database hierarchy', () => {
       databaseName: 'app',
       schemas: {
         public: databaseSchemaComponent({
+          schemaName: 'public',
           tables: {
             users: tableComponent({
               tableName: 'users',
@@ -114,6 +118,7 @@ describe('building migrations for a database hierarchy', () => {
       databaseName: 'app',
       schemas: {
         audit: databaseSchemaComponent({
+          schemaName: 'audit',
           extensions: {
             eventStore: extensionComponent('event-store', { events }),
           },
@@ -144,6 +149,7 @@ describe('building migrations for a database hierarchy', () => {
       databaseName: 'app',
       schemas: {
         public: databaseSchemaComponent({
+          schemaName: 'public',
           tables: {
             users: tableComponent({
               tableName: 'users',
@@ -170,6 +176,7 @@ describe('building migrations for a database hierarchy', () => {
       databaseName: 'app',
       schemas: {
         public: databaseSchemaComponent({
+          schemaName: 'public',
           tables: {
             users: tableComponent({
               tableName: 'users',

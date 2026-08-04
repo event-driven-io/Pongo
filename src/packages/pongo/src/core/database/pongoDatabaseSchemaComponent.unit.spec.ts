@@ -31,11 +31,6 @@ describe('composing a Pongo database hierarchy', () => {
       database.schemas.public?.tables.users?.tableName,
       'users',
     );
-    assert.strictEqual(
-      database.schemas.public?.tables.users?.schema()?.schemaName,
-      'public',
-    );
-    assert.strictEqual(users.schema(), undefined);
   });
 
   it('uses the resolved default without changing a reusable declaration', () => {
@@ -49,16 +44,9 @@ describe('composing a Pongo database hierarchy', () => {
     const first = compose(definition, 'public');
     const second = compose(definition, 'tenant');
 
-    assert.strictEqual(
-      first.schemas.public?.tables.users?.schema()?.schemaName,
-      'public',
-    );
-    assert.strictEqual(
-      second.schemas.tenant?.tables.users?.schema()?.schemaName,
-      'tenant',
-    );
+    assert.strictEqual(first.schemas.public?.tables.users?.tableName, 'users');
+    assert.strictEqual(second.schemas.tenant?.tables.users?.tableName, 'users');
     assert.strictEqual(users.databaseSchemaName, undefined);
-    assert.strictEqual(users.schema(), undefined);
     assert.deepStrictEqual(Object.keys(definition.schemas), []);
   });
 
@@ -90,15 +78,13 @@ describe('composing a Pongo database hierarchy', () => {
     );
 
     assert.strictEqual(
-      database.schemas.crm?.tables.users?.schema()?.schemaName,
-      'crm',
+      database.schemas.crm?.tables.users?.tableName,
+      crmUsers.tableName,
     );
     assert.strictEqual(
-      database.schemas.audit?.tables.users?.schema()?.schemaName,
-      'audit',
+      database.schemas.audit?.tables.users?.tableName,
+      auditUsers.tableName,
     );
-    assert.strictEqual(crmUsers.schema(), undefined);
-    assert.strictEqual(auditUsers.schema(), undefined);
   });
 
   it('rejects a collection placement conflicting with its schema group', () => {

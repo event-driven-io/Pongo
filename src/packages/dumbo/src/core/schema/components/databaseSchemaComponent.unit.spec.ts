@@ -1,12 +1,9 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
-import { SQL, SQLDefaultSchemaNameToken } from '../../sql';
+import { SQL } from '../../sql';
 import { extensionComponent } from '../extensionComponent';
 import { sqlMigration } from '../sqlMigration';
-import {
-  databaseSchemaComponent,
-  resolveDatabaseSchemaName,
-} from './databaseSchemaComponent';
+import { databaseSchemaComponent } from './databaseSchemaComponent';
 import { indexComponent } from './indexComponent';
 import { tableComponent } from './tableComponent';
 
@@ -23,39 +20,29 @@ const usersTable = () =>
   });
 
 describe('declaring a schema with tables', () => {
-  it('exposes its own copy of a table rather than the declaration it was given', () => {
+  it('holds the very table declaration it was given', () => {
     const users = usersTable();
     const schema = databaseSchemaComponent({
       schemaName: 'reporting',
       tables: { users },
     });
 
-    assert.notStrictEqual(schema.tables.users, users);
-    assert.strictEqual(schema.tables.users.tableName, 'users');
-    assert.strictEqual(schema.tables.users.schema(), schema);
+    assert.strictEqual(schema.tables.users, users);
   });
 
-  it('leaves the table declaration it was given on the default schema', () => {
+  it('leaves the table declaration it was given reusable in another schema', () => {
     const users = usersTable();
-    databaseSchemaComponent({ schemaName: 'reporting', tables: { users } });
-
-    assert.strictEqual(users.schema(), undefined);
-    assert.deepStrictEqual(
-      resolveDatabaseSchemaName(users, 'Table "users"'),
-      SQLDefaultSchemaNameToken.from(),
-    );
-  });
-
-  it('places the indexes of its tables in the same schema', () => {
-    const schema = databaseSchemaComponent({
+    const reporting = databaseSchemaComponent({
       schemaName: 'reporting',
-      tables: { users: usersTable() },
+      tables: { users },
+    });
+    const audit = databaseSchemaComponent({
+      schemaName: 'audit',
+      tables: { users },
     });
 
-    assert.strictEqual(
-      schema.tables.users.indexes.email.table()!.schema()!.schemaName,
-      'reporting',
-    );
+    assert.strictEqual(reporting.tables.users, users);
+    assert.strictEqual(audit.tables.users, users);
   });
 
   it('places extensions the same way it places tables', () => {
@@ -69,16 +56,18 @@ describe('declaring a schema with tables', () => {
       extensions: { audit },
     });
 
-    assert.notStrictEqual(schema.extensions.audit, audit);
-    assert.strictEqual(schema.extensions.audit.parent, schema);
+    assert.strictEqual(schema.extensions.audit, audit);
   });
 
-  it('leaves the tables of an unnamed schema on the default schema', () => {
-    const schema = databaseSchemaComponent({ tables: { users: usersTable() } });
+  it('never lets a table report which schema it was placed in', () => {
+    const users = usersTable();
+    const schema = databaseSchemaComponent({
+      schemaName: 'reporting',
+      tables: { users },
+    });
 
-    assert.deepStrictEqual(
-      resolveDatabaseSchemaName(schema.tables.users, 'Table "users"'),
-      SQLDefaultSchemaNameToken.from(),
-    );
+    assert.ok(!('schema' in schema.tables.users));
+    assert.ok(!('parent' in schema.tables.users));
+    assert.ok(!('table' in schema.tables.users.indexes.email));
   });
 });

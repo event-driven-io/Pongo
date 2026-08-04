@@ -535,3 +535,144 @@ With `defaultSchemaName` dissolved by D5 and `databaseName` reduced to connectio
 **D9 already answers it:** with no `defaultSchemaName`, collections go into an _unnamed_ default schema component whose qualifier is `SQLDefaultSchemaNameToken`. A schema created without a name carries the token; its map key is never read as a name. The alias fills in only for schemas the user keyed in a `schemas` block.
 
 **Correction to Q44/Q46:** `defaultSchemaName` does not dissolve — D9 keeps it as an optional explicit override, so it remains a runtime input. `composePongoDatabase` therefore is not replaced by declaration-time grouping; it is replaced by D10, where `pongoDb` get-or-creates schema components through `withTable` and holds the database component as an immutable value behind a mutable holder. Its removal belongs with D9/D10 in **Phase 5**, not Phase 3.
+
+## Q48
+
+> dude, stop, we're circlicng back and forth. Let's again discuss the real issue. Do we really need to clone it, can't we just assign parent?
+
+**No, and cloning is what created every problem in this thread.** Assigning `parent` on the child itself means the parent's `components` and its named maps (`tables`, `indexes`, `columns`, `schemas`) hold the *same objects*, so there is nothing to keep in sync. That deletes, in one move: `attachChildren`, `isAliasedComponents`, the repoint step, the recursive `withParent`, the grandchild-staleness problem that forced the recursion, and the `alias`/`componentGroups` inventions that were only ever attempts to survive cloning.
+
+`withParent` itself disappears — the attach loop becomes `child.parent = component`.
+
+Two consequences to settle:
+
+- A child cannot be frozen at its own construction, since `parent` is assigned when it is put into a parent. Freezing moves to attach time.
+- The same component instance put into two parents would have its `parent` rewritten by the second — the reuse hazard spec D1 cited when it rejected mutation.
+
+## Q49
+
+> Do we really need `parent` at all, or should the walk pass the context down? (Options A — child reads up via `this.parent`; B — context threaded down, no back-pointer.)
+
+**B, chosen and confirmed: "The whole idea of threading context was to keep the component immutable, no clone, no whatsoever, just pass parent context."**
+
+This overturns spec D1 (attach by cloning with a parent pointer) and everything built on it. `parent`, `withParent`, `attachChildren`, `isAliasedComponents` and the component-level `Object.freeze` all go. A component is an immutable value that is never rewritten when placed, so the parent's `components` map and its typed maps (`tables`, `indexes`, `columns`, `schemas`, `extensions`) hold the same objects and there is nothing to keep in sync.
+
+Measured from the PoC on real code: production breakage was confined to `databaseMigrations.ts`; production delta 58 insertions / 185 deletions.
+
+**Capability lost, and confirmed not needed by production:** a component pulled out of the tree can no longer say where it lives (`table.schema()`, `index.table()`). Checked every consumer — pongo's DML path does not ask: `pongoDb.ts:248-249` already knows `databaseSchemaName` locally and builds the identifier at `pongoDb.ts:281-285` before calling `sqlBuilderFor`. The pg and SQLite SQL builders take a `TableIdentifier` argument and never read placement off the component. The only readers were tests written against D6.
+
+**Spec items overturned:** D1 in full; D6's step 1 (`this.schema()` through the parent pointer); §2's "no identifier threading" — threading is now the mechanism, not the thing being removed. What survives from D6 is the conflict rule (a table declaring one schema and placed in another throws) and the default-schema fallback.
+
+## Q50
+
+> `databaseMigrations` has to be dropped, and no tree-traversal attach-children.
+
+**Both hold under B, and B is what makes them possible.** `databaseMigrations` existed to reconstruct identifiers top-down on a second walk; with `migrations(context)` recursing through each component and each component extending the context with what it knows, there is one walk and it is the components' own. No visitor, no `DatabaseMigrationBuilder`, no `visit(component, databaseSchemaName, tableName)`.
+
+The PoC's interim `databaseMigrations.ts` still threads two identifiers by hand — that is scaffolding, not the target; it dies with the file.
+
+## Q51
+
+> Where can it happen that we have undefined schema name?
+
+Three places in the code as it stands:
+
+1. **A schema built without a name** — `dumboSchema.schema({ users })` hits the overload at `dumboSchema.ts:122-126`, which passes `schemaName: undefined` explicitly. Spec D9's unnamed default schema is this case.
+2. **A nameless schema under a record key** — `dumboSchema.database('app', { crm: dumboSchema.schema({ users }) })` yields `schemas.crm.schemaName === undefined`, because option 2 makes a key a lookup handle and never a name. `databaseComponent.ts:69-73` only validates key-against-name when a name exists.
+3. **A component migrated on its own** — `dumboSchema.table('users').migrations()`, or `schema.migrations()` called directly. No parent ran, so the context is `{}`.
+
+(2) is the only one where a user supplied a name and it was silently discarded.
+
+## Q52
+
+> What if we require schema name in `dumboSchema.schema`?
+
+**Adopted.** It removes (1) and (2) at once — (2) cannot arise because a keyed schema always has a name and the existing key-against-name check covers it. Only (3) survives, and it now has a single unambiguous meaning.
+
+## Q53
+
+> No schema means default schema.
+
+**Settled, and it answers the open default-schema question.** Absence of a schema component *is* the default schema. Therefore:
+
+- `databaseSchemaName: undefined` in the context means the default schema. `SQLDefaultSchemaNameToken` is never a value in `SchemaComponentContext`; it appears only in emitted SQL, for the formatter to resolve. `SchemaComponentContext.databaseSchemaName` stays `string | undefined`.
+- "Unnamed schema" and "no schema" stop being two encodings of one state — there is no unnamed schema.
+- Spec D9's *unnamed default schema component* is withdrawn. Pongo with no `defaultSchemaName` puts collections directly under the database, so no name has to be invented and D8's migration names stay byte-identical to `main` (no schema segment).
+- The guard at `databaseMigrations.ts:94-97` (`isTableComponent(component) && databaseSchemaName !== undefined`) goes. It exists only because unqualified DDL was unrepresentable, and it is the cause of spec §1's silently-dropped table in a database-level extension.
+
+## Q54
+
+> Requiring a name makes the keyed form write the name twice (`{ crm: schema('crm', {...}) }`). Keep the keyed record, or take named schemas positionally and derive each key from its name?
+
+**Keep the keyed record and throw when the key and the name disagree.** The check already exists at `databaseComponent.ts:69-73`; it stops being a partial validation (it only fired when a name happened to be present) and becomes total, since a name is now always present.
+
+## Q55
+
+> Should `databaseComponent` gain a `tables` map for schema-less tables?
+
+**No — dumbo stays schema-aware.** A database holds schemas and extensions; nothing else. Pongo does the collection-to-schema mapping and is syntactic sugar over dumbo, exposing `collections` flat plus `schemas` when schemas are declared. Pongo creates a default schema when none is given, and adds a schema alongside it when a collection declares its own `databaseSchemaName`.
+
+## Q56
+
+> Then where do schema-less tables live? (a) `databaseComponent.tables`, (b) pongo always names a schema, (c) a database-level extension, (d) something else.
+
+**None as stated — the flawed premise was Q52's wording.** "Requires a name" was read as "the name is a string", which is what forced schema-less tables into existence. There are no schema-less tables.
+
+## Q57
+
+> Is the default schema a real schema component named by `SQLDefaultSchemaNameToken`, and how is it spelled?
+
+**Yes, and it is spelled `dumboSchema.defaultSchema({ users })`.**
+
+```ts
+schemaName: string | SQLDefaultSchemaNameToken   // always present, never undefined
+```
+
+- `dumboSchema.schema('crm', { users })` — a named schema. A name is mandatory on this form.
+- `dumboSchema.defaultSchema({ users })` — the default schema, carrying the token.
+- `SchemaComponentContext.databaseSchemaName` becomes `string | SQLDefaultSchemaNameToken`. There is no "unknown qualifier" state, so the skip-if-undefined guard at `databaseMigrations.ts:94-97` disappears and with it spec §1's silently-dropped table.
+- The formatter resolves the token: no prefix on SQLite, no prefix on Postgres (resolved through `search_path`). Migration names get no schema segment for it, so D8's back-compat holds without the `=== defaultSchemaName` comparison.
+
+**Corrects Q53**, which claimed the token was redundant with `undefined` and could be deleted. The reverse: the token is what stops `undefined` from existing.
+
+## Q58
+
+> Would per-kind recursion get rid of the weird `this`, the traversal and the maze? Typed context is nice to have, but only if it's a line or two per component and not plumbing that's easily forgotten. Maybe we could also get rid of `findComponents`, `logicalSchemaMapping`.
+
+**Flat context, one erased child list, factory owns its literal.**
+
+- `this` dies the moment the factory owns its own object literal — independent of the recursion question.
+- The maze is `databaseMigrations.ts`, 128 lines of second walk; it dies either way.
+- Per-kind recursion buys typed context and costs one child-map line per factory. If a kind later gains a child map and someone forgets the line, **those children silently never migrate**. One merged child list built at construction cannot be forgotten. Correctness beats field-level typing.
+
+## Q59
+
+> Why do we need `mergeSchemaComponentMaps`?
+
+**We don't, once nothing reads the erased child list by key.** It existed to build that list and to throw when the same key appeared in two typed maps — a throw only needed because the list was a keyed record. After `findComponents` goes, the recursion only ever does `Object.values(...)`, so the list becomes a plain array:
+
+```ts
+components: [...Object.values(tables), ...Object.values(extensions)]
+```
+
+A key reused for both a column and an index stops being a collision — both children are present and both migrate. `mergeSchemaComponentMaps`, its duplicate-key throw and that test all go. The typed maps keep their keys and `schemaComponentMap` stays for them.
+
+## Q60
+
+> Due diligence — what else can be dropped or simplified?
+
+Newly found beyond the already-agreed deletions:
+
+1. **`supportsSchemas` / `supportsFunctions`** — declared in `DatabaseCapabilities`, set in both metadata objects, read nowhere. (`supportsMultipleDatabases` is read at `pongoDatabaseCache.ts:89` and stays.)
+2. **`schemaComponent()` / `genericComponentType`** have one production caller: `migrationTableComponentFor`, which hand-writes `CREATE TABLE IF NOT EXISTS` with column tokens — exactly what `createTableSQL` generates from `table.columns`. Making the migration table a real `tableComponent` deletes the last untyped component kind.
+3. **`isPongoSchemaComponent` / `isPongoDatabaseComponent`** have zero production readers; `pongoCollectionComponentType`'s three readers reduce to one (`pongoDb.ts:255`) once pongo's migration builders go.
+4. **Five zero-consumer public types** in `tableTypesInference.ts` (`InferColumnType`, `TableColumnType`, `InferTableRow`, `InferSchemaTables`, `InferDatabaseSchemas`). Public API — left alone deliberately.
+5. `createTableSQL` is already the shared table-DDL builder; S9 changes what it emits, not that it exists.
+
+**Out of scope:** `components/relationships/` — 971 lines of type-level validation, orthogonal to migration resolution.
+
+## Q61
+
+> Fold both judgement calls into the spec: migration table becomes a real `tableComponent`, and drop `supportsSchemas`/`supportsFunctions`.
+
+**Adopted.** Both are in the spec as D19 and D20.

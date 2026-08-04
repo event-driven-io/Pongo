@@ -39,7 +39,7 @@ export const extensionComponent = <
     { extensionName },
   );
 
-  return base as ExtensionComponent<Name, Components>;
+  return base;
 };
 
 export const isExtensionComponent = (

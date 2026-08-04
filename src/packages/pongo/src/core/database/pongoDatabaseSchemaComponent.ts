@@ -55,14 +55,6 @@ export const composePongoDatabase = ({
       collectionsBySchema.set(databaseSchemaName, {});
       extensionsBySchema.set(databaseSchemaName, schema.extensions);
       for (const [alias, collection] of Object.entries(schema.tables)) {
-        if (
-          collection.databaseSchemaName !== undefined &&
-          collection.databaseSchemaName !== databaseSchemaName
-        ) {
-          throw new Error(
-            `Table "${collection.tableName}" is constrained to database schema "${collection.databaseSchemaName}" and cannot be placed in "${databaseSchemaName}"`,
-          );
-        }
         addCollection(databaseSchemaName, alias, collection);
       }
     }

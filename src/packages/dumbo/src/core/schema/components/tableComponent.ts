@@ -8,7 +8,6 @@ import {
   type SchemaComponentOptions,
 } from '../schemaComponent';
 import type { AnyColumnSchemaComponent } from './columnSchemaComponent';
-import type { AnyDatabaseSchemaComponent } from './databaseSchemaComponent';
 import type { AnyIndexComponent } from './indexComponent';
 import type { TableRelationships } from './relationships/relationshipTypes';
 
@@ -33,7 +32,6 @@ export type TableComponent<
     primaryKey: ReadonlyArray<Extract<keyof Columns, string>>;
     relationships: Relationships;
     indexes: Indexes;
-    schema: () => AnyDatabaseSchemaComponent | undefined;
   }>;
 
 export type AnyTableComponent = TableComponent<
@@ -112,6 +110,7 @@ export const tableComponent = <
     {
       components: children,
       migrations: options.migrations,
+      context: { tableName: options.tableName },
     },
     {
       tableName: options.tableName,
@@ -122,9 +121,6 @@ export const tableComponent = <
       }) as Relationships,
       columns: schemaComponentMap(columns),
       indexes: schemaComponentMap(indexes),
-      schema(this: AnyTableComponent): AnyDatabaseSchemaComponent | undefined {
-        return this.parent as AnyDatabaseSchemaComponent | undefined;
-      },
     },
   );
 
