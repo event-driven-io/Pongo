@@ -48,6 +48,8 @@ deletes the file and the debt with it.
 Logged from review gate R, not blocking:
 - `createSchemaComponent` gained a `fields` bag — replaces 6 `Object.defineProperties` blocks,
   so net-negative, but the bag is untyped and the factories keep `as unknown as` casts.
+  **Closed after S3** — the bag is generic now and three of the four casts are gone; see the post-S3
+  cleanup under S3.
 - `SchemaComponentDeclaration` type alias, one use site, not re-exported — inline it if S2 touches it.
 - pongo's `defineValue` became `withValue` — reduced to a one-line `Object.freeze({ ...c, [k]: v })`
   after review. It stamps pongo marker symbols on frozen dumbo components; S9 deletes it along
@@ -139,6 +141,35 @@ Review gate R said STOP on the mechanical net-lines rule; Oskar accepted it:
 
 Small cleanup applied after the gate: `components: {} as SchemaComponentMap` became
 `components: schemaComponentMap<SchemaComponentMap>({})`, removing a cast.
+
+Post-S3 cleanup, agreed with Oskar — the `fields` bag is now typed. This closes the first of the two
+findings logged from S1's review gate, which had noted that the bag was untyped and left the factories
+casting. `createSchemaComponent` gained a `const Fields extends Readonly<Record<string, unknown>>`
+parameter, so the return type is `SchemaComponent<Kind> & Fields & { components: Components }` and the
+per-kind data survives into it.
+
+Three of the four `as unknown as` casts are now gone entirely — `tableComponent`,
+`databaseSchemaComponent` and `databaseComponent` all `return base;`. The typing bites: renaming
+`tableName` to `tableNameTYPO` in the fields bag now fails the build with "Property 'tableName' is
+missing". Before, all four factories compiled with that typo.
+
+Getting there exposed two declarations the casts had been hiding, both fixed:
+`TableComponent.databaseSchemaName` and `DatabaseSchemaComponent.databaseName` were declared
+`?: string` while their own options types said `?: string | undefined` — different things under
+`exactOptionalPropertyTypes`, and the component types had the wrong one.
+
+Three narrow casts remain, one per value TS genuinely loses through a spread-then-freeze:
+`relationships as Relationships`, `schemaName as SchemaName`, `databaseName as DatabaseName`. Each
+covers one property and leaves the rest of the return checked, rather than one blanket cast disabling
+it all.
+
+`columnSchemaComponent` keeps its `as unknown as`. Its return type is intersected with an
+uninstantiated conditional (`Options extends { notNull: true } | { primaryKey: true } ? ... : ...`),
+and TS will not compare against that. The blocker is the `notNull` inference in its own signature, not
+the fields bag; unpicking it means the conditional-type gymnastics plan.md says to walk away from.
+
+Cost: +3 lines across the three factories plus the generic parameter. Build, fix, `tsc -b --force` and
+1015/1015 unit tests all green.
 
 Follow-ups S3 leaves behind:
 - **S4 inherits a gap**: `tables`, `indexes` and `columns` field maps still hold the ORIGINAL child

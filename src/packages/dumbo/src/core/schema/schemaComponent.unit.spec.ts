@@ -1,7 +1,8 @@
 import assert from 'node:assert';
 import { describe, expectTypeOf, it } from 'vitest';
-import { SQL } from '../sql';
+import { SQL, SQLDefaultSchemaNameToken } from '../sql';
 import {
+  resolveDatabaseSchemaName,
   SchemaComponentMigrator,
   assertLogicalSchemaMapping,
   columnSchemaComponent,
@@ -634,7 +635,14 @@ describe('grouping components in extensions', () => {
       eventStore.components.eventStore.schemaName,
       'event_store',
     );
-    assert.strictEqual(database.extensions.eventStore, eventStore);
+    assert.strictEqual(
+      database.extensions.eventStore,
+      database.components.eventStore,
+    );
+    assert.strictEqual(
+      database.extensions.eventStore.extensionName,
+      'event-store',
+    );
     assert.deepStrictEqual(Object.keys(database.schemas), []);
   });
 
@@ -647,7 +655,8 @@ describe('grouping components in extensions', () => {
     });
 
     assert.deepStrictEqual(Object.keys(schema.tables), []);
-    assert.strictEqual(schema.extensions.audit, audit);
+    assert.strictEqual(schema.extensions.audit, schema.components.audit);
+    assert.strictEqual(schema.extensions.audit.extensionName, 'audit');
     assert.strictEqual(schema.components.audit!.parent, schema);
   });
 
@@ -708,8 +717,14 @@ describe('grouping components in extensions', () => {
       extensions: { eventStore },
     });
 
-    assert.strictEqual(database.extensions.eventStore, eventStore);
-    assert.strictEqual(database.schemas.crm.extensions.audit, audit);
+    assert.strictEqual(
+      database.extensions.eventStore.extensionName,
+      'event-store',
+    );
+    assert.strictEqual(
+      database.schemas.crm.extensions.audit.extensionName,
+      'audit',
+    );
     assert.deepStrictEqual(Object.keys(database.components), [
       'crm',
       'eventStore',
@@ -788,7 +803,8 @@ describe('placing reusable declarations in the database hierarchy', () => {
     });
 
     assert.strictEqual(declaration.databaseName, undefined);
-    assert.strictEqual(database.schemas.crm, declaration);
+    assert.strictEqual(declaration.parent, undefined);
+    assert.strictEqual(database.schemas.crm, database.components.crm);
     assert.strictEqual(database.schemas.crm.databaseName, undefined);
     assert.strictEqual(database.schemas.crm.schemaName, 'crm');
   });
@@ -803,9 +819,9 @@ describe('placing reusable declarations in the database hierarchy', () => {
 
     assert.strictEqual(reusable.schemaName, undefined);
     assert.strictEqual(users.databaseSchemaName, undefined);
-    assert.strictEqual(database.schemas.public, reusable);
+    assert.strictEqual(database.schemas.public, database.components.public);
     assert.strictEqual(database.schemas.public.schemaName, undefined);
-    assert.strictEqual(database.schemas.public.tables.users, users);
+    assert.strictEqual(database.schemas.public.tables.users.tableName, 'users');
   });
 
   it('keeps a declared index in its containing table without rebinding it', () => {
@@ -826,7 +842,7 @@ describe('placing reusable declarations in the database hierarchy', () => {
 
     assert.strictEqual(index.databaseSchemaName, undefined);
     assert.strictEqual(index.tableName, undefined);
-    assert.strictEqual(contextualIndex, index);
+    assert.strictEqual(contextualIndex.indexName, index.indexName);
     assert.strictEqual(contextualIndex.databaseSchemaName, undefined);
     assert.strictEqual(contextualIndex.tableName, undefined);
   });
@@ -865,22 +881,6 @@ describe('placing reusable declarations in the database hierarchy', () => {
           },
         }),
       /constrained to database schema "audit".*placed in "public\.users"/,
-    );
-  });
-
-  it('rejects placing a table under a schema other than its constraint', () => {
-    const users = tableComponent({
-      tableName: 'users',
-      databaseSchemaName: 'audit',
-    });
-
-    assert.throws(
-      () =>
-        databaseSchemaComponent({
-          schemaName: 'public',
-          tables: { users },
-        }),
-      /constrained to database schema "audit".*placed in "public"/,
     );
   });
 
@@ -925,8 +925,9 @@ describe('placing reusable declarations in the database hierarchy', () => {
     });
 
     assert.strictEqual(users.databaseSchemaName, undefined);
-    assert.strictEqual(publicSchema.tables.users, users);
-    assert.strictEqual(auditSchema.tables.users, users);
+    assert.strictEqual(users.schema(), undefined);
+    assert.strictEqual(publicSchema.tables.users.schema(), publicSchema);
+    assert.strictEqual(auditSchema.tables.users.schema(), auditSchema);
   });
 
   it('rejects using one alias for both a schema and a database extension', () => {
@@ -1112,5 +1113,136 @@ describe('validating a composed database', () => {
         }),
       /schema validation failed/,
     );
+  });
+});
+
+describe('resolving the schema a component belongs to', () => {
+  it('reports no schema for a table that was never placed in one', () => {
+    assert.strictEqual(
+      tableComponent({ tableName: 'users' }).schema(),
+      undefined,
+    );
+  });
+
+  it('reports the schema a table was placed in', () => {
+    const schema = databaseSchemaComponent({
+      schemaName: 'reporting',
+      tables: { users: tableComponent({ tableName: 'users' }) },
+    });
+
+    assert.strictEqual(schema.tables.users.schema(), schema);
+  });
+
+  it("resolves an index's schema through the table it was placed in", () => {
+    const schema = databaseSchemaComponent({
+      schemaName: 'reporting',
+      tables: {
+        users: tableComponent({
+          tableName: 'users',
+          indexes: {
+            email: indexComponent({
+              indexName: 'users_email_idx',
+              columnNames: ['email'],
+              isUnique: false,
+            }),
+          },
+        }),
+      },
+    });
+
+    assert.strictEqual(
+      schema.tables.users.indexes.email.table()!.schema()!.schemaName,
+      'reporting',
+    );
+  });
+
+  it('qualifies a table with the schema it declares for itself', () => {
+    const users = tableComponent({
+      tableName: 'users',
+      databaseSchemaName: 'audit',
+    });
+
+    assert.strictEqual(
+      resolveDatabaseSchemaName(users, `Table "${users.tableName}"`),
+      'audit',
+    );
+  });
+
+  it('keeps a table on the schema it declares when placed in the same schema', () => {
+    const schema = databaseSchemaComponent({
+      schemaName: 'audit',
+      tables: {
+        users: tableComponent({
+          tableName: 'users',
+          databaseSchemaName: 'audit',
+        }),
+      },
+    });
+
+    assert.strictEqual(
+      resolveDatabaseSchemaName(schema.tables.users, 'Table "users"'),
+      'audit',
+    );
+  });
+
+  it('rejects qualifying a table placed in a schema other than the one it declares', () => {
+    const schema = databaseSchemaComponent({
+      schemaName: 'public',
+      tables: {
+        users: tableComponent({
+          tableName: 'users',
+          databaseSchemaName: 'audit',
+        }),
+      },
+    });
+
+    assert.throws(
+      () => resolveDatabaseSchemaName(schema.tables.users, 'Table "users"'),
+      /constrained to database schema "audit".*placed in "public"/,
+    );
+  });
+
+  it('qualifies an index with the schema of the table it was placed in', () => {
+    const schema = databaseSchemaComponent({
+      schemaName: 'reporting',
+      tables: {
+        users: tableComponent({
+          tableName: 'users',
+          indexes: {
+            email: indexComponent({
+              indexName: 'users_email_idx',
+              columnNames: ['email'],
+              isUnique: false,
+            }),
+          },
+        }),
+      },
+    });
+
+    assert.strictEqual(
+      resolveDatabaseSchemaName(
+        schema.tables.users.indexes.email,
+        'Index "users_email_idx"',
+      ),
+      'reporting',
+    );
+  });
+
+  it('leaves a table that declares no schema and sits nowhere on the default schema', () => {
+    const users = tableComponent({ tableName: 'users' });
+
+    assert.deepStrictEqual(
+      resolveDatabaseSchemaName(users, 'Table "users"'),
+      SQLDefaultSchemaNameToken.from(),
+    );
+  });
+
+  it('gives a column no way to reach the table it belongs to', () => {
+    const email = columnSchemaComponent({
+      columnName: 'email',
+      type: 'TEXT',
+    });
+
+    assert.strictEqual('table' in email, false);
   });
 });

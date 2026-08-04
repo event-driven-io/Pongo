@@ -80,13 +80,13 @@ export const databaseComponent = <
       migrations: options.migrations,
     },
     {
-      databaseName,
+      databaseName: databaseName as DatabaseName,
       schemas: schemaComponentMap(schemas),
       extensions: schemaComponentMap(extensions),
     },
   );
 
-  return base as DatabaseComponent<Schemas, DatabaseName, Extensions>;
+  return base;
 };
 
 export const isDatabaseComponent = (

@@ -27,7 +27,15 @@ describe('composing a Pongo database hierarchy', () => {
     assert.strictEqual(isDatabaseComponent(database), true);
     assert.strictEqual(database.databaseName, 'app');
     assert.strictEqual(database.schemas.public?.schemaName, 'public');
-    assert.strictEqual(database.schemas.public?.tables.users, users);
+    assert.strictEqual(
+      database.schemas.public?.tables.users?.tableName,
+      'users',
+    );
+    assert.strictEqual(
+      database.schemas.public?.tables.users?.schema()?.schemaName,
+      'public',
+    );
+    assert.strictEqual(users.schema(), undefined);
   });
 
   it('uses the resolved default without changing a reusable declaration', () => {
@@ -41,9 +49,16 @@ describe('composing a Pongo database hierarchy', () => {
     const first = compose(definition, 'public');
     const second = compose(definition, 'tenant');
 
-    assert.strictEqual(first.schemas.public?.tables.users, users);
-    assert.strictEqual(second.schemas.tenant?.tables.users, users);
+    assert.strictEqual(
+      first.schemas.public?.tables.users?.schema()?.schemaName,
+      'public',
+    );
+    assert.strictEqual(
+      second.schemas.tenant?.tables.users?.schema()?.schemaName,
+      'tenant',
+    );
     assert.strictEqual(users.databaseSchemaName, undefined);
+    assert.strictEqual(users.schema(), undefined);
     assert.deepStrictEqual(Object.keys(definition.schemas), []);
   });
 
@@ -55,7 +70,10 @@ describe('composing a Pongo database hierarchy', () => {
       pongoSchema.db('app', { collections: { entries } }),
     );
 
-    assert.strictEqual(database.schemas.audit?.tables.entries, entries);
+    assert.strictEqual(
+      database.schemas.audit?.tables.entries?.tableName,
+      entries.tableName,
+    );
     assert.deepStrictEqual(Object.keys(database.schemas.public!.tables), []);
   });
 
@@ -71,8 +89,16 @@ describe('composing a Pongo database hierarchy', () => {
       }),
     );
 
-    assert.strictEqual(database.schemas.crm?.tables.users, crmUsers);
-    assert.strictEqual(database.schemas.audit?.tables.users, auditUsers);
+    assert.strictEqual(
+      database.schemas.crm?.tables.users?.schema()?.schemaName,
+      'crm',
+    );
+    assert.strictEqual(
+      database.schemas.audit?.tables.users?.schema()?.schemaName,
+      'audit',
+    );
+    assert.strictEqual(crmUsers.schema(), undefined);
+    assert.strictEqual(auditUsers.schema(), undefined);
   });
 
   it('rejects a collection placement conflicting with its schema group', () => {
@@ -93,7 +119,7 @@ describe('composing a Pongo database hierarchy', () => {
     );
   });
 
-  it('preserves collection aliases and component identity', () => {
+  it('keeps a collection stored under an alias recognisable as a collection', () => {
     const users = pongoSchema.collection('users', {
       indexes: {
         email: pongoSchema.index('users_email_idx', 'email'),
@@ -108,10 +134,13 @@ describe('composing a Pongo database hierarchy', () => {
     );
     const placed = database.schemas.crm!.tables.crmUsers!;
 
-    assert.strictEqual(placed, users);
-    assert.strictEqual(placed.indexes.email, users.indexes.email);
+    assert.strictEqual(placed.tableName, users.tableName);
+    assert.strictEqual(
+      placed.indexes.email?.indexName,
+      users.indexes.email.indexName,
+    );
+    assert.ok(isPongoCollectionComponent(placed));
     assert.strictEqual(placed[pongoCollectionComponentType], true);
-    assert.strictEqual(isPongoCollectionComponent(placed), true);
   });
 
   it('keeps schema and database extensions at their declared boundaries', () => {
@@ -132,8 +161,14 @@ describe('composing a Pongo database hierarchy', () => {
       ),
     );
 
-    assert.strictEqual(database.schemas.crm?.extensions.audit, audit);
-    assert.strictEqual(database.extensions.eventStore, eventStore);
+    assert.strictEqual(
+      database.schemas.crm?.extensions.audit?.extensionName,
+      audit.extensionName,
+    );
+    assert.strictEqual(
+      database.extensions.eventStore?.extensionName,
+      eventStore.extensionName,
+    );
     assert.deepStrictEqual(Object.keys(database.schemas.crm.tables), ['users']);
   });
 
