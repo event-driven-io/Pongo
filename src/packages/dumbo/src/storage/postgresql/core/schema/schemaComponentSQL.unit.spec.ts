@@ -6,13 +6,15 @@ import {
   jsonDocumentIndexTarget,
   jsonPathIndexTarget,
   SQL,
+  SQLDefaultSchemaNameToken,
   type IndexIdentifier,
 } from '../../../../core';
 import { pgFormatter } from '../sql';
 import {
+  postgreSQLDatabaseSchemaSQL,
   postgreSQLIndexSQL,
   postgreSQLTableReference,
-} from './databaseObjectSQL';
+} from './schemaComponentSQL';
 
 const format = (sql: SQL): string =>
   pgFormatter.format(sql, { serializer: JSONSerializer }).query;
@@ -37,6 +39,32 @@ describe('using Dumbo components in PostgreSQL schemas', () => {
         }),
       ),
       'users',
+    );
+    assert.strictEqual(
+      format(
+        postgreSQLTableReference({
+          ...identifier,
+          databaseSchemaName: SQLDefaultSchemaNameToken.from(),
+        }),
+      ),
+      'users',
+    );
+  });
+
+  it('creates a named schema and leaves the default one alone', () => {
+    assert.strictEqual(
+      format(postgreSQLDatabaseSchemaSQL(identifier)!),
+      'CREATE SCHEMA IF NOT EXISTS audit',
+    );
+    assert.strictEqual(
+      postgreSQLDatabaseSchemaSQL({ databaseSchemaName: 'public' }),
+      undefined,
+    );
+    assert.strictEqual(
+      postgreSQLDatabaseSchemaSQL({
+        databaseSchemaName: SQLDefaultSchemaNameToken.from(),
+      }),
+      undefined,
     );
   });
 

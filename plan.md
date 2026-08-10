@@ -200,6 +200,13 @@ If the two bodies come out identical, hoist to core and delete both.
 Test first, both dialects: reference, GIN vs plain, path extraction, unique,
 multi-column, custom `sql` callback.
 
+Once `sqliteIndexReference` emits a token, `sqliteIndexName`'s `dumbo_` guard
+fires at format time, not at reference-construction time — the same shift S7
+made for tables. Update the index half of
+`reserves the mapped-name prefix for native tables and indexes` in pongo's
+`sqlite/core/sqlBuilder/sqlBuilder.unit.spec.ts` to format inside
+`assert.throws`; S7 already did that to its table half.
+
 Gate: build, fix, unit.
 ```
 
@@ -229,6 +236,14 @@ default schema. FIXED IN S6, which removed the `databaseSchemaName !== undefined
 guard as a D7 consequence and covers it with
 `qualifies a table in a database extension with the default schema token`. Do
 not write it again; keep it passing through the rewrite.
+
+Answer S7's open question before deleting `postgreSQLDatabaseSchemaSQL`: it
+still returns `SQL | undefined` because `PostgreSQLCreateSchemaProcessor`
+renders the default schema as an EMPTY STRING, and pongo needs no migration at
+all rather than a migration holding an empty statement. Pick one — the schema
+component skips emitting `SQLCreateSchema` for the default schema, or
+`sqlMigration` drops statements that render empty. Do not delete the `undefined`
+branch without picking.
 
 Both `sqlBuilder.unit.spec.ts` files read `.migrations()`.
 
@@ -340,6 +355,13 @@ a default-schema table named `a.b` is rejected; an index in `crm` maps to
 This renames existing SQLite tables in non-default schemas. The break is
 accepted in the spec — state it in the step summary, do not try to migrate it.
 
+Every `dumbo_..._table_...` literal moves with it. As of S7 they are in
+`core/sql/tokens/schemaTokens.unit.spec.ts`,
+`sqlite/core/schema/schemaComponentSQL.unit.spec.ts` and its `.int.spec.ts`,
+`sqlitePhysicalNames.unit.spec.ts`, pongo's
+`sqlite/core/sqlBuilder/sqlBuilder.unit.spec.ts` and
+`sqlite/sqlite3/migrations.int.spec.ts`.
+
 Gate: build, fix, unit, int, e2e.
 ```
 
@@ -356,9 +378,15 @@ unchanged from `main`. Given -> explicit override, names carry the segment.
 CLEARS S6's DUAL ENCODING. S6 made every dialect ask
 `SQLDefaultSchemaNameToken.check(x) || x === <dialect default string>`, because
 pongo still hands down `'public'` / `'main'` as a real schema name. This step
-removes that source, so delete the string half in `postgreSQLTableReference`,
-`postgreSQLDatabaseSchemaSQL` (wherever S7 and S9 left the resolution),
-`sqliteTableName` and `sqliteIndexName`. The token becomes the only encoding.
+removes that source, so the token becomes the only encoding. S7 already
+consolidated most of those conditions into the processors, so as of S7 the
+string half survives in exactly three places — delete all three:
+- `isDefaultSchema` in postgresql `sql/processors/schemaProcessors.ts`
+- `sqliteTableName` and `sqliteIndexName` in `sqlitePhysicalNames.ts`
+- `schemaSegment` in pongo's `migrationNames.ts`, if S11 has not already
+  deleted that file
+Also check `postgreSQLDatabaseSchemaSQL` — it keeps its own copy of the test
+for the emit/skip decision unless S9 resolved that (see S9).
 
 Consequence, and it is a behaviour change: an EXPLICITLY given `public` / `main`
 is then a named schema and carries its segment. That is the divergence S11

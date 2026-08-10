@@ -6,10 +6,11 @@ import {
   jsonDocumentIndexTarget,
   jsonPathIndexTarget,
   SQL,
+  SQLDefaultSchemaNameToken,
   type IndexIdentifier,
 } from '../../../../core';
 import { sqliteFormatter } from '../sql';
-import { sqliteIndexSQL, sqliteTableReference } from './databaseObjectSQL';
+import { sqliteIndexSQL, sqliteTableReference } from './schemaComponentSQL';
 
 const format = (sql: SQL): string =>
   sqliteFormatter.format(sql, { serializer: JSONSerializer }).query;
@@ -31,6 +32,15 @@ describe('using Dumbo components in logical SQLite schemas', () => {
         sqliteTableReference({
           ...identifier,
           databaseSchemaName: 'main',
+        }),
+      ),
+      'users',
+    );
+    assert.strictEqual(
+      format(
+        sqliteTableReference({
+          ...identifier,
+          databaseSchemaName: SQLDefaultSchemaNameToken.from(),
         }),
       ),
       'users',

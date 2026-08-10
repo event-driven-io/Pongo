@@ -208,7 +208,13 @@ describe('sqliteSQLBuilder', () => {
 
     it('reserves the mapped-name prefix for native tables and indexes', () => {
       assert.throws(
-        () => builderFor(collectionInSchema('main', 'dumbo_users')),
+        () =>
+          formatSQL(
+            builderFor(collectionInSchema('main', 'dumbo_users')).findOne(
+              SQL``,
+            ),
+            sqliteFormatter,
+          ),
         /SQLite table names starting with dumbo_ are reserved/,
       );
       assert.throws(
