@@ -1,4 +1,5 @@
 import {
+  createIndexSQL,
   sqlMigration,
   type AnyDatabaseSchemaComponent,
   type AnyIndexComponent,
@@ -10,7 +11,6 @@ import {
 } from '@event-driven-io/dumbo';
 import {
   postgreSQLDatabaseSchemaSQL,
-  postgreSQLIndexSQL,
   postgreSQLMetadata,
   postgreSQLTableSQL,
 } from '@event-driven-io/dumbo/postgresql';
@@ -53,7 +53,7 @@ const indexMigrations = (
   identifier: IndexIdentifier,
 ) => [
   sqlMigration(pongoIndexMigrationName(identifier), [
-    postgreSQLIndexSQL(component, identifier),
+    createIndexSQL(component, identifier),
   ]),
 ];
 

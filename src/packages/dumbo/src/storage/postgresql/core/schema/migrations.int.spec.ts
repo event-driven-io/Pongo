@@ -6,10 +6,12 @@ import { PostgreSQLConnectionString, tableExists } from '..';
 import { dumbo, type Dumbo } from '../../../..';
 import {
   count,
+  createIndexSQL,
   databaseComponent,
   databaseSchemaComponent,
   dumboSchema,
   indexComponent,
+  jsonDocumentIndexTarget,
   MIGRATIONS_LOCK_ID,
   runSQLMigrations,
   extensionComponent,
@@ -25,7 +27,6 @@ import { pgDumboDriver } from '../../pg';
 import { acquireAdvisoryLock, releaseAdvisoryLock } from '../locks';
 import {
   postgreSQLDatabaseSchemaSQL,
-  postgreSQLIndexSQL,
   postgreSQLTableSQL,
 } from './schemaComponentSQL';
 
@@ -476,6 +477,7 @@ describe('Migration Integration Tests', () => {
         email: dumboSchema.column('email', SQL.column.type.Text, {
           notNull: true,
         }),
+        data: dumboSchema.column('data', SQL.column.type.JSONB()),
       },
     });
     const usersEmail = indexComponent({
@@ -483,6 +485,29 @@ describe('Migration Integration Tests', () => {
       columnNames: ['email'],
       isUnique: true,
     });
+    const usersDocument = indexComponent({
+      indexName: 'users_document_idx',
+      columnNames: ['data'],
+      isUnique: false,
+      target: jsonDocumentIndexTarget('data'),
+    });
+    const usersUniqueDocument = indexComponent({
+      indexName: 'users_document_uq',
+      columnNames: ['data'],
+      isUnique: true,
+      target: jsonDocumentIndexTarget('data'),
+    });
+
+    const indexAccessMethod = async (indexName: string): Promise<string> =>
+      single(
+        pool.execute.query<{ amname: string }>(
+          SQL`
+            SELECT am.amname
+            FROM pg_class c
+              JOIN pg_am am ON am.oid = c.relam
+            WHERE c.relname = ${indexName}`,
+        ),
+      ).then((row) => row.amname);
 
     const tableExistsIn = async (
       databaseSchemaName: string,
@@ -512,9 +537,29 @@ describe('Migration Integration Tests', () => {
 
       assert.strictEqual(postgreSQLDatabaseSchemaSQL(identifier), undefined);
       await pool.execute.command(postgreSQLTableSQL(users, identifier));
-      await pool.execute.command(postgreSQLIndexSQL(usersEmail, identifier));
+      await pool.execute.command(createIndexSQL(usersEmail, identifier));
 
       assert.ok(await tableExistsIn('public', 'users'));
+    });
+
+    it('indexes a JSON document with GIN, and with btree when it is unique', async () => {
+      const identifier = {
+        databaseSchemaName: SQLDefaultSchemaNameToken.from(),
+        tableName: 'users',
+        indexName: 'users_document_idx',
+      };
+
+      await pool.execute.command(postgreSQLTableSQL(users, identifier));
+      await pool.execute.command(createIndexSQL(usersDocument, identifier));
+      await pool.execute.command(
+        createIndexSQL(usersUniqueDocument, {
+          ...identifier,
+          indexName: 'users_document_uq',
+        }),
+      );
+
+      assert.strictEqual(await indexAccessMethod('users_document_idx'), 'gin');
+      assert.strictEqual(await indexAccessMethod('users_document_uq'), 'btree');
     });
 
     it('creates a named schema and qualifies its table with it', async () => {
@@ -526,7 +571,7 @@ describe('Migration Integration Tests', () => {
 
       await pool.execute.command(postgreSQLDatabaseSchemaSQL(identifier)!);
       await pool.execute.command(postgreSQLTableSQL(users, identifier));
-      await pool.execute.command(postgreSQLIndexSQL(usersEmail, identifier));
+      await pool.execute.command(createIndexSQL(usersEmail, identifier));
 
       assert.ok(await tableExistsIn('crm', 'users'));
       assert.ok(!(await tableExistsIn('public', 'users')));

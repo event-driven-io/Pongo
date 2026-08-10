@@ -10,6 +10,9 @@ import {
   postgreSQLColumnProcessors,
   PostgreSQLCreateSchemaProcessor,
   PostgreSQLExpandSQLInProcessor,
+  PostgreSQLIndexReferenceProcessor,
+  PostgreSQLJSONDocumentIndexTargetProcessor,
+  PostgreSQLJSONPathTargetProcessor,
   PostgreSQLTableReferenceProcessor,
 } from '../processors';
 import reservedMap from './reserved';
@@ -23,6 +26,9 @@ const postgreSQLProcessorsRegistry = SQLProcessorsRegistry({
     PostgreSQLExpandSQLInProcessor,
     PostgreSQLTableReferenceProcessor,
     PostgreSQLCreateSchemaProcessor,
+    PostgreSQLIndexReferenceProcessor,
+    PostgreSQLJSONDocumentIndexTargetProcessor,
+    PostgreSQLJSONPathTargetProcessor,
   );
 
 const pgFormatter: SQLFormatter = SQLFormatter({

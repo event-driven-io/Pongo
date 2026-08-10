@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 import {
+  createIndexSQL,
   indexComponent,
   JSONSerializer,
   jsonDocumentIndexTarget,
@@ -12,7 +13,6 @@ import {
 import { pgFormatter } from '../sql';
 import {
   postgreSQLDatabaseSchemaSQL,
-  postgreSQLIndexSQL,
   postgreSQLTableReference,
 } from './schemaComponentSQL';
 
@@ -76,8 +76,21 @@ describe('using Dumbo components in PostgreSQL schemas', () => {
     });
 
     assert.strictEqual(
-      format(postgreSQLIndexSQL(index, identifier)),
-      'CREATE UNIQUE INDEX users_email_idx ON audit.users (email)',
+      format(createIndexSQL(index, identifier)),
+      'CREATE UNIQUE INDEX IF NOT EXISTS users_email_idx ON audit.users (email)',
+    );
+  });
+
+  it('creates an index over several columns', () => {
+    const index = indexComponent({
+      indexName: 'users_email_idx',
+      columnNames: ['email', 'tenant'],
+      isUnique: false,
+    });
+
+    assert.strictEqual(
+      format(createIndexSQL(index, identifier)),
+      'CREATE INDEX IF NOT EXISTS users_email_idx ON audit.users (email, tenant)',
     );
   });
 
@@ -90,8 +103,8 @@ describe('using Dumbo components in PostgreSQL schemas', () => {
     });
 
     assert.strictEqual(
-      format(postgreSQLIndexSQL(index, identifier)),
-      "CREATE INDEX users_email_idx ON audit.users ((data #>> '{profile,email}'))",
+      format(createIndexSQL(index, identifier)),
+      "CREATE INDEX IF NOT EXISTS users_email_idx ON audit.users ((data #>> '{profile,email}'))",
     );
   });
 
@@ -105,12 +118,31 @@ describe('using Dumbo components in PostgreSQL schemas', () => {
 
     assert.strictEqual(
       format(
-        postgreSQLIndexSQL(index, {
+        createIndexSQL(index, {
           ...identifier,
           indexName: 'users_document_idx',
         }),
       ),
-      'CREATE INDEX users_document_idx ON audit.users USING GIN (data)',
+      'CREATE INDEX IF NOT EXISTS users_document_idx ON audit.users USING GIN (data)',
+    );
+  });
+
+  it('creates a unique JSON document index as a btree index, not GIN', () => {
+    const index = indexComponent({
+      indexName: 'users_document_uq',
+      columnNames: ['data'],
+      isUnique: true,
+      target: jsonDocumentIndexTarget('data'),
+    });
+
+    assert.strictEqual(
+      format(
+        createIndexSQL(index, {
+          ...identifier,
+          indexName: 'users_document_uq',
+        }),
+      ),
+      'CREATE UNIQUE INDEX IF NOT EXISTS users_document_uq ON audit.users (data)',
     );
   });
 
@@ -125,7 +157,7 @@ describe('using Dumbo components in PostgreSQL schemas', () => {
 
     assert.strictEqual(
       format(
-        postgreSQLIndexSQL(index, {
+        createIndexSQL(index, {
           ...identifier,
           indexName: 'users_custom_idx',
         }),
