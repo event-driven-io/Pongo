@@ -3,16 +3,17 @@ import {
   isJSONDocumentIndexTarget,
   isJSONPathIndexTarget,
   SQL,
+  SQLTableReference,
   type AnyIndexComponent,
   type AnyTableComponent,
   type IndexIdentifier,
   type TableIdentifier,
 } from '../../../../core';
 import { SQLiteJSON } from '../sql';
-import { sqliteIndexName, sqliteTableName } from './sqliteObjectNames';
+import { sqliteIndexName } from './sqlitePhysicalNames';
 
 export const sqliteTableReference = (identifier: TableIdentifier): SQL =>
-  SQL`${SQL.identifier(sqliteTableName(identifier))}`;
+  SQL`${SQLTableReference.from(identifier)}`;
 
 export const sqliteIndexReference = (identifier: IndexIdentifier): SQL =>
   SQL`${SQL.identifier(sqliteIndexName(identifier))}`;

@@ -147,14 +147,27 @@ What that work left behind, now owed:
 
 **Line delta (S6 alone, production files):** **+5** (+117 / −112). The growth is the dual encoding above: five two-line conditions where there was one. `databaseMigrations.ts` (−9), `dumboSchema.ts` (−7) and `pongo/core/schema/index.ts` (−5) all shrank; `sqliteObjectNames.ts` (+10) and `migrationNames.ts` (+6) paid for it. S7 and S13 take it back.
 
-## S7 — `SQLTableReference` + `SQLCreateSchema`
-- [ ] Existing processor registry read first — no second dispatch mechanism
-- [ ] Tests written and failing, both dialects
-- [ ] Tokens added to `core/sql/tokens/sqlToken.ts`
-- [ ] Processors registered per dialect
-- [ ] `postgreSQLTableReference` / `sqliteTableReference` / `postgreSQLDatabaseSchemaSQL` emit tokens
-- [ ] Gate: build, fix, unit
-- [ ] Review gate R — verdict: ____
+## S7 — `SQLTableReference` + `SQLCreateSchema` — **done**
+- [x] Existing processor registry read first — no second dispatch mechanism. `SQLProcessorsRegistry` + `SQLProcessor` already exist; both dialects already build their registry `from: defaultProcessorsRegistry` in `core/sql/formatter/index.ts`. The four new processors register through that, nothing else was added.
+- [x] Tests written and failing, both dialects — `core/sql/tokens/schemaTokens.unit.spec.ts`, one SQL value formatted through both formatters: named schema, default token, each dialect's default spelled out, underscore-ambiguous schemas, reserved words, the `dumbo_` reservation guard, composition into a statement, create-schema. Plus a default-token reference case in each dialect's `schemaComponentSQL.unit.spec.ts` and a create-schema case on Postgres.
+- [x] Integration tests — three cases per dialect running the emitted SQL against a real database. See the coverage note below for where each lives and why.
+- [x] Tokens added to `core/sql/tokens/sqlToken.ts` — `SQLTableReference { databaseSchemaName, tableName }`, `SQLCreateSchema { databaseSchemaName }`, both carrying `string | SQLDefaultSchemaNameToken`
+- [x] Processors registered per dialect — `PostgreSQLTableReferenceProcessor`, `PostgreSQLCreateSchemaProcessor`, `SQLiteTableReferenceProcessor`, `SQLiteCreateSchemaProcessor`
+- [x] `postgreSQLTableReference` / `sqliteTableReference` / `postgreSQLDatabaseSchemaSQL` emit tokens
+- [x] Gate: build green, `npm run fix` green, unit **1020/1020**, int green (run by Oskar)
+- [x] Review gate R — verdict: **pass, with one flag**. No second dispatch mechanism and no invented concept, but the step is **+100 production lines** — see below.
+
+**The physical name is resolved at format time now, not at reference-construction time.** `sqliteTableName`'s `dumbo_` reservation guard therefore throws when the SQL is formatted rather than when the builder is created. That is what "resolution moves into the formatter" means, so `reserves the mapped-name prefix for native tables and indexes` was changed to format the SQL inside `assert.throws`. Its index half is untouched — `sqliteIndexReference` still resolves eagerly until S8.
+
+**`postgreSQLDatabaseSchemaSQL` still returns `SQL | undefined`.** The default-schema test now lives in `PostgreSQLCreateSchemaProcessor`, which renders nothing for the default schema — but "renders nothing" is an empty string, and pongo's builder needs to emit *no migration at all*, not a migration holding an empty statement. So the function keeps its own default test for the emit/skip decision. S9 owns this: when the schema component emits its own DDL it must answer "what is a migration whose SQL renders empty?" — either the component skips the token for the default schema, or `sqlMigration` drops empty statements. Do not delete the `undefined` branch before that question is answered.
+
+**Integration coverage, checked rather than assumed.** The existing pongo int specs already drive the whole token path against a real database and were passing unchanged: `pongo/storage/sqlite/sqlite3/migrations.int.spec.ts` creates `users`, `dumbo_crm_table_users`, `dumbo_audit_table_users` and their mangled indexes, then inserts through them; `pongo/storage/postgresql/pg/migrations/migrations.int.spec.ts` creates the `crm` and `audit` schemas, their tables and `public.users`, then inserts through them. What they could **not** reach is `SQLDefaultSchemaNameToken` itself — pongo still resolves `defaultSchemaName` eagerly to `'public'` / `'main'`, so every int path went through the string half. That gap is now covered by three cases per dialect: a table created under the default token, a table created under a named schema, and both at once proving they land on separate physical tables. Postgres additionally runs `postgreSQLDatabaseSchemaSQL`'s `CREATE SCHEMA` and asserts it returns `undefined` for the default token.
+
+They live in different places on purpose. SQLite got its own `schemaComponentSQL.int.spec.ts` — its pool is in-memory and costs nothing. Postgres went into the existing `core/schema/migrations.int.spec.ts` as a nested `running schema component SQL` describe, reusing that file's container. A standalone Postgres file was written first and passed, but starting one container in this environment takes ~28s against vitest's 30s hook timeout, and adding a tenth pushed nine suites into `Hook timed out`. The margin was already gone before this step; the fix is not to spend a container on three `CREATE TABLE`s when an identical one already exists in the same folder. When S13 stops the eager resolution, the pongo int specs start covering the token half too, and these may fold back in.
+
+**Renamed, at Oskar's request — "object" said nothing:** `databaseObjectSQL.ts` → `schemaComponentSQL.ts` (both dialects, with their specs), `sqliteObjectNames.ts` → `sqlitePhysicalNames.ts`, and this step's own new files to `schemaTokens.unit.spec.ts` / `schemaProcessors.ts`. Exported function names are unchanged.
+
+**Line delta (S7 alone, production files):** **+100**. Two new processor files (+72), tokens (+17), registrations (+15), and −4 from the two reference builders that lost their branching. This step is purely additive by plan order — it adds the token vocabulary, and S9 is what deletes the machinery it replaces (`DatabaseMigrationBuilder`, `databaseMigrations`, both pongo migration builders, `postgreSQLTableSQL` / `postgreSQLIndexSQL` as public functions). Running total since S1 is still negative; S7 and S8 are the two steps that pay in before S9 collects.
 
 ## S8 — `SQLIndexReference` + JSON target tokens
 - [ ] Tests written and failing, both dialects

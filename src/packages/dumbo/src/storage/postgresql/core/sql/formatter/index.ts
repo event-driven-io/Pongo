@@ -8,7 +8,9 @@ import {
 import {
   PostgreSQLArrayProcessor,
   postgreSQLColumnProcessors,
+  PostgreSQLCreateSchemaProcessor,
   PostgreSQLExpandSQLInProcessor,
+  PostgreSQLTableReferenceProcessor,
 } from '../processors';
 import reservedMap from './reserved';
 
@@ -16,7 +18,12 @@ const postgreSQLProcessorsRegistry = SQLProcessorsRegistry({
   from: defaultProcessorsRegistry,
 })
   .register(postgreSQLColumnProcessors)
-  .register(PostgreSQLArrayProcessor, PostgreSQLExpandSQLInProcessor);
+  .register(
+    PostgreSQLArrayProcessor,
+    PostgreSQLExpandSQLInProcessor,
+    PostgreSQLTableReferenceProcessor,
+    PostgreSQLCreateSchemaProcessor,
+  );
 
 const pgFormatter: SQLFormatter = SQLFormatter({
   processorsRegistry: postgreSQLProcessorsRegistry,

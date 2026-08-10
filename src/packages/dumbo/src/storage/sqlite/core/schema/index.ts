@@ -1,5 +1,5 @@
-export * from './databaseObjectSQL';
+export * from './schemaComponentSQL';
 export * from './migrations';
 export * from './schema';
-export * from './sqliteObjectNames';
+export * from './sqlitePhysicalNames';
 export * from './sqliteMetadata';

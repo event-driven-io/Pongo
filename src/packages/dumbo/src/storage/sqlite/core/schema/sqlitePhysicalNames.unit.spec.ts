@@ -1,7 +1,7 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
 import type { IndexIdentifier, TableIdentifier } from '../../../../core';
-import { sqliteIndexName, sqliteTableName } from './sqliteObjectNames';
+import { sqliteIndexName, sqliteTableName } from './sqlitePhysicalNames';
 
 describe('using logical database schemas in SQLite', () => {
   it('keeps table and index names unchanged in the native schema', () => {

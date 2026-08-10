@@ -73,6 +73,23 @@ export const SQLDefaultSchemaNameToken = SQLToken<SQLDefaultSchemaNameToken>(
   'SQLDefaultSchemaNameToken',
 );
 
+export type SQLTableReference = SQLToken<
+  'SQL_TABLE_REFERENCE',
+  {
+    databaseSchemaName: string | SQLDefaultSchemaNameToken;
+    tableName: string;
+  }
+>;
+export const SQLTableReference = SQLToken<SQLTableReference>(
+  'SQL_TABLE_REFERENCE',
+);
+
+export type SQLCreateSchema = SQLToken<
+  'SQL_CREATE_SCHEMA',
+  { databaseSchemaName: string | SQLDefaultSchemaNameToken }
+>;
+export const SQLCreateSchema = SQLToken<SQLCreateSchema>('SQL_CREATE_SCHEMA');
+
 export type SQLPlain = SQLToken<'SQL_RAW', { value: string }>;
 export const SQLPlain = SQLToken<SQLPlain, string>('SQL_RAW', (value) => ({
   value,

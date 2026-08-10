@@ -8,6 +8,7 @@ import {
   count,
   databaseComponent,
   databaseSchemaComponent,
+  dumboSchema,
   indexComponent,
   MIGRATIONS_LOCK_ID,
   runSQLMigrations,
@@ -15,12 +16,18 @@ import {
   SchemaComponentMigrator,
   single,
   SQL,
+  SQLDefaultSchemaNameToken,
   sqlMigration,
   tableComponent,
   type SQLMigration,
 } from '../../../../core';
 import { pgDumboDriver } from '../../pg';
 import { acquireAdvisoryLock, releaseAdvisoryLock } from '../locks';
+import {
+  postgreSQLDatabaseSchemaSQL,
+  postgreSQLIndexSQL,
+  postgreSQLTableSQL,
+} from './schemaComponentSQL';
 
 describe('Migration Integration Tests', () => {
   let pool: Dumbo;
@@ -456,5 +463,105 @@ describe('Migration Integration Tests', () => {
     assert.ok(table2Exists, 'The large_table_2 table should exist.');
     assert.ok(table3Exists, 'The large_table_3 table should exist.');
     assert.ok(table4Exists, 'The large_table_4 table should exist.');
+  });
+
+  describe('running schema component SQL', () => {
+    const users = tableComponent({
+      tableName: 'users',
+      columns: {
+        _id: dumboSchema.column('_id', SQL.column.type.Text, {
+          primaryKey: true,
+          notNull: true,
+        }),
+        email: dumboSchema.column('email', SQL.column.type.Text, {
+          notNull: true,
+        }),
+      },
+    });
+    const usersEmail = indexComponent({
+      indexName: 'users_email_idx',
+      columnNames: ['email'],
+      isUnique: true,
+    });
+
+    const tableExistsIn = async (
+      databaseSchemaName: string,
+      tableName: string,
+    ): Promise<boolean> =>
+      single(
+        pool.execute.query<{ exists: boolean }>(
+          SQL`
+            SELECT EXISTS (
+              SELECT FROM information_schema.tables
+              WHERE table_schema = ${databaseSchemaName}
+                AND table_name = ${tableName}
+            )`,
+        ),
+      ).then((row) => row.exists);
+
+    beforeEach(() =>
+      pool.execute.command(SQL`DROP SCHEMA IF EXISTS crm CASCADE`),
+    );
+
+    it('creates a table for the default schema in the search path', async () => {
+      const identifier = {
+        databaseSchemaName: SQLDefaultSchemaNameToken.from(),
+        tableName: 'users',
+        indexName: 'users_email_idx',
+      };
+
+      assert.strictEqual(postgreSQLDatabaseSchemaSQL(identifier), undefined);
+      await pool.execute.command(postgreSQLTableSQL(users, identifier));
+      await pool.execute.command(postgreSQLIndexSQL(usersEmail, identifier));
+
+      assert.ok(await tableExistsIn('public', 'users'));
+    });
+
+    it('creates a named schema and qualifies its table with it', async () => {
+      const identifier = {
+        databaseSchemaName: 'crm',
+        tableName: 'users',
+        indexName: 'users_email_idx',
+      };
+
+      await pool.execute.command(postgreSQLDatabaseSchemaSQL(identifier)!);
+      await pool.execute.command(postgreSQLTableSQL(users, identifier));
+      await pool.execute.command(postgreSQLIndexSQL(usersEmail, identifier));
+
+      assert.ok(await tableExistsIn('crm', 'users'));
+      assert.ok(!(await tableExistsIn('public', 'users')));
+    });
+
+    it('keeps the default schema and a named one on separate tables', async () => {
+      const inDefault = {
+        databaseSchemaName: SQLDefaultSchemaNameToken.from(),
+        tableName: 'users',
+      };
+      const inCRM = { databaseSchemaName: 'crm', tableName: 'users' };
+
+      await pool.execute.command(postgreSQLDatabaseSchemaSQL(inCRM)!);
+      await pool.execute.command(postgreSQLTableSQL(users, inDefault));
+      await pool.execute.command(postgreSQLTableSQL(users, inCRM));
+      await pool.execute.command(
+        SQL`INSERT INTO users (_id, email) VALUES ('1', 'default@test')`,
+      );
+
+      assert.strictEqual(
+        await count(
+          pool.execute.query<{ count: number }>(
+            SQL`SELECT COUNT(*)::int as count FROM public.users`,
+          ),
+        ),
+        1,
+      );
+      assert.strictEqual(
+        await count(
+          pool.execute.query<{ count: number }>(
+            SQL`SELECT COUNT(*)::int as count FROM crm.users`,
+          ),
+        ),
+        0,
+      );
+    });
   });
 });
