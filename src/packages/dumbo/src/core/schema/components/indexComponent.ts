@@ -62,7 +62,6 @@ export const isJSONDocumentIndexTarget = (
 ): target is JSONDocumentIndexTarget => jsonDocumentIndexTargetType in target;
 
 export type IndexSQLContext = Readonly<{
-  databaseName: string;
   databaseSchemaName: string;
   tableName: string;
   indexName: string;

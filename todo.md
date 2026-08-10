@@ -2,6 +2,8 @@
 
 State for [plan.md](plan.md). One step at a time, in order. A step is done only when every box under it is ticked — including the review gate.
 
+Execution order is **S1, S2, S3, S5, S6, S7, S8, S9, S4, S10 … S17** — S4 waits for S9 to delete its last blocker, and its section below sits between S9 and S10 to match. Step IDs never move.
+
 Per-step gate, run from `/home/oskar/Repos/Pongo/src`:
 `npm run build:ts` → `npm run fix` → `npm run test:unit` (+ `test:int` / `test:e2e` where marked).
 
@@ -23,7 +25,7 @@ What survives from them and does not need redoing:
 What that work left behind, now owed:
 
 - the spec files do not compile — **S1**
-- `createSchemaComponent` still carries a `fields` bag and a `context` option — **S4**
+- `createSchemaComponent` still carries a `fields` bag and a `context` option — **S4**, which now runs after S9
 - `databaseMigrations.ts` threads two identifiers by hand as scaffolding — **S9**
 
 ---
@@ -79,38 +81,45 @@ What that work left behind, now owed:
 
 **Line delta (S1+S2 cumulative vs `main`):** non-test **−128**, tests **−193**.
 
-## S3 — The erased child list becomes an array
-- [ ] `accesses declared children through typed record aliases` and `keeps a composed declaration read-only after construction` — repaired in S2, green today. Under D3 there is no keyed record left to assert, so both get deleted with the concept here; record that when it happens
-- [ ] `components` is `ReadonlyArray<AnySchemaComponent>`
-- [ ] Each factory builds it from its own typed maps
-- [ ] `mergeSchemaComponentMaps` and its duplicate-key throw deleted
-- [ ] The duplicate-key test deleted and recorded here
-- [ ] `schemaComponentMap` still used for the typed maps
-- [ ] Gate: build, fix, unit
-- [ ] Review gate R — verdict: ____
+## S3 — The erased child list becomes an array — **done**
+- [x] `accesses declared children through typed record aliases` and `keeps a composed declaration read-only after construction` — **rewritten, not deleted**. Both claims survive D3; only the surface they were asserted on changed. The first moved onto `databaseSchemaComponent.tables`, which is a real typed map and stays keyed under D3. The second now asserts the child list is a frozen array that rejects `push`
+- [x] `components` is `ReadonlyArray<AnySchemaComponent>`
+- [x] Each factory builds it from its own typed maps
+- [x] `mergeSchemaComponentMaps` and its duplicate-key throw deleted
+- [x] The duplicate-key tests deleted and recorded below
+- [x] `schemaComponentMap` still used for the typed maps
+- [x] Gate: build green, `npm run fix` green, unit **1004/1004** (1006 − the 2 deleted alias tests)
+- [x] Review gate R — verdict: **pass**, with one finding carried to S4 (below)
 
-## S4 — The factory owns its literal
-- [ ] All six factories return their own object literal
-- [ ] `componentMigrations` is the only shared helper, module-private
-- [ ] `createSchemaComponent` deleted
-- [ ] `fields` bag deleted
-- [ ] `context` option deleted
-- [ ] `scopedContext` deleted
-- [ ] `Object.freeze` on the component deleted (records stay frozen)
-- [ ] No `this` in any factory
-- [ ] `as unknown as` casts removed where the bag was their cause
-- [ ] Gate: build, fix, unit
-- [ ] Review gate R — verdict: ____
+**Deleted tests, with reasons**
+- `rejects using one alias for both a table column and index` — the throw it asserts is gone. Under D3 the key is no longer shared: both children sit in the erased array and both migrate. Plan says delete and do not replace; not replaced.
+- `rejects using one alias for both a schema and a database extension` — the same throw, reached through `databaseComponent` rather than `tableComponent`. Deleted with it.
 
-## S5 — Drop `databaseName` from the chain
-- [ ] Tests written and failing (type spec + name-independence)
-- [ ] `databaseName` gone from `DatabaseSchemaComponent` and its options
-- [ ] Cross-database validation at `databaseComponent.ts:59-68` deleted, record-key check kept
-- [ ] `databaseName` gone from every identifier type
-- [ ] `'A database name is required to build migrations'` throw deleted
-- [ ] `databaseName` gone from `pongoDb.ts`'s identifier and `withTable.ts`
-- [ ] Gate: build, fix, unit, **int**
-- [ ] Review gate R — verdict: ____
+**`ExtensionComponent` lost its typed `components` field.** Extension was the one kind whose erased list *was* its user-facing typed map, so D3 takes it away. Nothing in production read it — the compiler flagged only spec files, which is the same evidence D3 rests on. Typed access returns in **S15** as `schemas` / `extensions`. In the meantime three tests that reached through `extension.components.<key>` now assert reachability through `migrations()` instead: `finds tables and extensions nested inside another extension`, `discovers an extension table without exposing it as a database schema`, and `attaches an extension to a database without exposing its internals as schemas`. That is the claim that actually matters and it survives S15 unchanged. `ExtensionComponent`'s second generic parameter went with the field; `dumboSchema.extension` lost it too.
+
+**Identity assertions kept, restated.** `db.schemas.crm === db.components.crm` and friends were asserting D1 — the parent holds the same object. Restated as `db.components` deep-equalling the list of typed-map values, or `.includes(...)` where the list has other members. Same claim, no loss.
+
+**Line delta (S3 alone):** non-test **−46**, tests **−52**.
+
+## S5 — Drop `databaseName` from the chain — **done**
+- [x] Tests written and failing first — `carries no database name on a schema declaration` (type spec) and `builds the same migrations with and without a database name` (`databaseMigrations.unit.spec.ts`)
+- [x] `databaseName` gone from `DatabaseSchemaComponent` and its options
+- [x] Cross-database validation deleted, record-key check kept
+- [x] `databaseName` gone from every identifier type; `DatabaseIdentifier` went with it — emptied of its only field, it had no other reader
+- [x] `'A database name is required to build migrations'` throw deleted
+- [x] `databaseName` gone from `pongoDb.ts`'s identifier and `withTable.ts`
+- [x] `SchemaComponentContext.databaseName` and `IndexSQLContext.databaseName` deleted — the same concept in the two remaining context types
+- [x] Gate: build green, `npm run fix` green, unit **1004/1004**, sqlite schema int **104/104**
+- [x] Review gate R — verdict: **pass**. No new abstraction: the step only removes. No remnant: every surviving `databaseName` is `databaseComponent`'s connection and reporting metadata, which D9 keeps on purpose, and it is genuinely read (`pongo/core/schema/index.ts:616`, `commandLine/configFile.ts:115`). It no longer reaches `createSchemaComponent`'s context and no identifier carries it.
+
+**Deleted test, with reason**
+- `rejects placing a schema under a database other than its constraint` — asserts the cross-database validation D9 deletes. With `databaseSchemaComponent.databaseName` gone there is no constraint left to violate. Not replaced.
+
+**Pre-existing integration failures, verified not caused here.** `test:int:sqlite` also matches D1 and PostgreSQL `.int.spec` files. Four failures in `sqlite/d1/connections/connection.int.generic.spec.ts` (`D1TransactionNotSupportedError`) reproduce identically on a clean `HEAD` worktree — 4 failed / 7 passed both sides. The PostgreSQL `.int.spec` failures are environment (no server). Every SQLite schema integration spec passes.
+
+**Type spec rewritten to real tests (boy scout, at Oskar's call).** `schemaComposition.type.spec.ts` was a file of bare top-level statements using `@ts-expect-error`. It is now five `it()` blocks using `expectTypeOf`, so a broken expectation reports as a named failing test instead of a compile error with no test name. The eight `@ts-expect-error` absence checks collapsed into `Extract<keyof …, 'name'>` assertions against `never`; each original comment survives against its entry. Deprecated `toMatchTypeOf` replaced with `toExtend`.
+
+**Line delta (S5 alone, production files):** **−32**.
 
 ## S6 — Schema names are required; `defaultSchema` exists
 - [ ] Tests written and failing (no-compile, defaultSchema, key/name throw, no name segment)
@@ -151,9 +160,26 @@ What that work left behind, now owed:
 - [ ] Deleted: `postgreSQLTableSQL`, `postgreSQLIndexSQL`, `postgreSQLDatabaseSchemaSQL`, `sqliteTableSQL`, `sqliteIndexSQL`
 - [ ] Deleted: pongo `databaseMigrations.ts` × 2, both migration builders, the `migrationBuilder` option
 - [ ] Both `sqlBuilder.unit.spec.ts` files read `.migrations()`
-- [ ] `grep "components: {} }"` returns nothing
+- [ ] `grep "components: \[\] }"` returns nothing — the last reader of the `this` binding, which is what unblocks S4
 - [ ] Gate: build, fix, unit, **int**
 - [ ] Review gate R — verdict: ____ (must show a large net deletion)
+
+## S4 — The factory owns its literal
+
+Runs **after S9**, not after S3. `databaseMigrations.ts` gets a component's own declared migrations by spreading it with an emptied child list — `{ ...component, components: [] }.migrations()` — which only works while `migrations` resolves children through `this`. D2 replaces `this` with a closure over the factory's own `children`, so the spread stops removing anything, the clone returns its whole subtree, and the per-component `declared, driver, declared, driver` interleaving asserted by `databaseMigrations.unit.spec.ts` breaks. That is a live path: `pongoDb.ts:209` runs every pongo migration through it. The alternatives were hacking around the missing `this` in a file that is about to be deleted (gate R question 2 — a deleted concept leaving a remnant) or pulling S9 forward without the S7/S8 tokens it needs. S9 deletes the file, so waiting costs nothing; S5–S9 do not need `createSchemaComponent` gone. Agreed with Oskar 2026-08-10.
+
+- [ ] All six factories return their own object literal
+- [ ] `componentMigrations` is the only shared helper, module-private
+- [ ] `createSchemaComponent` deleted
+- [ ] `fields` bag deleted
+- [ ] `context` option deleted
+- [ ] `scopedContext` deleted
+- [ ] `Object.freeze` on the component deleted (records stay frozen)
+- [ ] No `this` in any factory
+- [ ] `as unknown as` casts removed where the bag was their cause
+- [ ] `declares against the component it is read from, not the one it was built from` deleted — it asserts the `this` binding that D2 removes on purpose — and recorded here
+- [ ] Gate: build, fix, unit, **int**
+- [ ] Review gate R — verdict: ____
 
 ## S10 — The migration table is a real table component
 - [ ] Golden test written and failing: DDL byte-identical to `main`

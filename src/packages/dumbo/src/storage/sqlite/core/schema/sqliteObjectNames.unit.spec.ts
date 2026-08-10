@@ -6,7 +6,6 @@ import { sqliteIndexName, sqliteTableName } from './sqliteObjectNames';
 describe('using logical database schemas in SQLite', () => {
   it('keeps table and index names unchanged in the native schema', () => {
     const table = {
-      databaseName: 'app',
       databaseSchemaName: 'main',
       tableName: 'users',
     } satisfies TableIdentifier;
@@ -21,7 +20,6 @@ describe('using logical database schemas in SQLite', () => {
 
   it('maps tables and indexes from logical schemas to SQLite object names', () => {
     const table = {
-      databaseName: 'app',
       databaseSchemaName: 'crm',
       tableName: 'users',
     } satisfies TableIdentifier;
@@ -44,7 +42,7 @@ describe('using logical database schemas in SQLite', () => {
       { databaseSchemaName: 'a_', tableName: '_b' },
       { databaseSchemaName: 'a__', tableName: 'b' },
     ].map(({ databaseSchemaName, tableName }) =>
-      sqliteTableName({ databaseName: 'app', databaseSchemaName, tableName }),
+      sqliteTableName({ databaseSchemaName, tableName }),
     );
 
     assert.strictEqual(new Set(names).size, names.length);
@@ -54,7 +52,6 @@ describe('using logical database schemas in SQLite', () => {
     assert.throws(
       () =>
         sqliteTableName({
-          databaseName: 'app',
           databaseSchemaName: 'main',
           tableName: 'dumbo_users',
         }),
@@ -63,7 +60,6 @@ describe('using logical database schemas in SQLite', () => {
     assert.throws(
       () =>
         sqliteIndexName({
-          databaseName: 'app',
           databaseSchemaName: 'main',
           tableName: 'users',
           indexName: 'dumbo_users_email_idx',

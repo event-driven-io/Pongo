@@ -15,11 +15,17 @@ Every step, without exception:
 
 ## Why this order
 
-Steps 1–4 are deletions with no design risk: they retire concepts the spec has already ruled out, and shrink the surface every later step has to move through. Redundant concepts die as early as their dependents allow.
+Execution order is **S1, S2, S3, S5, S6, S7, S8, S9, S4, S10 … S17.** Step IDs are stable; only S4's position moved, and its section sits between S9 and S10 to match.
+
+Steps 1–3 are deletions with no design risk: they retire concepts the spec has already ruled out, and shrink the surface every later step has to move through. Redundant concepts die as early as their dependents allow.
 
 Steps 5–6 change the component API. Steps 7–10 move DDL behind the formatter — the largest piece, and the gate for everything in pongo. Steps 11–15 are pongo. Steps 16–17 close out.
 
-One non-obvious sequencing decision: **the DDL tokens land before the components emit them** (S7–S8 before S9). That keeps every existing test green while the risky part — two dialects rendering the same tokens — is proven in isolation.
+Two non-obvious sequencing decisions:
+
+**The DDL tokens land before the components emit them** (S7–S8 before S9). That keeps every existing test green while the risky part — two dialects rendering the same tokens — is proven in isolation.
+
+**S4 runs after S9, not before S5.** `databaseMigrations.ts` reads a component's own declared migrations, and only its own, by spreading it with an emptied child list: `{ ...component, components: [] }.migrations()`. That works solely because `migrations` resolves its children through `this`. D2 replaces `this` with a closure over the factory's own `children`, so the spread stops removing anything and the clone returns its whole subtree — breaking the per-component `declared, driver, declared, driver` interleaving that `databaseMigrations.unit.spec.ts` asserts and that `pongoDb.ts` runs every pongo migration through. The two clean fixes were to hack around the missing `this` in a file that is about to be deleted, or to move the deletion forward without the tokens S9 needs. Waiting is the third: S9 deletes `databaseMigrations.ts` outright, and S4 then has no dependents left. Nothing in S5–S9 needs `createSchemaComponent` gone.
 
 Red time is bounded per step: any step whose deletion strands tests rewrites those tests inside the same step.
 
@@ -109,41 +115,6 @@ and both migrate. Delete the test asserting that throw, record it in todo.md,
 and do not replace it.
 
 `schemaComponentMap` stays: the typed maps are user-facing and keyed.
-
-Gate: build, fix, unit.
-```
-
-## S4 — The factory owns its literal
-
-```text
-Spec D2. Delete `createSchemaComponent`, its `fields` bag, its `context`
-option, `scopedContext`, and `Object.freeze` on the component itself.
-
-Each of the six factories — database, databaseSchema, table, index, column,
-extension — builds and returns its own object literal, naming `component` in
-the closure so `this` is never needed:
-
-  const component = {
-    [schemaComponentType]: kind,
-    ...own fields...,
-    components: children,
-    migrations: (context = {}) =>
-      componentMigrations(component, children, { ...context, ...whatIKnow }),
-  };
-  return component;
-
-`componentMigrations(component, children, context)` is the ONE piece of shared
-code: run the declaration, then every child's `migrations(context)`, dedupe by
-name (spec D4). Module-private to `schemaComponent.ts`.
-
-Only `databaseSchemaComponent` and `tableComponent` extend the context — with
-`databaseSchemaName` and `tableName`. `databaseComponent` extends nothing once
-S5 lands; until then it may still pass `databaseName`.
-
-`createSchemaComponent` is not public API — `schemaComposition.type.spec.ts:52-53`
-asserts its absence with `@ts-expect-error`. Expect the `as unknown as` casts to
-fall away with the bag; `columnSchemaComponent`'s may survive because of its
-conditional return type.
 
 Gate: build, fix, unit.
 ```
@@ -253,7 +224,54 @@ Required regression test: a table inside a DATABASE-level extension produces
 
 Both `sqlBuilder.unit.spec.ts` files read `.migrations()`.
 
+Deleting `databaseMigrations.ts` also removes the last reader of the `this`
+binding on `migrations` — the `{ ...component, components: [] }.migrations()`
+spread. That is what unblocks S4, which runs next.
+
 Review gate R must show a large net deletion. If it does not, stop.
+
+Gate: build, fix, unit, int.
+```
+
+## S4 — The factory owns its literal
+
+Numbered S4 because that is where it was planned; **executed here, after S9**.
+See "Why this order".
+
+```text
+Spec D2. Delete `createSchemaComponent`, its `fields` bag, its `context`
+option, `scopedContext`, and `Object.freeze` on the component itself.
+
+Each of the six factories — database, databaseSchema, table, index, column,
+extension — builds and returns its own object literal, naming `component` in
+the closure so `this` is never needed:
+
+  const component = {
+    [schemaComponentType]: kind,
+    ...own fields...,
+    components: children,
+    migrations: (context = {}) =>
+      componentMigrations(component, children, { ...context, ...whatIKnow }),
+  };
+  return component;
+
+`componentMigrations(component, children, context)` is the ONE piece of shared
+code: run the declaration, then every child's `migrations(context)`, dedupe by
+name (spec D4). Module-private to `schemaComponent.ts`.
+
+Only `databaseSchemaComponent` and `tableComponent` extend the context — with
+`databaseSchemaName` and `tableName`. `databaseComponent` extends nothing;
+`databaseName` left the chain in S5.
+
+`createSchemaComponent` is not public API — `schemaComposition.type.spec.ts:52-53`
+asserts its absence with `@ts-expect-error`. Expect the `as unknown as` casts to
+fall away with the bag; `columnSchemaComponent`'s may survive because of its
+conditional return type.
+
+Delete `declares against the component it is read from, not the one it was
+built from` in `schemaComponent.unit.spec.ts`. It asserts the `this` binding
+directly — a spread copy with a different child list produces a different
+migration name — and D2 deletes that binding on purpose. Record it in todo.md.
 
 Gate: build, fix, unit, int.
 ```

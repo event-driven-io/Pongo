@@ -14,7 +14,6 @@ export const withTable = (
   const existingSchema = database.schemas[databaseSchemaName];
   const schema = databaseSchemaComponent({
     schemaName: databaseSchemaName,
-    databaseName: existingSchema?.databaseName,
     tables: {
       ...(existingSchema?.tables ?? {}),
       [alias]: table,

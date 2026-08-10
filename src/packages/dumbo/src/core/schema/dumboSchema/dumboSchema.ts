@@ -221,13 +221,10 @@ dumboDatabase.from = (
     : dumboDatabase(databaseName, schemas);
 };
 
-const dumboExtension = <
-  const Name extends string,
-  const Components extends ExtensionComponents,
->(
+const dumboExtension = <const Name extends string>(
   name: Name,
-  components: Components,
-): ReturnType<typeof extensionComponent<Name, Components>> =>
+  components: ExtensionComponents,
+): ReturnType<typeof extensionComponent<Name>> =>
   extensionComponent(name, components);
 
 export const dumboSchema = {

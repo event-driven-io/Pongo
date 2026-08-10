@@ -51,14 +51,12 @@ describe('building migrations for a database hierarchy', () => {
     const migrations = databaseMigrations(database, builder);
 
     assert.deepStrictEqual(seen, [
-      { databaseName: 'app', databaseSchemaName: 'crm' },
+      { databaseSchemaName: 'crm' },
       {
-        databaseName: 'app',
         databaseSchemaName: 'crm',
         tableName: 'users',
       },
       {
-        databaseName: 'app',
         databaseSchemaName: 'crm',
         tableName: 'users',
         indexName: 'users_email_idx',
@@ -68,6 +66,38 @@ describe('building migrations for a database hierarchy', () => {
       migrations.map(({ name }) => name),
       ['crm:create', 'crm:users:create', 'crm:users:email:create'],
     );
+  });
+
+  it('builds the same migrations with and without a database name', () => {
+    const schemas = () => ({
+      crm: databaseSchemaComponent({
+        schemaName: 'crm',
+        tables: { users: tableComponent({ tableName: 'users' }) },
+      }),
+    });
+    const builder: DatabaseMigrationBuilder = {
+      table: (_table, identifier) => [
+        sqlMigration(
+          `${identifier.databaseSchemaName}:${identifier.tableName}:create`,
+          [SQL`SELECT 1`],
+        ),
+      ],
+    };
+
+    const named = databaseMigrations(
+      databaseComponent({ databaseName: 'app', schemas: schemas() }),
+      builder,
+    );
+    const unnamed = databaseMigrations(
+      databaseComponent({ schemas: schemas() }),
+      builder,
+    );
+
+    assert.deepStrictEqual(
+      named.map(({ name }) => name),
+      ['crm:users:create'],
+    );
+    assert.deepStrictEqual(unnamed, named);
   });
 
   it('keeps declared migrations before driver migrations on each component', () => {
@@ -137,7 +167,6 @@ describe('building migrations for a database hierarchy', () => {
     assert.deepStrictEqual(Object.keys(database.schemas.audit.tables), []);
     assert.deepStrictEqual(seen, [
       {
-        databaseName: 'app',
         databaseSchemaName: 'audit',
         tableName: 'events',
       },

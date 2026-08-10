@@ -15,7 +15,6 @@ const format = (sql: SQL): string =>
   sqliteFormatter.format(sql, { serializer: JSONSerializer }).query;
 
 const identifier = {
-  databaseName: 'app',
   databaseSchemaName: 'crm',
   tableName: 'users',
   indexName: 'users_email_idx',

@@ -1,7 +1,6 @@
 import type { ExtensionComponent } from '../extensionComponent';
 import {
   createSchemaComponent,
-  mergeSchemaComponentMaps,
   schemaComponentMap,
   schemaComponentType,
   type AnySchemaComponent,
@@ -24,7 +23,6 @@ export type DatabaseSchemaComponent<
 > = SchemaComponent<typeof databaseSchemaComponentType> &
   Readonly<{
     schemaName: SchemaName;
-    databaseName?: string | undefined;
     tables: Tables;
     extensions: Extensions;
   }>;
@@ -41,7 +39,6 @@ export type DatabaseSchemaComponentOptions<
   Extensions extends SchemaExtensions,
 > = Readonly<{
   schemaName?: SchemaName | undefined;
-  databaseName?: string | undefined;
   tables?: Tables | undefined;
   extensions?: Extensions | undefined;
 }> &
@@ -70,13 +67,12 @@ export const databaseSchemaComponent = <
   const base = createSchemaComponent(
     databaseSchemaComponentType,
     {
-      components: mergeSchemaComponentMaps(tables, extensions),
+      components: [...Object.values(tables), ...Object.values(extensions)],
       migrations: options.migrations,
       context: { databaseSchemaName: options.schemaName },
     },
     {
       schemaName: options.schemaName as SchemaName,
-      databaseName: options.databaseName,
       tables: schemaComponentMap(tables),
       extensions: schemaComponentMap(extensions),
     },

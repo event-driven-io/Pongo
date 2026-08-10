@@ -10,7 +10,6 @@ export const genericComponentType: unique symbol = Symbol(
 export type SchemaComponentKind = symbol;
 
 export type SchemaComponentContext = Readonly<{
-  databaseName?: string | undefined;
   databaseSchemaName?: string | undefined;
   tableName?: string | undefined;
 }>;
@@ -19,7 +18,7 @@ export type SchemaComponent<
   Kind extends SchemaComponentKind = SchemaComponentKind,
 > = Readonly<{
   [schemaComponentType]: Kind;
-  components: SchemaComponentMap;
+  components: ReadonlyArray<AnySchemaComponent>;
   migrations: (context?: SchemaComponentContext) => ReadonlyArray<SQLMigration>;
 }>;
 
@@ -34,12 +33,10 @@ export type SchemaComponentMap<
   Component extends AnySchemaComponent = AnySchemaComponent,
 > = Readonly<Record<string, Component>>;
 
-export type SchemaComponentOptions<
-  Components extends SchemaComponentMap = SchemaComponentMap,
-> = Readonly<{
+export type SchemaComponentOptions = Readonly<{
   migrations?: SchemaComponentDeclaration | undefined;
   context?: SchemaComponentContext | undefined;
-  components?: Components | undefined;
+  components?: ReadonlyArray<AnySchemaComponent> | undefined;
 }>;
 
 export const schemaComponentMap = <
@@ -49,25 +46,6 @@ export const schemaComponentMap = <
 ): ComponentMap => {
   const result = Object.assign(Object.create(null), record) as ComponentMap;
   return Object.freeze(result);
-};
-
-export const mergeSchemaComponentMaps = (
-  ...records: ReadonlyArray<SchemaComponentMap>
-): SchemaComponentMap => {
-  const merged: Record<string, AnySchemaComponent> = Object.create(
-    null,
-  ) as Record<string, AnySchemaComponent>;
-
-  for (const record of records) {
-    for (const [alias, component] of Object.entries(record)) {
-      if (Object.hasOwn(merged, alias)) {
-        throw new Error(`Duplicate component alias "${alias}"`);
-      }
-      merged[alias] = component;
-    }
-  }
-
-  return schemaComponentMap(merged);
 };
 
 const scopedContext = (
@@ -85,21 +63,18 @@ const scopedContext = (
 
 export const createSchemaComponent = <
   const Kind extends SchemaComponentKind,
-  const Components extends SchemaComponentMap = SchemaComponentMap,
   const Fields extends Readonly<Record<string, unknown>> = Readonly<
     Record<string, never>
   >,
 >(
   kind: Kind,
-  options: SchemaComponentOptions<Components> = {},
+  options: SchemaComponentOptions = {},
   fields: Fields = {} as Fields,
-): SchemaComponent<Kind> & Fields & { components: Components } => {
+): SchemaComponent<Kind> & Fields => {
   const component = {
     ...fields,
     [schemaComponentType]: kind,
-    components: schemaComponentMap(
-      (options.components ?? {}) as SchemaComponentMap,
-    ),
+    components: Object.freeze([...(options.components ?? [])]),
     migrations(
       this: AnySchemaComponent,
       context: SchemaComponentContext = {},
@@ -110,9 +85,7 @@ export const createSchemaComponent = <
 
       for (const migration of [
         ...(options.migrations?.(this, scoped) ?? []),
-        ...Object.values(this.components).flatMap((child) =>
-          child.migrations(scoped),
-        ),
+        ...this.components.flatMap((child) => child.migrations(scoped)),
       ]) {
         const previous = migrationsByName.get(migration.name);
         if (previous === undefined) {
@@ -129,19 +102,13 @@ export const createSchemaComponent = <
     },
   };
 
-  return Object.freeze(component) as SchemaComponent<Kind> &
-    Fields & {
-      components: Components;
-    };
+  return Object.freeze(component);
 };
 
-export const schemaComponent = <
-  const Components extends SchemaComponentMap = SchemaComponentMap,
->(
-  options: SchemaComponentOptions<Components> = {},
-): SchemaComponent<typeof genericComponentType> & {
-  components: Components;
-} => createSchemaComponent(genericComponentType, options);
+export const schemaComponent = (
+  options: SchemaComponentOptions = {},
+): SchemaComponent<typeof genericComponentType> =>
+  createSchemaComponent(genericComponentType, options);
 
 export const isSchemaComponent = (
   value: unknown,

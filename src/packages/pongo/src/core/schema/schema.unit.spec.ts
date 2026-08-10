@@ -117,7 +117,7 @@ describe('declaring Pongo collections', () => {
     const accounts = dumboSchema.table('accounts');
     const crm = dumboSchema.schema('crm', { accounts, users });
 
-    assert.strictEqual(crm.tables.users, crm.components.users);
+    assert.strictEqual(crm.components.includes(crm.tables.users), true);
     assert.strictEqual(crm.tables.users.tableName, users.tableName);
     assert.strictEqual(
       crm.tables.users.indexes.email.indexName,
@@ -182,7 +182,7 @@ describe('declaring Pongo schemas and databases', () => {
     });
 
     assert.strictEqual(reusable.schemaName, undefined);
-    assert.strictEqual(database.schemas.public, database.components.public);
+    assert.deepStrictEqual(database.components, [database.schemas.public]);
     assert.strictEqual(database.schemas.public.schemaName, undefined);
     assert.strictEqual(
       database.schemas.public.tables.users.databaseSchemaName,
@@ -252,12 +252,12 @@ describe('declaring Pongo schemas and databases', () => {
     );
 
     assert.strictEqual(
-      audit.extensions.eventStore,
-      audit.components.eventStore,
+      audit.components.includes(audit.extensions.eventStore),
+      true,
     );
     assert.strictEqual(
-      database.extensions.eventStore,
-      database.components.eventStore,
+      database.components.includes(database.extensions.eventStore),
+      true,
     );
     assert.strictEqual(
       database.extensions.eventStore.extensionName,

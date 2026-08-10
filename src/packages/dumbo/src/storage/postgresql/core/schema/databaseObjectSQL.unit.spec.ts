@@ -18,7 +18,6 @@ const format = (sql: SQL): string =>
   pgFormatter.format(sql, { serializer: JSONSerializer }).query;
 
 const identifier = {
-  databaseName: 'app',
   databaseSchemaName: 'audit',
   tableName: 'users',
   indexName: 'users_email_idx',
