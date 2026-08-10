@@ -1,4 +1,4 @@
-import type { AnyColumnTypeToken } from '../../sql';
+import { SQLDefaultSchemaNameToken, type AnyColumnTypeToken } from '../../sql';
 import type { ValidateDatabaseSchemas } from '../components';
 import {
   type AnyDatabaseSchemaComponent,
@@ -91,14 +91,7 @@ const dumboTable = <
     ...definition,
   });
 
-function dumboDatabaseSchema<
-  const Tables extends DatabaseSchemaTables,
-  const Extensions extends SchemaExtensions = SchemaExtensions,
->(
-  tables: Tables,
-  extensions?: Extensions,
-): DatabaseSchemaComponent<Tables, undefined, Extensions>;
-function dumboDatabaseSchema<
+const dumboDatabaseSchema = <
   const Tables extends DatabaseSchemaTables,
   const Name extends string,
   const Extensions extends SchemaExtensions = SchemaExtensions,
@@ -106,37 +99,36 @@ function dumboDatabaseSchema<
   name: Name,
   tables: Tables,
   extensions?: Extensions,
-): DatabaseSchemaComponent<Tables, Name, Extensions>;
-function dumboDatabaseSchema(
-  nameOrTables: string | DatabaseSchemaTables,
-  tablesOrExtensions?: DatabaseSchemaTables | SchemaExtensions,
-  extensions?: SchemaExtensions,
-): DatabaseSchemaComponent {
-  if (typeof nameOrTables === 'string') {
-    return databaseSchemaComponent({
-      schemaName: nameOrTables,
-      tables: (tablesOrExtensions ?? {}) as DatabaseSchemaTables,
-      extensions,
-    });
-  }
-  return databaseSchemaComponent({
-    schemaName: undefined,
-    tables: nameOrTables,
-    extensions: tablesOrExtensions as SchemaExtensions | undefined,
+): DatabaseSchemaComponent<Tables, Name, Extensions> =>
+  databaseSchemaComponent<Tables, Name, Extensions>({
+    schemaName: name,
+    tables,
+    extensions,
   });
-}
+
+const dumboDefaultDatabaseSchema = <
+  const Tables extends DatabaseSchemaTables,
+  const Extensions extends SchemaExtensions = SchemaExtensions,
+>(
+  tables: Tables,
+  extensions?: Extensions,
+): DatabaseSchemaComponent<Tables, SQLDefaultSchemaNameToken, Extensions> =>
+  databaseSchemaComponent<Tables, SQLDefaultSchemaNameToken, Extensions>({
+    schemaName: SQLDefaultSchemaNameToken.from(),
+    tables,
+    extensions,
+  });
 
 dumboDatabaseSchema.from = (
-  schemaName: string | undefined,
+  schemaName: string,
   tableNames: string[],
-): DatabaseSchemaComponent => {
-  const tables = Object.fromEntries(
-    tableNames.map((tableName) => [tableName, dumboTable(tableName)]),
+): DatabaseSchemaComponent =>
+  dumboDatabaseSchema(
+    schemaName,
+    Object.fromEntries(
+      tableNames.map((tableName) => [tableName, dumboTable(tableName)]),
+    ),
   );
-  return schemaName === undefined
-    ? dumboDatabaseSchema(tables)
-    : dumboDatabaseSchema(schemaName, tables);
-};
 
 type ValidatedDatabaseComponent<
   Schemas extends DatabaseSchemas,
@@ -230,6 +222,7 @@ const dumboExtension = <const Name extends string>(
 export const dumboSchema = {
   database: dumboDatabase,
   schema: dumboDatabaseSchema,
+  defaultSchema: dumboDefaultDatabaseSchema,
   table: dumboTable,
   column: dumboColumn,
   index: dumboIndex,

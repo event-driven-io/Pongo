@@ -338,7 +338,7 @@ describe('pongoClient', () => {
           db,
           pongoSchema.db({
             schemas: {
-              collection: pongoSchema.schema({}),
+              collection: pongoSchema.schema('collection', {}),
             },
           }),
         ),

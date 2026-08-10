@@ -176,6 +176,11 @@ Tokens in `core/sql/tokens/sqlToken.ts`, processors registered per dialect.
 `postgreSQLTableReference`, `sqliteTableReference` and
 `postgreSQLDatabaseSchemaSQL` emit tokens instead of strings.
 
+The default-schema test moves into the processor, but keep both halves —
+`SQLDefaultSchemaNameToken` AND `=== postgreSQLMetadata.defaultSchemaName`.
+Pongo passes `'public'` as a real schema name until S13, which is where the
+string half is deleted.
+
 Test first, both dialects: qualified reference, default-token reference,
 explicitly-`public` reference on Postgres, create-schema.
 
@@ -219,8 +224,11 @@ Delete:
 - pongo's two `databaseMigrations.ts`, `pongoPostgreSQLMigrationBuilder`,
   `pongoSQLiteMigrationBuilder`, and the `migrationBuilder` option on `pongoDb`
 
-Required regression test: a table inside a DATABASE-level extension produces
-`CREATE TABLE` under the default schema. It is silently dropped today.
+A table inside a DATABASE-level extension produces `CREATE TABLE` under the
+default schema. FIXED IN S6, which removed the `databaseSchemaName !== undefined`
+guard as a D7 consequence and covers it with
+`qualifies a table in a database extension with the default schema token`. Do
+not write it again; keep it passing through the rewrite.
 
 Both `sqlBuilder.unit.spec.ts` files read `.migrations()`.
 
@@ -302,7 +310,8 @@ accepted divergence (explicit `public` on Postgres) asserted deliberately.
 
 Add a `migrationNamePrefix` option; pongo passes its three prefixes. Delete
 `packages/pongo/src/storage/migrationNames.ts` and all three functions,
-including the `defaultSchemaName` parameter.
+including the `defaultSchemaName` parameter and `schemaSegment`. The dumbo
+replacement tests the token only — one check, not S6's pair.
 
 Review gate R, specific question: is `migrationNamePrefix` net-negative?
 
@@ -318,6 +327,11 @@ The default schema keeps the bare name. `escapeName` and
 `SQLiteMappedNamePrefix` are deleted. `assertNativeName` stays but now rejects
 a default-schema identifier containing a dot instead of one starting with
 `dumbo_`.
+
+Keep both halves of the default-schema test here — `SQLDefaultSchemaNameToken`
+AND `=== sqliteMetadata.defaultSchemaName`. Pongo still passes `'main'` as a real
+schema name until S13; dropping the string half now renames every default-schema
+table.
 
 Test first: `crm.users` maps to `crm.users`; the default schema maps to `users`;
 a default-schema table named `a.b` is rejected; an index in `crm` maps to
@@ -338,6 +352,17 @@ Not given -> collections go into `dumboSchema.defaultSchema(...)`, names
 unchanged from `main`. Given -> explicit override, names carry the segment.
 
 `pongoDb.ts:100` stops resolving it eagerly.
+
+CLEARS S6's DUAL ENCODING. S6 made every dialect ask
+`SQLDefaultSchemaNameToken.check(x) || x === <dialect default string>`, because
+pongo still hands down `'public'` / `'main'` as a real schema name. This step
+removes that source, so delete the string half in `postgreSQLTableReference`,
+`postgreSQLDatabaseSchemaSQL` (wherever S7 and S9 left the resolution),
+`sqliteTableName` and `sqliteIndexName`. The token becomes the only encoding.
+
+Consequence, and it is a behaviour change: an EXPLICITLY given `public` / `main`
+is then a named schema and carries its segment. That is the divergence S11
+asserts deliberately — the two steps must agree on it.
 
 Test first: unnamed default, explicit override, per-collection override, and a
 scope guard proving one collection's override doesn't leak to another.

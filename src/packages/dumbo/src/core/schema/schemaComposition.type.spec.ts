@@ -1,6 +1,9 @@
 import { describe, expectTypeOf, it } from 'vitest';
-import { SQL } from '../sql';
-import type { DatabaseSchemaComponentOptions } from './components';
+import { SQL, type SQLDefaultSchemaNameToken } from '../sql';
+import type {
+  DatabaseSchemaComponentOptions,
+  DatabaseSchemaTables,
+} from './components';
 import type * as dumboPublicAPI from './index';
 import {
   dumboSchema,
@@ -60,6 +63,16 @@ describe('composing a schema through the Dumbo declaration API', () => {
         'databaseName'
       >
     >().toEqualTypeOf<never>();
+  });
+
+  it('names every schema, either explicitly or as the default one', () => {
+    expectTypeOf(dumboSchema.schema).parameter(0).toEqualTypeOf<string>();
+    expectTypeOf(dumboSchema.defaultSchema)
+      .parameter(0)
+      .toExtend<DatabaseSchemaTables>();
+    expectTypeOf(
+      dumboSchema.defaultSchema({ users }).schemaName,
+    ).toEqualTypeOf<SQLDefaultSchemaNameToken>();
   });
 
   it('declares schema columns only through dumboSchema.column', () => {

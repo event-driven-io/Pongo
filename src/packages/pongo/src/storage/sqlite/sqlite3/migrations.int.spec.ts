@@ -32,7 +32,7 @@ describe('SQLite3 migration integration', () => {
     const schema = pongoSchema.client({
       database: pongoSchema.db({
         schemas: {
-          main: pongoSchema.schema({
+          main: pongoSchema.schema('main', {
             users: pongoSchema.collection('users'),
             explicitDefaultUsers: pongoSchema.collection(
               'explicit_default_users',
@@ -46,7 +46,7 @@ describe('SQLite3 migration integration', () => {
               },
             ),
           }),
-          crm: pongoSchema.schema({
+          crm: pongoSchema.schema('crm', {
             crmUsers: pongoSchema.collection('users', {
               indexes: {
                 email: pongoSchema.index('users_email_idx', 'email'),
@@ -63,7 +63,7 @@ describe('SQLite3 migration integration', () => {
               },
             }),
           }),
-          audit: pongoSchema.schema({
+          audit: pongoSchema.schema('audit', {
             auditUsers: pongoSchema.collection('users', {
               indexes: {
                 email: pongoSchema.index('audit_users_email_idx', 'email'),

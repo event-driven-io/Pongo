@@ -1,4 +1,8 @@
-import type { IndexIdentifier, TableIdentifier } from '../../../../core';
+import {
+  SQLDefaultSchemaNameToken,
+  type IndexIdentifier,
+  type TableIdentifier,
+} from '../../../../core';
 import { sqliteMetadata } from './sqliteMetadata';
 
 const SQLiteMappedNamePrefix = 'dumbo_';
@@ -19,7 +23,10 @@ const assertNativeName = (
 
 export const sqliteTableName = (identifier: TableIdentifier): string => {
   const { databaseSchemaName, tableName } = identifier;
-  if (databaseSchemaName === sqliteMetadata.defaultSchemaName) {
+  if (
+    SQLDefaultSchemaNameToken.check(databaseSchemaName) ||
+    databaseSchemaName === sqliteMetadata.defaultSchemaName
+  ) {
     assertNativeName('table', tableName, SQLiteMappedNamePrefix);
     return tableName;
   }
@@ -29,7 +36,10 @@ export const sqliteTableName = (identifier: TableIdentifier): string => {
 
 export const sqliteIndexName = (identifier: IndexIdentifier): string => {
   const { databaseSchemaName, indexName } = identifier;
-  if (databaseSchemaName === sqliteMetadata.defaultSchemaName) {
+  if (
+    SQLDefaultSchemaNameToken.check(databaseSchemaName) ||
+    databaseSchemaName === sqliteMetadata.defaultSchemaName
+  ) {
     assertNativeName('index', indexName, SQLiteMappedNamePrefix);
     return indexName;
   }

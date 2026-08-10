@@ -1,3 +1,4 @@
+import type { SQLDefaultSchemaNameToken } from '../../sql';
 import type { ExtensionComponent } from '../extensionComponent';
 import {
   createSchemaComponent,
@@ -18,7 +19,8 @@ export type SchemaExtensions = Readonly<Record<string, ExtensionComponent>>;
 
 export type DatabaseSchemaComponent<
   Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
-  SchemaName extends string | undefined = string | undefined,
+  SchemaName extends string | SQLDefaultSchemaNameToken =
+    string | SQLDefaultSchemaNameToken,
   Extensions extends SchemaExtensions = SchemaExtensions,
 > = SchemaComponent<typeof databaseSchemaComponentType> &
   Readonly<{
@@ -29,16 +31,16 @@ export type DatabaseSchemaComponent<
 
 export type AnyDatabaseSchemaComponent = DatabaseSchemaComponent<
   DatabaseSchemaTables,
-  string | undefined,
+  string | SQLDefaultSchemaNameToken,
   SchemaExtensions
 >;
 
 export type DatabaseSchemaComponentOptions<
   Tables extends DatabaseSchemaTables,
-  SchemaName extends string | undefined,
+  SchemaName extends string | SQLDefaultSchemaNameToken,
   Extensions extends SchemaExtensions,
 > = Readonly<{
-  schemaName?: SchemaName | undefined;
+  schemaName: SchemaName;
   tables?: Tables | undefined;
   extensions?: Extensions | undefined;
 }> &
@@ -46,7 +48,7 @@ export type DatabaseSchemaComponentOptions<
 
 export const databaseSchemaComponent = <
   const Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
-  const SchemaName extends string | undefined = undefined,
+  const SchemaName extends string | SQLDefaultSchemaNameToken = string,
   const Extensions extends SchemaExtensions = SchemaExtensions,
 >(
   options: DatabaseSchemaComponentOptions<Tables, SchemaName, Extensions>,
@@ -56,11 +58,10 @@ export const databaseSchemaComponent = <
   for (const table of Object.values(tables)) {
     if (
       table.databaseSchemaName !== undefined &&
-      options.schemaName !== undefined &&
       table.databaseSchemaName !== options.schemaName
     ) {
       throw new Error(
-        `Table "${table.tableName}" is constrained to database schema "${table.databaseSchemaName}" and cannot be placed in "${options.schemaName}"`,
+        `Table "${table.tableName}" is constrained to database schema "${table.databaseSchemaName}" and cannot be placed in "${typeof options.schemaName === 'string' ? options.schemaName : 'the default schema'}"`,
       );
     }
   }
@@ -72,7 +73,7 @@ export const databaseSchemaComponent = <
       context: { databaseSchemaName: options.schemaName },
     },
     {
-      schemaName: options.schemaName as SchemaName,
+      schemaName: options.schemaName,
       tables: schemaComponentMap(tables),
       extensions: schemaComponentMap(extensions),
     },

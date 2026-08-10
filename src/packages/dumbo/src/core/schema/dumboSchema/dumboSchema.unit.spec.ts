@@ -1,12 +1,12 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
-import { SQL } from '../../sql';
+import { SQL, SQLDefaultSchemaNameToken } from '../../sql';
 import type { Equals, Expect } from '../../testing';
 import type { TableColumnNames, TableRowType } from '../components';
 import { relationship } from '../components';
 import { dumboSchema } from './index';
 
-const { database, schema, table, column, index } = dumboSchema;
+const { database, schema, defaultSchema, table, column, index } = dumboSchema;
 const { Varchar, JSONB } = SQL.column.type;
 
 describe('dumboSchema', () => {
@@ -67,8 +67,8 @@ describe('dumboSchema', () => {
     assert.ok(sch.tables.users.columns.id !== undefined);
   });
 
-  it('should create a default schema without name', () => {
-    const sch = schema({
+  it('should create a default schema carrying the default schema token', () => {
+    const sch = defaultSchema({
       users: table('users', {
         columns: {
           id: column('id', Varchar('max')),
@@ -76,7 +76,7 @@ describe('dumboSchema', () => {
       }),
     });
 
-    assert.strictEqual(sch.schemaName, undefined);
+    assert.ok(SQLDefaultSchemaNameToken.check(sch.schemaName));
     assert.strictEqual(sch.tables.users.databaseSchemaName, undefined);
     assert.deepStrictEqual(Object.keys(sch.tables), ['users']);
   });
@@ -114,8 +114,8 @@ describe('dumboSchema', () => {
     assert.ok(db.schemas.public.tables.users.columns.id !== undefined);
   });
 
-  it('should keep an unnamed reusable schema under its record key', () => {
-    const reusable = schema({
+  it('should keep a default schema under its record key', () => {
+    const reusable = defaultSchema({
       users: table('users', {
         columns: {
           id: column('id', Varchar('max')),
@@ -126,12 +126,12 @@ describe('dumboSchema', () => {
       public: reusable,
     });
 
-    assert.strictEqual(reusable.schemaName, undefined);
+    assert.ok(SQLDefaultSchemaNameToken.check(reusable.schemaName));
     assert.strictEqual(reusable.tables.users.databaseSchemaName, undefined);
     assert.strictEqual(db.databaseName, 'myapp');
     assert.deepStrictEqual(Object.keys(db.schemas), ['public']);
     assert.deepStrictEqual(db.components, [db.schemas.public]);
-    assert.strictEqual(db.schemas.public.schemaName, undefined);
+    assert.ok(SQLDefaultSchemaNameToken.check(db.schemas.public.schemaName));
     assert.strictEqual(
       db.schemas.public.tables.users.databaseSchemaName,
       undefined,
@@ -155,7 +155,7 @@ describe('dumboSchema', () => {
   });
 
   it('should preserve the reusable schema declaration', () => {
-    const reusable = schema({
+    const reusable = defaultSchema({
       users: table('users', {
         columns: {
           id: column('id', Varchar('max')),
@@ -167,7 +167,7 @@ describe('dumboSchema', () => {
       public: reusable,
     });
 
-    assert.strictEqual(reusable.schemaName, undefined);
+    assert.ok(SQLDefaultSchemaNameToken.check(reusable.schemaName));
     assert.strictEqual(reusable.tables.users.databaseSchemaName, undefined);
   });
 
@@ -215,7 +215,7 @@ const _users2 = table('users', {
 });
 
 export const simpleDb = database('myapp', {
-  public: schema({
+  public: schema('public', {
     users,
   }),
 });

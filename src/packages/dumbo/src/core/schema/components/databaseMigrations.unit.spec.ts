@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
-import { SQL } from '../../sql';
+import { SQL, SQLDefaultSchemaNameToken } from '../../sql';
 import { extensionComponent } from '../extensionComponent';
 import { sqlMigration } from '../sqlMigration';
 import { databaseComponent } from './databaseComponent';
@@ -77,10 +77,7 @@ describe('building migrations for a database hierarchy', () => {
     });
     const builder: DatabaseMigrationBuilder = {
       table: (_table, identifier) => [
-        sqlMigration(
-          `${identifier.databaseSchemaName}:${identifier.tableName}:create`,
-          [SQL`SELECT 1`],
-        ),
+        sqlMigration(`crm:${identifier.tableName}:create`, [SQL`SELECT 1`]),
       ],
     };
 
@@ -98,6 +95,57 @@ describe('building migrations for a database hierarchy', () => {
       ['crm:users:create'],
     );
     assert.deepStrictEqual(unnamed, named);
+  });
+
+  it('qualifies a table in the default schema with the default schema token', () => {
+    const database = databaseComponent({
+      schemas: {
+        main: databaseSchemaComponent({
+          schemaName: SQLDefaultSchemaNameToken.from(),
+          tables: { users: tableComponent({ tableName: 'users' }) },
+        }),
+      },
+    });
+    const seen: unknown[] = [];
+
+    databaseMigrations(database, {
+      table: (_table, identifier) => {
+        seen.push(identifier);
+        return [];
+      },
+    });
+
+    assert.deepStrictEqual(seen, [
+      {
+        databaseSchemaName: SQLDefaultSchemaNameToken.from(),
+        tableName: 'users',
+      },
+    ]);
+  });
+
+  it('qualifies a table in a database extension with the default schema token', () => {
+    const database = databaseComponent({
+      extensions: {
+        eventStore: extensionComponent('event-store', {
+          events: tableComponent({ tableName: 'events' }),
+        }),
+      },
+    });
+    const seen: unknown[] = [];
+
+    databaseMigrations(database, {
+      table: (_table, identifier) => {
+        seen.push(identifier);
+        return [];
+      },
+    });
+
+    assert.deepStrictEqual(seen, [
+      {
+        databaseSchemaName: SQLDefaultSchemaNameToken.from(),
+        tableName: 'events',
+      },
+    ]);
   });
 
   it('keeps declared migrations before driver migrations on each component', () => {

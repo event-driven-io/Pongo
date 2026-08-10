@@ -15,6 +15,7 @@ import {
   isSchemaComponent,
   isTableComponent,
   SQL,
+  SQLDefaultSchemaNameToken,
   type SQL as SQLStatement,
   type DatabaseComponent,
   type DatabaseDriverType,
@@ -133,7 +134,8 @@ export type PongoCollectionComponent<
 export type PongoSchemaComponent<
   Collections extends Readonly<Record<string, PongoCollectionComponent>> =
     Readonly<Record<string, PongoCollectionComponent>>,
-  Name extends string | undefined = string | undefined,
+  Name extends string | SQLDefaultSchemaNameToken =
+    string | SQLDefaultSchemaNameToken,
   Extensions extends SchemaExtensions = SchemaExtensions,
 > = DatabaseSchemaComponent<Collections, Name, Extensions> &
   Readonly<{ [pongoSchemaComponentType]: true }>;
@@ -346,14 +348,7 @@ pongoCollection.from = (
     collectionNames.map((name) => [name, pongoCollection(name)]),
   );
 
-function pongoDatabaseSchema<
-  const Collections extends Readonly<Record<string, PongoCollectionComponent>>,
-  const Extensions extends SchemaExtensions = EmptyComponentRecord,
->(
-  collections: Collections,
-  extensions?: Extensions,
-): PongoSchemaComponent<Collections, undefined, Extensions>;
-function pongoDatabaseSchema<
+const pongoDatabaseSchema = <
   const Collections extends Readonly<Record<string, PongoCollectionComponent>>,
   const Name extends string,
   const Extensions extends SchemaExtensions = EmptyComponentRecord,
@@ -361,34 +356,33 @@ function pongoDatabaseSchema<
   name: Name,
   collections: Collections,
   extensions?: Extensions,
-): PongoSchemaComponent<Collections, Name, Extensions>;
-function pongoDatabaseSchema(
-  nameOrCollections:
-    string | Readonly<Record<string, PongoCollectionComponent>>,
-  collectionsOrExtensions?:
-    Readonly<Record<string, PongoCollectionComponent>> | SchemaExtensions,
-  extensions?: SchemaExtensions,
-): PongoSchemaComponent {
-  const schema =
-    typeof nameOrCollections === 'string'
-      ? databaseSchemaComponent({
-          schemaName: nameOrCollections,
-          tables:
-            (collectionsOrExtensions as Readonly<
-              Record<string, PongoCollectionComponent>
-            >) ?? {},
-          extensions,
-        })
-      : databaseSchemaComponent({
-          tables: nameOrCollections,
-          extensions: collectionsOrExtensions as SchemaExtensions | undefined,
-        });
-  return withValue(
-    schema,
+): PongoSchemaComponent<Collections, Name, Extensions> =>
+  withValue(
+    databaseSchemaComponent({
+      schemaName: name,
+      tables: collections,
+      extensions,
+    }),
     pongoSchemaComponentType,
     true,
-  ) as PongoSchemaComponent;
-}
+  ) as PongoSchemaComponent<Collections, Name, Extensions>;
+
+const pongoDefaultDatabaseSchema = <
+  const Collections extends Readonly<Record<string, PongoCollectionComponent>>,
+  const Extensions extends SchemaExtensions = EmptyComponentRecord,
+>(
+  collections: Collections,
+  extensions?: Extensions,
+): PongoSchemaComponent<Collections, SQLDefaultSchemaNameToken, Extensions> =>
+  withValue(
+    databaseSchemaComponent({
+      schemaName: SQLDefaultSchemaNameToken.from(),
+      tables: collections,
+      extensions,
+    }),
+    pongoSchemaComponentType,
+    true,
+  ) as PongoSchemaComponent<Collections, SQLDefaultSchemaNameToken, Extensions>;
 
 function pongoDatabase<
   const Definition extends PongoDatabaseDefinition,
@@ -496,6 +490,7 @@ export const pongoSchema = {
   client: pongoClientSchema,
   db: pongoDatabase,
   schema: pongoDatabaseSchema,
+  defaultSchema: pongoDefaultDatabaseSchema,
   collection: pongoCollection,
   index: pongoIndexFactory,
 };

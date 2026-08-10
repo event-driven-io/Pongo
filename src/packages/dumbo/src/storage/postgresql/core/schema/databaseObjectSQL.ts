@@ -3,6 +3,7 @@ import {
   isJSONDocumentIndexTarget,
   isJSONPathIndexTarget,
   SQL,
+  SQLDefaultSchemaNameToken,
   type AnyIndexComponent,
   type AnyTableComponent,
   type DatabaseSchemaIdentifier,
@@ -14,7 +15,8 @@ import { postgreSQLMetadata } from './postgreSQLMetadata';
 
 export const postgreSQLTableReference = (identifier: TableIdentifier): SQL => {
   const { databaseSchemaName, tableName } = identifier;
-  return databaseSchemaName === postgreSQLMetadata.defaultSchemaName
+  return SQLDefaultSchemaNameToken.check(databaseSchemaName) ||
+    databaseSchemaName === postgreSQLMetadata.defaultSchemaName
     ? SQL`${SQL.identifier(tableName)}`
     : SQL`${SQL.identifier(databaseSchemaName)}.${SQL.identifier(tableName)}`;
 };
@@ -24,10 +26,13 @@ export const postgreSQLIndexReference = (identifier: IndexIdentifier): SQL =>
 
 export const postgreSQLDatabaseSchemaSQL = (
   identifier: DatabaseSchemaIdentifier,
-): SQL | undefined =>
-  identifier.databaseSchemaName === postgreSQLMetadata.defaultSchemaName
+): SQL | undefined => {
+  const { databaseSchemaName } = identifier;
+  return SQLDefaultSchemaNameToken.check(databaseSchemaName) ||
+    databaseSchemaName === postgreSQLMetadata.defaultSchemaName
     ? undefined
-    : SQL`CREATE SCHEMA IF NOT EXISTS ${SQL.identifier(identifier.databaseSchemaName)}`;
+    : SQL`CREATE SCHEMA IF NOT EXISTS ${SQL.identifier(databaseSchemaName)}`;
+};
 
 export const postgreSQLTableSQL = (
   component: AnyTableComponent,

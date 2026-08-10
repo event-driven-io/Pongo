@@ -1,3 +1,4 @@
+import { SQLDefaultSchemaNameToken } from '../../sql';
 import { haveSameSQL, type SQLMigration } from '../sqlMigration';
 import type { AnySchemaComponent } from '../schemaComponent';
 import type { AnyDatabaseComponent } from './databaseComponent';
@@ -9,7 +10,7 @@ import { isIndexComponent, type AnyIndexComponent } from './indexComponent';
 import { isTableComponent, type AnyTableComponent } from './tableComponent';
 
 export type DatabaseSchemaIdentifier = Readonly<{
-  databaseSchemaName: string;
+  databaseSchemaName: string | SQLDefaultSchemaNameToken;
 }>;
 
 export type TableIdentifier = DatabaseSchemaIdentifier &
@@ -58,7 +59,7 @@ export const databaseMigrations = (
 
   const visit = (
     component: AnySchemaComponent,
-    databaseSchemaName: string | undefined,
+    databaseSchemaName: string | SQLDefaultSchemaNameToken,
     tableName: string | undefined,
   ): void => {
     if (visited.has(component)) return;
@@ -72,30 +73,20 @@ export const databaseMigrations = (
       databaseSchemaName = component.schemaName;
     if (isTableComponent(component)) tableName = component.tableName;
 
-    if (
-      isDatabaseSchemaComponent(component) &&
-      databaseSchemaName !== undefined
-    ) {
+    if (isDatabaseSchemaComponent(component)) {
       for (const migration of builder.databaseSchema?.(component, {
         databaseSchemaName,
       }) ?? []) {
         addMigration(result, migrationsByName, migration);
       }
-    } else if (
-      isTableComponent(component) &&
-      databaseSchemaName !== undefined
-    ) {
+    } else if (isTableComponent(component)) {
       for (const migration of builder.table?.(component, {
         databaseSchemaName,
         tableName: component.tableName,
       }) ?? []) {
         addMigration(result, migrationsByName, migration);
       }
-    } else if (
-      isIndexComponent(component) &&
-      databaseSchemaName !== undefined &&
-      tableName !== undefined
-    ) {
+    } else if (isIndexComponent(component) && tableName !== undefined) {
       for (const migration of builder.index?.(component, {
         databaseSchemaName,
         tableName,
@@ -110,6 +101,6 @@ export const databaseMigrations = (
     }
   };
 
-  visit(database, undefined, undefined);
+  visit(database, SQLDefaultSchemaNameToken.from(), undefined);
   return result;
 };

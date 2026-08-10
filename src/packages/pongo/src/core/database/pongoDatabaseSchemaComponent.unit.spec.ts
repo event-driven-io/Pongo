@@ -71,8 +71,8 @@ describe('composing a Pongo database hierarchy', () => {
     const database = compose(
       pongoSchema.db('app', {
         schemas: {
-          crm: pongoSchema.schema({ users: crmUsers }),
-          audit: pongoSchema.schema({ users: auditUsers }),
+          crm: pongoSchema.schema('crm', { users: crmUsers }),
+          audit: pongoSchema.schema('audit', { users: auditUsers }),
         },
       }),
     );
@@ -93,7 +93,7 @@ describe('composing a Pongo database hierarchy', () => {
         compose(
           pongoSchema.db('app', {
             schemas: {
-              crm: pongoSchema.schema({
+              crm: pongoSchema.schema('crm', {
                 users: pongoSchema.collection('users', {
                   databaseSchemaName: 'audit',
                 }),
@@ -114,7 +114,7 @@ describe('composing a Pongo database hierarchy', () => {
     const database = compose(
       pongoSchema.db('app', {
         schemas: {
-          crm: pongoSchema.schema({ crmUsers: users }),
+          crm: pongoSchema.schema('crm', { crmUsers: users }),
         },
       }),
     );
@@ -138,6 +138,7 @@ describe('composing a Pongo database hierarchy', () => {
         {
           schemas: {
             crm: pongoSchema.schema(
+              'crm',
               { users: pongoSchema.collection('users') },
               { audit },
             ),

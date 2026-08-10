@@ -44,7 +44,7 @@ const databaseWithCollection = <const Indexes extends PongoCollectionIndexes>(
       defaultSchemaName: 'public',
       definition: pongoSchema.db({
         schemas: {
-          [schemaName]: pongoSchema.schema({ collection }),
+          [schemaName]: pongoSchema.schema(schemaName, { collection }),
         },
       }),
     }),

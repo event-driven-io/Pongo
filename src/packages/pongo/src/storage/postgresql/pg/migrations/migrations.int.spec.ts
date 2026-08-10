@@ -35,7 +35,7 @@ describe('Migration Integration Tests', () => {
   const schema = pongoSchema.client({
     database: pongoSchema.db({
       schemas: {
-        public: pongoSchema.schema({
+        public: pongoSchema.schema('public', {
           users: pongoSchema.collection('users'),
           explicitDefaultUsers: pongoSchema.collection(
             'explicit_default_users',
@@ -47,8 +47,8 @@ describe('Migration Integration Tests', () => {
           ),
           roles: pongoSchema.collection('roles'),
         }),
-        crm: pongoSchema.schema({ crmUsers }),
-        audit: pongoSchema.schema({
+        crm: pongoSchema.schema('crm', { crmUsers }),
+        audit: pongoSchema.schema('audit', {
           auditUsers: pongoSchema.collection('users', {
             indexes: {
               email: pongoSchema.index('audit_users_email_idx', 'email'),

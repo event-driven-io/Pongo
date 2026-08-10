@@ -121,16 +121,31 @@ What that work left behind, now owed:
 
 **Line delta (S5 alone, production files):** **−32**.
 
-## S6 — Schema names are required; `defaultSchema` exists
-- [ ] Tests written and failing (no-compile, defaultSchema, key/name throw, no name segment)
-- [ ] `schemaName: string | SQLDefaultSchemaNameToken`, always present
-- [ ] Nameless overload deleted from `dumboSchema.schema` and `pongoSchema.schema`
-- [ ] `dumboSchema.defaultSchema` added
-- [ ] `SchemaComponentContext.databaseSchemaName` widened to include the token
-- [ ] Key-vs-name check at `databaseComponent.ts:69-73` is total
-- [ ] Every nameless-schema fixture rewritten in this step
-- [ ] Gate: build, fix, unit, **int**
-- [ ] Review gate R — verdict: ____
+## S6 — Schema names are required; `defaultSchema` exists — **done**
+- [x] Tests written and failing first — `names every schema, either explicitly or as the default one` (type spec), `should create a default schema carrying the default schema token` (`dumboSchema.unit.spec.ts`), `gives the default schema no segment` (`migrationNames.unit.spec.ts`), and two identifier tests in `databaseMigrations.unit.spec.ts`
+- [x] `schemaName: string | SQLDefaultSchemaNameToken`, always present, on `DatabaseSchemaComponent`, its options and `PongoSchemaComponent`
+- [x] Nameless overload deleted from `dumboSchema.schema` and `pongoSchema.schema` — both are now plain generic functions, not overload sets
+- [x] `dumboSchema.defaultSchema` and `pongoSchema.defaultSchema` added
+- [x] `dumboSchema.schema.from` takes a required name; its `undefined` branch is gone
+- [x] `SchemaComponentContext.databaseSchemaName` and `IndexSQLContext.databaseSchemaName` widened to include the token
+- [x] Key-vs-name check in `databaseComponent` is total over string names
+- [x] `databaseMigrations` seeds the walk with the token, so the three `databaseSchemaName !== undefined` guards are gone and a table in a database-level extension is no longer silently dropped
+- [x] Every nameless-schema fixture rewritten in this step — 26 call sites across dumbo and pongo specs
+- [x] Gate: build green, `npm run fix` green, unit **1009/1009**, `test:int:sqlite` 43/47 files (only the four pre-existing D1 `D1TransactionNotSupportedError` failures)
+- [x] Review gate R — verdict: **pass, with one flag**. No invented concept: `SQLDefaultSchemaNameToken` already existed in `sqlToken.ts`, declared but never consumed; this step is what consumes it. The one new name is `schemaSegment`, module-private to `migrationNames.ts`, which replaces the `=== defaultSchemaName` comparison duplicated across the three name builders and makes the token rule total. No remnant of the nameless schema: it is unrepresentable in the type.
+
+**Flag — "default schema" now has two encodings at the dialect boundary.** `postgreSQLTableReference`, `postgreSQLDatabaseSchemaSQL`, `sqliteTableName`, `sqliteIndexName` and `schemaSegment` each ask `SQLDefaultSchemaNameToken.check(x) || x === <dialect default string>`, because pongo still resolves `defaultSchemaName` eagerly to `'public'` / `'main'`. S7 moves the token side into the formatter and S13/S14 stop the eager resolution, at which point the string half of each condition goes. This is transitional by plan order, not a workaround left behind.
+
+**Regression fixed here rather than in S9.** S9's plan text lists "a table inside a DATABASE-level extension produces `CREATE TABLE` under the default schema" as its required regression test, calling it "silently dropped today". Removing the `databaseSchemaName !== undefined` guard is a D7 consequence, so the fix and its test (`qualifies a table in a database extension with the default schema token`) land here. S9 should not duplicate it.
+
+**Renamed tests, with reason** — the nameless schema they described no longer exists:
+- `should create a default schema without name` → `should create a default schema carrying the default schema token`
+- `should keep an unnamed reusable schema under its record key` → `should keep a default schema under its record key`
+- `keeps an unnamed schema under its typed database record key` → `keeps a default schema under its typed database record key`
+- `declares an unnamed reusable schema component` → `declares a reusable default schema component`
+- `keeps an unnamed reusable schema under its database record key` → `keeps a reusable default schema under its database record key`
+
+**Line delta (S6 alone, production files):** **+5** (+117 / −112). The growth is the dual encoding above: five two-line conditions where there was one. `databaseMigrations.ts` (−9), `dumboSchema.ts` (−7) and `pongo/core/schema/index.ts` (−5) all shrank; `sqliteObjectNames.ts` (+10) and `migrationNames.ts` (+6) paid for it. S7 and S13 take it back.
 
 ## S7 — `SQLTableReference` + `SQLCreateSchema`
 - [ ] Existing processor registry read first — no second dispatch mechanism
@@ -211,6 +226,7 @@ Runs **after S9**, not after S3. `databaseMigrations.ts` gets a component's own 
 - [ ] `defaultSchemaName` optional throughout `pongoDb`
 - [ ] `pongoDb.ts:100` no longer resolves it eagerly
 - [ ] Collections without one go into `dumboSchema.defaultSchema(...)`
+- [ ] **Clears S6's dual encoding.** Delete the `|| x === <dialect default string>` half of the default-schema test in `postgreSQLTableReference`, `postgreSQLDatabaseSchemaSQL` (wherever S7/S9 left the resolution), `sqliteTableName` and `sqliteIndexName`. Once pongo stops passing `'public'` / `'main'` as a real schema name, the token is the only encoding, and an explicitly given `public` / `main` becomes a named schema that carries its segment — the divergence S11 asserts deliberately.
 - [ ] Gate: build, fix, unit, **int**
 - [ ] Review gate R — verdict: ____
 
