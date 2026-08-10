@@ -64,7 +64,7 @@ const databaseInSchemaWithIndexes = <
       defaultSchemaName: 'main',
       definition: pongoSchema.db({
         schemas: {
-          [schemaName]: pongoSchema.schema({ collection }),
+          [schemaName]: pongoSchema.schema(schemaName, { collection }),
         },
       }),
     }),

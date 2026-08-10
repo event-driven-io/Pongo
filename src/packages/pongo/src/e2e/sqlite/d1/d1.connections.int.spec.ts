@@ -118,10 +118,10 @@ describe('Pongo D1 connections', () => {
         definition: pongoSchema.client({
           database: pongoSchema.db({
             schemas: {
-              main: pongoSchema.schema({
+              main: pongoSchema.schema('main', {
                 users: pongoSchema.collection(collectionName),
               }),
-              crm: pongoSchema.schema({
+              crm: pongoSchema.schema('crm', {
                 crmUsers: pongoSchema.collection(collectionName, {
                   indexes: {
                     email: pongoSchema.index(emailIndexName, 'email'),

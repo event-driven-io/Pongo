@@ -49,7 +49,7 @@ describe('typing Pongo declarations and projected databases', () => {
   it('types named schema scopes without promoting their collections', () => {
     const grouped = pongoSchema.db('app', {
       schemas: {
-        public: pongoSchema.schema({
+        public: pongoSchema.schema('public', {
           users: pongoSchema.collection<User>('users'),
         }),
       },
@@ -105,7 +105,7 @@ describe('typing Pongo declarations and projected databases', () => {
   it('does not expose internal schema maps or default names at runtime', () => {
     const _grouped = pongoSchema.db('app', {
       schemas: {
-        public: pongoSchema.schema({
+        public: pongoSchema.schema('public', {
           users: pongoSchema.collection<User>('users'),
         }),
       },

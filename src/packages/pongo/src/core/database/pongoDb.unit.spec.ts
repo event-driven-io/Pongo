@@ -97,7 +97,7 @@ const createTestDb = (options?: {
         isPongoCollectionComponent(component)
           ? [
               sqlMigration(
-                `${identifier.databaseSchemaName}.${component.tableName}:table`,
+                `${typeof identifier.databaseSchemaName === 'string' ? identifier.databaseSchemaName : 'default'}.${component.tableName}:table`,
                 [SQL`SELECT 1`],
               ),
             ]
@@ -278,7 +278,7 @@ describe('using a Pongo database', () => {
     const { db } = createTestDb({
       definition: pongoSchema.db('test', {
         schemas: {
-          crm: pongoSchema.schema({
+          crm: pongoSchema.schema('crm', {
             customerDirectory: users,
           }),
         },

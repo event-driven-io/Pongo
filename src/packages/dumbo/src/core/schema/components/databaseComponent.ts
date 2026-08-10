@@ -56,7 +56,10 @@ export const databaseComponent = <
   const schemas = (options.schemas ?? {}) as Schemas;
   const databaseName = options.databaseName;
   for (const [schemaName, schema] of Object.entries(schemas)) {
-    if (schema.schemaName !== undefined && schema.schemaName !== schemaName) {
+    if (
+      typeof schema.schemaName === 'string' &&
+      schema.schemaName !== schemaName
+    ) {
       throw new Error(
         `Database schema record key "${schemaName}" conflicts with its explicit name "${schema.schemaName}"`,
       );

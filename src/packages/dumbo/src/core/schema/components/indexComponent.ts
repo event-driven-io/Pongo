@@ -1,4 +1,4 @@
-import type { SQL } from '../../sql';
+import type { SQL, SQLDefaultSchemaNameToken } from '../../sql';
 import {
   createSchemaComponent,
   schemaComponentType,
@@ -62,7 +62,7 @@ export const isJSONDocumentIndexTarget = (
 ): target is JSONDocumentIndexTarget => jsonDocumentIndexTargetType in target;
 
 export type IndexSQLContext = Readonly<{
-  databaseSchemaName: string;
+  databaseSchemaName: string | SQLDefaultSchemaNameToken;
   tableName: string;
   indexName: string;
   tableReference: SQL;

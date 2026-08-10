@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { describe, expectTypeOf, it } from 'vitest';
-import { SQL } from '../sql';
+import { SQL, SQLDefaultSchemaNameToken } from '../sql';
 import {
   SchemaComponentMigrator,
   columnSchemaComponent,
@@ -240,6 +240,7 @@ describe('composing schema components', () => {
       indexes: { emailLookup: emailIndex },
     });
     const publicSchema = databaseSchemaComponent({
+      schemaName: 'public',
       tables: { users },
       extensions: {},
     });
@@ -584,18 +585,23 @@ describe('placing reusable declarations in the database hierarchy', () => {
     assert.strictEqual(database.schemas.crm.schemaName, 'crm');
   });
 
-  it('keeps an unnamed schema under its typed database record key', () => {
+  it('keeps a default schema under its typed database record key', () => {
     const users = tableComponent({ tableName: 'users' });
-    const reusable = databaseSchemaComponent({ tables: { users } });
+    const reusable = databaseSchemaComponent({
+      schemaName: SQLDefaultSchemaNameToken.from(),
+      tables: { users },
+    });
     const database = databaseComponent({
       databaseName: 'app',
       schemas: { public: reusable },
     });
 
-    assert.strictEqual(reusable.schemaName, undefined);
+    assert.ok(SQLDefaultSchemaNameToken.check(reusable.schemaName));
     assert.strictEqual(users.databaseSchemaName, undefined);
     assert.deepStrictEqual(database.components, [database.schemas.public]);
-    assert.strictEqual(database.schemas.public.schemaName, undefined);
+    assert.ok(
+      SQLDefaultSchemaNameToken.check(database.schemas.public.schemaName),
+    );
     assert.strictEqual(database.schemas.public.tables.users.tableName, 'users');
   });
 

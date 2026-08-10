@@ -8,6 +8,7 @@ import {
   isJSONPathIndexTarget,
   isTableComponent,
   SQL,
+  SQLDefaultSchemaNameToken,
 } from '@event-driven-io/dumbo';
 import { describe, expectTypeOf, it } from 'vitest';
 import {
@@ -162,28 +163,30 @@ describe('declaring Pongo collections', () => {
 });
 
 describe('declaring Pongo schemas and databases', () => {
-  it('declares an unnamed reusable schema component', () => {
-    const schema = pongoSchema.schema({
+  it('declares a reusable default schema component', () => {
+    const schema = pongoSchema.defaultSchema({
       users: pongoSchema.collection<User>('users'),
     });
 
     assert.strictEqual(isDatabaseSchemaComponent(schema), true);
     assert.strictEqual(isPongoSchemaComponent(schema), true);
-    assert.strictEqual(schema.schemaName, undefined);
+    assert.ok(SQLDefaultSchemaNameToken.check(schema.schemaName));
     assert.strictEqual(schema[pongoSchemaComponentType], true);
   });
 
-  it('keeps an unnamed reusable schema under its database record key', () => {
-    const reusable = pongoSchema.schema({
+  it('keeps a reusable default schema under its database record key', () => {
+    const reusable = pongoSchema.defaultSchema({
       users: pongoSchema.collection<User>('users'),
     });
     const database = pongoSchema.db('app', {
       schemas: { public: reusable },
     });
 
-    assert.strictEqual(reusable.schemaName, undefined);
+    assert.ok(SQLDefaultSchemaNameToken.check(reusable.schemaName));
     assert.deepStrictEqual(database.components, [database.schemas.public]);
-    assert.strictEqual(database.schemas.public.schemaName, undefined);
+    assert.ok(
+      SQLDefaultSchemaNameToken.check(database.schemas.public.schemaName),
+    );
     assert.strictEqual(
       database.schemas.public.tables.users.databaseSchemaName,
       undefined,
@@ -224,10 +227,10 @@ describe('declaring Pongo schemas and databases', () => {
   it('does not promote collections from named schemas onto the database', () => {
     const database = pongoSchema.db('app', {
       schemas: {
-        crm: pongoSchema.schema({
+        crm: pongoSchema.schema('crm', {
           users: pongoSchema.collection<User>('users'),
         }),
-        audit: pongoSchema.schema({
+        audit: pongoSchema.schema('audit', {
           users: pongoSchema.collection<User>('users'),
         }),
       },
@@ -268,7 +271,7 @@ describe('declaring Pongo schemas and databases', () => {
   it('leaves frozen collection and schema source records unchanged', () => {
     const users = pongoSchema.collection<User>('users');
     const collections = Object.freeze({ users });
-    const publicSchema = pongoSchema.schema(collections);
+    const publicSchema = pongoSchema.schema('public', collections);
     const schemas = Object.freeze({ public: publicSchema });
 
     pongoSchema.db('app', { schemas });
