@@ -72,10 +72,10 @@ describe('composing schema components', () => {
     const secondMigration = sqlMigration('second:001', [SQL`SELECT 2`]);
     const root = schemaComponent({
       migrations: () => [rootMigration],
-      components: {
-        first: schemaComponent({ migrations: () => [firstMigration] }),
-        second: schemaComponent({ migrations: () => [secondMigration] }),
-      },
+      components: [
+        schemaComponent({ migrations: () => [firstMigration] }),
+        schemaComponent({ migrations: () => [secondMigration] }),
+      ],
     });
 
     assert.deepStrictEqual(root.migrations(), [
@@ -85,30 +85,25 @@ describe('composing schema components', () => {
     ]);
   });
 
-  it('runs a shared child migration once when the child has multiple aliases', () => {
+  it('runs a shared child migration once when the child is declared twice', () => {
     const migration = sqlMigration('child:001', [SQL`SELECT 1`]);
     const child = schemaComponent({ migrations: () => [migration] });
-    const root = schemaComponent({
-      components: { child, childAgain: child },
-    });
+    const root = schemaComponent({ components: [child, child] });
 
     assert.deepStrictEqual(root.migrations(), [migration]);
-    assert.deepStrictEqual(Object.keys(root.components), [
-      'child',
-      'childAgain',
-    ]);
+    assert.deepStrictEqual(root.components, [child, child]);
   });
 
   it('rejects two different migrations that would share one ledger identity', () => {
     const root = schemaComponent({
-      components: {
-        first: schemaComponent({
+      components: [
+        schemaComponent({
           migrations: () => [sqlMigration('duplicate:001', [SQL`SELECT 1`])],
         }),
-        second: schemaComponent({
+        schemaComponent({
           migrations: () => [sqlMigration('duplicate:001', [SQL`SELECT 2`])],
         }),
-      },
+      ],
     });
 
     assert.throws(
@@ -120,10 +115,10 @@ describe('composing schema components', () => {
   it('accepts one migration reused by multiple components', () => {
     const migration = sqlMigration('shared:001', [SQL`SELECT 1`]);
     const root = schemaComponent({
-      components: {
-        first: schemaComponent({ migrations: () => [migration] }),
-        second: schemaComponent({ migrations: () => [migration] }),
-      },
+      components: [
+        schemaComponent({ migrations: () => [migration] }),
+        schemaComponent({ migrations: () => [migration] }),
+      ],
     });
 
     assert.deepStrictEqual(root.migrations(), [migration]);
@@ -131,14 +126,14 @@ describe('composing schema components', () => {
 
   it('applies an identical migration declared in two components only once', () => {
     const root = schemaComponent({
-      components: {
-        first: schemaComponent({
+      components: [
+        schemaComponent({
           migrations: () => [sqlMigration('same:001', [SQL`SELECT 1`])],
         }),
-        second: schemaComponent({
+        schemaComponent({
           migrations: () => [sqlMigration('same:001', [SQL`SELECT 1`])],
         }),
-      },
+      ],
     });
 
     assert.deepStrictEqual(root.migrations(), [
@@ -148,20 +143,20 @@ describe('composing schema components', () => {
 
   it('applies a repeated migration in the order it was first declared', () => {
     const root = schemaComponent({
-      components: {
-        first: schemaComponent({
+      components: [
+        schemaComponent({
           migrations: () => [
             sqlMigration('same:001', [SQL`SELECT 1`]),
             sqlMigration('first:002', [SQL`SELECT 2`]),
           ],
         }),
-        second: schemaComponent({
+        schemaComponent({
           migrations: () => [
             sqlMigration('second:003', [SQL`SELECT 3`]),
             sqlMigration('same:001', [SQL`SELECT 1`]),
           ],
         }),
-      },
+      ],
     });
 
     assert.deepStrictEqual(
@@ -175,10 +170,10 @@ describe('composing schema components', () => {
       migrations: () => [sqlMigration('child:001', [SQL`SELECT 1`])],
     });
     const root = schemaComponent({
-      components: {
-        left: schemaComponent({ components: { child } }),
-        right: schemaComponent({ components: { child } }),
-      },
+      components: [
+        schemaComponent({ components: [child] }),
+        schemaComponent({ components: [child] }),
+      ],
     });
 
     assert.deepStrictEqual(
@@ -189,41 +184,44 @@ describe('composing schema components', () => {
 
   it('accesses declared children through typed record aliases', () => {
     const users = tableComponent({ tableName: 'users' });
-    const root = schemaComponent({ components: { users } });
+    const schema = databaseSchemaComponent({
+      schemaName: 'public',
+      tables: { users },
+    });
 
-    expectTypeOf(root.components.users).toEqualTypeOf(users);
-    assert.strictEqual(root.components.users.tableName, 'users');
-    assert.deepStrictEqual(Object.keys(root.components), ['users']);
-    assert.strictEqual(Object.getPrototypeOf(root.components), null);
+    expectTypeOf(schema.tables.users).toEqualTypeOf(users);
+    assert.strictEqual(schema.tables.users.tableName, 'users');
+    assert.deepStrictEqual(Object.keys(schema.tables), ['users']);
+    assert.strictEqual(Object.getPrototypeOf(schema.tables), null);
   });
 
   it('accepts domain aliases that overlap collection and object API names', () => {
-    const entries = schemaComponent();
-    const get = schemaComponent();
-    const size = schemaComponent();
-    const constructor = schemaComponent();
-    const root = schemaComponent({
-      components: { entries, get, size, constructor },
+    const entries = tableComponent({ tableName: 'entries' });
+    const get = tableComponent({ tableName: 'get' });
+    const size = tableComponent({ tableName: 'size' });
+    const constructor = tableComponent({ tableName: 'constructor' });
+    const schema = databaseSchemaComponent({
+      schemaName: 'public',
+      tables: { entries, get, size, constructor },
     });
 
-    assert.strictEqual(root.components.entries, entries);
-    assert.strictEqual(root.components.get, get);
-    assert.strictEqual(root.components.size, size);
-    assert.strictEqual(root.components.constructor, constructor);
+    assert.strictEqual(schema.tables.entries, entries);
+    assert.strictEqual(schema.tables.get, get);
+    assert.strictEqual(schema.tables.size, size);
+    assert.strictEqual(schema.tables.constructor, constructor);
   });
 
   it('keeps a composed declaration read-only after construction', () => {
     const child = schemaComponent();
-    const root = schemaComponent({ components: { child } });
+    const root = schemaComponent({ components: [child] });
 
     assert.strictEqual('addComponent' in root, false);
     assert.strictEqual('addMigration' in root, false);
     assert.strictEqual(Object.isFrozen(root.components), true);
     assert.throws(() => {
-      (root.components as unknown as Record<string, AnySchemaComponent>).other =
-        schemaComponent();
+      (root.components as AnySchemaComponent[]).push(schemaComponent());
     }, TypeError);
-    assert.deepStrictEqual(Object.keys(root.components), ['child']);
+    assert.deepStrictEqual(root.components, [child]);
   });
 
   it('keeps each ownership record immutable after composition', () => {
@@ -259,14 +257,13 @@ describe('composing schema components', () => {
     assert.strictEqual(Object.isFrozen(users.indexes), true);
   });
 
-  it('composes a frozen child record without changing it', () => {
+  it('composes a frozen child list without changing it', () => {
     const child = schemaComponent();
-    const source = Object.freeze({ child });
+    const source = Object.freeze([child]);
     const root = schemaComponent({ components: source });
 
-    assert.deepStrictEqual(Object.keys(source), ['child']);
-    assert.strictEqual(source.child, child);
-    assert.deepStrictEqual(Object.keys(root.components), ['child']);
+    assert.deepStrictEqual(source, [child]);
+    assert.deepStrictEqual(root.components, [child]);
   });
 });
 
@@ -285,10 +282,10 @@ describe('exposing a component as a plain frozen value', () => {
     const secondChild = sqlMigration('second:001', [SQL`SELECT 2`]);
     const root = schemaComponent({
       migrations: () => [own],
-      components: {
-        first: schemaComponent({ migrations: () => [firstChild] }),
-        second: schemaComponent({ migrations: () => [secondChild] }),
-      },
+      components: [
+        schemaComponent({ migrations: () => [firstChild] }),
+        schemaComponent({ migrations: () => [secondChild] }),
+      ],
     });
 
     assert.deepStrictEqual(root.migrations(), [own, firstChild, secondChild]);
@@ -301,11 +298,11 @@ describe('exposing a component as a plain frozen value', () => {
     const leaf = schemaComponent({ migrations: () => [leafMigration] });
     const middle = schemaComponent({
       migrations: () => [middleMigration],
-      components: { leaf },
+      components: [leaf],
     });
     const root = schemaComponent({
       migrations: () => [rootMigration],
-      components: { middle },
+      components: [middle],
     });
 
     assert.deepStrictEqual(middle.migrations(), [
@@ -338,24 +335,22 @@ describe('exposing a component as a plain frozen value', () => {
   it('declares against the component it is read from, not the one it was built from', () => {
     const original = schemaComponent({
       migrations: (self) => [
-        sqlMigration(`declared:${Object.keys(self.components).join()}`, [
-          SQL`SELECT 1`,
-        ]),
+        sqlMigration(`declared:${self.components.length}`, [SQL`SELECT 1`]),
       ],
-      components: { first: schemaComponent() },
+      components: [schemaComponent()],
     });
     const clone = Object.freeze({
       ...original,
-      components: Object.freeze({ second: schemaComponent() }),
+      components: Object.freeze([schemaComponent(), schemaComponent()]),
     }) as AnySchemaComponent;
 
     assert.deepStrictEqual(
       original.migrations().map((migration) => migration.name),
-      ['declared:first'],
+      ['declared:1'],
     );
     assert.deepStrictEqual(
       clone.migrations().map((migration) => migration.name),
-      ['declared:second'],
+      ['declared:2'],
     );
   });
 
@@ -364,7 +359,7 @@ describe('exposing a component as a plain frozen value', () => {
     const child = schemaComponent();
     const root = schemaComponent({
       migrations: () => [migration],
-      components: { child },
+      components: [child],
     });
 
     assert.strictEqual(Object.isFrozen(root), true);
@@ -389,7 +384,7 @@ describe('exposing a component as a plain frozen value', () => {
   it('exposes migrations as a method and never as an accessor', () => {
     const component = schemaComponent({
       migrations: () => [sqlMigration('root:001', [SQL`SELECT 1`])],
-      components: { child: tableComponent({ tableName: 'users' }) },
+      components: [tableComponent({ tableName: 'users' })],
     });
 
     assert.strictEqual(typeof component.migrations, 'function');
@@ -433,18 +428,11 @@ describe('grouping components in extensions', () => {
       extensions: { eventStore },
     });
 
-    expectTypeOf(eventStore.components.eventStore).toEqualTypeOf(
+    assert.deepStrictEqual(eventStore.components, [
       eventStoreSchema,
-    );
-    expectTypeOf(eventStore.components.checkpoints).toEqualTypeOf(checkpoints);
-    assert.strictEqual(
-      eventStore.components.eventStore.schemaName,
-      'event_store',
-    );
-    assert.strictEqual(
-      database.extensions.eventStore,
-      database.components.eventStore,
-    );
+      checkpoints,
+    ]);
+    assert.deepStrictEqual(database.components, [eventStore]);
     assert.strictEqual(
       database.extensions.eventStore.extensionName,
       'event-store',
@@ -461,7 +449,7 @@ describe('grouping components in extensions', () => {
     });
 
     assert.deepStrictEqual(Object.keys(schema.tables), []);
-    assert.strictEqual(schema.extensions.audit, schema.components.audit);
+    assert.deepStrictEqual(schema.components, [audit]);
     assert.strictEqual(schema.extensions.audit.extensionName, 'audit');
   });
 
@@ -476,8 +464,7 @@ describe('grouping components in extensions', () => {
       usersAgain: users,
     });
 
-    assert.strictEqual(extension.components.users.tableName, 'users');
-    assert.strictEqual(extension.components.usersAgain.tableName, 'users');
+    assert.deepStrictEqual(extension.components, [users, users]);
     assert.deepStrictEqual(extension.migrations(), [migration]);
   });
 
@@ -491,7 +478,11 @@ describe('grouping components in extensions', () => {
   });
 
   it('finds tables and extensions nested inside another extension', () => {
-    const auditLog = tableComponent({ tableName: 'audit_log' });
+    const migration = sqlMigration('audit_log:001', [SQL`SELECT 1`]);
+    const auditLog = tableComponent({
+      tableName: 'audit_log',
+      migrations: () => [migration],
+    });
     const nested = extensionComponent('nested-audit', { auditLog });
     const audit = extensionComponent('audit', { nested });
     const schema = databaseSchemaComponent({
@@ -501,14 +492,7 @@ describe('grouping components in extensions', () => {
 
     assert.deepStrictEqual(Object.keys(schema.tables), []);
     assert.strictEqual(schema.extensions.audit.extensionName, 'audit');
-    assert.strictEqual(
-      schema.extensions.audit.components.nested.extensionName,
-      'nested-audit',
-    );
-    assert.strictEqual(
-      schema.extensions.audit.components.nested.components.auditLog.tableName,
-      'audit_log',
-    );
+    assert.deepStrictEqual(schema.migrations(), [migration]);
   });
 
   it('accepts the same direct extension-map shape on databases and schemas', () => {
@@ -532,10 +516,7 @@ describe('grouping components in extensions', () => {
       database.schemas.crm.extensions.audit.extensionName,
       'audit',
     );
-    assert.deepStrictEqual(Object.keys(database.components), [
-      'crm',
-      'eventStore',
-    ]);
+    assert.deepStrictEqual(database.components, [schema, eventStore]);
   });
 
   it('runs schema extensions before database extensions in structural order', () => {
@@ -599,9 +580,7 @@ describe('placing reusable declarations in the database hierarchy', () => {
       schemas: { crm: declaration },
     });
 
-    assert.strictEqual(declaration.databaseName, undefined);
-    assert.strictEqual(database.schemas.crm, database.components.crm);
-    assert.strictEqual(database.schemas.crm.databaseName, undefined);
+    assert.deepStrictEqual(database.components, [database.schemas.crm]);
     assert.strictEqual(database.schemas.crm.schemaName, 'crm');
   });
 
@@ -615,7 +594,7 @@ describe('placing reusable declarations in the database hierarchy', () => {
 
     assert.strictEqual(reusable.schemaName, undefined);
     assert.strictEqual(users.databaseSchemaName, undefined);
-    assert.strictEqual(database.schemas.public, database.components.public);
+    assert.deepStrictEqual(database.components, [database.schemas.public]);
     assert.strictEqual(database.schemas.public.schemaName, undefined);
     assert.strictEqual(database.schemas.public.tables.users.tableName, 'users');
   });
@@ -677,22 +656,6 @@ describe('placing reusable declarations in the database hierarchy', () => {
           },
         }),
       /constrained to database schema "audit".*placed in "public\.users"/,
-    );
-  });
-
-  it('rejects placing a schema under a database other than its constraint', () => {
-    const audit = databaseSchemaComponent({
-      schemaName: 'audit',
-      databaseName: 'other',
-    });
-
-    assert.throws(
-      () =>
-        databaseComponent({
-          databaseName: 'app',
-          schemas: { audit },
-        }),
-      /constrained to database "other".*placed in "app"/,
     );
   });
 
@@ -763,40 +726,6 @@ describe('placing reusable declarations in the database hierarchy', () => {
     assert.strictEqual(auditSchema.tables.users.tableName, 'users');
   });
 
-  it('rejects using one alias for both a schema and a database extension', () => {
-    const auditSchema = databaseSchemaComponent({ schemaName: 'audit' });
-    const auditExtension = extensionWith('audit-extension');
-
-    assert.throws(
-      () =>
-        databaseComponent({
-          databaseName: 'app',
-          schemas: { audit: auditSchema },
-          extensions: { audit: auditExtension },
-        }),
-      /Duplicate component alias "audit"/,
-    );
-  });
-
-  it('rejects using one alias for both a table column and index', () => {
-    const id = columnSchemaComponent({ columnName: 'id', type: 'varchar' });
-    const index = indexComponent({
-      indexName: 'users_id_idx',
-      columnNames: ['id'],
-      isUnique: false,
-    });
-
-    assert.throws(
-      () =>
-        tableComponent({
-          tableName: 'users',
-          columns: { id },
-          indexes: { id: index },
-        }),
-      /Duplicate component alias "id"/,
-    );
-  });
-
   it('derives a readable default index name from its logical target', () => {
     assert.strictEqual(
       generatedIndexName({
@@ -819,17 +748,18 @@ describe('placing reusable declarations in the database hierarchy', () => {
 
 describe('validating a composed database', () => {
   it('discovers an extension table without exposing it as a database schema', () => {
-    const auditLog = tableComponent({ tableName: 'audit_log' });
+    const migration = sqlMigration('audit_log:001', [SQL`SELECT 1`]);
+    const auditLog = tableComponent({
+      tableName: 'audit_log',
+      migrations: () => [migration],
+    });
     const audit = extensionComponent('audit', { auditLog });
     const database = databaseComponent({
       databaseName: 'app',
       extensions: { audit },
     });
 
-    assert.strictEqual(
-      database.extensions.audit.components.auditLog.tableName,
-      'audit_log',
-    );
+    assert.deepStrictEqual(database.migrations(), [migration]);
     assert.strictEqual(database.extensions.audit.extensionName, 'audit');
     assert.deepStrictEqual(Object.keys(database.schemas), []);
   });

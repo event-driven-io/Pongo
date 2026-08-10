@@ -1,6 +1,5 @@
 import {
   createSchemaComponent,
-  mergeSchemaComponentMaps,
   schemaComponentMap,
   schemaComponentType,
   type AnySchemaComponent,
@@ -104,7 +103,7 @@ export const tableComponent = <
       );
     }
   }
-  const children = mergeSchemaComponentMaps(columns, indexes);
+  const children = [...Object.values(columns), ...Object.values(indexes)];
   const base = createSchemaComponent(
     tableComponentType,
     {

@@ -1,6 +1,7 @@
-import { expectTypeOf } from 'vitest';
+import { describe, expectTypeOf, it } from 'vitest';
 import { SQL } from '../sql';
-import * as dumboPublicAPI from './index';
+import type { DatabaseSchemaComponentOptions } from './components';
+import type * as dumboPublicAPI from './index';
 import {
   dumboSchema,
   type DatabaseComponent,
@@ -27,31 +28,61 @@ const users = dumboSchema.table('users', {
 const publicSchema = dumboSchema.schema('public', { users });
 const app = dumboSchema.database('app', { public: publicSchema });
 
-expectTypeOf(users).toMatchTypeOf<TableComponent>();
-expectTypeOf(email).toMatchTypeOf<IndexComponent>();
-expectTypeOf(publicSchema).toMatchTypeOf<DatabaseSchemaComponent>();
-expectTypeOf(app).toMatchTypeOf<DatabaseComponent>();
-expectTypeOf(
-  app.schemas.public.tables.users.columns.email.columnName,
-).toEqualTypeOf<'email'>();
-expectTypeOf<TableRowType<typeof users>>().toEqualTypeOf<{
-  id: string;
-  email: string;
-}>();
+describe('composing a schema through the Dumbo declaration API', () => {
+  it('types each declaration as its own component kind', () => {
+    expectTypeOf(users).toExtend<TableComponent>();
+    expectTypeOf(email).toExtend<IndexComponent>();
+    expectTypeOf(publicSchema).toExtend<DatabaseSchemaComponent>();
+    expectTypeOf(app).toExtend<DatabaseComponent>();
+  });
 
-// @ts-expect-error Schema columns are declared through dumboSchema.column.
-void SQL.columnN;
-// @ts-expect-error Component records have no public construction helper.
-void dumboPublicAPI.componentMap;
-// @ts-expect-error Runtime component-record mutation is internal to Dumbo.
-void dumboPublicAPI.setComponentMapEntry;
-// @ts-expect-error Runtime component-record mutation is internal to Dumbo.
-void dumboPublicAPI.deleteComponentMapEntry;
-// @ts-expect-error Component initialization is internal to Dumbo.
-void dumboPublicAPI.initializeSchemaComponent;
-// @ts-expect-error Kind-specific construction is internal to Dumbo.
-void dumboPublicAPI.createSchemaComponent;
-// @ts-expect-error Removed component-cloning helpers are not public APIs.
-void dumboPublicAPI.copySchemaComponentSpecialization;
-// @ts-expect-error Local migration storage is internal to Dumbo.
-void dumboPublicAPI.localMigrationsOf;
+  it('keeps declared names and row types reachable through the tree', () => {
+    expectTypeOf(
+      app.schemas.public.tables.users.columns.email.columnName,
+    ).toEqualTypeOf<'email'>();
+    expectTypeOf<TableRowType<typeof users>>().toEqualTypeOf<{
+      id: string;
+      email: string;
+    }>();
+  });
+
+  it('carries no database name on a schema declaration', () => {
+    expectTypeOf<
+      Extract<keyof typeof publicSchema, 'databaseName'>
+    >().toEqualTypeOf<never>();
+    expectTypeOf<
+      Extract<
+        keyof DatabaseSchemaComponentOptions<
+          typeof publicSchema.tables,
+          'public',
+          typeof publicSchema.extensions
+        >,
+        'databaseName'
+      >
+    >().toEqualTypeOf<never>();
+  });
+
+  it('declares schema columns only through dumboSchema.column', () => {
+    expectTypeOf<Extract<keyof typeof SQL, 'columnN'>>().toEqualTypeOf<never>();
+  });
+
+  it('keeps component construction and storage internal to Dumbo', () => {
+    expectTypeOf<
+      Extract<
+        keyof typeof dumboPublicAPI,
+        // component records have no public construction helper
+        | 'componentMap'
+        // runtime component-record mutation is internal
+        | 'setComponentMapEntry'
+        | 'deleteComponentMapEntry'
+        // component initialization and kind-specific construction are internal
+        | 'initializeSchemaComponent'
+        | 'createSchemaComponent'
+        // removed component-cloning helpers are not public APIs
+        | 'copySchemaComponentSpecialization'
+        // local migration storage is internal
+        | 'localMigrationsOf'
+      >
+    >().toEqualTypeOf<never>();
+  });
+});

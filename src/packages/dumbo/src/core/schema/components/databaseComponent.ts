@@ -1,7 +1,6 @@
 import type { ExtensionComponent } from '../extensionComponent';
 import {
   createSchemaComponent,
-  mergeSchemaComponentMaps,
   schemaComponentMap,
   schemaComponentType,
   type AnySchemaComponent,
@@ -57,15 +56,6 @@ export const databaseComponent = <
   const schemas = (options.schemas ?? {}) as Schemas;
   const databaseName = options.databaseName;
   for (const [schemaName, schema] of Object.entries(schemas)) {
-    if (
-      databaseName !== undefined &&
-      schema.databaseName !== undefined &&
-      schema.databaseName !== databaseName
-    ) {
-      throw new Error(
-        `Database schema "${schemaName}" is constrained to database "${schema.databaseName}" and cannot be placed in "${databaseName}"`,
-      );
-    }
     if (schema.schemaName !== undefined && schema.schemaName !== schemaName) {
       throw new Error(
         `Database schema record key "${schemaName}" conflicts with its explicit name "${schema.schemaName}"`,
@@ -76,9 +66,8 @@ export const databaseComponent = <
   const base = createSchemaComponent(
     databaseComponentType,
     {
-      components: mergeSchemaComponentMaps(schemas, extensions),
+      components: [...Object.values(schemas), ...Object.values(extensions)],
       migrations: options.migrations,
-      context: { databaseName },
     },
     {
       databaseName: databaseName as DatabaseName,

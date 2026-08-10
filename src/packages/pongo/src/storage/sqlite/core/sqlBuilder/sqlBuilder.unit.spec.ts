@@ -29,7 +29,6 @@ const tableContext = (
   databaseSchemaName: string,
   tableName: string,
 ): TableIdentifier => ({
-  databaseName: 'app',
   databaseSchemaName,
   tableName,
 });

@@ -68,7 +68,6 @@ export type PongoDatabaseOptions<
   sqlBuilderFor: (
     collection: PongoCollectionComponent,
     identifier: {
-      databaseName: string;
       databaseSchemaName: string;
       tableName: string;
     },
@@ -281,7 +280,6 @@ export const PongoDatabase = <
         );
       }
       const identifier = {
-        databaseName,
         databaseSchemaName,
         tableName: collectionName,
       };

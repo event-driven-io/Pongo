@@ -48,7 +48,7 @@ describe('dumboSchema', () => {
     assert.strictEqual(boundEmailIndex?.databaseSchemaName, undefined);
     assert.strictEqual(boundEmailIndex?.tableName, undefined);
     assert.strictEqual(boundEmailIndex?.indexName, emailIndex.indexName);
-    assert.strictEqual(boundEmailIndex, tbl.components.idx_email);
+    assert.strictEqual(tbl.components.includes(boundEmailIndex), true);
     assert.ok(tbl.columns.id !== undefined);
     assert.ok(tbl.columns.email !== undefined);
   });
@@ -130,7 +130,7 @@ describe('dumboSchema', () => {
     assert.strictEqual(reusable.tables.users.databaseSchemaName, undefined);
     assert.strictEqual(db.databaseName, 'myapp');
     assert.deepStrictEqual(Object.keys(db.schemas), ['public']);
-    assert.strictEqual(db.schemas.public, db.components.public);
+    assert.deepStrictEqual(db.components, [db.schemas.public]);
     assert.strictEqual(db.schemas.public.schemaName, undefined);
     assert.strictEqual(
       db.schemas.public.tables.users.databaseSchemaName,
