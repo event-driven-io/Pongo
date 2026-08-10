@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 import {
+  createIndexSQL,
   indexComponent,
   JSONSerializer,
   jsonDocumentIndexTarget,
@@ -10,7 +11,7 @@ import {
   type IndexIdentifier,
 } from '../../../../core';
 import { sqliteFormatter } from '../sql';
-import { sqliteIndexSQL, sqliteTableReference } from './schemaComponentSQL';
+import { sqliteTableReference } from './schemaComponentSQL';
 
 const format = (sql: SQL): string =>
   sqliteFormatter.format(sql, { serializer: JSONSerializer }).query;
@@ -55,8 +56,21 @@ describe('using Dumbo components in logical SQLite schemas', () => {
     });
 
     assert.strictEqual(
-      format(sqliteIndexSQL(index, identifier)),
-      'CREATE UNIQUE INDEX dumbo_crm_table_users_index_users__email__idx ON dumbo_crm_table_users (email)',
+      format(createIndexSQL(index, identifier)),
+      'CREATE UNIQUE INDEX IF NOT EXISTS dumbo_crm_table_users_index_users__email__idx ON dumbo_crm_table_users (email)',
+    );
+  });
+
+  it('creates an index over several columns', () => {
+    const index = indexComponent({
+      indexName: 'users_email_idx',
+      columnNames: ['email', 'tenant'],
+      isUnique: false,
+    });
+
+    assert.strictEqual(
+      format(createIndexSQL(index, identifier)),
+      'CREATE INDEX IF NOT EXISTS dumbo_crm_table_users_index_users__email__idx ON dumbo_crm_table_users (email, tenant)',
     );
   });
 
@@ -69,8 +83,8 @@ describe('using Dumbo components in logical SQLite schemas', () => {
     });
 
     assert.strictEqual(
-      format(sqliteIndexSQL(index, identifier)),
-      "CREATE INDEX dumbo_crm_table_users_index_users__email__idx ON dumbo_crm_table_users (json_extract(data, '$.profile.email'))",
+      format(createIndexSQL(index, identifier)),
+      "CREATE INDEX IF NOT EXISTS dumbo_crm_table_users_index_users__email__idx ON dumbo_crm_table_users (json_extract(data, '$.profile.email'))",
     );
   });
 
@@ -84,12 +98,31 @@ describe('using Dumbo components in logical SQLite schemas', () => {
 
     assert.strictEqual(
       format(
-        sqliteIndexSQL(index, {
+        createIndexSQL(index, {
           ...identifier,
           indexName: 'users_document_idx',
         }),
       ),
-      'CREATE INDEX dumbo_crm_table_users_index_users__document__idx ON dumbo_crm_table_users (data)',
+      'CREATE INDEX IF NOT EXISTS dumbo_crm_table_users_index_users__document__idx ON dumbo_crm_table_users (data)',
+    );
+  });
+
+  it('creates a unique JSON document index', () => {
+    const index = indexComponent({
+      indexName: 'users_document_uq',
+      columnNames: ['data'],
+      isUnique: true,
+      target: jsonDocumentIndexTarget('data'),
+    });
+
+    assert.strictEqual(
+      format(
+        createIndexSQL(index, {
+          ...identifier,
+          indexName: 'users_document_uq',
+        }),
+      ),
+      'CREATE UNIQUE INDEX IF NOT EXISTS dumbo_crm_table_users_index_users__document__uq ON dumbo_crm_table_users (data)',
     );
   });
 
@@ -104,7 +137,7 @@ describe('using Dumbo components in logical SQLite schemas', () => {
 
     assert.strictEqual(
       format(
-        sqliteIndexSQL(index, {
+        createIndexSQL(index, {
           ...identifier,
           indexName: 'users_custom_idx',
         }),

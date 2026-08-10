@@ -225,6 +225,8 @@ describe('sqliteSQLBuilder', () => {
                 email: pongoSchema.index('dumbo_users_email_idx', 'email'),
               },
             }).database,
+          ).forEach((migration) =>
+            migration.sqls.forEach((sql) => formatSQL(sql, sqliteFormatter)),
           ),
         /SQLite index names starting with dumbo_ are reserved/,
       );
@@ -397,12 +399,12 @@ describe('sqliteSQLBuilder', () => {
       assert.equal(migrations.length, 3);
       assert.ok(
         queries[1]?.includes(
-          "CREATE INDEX users_email_idx ON users (json_extract(data, '$.email'))",
+          "CREATE INDEX IF NOT EXISTS users_email_idx ON users (json_extract(data, '$.email'))",
         ),
       );
       assert.ok(
         queries[2]?.includes(
-          "CREATE UNIQUE INDEX users_external_id_uq ON users (json_extract(data, '$.external.id'))",
+          "CREATE UNIQUE INDEX IF NOT EXISTS users_external_id_uq ON users (json_extract(data, '$.external.id'))",
         ),
       );
       const email = collection.indexes.email;
@@ -438,7 +440,7 @@ describe('sqliteSQLBuilder', () => {
       assert.strictEqual(email.indexName, indexes.email.indexName);
       assert.ok(
         indexSQL.includes(
-          'CREATE INDEX dumbo_crm_table_users_index_users__email__idx ON dumbo_crm_table_users',
+          'CREATE INDEX IF NOT EXISTS dumbo_crm_table_users_index_users__email__idx ON dumbo_crm_table_users',
         ),
         `got: ${indexSQL}`,
       );

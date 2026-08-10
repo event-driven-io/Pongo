@@ -319,11 +319,19 @@ describe('postgres collection schema migrations', () => {
     );
 
     assert.strictEqual(migrations.length, 4);
-    assert.ok(queries[1]?.includes('CREATE INDEX users_email_idx'));
+    assert.ok(
+      queries[1]?.includes('CREATE INDEX IF NOT EXISTS users_email_idx'),
+    );
     assert.ok(queries[1]?.includes(`data #>> '{email}'`));
-    assert.ok(queries[2]?.includes('CREATE UNIQUE INDEX users_external_id_uq'));
+    assert.ok(
+      queries[2]?.includes(
+        'CREATE UNIQUE INDEX IF NOT EXISTS users_external_id_uq',
+      ),
+    );
     assert.ok(queries[2]?.includes(`data #>> '{external,id}'`));
-    assert.ok(queries[3]?.includes('CREATE INDEX users_document_idx'));
+    assert.ok(
+      queries[3]?.includes('CREATE INDEX IF NOT EXISTS users_document_idx'),
+    );
     assert.ok(queries[3]?.includes('USING GIN (data)'));
   });
 

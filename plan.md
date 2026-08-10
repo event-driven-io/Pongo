@@ -90,8 +90,12 @@ Cascade:
   that use `findComponents(database, isPongoCollectionComponent)[0]` to reach
   the collection through the typed maps.
 - the 4 collision tests at `schemaComponent.unit.spec.ts:1008-1097`
-- `supportsSchemas` and `supportsFunctions` from `DatabaseCapabilities` and both
-  metadata objects. Keep `supportsMultipleDatabases` — read at
+- ~~`supportsSchemas` and `supportsFunctions` from `DatabaseCapabilities` and
+  both metadata objects.~~ NOT DONE — reverted on Oskar's call during S2.
+  `supportsSchemas` is where the `dumbo_<schema>_table_` decision belongs, and
+  `supportsFunctions` gates a conditional type that makes `functionExists`
+  required, so deleting it downgrades PostgreSQL's metadata. See todo.md S2.
+  `supportsMultipleDatabases` stays either way — read at
   `pongoDatabaseCache.ts:89`.
 
 `assertNativeName` STAYS. It is what actually keeps the mapping injective.
@@ -200,6 +204,18 @@ If the two bodies come out identical, hoist to core and delete both.
 Test first, both dialects: reference, GIN vs plain, path extraction, unique,
 multi-column, custom `sql` callback.
 
+Two corrections agreed with Oskar while the step ran:
+
+- `CREATE INDEX IF NOT EXISTS`, matching `createTableSQL`. Custom `sql`
+  callbacks write their own statement and are untouched.
+- A unique JSON-document index is btree on PostgreSQL, not GIN. GIN cannot be
+  unique, but jsonb has a btree operator class, so `CREATE UNIQUE INDEX ...
+  (data)` is valid and enforces whole-document uniqueness. The old code
+  hardcoded GIN and silently dropped `isUnique`. `SQLJSONDocumentIndexTarget`
+  therefore carries `isUnique` and the PostgreSQL processor picks the access
+  method. Assert it against a live database through `pg_am`, not just the
+  rendered string.
+
 Once `sqliteIndexReference` emits a token, `sqliteIndexName`'s `dumbo_` guard
 fires at format time, not at reference-construction time — the same shift S7
 made for tables. Update the index half of
@@ -226,8 +242,10 @@ Delete:
 - `DatabaseMigrationBuilder`
 - `DatabaseIdentifier`, `DatabaseSchemaIdentifier`, `TableIdentifier`,
   `IndexIdentifier` — they collapse into `SchemaComponentContext`
-- `postgreSQLTableSQL`, `postgreSQLIndexSQL`, `postgreSQLDatabaseSchemaSQL`,
-  `sqliteTableSQL`, `sqliteIndexSQL` as public migration builders
+- `postgreSQLTableSQL`, `postgreSQLDatabaseSchemaSQL`, `sqliteTableSQL` as
+  public migration builders. `postgreSQLIndexSQL` and `sqliteIndexSQL` are
+  already gone — S8 hoisted them into `createIndexSQL`, which stays and becomes
+  what `indexComponent` calls
 - pongo's two `databaseMigrations.ts`, `pongoPostgreSQLMigrationBuilder`,
   `pongoSQLiteMigrationBuilder`, and the `migrationBuilder` option on `pongoDb`
 
@@ -237,13 +255,25 @@ guard as a D7 consequence and covers it with
 `qualifies a table in a database extension with the default schema token`. Do
 not write it again; keep it passing through the rewrite.
 
-Answer S7's open question before deleting `postgreSQLDatabaseSchemaSQL`: it
-still returns `SQL | undefined` because `PostgreSQLCreateSchemaProcessor`
-renders the default schema as an EMPTY STRING, and pongo needs no migration at
-all rather than a migration holding an empty statement. Pick one — the schema
-component skips emitting `SQLCreateSchema` for the default schema, or
-`sqlMigration` drops statements that render empty. Do not delete the `undefined`
-branch without picking.
+`databaseSchemaComponent` owns the CREATE SCHEMA. Decided with Oskar 2026-08-10.
+It is in `core/`, so it has no dialect and emits `SQLCreateSchema` — a STATEMENT
+token, not a name token, because two of its three renderings are nothing:
+
+  PG named   -> CREATE SCHEMA IF NOT EXISTS crm
+  PG default -> nothing (already exists)
+  SQLite     -> nothing (no schemas; the name folds into the table name)
+
+A name token cannot do that — `CREATE SCHEMA IF NOT EXISTS ${name}` leaves the
+literal text behind and SQLite gets broken SQL. The whole statement has to
+vanish, so the whole statement is the token. That is the only reason
+`SQLCreateSchema` exists; in S7 its single caller was already
+PostgreSQL-specific and it earned nothing there.
+
+`sqlMigration` drops statements that render empty. That is what retires
+`postgreSQLDatabaseSchemaSQL`'s `SQL | undefined`: the component emits the token
+unconditionally, the formatter renders nothing for the two cases above, and the
+migration carries no statement. Delete the function and pongo's default-schema
+branch with it — no caller tests for the default schema any more.
 
 Both `sqlBuilder.unit.spec.ts` files read `.migrations()`.
 
@@ -385,8 +415,8 @@ string half survives in exactly three places — delete all three:
 - `sqliteTableName` and `sqliteIndexName` in `sqlitePhysicalNames.ts`
 - `schemaSegment` in pongo's `migrationNames.ts`, if S11 has not already
   deleted that file
-Also check `postgreSQLDatabaseSchemaSQL` — it keeps its own copy of the test
-for the emit/skip decision unless S9 resolved that (see S9).
+`postgreSQLDatabaseSchemaSQL` is not on that list — S9 deletes it, and its copy
+of the test goes with it.
 
 Consequence, and it is a behaviour change: an EXPLICITLY given `public` / `main`
 is then a named schema and carries its segment. That is the divergence S11

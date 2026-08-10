@@ -1,4 +1,5 @@
 import {
+  createIndexSQL,
   sqlMigration,
   type AnyIndexComponent,
   type AnyTableComponent,
@@ -6,11 +7,7 @@ import {
   type IndexIdentifier,
   type TableIdentifier,
 } from '@event-driven-io/dumbo';
-import {
-  sqliteIndexSQL,
-  sqliteMetadata,
-  sqliteTableSQL,
-} from '@event-driven-io/dumbo/sqlite';
+import { sqliteMetadata, sqliteTableSQL } from '@event-driven-io/dumbo/sqlite';
 import { isPongoCollectionComponent } from '../../../core';
 import {
   pongoCollectionMigrationName,
@@ -40,7 +37,7 @@ const indexMigrations = (
 ) => {
   return [
     sqlMigration(pongoIndexMigrationName(identifier), [
-      sqliteIndexSQL(component, identifier),
+      createIndexSQL(component, identifier),
     ]),
   ];
 };

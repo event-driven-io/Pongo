@@ -84,11 +84,41 @@ export const SQLTableReference = SQLToken<SQLTableReference>(
   'SQL_TABLE_REFERENCE',
 );
 
+export type SQLIndexReference = SQLToken<
+  'SQL_INDEX_REFERENCE',
+  {
+    databaseSchemaName: string | SQLDefaultSchemaNameToken;
+    tableName: string;
+    indexName: string;
+  }
+>;
+export const SQLIndexReference = SQLToken<SQLIndexReference>(
+  'SQL_INDEX_REFERENCE',
+);
+
 export type SQLCreateSchema = SQLToken<
   'SQL_CREATE_SCHEMA',
   { databaseSchemaName: string | SQLDefaultSchemaNameToken }
 >;
 export const SQLCreateSchema = SQLToken<SQLCreateSchema>('SQL_CREATE_SCHEMA');
+
+// Index targets render the whole target clause, parentheses included, because
+// the dialect decides both the expression and the access method
+export type SQLJSONDocumentIndexTarget = SQLToken<
+  'SQL_JSON_DOCUMENT_INDEX_TARGET',
+  { columnName: string; isUnique: boolean }
+>;
+export const SQLJSONDocumentIndexTarget = SQLToken<SQLJSONDocumentIndexTarget>(
+  'SQL_JSON_DOCUMENT_INDEX_TARGET',
+);
+
+export type SQLJSONPathTarget = SQLToken<
+  'SQL_JSON_PATH_TARGET',
+  { columnName: string; path: string }
+>;
+export const SQLJSONPathTarget = SQLToken<SQLJSONPathTarget>(
+  'SQL_JSON_PATH_TARGET',
+);
 
 export type SQLPlain = SQLToken<'SQL_RAW', { value: string }>;
 export const SQLPlain = SQLToken<SQLPlain, string>('SQL_RAW', (value) => ({

@@ -7,6 +7,8 @@ Execution order is **S1, S2, S3, S5, S6, S7, S8, S9, S4, S10 … S17** — S4 wa
 Per-step gate, run from `/home/oskar/Repos/Pongo/src`:
 `npm run build:ts` → `npm run fix` → `npm run test:unit` (+ `test:int` / `test:e2e` where marked).
 
+Run `build:ts` **before** the tests, not after. Pongo's specs import `@event-driven-io/dumbo` from its built `dist`, so a dumbo change that has not been compiled leaves every pongo suite testing the previous build — green for the wrong reason. Caught in S8, where three pongo assertions passed against a stale `dist` and failed on the rebuild.
+
 If review gate R returns STOP: halt, summarise for Oskar, agree what to drop. Do not continue.
 
 ---
@@ -159,7 +161,9 @@ What that work left behind, now owed:
 
 **The physical name is resolved at format time now, not at reference-construction time.** `sqliteTableName`'s `dumbo_` reservation guard therefore throws when the SQL is formatted rather than when the builder is created. That is what "resolution moves into the formatter" means, so `reserves the mapped-name prefix for native tables and indexes` was changed to format the SQL inside `assert.throws`. Its index half is untouched — `sqliteIndexReference` still resolves eagerly until S8.
 
-**`postgreSQLDatabaseSchemaSQL` still returns `SQL | undefined`.** The default-schema test now lives in `PostgreSQLCreateSchemaProcessor`, which renders nothing for the default schema — but "renders nothing" is an empty string, and pongo's builder needs to emit *no migration at all*, not a migration holding an empty statement. So the function keeps its own default test for the emit/skip decision. S9 owns this: when the schema component emits its own DDL it must answer "what is a migration whose SQL renders empty?" — either the component skips the token for the default schema, or `sqlMigration` drops empty statements. Do not delete the `undefined` branch before that question is answered.
+**`SQLCreateSchema` was added a step early, and S9 is where it earns its place.** Oskar questioned it: every other token is a fragment that stands where a name stands, this one is a whole statement. He was right that it buys nothing in S7 — its only caller, `postgreSQLDatabaseSchemaSQL`, is already PostgreSQL-specific and already makes the default-schema test, which `PostgreSQLCreateSchemaProcessor` then makes again. The function still returns `SQL | undefined` because the processor's "nothing" is an empty string, while pongo needs no migration at all.
+
+Resolved 2026-08-10: **`databaseSchemaComponent` owns the CREATE SCHEMA**, in S9. That file is in `core/` and has no dialect, so one line of it must render three ways — `CREATE SCHEMA IF NOT EXISTS crm` on Postgres, nothing for the Postgres default schema, nothing on SQLite. A name token cannot express that; `CREATE SCHEMA IF NOT EXISTS ${name}` leaves the literal text behind and SQLite gets broken SQL. The statement has to disappear whole, so the statement is the token. `sqlMigration` drops statements that render empty, which retires the `undefined` branch: the component emits unconditionally, the formatter decides, and `postgreSQLDatabaseSchemaSQL` plus pongo's default-schema branch are deleted. Recorded in plan.md S9.
 
 **Integration coverage, checked rather than assumed.** The existing pongo int specs already drive the whole token path against a real database and were passing unchanged: `pongo/storage/sqlite/sqlite3/migrations.int.spec.ts` creates `users`, `dumbo_crm_table_users`, `dumbo_audit_table_users` and their mangled indexes, then inserts through them; `pongo/storage/postgresql/pg/migrations/migrations.int.spec.ts` creates the `crm` and `audit` schemas, their tables and `public.users`, then inserts through them. What they could **not** reach is `SQLDefaultSchemaNameToken` itself — pongo still resolves `defaultSchemaName` eagerly to `'public'` / `'main'`, so every int path went through the string half. That gap is now covered by three cases per dialect: a table created under the default token, a table created under a named schema, and both at once proving they land on separate physical tables. Postgres additionally runs `postgreSQLDatabaseSchemaSQL`'s `CREATE SCHEMA` and asserts it returns `undefined` for the default token.
 
@@ -170,18 +174,37 @@ They live in different places on purpose. SQLite got its own `schemaComponentSQL
 **Line delta (S7 alone, production files):** **+100**. Two new processor files (+72), tokens (+17), registrations (+15), and −4 from the two reference builders that lost their branching. This step is purely additive by plan order — it adds the token vocabulary, and S9 is what deletes the machinery it replaces (`DatabaseMigrationBuilder`, `databaseMigrations`, both pongo migration builders, `postgreSQLTableSQL` / `postgreSQLIndexSQL` as public functions). Running total since S1 is still negative; S7 and S8 are the two steps that pay in before S9 collects.
 
 ## S8 — `SQLIndexReference` + JSON target tokens
-- [ ] Tests written and failing, both dialects
-- [ ] `SQLIndexReference`, `SQLJSONDocumentIndexTarget`, `SQLJSONPathTarget` + processors
-- [ ] `postgreSQLIndexSQL` / `sqliteIndexSQL` rebuilt on tokens
-- [ ] If the two bodies became identical: hoisted to core, both deleted
-- [ ] Gate: build, fix, unit
-- [ ] Review gate R — verdict: ____
+- [x] Tests written, both dialects — the two existing suites plus a multi-column and a unique-document case each
+- [x] `SQLIndexReference`, `SQLJSONDocumentIndexTarget`, `SQLJSONPathTarget` + processors
+- [x] `postgreSQLIndexSQL` / `sqliteIndexSQL` rebuilt on tokens
+- [x] The two bodies became identical: hoisted to `core/schema/components/createIndexSQL.ts`, both deleted. `postgreSQLIndexReference` and `sqliteIndexReference` went with them — nothing outside those bodies called either
+- [x] `CREATE INDEX IF NOT EXISTS` — Oskar asked for it mid-step; both dialects support it, and it matches `createTableSQL`'s `CREATE TABLE IF NOT EXISTS`. Custom `sql` callbacks are untouched, so the two `passes resolved references to custom index SQL` cases still assert bare `CREATE INDEX`. Expectations updated in both dumbo suites and both pongo `sqlBuilder.unit.spec.ts`
+- [x] A unique JSON-document index is a btree index on PostgreSQL, not GIN — `SQLJSONDocumentIndexTarget` carries `isUnique` and the PostgreSQL processor drops `USING GIN` for it. Covered by a unit test per dialect and by a PostgreSQL int test that reads `pg_am` back
+- [x] Gate: build, fix, unit (1024 pass), int
+- [x] Review gate R — verdict: **+34 production lines, flagged to Oskar**
+
+**The JSON target tokens render the whole target clause, parentheses included.** That is the only shape that works: PostgreSQL puts `USING GIN` *outside* the parens (`ON users USING GIN (data)`) while SQLite puts the expression inside them (`ON users (json_extract(data, '$.a.b'))`). A token that rendered only the column expression would leave the surrounding `(` `)` and the access method in dialect-free core, where neither can be decided. With the whole clause tokenised, core's `createIndexSQL` is one statement template for both dialects.
+
+**Bug fixed: a unique JSON-document index silently lost its uniqueness on PostgreSQL.** The old `postgreSQLIndexSQL` hardcoded `USING GIN` for that target and dropped `isUnique` — you declared a uniqueness constraint and got a plain index, with nothing said. GIN genuinely cannot be unique, but jsonb has a btree operator class, so `CREATE UNIQUE INDEX ... ON users (data)` is valid PostgreSQL and enforces whole-document uniqueness. The access method is therefore a consequence of `isUnique`, which is why `SQLJSONDocumentIndexTarget` carries it:
+
+|          | non-unique         | unique          |
+| -------- | ------------------ | --------------- |
+| Postgres | `USING GIN (data)` | `(data)` btree  |
+| SQLite   | `(data)`           | `(data)`        |
+
+Oskar raised it — Marten supports unique indexes over JSONB, which is what made the "unique document index is meaningless" reading wrong. Marten's own unique indexes are btree over an extracted expression (`(data ->> 'UserName')`), which is the `jsonPathIndexTarget` case and already worked. `migrations.int.spec.ts` now asserts the access methods against a live PostgreSQL through `pg_am`: `gin` for the plain document index, `btree` for the unique one. The `users` fixture there gained a nullable `data` JSONB column to make that possible.
+
+**Line delta (S8 alone, production files): +34.** Deletions: `postgreSQLIndexSQL` and its helper (−62), `sqliteIndexSQL` and its helper (−68), pongo's two builders (−3). Additions: `createIndexSQL.ts` (+53), tokens (+30), the two processor files (+76), registrations (+16). Same shape as S7 — the token vocabulary is paid for up front and S9 collects. Running total since S1 stays negative, but S7's +100 and S8's +34 mean S9 has to delete real weight, not just move it.
+
+**Int status.** dumbo's PostgreSQL `migrations.int.spec.ts` 14/14, both SQLite schema int specs 21/21. `test:int:sqlite` also reports 3 failures in `sqlite3/connections/connection.int.spec.ts` and 4 in `d1/connections/connection.int.generic.spec.ts`. The sqlite3 three pass in isolation — timing flakes under a loaded run. The D1 four reproduce in isolation and are `D1TransactionNotSupportedError` from `withTransaction` outside `session_based` mode: transaction semantics, no DDL involved, and the same four failed in the pre-S8 run.
 
 ## S9 — Components emit their own DDL
 - [ ] Tests written and failing, including the database-level-extension regression
 - [ ] `tableComponent` emits create-table via `createTableSQL`
 - [ ] `indexComponent` emits create-index
-- [ ] `databaseSchemaComponent` emits create-schema
+- [ ] `databaseSchemaComponent` emits create-schema — `SQLCreateSchema` unconditionally, no default-schema test in the component
+- [ ] `sqlMigration` drops statements that render empty — this is what lets the component emit unconditionally
+- [ ] Postgres `core/schema/migrations.int.spec.ts` — the `running schema component SQL` describe S7 added asserts `postgreSQLDatabaseSchemaSQL(...) === undefined` for the default token. Rewrite it against the component's migrations; keep the three database-level assertions
 - [ ] Deleted: `databaseMigrations.ts`
 - [ ] Deleted: `DatabaseMigrationBuilder`
 - [ ] Deleted: the four identifier types
@@ -239,7 +262,7 @@ Runs **after S9**, not after S3. `databaseMigrations.ts` gets a component's own 
 - [ ] `defaultSchemaName` optional throughout `pongoDb`
 - [ ] `pongoDb.ts:100` no longer resolves it eagerly
 - [ ] Collections without one go into `dumboSchema.defaultSchema(...)`
-- [ ] **Clears S6's dual encoding.** Delete the `|| x === <dialect default string>` half of the default-schema test in `postgreSQLTableReference`, `postgreSQLDatabaseSchemaSQL` (wherever S7/S9 left the resolution), `sqliteTableName` and `sqliteIndexName`. Once pongo stops passing `'public'` / `'main'` as a real schema name, the token is the only encoding, and an explicitly given `public` / `main` becomes a named schema that carries its segment — the divergence S11 asserts deliberately.
+- [ ] **Clears S6's dual encoding.** Delete the `|| x === <dialect default string>` half of the default-schema test in its three remaining homes as of S7 — `isDefaultSchema` in postgresql `sql/processors/schemaProcessors.ts`, `sqliteTableName` and `sqliteIndexName` in `sqlitePhysicalNames.ts`, and `schemaSegment` in pongo's `migrationNames.ts` if S11 has not deleted that file. `postgreSQLDatabaseSchemaSQL` is not among them; S9 deletes it. Once pongo stops passing `'public'` / `'main'` as a real schema name, the token is the only encoding, and an explicitly given `public` / `main` becomes a named schema that carries its segment — the divergence S11 asserts deliberately.
 - [ ] Gate: build, fix, unit, **int**
 - [ ] Review gate R — verdict: ____
 

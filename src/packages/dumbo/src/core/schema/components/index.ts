@@ -1,4 +1,5 @@
 export * from './columnSchemaComponent';
+export * from './createIndexSQL';
 export * from './createTableSQL';
 export * from './databaseComponent';
 export * from './databaseMigrations';

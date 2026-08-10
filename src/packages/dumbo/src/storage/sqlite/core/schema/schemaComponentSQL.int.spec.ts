@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, it } from 'vitest';
 import { InMemorySQLiteDatabase } from '..';
 import { dumbo, type Dumbo } from '../../../..';
 import {
+  createIndexSQL,
   dumboSchema,
   indexComponent,
   SQL,
@@ -14,7 +15,7 @@ import {
   SQLite3DriverType,
   tableExists,
 } from '../../../../sqlite3';
-import { sqliteIndexSQL, sqliteTableSQL } from './schemaComponentSQL';
+import { sqliteTableSQL } from './schemaComponentSQL';
 
 const users = tableComponent({
   tableName: 'users',
@@ -54,7 +55,7 @@ describe('running SQLite schema component SQL against a database', () => {
     };
 
     await pool.execute.command(sqliteTableSQL(users, identifier));
-    await pool.execute.command(sqliteIndexSQL(usersEmail, identifier));
+    await pool.execute.command(createIndexSQL(usersEmail, identifier));
 
     assert.ok(await tableExists(pool.execute, 'users'));
     assert.ok(await indexExists(pool.execute, 'users_email_idx'));
@@ -68,7 +69,7 @@ describe('running SQLite schema component SQL against a database', () => {
     };
 
     await pool.execute.command(sqliteTableSQL(users, identifier));
-    await pool.execute.command(sqliteIndexSQL(usersEmail, identifier));
+    await pool.execute.command(createIndexSQL(usersEmail, identifier));
 
     assert.ok(await tableExists(pool.execute, 'dumbo_crm_table_users'));
     assert.ok(
