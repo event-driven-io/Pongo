@@ -1,3 +1,4 @@
+import { SQL, SQLDefaultSchemaNameToken, SQLTableReference } from '../../sql';
 import {
   createSchemaComponent,
   schemaComponentMap,
@@ -6,7 +7,10 @@ import {
   type SchemaComponent,
   type SchemaComponentOptions,
 } from '../schemaComponent';
+import { sqlMigration } from '../sqlMigration';
 import type { AnyColumnSchemaComponent } from './columnSchemaComponent';
+import { createTableSQL } from './createTableSQL';
+import { tableMigrationName } from './migrationNames';
 import type { AnyIndexComponent } from './indexComponent';
 import type { TableRelationships } from './relationships/relationshipTypes';
 
@@ -108,8 +112,35 @@ export const tableComponent = <
     tableComponentType,
     {
       components: children,
-      migrations: options.migrations,
-      context: { tableName: options.tableName },
+      migrations: (component, context) => {
+        if (Object.keys(columns).length === 0)
+          return options.migrations?.(component, context) ?? [];
+
+        const identifier = {
+          databaseSchemaName:
+            options.databaseSchemaName ??
+            context.databaseSchemaName ??
+            SQLDefaultSchemaNameToken.from(),
+          tableName: options.tableName,
+        };
+
+        return [
+          sqlMigration(
+            tableMigrationName(identifier, context.migrationNamePrefixes),
+            [
+              createTableSQL(
+                component as AnyTableComponent,
+                SQL`${SQLTableReference.from(identifier)}`,
+              ),
+            ],
+          ),
+          ...(options.migrations?.(component, context) ?? []),
+        ];
+      },
+      context: {
+        tableName: options.tableName,
+        databaseSchemaName: options.databaseSchemaName,
+      },
     },
     {
       tableName: options.tableName,

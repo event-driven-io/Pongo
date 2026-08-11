@@ -1,8 +1,9 @@
 import assert from 'node:assert';
 import {
+  defaultDatabaseSchemaKey,
   JSONSerializer,
   SQL,
-  sqlMigration,
+  SQLDefaultSchemaNameToken,
   type AnyConnection,
   type Abort,
   type ConnectionPool,
@@ -10,11 +11,7 @@ import {
 } from '@event-driven-io/dumbo';
 import { describe, it } from 'vitest';
 import type { PongoCollectionSQLBuilder } from '../collection';
-import {
-  isPongoCollectionComponent,
-  pongoSchema,
-  type PongoDbSchema,
-} from '../schema';
+import { pongoSchema, type PongoDbSchema } from '../schema';
 import type { PongoDBCollectionOptions } from '../typing';
 import { PongoDatabase } from './pongoDb';
 
@@ -82,7 +79,6 @@ const createTestDb = (options?: {
     databaseName: 'test',
     pool,
     serializer: JSONSerializer,
-    defaultSchemaName: 'public',
     transactionOptions: options,
     schema: {
       definition:
@@ -92,17 +88,6 @@ const createTestDb = (options?: {
         }),
     },
     sqlBuilderFor: () => stubSQLBuilder,
-    migrationBuilder: {
-      table: (component, identifier) =>
-        isPongoCollectionComponent(component)
-          ? [
-              sqlMigration(
-                `${typeof identifier.databaseSchemaName === 'string' ? identifier.databaseSchemaName : 'default'}.${component.tableName}:table`,
-                [SQL`SELECT 1`],
-              ),
-            ]
-          : [],
-    },
   });
 
   return {
@@ -149,12 +134,14 @@ describe('using a Pongo database', () => {
     const direct = db.collection('users');
 
     assert.strictEqual(scoped, direct);
-    assert.strictEqual(
-      db.schema.component.schemas.public?.schemaName,
-      'public',
+    assert.ok(
+      SQLDefaultSchemaNameToken.check(
+        db.schema.component.schemas[defaultDatabaseSchemaKey]?.schemaName,
+      ),
     );
     assert.strictEqual(
-      db.schema.component.schemas.public?.tables.users?.tableName,
+      db.schema.component.schemas[defaultDatabaseSchemaKey]?.tables.users
+        ?.tableName,
       scoped.schema.component.tableName,
     );
   });
@@ -172,7 +159,9 @@ describe('using a Pongo database', () => {
     const initialComponent = db.schema.component;
     const definition = db.schema.definition;
 
-    assert.deepStrictEqual(db.schema.migrations, []);
+    assert.deepStrictEqual(migrationNames(db.schema.migrations), [
+      'pongoSchema:001:create',
+    ]);
 
     const scoped = db.schema('audit').collection('entries');
     const direct = db.collection('entries', {
@@ -184,10 +173,12 @@ describe('using a Pongo database', () => {
     assert.strictEqual(db.schema.definition, definition);
     assert.deepStrictEqual(
       scoped.schema.component.migrations().map((migration) => migration.name),
-      [],
+      ['dumboTable:audit:entries:001:createtable'],
     );
     assert.deepStrictEqual(migrationNames(db.schema.migrations), [
-      'audit.entries:table',
+      'pongoSchema:001:create',
+      'pongoSchema:audit:001:create',
+      'pongoCollection:audit:entries:001:createtable',
     ]);
     assert.strictEqual(
       db.schema.component.schemas.audit?.tables.entries?.tableName,
@@ -228,15 +219,21 @@ describe('using a Pongo database', () => {
       databaseSchemaName: 'crm',
     });
 
-    assert.strictEqual(defaultUsers, explicitDefaultUsers);
+    assert.notStrictEqual(defaultUsers, explicitDefaultUsers);
     assert.notStrictEqual(defaultUsers, crmUsers);
-    assert.strictEqual(db.collections().length, 2);
+    assert.strictEqual(db.collections().length, 3);
     assert.strictEqual(
       db.schema.component.schemas.public?.schemaName,
       'public',
     );
+    assert.ok(
+      SQLDefaultSchemaNameToken.check(
+        db.schema.component.schemas[defaultDatabaseSchemaKey]?.schemaName,
+      ),
+    );
     assert.strictEqual(
-      db.schema.component.schemas.public?.tables.users?.tableName,
+      db.schema.component.schemas[defaultDatabaseSchemaKey]?.tables.users
+        ?.tableName,
       'users',
     );
     assert.strictEqual(db.schema.component.schemas.crm?.schemaName, 'crm');
@@ -268,7 +265,9 @@ describe('using a Pongo database', () => {
       users.tableName,
     );
     assert.deepStrictEqual(
-      Object.keys(db.schema.component.schemas.public!.tables),
+      Object.keys(
+        db.schema.component.schemas[defaultDatabaseSchemaKey]!.tables,
+      ),
       [],
     );
   });

@@ -1,8 +1,8 @@
 import {
-  databaseMigrations,
   JSONSerializer,
   SQL,
-  type TableIdentifier,
+  SQLDefaultSchemaNameToken,
+  type SQLTableReference,
 } from '@event-driven-io/dumbo';
 import {
   sqliteFormatter,
@@ -13,33 +13,39 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 import {
   composePongoDatabase,
+  pongoMigrationNamePrefixes,
   pongoSchema,
   type ExpectedDocumentVersion,
   type PongoCollectionComponent,
   type PongoCollectionIndexes,
   type PongoCollectionSQLBuilder,
 } from '../../../../core';
-import { pongoSQLiteMigrationBuilder } from '../databaseMigrations';
 import { sqliteSQLBuilder } from './index';
 
 const formatSQL = (sql: SQL, formatter = sqliteFormatter) =>
   formatter.format(sql, { serializer: JSONSerializer });
 
+type TableContext = Omit<SQLTableReference, 'sqlTokenType'>;
+
+const defaultSchema = SQLDefaultSchemaNameToken.from();
+
 const tableContext = (
-  databaseSchemaName: string,
+  databaseSchemaName: string | SQLDefaultSchemaNameToken,
   tableName: string,
-): TableIdentifier => ({
+): TableContext => ({
   databaseSchemaName,
   tableName,
 });
 
-const collectionInSchema = (schemaName: string, collectionName: string) =>
-  collectionInSchemaWithIndexes(schemaName, collectionName, { indexes: {} });
+const collectionInSchema = (
+  schemaName: string | SQLDefaultSchemaNameToken,
+  collectionName: string,
+) => collectionInSchemaWithIndexes(schemaName, collectionName, { indexes: {} });
 
 const collectionInSchemaWithIndexes = <
   const Indexes extends PongoCollectionIndexes,
 >(
-  schemaName: string,
+  schemaName: string | SQLDefaultSchemaNameToken,
   collectionName: string,
   options: { indexes: Indexes },
 ) => ({
@@ -51,7 +57,7 @@ const collectionInSchemaWithIndexes = <
 const databaseInSchemaWithIndexes = <
   const Indexes extends PongoCollectionIndexes,
 >(
-  schemaName: string,
+  schemaName: string | SQLDefaultSchemaNameToken,
   collectionName: string,
   options: { indexes: Indexes },
 ) => {
@@ -61,12 +67,13 @@ const databaseInSchemaWithIndexes = <
     collection,
     database: composePongoDatabase({
       databaseName: 'app',
-      defaultSchemaName: 'main',
-      definition: pongoSchema.db({
-        schemas: {
-          [schemaName]: pongoSchema.schema(schemaName, { collection }),
-        },
-      }),
+      definition: SQLDefaultSchemaNameToken.check(schemaName)
+        ? pongoSchema.db({ collections: { collection } })
+        : pongoSchema.db({
+            schemas: {
+              [schemaName]: pongoSchema.schema(schemaName, { collection }),
+            },
+          }),
     }),
   };
 };
@@ -74,7 +81,7 @@ const databaseInSchemaWithIndexes = <
 const builderFor = (
   fixture: Readonly<{
     collection: PongoCollectionComponent;
-    identifier: TableIdentifier;
+    identifier: TableContext;
   }>,
 ): PongoCollectionSQLBuilder =>
   sqliteSQLBuilder(
@@ -84,13 +91,21 @@ const builderFor = (
     JSONSerializer,
   );
 
+const rendersSQL = (migration: { sqls: SQL[] }): boolean =>
+  migration.sqls.some(
+    (sql) => formatSQL(sql, sqliteFormatter).query.trim().length > 0,
+  );
+
 const migrationsFor = (
   database: ReturnType<typeof databaseInSchemaWithIndexes>['database'],
-) => databaseMigrations(database, pongoSQLiteMigrationBuilder);
+) =>
+  database
+    .migrations({ migrationNamePrefixes: pongoMigrationNamePrefixes })
+    .filter(rendersSQL);
 
 describe('sqliteSQLBuilder', () => {
   const collectionName = 'testCollection';
-  const builder = builderFor(collectionInSchema('main', collectionName));
+  const builder = builderFor(collectionInSchema(defaultSchema, collectionName));
   const specialDocument = {
     _id: 'special-id',
     title: "director's cut",
@@ -122,7 +137,7 @@ describe('sqliteSQLBuilder', () => {
 
     it('keeps default schema migrations unprefixed', () => {
       const migrations = migrationsFor(
-        databaseInSchemaWithIndexes('main', 'users', {
+        databaseInSchemaWithIndexes(defaultSchema, 'users', {
           indexes: {},
         }).database,
       );
@@ -136,9 +151,9 @@ describe('sqliteSQLBuilder', () => {
     });
 
     it('keeps concrete main schema migrations unprefixed', () => {
-      const collection = collectionInSchema('main', 'users');
+      const collection = collectionInSchema(defaultSchema, 'users');
       const migrations = migrationsFor(
-        databaseInSchemaWithIndexes('main', 'users', {
+        databaseInSchemaWithIndexes(defaultSchema, 'users', {
           indexes: {},
         }).database,
       );
@@ -210,9 +225,9 @@ describe('sqliteSQLBuilder', () => {
       assert.throws(
         () =>
           formatSQL(
-            builderFor(collectionInSchema('main', 'dumbo_users')).findOne(
-              SQL``,
-            ),
+            builderFor(
+              collectionInSchema(defaultSchema, 'dumbo_users'),
+            ).findOne(SQL``),
             sqliteFormatter,
           ),
         /SQLite table names starting with dumbo_ are reserved/,
@@ -220,7 +235,7 @@ describe('sqliteSQLBuilder', () => {
       assert.throws(
         () =>
           migrationsFor(
-            databaseInSchemaWithIndexes('main', 'users', {
+            databaseInSchemaWithIndexes(defaultSchema, 'users', {
               indexes: {
                 email: pongoSchema.index('dumbo_users_email_idx', 'email'),
               },
@@ -352,7 +367,9 @@ describe('sqliteSQLBuilder', () => {
 
     for (const testCase of runtimeSQLCases) {
       it(`uses default and prefixed schema tables in ${testCase.name}`, () => {
-        const defaultBuilder = builderFor(collectionInSchema('main', 'users'));
+        const defaultBuilder = builderFor(
+          collectionInSchema(defaultSchema, 'users'),
+        );
         const schemaBuilder = builderFor(collectionInSchema('crm', 'users'));
         const defaultSQL = singleLine(
           formatSQL(testCase.sql(defaultBuilder), sqliteFormatter).query,
@@ -385,7 +402,7 @@ describe('sqliteSQLBuilder', () => {
         ]),
       };
       const { database, collection } = databaseInSchemaWithIndexes(
-        'main',
+        defaultSchema,
         'users',
         {
           indexes,
@@ -453,7 +470,7 @@ describe('sqliteSQLBuilder', () => {
         document: pongoSchema.index.json('users_data_idx'),
       };
       const { database, collection } = databaseInSchemaWithIndexes(
-        'main',
+        defaultSchema,
         'users',
         {
           indexes,
@@ -465,8 +482,8 @@ describe('sqliteSQLBuilder', () => {
         migrations.map((migration) => migration.name),
         [
           'pongoCollection:users:001:createtable',
-          'pongoIndex:main:users:users_email_idx:create',
-          'pongoIndex:main:users:users_data_idx:create',
+          'pongoIndex:users:users_email_idx:create',
+          'pongoIndex:users:users_data_idx:create',
         ],
       );
       const document = collection.indexes.document;

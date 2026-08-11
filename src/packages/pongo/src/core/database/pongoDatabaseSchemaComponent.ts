@@ -1,5 +1,6 @@
 import {
   databaseComponent,
+  defaultDatabaseSchemaKey,
   type DatabaseComponent,
 } from '@event-driven-io/dumbo';
 import {
@@ -11,7 +12,7 @@ import {
 
 export type ComposePongoDatabaseOptions = Readonly<{
   databaseName: string;
-  defaultSchemaName: string;
+  defaultSchemaName?: string | undefined;
   definition: PongoDatabaseComponent;
 }>;
 
@@ -20,6 +21,7 @@ export const composePongoDatabase = ({
   defaultSchemaName,
   definition,
 }: ComposePongoDatabaseOptions): DatabaseComponent => {
+  const defaultSchemaKey = defaultSchemaName ?? defaultDatabaseSchemaKey;
   const collectionsBySchema = new Map<
     string,
     Record<string, PongoCollectionComponent>
@@ -40,10 +42,10 @@ export const composePongoDatabase = ({
   };
 
   if ('collections' in definition) {
-    collectionsBySchema.set(defaultSchemaName, {});
+    collectionsBySchema.set(defaultSchemaKey, {});
     for (const [alias, collection] of Object.entries(definition.collections)) {
       addCollection(
-        collection.databaseSchemaName ?? defaultSchemaName,
+        collection.databaseSchemaName ?? defaultSchemaKey,
         alias,
         collection,
       );
@@ -61,13 +63,18 @@ export const composePongoDatabase = ({
   }
 
   const schemas = Object.fromEntries(
-    [...collectionsBySchema].map(([databaseSchemaName, collections]) => [
-      databaseSchemaName,
-      pongoSchema.schema(
-        databaseSchemaName,
-        collections,
-        extensionsBySchema.get(databaseSchemaName),
-      ),
+    [...collectionsBySchema].map(([databaseSchemaKey, collections]) => [
+      databaseSchemaKey,
+      databaseSchemaKey === defaultDatabaseSchemaKey
+        ? pongoSchema.defaultSchema(
+            collections,
+            extensionsBySchema.get(databaseSchemaKey),
+          )
+        : pongoSchema.schema(
+            databaseSchemaKey,
+            collections,
+            extensionsBySchema.get(databaseSchemaKey),
+          ),
     ]),
   );
 

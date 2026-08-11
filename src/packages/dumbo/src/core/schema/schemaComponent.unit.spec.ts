@@ -28,6 +28,10 @@ import {
   type TableComponent,
 } from './index';
 
+const migrationNames = (
+  migrations: ReadonlyArray<{ name: string }>,
+): string[] => migrations.map(({ name }) => name);
+
 const extensionWith = (
   extensionName: string,
   components: Readonly<Record<string, AnySchemaComponent>> = {},
@@ -493,7 +497,10 @@ describe('grouping components in extensions', () => {
 
     assert.deepStrictEqual(Object.keys(schema.tables), []);
     assert.strictEqual(schema.extensions.audit.extensionName, 'audit');
-    assert.deepStrictEqual(schema.migrations(), [migration]);
+    assert.deepStrictEqual(migrationNames(schema.migrations()), [
+      'dumboSchema:public:001:create',
+      migration.name,
+    ]);
   });
 
   it('accepts the same direct extension-map shape on databases and schemas', () => {
@@ -549,10 +556,11 @@ describe('grouping components in extensions', () => {
       extensions: { eventStore },
     });
 
-    assert.deepStrictEqual(database.migrations(), [
-      tableMigration,
-      schemaExtensionMigration,
-      databaseExtensionMigration,
+    assert.deepStrictEqual(migrationNames(database.migrations()), [
+      'dumboSchema:crm:001:create',
+      tableMigration.name,
+      schemaExtensionMigration.name,
+      databaseExtensionMigration.name,
     ]);
   });
 
@@ -569,7 +577,7 @@ describe('grouping components in extensions', () => {
     });
 
     assert.deepStrictEqual(audit.migrations(), [migration]);
-    assert.deepStrictEqual(database.migrations(), [migration]);
+    assert.deepStrictEqual(database.migrations(), audit.migrations());
   });
 });
 

@@ -80,17 +80,23 @@ describe('SQLite3 migration integration', () => {
     });
     const pool = sqlite3Pool({ fileName });
     const expectedMigrationNames = [
-      'pongoCollection:users:001:createtable',
-      'pongoCollection:explicit_default_users:001:createtable',
+      'pongoSchema:main:001:create',
+      'pongoCollection:main:users:001:createtable',
+      'pongoCollection:main:explicit_default_users:001:createtable',
       'pongoIndex:main:explicit_default_users:explicit_default_email_idx:create',
+      'pongoSchema:crm:001:create',
       'pongoCollection:crm:users:001:createtable',
       'pongoIndex:crm:users:users_email_idx:create',
       'pongoIndex:crm:users:users_external_id_uq:create',
       'pongoIndex:crm:users:users_data_idx:create',
       'pongoIndex:crm:users:users_custom_data_idx:create',
+      'pongoSchema:audit:001:create',
       'pongoCollection:audit:users:001:createtable',
       'pongoIndex:audit:users:audit_users_email_idx:create',
     ];
+    const expectedAppliedNames = expectedMigrationNames.filter(
+      (name) => !name.startsWith('pongoSchema:'),
+    );
 
     try {
       const db = client.db('database');
@@ -168,7 +174,7 @@ describe('SQLite3 migration integration', () => {
       ]);
       assert.deepStrictEqual(
         migrationNames.rows.map((row) => row.name),
-        expectedMigrationNames,
+        expectedAppliedNames,
       );
       assert.strictEqual(defaultCount.rows[0]?.count, 1);
       assert.strictEqual(crmCount.rows[0]?.count, 1);

@@ -45,12 +45,14 @@ export const PostgreSQLIndexReferenceProcessor: SQLProcessor<SQLIndexReference> 
     handle: (token, context) => addIdentifier(token.indexName, context),
   });
 
+const jsonDocumentIndexOpening = (isUnique: boolean): string =>
+  isUnique ? '(' : 'USING GIN (';
+
 export const PostgreSQLJSONDocumentIndexTargetProcessor: SQLProcessor<SQLJSONDocumentIndexTarget> =
   SQLProcessor({
     canHandle: 'SQL_JSON_DOCUMENT_INDEX_TARGET',
     handle: (token, context) => {
-      // GIN indexes cannot be unique, so a unique document index is a btree one
-      context.builder.addSQL(token.isUnique ? '(' : 'USING GIN (');
+      context.builder.addSQL(jsonDocumentIndexOpening(token.isUnique));
       addIdentifier(token.columnName, context);
       context.builder.addSQL(')');
     },

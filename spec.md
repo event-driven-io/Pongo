@@ -176,10 +176,16 @@ A schema carrying `SQLDefaultSchemaNameToken` contributes **no segment**, so nam
 
 **Accepted divergence:** a user explicitly writing the dialect's own default schema name (`databaseSchemaName: 'public'` on Postgres) now yields `pongoCollection:public:users:001:createtable` and will re-run for such a database.
 
+**How wide that divergence turned out, found while implementing S9.** `pongoSchema.db` takes either `collections` or `schemas`, so a definition that wants both an unqualified default schema and named ones has to write `pongoSchema.schema('public', ...)` — and every collection in it takes the segment. The divergence therefore fires for a common definition shape, not only for the user who typed `public` on purpose. It also reaches the runtime: `db.collection('users', { databaseSchemaName: 'public' })` and `db.collection('users')` are now two collections over one physical table. Closing this needs `pongoSchema.defaultSchema` to be usable inside `db({ schemas })`, which needs the default schema's record key settled — open, recorded in todo.md.
+
+**Where the prefix lives is unsettled.** S9 implemented `migrationNamePrefix` as a field on the context a component's migrations are read with, so `pongoDb` names the whole tree. That makes the reader decide what a component is: an event-store extension table inside a pongo database comes out as `pongoCollection:events:001:createtable`. The prefix belongs on the component, set by the factory that built it. Two shapes are on the table — keep `pongoCollection` as a per-component word for byte-compatibility with released databases, or rename to `pongo:users:collection:001:createtable`, namespace then path then kind, which lets the kind come from the component type. A compatibility decision, still open.
+
 ### D11 — `defaultSchemaName` is an optional override in `pongoDb`
 
 - **not given** → collections go into `dumboSchema.defaultSchema(...)`, carrying the token. Names unchanged from `main`.
 - **given** → an explicit override meaning "put every collection here unless told otherwise". Names carry that segment.
+
+Done in S9 for the naming half. The dialect string tests — `isDefaultSchema` on Postgres, `sqliteTableName` and `sqliteIndexName` on SQLite — deliberately stay, so an explicitly named `public` / `main` still renders as the default schema in SQL and keeps its physical names. Only its migration name diverges.
 
 ### D12 — Pongo is sugar over dumbo
 

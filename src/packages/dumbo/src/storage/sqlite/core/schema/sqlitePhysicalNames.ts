@@ -1,7 +1,7 @@
 import {
   SQLDefaultSchemaNameToken,
-  type IndexIdentifier,
-  type TableIdentifier,
+  type SQLIndexReference,
+  type SQLTableReference,
 } from '../../../../core';
 import { sqliteMetadata } from './sqliteMetadata';
 
@@ -21,7 +21,9 @@ const assertNativeName = (
   }
 };
 
-export const sqliteTableName = (identifier: TableIdentifier): string => {
+export const sqliteTableName = (
+  identifier: Omit<SQLTableReference, 'sqlTokenType'>,
+): string => {
   const { databaseSchemaName, tableName } = identifier;
   if (
     SQLDefaultSchemaNameToken.check(databaseSchemaName) ||
@@ -34,7 +36,9 @@ export const sqliteTableName = (identifier: TableIdentifier): string => {
   return `${SQLiteMappedNamePrefix}${escapeName(databaseSchemaName)}_table_${escapeName(tableName)}`;
 };
 
-export const sqliteIndexName = (identifier: IndexIdentifier): string => {
+export const sqliteIndexName = (
+  identifier: Omit<SQLIndexReference, 'sqlTokenType'>,
+): string => {
   const { databaseSchemaName, indexName } = identifier;
   if (
     SQLDefaultSchemaNameToken.check(databaseSchemaName) ||

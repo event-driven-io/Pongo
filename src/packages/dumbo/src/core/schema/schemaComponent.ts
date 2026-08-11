@@ -1,4 +1,5 @@
 import type { SQLDefaultSchemaNameToken } from '../sql';
+import type { MigrationNamePrefixes } from './components/migrationNames';
 import { haveSameSQL, type SQLMigration } from './sqlMigration';
 
 export const schemaComponentType: unique symbol = Symbol(
@@ -13,6 +14,7 @@ export type SchemaComponentKind = symbol;
 export type SchemaComponentContext = Readonly<{
   databaseSchemaName?: string | SQLDefaultSchemaNameToken | undefined;
   tableName?: string | undefined;
+  migrationNamePrefixes?: MigrationNamePrefixes | undefined;
 }>;
 
 export type SchemaComponent<

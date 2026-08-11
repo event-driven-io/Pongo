@@ -169,6 +169,10 @@ export const runSQLMigrations = (
     return { success: options.dryRun ? false : true, result };
   });
 
+const rendersNothing = (sql: SQL, formatter: SQLFormatter): boolean =>
+  formatter.format(sql, { serializer: JSONSerializer }).query.trim().length ===
+  0;
+
 const runSQLMigration = async (
   databaseType: DatabaseType,
   execute: SQLExecutor,
@@ -179,8 +183,14 @@ const runSQLMigration = async (
     migrationTimeoutMs?: number | undefined;
   },
 ): Promise<boolean> => {
-  const sqls = combineMigrations(migration);
-  const sqlHash = await getMigrationHash(migration, getFormatter(databaseType));
+  const formatter = getFormatter(databaseType);
+  const sqls = combineMigrations(migration).filter(
+    (sql) => !rendersNothing(sql, formatter),
+  );
+
+  if (sqls.length === 0) return false;
+
+  const sqlHash = await getMigrationHash(migration, formatter);
 
   try {
     const newMigration = {

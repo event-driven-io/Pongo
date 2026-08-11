@@ -102,8 +102,6 @@ export type SQLCreateSchema = SQLToken<
 >;
 export const SQLCreateSchema = SQLToken<SQLCreateSchema>('SQL_CREATE_SCHEMA');
 
-// Index targets render the whole target clause, parentheses included, because
-// the dialect decides both the expression and the access method
 export type SQLJSONDocumentIndexTarget = SQLToken<
   'SQL_JSON_DOCUMENT_INDEX_TARGET',
   { columnName: string; isUnique: boolean }

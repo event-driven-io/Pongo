@@ -181,10 +181,11 @@ describe('Migration Integration Tests', () => {
   it('applies each schema, table, and index migration only once', async () => {
     const db = client.db('database');
     const expectedMigrationNames = [
-      'pongoCollection:users:001:createtable',
-      'pongoCollection:explicit_default_users:001:createtable',
+      'pongoSchema:public:001:create',
+      'pongoCollection:public:users:001:createtable',
+      'pongoCollection:public:explicit_default_users:001:createtable',
       'pongoIndex:public:explicit_default_users:explicit_default_email_idx:create',
-      'pongoCollection:roles:001:createtable',
+      'pongoCollection:public:roles:001:createtable',
       'pongoSchema:crm:001:create',
       'pongoCollection:crm:users:001:createtable',
       'pongoIndex:crm:users:users_email_idx:create',
@@ -195,6 +196,9 @@ describe('Migration Integration Tests', () => {
       'pongoCollection:audit:users:001:createtable',
       'pongoIndex:audit:users:audit_users_email_idx:create',
     ];
+    const expectedAppliedNames = expectedMigrationNames.filter(
+      (name) => name !== 'pongoSchema:public:001:create',
+    );
 
     assert.deepStrictEqual(
       db.schema.migrations.map((migration) => migration.name),
@@ -208,12 +212,12 @@ describe('Migration Integration Tests', () => {
     );
     assert.strictEqual(
       migrationNames.rowCount,
-      expectedMigrationNames.length,
+      expectedAppliedNames.length,
       'The migration should only be applied once.',
     );
     assert.deepStrictEqual(
       migrationNames.rows.map((r) => r.name),
-      expectedMigrationNames,
+      expectedAppliedNames,
     );
   });
 });

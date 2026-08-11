@@ -13,7 +13,7 @@ import {
   type PongoDriverOptions,
   withPongoTransactionOptions,
 } from '../../../core';
-import { pongoSQLiteMigrationBuilder, sqliteSQLBuilder } from '../core';
+import { sqliteSQLBuilder } from '../core';
 
 export type SQLitePongoClientOptions = object;
 
@@ -45,7 +45,6 @@ const sqlite3PongoDriver: PongoDriver<
         ...connectionOptions,
         serialization: { serializer: options.serializer },
       }),
-      migrationBuilder: pongoSQLiteMigrationBuilder,
       sqlBuilderFor: (collection, identifier) => {
         const referenceFor = (tableName: string) =>
           sqliteTableReference({ ...identifier, tableName });

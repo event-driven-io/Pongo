@@ -245,6 +245,7 @@ describe('Migration Integration Tests', () => {
           migrationNames.rows.map((row) => row.name),
           [
             'app:main:users:001:create-table',
+            'dumboIndex:main:users:users_email_idx:create',
             'app:main:users:users_email_idx:002:create-index',
           ],
         );

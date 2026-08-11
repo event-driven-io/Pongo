@@ -1,5 +1,7 @@
+import type { SQLDefaultSchemaNameToken } from '../../sql';
 import {
   databaseComponent,
+  databaseSchemaKey,
   type AnyDatabaseComponent,
 } from './databaseComponent';
 import { databaseSchemaComponent } from './databaseSchemaComponent';
@@ -7,11 +9,12 @@ import type { AnyTableComponent } from './tableComponent';
 
 export const withTable = (
   database: AnyDatabaseComponent,
-  databaseSchemaName: string,
+  databaseSchemaName: string | SQLDefaultSchemaNameToken,
   alias: string,
   table: AnyTableComponent,
 ): AnyDatabaseComponent => {
-  const existingSchema = database.schemas[databaseSchemaName];
+  const key = databaseSchemaKey(databaseSchemaName);
+  const existingSchema = database.schemas[key];
   const schema = databaseSchemaComponent({
     schemaName: databaseSchemaName,
     tables: {
@@ -25,7 +28,7 @@ export const withTable = (
     databaseName: database.databaseName,
     schemas: {
       ...database.schemas,
-      [databaseSchemaName]: schema,
+      [key]: schema,
     },
     extensions: database.extensions,
   });
