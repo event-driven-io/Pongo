@@ -70,6 +70,7 @@ export type TableComponentOptions<
   Relationships extends TableRelationships<keyof Columns & string>,
 > = Readonly<{
   tableName: TableName;
+  kind?: string | undefined;
   databaseSchemaName?: string | undefined;
   columns?: Columns | undefined;
   primaryKey?: ReadonlyArray<Extract<keyof Columns, string>> | undefined;
@@ -89,6 +90,7 @@ export const tableComponent = <
 ): TableComponent<Columns, TableName, Indexes, Relationships> => {
   const columns = (options.columns ?? {}) as Columns;
   const indexes = (options.indexes ?? {}) as Indexes;
+  const kind = options.kind ?? 'relational';
   for (const index of Object.values(indexes)) {
     if (
       index.databaseSchemaName !== undefined &&
@@ -143,15 +145,12 @@ export const tableComponent = <
           ...(Object.keys(columns).length === 0
             ? []
             : [
-                sqlMigration(
-                  tableMigrationName(identifier, scoped.migrationNamePrefixes),
-                  [
-                    createTableSQL(
-                      component,
-                      SQL`${SQLTableReference.from(identifier)}`,
-                    ),
-                  ],
-                ),
+                sqlMigration(tableMigrationName(identifier, kind), [
+                  createTableSQL(
+                    component,
+                    SQL`${SQLTableReference.from(identifier)}`,
+                  ),
+                ]),
               ]),
           ...(options.migrations?.(scoped) ?? []),
           ...children.flatMap((child) => child.migrations(scoped)),

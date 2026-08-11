@@ -1,4 +1,4 @@
-import { dumbo, SQL, type Dumbo } from '@event-driven-io/dumbo';
+import { dumbo, dumboSchema, SQL, type Dumbo } from '@event-driven-io/dumbo';
 import {
   PostgreSQLConnectionString,
   tableExists,
@@ -6,9 +6,26 @@ import {
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import assert from 'assert';
-import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expectTypeOf,
+  it,
+} from 'vitest';
 import { pongoDriver } from '..';
-import { pongoClient, pongoSchema, type PongoClient } from '../../../../core';
+import {
+  pongoClient,
+  pongoDocumentType,
+  pongoSchema,
+  type PongoClient,
+  type PongoCollection,
+} from '../../../../core';
+
+type User = {
+  email: string;
+};
 
 describe('Migration Integration Tests', () => {
   let pool: Dumbo;
@@ -66,6 +83,7 @@ describe('Migration Integration Tests', () => {
     client = pongoClient({
       driver: pongoDriver,
       connectionString,
+      defaultSchemaName: 'public',
       schema: { autoMigration: 'CreateOrUpdate', definition: schema },
     });
   });
@@ -78,7 +96,7 @@ describe('Migration Integration Tests', () => {
 
   beforeEach(async () => {
     await pool.execute.query(
-      SQL`DROP SCHEMA IF EXISTS audit CASCADE; DROP SCHEMA IF EXISTS crm CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public;`,
+      SQL`DROP SCHEMA IF EXISTS audit CASCADE; DROP SCHEMA IF EXISTS crm CASCADE; DROP SCHEMA IF EXISTS readmodels CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public;`,
     );
   });
 
@@ -181,24 +199,22 @@ describe('Migration Integration Tests', () => {
   it('applies each schema, table, and index migration only once', async () => {
     const db = client.db('database');
     const expectedMigrationNames = [
-      'pongoSchema:public:001:create',
-      'pongoCollection:public:users:001:createtable',
-      'pongoCollection:public:explicit_default_users:001:createtable',
-      'pongoIndex:public:explicit_default_users:explicit_default_email_idx:create',
-      'pongoCollection:public:roles:001:createtable',
-      'pongoSchema:crm:001:create',
-      'pongoCollection:crm:users:001:createtable',
-      'pongoIndex:crm:users:users_email_idx:create',
-      'pongoIndex:crm:users:users_external_id_uq:create',
-      'pongoIndex:crm:users:users_data_idx:create',
-      'pongoIndex:crm:users:users_custom_data_idx:create',
-      'pongoSchema:audit:001:create',
-      'pongoCollection:audit:users:001:createtable',
-      'pongoIndex:audit:users:audit_users_email_idx:create',
+      'schema:relational:public:001:create',
+      'table:pongo_collection:public:users:001:create',
+      'table:pongo_collection:public:explicit_default_users:001:create',
+      'index:pongo_index:public:explicit_default_users:explicit_default_email_idx:001:create',
+      'table:pongo_collection:public:roles:001:create',
+      'schema:relational:crm:001:create',
+      'table:pongo_collection:crm:users:001:create',
+      'index:pongo_index:crm:users:users_email_idx:001:create',
+      'index:pongo_index:crm:users:users_external_id_uq:001:create',
+      'index:pongo_index:crm:users:users_data_idx:001:create',
+      'index:pongo_index:crm:users:users_custom_data_idx:001:create',
+      'schema:relational:audit:001:create',
+      'table:pongo_collection:audit:users:001:create',
+      'index:pongo_index:audit:users:audit_users_email_idx:001:create',
     ];
-    const expectedAppliedNames = expectedMigrationNames.filter(
-      (name) => name !== 'pongoSchema:public:001:create',
-    );
+    const expectedAppliedNames = expectedMigrationNames;
 
     assert.deepStrictEqual(
       db.schema.migrations.map((migration) => migration.name),
@@ -210,14 +226,94 @@ describe('Migration Integration Tests', () => {
     const migrationNames = await pool.execute.query<{ name: string }>(
       SQL`SELECT name FROM dmb_migrations ORDER BY id`,
     );
+    assert.deepStrictEqual(
+      migrationNames.rows.map((r) => r.name),
+      expectedAppliedNames,
+    );
     assert.strictEqual(
       migrationNames.rowCount,
       expectedAppliedNames.length,
       'The migration should only be applied once.',
     );
-    assert.deepStrictEqual(
-      migrationNames.rows.map((r) => r.name),
-      expectedAppliedNames,
+  });
+
+  it('migrates mixed event-store and Pongo extension schemas', async () => {
+    const users = pongoSchema.collection<User>('users');
+    const eventStore = dumboSchema.extension('event-store', {
+      schemas: {
+        default: dumboSchema.defaultSchema({
+          messages: dumboSchema.table('messages', {
+            kind: 'event_store',
+            columns: {
+              id: dumboSchema.column('id', SQL.column.type.Text, {
+                primaryKey: true,
+              }),
+            },
+          }),
+        }),
+        readmodels: dumboSchema.schema('readmodels', { users }),
+      },
+    });
+    const definition = pongoSchema.db({ schemas: {} }, { eventStore });
+    const extensionClient = pongoClient({
+      driver: pongoDriver,
+      connectionString,
+      schema: {
+        definition: pongoSchema.client({ database: definition }),
+      },
+    });
+
+    expectTypeOf(eventStore.schemas.readmodels.tables.users).toEqualTypeOf(
+      users,
     );
+    expectTypeOf(
+      eventStore.schemas.readmodels.tables.users[pongoDocumentType],
+    ).toEqualTypeOf<User>();
+    expectTypeOf(definition.schemas.readmodels.tables.users).toEqualTypeOf(
+      users,
+    );
+
+    try {
+      const db = extensionClient.db('database');
+      const usersCollection = db.collection<User>('users', {
+        databaseSchemaName: 'readmodels',
+      });
+      expectTypeOf(usersCollection).toEqualTypeOf<PongoCollection<User>>();
+
+      assert.deepStrictEqual(
+        db.schema.migrations.map(({ name }) => name),
+        [
+          'schema:relational:001:create',
+          'table:event_store:messages:001:create',
+          'schema:relational:readmodels:001:create',
+          'table:pongo_collection:readmodels:users:001:create',
+        ],
+      );
+
+      await db.schema.migrate();
+      await db.schema.migrate();
+      await usersCollection.insertOne({
+        _id: 'user-1',
+        email: 'user@example.com',
+      });
+
+      const stored = await usersCollection.findOne({ _id: 'user-1' });
+      const migrationNames = await pool.execute.query<{ name: string }>(
+        SQL`SELECT name FROM dmb_migrations ORDER BY id`,
+      );
+
+      assert.ok(await tableExists(pool.execute, 'messages'));
+      assert.strictEqual(stored?.email, 'user@example.com');
+      assert.deepStrictEqual(
+        migrationNames.rows.map(({ name }) => name),
+        [
+          'table:event_store:messages:001:create',
+          'schema:relational:readmodels:001:create',
+          'table:pongo_collection:readmodels:users:001:create',
+        ],
+      );
+    } finally {
+      await extensionClient.close();
+    }
   });
 });

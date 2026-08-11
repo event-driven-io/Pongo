@@ -10,7 +10,6 @@ import assert from 'assert';
 import { describe, it } from 'vitest';
 import { postgresSQLBuilder } from '.';
 import {
-  pongoMigrationNamePrefixes,
   pongoSchema,
   type ExpectedDocumentVersion,
   type PongoCollectionComponent,
@@ -91,10 +90,7 @@ const rendersSQL = (migration: { sqls: SQL[] }): boolean =>
 
 const migrationsFor = (
   database: ReturnType<typeof databaseWithCollection>['database'],
-) =>
-  database
-    .migrations({ migrationNamePrefixes: pongoMigrationNamePrefixes })
-    .filter(rendersSQL);
+) => database.migrations().filter(rendersSQL);
 
 const specialDocument = {
   _id: 'special-id',
@@ -280,7 +276,7 @@ describe('postgres collection schema migrations', () => {
 
     assert.strictEqual(
       migrations[0]!.name,
-      'pongoCollection:users:001:createtable',
+      'table:pongo_collection:users:001:create',
     );
     assert.ok(query.includes('CREATE TABLE IF NOT EXISTS users'));
   });
@@ -303,9 +299,12 @@ describe('postgres collection schema migrations', () => {
 
     assert.strictEqual(
       tableMigration.name,
-      'pongoCollection:crm:users:001:createtable',
+      'table:pongo_collection:crm:users:001:create',
     );
-    assert.strictEqual(schemaMigration.name, 'pongoSchema:crm:001:create');
+    assert.strictEqual(
+      schemaMigration.name,
+      'schema:relational:crm:001:create',
+    );
     assert.ok(createSchema.query.includes('CREATE SCHEMA IF NOT EXISTS crm'));
     assert.ok(
       createTable.query.includes('CREATE TABLE IF NOT EXISTS crm.users'),

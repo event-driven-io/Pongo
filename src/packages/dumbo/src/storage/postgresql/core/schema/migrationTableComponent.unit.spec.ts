@@ -32,8 +32,8 @@ describe('keeping the migration ledger in a PostgreSQL table', () => {
     });
 
     assert.deepStrictEqual(migrationNames(component), [
-      'dumboSchema:infra:001:create',
-      'dumboTable:infra:dmb_migrations:001:createtable',
+      'schema:relational:infra:001:create',
+      'table:relational:infra:dmb_migrations:001:create',
     ]);
     assert.deepStrictEqual(
       ledgerDDL(component)[0],
@@ -52,7 +52,7 @@ describe('keeping the migration ledger in a PostgreSQL table', () => {
       migrationNames(
         migrationTableComponentFor({ tableName: 'app_migrations' }),
       ),
-      ['dumboTable:app_migrations:001:createtable'],
+      ['table:relational:app_migrations:001:create'],
     );
   });
 });

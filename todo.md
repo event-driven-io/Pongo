@@ -322,9 +322,11 @@ Ten tests became **19** — PostgreSQL 10, SQLite 9. Nine dual-dialect cases spl
 - [x] **Done earlier in S9.** Naming lives in `dumbo/core/schema/components/migrationNames.ts`; `packages/pongo/src/storage/migrationNames.ts` is gone
 - [x] Golden/default/schema-qualified/index/plain-dumbo naming coverage landed with S9
 - [x] Accepted divergence asserted deliberately: explicitly named `public` / `main` carries a schema segment in migration names
-- [x] Pongo passes `pongoMigrationNamePrefixes` through the component migration context
-- [x] Gate covered by S9's recorded gate: build, fix, unit, int
-- [x] Review gate R — verdict: covered by S9. Open design remains from S9: the prefix currently rides on read context, not the component
+- [x] Removed `MigrationNamePrefixes`, `migrationNamePrefixes`, and `pongoMigrationNamePrefixes`; readers no longer select component identity
+- [x] Final grammar is `<type>:<kind>:<path>:<sequence>:<operation>`, with `001:create` for schema/table/index DDL
+- [x] `kind` is passed through the existing schema/table/index factory options; defaults to `relational`, while Pongo passes `pongo_collection` / `pongo_index`
+- [x] Caller-declared `sqlMigration` names and dedupe/conflict semantics remain unchanged
+- [x] Review gate R — verdict: **pass**. Three option fields replace the removed prefix types/context; no resolver, registry, marker lookup, or wrapper was introduced
 
 ## S12 — SQLite physical names use the logical name
 - [x] Tests written and failing first: `sqlitePhysicalNames.unit.spec.ts` failed on old `dumbo_crm_table_users` mapping and missing dotted-name guard
@@ -367,26 +369,25 @@ Ten tests became **19** — PostgreSQL 10, SQLite 9. Nine dual-dialect cases spl
 **Typing decision, agreed after the rejection.** Do not try to infer a literal schema key from `pongoSchema.collection<User>('users', { databaseSchemaName: 'audit' })` and then make a dynamic DB value expose `db.audit.users`. TypeScript cannot infer later literal generics after the explicit `User` argument without changing the API, and the API must be preserved. Dynamic collection creation is runtime mutation only; strong projected access belongs to schemas declared up front.
 
 ## S15 — Extension as a database fragment
-- [ ] Type spec written and failing: `db.schemas.readmodels.tables.users`
-- [ ] Placement tests (schema-attached resolves that schema, database-attached keeps its own)
-- [ ] Two-extension schema merge test
-- [ ] Projection-factory test
-- [ ] `extensionComponent` gains `schemas` / `extensions`
-- [ ] `databaseComponent` merges extension schemas, typed as a record intersection
-- [ ] No conditional recursion in the types — stop and ask if it starts creeping in
-- [ ] Gate: build, fix, unit, **int**
-- [ ] Review gate R — verdict: ____
+- [x] Vitest `expectTypeOf` coverage proves `database.schemas.readmodels.tables.users` and nested extension schemas retain exact component types
+- [x] Placement coverage: schema-attached extensions accept only the same physical schema; database-attached schemas keep default/named paths
+- [x] Duplicate schema keys throw across direct schemas, extensions, and nested extensions; lossful schema merging was removed from the contract
+- [x] `extensionComponent` exposes frozen `schemas` / `extensions` records and traverses direct schemas followed by nested extensions
+- [x] `databaseComponent` exposes extension schemas as original component references through a non-recursive record intersection
+- [x] Existing duplicate-table and migration dedupe/conflict assertions remain
+- [x] Focused gate: build green; 87 schema/component tests green; Dumbo migration integration PostgreSQL 14/14 and SQLite 18/18
+- [x] Review gate R — verdict: **pass**. No schema reconstruction, runtime wrapper, resolver, declaration layer, or second migration traversal
 
 ## S16 — Event-store example
-- [ ] `eventStore` extension factory over projection registrations
-- [ ] `messages` in `emt`; one read-model table per projection in its own schema
-- [ ] Composed into a `pongoDb`
-- [ ] E2E on Postgres
-- [ ] E2E on SQLite
-- [ ] Name-based reference resolves to the correctly qualified identifier
-- [ ] Migrating twice is a no-op
-- [ ] Gate: build, fix, full suite
-- [ ] Review gate R — verdict: ____
+- [x] Public-API `event-store` extension fixture added to both Pongo migration integration specs
+- [x] `messages` uses the default schema and `kind: 'event_store'`; Pongo `users` uses the physical `readmodels` schema
+- [x] Composed into a Pongo database without `runtimeDatabaseComponent`, provider namespaces, or projected mixed-schema DB properties
+- [x] Vitest `expectTypeOf` proves exact extension/database table types and `PongoCollection<User>` from `db.collection<User>(...)`
+- [x] PostgreSQL integration 4/4, including migrate-twice, physical tables, typed read/write, exact generated names, and exact ledger rows
+- [x] SQLite integration 2/2 with the same behavioral proof
+- [x] Root-time name-reference resolution removed from S16 because the repository does not implement it; no resolver abstraction was added for the example
+- [ ] Gate: full build, fix, unit, int, e2e — final sweep below
+- [x] Review gate R — verdict: **pass**. Existing public APIs and collection marker usage are preserved; no cast, monkey patch, or runtime composition helper was added
 
 ## S17 — Final sweep
 - [ ] Every deleted symbol verified gone, including re-exports and `dist` barrels

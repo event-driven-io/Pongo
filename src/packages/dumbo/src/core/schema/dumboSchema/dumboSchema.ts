@@ -23,7 +23,10 @@ import {
 } from '../components';
 import {
   extensionComponent,
+  type ExtensionComponent,
+  type ExtensionComponentOptions,
   type ExtensionComponents,
+  type ExtensionSchemas,
 } from '../extensionComponent';
 import {
   schemaComponentType,
@@ -78,6 +81,7 @@ const dumboTable = <
 >(
   name: TableName,
   definition: Readonly<{
+    kind?: string;
     databaseSchemaName?: string;
     columns?: Columns;
     primaryKey?: ReadonlyArray<Extract<keyof Columns, string>>;
@@ -213,11 +217,15 @@ dumboDatabase.from = (
     : dumboDatabase(databaseName, schemas);
 };
 
-const dumboExtension = <const Name extends string>(
+const dumboExtension = <
+  const Name extends string,
+  const Schemas extends ExtensionSchemas = Readonly<Record<never, never>>,
+  const Extensions extends ExtensionComponents = Readonly<Record<never, never>>,
+>(
   name: Name,
-  components: ExtensionComponents,
-): ReturnType<typeof extensionComponent<Name>> =>
-  extensionComponent(name, components);
+  options: ExtensionComponentOptions<Schemas, Extensions> = {},
+): ExtensionComponent<Name, Schemas, Extensions> =>
+  extensionComponent(name, options);
 
 export const dumboSchema = {
   database: dumboDatabase,

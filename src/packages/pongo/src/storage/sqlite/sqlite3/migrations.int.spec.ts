@@ -1,4 +1,4 @@
-import { SQL } from '@event-driven-io/dumbo';
+import { dumboSchema, SQL } from '@event-driven-io/dumbo';
 import {
   SQLiteConnectionString,
   sqlite3Pool,
@@ -7,9 +7,18 @@ import assert from 'assert';
 import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'node:crypto';
-import { afterEach, describe, it } from 'vitest';
-import { pongoClient, pongoSchema } from '../../../core';
+import { afterEach, describe, expectTypeOf, it } from 'vitest';
+import {
+  pongoClient,
+  pongoDocumentType,
+  pongoSchema,
+  type PongoCollection,
+} from '../../../core';
 import { sqlite3Driver } from '.';
+
+type User = {
+  email: string;
+};
 
 describe('SQLite3 migration integration', () => {
   const fileName = path.resolve(
@@ -80,22 +89,22 @@ describe('SQLite3 migration integration', () => {
     });
     const pool = sqlite3Pool({ fileName });
     const expectedMigrationNames = [
-      'pongoSchema:001:create',
-      'pongoCollection:users:001:createtable',
-      'pongoCollection:explicit_default_users:001:createtable',
-      'pongoIndex:explicit_default_users:explicit_default_email_idx:create',
-      'pongoSchema:crm:001:create',
-      'pongoCollection:crm:users:001:createtable',
-      'pongoIndex:crm:users:users_email_idx:create',
-      'pongoIndex:crm:users:users_external_id_uq:create',
-      'pongoIndex:crm:users:users_data_idx:create',
-      'pongoIndex:crm:users:users_custom_data_idx:create',
-      'pongoSchema:audit:001:create',
-      'pongoCollection:audit:users:001:createtable',
-      'pongoIndex:audit:users:audit_users_email_idx:create',
+      'schema:relational:001:create',
+      'table:pongo_collection:users:001:create',
+      'table:pongo_collection:explicit_default_users:001:create',
+      'index:pongo_index:explicit_default_users:explicit_default_email_idx:001:create',
+      'schema:relational:crm:001:create',
+      'table:pongo_collection:crm:users:001:create',
+      'index:pongo_index:crm:users:users_email_idx:001:create',
+      'index:pongo_index:crm:users:users_external_id_uq:001:create',
+      'index:pongo_index:crm:users:users_data_idx:001:create',
+      'index:pongo_index:crm:users:users_custom_data_idx:001:create',
+      'schema:relational:audit:001:create',
+      'table:pongo_collection:audit:users:001:create',
+      'index:pongo_index:audit:users:audit_users_email_idx:001:create',
     ];
     const expectedAppliedNames = expectedMigrationNames.filter(
-      (name) => !name.startsWith('pongoSchema:'),
+      (name) => !name.startsWith('schema:relational:'),
     );
 
     try {
@@ -172,13 +181,100 @@ describe('SQLite3 migration integration', () => {
         migrationNames.rows.map((row) => row.name),
         [
           ...expectedAppliedNames,
-          'pongoCollection:readmodels:late_users:001:createtable',
+          'table:pongo_collection:readmodels:late_users:001:create',
         ],
       );
       assert.strictEqual(defaultCount.rows[0]?.count, 1);
       assert.strictEqual(crmCount.rows[0]?.count, 1);
       assert.strictEqual(auditCount.rows[0]?.count, 0);
       assert.strictEqual(lateCount.rows[0]?.count, 1);
+    } finally {
+      await client.close();
+      await pool.close();
+    }
+  });
+
+  it('migrates mixed event-store and Pongo extension schemas', async () => {
+    const users = pongoSchema.collection<User>('users');
+    const eventStore = dumboSchema.extension('event-store', {
+      schemas: {
+        default: dumboSchema.defaultSchema({
+          messages: dumboSchema.table('messages', {
+            kind: 'event_store',
+            columns: {
+              id: dumboSchema.column('id', SQL.column.type.Text, {
+                primaryKey: true,
+              }),
+            },
+          }),
+        }),
+        readmodels: dumboSchema.schema('readmodels', { users }),
+      },
+    });
+    const definition = pongoSchema.db({ schemas: {} }, { eventStore });
+    const client = pongoClient({
+      driver: sqlite3Driver,
+      connectionString,
+      schema: {
+        definition: pongoSchema.client({ database: definition }),
+      },
+    });
+    const pool = sqlite3Pool({ fileName });
+
+    expectTypeOf(eventStore.schemas.readmodels.tables.users).toEqualTypeOf(
+      users,
+    );
+    expectTypeOf(
+      eventStore.schemas.readmodels.tables.users[pongoDocumentType],
+    ).toEqualTypeOf<User>();
+    expectTypeOf(definition.schemas.readmodels.tables.users).toEqualTypeOf(
+      users,
+    );
+
+    try {
+      const db = client.db('database');
+      const usersCollection = db.collection<User>('users', {
+        databaseSchemaName: 'readmodels',
+      });
+      expectTypeOf(usersCollection).toEqualTypeOf<PongoCollection<User>>();
+
+      assert.deepStrictEqual(
+        db.schema.migrations.map(({ name }) => name),
+        [
+          'schema:relational:001:create',
+          'table:event_store:messages:001:create',
+          'schema:relational:readmodels:001:create',
+          'table:pongo_collection:readmodels:users:001:create',
+        ],
+      );
+
+      await db.schema.migrate();
+      await db.schema.migrate();
+      await usersCollection.insertOne({
+        _id: 'user-1',
+        email: 'user@example.com',
+      });
+
+      const stored = await usersCollection.findOne({ _id: 'user-1' });
+      const objects = await pool.execute.query<{ name: string }>(
+        SQL`SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('messages', 'readmodels.users') ORDER BY name`,
+      );
+      const migrationNames = await pool.execute.query<{ name: string }>(
+        SQL`SELECT name FROM dmb_migrations ORDER BY id`,
+      );
+
+      assert.deepStrictEqual(
+        objects.rows.map(({ name }) => name),
+        ['messages', 'readmodels.users'],
+      );
+      assert.strictEqual(stored?.email, 'user@example.com');
+      assert.deepStrictEqual(
+        migrationNames.rows.map(({ name }) => name),
+        [
+          'table:event_store:messages:001:create',
+          'table:pongo_collection:readmodels:users:001:create',
+        ],
+      );
     } finally {
       await client.close();
       await pool.close();

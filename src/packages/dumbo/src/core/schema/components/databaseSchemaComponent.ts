@@ -1,9 +1,5 @@
-import {
-  SQL,
-  SQLCreateSchema,
-  type SQLDefaultSchemaNameToken,
-} from '../../sql';
-import type { ExtensionComponent } from '../extensionComponent';
+import { SQL, SQLCreateSchema, SQLDefaultSchemaNameToken } from '../../sql';
+import type { AnyExtensionComponent } from '../extensionComponent';
 import {
   dedupeMigrations,
   schemaComponentMap,
@@ -22,7 +18,7 @@ export const databaseSchemaComponentType: unique symbol = Symbol(
 );
 
 export type DatabaseSchemaTables = Readonly<Record<string, AnyTableComponent>>;
-export type SchemaExtensions = Readonly<Record<string, ExtensionComponent>>;
+export type SchemaExtensions = Readonly<Record<string, AnyExtensionComponent>>;
 
 export type DatabaseSchemaComponent<
   Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
@@ -48,6 +44,7 @@ export type DatabaseSchemaComponentOptions<
   Extensions extends SchemaExtensions,
 > = Readonly<{
   schemaName: SchemaName;
+  kind?: string | undefined;
   tables?: Tables | undefined;
   extensions?: Extensions | undefined;
 }> &
@@ -62,6 +59,7 @@ export const databaseSchemaComponent = <
 ): DatabaseSchemaComponent<Tables, SchemaName, Extensions> => {
   const tables = (options.tables ?? {}) as Tables;
   const extensions = (options.extensions ?? {}) as Extensions;
+  const kind = options.kind ?? 'relational';
   const schemaNameLabel =
     typeof options.schemaName === 'string'
       ? options.schemaName
@@ -87,6 +85,23 @@ export const databaseSchemaComponent = <
       );
     }
   }
+  for (const extension of Object.values(extensions)) {
+    for (const schema of Object.values(extension.schemas)) {
+      const hasSameSchemaName =
+        typeof options.schemaName === 'string'
+          ? schema.schemaName === options.schemaName
+          : SQLDefaultSchemaNameToken.check(schema.schemaName);
+      if (!hasSameSchemaName) {
+        const contributedSchemaName =
+          typeof schema.schemaName === 'string'
+            ? `"${schema.schemaName}"`
+            : 'the default schema';
+        throw new Error(
+          `Extension "${extension.extensionName}" contributes database schema ${contributedSchemaName} and cannot be attached to database schema "${schemaNameLabel}"`,
+        );
+      }
+    }
+  }
   const children = Object.freeze([
     ...Object.values(tables),
     ...Object.values(extensions),
@@ -102,17 +117,11 @@ export const databaseSchemaComponent = <
       const scoped = { ...context, databaseSchemaName: options.schemaName };
 
       return dedupeMigrations([
-        sqlMigration(
-          databaseSchemaMigrationName(
-            options.schemaName,
-            scoped.migrationNamePrefixes,
-          ),
-          [
-            SQL`${SQLCreateSchema.from({
-              databaseSchemaName: options.schemaName,
-            })}`,
-          ],
-        ),
+        sqlMigration(databaseSchemaMigrationName(options.schemaName, kind), [
+          SQL`${SQLCreateSchema.from({
+            databaseSchemaName: options.schemaName,
+          })}`,
+        ]),
         ...(options.migrations?.(scoped) ?? []),
         ...children.flatMap((child) => child.migrations(scoped)),
       ]);

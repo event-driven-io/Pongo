@@ -29,14 +29,14 @@ describe('keeping the migration ledger in a SQLite table', () => {
   it('leaves an existing schema untouched when it is not asked to create one', () => {
     assert.deepStrictEqual(
       migrationNames(migrationTableComponentFor({ schemaName: 'infra' })),
-      ['dumboTable:infra:dmb_migrations:001:createtable'],
+      ['table:relational:infra:dmb_migrations:001:create'],
     );
   });
 
   it('creates no schema when the ledger is not schema-qualified', () => {
     assert.deepStrictEqual(
       migrationNames(migrationTableComponentFor({ createSchema: true })),
-      ['dumboTable:dmb_migrations:001:createtable'],
+      ['table:relational:dmb_migrations:001:create'],
     );
   });
 });

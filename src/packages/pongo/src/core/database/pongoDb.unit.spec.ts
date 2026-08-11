@@ -162,7 +162,7 @@ describe('using a Pongo database', () => {
     const definition = db.schema.definition;
 
     assert.deepStrictEqual(migrationNames(db.schema.migrations), [
-      'pongoSchema:001:create',
+      'schema:relational:001:create',
     ]);
 
     const scoped = db.schema('audit').collection('entries');
@@ -175,12 +175,12 @@ describe('using a Pongo database', () => {
     assert.strictEqual(db.schema.definition, definition);
     assert.deepStrictEqual(
       scoped.schema.component.migrations().map((migration) => migration.name),
-      ['dumboTable:audit:entries:001:createtable'],
+      ['table:pongo_collection:audit:entries:001:create'],
     );
     assert.deepStrictEqual(migrationNames(db.schema.migrations), [
-      'pongoSchema:001:create',
-      'pongoSchema:audit:001:create',
-      'pongoCollection:audit:entries:001:createtable',
+      'schema:relational:001:create',
+      'schema:relational:audit:001:create',
+      'table:pongo_collection:audit:entries:001:create',
     ]);
     assert.strictEqual(
       db.schema.component.schemas.audit?.tables.entries?.tableName,

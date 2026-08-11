@@ -102,6 +102,7 @@ export type IndexComponentOptions<
   ColumnNames extends readonly string[],
 > = Readonly<{
   indexName: IndexName;
+  kind?: string | undefined;
   indexTargetNames?: ReadonlyArray<string> | undefined;
   databaseSchemaName?: string | undefined;
   tableName?: string | undefined;
@@ -160,6 +161,7 @@ export const indexComponent = <
   options: IndexComponentOptions<IndexName, ColumnNames>,
 ): IndexComponent<IndexName, ColumnNames> => {
   const children: ReadonlyArray<AnySchemaComponent> = Object.freeze([]);
+  const kind = options.kind ?? 'relational';
 
   const component: IndexComponent<IndexName, ColumnNames> = {
     [schemaComponentType]: indexComponentType,
@@ -192,10 +194,9 @@ export const indexComponent = <
         ...(identifier === undefined
           ? []
           : [
-              sqlMigration(
-                indexMigrationName(identifier, context.migrationNamePrefixes),
-                [createIndexSQL(component, identifier)],
-              ),
+              sqlMigration(indexMigrationName(identifier, kind), [
+                createIndexSQL(component, identifier),
+              ]),
             ]),
         ...(options.migrations?.(context) ?? []),
         ...children.flatMap((child) => child.migrations(context)),

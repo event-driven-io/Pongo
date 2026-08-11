@@ -12,7 +12,6 @@ import { randomUUID } from 'crypto';
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 import {
-  pongoMigrationNamePrefixes,
   pongoSchema,
   type ExpectedDocumentVersion,
   type PongoCollectionComponent,
@@ -94,10 +93,7 @@ const rendersSQL = (migration: { sqls: SQL[] }): boolean =>
 
 const migrationsFor = (
   database: ReturnType<typeof databaseInSchemaWithIndexes>['database'],
-) =>
-  database
-    .migrations({ migrationNamePrefixes: pongoMigrationNamePrefixes })
-    .filter(rendersSQL);
+) => database.migrations().filter(rendersSQL);
 
 describe('sqliteSQLBuilder', () => {
   const collectionName = 'testCollection';
@@ -141,7 +137,7 @@ describe('sqliteSQLBuilder', () => {
 
       assert.equal(
         migrations[0]!.name,
-        'pongoCollection:users:001:createtable',
+        'table:pongo_collection:users:001:create',
       );
       assert.ok(query.includes('CREATE TABLE IF NOT EXISTS users'));
     });
@@ -162,7 +158,7 @@ describe('sqliteSQLBuilder', () => {
 
       assert.equal(
         migrations[0]!.name,
-        'pongoCollection:users:001:createtable',
+        'table:pongo_collection:users:001:create',
       );
       assert.ok(query.includes('CREATE TABLE IF NOT EXISTS users'));
       assert.ok(insert.query.includes('INSERT OR IGNORE INTO users'));
@@ -186,7 +182,7 @@ describe('sqliteSQLBuilder', () => {
 
       assert.equal(
         migrations[0]!.name,
-        'pongoCollection:crm:users:001:createtable',
+        'table:pongo_collection:crm:users:001:create',
       );
       assert.ok(query.includes('CREATE TABLE IF NOT EXISTS "crm.users"'));
       assert.ok(insert.query.includes('INSERT OR IGNORE INTO "crm.users"'));
@@ -473,9 +469,9 @@ describe('sqliteSQLBuilder', () => {
       assert.deepStrictEqual(
         migrations.map((migration) => migration.name),
         [
-          'pongoCollection:users:001:createtable',
-          'pongoIndex:users:users_email_idx:create',
-          'pongoIndex:users:users_data_idx:create',
+          'table:pongo_collection:users:001:create',
+          'index:pongo_index:users:users_email_idx:001:create',
+          'index:pongo_index:users:users_data_idx:001:create',
         ],
       );
       const document = collection.indexes.document;

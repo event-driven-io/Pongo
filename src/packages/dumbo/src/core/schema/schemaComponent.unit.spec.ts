@@ -34,10 +34,11 @@ const migrationNames = (
 
 const extensionWith = (
   extensionName: string,
-  components: Readonly<Record<string, AnySchemaComponent>> = {},
+  extensions: Readonly<Record<string, ExtensionComponent>> = {},
   migrations: ReturnType<typeof sqlMigration>[] = [],
 ): ExtensionComponent =>
-  extensionComponent(extensionName, components, {
+  extensionComponent(extensionName, {
+    extensions,
     migrations: () => migrations,
   });
 
@@ -139,9 +140,9 @@ describe('composing schema components', () => {
     });
 
     assert.deepStrictEqual(migrationNames(crm.migrations()), [
-      'dumboSchema:crm:001:create',
-      'dumboTable:crm:users:001:createtable',
-      'dumboTable:crm:roles:001:createtable',
+      'schema:relational:crm:001:create',
+      'table:relational:crm:users:001:create',
+      'table:relational:crm:roles:001:create',
     ]);
   });
 
@@ -263,9 +264,9 @@ describe('exposing a component as a plain frozen value', () => {
     });
 
     assert.deepStrictEqual(migrationNames(crm.migrations()), [
-      'dumboSchema:crm:001:create',
+      'schema:relational:crm:001:create',
       own.name,
-      'dumboTable:crm:users:001:createtable',
+      'table:relational:crm:users:001:create',
     ]);
   });
 
@@ -286,12 +287,12 @@ describe('exposing a component as a plain frozen value', () => {
     });
 
     assert.deepStrictEqual(migrationNames(users.migrations()), [
-      'dumboTable:users:001:createtable',
+      'table:relational:users:001:create',
       columnMigration.name,
     ]);
     assert.deepStrictEqual(migrationNames(crm.migrations()), [
-      'dumboSchema:crm:001:create',
-      'dumboTable:crm:users:001:createtable',
+      'schema:relational:crm:001:create',
+      'table:relational:crm:users:001:create',
       columnMigration.name,
     ]);
   });
@@ -313,11 +314,9 @@ describe('exposing a component as a plain frozen value', () => {
   });
 
   it('exposes migrations as a method and never as an accessor', () => {
-    const component = extensionWith(
-      'root',
-      { users: tableComponent({ tableName: 'users' }) },
-      [sqlMigration('root:001', [SQL`SELECT 1`])],
-    );
+    const component = extensionWith('root', { users: extensionWith('users') }, [
+      sqlMigration('root:001', [SQL`SELECT 1`]),
+    ]);
 
     assert.strictEqual(typeof component.migrations, 'function');
 
@@ -368,8 +367,8 @@ describe('grouping components that migrate as one unit', () => {
 
     assert.deepStrictEqual(group.components, [users, roles]);
     assert.deepStrictEqual(migrationNames(group.migrations()), [
-      'dumboTable:users:001:createtable',
-      'dumboTable:roles:001:createtable',
+      'table:relational:users:001:create',
+      'table:relational:roles:001:create',
     ]);
   });
 
@@ -388,25 +387,33 @@ describe('grouping components that migrate as one unit', () => {
 
     assert.deepStrictEqual(migrationNames(group.migrations()), [
       own.name,
-      'dumboTable:users:001:createtable',
+      'table:relational:users:001:create',
     ]);
   });
 });
 
 describe('grouping components in extensions', () => {
-  it('attaches an extension to a database without exposing its internals as schemas', () => {
+  it('exposes schemas and nested extensions as frozen records', () => {
     const eventStoreSchema = databaseSchemaComponent({
       schemaName: 'event_store',
       tables: {
         events: tableComponent({ tableName: 'events' }),
       },
     });
-    const checkpoints = tableComponent({
-      tableName: 'processor_checkpoints',
+    const checkpointsSchema = databaseSchemaComponent({
+      schemaName: 'checkpoints',
+      tables: {
+        checkpoints: tableComponent({
+          tableName: 'processor_checkpoints',
+        }),
+      },
+    });
+    const checkpoints = extensionComponent('checkpoints', {
+      schemas: { checkpoints: checkpointsSchema },
     });
     const eventStore = extensionComponent('event-store', {
-      eventStore: eventStoreSchema,
-      checkpoints,
+      schemas: { event_store: eventStoreSchema },
+      extensions: { checkpoints },
     });
     const database = databaseComponent({
       databaseName: 'app',
@@ -418,16 +425,28 @@ describe('grouping components in extensions', () => {
       checkpoints,
     ]);
     assert.deepStrictEqual(database.components, [eventStore]);
+    assert.strictEqual(eventStore.schemas.event_store, eventStoreSchema);
+    assert.strictEqual(eventStore.schemas.checkpoints, checkpointsSchema);
+    assert.strictEqual(eventStore.extensions.checkpoints, checkpoints);
+    assert.strictEqual(Object.isFrozen(eventStore.schemas), true);
+    assert.strictEqual(Object.isFrozen(eventStore.extensions), true);
     assert.strictEqual(
       database.extensions.eventStore.extensionName,
       'event-store',
     );
-    assert.deepStrictEqual(Object.keys(database.schemas), []);
+    assert.strictEqual(database.schemas.event_store, eventStoreSchema);
+    assert.strictEqual(database.schemas.checkpoints, checkpointsSchema);
   });
 
   it('attaches an extension to a schema without exposing its internals as tables', () => {
     const internalTable = tableComponent({ tableName: 'audit_log' });
-    const audit = extensionComponent('audit', { internalTable });
+    const auditSchema = databaseSchemaComponent({
+      schemaName: 'public',
+      tables: { internalTable },
+    });
+    const audit = extensionComponent('audit', {
+      schemas: { public: auditSchema },
+    });
     const schema = databaseSchemaComponent({
       schemaName: 'public',
       extensions: { audit },
@@ -436,20 +455,22 @@ describe('grouping components in extensions', () => {
     assert.deepStrictEqual(Object.keys(schema.tables), []);
     assert.deepStrictEqual(schema.components, [audit]);
     assert.strictEqual(schema.extensions.audit.extensionName, 'audit');
+    assert.strictEqual(
+      schema.extensions.audit.schemas.public.tables.internalTable,
+      internalTable,
+    );
   });
 
-  it('applies a table placed under two extension aliases only once', () => {
+  it('applies a nested extension placed under two aliases only once', () => {
     const migration = sqlMigration('users:001', [SQL`SELECT 1`]);
-    const users = tableComponent({
-      tableName: 'users',
+    const shared = extensionComponent('shared', {
       migrations: () => [migration],
     });
-    const extension = extensionComponent('shared', {
-      users,
-      usersAgain: users,
+    const extension = extensionComponent('root', {
+      extensions: { shared, sharedAgain: shared },
     });
 
-    assert.deepStrictEqual(extension.components, [users, users]);
+    assert.deepStrictEqual(extension.components, [shared, shared]);
     assert.deepStrictEqual(extension.migrations(), [migration]);
   });
 
@@ -468,8 +489,17 @@ describe('grouping components in extensions', () => {
       tableName: 'audit_log',
       migrations: () => [migration],
     });
-    const nested = extensionComponent('nested-audit', { auditLog });
-    const audit = extensionComponent('audit', { nested });
+    const nested = extensionComponent('nested-audit', {
+      schemas: {
+        public: databaseSchemaComponent({
+          schemaName: 'public',
+          tables: { auditLog },
+        }),
+      },
+    });
+    const audit = extensionComponent('audit', {
+      extensions: { nested },
+    });
     const schema = databaseSchemaComponent({
       schemaName: 'public',
       extensions: { audit },
@@ -477,8 +507,12 @@ describe('grouping components in extensions', () => {
 
     assert.deepStrictEqual(Object.keys(schema.tables), []);
     assert.strictEqual(schema.extensions.audit.extensionName, 'audit');
+    assert.strictEqual(
+      schema.extensions.audit.schemas.public.tables.auditLog,
+      auditLog,
+    );
     assert.deepStrictEqual(migrationNames(schema.migrations()), [
-      'dumboSchema:public:001:create',
+      'schema:relational:public:001:create',
       migration.name,
     ]);
   });
@@ -537,20 +571,142 @@ describe('grouping components in extensions', () => {
     });
 
     assert.deepStrictEqual(migrationNames(database.migrations()), [
-      'dumboSchema:crm:001:create',
+      'schema:relational:crm:001:create',
       tableMigration.name,
       schemaExtensionMigration.name,
       databaseExtensionMigration.name,
     ]);
   });
 
+  it('runs extension migrations before its schemas and nested extensions', () => {
+    const own = sqlMigration('event-store:001', [SQL`SELECT 1`]);
+    const schemaMigration = sqlMigration('messages:002', [SQL`SELECT 2`]);
+    const nestedMigration = sqlMigration('outbox:003', [SQL`SELECT 3`]);
+    const outbox = extensionComponent('outbox', {
+      migrations: () => [nestedMigration],
+    });
+    const eventStore = extensionComponent('event-store', {
+      schemas: {
+        event_store: databaseSchemaComponent({
+          schemaName: 'event_store',
+          migrations: () => [schemaMigration],
+        }),
+      },
+      extensions: { outbox },
+      migrations: () => [own],
+    });
+
+    assert.deepStrictEqual(migrationNames(eventStore.migrations()), [
+      own.name,
+      'schema:relational:event_store:001:create',
+      schemaMigration.name,
+      nestedMigration.name,
+    ]);
+  });
+
+  it('keeps extension schema paths when attached to a database', () => {
+    const eventStore = extensionComponent('event-store', {
+      schemas: {
+        default: databaseSchemaComponent({
+          schemaName: SQLDefaultSchemaNameToken.from(),
+          tables: {
+            messages: tableComponent({
+              tableName: 'messages',
+              kind: 'event_store',
+              columns: {
+                id: columnSchemaComponent({
+                  columnName: 'id',
+                  type: 'TEXT',
+                }),
+              },
+            }),
+          },
+        }),
+        readmodels: databaseSchemaComponent({
+          schemaName: 'readmodels',
+          tables: {
+            users: tableComponent({
+              tableName: 'users',
+              columns: {
+                id: columnSchemaComponent({
+                  columnName: 'id',
+                  type: 'TEXT',
+                }),
+              },
+            }),
+          },
+        }),
+      },
+    });
+    const database = databaseComponent({ extensions: { eventStore } });
+
+    assert.deepStrictEqual(migrationNames(database.migrations()), [
+      'schema:relational:001:create',
+      'table:event_store:messages:001:create',
+      'schema:relational:readmodels:001:create',
+      'table:relational:readmodels:users:001:create',
+    ]);
+  });
+
+  it('rejects a schema extension that contributes another physical schema', () => {
+    const audit = extensionComponent('audit', {
+      schemas: {
+        audit: databaseSchemaComponent({ schemaName: 'audit' }),
+      },
+    });
+
+    assert.throws(
+      () =>
+        databaseSchemaComponent({
+          schemaName: 'public',
+          extensions: { audit },
+        }),
+      /Extension "audit".*schema "audit".*schema "public"/,
+    );
+  });
+
+  it('rejects a schema key shared by a direct schema and an extension', () => {
+    const eventStore = extensionComponent('event-store', {
+      schemas: {
+        readmodels: databaseSchemaComponent({ schemaName: 'readmodels' }),
+      },
+    });
+
+    assert.throws(
+      () =>
+        databaseComponent({
+          schemas: {
+            readmodels: databaseSchemaComponent({ schemaName: 'readmodels' }),
+          },
+          extensions: { eventStore },
+        }),
+      /schema key "readmodels".*extension "event-store"/,
+    );
+  });
+
+  it('rejects a schema key shared by two extensions', () => {
+    const first = extensionComponent('first', {
+      schemas: {
+        readmodels: databaseSchemaComponent({ schemaName: 'readmodels' }),
+      },
+    });
+    const second = extensionComponent('second', {
+      schemas: {
+        readmodels: databaseSchemaComponent({ schemaName: 'readmodels' }),
+      },
+    });
+
+    assert.throws(
+      () => databaseComponent({ extensions: { first, second } }),
+      /schema key "readmodels".*extensions "first" and "second"/,
+    );
+  });
+
   it('behaves the same when migrated directly or from a database root', () => {
     const migration = sqlMigration('audit:001', [SQL`SELECT 1`]);
-    const auditLog = tableComponent({
-      tableName: 'audit_log',
+    const audit = extensionComponent('audit', {
       migrations: () => [migration],
     });
-    const audit = extensionComponent('audit', { auditLog });
     const database = databaseComponent({
       databaseName: 'app',
       extensions: { audit },
@@ -741,21 +897,30 @@ describe('placing reusable declarations in the database hierarchy', () => {
 });
 
 describe('validating a composed database', () => {
-  it('discovers an extension table without exposing it as a database schema', () => {
+  it('exposes a database schema contributed by an extension', () => {
     const migration = sqlMigration('audit_log:001', [SQL`SELECT 1`]);
     const auditLog = tableComponent({
       tableName: 'audit_log',
       migrations: () => [migration],
     });
-    const audit = extensionComponent('audit', { auditLog });
+    const auditSchema = databaseSchemaComponent({
+      schemaName: 'audit',
+      tables: { auditLog },
+    });
+    const audit = extensionComponent('audit', {
+      schemas: { audit: auditSchema },
+    });
     const database = databaseComponent({
       databaseName: 'app',
       extensions: { audit },
     });
 
-    assert.deepStrictEqual(database.migrations(), [migration]);
+    assert.deepStrictEqual(migrationNames(database.migrations()), [
+      'schema:relational:audit:001:create',
+      migration.name,
+    ]);
     assert.strictEqual(database.extensions.audit.extensionName, 'audit');
-    assert.deepStrictEqual(Object.keys(database.schemas), []);
+    assert.strictEqual(database.schemas.audit, auditSchema);
   });
 
   it('reports schema validation failure before executing migrations', async () => {

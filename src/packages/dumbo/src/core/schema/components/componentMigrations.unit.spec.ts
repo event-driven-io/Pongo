@@ -41,37 +41,56 @@ describe('components emitting their own migrations', () => {
     assert.deepStrictEqual(
       database.migrations().map(({ name }) => name),
       [
-        'dumboSchema:crm:001:create',
-        'dumboTable:crm:users:001:createtable',
-        'dumboIndex:crm:users:users_email_idx:create',
+        'schema:relational:crm:001:create',
+        'table:relational:crm:users:001:create',
+        'index:relational:crm:users:users_email_idx:001:create',
       ],
     );
   });
 
-  it('takes the name prefixes from the context it is read with', () => {
+  it('keeps custom component kinds local to their declarations', () => {
     const database = databaseComponent({
       schemas: {
         crm: databaseSchemaComponent({
           schemaName: 'crm',
-          tables: { crmUsers: usersTable() },
+          tables: {
+            users: tableComponent({
+              tableName: 'users',
+              kind: 'event_store',
+              columns,
+              indexes: {
+                email: indexComponent({
+                  indexName: 'users_email_idx',
+                  kind: 'pongo_index',
+                  columnNames: ['email'],
+                  isUnique: true,
+                }),
+              },
+            }),
+            roles: tableComponent({
+              tableName: 'roles',
+              columns,
+              indexes: {
+                email: indexComponent({
+                  indexName: 'roles_email_idx',
+                  columnNames: ['email'],
+                  isUnique: true,
+                }),
+              },
+            }),
+          },
         }),
       },
     });
 
     assert.deepStrictEqual(
-      database
-        .migrations({
-          migrationNamePrefixes: {
-            databaseSchema: 'pongoSchema',
-            table: 'pongoCollection',
-            index: 'pongoIndex',
-          },
-        })
-        .map(({ name }) => name),
+      database.migrations().map(({ name }) => name),
       [
-        'pongoSchema:crm:001:create',
-        'pongoCollection:crm:users:001:createtable',
-        'pongoIndex:crm:users:users_email_idx:create',
+        'schema:relational:crm:001:create',
+        'table:event_store:crm:users:001:create',
+        'index:pongo_index:crm:users:users_email_idx:001:create',
+        'table:relational:crm:roles:001:create',
+        'index:relational:crm:roles:roles_email_idx:001:create',
       ],
     );
   });
@@ -92,7 +111,10 @@ describe('components emitting their own migrations', () => {
 
     assert.deepStrictEqual(
       named.map(({ name }) => name),
-      ['dumboSchema:crm:001:create', 'dumboTable:crm:users:001:createtable'],
+      [
+        'schema:relational:crm:001:create',
+        'table:relational:crm:users:001:create',
+      ],
     );
     assert.deepStrictEqual(unnamed, named);
   });
@@ -110,9 +132,9 @@ describe('components emitting their own migrations', () => {
     assert.deepStrictEqual(
       database.migrations().map(({ name }) => name),
       [
-        'dumboSchema:001:create',
-        'dumboTable:users:001:createtable',
-        'dumboIndex:users:users_email_idx:create',
+        'schema:relational:001:create',
+        'table:relational:users:001:create',
+        'index:relational:users:users_email_idx:001:create',
       ],
     );
   });
@@ -121,14 +143,21 @@ describe('components emitting their own migrations', () => {
     const database = databaseComponent({
       extensions: {
         eventStore: extensionComponent('event-store', {
-          events: tableComponent({ tableName: 'events', columns }),
+          schemas: {
+            default: databaseSchemaComponent({
+              schemaName: SQLDefaultSchemaNameToken.from(),
+              tables: {
+                events: tableComponent({ tableName: 'events', columns }),
+              },
+            }),
+          },
         }),
       },
     });
 
     assert.deepStrictEqual(
       database.migrations().map(({ name }) => name),
-      ['dumboTable:events:001:createtable'],
+      ['schema:relational:001:create', 'table:relational:events:001:create'],
     );
   });
 
@@ -140,7 +169,14 @@ describe('components emitting their own migrations', () => {
           schemaName: 'audit',
           extensions: {
             eventStore: extensionComponent('event-store', {
-              events: tableComponent({ tableName: 'events', columns }),
+              schemas: {
+                audit: databaseSchemaComponent({
+                  schemaName: 'audit',
+                  tables: {
+                    events: tableComponent({ tableName: 'events', columns }),
+                  },
+                }),
+              },
             }),
           },
         }),
@@ -151,8 +187,8 @@ describe('components emitting their own migrations', () => {
     assert.deepStrictEqual(
       database.migrations().map(({ name }) => name),
       [
-        'dumboSchema:audit:001:create',
-        'dumboTable:audit:events:001:createtable',
+        'schema:relational:audit:001:create',
+        'table:relational:audit:events:001:create',
       ],
     );
   });
@@ -178,8 +214,8 @@ describe('components emitting their own migrations', () => {
     assert.deepStrictEqual(
       database.migrations().map(({ name }) => name),
       [
-        'dumboSchema:crm:001:create',
-        'dumboTable:crm:users:001:createtable',
+        'schema:relational:crm:001:create',
+        'table:relational:crm:users:001:create',
         'users:backfill',
       ],
     );
@@ -193,7 +229,7 @@ describe('components emitting their own migrations', () => {
 
     assert.deepStrictEqual(
       schema.migrations().map(({ name }) => name),
-      ['dumboSchema:crm:001:create'],
+      ['schema:relational:crm:001:create'],
     );
   });
 
