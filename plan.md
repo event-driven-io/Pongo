@@ -398,11 +398,46 @@ Gate: build, fix, unit, int.
 Spec D19. `migrationTableComponentFor` becomes a real `tableComponent` in a
 real schema, emitting its DDL the way every other table does.
 
-Delete `schemaComponent()` and `genericComponentType` — the last untyped
-component kind. `migrationTableComponentFor` was their only production caller.
+Delete `genericComponentType`. `schemaComponent()` STAYS: its kind becomes a
+required first parameter — `schemaComponent(kind, options)` returning
+`SchemaComponent<Kind>`. There is NO catch-all kind of any sort: no default, no
+fallback, no `groupComponentType`. Every caller passes a kind symbol it
+declares itself. `SchemaComponentMigrator` takes exactly one component, so
+handing it several as one unit has to stay expressible, and the factory still
+earns its keep — it writes the frozen child list and the standard merge, own
+migrations then the children's, deduped. Requiring the kind is what removes the
+untyped hole: `genericComponentType` was the kind you got by omission. See
+spec.md D19 for why deleting the factory outright was rejected, and why
+shipping a group kind in its place was rejected too.
 
-Golden test first: the emitted DDL is byte-identical to `main`'s, including
-`IF NOT EXISTS`, column order, and the `application` / `sql_hash` defaults.
+Golden test first, one exact literal per dialect: the same five columns in the
+same order, `application` defaulting to `'default'` and `timestamp` to
+`CURRENT_TIMESTAMP`, `name` unique and not null, and `IF NOT EXISTS`.
+NOT byte-identical to `main`'s. Two reasons, both accepted up front.
+`createTableSQL` emits one line where the old hand-written literal was
+multi-line. And the core migrations never expose that text: `migrator.ts:141-145`
+runs them straight through `execute.batchCommand`, bypassing the hashing and
+recording `runSQLMigration` does for everything else, so nothing downstream
+compares the string. The columns are load-bearing; the whitespace is not.
+
+Those golden tests live in the two storage packages, not in core:
+`storage/postgresql/core/schema/` and `storage/sqlite/core/schema/`, one file
+per dialect. Rendering the DDL needs a formatter, and a spec in `core/` must
+not import `pgFormatter` or `sqliteFormatter` — core does not depend on a
+storage, in tests any more than in production.
+
+Apply that same rule to the two core specs that already break it, here rather
+than in the S17 sweep — it is one rule, and writing it down while leaving it
+broken next door is what makes a rule stop being one.
+`core/schema/components/createTableSQL.unit.spec.ts` keeps only its
+dialect-agnostic type assertion; its two rendering tests move to a
+`createTableSQL.unit.spec.ts` in each storage package.
+`core/sql/tokens/schemaTokens.unit.spec.ts` is deleted whole — every test in it
+rendered through a dialect formatter, so trimming leaves nothing — and its
+tests move to `core/sql/formatter/schemaTokens.unit.spec.ts` in each package,
+beside `sqlFormatter.unit.spec.ts`, the layer they actually assert.
+Dual-dialect cases become one test per dialect with the same expected text; no
+assertion is weakened.
 
 Gate: build, fix, unit, int.
 ```

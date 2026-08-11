@@ -1,8 +1,12 @@
 import type { Dumbo } from '../..';
 import { fromDatabaseDriverType, type DatabaseDriverType } from '../../drivers';
 import { SQL } from '../../sql';
-import { schemaComponent, type SchemaComponent } from '../schemaComponent';
-import { sqlMigration } from '../sqlMigration';
+import {
+  columnSchemaComponent,
+  databaseSchemaComponent,
+  tableComponent,
+} from '../components';
+import type { SchemaComponent } from '../schemaComponent';
 import {
   getDefaultMigratorOptionsFromRegistry,
   type MigratorOptions,
@@ -20,31 +24,46 @@ export const migrationTableComponentFor = ({
   tableName?: string | undefined;
   createSchema?: boolean | undefined;
 } = {}): SchemaComponent => {
-  const tableReference = schemaName
-    ? SQL`${SQL.identifier(schemaName)}.${SQL.identifier(tableName)}`
-    : SQL`${SQL.identifier(tableName)}`;
-  const createSchemaSQL =
-    createSchema && schemaName
-      ? [SQL`CREATE SCHEMA IF NOT EXISTS ${SQL.identifier(schemaName)}`]
-      : [];
-  const migrationTableSQL = SQL`
-  CREATE TABLE IF NOT EXISTS ${tableReference} (
-    id ${AutoIncrement({ primaryKey: true })},
-    name ${Varchar(255)} NOT NULL UNIQUE,
-    application ${Varchar(255)} NOT NULL DEFAULT 'default',
-    sql_hash ${Varchar(64)} NOT NULL,
-    timestamp ${Timestamp} NOT NULL DEFAULT CURRENT_TIMESTAMP
-  );
-`;
-
-  return schemaComponent({
-    migrations: () => [
-      sqlMigration('dumbo:migrationTable:001', [
-        ...createSchemaSQL,
-        migrationTableSQL,
-      ]),
-    ],
+  const migrationTable = tableComponent({
+    tableName,
+    databaseSchemaName: schemaName,
+    columns: {
+      id: columnSchemaComponent({
+        columnName: 'id',
+        type: AutoIncrement({ primaryKey: true }),
+      }),
+      name: columnSchemaComponent({
+        columnName: 'name',
+        type: Varchar(255),
+        notNull: true,
+        unique: true,
+      }),
+      application: columnSchemaComponent({
+        columnName: 'application',
+        type: Varchar(255),
+        notNull: true,
+        default: 'default',
+      }),
+      sql_hash: columnSchemaComponent({
+        columnName: 'sql_hash',
+        type: Varchar(64),
+        notNull: true,
+      }),
+      timestamp: columnSchemaComponent({
+        columnName: 'timestamp',
+        type: Timestamp,
+        notNull: true,
+        default: SQL.plain('CURRENT_TIMESTAMP'),
+      }),
+    },
   });
+
+  return createSchema && schemaName
+    ? databaseSchemaComponent({
+        schemaName,
+        tables: { [tableName]: migrationTable },
+      })
+    : migrationTable;
 };
 
 export const migrationTableComponent: SchemaComponent =

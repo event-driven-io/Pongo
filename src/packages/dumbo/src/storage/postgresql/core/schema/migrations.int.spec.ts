@@ -156,7 +156,7 @@ describe('Migration Integration Tests', () => {
     await migrator.run({ lock: { options: { timeoutMs: 300 } } });
 
     const migrationNames = await pool.execute.query<{ name: string }>(
-      SQL`SELECT name FROM dmb_migrations WHERE name <> 'dumbo:migrationTable:001' ORDER BY id`,
+      SQL`SELECT name FROM dmb_migrations WHERE name <> 'dumboTable:dmb_migrations:001:createtable' ORDER BY id`,
     );
 
     assert.deepStrictEqual(
@@ -210,7 +210,7 @@ describe('Migration Integration Tests', () => {
         )`,
     );
     const migrationNames = await pool.execute.query<{ name: string }>(
-      SQL`SELECT name FROM dmb_migrations WHERE name <> 'dumbo:migrationTable:001' ORDER BY id`,
+      SQL`SELECT name FROM dmb_migrations WHERE name <> 'dumboTable:dmb_migrations:001:createtable' ORDER BY id`,
     );
 
     assert.strictEqual(indexExists.rows[0]?.exists, true);
