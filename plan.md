@@ -317,14 +317,63 @@ the closure so `this` is never needed:
     [schemaComponentType]: kind,
     ...own fields...,
     components: children,
-    migrations: (context = {}) =>
-      componentMigrations(component, children, { ...context, ...whatIKnow }),
+    migrations: (context = {}) => {
+      const scoped = { ...context, ...whatIKnow };
+
+      return dedupeMigrations([
+        ...ownDDL(scoped),
+        ...(options.migrations?.(component, scoped) ?? []),
+        ...children.flatMap((child) => child.migrations(scoped)),
+      ]);
+    },
   };
   return component;
 
-`componentMigrations(component, children, context)` is the ONE piece of shared
-code: run the declaration, then every child's `migrations(context)`, dedupe by
-name (spec D4). Module-private to `schemaComponent.ts`.
+`dedupeMigrations(migrations)` is the ONE piece of shared code and its only job
+is spec D4: same name + same SQL collapses, same name + different SQL throws.
+Module-private to `schemaComponent.ts`. It takes ONE parameter.
+
+The merge is written inline by each factory. There is NO `componentMigrations`,
+no declaration function held in a local and handed to a helper, no component or
+child list passed as a parameter.
+
+`SchemaComponentDeclaration` is DELETED too. It had exactly two readers, both in
+`schemaComponent.ts`: itself, and the `migrations` option on
+`SchemaComponentOptions`. That option's signature is written inline there
+instead. Nothing else in either package referenced it and it never reached a
+barrel.
+
+The `migrations` option DROPS its `component` parameter and keeps only the
+context:
+
+  migrations?: ((context: SchemaComponentContext) => ReadonlyArray<SQLMigration>)
+
+Nothing reads it. Every caller in production and in the integration specs is
+`() => [...]`. The one exception is `passes the component itself to its
+declaration` in `schemaComponent.unit.spec.ts`, whose whole body asserts that
+the parameter is passed — a test of the parameter's own existence. Delete it
+and record it in todo.md.
+
+The parameter existed because `createSchemaComponent` had to hand the component
+over: the declaration was written before the component object existed, so there
+was no closure to read it from. That constraint dies with the bag, which makes
+the parameter a gate-R question-2 remnant of it. `context` STAYS — it is the
+only way a user-written migration can learn which schema its table landed in,
+since D1 forbids reading placement off the component, and it is what D18 exists
+for.
+
+Settled with Oskar 2026-08-11, after three rejected shapes: a fourth
+`declaration` parameter, a `(component, context, declaration)` triple, and
+expressing the own DDL as an extra child so `migrations` becomes a bare
+flatMap. See spec.md D2 for why the last one loses.
+
+DECLARED GROWTH, per ground rule 5. This step ends larger than it started and
+that is accepted in advance. One constructor becoming six literals costs each
+factory a fixed few lines the constructor wrote once, and writing the merge
+inline rather than in a helper costs each factory three more. Expect roughly
++35 non-test lines. The step is a deletion of machinery, not of text: what it
+buys is `createSchemaComponent`, the fields bag, the context option,
+`scopedContext` and the `this` binding, and it is what unblocks S10.
 
 Only `databaseSchemaComponent` and `tableComponent` extend the context — with
 `databaseSchemaName` and `tableName`. `databaseComponent` extends nothing;

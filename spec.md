@@ -69,11 +69,17 @@ export const databaseSchemaComponent = (options) => {
     tables: schemaComponentMap(tables),
     extensions: schemaComponentMap(extensions),
     components: children,
-    migrations: (context: SchemaComponentContext = {}) =>
-      componentMigrations(component, children, {
-        ...context,
-        databaseSchemaName: options.schemaName,
-      }),
+    migrations: (context: SchemaComponentContext = {}) => {
+      const scoped = { ...context, databaseSchemaName: options.schemaName };
+
+      return dedupeMigrations([
+        sqlMigration(schemaMigrationName(scoped), [
+          SQL`${SQLCreateSchema.from({ databaseSchemaName: options.schemaName })}`,
+        ]),
+        ...(options.migrations?.(scoped) ?? []),
+        ...children.flatMap((child) => child.migrations(scoped)),
+      ]);
+    },
   };
 
   return component;
@@ -82,15 +88,19 @@ export const databaseSchemaComponent = (options) => {
 
 Deleted: `createSchemaComponent`, its `fields` bag, its `context` option, `scopedContext`, the `this: AnySchemaComponent` binding, and the `as unknown as` casts the bag required. `createSchemaComponent` is not public API — `schemaComposition.type.spec.ts:52-53` asserts its absence with `@ts-expect-error` and it appears zero times in `dist` — so removing it breaks no consumer.
 
-One helper survives as shared code:
+One helper survives as shared code, and it does exactly one thing — D4's dedupe:
 
 ```ts
-componentMigrations(component, children, context): ReadonlyArray<SQLMigration>
+dedupeMigrations(migrations: ReadonlyArray<SQLMigration>): ReadonlyArray<SQLMigration>
 ```
 
-It runs the component's own declaration, then every child's `migrations(context)`, deduping by name (D3). Nothing else is shared.
+Nothing else is shared. Each factory writes the merge itself, inline in its own `migrations` method, in this order: its own DDL if it emits any, then the caller's `migrations` option, then every child's `migrations(context)`. A factory that extends the context binds the extended value to a local first and hands that same local to both the option and the children.
 
-`migrations` is a **method, not a getter**, and the declaration function is kept in the factory closure — no property carries it. It is **always a function**; a plain array is not accepted and can be added as sugar later.
+**There is no declaration concept at all.** No `componentMigrations`, no declaration function held in a local and passed to a helper, no component or child list threaded through one. A factory reads its own `options` and its own children and nothing else. `SchemaComponentDeclaration` is deleted with the rest of it: its only two readers were its own declaration and the `migrations` option on `SchemaComponentOptions`, whose signature is written inline there instead. Naming a one-use function type was what made "the declaration" look like a thing the design had.
+
+Rejected while settling this (Q62): expressing a component's own DDL as an extra child so that `migrations` collapses to a bare `flatMap` over `components`. It works, and it removes the merge entirely, but it puts a member in `components` that the caller never declared — `users.components` becomes `[<create-table emitter>, id, email]` — which breaks what `components` means, breaks the deep-equality assertions that read it, and needs a component kind for the emitter at the same moment D19 deletes the last untyped one.
+
+`migrations` is a **method, not a getter**, and it is **always a function**; a plain array is not accepted and can be added as sugar later.
 
 ### D3 — The erased child list is an array, not a keyed record
 

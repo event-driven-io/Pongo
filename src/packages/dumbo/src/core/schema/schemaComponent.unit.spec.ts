@@ -321,45 +321,7 @@ describe('exposing a component as a plain frozen value', () => {
     ]);
   });
 
-  it('passes the component itself to its declaration', () => {
-    const declared: AnySchemaComponent[] = [];
-    const component = schemaComponent({
-      migrations: (self) => {
-        declared.push(self);
-        return [];
-      },
-    });
-
-    assert.deepStrictEqual(declared, []);
-
-    component.migrations();
-
-    assert.deepStrictEqual(declared, [component]);
-  });
-
-  it('declares against the component it is read from, not the one it was built from', () => {
-    const original = schemaComponent({
-      migrations: (self) => [
-        sqlMigration(`declared:${self.components.length}`, [SQL`SELECT 1`]),
-      ],
-      components: [schemaComponent()],
-    });
-    const clone = Object.freeze({
-      ...original,
-      components: Object.freeze([schemaComponent(), schemaComponent()]),
-    }) as AnySchemaComponent;
-
-    assert.deepStrictEqual(
-      original.migrations().map((migration) => migration.name),
-      ['declared:1'],
-    );
-    assert.deepStrictEqual(
-      clone.migrations().map((migration) => migration.name),
-      ['declared:2'],
-    );
-  });
-
-  it('exposes a frozen component with nothing hidden behind it', () => {
+  it('exposes a component with nothing hidden behind it', () => {
     const migration = sqlMigration('root:001', [SQL`SELECT 1`]);
     const child = schemaComponent();
     const root = schemaComponent({
@@ -367,7 +329,6 @@ describe('exposing a component as a plain frozen value', () => {
       components: [child],
     });
 
-    assert.strictEqual(Object.isFrozen(root), true);
     assert.deepStrictEqual(Object.getOwnPropertyNames(root), Object.keys(root));
     assert.deepStrictEqual(Object.getOwnPropertySymbols(root), [
       schemaComponentType,

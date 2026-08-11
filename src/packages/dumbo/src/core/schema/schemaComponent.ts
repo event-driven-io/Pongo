@@ -25,11 +25,6 @@ export type SchemaComponent<
   migrations: (context?: SchemaComponentContext) => ReadonlyArray<SQLMigration>;
 }>;
 
-export type SchemaComponentDeclaration = (
-  component: AnySchemaComponent,
-  context: SchemaComponentContext,
-) => ReadonlyArray<SQLMigration>;
-
 export type AnySchemaComponent = SchemaComponent<SchemaComponentKind>;
 
 export type SchemaComponentMap<
@@ -37,8 +32,9 @@ export type SchemaComponentMap<
 > = Readonly<Record<string, Component>>;
 
 export type SchemaComponentOptions = Readonly<{
-  migrations?: SchemaComponentDeclaration | undefined;
-  context?: SchemaComponentContext | undefined;
+  migrations?:
+    | ((context: SchemaComponentContext) => ReadonlyArray<SQLMigration>)
+    | undefined;
   components?: ReadonlyArray<AnySchemaComponent> | undefined;
 }>;
 
@@ -51,67 +47,44 @@ export const schemaComponentMap = <
   return Object.freeze(result);
 };
 
-const scopedContext = (
-  context: SchemaComponentContext,
-  scope: SchemaComponentContext | undefined,
-): SchemaComponentContext => {
-  if (scope === undefined) return context;
+export const dedupeMigrations = (
+  migrations: ReadonlyArray<SQLMigration>,
+): ReadonlyArray<SQLMigration> => {
+  const result: SQLMigration[] = [];
+  const migrationsByName = new Map<string, SQLMigration>();
 
-  const merged = { ...context };
-  for (const [key, value] of Object.entries(scope)) {
-    if (value !== undefined) (merged as Record<string, unknown>)[key] = value;
+  for (const migration of migrations) {
+    const previous = migrationsByName.get(migration.name);
+    if (previous === undefined) {
+      migrationsByName.set(migration.name, migration);
+      result.push(migration);
+    } else if (!haveSameSQL(previous, migration)) {
+      throw new Error(
+        `Duplicate migration name "${migration.name}" in schema component tree`,
+      );
+    }
   }
-  return merged;
-};
 
-export const createSchemaComponent = <
-  const Kind extends SchemaComponentKind,
-  const Fields extends Readonly<Record<string, unknown>> = Readonly<
-    Record<string, never>
-  >,
->(
-  kind: Kind,
-  options: SchemaComponentOptions = {},
-  fields: Fields = {} as Fields,
-): SchemaComponent<Kind> & Fields => {
-  const component = {
-    ...fields,
-    [schemaComponentType]: kind,
-    components: Object.freeze([...(options.components ?? [])]),
-    migrations(
-      this: AnySchemaComponent,
-      context: SchemaComponentContext = {},
-    ): ReadonlyArray<SQLMigration> {
-      const scoped = scopedContext(context, options.context);
-      const result: SQLMigration[] = [];
-      const migrationsByName = new Map<string, SQLMigration>();
-
-      for (const migration of [
-        ...(options.migrations?.(this, scoped) ?? []),
-        ...this.components.flatMap((child) => child.migrations(scoped)),
-      ]) {
-        const previous = migrationsByName.get(migration.name);
-        if (previous === undefined) {
-          migrationsByName.set(migration.name, migration);
-          result.push(migration);
-        } else if (!haveSameSQL(previous, migration)) {
-          throw new Error(
-            `Duplicate migration name "${migration.name}" in schema component tree`,
-          );
-        }
-      }
-
-      return result;
-    },
-  };
-
-  return Object.freeze(component);
+  return result;
 };
 
 export const schemaComponent = (
   options: SchemaComponentOptions = {},
-): SchemaComponent<typeof genericComponentType> =>
-  createSchemaComponent(genericComponentType, options);
+): SchemaComponent<typeof genericComponentType> => {
+  const children = Object.freeze([...(options.components ?? [])]);
+
+  const component: SchemaComponent<typeof genericComponentType> = {
+    [schemaComponentType]: genericComponentType,
+    components: children,
+    migrations: (context: SchemaComponentContext = {}) =>
+      dedupeMigrations([
+        ...(options.migrations?.(context) ?? []),
+        ...children.flatMap((child) => child.migrations(context)),
+      ]),
+  };
+
+  return component;
+};
 
 export const isSchemaComponent = (
   value: unknown,

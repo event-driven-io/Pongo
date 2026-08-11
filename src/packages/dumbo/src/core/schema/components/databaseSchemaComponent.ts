@@ -5,11 +5,12 @@ import {
 } from '../../sql';
 import type { ExtensionComponent } from '../extensionComponent';
 import {
-  createSchemaComponent,
+  dedupeMigrations,
   schemaComponentMap,
   schemaComponentType,
   type AnySchemaComponent,
   type SchemaComponent,
+  type SchemaComponentContext,
   type SchemaComponentOptions,
 } from '../schemaComponent';
 import { sqlMigration } from '../sqlMigration';
@@ -75,15 +76,25 @@ export const databaseSchemaComponent = <
       );
     }
   }
-  const base = createSchemaComponent(
-    databaseSchemaComponentType,
-    {
-      components: [...Object.values(tables), ...Object.values(extensions)],
-      migrations: (component, context) => [
+  const children = Object.freeze([
+    ...Object.values(tables),
+    ...Object.values(extensions),
+  ]);
+
+  const component: DatabaseSchemaComponent<Tables, SchemaName, Extensions> = {
+    [schemaComponentType]: databaseSchemaComponentType,
+    schemaName: options.schemaName,
+    tables: schemaComponentMap(tables),
+    extensions: schemaComponentMap(extensions),
+    components: children,
+    migrations: (context: SchemaComponentContext = {}) => {
+      const scoped = { ...context, databaseSchemaName: options.schemaName };
+
+      return dedupeMigrations([
         sqlMigration(
           databaseSchemaMigrationName(
             options.schemaName,
-            context.migrationNamePrefixes,
+            scoped.migrationNamePrefixes,
           ),
           [
             SQL`${SQLCreateSchema.from({
@@ -91,18 +102,13 @@ export const databaseSchemaComponent = <
             })}`,
           ],
         ),
-        ...(options.migrations?.(component, context) ?? []),
-      ],
-      context: { databaseSchemaName: options.schemaName },
+        ...(options.migrations?.(scoped) ?? []),
+        ...children.flatMap((child) => child.migrations(scoped)),
+      ]);
     },
-    {
-      schemaName: options.schemaName,
-      tables: schemaComponentMap(tables),
-      extensions: schemaComponentMap(extensions),
-    },
-  );
+  };
 
-  return base;
+  return component;
 };
 
 export const isDatabaseSchemaComponent = (

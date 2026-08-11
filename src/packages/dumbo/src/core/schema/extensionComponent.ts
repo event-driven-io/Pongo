@@ -1,8 +1,9 @@
 import {
-  createSchemaComponent,
+  dedupeMigrations,
   schemaComponentType,
   type AnySchemaComponent,
   type SchemaComponent,
+  type SchemaComponentContext,
   type SchemaComponentMap,
   type SchemaComponentOptions,
 } from './schemaComponent';
@@ -24,15 +25,22 @@ export const extensionComponent = <const Name extends string>(
   extensionName: Name,
   components: ExtensionComponents,
   options: Omit<SchemaComponentOptions, 'components'> = {},
-): ExtensionComponent<Name> =>
-  createSchemaComponent(
-    extensionComponentType,
-    {
-      components: Object.values(components),
-      migrations: options.migrations,
-    },
-    { extensionName },
-  );
+): ExtensionComponent<Name> => {
+  const children = Object.freeze(Object.values(components));
+
+  const component: ExtensionComponent<Name> = {
+    [schemaComponentType]: extensionComponentType,
+    extensionName,
+    components: children,
+    migrations: (context: SchemaComponentContext = {}) =>
+      dedupeMigrations([
+        ...(options.migrations?.(context) ?? []),
+        ...children.flatMap((child) => child.migrations(context)),
+      ]),
+  };
+
+  return component;
+};
 
 export const isExtensionComponent = (
   component: AnySchemaComponent,

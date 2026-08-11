@@ -1,11 +1,13 @@
 import type { AnyColumnTypeToken, SQLColumnToken } from '../../sql';
 import {
-  createSchemaComponent,
+  dedupeMigrations,
   schemaComponentType,
   type AnySchemaComponent,
   type SchemaComponent,
+  type SchemaComponentContext,
   type SchemaComponentOptions,
 } from '../schemaComponent';
+import type { SQLMigration } from '../sqlMigration';
 
 export const columnComponentType: unique symbol = Symbol(
   'dumbo.schemaComponent.column',
@@ -47,24 +49,29 @@ export const columnSchemaComponent = <
     default: defaultValue,
     migrations,
   } = params;
-  const base = createSchemaComponent(
-    columnComponentType,
-    {
-      migrations,
-    },
-    {
-      columnName,
-      sqlTokenType: 'SQL_COLUMN',
-      name: columnName,
-      type,
-      notNull,
-      unique,
-      primaryKey,
-      default: defaultValue,
-    },
-  );
+  const children: ReadonlyArray<AnySchemaComponent> = Object.freeze([]);
 
-  return base as unknown as ColumnSchemaComponent<ColumnType, ColumnName> &
+  const component = {
+    [schemaComponentType]: columnComponentType,
+    columnName,
+    sqlTokenType: 'SQL_COLUMN',
+    name: columnName,
+    type,
+    notNull,
+    unique,
+    primaryKey,
+    default: defaultValue,
+    components: children,
+    migrations: (
+      context: SchemaComponentContext = {},
+    ): ReadonlyArray<SQLMigration> =>
+      dedupeMigrations([
+        ...(migrations?.(context) ?? []),
+        ...children.flatMap((child) => child.migrations(context)),
+      ]),
+  };
+
+  return component as unknown as ColumnSchemaComponent<ColumnType, ColumnName> &
     (Options extends { notNull: true } | { primaryKey: true }
       ? { notNull: true }
       : { notNull?: false });
