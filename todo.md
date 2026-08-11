@@ -198,22 +198,52 @@ Oskar raised it — Marten supports unique indexes over JSONB, which is what mad
 
 **Int status.** dumbo's PostgreSQL `migrations.int.spec.ts` 14/14, both SQLite schema int specs 21/21. `test:int:sqlite` also reports 3 failures in `sqlite3/connections/connection.int.spec.ts` and 4 in `d1/connections/connection.int.generic.spec.ts`. The sqlite3 three pass in isolation — timing flakes under a loaded run. The D1 four reproduce in isolation and are `D1TransactionNotSupportedError` from `withTransaction` outside `session_based` mode: transaction semantics, no DDL involved, and the same four failed in the pre-S8 run.
 
-## S9 — Components emit their own DDL
-- [ ] Tests written and failing, including the database-level-extension regression
-- [ ] `tableComponent` emits create-table via `createTableSQL`
-- [ ] `indexComponent` emits create-index
-- [ ] `databaseSchemaComponent` emits create-schema — `SQLCreateSchema` unconditionally, no default-schema test in the component
-- [ ] `sqlMigration` drops statements that render empty — this is what lets the component emit unconditionally
-- [ ] Postgres `core/schema/migrations.int.spec.ts` — the `running schema component SQL` describe S7 added asserts `postgreSQLDatabaseSchemaSQL(...) === undefined` for the default token. Rewrite it against the component's migrations; keep the three database-level assertions
-- [ ] Deleted: `databaseMigrations.ts`
-- [ ] Deleted: `DatabaseMigrationBuilder`
-- [ ] Deleted: the four identifier types
-- [ ] Deleted: `postgreSQLTableSQL`, `postgreSQLIndexSQL`, `postgreSQLDatabaseSchemaSQL`, `sqliteTableSQL`, `sqliteIndexSQL`
-- [ ] Deleted: pongo `databaseMigrations.ts` × 2, both migration builders, the `migrationBuilder` option
-- [ ] Both `sqlBuilder.unit.spec.ts` files read `.migrations()`
-- [ ] `grep "components: \[\] }"` returns nothing — the last reader of the `this` binding, which is what unblocks S4
-- [ ] Gate: build, fix, unit, **int**
-- [ ] Review gate R — verdict: ____ (must show a large net deletion)
+## S9 — Components emit their own DDL — **done**
+
+Folded in **S11** (migration naming moves into dumbo) and the naming half of **S13** (pongo's unnamed default schema carries the token, not `'public'` / `'main'`). Neither could be separated: a component that emits its own DDL needs a name for it, and a name that stays byte-identical for the default case needs the token. Agreed with Oskar 2026-08-10.
+
+- [x] Tests written and failing, including the database-level-extension regression — `core/schema/components/componentMigrations.unit.spec.ts`, the successor to `databaseMigrations.unit.spec.ts`
+- [x] `tableComponent` emits create-table via `createTableSQL` — except when it declares no columns, which is a placeholder for a table declared elsewhere and has no valid `CREATE TABLE` (`CREATE TABLE x ()` is a syntax error in SQLite)
+- [x] `indexComponent` emits create-index, and `createIndexSQL` moved into it — the two were mutually recursive as separate modules
+- [x] `databaseSchemaComponent` emits create-schema — `SQLCreateSchema` unconditionally, no default-schema test in the component
+- [x] Statements that render empty are dropped, and a migration left with none is neither run nor recorded — `rendersNothing` in `migrator.ts`. This is what lets the component emit unconditionally
+- [x] Migration naming moved into dumbo — `core/schema/components/migrationNames.ts`; pongo's `storage/migrationNames.ts` deleted
+- [x] Postgres `core/schema/migrations.int.spec.ts` — the `running schema component SQL` describe now runs the component tree's migrations through `runSQLMigrations`; the three database-level assertions kept
+- [x] Deleted: `databaseMigrations.ts`
+- [x] Deleted: `DatabaseMigrationBuilder`
+- [x] Deleted: the four identifier types — `sqlitePhysicalNames` and `createIndexSQL` type against `SQLTableReference` / `SQLIndexReference`, which is what they are handed
+- [x] Deleted: `postgreSQLTableSQL`, `postgreSQLDatabaseSchemaSQL`, `sqliteTableSQL` (`postgreSQLIndexSQL` and `sqliteIndexSQL` went in S8)
+- [x] Deleted: pongo `databaseMigrations.ts` × 2, both migration builders, the `migrationBuilder` option
+- [x] Both `sqlBuilder.unit.spec.ts` files read `.migrations()`
+- [x] `grep "components: \[\] }"` returns nothing — the last reader of the `this` binding, which is what unblocks S4
+- [x] Gate: build, fix, unit (1024 pass), int
+- [x] Review gate R — verdict: **−100 production lines**, the first net deletion since S6
+
+**Line delta (S9 alone, production files): −100.** 390 deleted, 290 added (244 in tracked files, 46 in the new `migrationNames.ts`). S7's +100 and S8's +34 are paid back.
+
+**How a component is named.** `SchemaComponentContext` gained `migrationNamePrefixes`, and `pongoDb` passes `{ databaseSchema: 'pongoSchema', table: 'pongoCollection', index: 'pongoIndex' }` when it reads `.migrations()`. **Oskar flagged this and he is right: it is the reader deciding, not the component.** Read a tree from pongo and every table in it is called a collection, including an event-store extension table that isn't one — which S16 will hit. The prefix belongs on the component, set by the factory that built it. Agreed to revisit; see the open questions below.
+
+**Migration names that changed, and why.**
+
+| before | after | why |
+|---|---|---|
+| `pongoIndex:main:users:users_email_idx:create` | `pongoIndex:users:users_email_idx:create` | the default schema contributes no segment. Index names never elided it while collection names did — D10 |
+| `pongoCollection:users:001:createtable` | unchanged when the schema is left unnamed | `pongoSchema.db({ collections })` puts them in a token-named schema |
+| `pongoCollection:users:001:createtable` | `pongoCollection:public:users:001:createtable` when the definition writes `pongoSchema.schema('public', …)` | D10's accepted divergence, and it fires for a common definition shape — see the open questions |
+
+**A pongo definition cannot yet mix an unnamed default schema with named ones.** `pongoSchema.db` takes either `collections` or `schemas`, so a database with both writes `pongoSchema.schema('public', …)` and takes the divergence above. Closing that needs `pongoSchema.defaultSchema` to work inside `db({ schemas })`, which needs the record-key question answered.
+
+**The default schema's record key is `''`.** `databaseComponent.schemas` is keyed by name, and a schema carrying the token has none. `''` is unforgeable only because `databaseSchemaComponent` rejects it as a name — a rule in one file protecting an assumption in another. Alternative on the table: drop the key entirely and give `DatabaseComponent` a separate `defaultSchema` field, since at most one can exist. Oskar deferred this.
+
+**Explicitly naming the dialect's default schema is now a named schema at runtime too**, not only in migration names: `db.collection('users', { databaseSchemaName: 'public' })` and `db.collection('users')` are two collections over the same physical table. Asserted in `pongoDb.unit.spec.ts`.
+
+**Int status.** Run individually: pongo `migrations.int.spec.ts` (pg) and `migrations.int.spec.ts` (sqlite3) 6/6, dumbo Postgres and SQLite schema specs 54/54, unit 1024/1024. A full `test:int:sqlite` sweep also reports Postgres testcontainer start-up failures across unrelated suites — the machine cannot start that many containers at once; those same suites pass alone. The four D1 `withTransaction` failures are the pre-existing ones from S8.
+
+**Open, agreed with Oskar, before the branch is done**
+- The prefix shape. `pongoCollection` fuses a namespace and a kind. Options discussed: keep it as a per-component string for byte-compatibility with released databases, or rename to `pongo:users:collection:001:createtable` — namespace, path, kind — so the component carries one word and the kind comes from its type. A compatibility call, not a code call.
+- Move the prefix off the read context and onto the component, wherever the shape lands, with `withTable` carrying it for a schema it creates from nothing.
+- `defaultSchemaKey` in `pongoDb` and the `options.x ?? context.x ?? token` chains in the three factories: the fallback belongs once in `createSchemaComponent`, which makes `context.databaseSchemaName` sufficient everywhere.
+- The default schema's record key, above.
 
 ## S4 — The factory owns its literal
 

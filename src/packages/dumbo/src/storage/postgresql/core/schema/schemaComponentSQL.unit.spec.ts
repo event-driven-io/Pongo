@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 import {
   createIndexSQL,
+  databaseSchemaComponent,
   indexComponent,
   JSONSerializer,
   jsonDocumentIndexTarget,
@@ -11,10 +12,7 @@ import {
   type IndexIdentifier,
 } from '../../../../core';
 import { pgFormatter } from '../sql';
-import {
-  postgreSQLDatabaseSchemaSQL,
-  postgreSQLTableReference,
-} from './schemaComponentSQL';
+import { postgreSQLTableReference } from './schemaComponentSQL';
 
 const format = (sql: SQL): string =>
   pgFormatter.format(sql, { serializer: JSONSerializer }).query;
@@ -51,21 +49,15 @@ describe('using Dumbo components in PostgreSQL schemas', () => {
     );
   });
 
-  it('creates a named schema and leaves the default one alone', () => {
-    assert.strictEqual(
-      format(postgreSQLDatabaseSchemaSQL(identifier)!),
-      'CREATE SCHEMA IF NOT EXISTS audit',
-    );
-    assert.strictEqual(
-      postgreSQLDatabaseSchemaSQL({ databaseSchemaName: 'public' }),
-      undefined,
-    );
-    assert.strictEqual(
-      postgreSQLDatabaseSchemaSQL({
-        databaseSchemaName: SQLDefaultSchemaNameToken.from(),
-      }),
-      undefined,
-    );
+  it('creates a named schema and renders nothing for the default one', () => {
+    const schemaSQL = (
+      schemaName: string | SQLDefaultSchemaNameToken,
+    ): string =>
+      format(databaseSchemaComponent({ schemaName }).migrations()[0]!.sqls[0]!);
+
+    assert.strictEqual(schemaSQL('audit'), 'CREATE SCHEMA IF NOT EXISTS audit');
+    assert.strictEqual(schemaSQL('public'), '');
+    assert.strictEqual(schemaSQL(SQLDefaultSchemaNameToken.from()), '');
   });
 
   it('creates an index for ordinary columns', () => {

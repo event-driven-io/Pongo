@@ -1,4 +1,12 @@
-import type { SQL, SQLDefaultSchemaNameToken } from '../../sql';
+import {
+  SQL,
+  SQLDefaultSchemaNameToken,
+  SQLIndexReference,
+  SQLJSONDocumentIndexTarget,
+  SQLJSONPathTarget,
+  SQLTableReference,
+  type SQL as SQLStatement,
+} from '../../sql';
 import {
   createSchemaComponent,
   schemaComponentType,
@@ -6,6 +14,8 @@ import {
   type SchemaComponent,
   type SchemaComponentOptions,
 } from '../schemaComponent';
+import { sqlMigration } from '../sqlMigration';
+import { indexMigrationName } from './migrationNames';
 
 export const indexComponentType: unique symbol = Symbol(
   'dumbo.schemaComponent.index',
@@ -101,6 +111,47 @@ export type IndexComponentOptions<
 }> &
   Omit<SchemaComponentOptions, 'components'>;
 
+export type IndexIdentifier = Omit<SQLIndexReference, 'sqlTokenType'>;
+
+const indexTargetSQL = (index: AnyIndexComponent): SQLStatement => {
+  const target = index.target;
+
+  if (target !== undefined && isJSONDocumentIndexTarget(target))
+    return SQL`${SQLJSONDocumentIndexTarget.from({
+      columnName: target.columnName,
+      isUnique: index.isUnique,
+    })}`;
+
+  if (target !== undefined && isJSONPathIndexTarget(target))
+    return SQL`${SQLJSONPathTarget.from({
+      columnName: target.columnName,
+      path:
+        typeof target.path === 'string' ? target.path : target.path.join('.'),
+    })}`;
+
+  return SQL`(${SQL.merge(
+    index.columnNames.map((columnName) => SQL`${SQL.identifier(columnName)}`),
+    ', ',
+  )})`;
+};
+
+export const createIndexSQL = (
+  index: AnyIndexComponent,
+  identifier: IndexIdentifier,
+): SQLStatement => {
+  const tableReference = SQL`${SQLTableReference.from(identifier)}`;
+  const indexReference = SQL`${SQLIndexReference.from(identifier)}`;
+
+  if (index.sql !== undefined)
+    return index.sql({ ...identifier, tableReference, indexReference });
+
+  const target = indexTargetSQL(index);
+
+  return index.isUnique
+    ? SQL`CREATE UNIQUE INDEX IF NOT EXISTS ${indexReference} ON ${tableReference} ${target}`
+    : SQL`CREATE INDEX IF NOT EXISTS ${indexReference} ON ${tableReference} ${target}`;
+};
+
 export const indexComponent = <
   const IndexName extends string,
   const ColumnNames extends readonly string[],
@@ -110,7 +161,28 @@ export const indexComponent = <
   const base = createSchemaComponent(
     indexComponentType,
     {
-      migrations: options.migrations,
+      migrations: (component, context) => {
+        const tableName = options.tableName ?? context.tableName;
+        if (tableName === undefined)
+          return options.migrations?.(component, context) ?? [];
+
+        const identifier = {
+          databaseSchemaName:
+            options.databaseSchemaName ??
+            context.databaseSchemaName ??
+            SQLDefaultSchemaNameToken.from(),
+          tableName,
+          indexName: options.indexName,
+        };
+
+        return [
+          sqlMigration(
+            indexMigrationName(identifier, context.migrationNamePrefixes),
+            [createIndexSQL(component as AnyIndexComponent, identifier)],
+          ),
+          ...(options.migrations?.(component, context) ?? []),
+        ];
+      },
     },
     {
       indexName: options.indexName,

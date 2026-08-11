@@ -1,12 +1,13 @@
 import type { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import {
-  databaseMigrations,
+  databaseSchemaKey,
   runSQLMigrations,
+  SQLDefaultSchemaNameToken,
   withTable,
   type DatabaseComponent,
   type DatabaseDriverType,
-  type DatabaseMigrationBuilder,
   type Dumbo,
+  type MigrationNamePrefixes,
   type MigrationStyle,
   type MigrationTableOptions,
   type QueryResult,
@@ -41,6 +42,12 @@ import type {
 import type { PongoNestedTransactionOptions } from '../pongoTransaction';
 import { composePongoDatabase } from './pongoDatabaseSchemaComponent';
 
+export const pongoMigrationNamePrefixes: MigrationNamePrefixes = {
+  databaseSchema: 'pongoSchema',
+  table: 'pongoCollection',
+  index: 'pongoIndex',
+};
+
 type PongoTransactionOptionsFor<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   DumboType extends Dumbo<DatabaseDriverType, any>,
@@ -63,12 +70,11 @@ export type PongoDatabaseOptions<
   databaseName: string;
   pool: DumboType;
   serializer: JSONSerializer;
-  defaultSchemaName: string;
-  migrationBuilder?: DatabaseMigrationBuilder | undefined;
+  defaultSchemaName?: string | undefined;
   sqlBuilderFor: (
     collection: PongoCollectionComponent,
     identifier: {
-      databaseSchemaName: string;
+      databaseSchemaName: string | SQLDefaultSchemaNameToken;
       tableName: string;
     },
   ) => PongoCollectionSQLBuilder;
@@ -96,12 +102,14 @@ export const PongoDatabase = <
   options: PongoDatabaseOptions<DumboType>,
 ): Database => {
   const { databaseName, pool, cache: cacheOptions, serializer } = options;
-  const defaultSchemaName = options.defaultSchemaName;
+  const defaultSchemaName: string | SQLDefaultSchemaNameToken =
+    options.defaultSchemaName ?? SQLDefaultSchemaNameToken.from();
+  const defaultSchemaKey = databaseSchemaKey(defaultSchemaName);
   const definition =
     options.schema?.definition ?? pongoSchema.db({ collections: {} });
   let databaseComponent: DatabaseComponent = composePongoDatabase({
     databaseName,
-    defaultSchemaName,
+    defaultSchemaName: options.defaultSchemaName,
     definition,
   });
 
@@ -162,7 +170,7 @@ export const PongoDatabase = <
   };
 
   const schemaScopes = new Map<string, PongoSchemaScope>();
-  const schemaScope = (schemaName = defaultSchemaName): PongoSchemaScope => {
+  const schemaScope = (schemaName = defaultSchemaKey): PongoSchemaScope => {
     const existing = schemaScopes.get(schemaName);
     if (existing !== undefined) return existing;
 
@@ -189,7 +197,8 @@ export const PongoDatabase = <
         }
         return db.collection<T, Payload>(collectionName, {
           ...collectionOptions,
-          databaseSchemaName: schemaName,
+          databaseSchemaName:
+            schemaName === defaultSchemaKey ? undefined : schemaName,
         });
       },
       collections: () => [...(collections.get(schemaName)?.values() ?? [])],
@@ -205,7 +214,9 @@ export const PongoDatabase = <
 
     return runSQLMigrations(
       pool,
-      databaseMigrations(databaseComponent, options.migrationBuilder ?? {}),
+      databaseComponent.migrations({
+        migrationNamePrefixes: pongoMigrationNamePrefixes,
+      }),
       {
         ...optionsWithoutMigrationTable,
         ...(resolvedMigrationTable
@@ -222,7 +233,9 @@ export const PongoDatabase = <
     migrations: {
       enumerable: true,
       get: () =>
-        databaseMigrations(databaseComponent, options.migrationBuilder ?? {}),
+        databaseComponent.migrations({
+          migrationNamePrefixes: pongoMigrationNamePrefixes,
+        }),
     },
     migrate: { enumerable: true, value: migrate },
   });
@@ -246,9 +259,11 @@ export const PongoDatabase = <
     ) => {
       const databaseSchemaName =
         collectionOptions?.databaseSchemaName ?? defaultSchemaName;
-      const schemaCollections = collectionsIn(databaseSchemaName);
+      const databaseSchemaKeyName =
+        collectionOptions?.databaseSchemaName ?? defaultSchemaKey;
+      const schemaCollections = collectionsIn(databaseSchemaKeyName);
       const declared = Object.values(
-        databaseComponent.schemas[databaseSchemaName]?.tables ?? {},
+        databaseComponent.schemas[databaseSchemaKeyName]?.tables ?? {},
       ).find(
         (table) =>
           isPongoCollectionComponent(table) &&
@@ -257,9 +272,12 @@ export const PongoDatabase = <
       const collectionSchema =
         declared !== undefined && isPongoCollectionComponent(declared)
           ? declared
-          : pongoSchema.collection<T>(collectionName, {
-              databaseSchemaName,
-            });
+          : pongoSchema.collection<T>(
+              collectionName,
+              collectionOptions?.databaseSchemaName !== undefined
+                ? { databaseSchemaName: collectionOptions.databaseSchemaName }
+                : {},
+            );
       const collectionRuntimeSchema = collectionOptions?.schema;
       const hasRuntimeOverrides =
         collectionOptions?.cache !== undefined ||
@@ -288,7 +306,7 @@ export const PongoDatabase = <
         db,
         pool,
         component: collectionSchema,
-        databaseSchemaName,
+        databaseSchemaName: databaseSchemaKeyName,
         sqlBuilder: options.sqlBuilderFor(collectionSchema, identifier),
         schema: { ...options.schema, ...collectionRuntimeSchema },
         serializer,

@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
-import type { IndexIdentifier, TableIdentifier } from '../../../../core';
+import type { SQLIndexReference, SQLTableReference } from '../../../../core';
 import { sqliteIndexName, sqliteTableName } from './sqlitePhysicalNames';
 
 describe('using logical database schemas in SQLite', () => {
@@ -8,11 +8,11 @@ describe('using logical database schemas in SQLite', () => {
     const table = {
       databaseSchemaName: 'main',
       tableName: 'users',
-    } satisfies TableIdentifier;
+    } satisfies Omit<SQLTableReference, 'sqlTokenType'>;
     const index = {
       ...table,
       indexName: 'users_email_idx',
-    } satisfies IndexIdentifier;
+    } satisfies Omit<SQLIndexReference, 'sqlTokenType'>;
 
     assert.strictEqual(sqliteTableName(table), 'users');
     assert.strictEqual(sqliteIndexName(index), 'users_email_idx');
@@ -22,11 +22,11 @@ describe('using logical database schemas in SQLite', () => {
     const table = {
       databaseSchemaName: 'crm',
       tableName: 'users',
-    } satisfies TableIdentifier;
+    } satisfies Omit<SQLTableReference, 'sqlTokenType'>;
     const index = {
       ...table,
       indexName: 'users_email_idx',
-    } satisfies IndexIdentifier;
+    } satisfies Omit<SQLIndexReference, 'sqlTokenType'>;
 
     assert.strictEqual(sqliteTableName(table), 'dumbo_crm_table_users');
     assert.strictEqual(

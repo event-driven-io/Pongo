@@ -1,4 +1,8 @@
-import type { SQLDefaultSchemaNameToken } from '../../sql';
+import {
+  SQL,
+  SQLCreateSchema,
+  type SQLDefaultSchemaNameToken,
+} from '../../sql';
 import type { ExtensionComponent } from '../extensionComponent';
 import {
   createSchemaComponent,
@@ -8,6 +12,8 @@ import {
   type SchemaComponent,
   type SchemaComponentOptions,
 } from '../schemaComponent';
+import { sqlMigration } from '../sqlMigration';
+import { databaseSchemaMigrationName } from './migrationNames';
 import type { AnyTableComponent } from './tableComponent';
 
 export const databaseSchemaComponentType: unique symbol = Symbol(
@@ -55,6 +61,10 @@ export const databaseSchemaComponent = <
 ): DatabaseSchemaComponent<Tables, SchemaName, Extensions> => {
   const tables = (options.tables ?? {}) as Tables;
   const extensions = (options.extensions ?? {}) as Extensions;
+  if (options.schemaName === '')
+    throw new Error(
+      'A database schema name cannot be empty. Use the default schema token to leave it to the dialect',
+    );
   for (const table of Object.values(tables)) {
     if (
       table.databaseSchemaName !== undefined &&
@@ -69,7 +79,20 @@ export const databaseSchemaComponent = <
     databaseSchemaComponentType,
     {
       components: [...Object.values(tables), ...Object.values(extensions)],
-      migrations: options.migrations,
+      migrations: (component, context) => [
+        sqlMigration(
+          databaseSchemaMigrationName(
+            options.schemaName,
+            context.migrationNamePrefixes,
+          ),
+          [
+            SQL`${SQLCreateSchema.from({
+              databaseSchemaName: options.schemaName,
+            })}`,
+          ],
+        ),
+        ...(options.migrations?.(component, context) ?? []),
+      ],
       context: { databaseSchemaName: options.schemaName },
     },
     {

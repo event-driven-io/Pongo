@@ -1,17 +1,17 @@
 import {
-  databaseMigrations,
   JSONSerializer,
   SQL,
-  type TableIdentifier,
+  SQLDefaultSchemaNameToken,
+  type SQLTableReference,
 } from '@event-driven-io/dumbo';
 import { pgFormatter } from '@event-driven-io/dumbo/pg';
 import { postgreSQLTableReference } from '@event-driven-io/dumbo/postgresql';
 import assert from 'assert';
 import { describe, it } from 'vitest';
 import { postgresSQLBuilder } from '.';
-import { pongoPostgreSQLMigrationBuilder } from '../databaseMigrations';
 import {
   composePongoDatabase,
+  pongoMigrationNamePrefixes,
   pongoSchema,
   type ExpectedDocumentVersion,
   type PongoCollectionComponent,
@@ -22,16 +22,20 @@ import {
 const formatSQL = (sql: SQL, formatter = pgFormatter) =>
   formatter.format(sql, { serializer: JSONSerializer });
 
+type TableContext = Omit<SQLTableReference, 'sqlTokenType'>;
+
+const defaultSchema = SQLDefaultSchemaNameToken.from();
+
 const tableContext = (
-  schemaName: string,
+  schemaName: string | SQLDefaultSchemaNameToken,
   tableName: string,
-): TableIdentifier => ({
+): TableContext => ({
   databaseSchemaName: schemaName,
   tableName,
 });
 
 const databaseWithCollection = <const Indexes extends PongoCollectionIndexes>(
-  schemaName: string,
+  schemaName: string | SQLDefaultSchemaNameToken,
   collectionName: string,
   indexes: Indexes,
 ) => {
@@ -41,12 +45,13 @@ const databaseWithCollection = <const Indexes extends PongoCollectionIndexes>(
     collection,
     database: composePongoDatabase({
       databaseName: 'app',
-      defaultSchemaName: 'public',
-      definition: pongoSchema.db({
-        schemas: {
-          [schemaName]: pongoSchema.schema(schemaName, { collection }),
-        },
-      }),
+      definition: SQLDefaultSchemaNameToken.check(schemaName)
+        ? pongoSchema.db({ collections: { collection } })
+        : pongoSchema.db({
+            schemas: {
+              [schemaName]: pongoSchema.schema(schemaName, { collection }),
+            },
+          }),
     }),
   };
 };
@@ -54,7 +59,7 @@ const databaseWithCollection = <const Indexes extends PongoCollectionIndexes>(
 const collectionInSchemaWithIndexes = <
   const Indexes extends PongoCollectionIndexes,
 >(
-  schemaName: string,
+  schemaName: string | SQLDefaultSchemaNameToken,
   collectionName: string,
   options: { indexes: Indexes },
 ) => ({
@@ -66,13 +71,15 @@ const collectionInSchemaWithIndexes = <
   identifier: tableContext(schemaName, collectionName),
 });
 
-const collectionInSchema = (schemaName: string, collectionName: string) =>
-  collectionInSchemaWithIndexes(schemaName, collectionName, { indexes: {} });
+const collectionInSchema = (
+  schemaName: string | SQLDefaultSchemaNameToken,
+  collectionName: string,
+) => collectionInSchemaWithIndexes(schemaName, collectionName, { indexes: {} });
 
 const builderFor = (
   fixture: Readonly<{
     collection: PongoCollectionComponent;
-    identifier: TableIdentifier;
+    identifier: TableContext;
   }>,
 ): PongoCollectionSQLBuilder =>
   postgresSQLBuilder(
@@ -81,9 +88,17 @@ const builderFor = (
     JSONSerializer,
   );
 
+const rendersSQL = (migration: { sqls: SQL[] }): boolean =>
+  migration.sqls.some(
+    (sql) => formatSQL(sql, pgFormatter).query.trim().length > 0,
+  );
+
 const migrationsFor = (
   database: ReturnType<typeof databaseWithCollection>['database'],
-) => databaseMigrations(database, pongoPostgreSQLMigrationBuilder);
+) =>
+  database
+    .migrations({ migrationNamePrefixes: pongoMigrationNamePrefixes })
+    .filter(rendersSQL);
 
 const specialDocument = {
   _id: 'special-id',
@@ -100,7 +115,7 @@ const specialDocument = {
 const specialDocumentJSON = JSONSerializer.serialize(specialDocument);
 
 describe('bound JSON params', () => {
-  const builder = builderFor(collectionInSchema('public', 'users'));
+  const builder = builderFor(collectionInSchema(defaultSchema, 'users'));
 
   it('insertOne binds serialized document JSON without SQL escaping', () => {
     const result = builder.insertOne(specialDocument);
@@ -263,7 +278,7 @@ describe('postgres collection schema migrations', () => {
 
   it('keeps default schema migrations unqualified for compatibility', () => {
     const migrations = migrationsFor(
-      databaseWithCollection('public', 'users', {}).database,
+      databaseWithCollection(defaultSchema, 'users', {}).database,
     );
     const { query } = formatSQL(migrations[0]!.sqls[0]!, pgFormatter);
 
@@ -312,7 +327,7 @@ describe('postgres collection schema migrations', () => {
       document: pongoSchema.index.json('users_document_idx'),
     };
     const migrations = migrationsFor(
-      databaseWithCollection('public', 'users', indexes).database,
+      databaseWithCollection(defaultSchema, 'users', indexes).database,
     );
     const queries = migrations.flatMap((migration) =>
       migration.sqls.map((sql) => formatSQL(sql, pgFormatter).query),
@@ -454,7 +469,9 @@ describe('postgres collection schema migrations', () => {
 
   for (const testCase of runtimeSQLCases) {
     it(`uses default and explicit PostgreSQL schemas in ${testCase.name}`, () => {
-      const defaultBuilder = builderFor(collectionInSchema('public', 'users'));
+      const defaultBuilder = builderFor(
+        collectionInSchema(defaultSchema, 'users'),
+      );
       const schemaBuilder = builderFor(collectionInSchema('crm', 'users'));
       const defaultSQL = singleLine(
         formatSQL(testCase.sql(defaultBuilder), pgFormatter).query,
@@ -487,7 +504,7 @@ describe('postgres collection schema migrations', () => {
       ]),
     };
     const { database, collection } = databaseWithCollection(
-      'public',
+      defaultSchema,
       'users',
       indexes,
     );
@@ -508,7 +525,7 @@ describe('postgres collection schema migrations', () => {
       document: pongoSchema.index.json('users_data_idx'),
     };
     const { database, collection } = databaseWithCollection(
-      'public',
+      defaultSchema,
       'users',
       indexes,
     );
@@ -573,7 +590,7 @@ describe('postgres collection schema migrations', () => {
 });
 
 describe('insertOrReplace()', () => {
-  const builder = builderFor(collectionInSchema('public', 'users'));
+  const builder = builderFor(collectionInSchema(defaultSchema, 'users'));
 
   it('inserts at version 1 and bumps on conflict in a single statement', () => {
     const query = builder.insertOrReplace([{ _id: 'u1', name: 'Alice' }]);
@@ -605,7 +622,7 @@ describe('insertOrReplace()', () => {
 
 describe('find() query options', () => {
   it('should apply limit correctly', () => {
-    const query = builderFor(collectionInSchema('public', 'users')).find(
+    const query = builderFor(collectionInSchema(defaultSchema, 'users')).find(
       {},
       { limit: 4 },
     );
@@ -616,7 +633,7 @@ describe('find() query options', () => {
   });
 
   it('should apply offset correctly', () => {
-    const query = builderFor(collectionInSchema('public', 'users')).find(
+    const query = builderFor(collectionInSchema(defaultSchema, 'users')).find(
       {},
       { skip: 123 },
     );
@@ -627,7 +644,7 @@ describe('find() query options', () => {
   });
 
   it('should apply limit and offset in correct order', () => {
-    const query = builderFor(collectionInSchema('public', 'users')).find(
+    const query = builderFor(collectionInSchema(defaultSchema, 'users')).find(
       {},
       { limit: 20, skip: 123 },
     );
@@ -639,7 +656,7 @@ describe('find() query options', () => {
 });
 
 describe('find() sort option', () => {
-  const builder = builderFor(collectionInSchema('public', 'users'));
+  const builder = builderFor(collectionInSchema(defaultSchema, 'users'));
 
   it('sorts ASC by a single field', () => {
     const query = builder.find({}, { sort: { name: 1 } });
@@ -729,7 +746,7 @@ describe('find() sort option', () => {
 });
 
 describe('expected version markers', () => {
-  const builder = builderFor(collectionInSchema('public', 'users'));
+  const builder = builderFor(collectionInSchema(defaultSchema, 'users'));
 
   const queryFor = (
     expectedVersion: Exclude<
@@ -758,7 +775,7 @@ describe('expected version markers', () => {
 });
 
 describe('find() logical operators', () => {
-  const builder = builderFor(collectionInSchema('public', 'users'));
+  const builder = builderFor(collectionInSchema(defaultSchema, 'users'));
 
   it('supports top-level $or', () => {
     const query = builder.find<{ flag: boolean }>({

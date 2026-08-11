@@ -1,15 +1,12 @@
 import {
-  createTableSQL,
   SQL,
   SQLTableReference,
-  type AnyTableComponent,
-  type TableIdentifier,
+  type SQLDefaultSchemaNameToken,
 } from '../../../../core';
 
-export const sqliteTableReference = (identifier: TableIdentifier): SQL =>
-  SQL`${SQLTableReference.from(identifier)}`;
-
-export const sqliteTableSQL = (
-  component: AnyTableComponent,
-  identifier: TableIdentifier,
-): SQL => createTableSQL(component, sqliteTableReference(identifier));
+export const sqliteTableReference = (
+  identifier: Readonly<{
+    databaseSchemaName: string | SQLDefaultSchemaNameToken;
+    tableName: string;
+  }>,
+): SQL => SQL`${SQLTableReference.from(identifier)}`;

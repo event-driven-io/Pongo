@@ -286,6 +286,20 @@ Review gate R must show a large net deletion. If it does not, stop.
 Gate: build, fix, unit, int.
 ```
 
+EXECUTED WITH S11 AND HALF OF S13 FOLDED IN. A component that emits its own
+DDL has to name it, so S11's naming had to come with it; and a name that stays
+byte-identical for the default case needs pongo to stop handing down `'public'`
+/ `'main'` as a real schema name, which is S13's naming half. Agreed with Oskar
+2026-08-10. What S9 did NOT take from S13: the dialect string halves in
+`isDefaultSchema`, `sqliteTableName` and `sqliteIndexName` all stay, so an
+explicitly named `public` / `main` still renders as the default schema in SQL
+and keeps its physical name. Only the migration name diverges.
+
+LEFT OPEN, to settle before the branch ends - see todo.md for the detail:
+the prefix shape and whether the prefix rides on the component instead of the
+read context; the default schema's record key; the `?? ?? token` chains that
+belong once in `createSchemaComponent`.
+
 ## S4 — The factory owns its literal
 
 Numbered S4 because that is where it was planned; **executed here, after S9**.
@@ -344,7 +358,13 @@ Golden test first: the emitted DDL is byte-identical to `main`'s, including
 Gate: build, fix, unit, int.
 ```
 
-## S11 — Migration naming moves into dumbo
+## S11 — Migration naming moves into dumbo — **DONE IN S9**
+
+Kept for the record. `pongo/storage/migrationNames.ts` is deleted and naming
+lives in `dumbo/core/schema/components/migrationNames.ts`. What the prompt below
+called a `migrationNamePrefix` option is currently a `migrationNamePrefixes`
+field on the read context, which is the wrong home - the open question recorded
+in todo.md.
 
 ```text
 Spec D10.
@@ -395,7 +415,13 @@ Every `dumbo_..._table_...` literal moves with it. As of S7 they are in
 Gate: build, fix, unit, int, e2e.
 ```
 
-## S13 — `defaultSchemaName` optional in `pongoDb`
+## S13 — `defaultSchemaName` optional in `pongoDb` — **NAMING HALF DONE IN S9**
+
+Done in S9: `defaultSchemaName` is optional, `pongoDb.ts` no longer resolves it
+eagerly, and an unnamed default schema carries `SQLDefaultSchemaNameToken`.
+Still to do here: delete the three dialect string halves listed below, which
+S9 deliberately left in place so that an explicitly named `public` / `main`
+keeps its physical table and index names.
 
 ```text
 Spec D11.

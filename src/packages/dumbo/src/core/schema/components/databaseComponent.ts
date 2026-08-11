@@ -1,3 +1,4 @@
+import { SQLDefaultSchemaNameToken } from '../../sql';
 import type { ExtensionComponent } from '../extensionComponent';
 import {
   createSchemaComponent,
@@ -12,6 +13,15 @@ import type { AnyDatabaseSchemaComponent } from './databaseSchemaComponent';
 export const databaseComponentType: unique symbol = Symbol(
   'dumbo.schemaComponent.database',
 );
+
+export const defaultDatabaseSchemaKey = '';
+
+export const databaseSchemaKey = (
+  schemaName: string | SQLDefaultSchemaNameToken,
+): string =>
+  SQLDefaultSchemaNameToken.check(schemaName)
+    ? defaultDatabaseSchemaKey
+    : schemaName;
 
 export type DatabaseSchemas = Readonly<
   Record<string, AnyDatabaseSchemaComponent>

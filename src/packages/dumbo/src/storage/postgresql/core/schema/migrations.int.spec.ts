@@ -6,8 +6,8 @@ import { PostgreSQLConnectionString, tableExists } from '..';
 import { dumbo, type Dumbo } from '../../../..';
 import {
   count,
-  createIndexSQL,
   databaseComponent,
+  databaseSchemaKey,
   databaseSchemaComponent,
   dumboSchema,
   indexComponent,
@@ -25,10 +25,6 @@ import {
 } from '../../../../core';
 import { pgDumboDriver } from '../../pg';
 import { acquireAdvisoryLock, releaseAdvisoryLock } from '../locks';
-import {
-  postgreSQLDatabaseSchemaSQL,
-  postgreSQLTableSQL,
-} from './schemaComponentSQL';
 
 describe('Migration Integration Tests', () => {
   let pool: Dumbo;
@@ -222,6 +218,7 @@ describe('Migration Integration Tests', () => {
       migrationNames.rows.map((row) => row.name),
       [
         'app:public:users:001:create-table',
+        'dumboIndex:public:users:users_email_idx:create',
         'app:public:users:users_email_idx:002:create-index',
       ],
     );
@@ -467,19 +464,6 @@ describe('Migration Integration Tests', () => {
   });
 
   describe('running schema component SQL', () => {
-    const users = tableComponent({
-      tableName: 'users',
-      columns: {
-        _id: dumboSchema.column('_id', SQL.column.type.Text, {
-          primaryKey: true,
-          notNull: true,
-        }),
-        email: dumboSchema.column('email', SQL.column.type.Text, {
-          notNull: true,
-        }),
-        data: dumboSchema.column('data', SQL.column.type.JSONB()),
-      },
-    });
     const usersEmail = indexComponent({
       indexName: 'users_email_idx',
       columnNames: ['email'],
@@ -497,6 +481,51 @@ describe('Migration Integration Tests', () => {
       isUnique: true,
       target: jsonDocumentIndexTarget('data'),
     });
+
+    const usersTable = (
+      indexes: Record<string, ReturnType<typeof indexComponent>> = {
+        email: usersEmail,
+      },
+    ) =>
+      tableComponent({
+        tableName: 'users',
+        columns: {
+          _id: dumboSchema.column('_id', SQL.column.type.Text, {
+            primaryKey: true,
+            notNull: true,
+          }),
+          email: dumboSchema.column('email', SQL.column.type.Text, {
+            notNull: true,
+          }),
+          data: dumboSchema.column('data', SQL.column.type.JSONB()),
+        },
+        indexes,
+      });
+
+    const usersIn = (
+      schemaName: string | SQLDefaultSchemaNameToken,
+      indexes?: Record<string, ReturnType<typeof indexComponent>>,
+    ) =>
+      databaseSchemaComponent({
+        schemaName,
+        tables: { users: usersTable(indexes) },
+      });
+
+    const migrate = (
+      ...schemas: ReturnType<typeof databaseSchemaComponent>[]
+    ) =>
+      runSQLMigrations(
+        pool,
+        databaseComponent({
+          databaseName: 'app',
+          schemas: Object.fromEntries(
+            schemas.map((schema) => [
+              databaseSchemaKey(schema.schemaName),
+              schema,
+            ]),
+          ),
+        }).migrations(),
+      );
 
     const indexAccessMethod = async (indexName: string): Promise<string> =>
       single(
@@ -529,32 +558,16 @@ describe('Migration Integration Tests', () => {
     );
 
     it('creates a table for the default schema in the search path', async () => {
-      const identifier = {
-        databaseSchemaName: SQLDefaultSchemaNameToken.from(),
-        tableName: 'users',
-        indexName: 'users_email_idx',
-      };
-
-      assert.strictEqual(postgreSQLDatabaseSchemaSQL(identifier), undefined);
-      await pool.execute.command(postgreSQLTableSQL(users, identifier));
-      await pool.execute.command(createIndexSQL(usersEmail, identifier));
+      await migrate(usersIn(SQLDefaultSchemaNameToken.from()));
 
       assert.ok(await tableExistsIn('public', 'users'));
     });
 
     it('indexes a JSON document with GIN, and with btree when it is unique', async () => {
-      const identifier = {
-        databaseSchemaName: SQLDefaultSchemaNameToken.from(),
-        tableName: 'users',
-        indexName: 'users_document_idx',
-      };
-
-      await pool.execute.command(postgreSQLTableSQL(users, identifier));
-      await pool.execute.command(createIndexSQL(usersDocument, identifier));
-      await pool.execute.command(
-        createIndexSQL(usersUniqueDocument, {
-          ...identifier,
-          indexName: 'users_document_uq',
+      await migrate(
+        usersIn(SQLDefaultSchemaNameToken.from(), {
+          document: usersDocument,
+          uniqueDocument: usersUniqueDocument,
         }),
       );
 
@@ -563,30 +576,14 @@ describe('Migration Integration Tests', () => {
     });
 
     it('creates a named schema and qualifies its table with it', async () => {
-      const identifier = {
-        databaseSchemaName: 'crm',
-        tableName: 'users',
-        indexName: 'users_email_idx',
-      };
-
-      await pool.execute.command(postgreSQLDatabaseSchemaSQL(identifier)!);
-      await pool.execute.command(postgreSQLTableSQL(users, identifier));
-      await pool.execute.command(createIndexSQL(usersEmail, identifier));
+      await migrate(usersIn('crm'));
 
       assert.ok(await tableExistsIn('crm', 'users'));
       assert.ok(!(await tableExistsIn('public', 'users')));
     });
 
     it('keeps the default schema and a named one on separate tables', async () => {
-      const inDefault = {
-        databaseSchemaName: SQLDefaultSchemaNameToken.from(),
-        tableName: 'users',
-      };
-      const inCRM = { databaseSchemaName: 'crm', tableName: 'users' };
-
-      await pool.execute.command(postgreSQLDatabaseSchemaSQL(inCRM)!);
-      await pool.execute.command(postgreSQLTableSQL(users, inDefault));
-      await pool.execute.command(postgreSQLTableSQL(users, inCRM));
+      await migrate(usersIn(SQLDefaultSchemaNameToken.from()), usersIn('crm'));
       await pool.execute.command(
         SQL`INSERT INTO users (_id, email) VALUES ('1', 'default@test')`,
       );

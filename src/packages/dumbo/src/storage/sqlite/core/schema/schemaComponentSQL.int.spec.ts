@@ -3,9 +3,12 @@ import { afterEach, beforeEach, describe, it } from 'vitest';
 import { InMemorySQLiteDatabase } from '..';
 import { dumbo, type Dumbo } from '../../../..';
 import {
-  createIndexSQL,
+  databaseComponent,
+  databaseSchemaKey,
+  databaseSchemaComponent,
   dumboSchema,
   indexComponent,
+  runSQLMigrations,
   SQL,
   SQLDefaultSchemaNameToken,
   tableComponent,
@@ -15,25 +18,30 @@ import {
   SQLite3DriverType,
   tableExists,
 } from '../../../../sqlite3';
-import { sqliteTableSQL } from './schemaComponentSQL';
 
-const users = tableComponent({
-  tableName: 'users',
-  columns: {
-    _id: dumboSchema.column('_id', SQL.column.type.Text, {
-      primaryKey: true,
-      notNull: true,
-    }),
-    email: dumboSchema.column('email', SQL.column.type.Text, {
-      notNull: true,
-    }),
-  },
-});
 const usersEmail = indexComponent({
   indexName: 'users_email_idx',
   columnNames: ['email'],
   isUnique: true,
 });
+
+const users = () =>
+  tableComponent({
+    tableName: 'users',
+    columns: {
+      _id: dumboSchema.column('_id', SQL.column.type.Text, {
+        primaryKey: true,
+        notNull: true,
+      }),
+      email: dumboSchema.column('email', SQL.column.type.Text, {
+        notNull: true,
+      }),
+    },
+    indexes: { email: usersEmail },
+  });
+
+const usersIn = (schemaName: string | SQLDefaultSchemaNameToken) =>
+  databaseSchemaComponent({ schemaName, tables: { users: users() } });
 
 describe('running SQLite schema component SQL against a database', () => {
   let pool: Dumbo;
@@ -47,29 +55,28 @@ describe('running SQLite schema component SQL against a database', () => {
 
   afterEach(() => pool.close());
 
-  it('creates a table for the default schema under its plain name', async () => {
-    const identifier = {
-      databaseSchemaName: SQLDefaultSchemaNameToken.from(),
-      tableName: 'users',
-      indexName: 'users_email_idx',
-    };
+  const migrate = (...schemas: ReturnType<typeof usersIn>[]) =>
+    runSQLMigrations(
+      pool,
+      databaseComponent({
+        schemas: Object.fromEntries(
+          schemas.map((schema) => [
+            databaseSchemaKey(schema.schemaName),
+            schema,
+          ]),
+        ),
+      }).migrations(),
+    );
 
-    await pool.execute.command(sqliteTableSQL(users, identifier));
-    await pool.execute.command(createIndexSQL(usersEmail, identifier));
+  it('creates a table for the default schema under its plain name', async () => {
+    await migrate(usersIn(SQLDefaultSchemaNameToken.from()));
 
     assert.ok(await tableExists(pool.execute, 'users'));
     assert.ok(await indexExists(pool.execute, 'users_email_idx'));
   });
 
   it('folds a named schema into the physical table and index names', async () => {
-    const identifier = {
-      databaseSchemaName: 'crm',
-      tableName: 'users',
-      indexName: 'users_email_idx',
-    };
-
-    await pool.execute.command(sqliteTableSQL(users, identifier));
-    await pool.execute.command(createIndexSQL(usersEmail, identifier));
+    await migrate(usersIn('crm'));
 
     assert.ok(await tableExists(pool.execute, 'dumbo_crm_table_users'));
     assert.ok(
@@ -82,14 +89,7 @@ describe('running SQLite schema component SQL against a database', () => {
   });
 
   it('keeps the default schema and a named one on separate tables', async () => {
-    const inDefault = {
-      databaseSchemaName: SQLDefaultSchemaNameToken.from(),
-      tableName: 'users',
-    };
-    const inCRM = { databaseSchemaName: 'crm', tableName: 'users' };
-
-    await pool.execute.command(sqliteTableSQL(users, inDefault));
-    await pool.execute.command(sqliteTableSQL(users, inCRM));
+    await migrate(usersIn(SQLDefaultSchemaNameToken.from()), usersIn('crm'));
 
     await pool.execute.command(
       SQL`INSERT INTO users (_id, email) VALUES ('1', 'default@test')`,
