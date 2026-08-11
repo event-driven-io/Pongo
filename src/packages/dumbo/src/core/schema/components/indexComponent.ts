@@ -8,10 +8,11 @@ import {
   type SQL as SQLStatement,
 } from '../../sql';
 import {
-  createSchemaComponent,
+  dedupeMigrations,
   schemaComponentType,
   type AnySchemaComponent,
   type SchemaComponent,
+  type SchemaComponentContext,
   type SchemaComponentOptions,
 } from '../schemaComponent';
 import { sqlMigration } from '../sqlMigration';
@@ -88,9 +89,9 @@ export type IndexComponent<
     indexTargetNames: ReadonlyArray<string>;
     columnNames: ColumnNames;
     isUnique: boolean;
-    databaseSchemaName?: string;
-    tableName?: string;
-    target?: IndexTarget;
+    databaseSchemaName?: string | undefined;
+    tableName?: string | undefined;
+    target?: IndexTarget | undefined;
     sql?: ((context: IndexSQLContext) => SQL) | undefined;
   }>;
 
@@ -158,47 +159,51 @@ export const indexComponent = <
 >(
   options: IndexComponentOptions<IndexName, ColumnNames>,
 ): IndexComponent<IndexName, ColumnNames> => {
-  const base = createSchemaComponent(
-    indexComponentType,
-    {
-      migrations: (component, context) => {
-        const tableName = options.tableName ?? context.tableName;
-        if (tableName === undefined)
-          return options.migrations?.(component, context) ?? [];
+  const children: ReadonlyArray<AnySchemaComponent> = Object.freeze([]);
 
-        const identifier = {
-          databaseSchemaName:
-            options.databaseSchemaName ??
-            context.databaseSchemaName ??
-            SQLDefaultSchemaNameToken.from(),
-          tableName,
-          indexName: options.indexName,
-        };
+  const component: IndexComponent<IndexName, ColumnNames> = {
+    [schemaComponentType]: indexComponentType,
+    indexName: options.indexName,
+    indexTargetNames: Object.freeze([
+      ...(options.indexTargetNames ?? options.columnNames),
+    ]),
+    columnNames: Object.freeze([...options.columnNames]) as ColumnNames,
+    isUnique: options.isUnique,
+    target: options.target,
+    databaseSchemaName: options.databaseSchemaName,
+    tableName: options.tableName,
+    sql: options.sql,
+    components: children,
+    migrations: (context: SchemaComponentContext = {}) => {
+      const tableName = options.tableName ?? context.tableName;
+      const identifier =
+        tableName === undefined
+          ? undefined
+          : {
+              databaseSchemaName:
+                options.databaseSchemaName ??
+                context.databaseSchemaName ??
+                SQLDefaultSchemaNameToken.from(),
+              tableName,
+              indexName: options.indexName,
+            };
 
-        return [
-          sqlMigration(
-            indexMigrationName(identifier, context.migrationNamePrefixes),
-            [createIndexSQL(component as AnyIndexComponent, identifier)],
-          ),
-          ...(options.migrations?.(component, context) ?? []),
-        ];
-      },
+      return dedupeMigrations([
+        ...(identifier === undefined
+          ? []
+          : [
+              sqlMigration(
+                indexMigrationName(identifier, context.migrationNamePrefixes),
+                [createIndexSQL(component, identifier)],
+              ),
+            ]),
+        ...(options.migrations?.(context) ?? []),
+        ...children.flatMap((child) => child.migrations(context)),
+      ]);
     },
-    {
-      indexName: options.indexName,
-      indexTargetNames: Object.freeze([
-        ...(options.indexTargetNames ?? options.columnNames),
-      ]),
-      columnNames: Object.freeze([...options.columnNames]),
-      isUnique: options.isUnique,
-      target: options.target,
-      databaseSchemaName: options.databaseSchemaName,
-      tableName: options.tableName,
-      sql: options.sql,
-    },
-  );
+  };
 
-  return base as unknown as IndexComponent<IndexName, ColumnNames>;
+  return component;
 };
 
 export const isIndexComponent = (

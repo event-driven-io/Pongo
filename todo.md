@@ -249,18 +249,37 @@ Folded in **S11** (migration naming moves into dumbo) and the naming half of **S
 
 Runs **after S9**, not after S3. `databaseMigrations.ts` gets a component's own declared migrations by spreading it with an emptied child list — `{ ...component, components: [] }.migrations()` — which only works while `migrations` resolves children through `this`. D2 replaces `this` with a closure over the factory's own `children`, so the spread stops removing anything, the clone returns its whole subtree, and the per-component `declared, driver, declared, driver` interleaving asserted by `databaseMigrations.unit.spec.ts` breaks. That is a live path: `pongoDb.ts:209` runs every pongo migration through it. The alternatives were hacking around the missing `this` in a file that is about to be deleted (gate R question 2 — a deleted concept leaving a remnant) or pulling S9 forward without the S7/S8 tokens it needs. S9 deletes the file, so waiting costs nothing; S5–S9 do not need `createSchemaComponent` gone. Agreed with Oskar 2026-08-10.
 
-- [ ] All six factories return their own object literal
-- [ ] `componentMigrations` is the only shared helper, module-private
-- [ ] `createSchemaComponent` deleted
-- [ ] `fields` bag deleted
-- [ ] `context` option deleted
-- [ ] `scopedContext` deleted
-- [ ] `Object.freeze` on the component deleted (records stay frozen)
-- [ ] No `this` in any factory
-- [ ] `as unknown as` casts removed where the bag was their cause
-- [ ] `declares against the component it is read from, not the one it was built from` deleted — it asserts the `this` binding that D2 removes on purpose — and recorded here
-- [ ] Gate: build, fix, unit, **int**
-- [ ] Review gate R — verdict: ____
+- [x] All six factories return their own object literal — plus `schemaComponent()`, whose literal S10 deletes with it
+- [x] `dedupeMigrations` is the only shared helper — one parameter, D4 only. Each factory writes the merge inline: own DDL, then the caller's `migrations` option, then `children.flatMap`. No `componentMigrations`, no declaration local, no component or child list passed anywhere
+- [x] `SchemaComponentDeclaration` deleted; the `migrations` option carries its signature inline
+- [x] The `migrations` option drops its `component` parameter — `(context) => ReadonlyArray<SQLMigration>`. `context` stays: D1 forbids reading placement off a component, so it is the only way a user-written migration can learn its qualifier, and it is what D18 exists for
+- [x] `passes the component itself to its declaration` deleted — its whole body asserts that the parameter is passed, so it tests the parameter's own existence and nothing else
+- [x] `createSchemaComponent` deleted
+- [x] `fields` bag deleted
+- [x] `context` option deleted
+- [x] `scopedContext` deleted — its "scope wins, `undefined` never clobbers" precedence survives as `options.databaseSchemaName ?? context.databaseSchemaName` in `tableComponent`, and as a plain spread in `databaseSchemaComponent`, where the name is always defined
+- [x] `Object.freeze` on the component deleted; each factory still freezes its own `children` array and `schemaComponentMap` still freezes the typed records
+- [x] No `this` in any factory
+- [x] `as unknown as` casts removed where the bag was their cause — `indexComponent`'s is gone. `columnSchemaComponent`'s survives: its cause is the conditional return type plus `SQLColumnToken` being a notNull/nullable union that a literal built from `boolean | undefined` cannot satisfy under `exactOptionalPropertyTypes`. The two `self as AnyTableComponent` / `self as AnyIndexComponent` casts inside the declarations are gone with `SchemaComponentDeclaration` — their cause was its `AnySchemaComponent` parameter, and dropping the parameter drops them
+- [x] `declares against the component it is read from, not the one it was built from` deleted — it asserts the `this` binding that D2 removes on purpose
+- [x] Gate: build green, `npm run fix` green, unit **1022/1022** (1024 − two deleted tests), int **374/374**. The four D1 `D1TransactionNotSupportedError` failures live in `connection.int.generic.spec.ts`, which the `.int.spec` filter does not match; they surface only under `test:int:sqlite`, which was not run
+- [x] Review gate R — verdict: **pass**
+
+**Second test edited, beyond the sanctioned one.** `exposes a frozen component with nothing hidden behind it` asserted `Object.isFrozen(root)` on the component itself, which is exactly what this step deletes. That one assertion is gone and the test is now `exposes a component with nothing hidden behind it`; its other claims — no hidden own properties, `schemaComponentType` the only symbol, a spread copy still migrates — all survive.
+
+**Gate R, questions 1, 2 and 4: pass.** One new symbol, `dedupeMigrations`, and it is D4's rule with a name rather than a layer — it takes a list and returns a list. No remnant: `createSchemaComponent`, `scopedContext`, the `context` option and `SchemaComponentDeclaration` have zero references outside `schemaComposition.type.spec.ts:93`, which asserts their absence deliberately. Nothing contradicts spec.md — D2's worked example was corrected to the single-parameter call.
+
+**The helper's shape, settled with Oskar 2026-08-11.** The first implementation gave `componentMigrations` a fourth parameter, the declaration, because spec D2's own signature `(component, children, context)` could not reach it — the declaration lives in the factory closure by D2's next paragraph, and neither `component` nor `children` carries it. D2 was internally inconsistent on that point. Three shapes were rejected before the fourth was taken:
+
+- the fourth parameter — a helper that takes both the migrations and the function producing them
+- `(component, context, declaration)`, dropping `children` since the component already exposes them — still an internal declaration concept
+- expressing the own DDL as an extra child, so `migrations` collapses to a bare `flatMap` over `components` — rejected because it puts a member in `components` the caller never declared, breaks the deep-equality assertions reading it, and needs a component kind for the emitter just as D19 deletes the last untyped one
+
+**The `component` parameter goes with it.** Nothing reads it: every caller of the `migrations` option, in production and in the integration specs, is `() => [...]`. The sole exception was a test asserting that the parameter is passed. It existed because `createSchemaComponent` had to hand the component over — the declaration was written before the component object existed, so there was no closure to read it from. That constraint dies with the bag, which makes the parameter a remnant of it under gate R question 2.
+
+What was taken: the helper does D4's dedupe and nothing else, one parameter, and every factory writes its own merge inline. `SchemaComponentDeclaration` goes with the concept — its only two readers were its own declaration and the `migrations` option on `SchemaComponentOptions`, which now writes the signature inline. Naming a one-use function type is what made "the declaration" look like something the design had. spec.md D2 and plan.md S4 were rewritten to match before the code was touched.
+
+**Gate R question 3: growth, declared in advance and undershot.** The four-parameter version measured **+17**. plan.md S4 declared roughly **+35** for the inline merge in six factories, so ground rule 5 is satisfied by declaration rather than by staying flat. The landed figure is **+10** (211 added, 201 deleted, `git diff --numstat` over `packages/**/*.ts` less specs) — dropping the `component` parameter took the type signature from six lines to three and paid back most of what the inline merges cost.
 
 ## S10 — The migration table is a real table component
 - [ ] Golden test written and failing: DDL byte-identical to `main`

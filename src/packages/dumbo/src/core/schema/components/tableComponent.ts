@@ -1,10 +1,11 @@
 import { SQL, SQLDefaultSchemaNameToken, SQLTableReference } from '../../sql';
 import {
-  createSchemaComponent,
+  dedupeMigrations,
   schemaComponentMap,
   schemaComponentType,
   type AnySchemaComponent,
   type SchemaComponent,
+  type SchemaComponentContext,
   type SchemaComponentOptions,
 } from '../schemaComponent';
 import { sqlMigration } from '../sqlMigration';
@@ -107,42 +108,14 @@ export const tableComponent = <
       );
     }
   }
-  const children = [...Object.values(columns), ...Object.values(indexes)];
-  const base = createSchemaComponent(
-    tableComponentType,
-    {
-      components: children,
-      migrations: (component, context) => {
-        if (Object.keys(columns).length === 0)
-          return options.migrations?.(component, context) ?? [];
+  const children = Object.freeze([
+    ...Object.values(columns),
+    ...Object.values(indexes),
+  ]);
 
-        const identifier = {
-          databaseSchemaName:
-            options.databaseSchemaName ??
-            context.databaseSchemaName ??
-            SQLDefaultSchemaNameToken.from(),
-          tableName: options.tableName,
-        };
-
-        return [
-          sqlMigration(
-            tableMigrationName(identifier, context.migrationNamePrefixes),
-            [
-              createTableSQL(
-                component as AnyTableComponent,
-                SQL`${SQLTableReference.from(identifier)}`,
-              ),
-            ],
-          ),
-          ...(options.migrations?.(component, context) ?? []),
-        ];
-      },
-      context: {
-        tableName: options.tableName,
-        databaseSchemaName: options.databaseSchemaName,
-      },
-    },
+  const component: TableComponent<Columns, TableName, Indexes, Relationships> =
     {
+      [schemaComponentType]: tableComponentType,
       tableName: options.tableName,
       databaseSchemaName: options.databaseSchemaName,
       primaryKey: Object.freeze([...(options.primaryKey ?? [])]),
@@ -151,10 +124,42 @@ export const tableComponent = <
       }) as Relationships,
       columns: schemaComponentMap(columns),
       indexes: schemaComponentMap(indexes),
-    },
-  );
+      components: children,
+      migrations: (context: SchemaComponentContext = {}) => {
+        const scoped = {
+          ...context,
+          databaseSchemaName:
+            options.databaseSchemaName ?? context.databaseSchemaName,
+          tableName: options.tableName,
+        };
 
-  return base;
+        const identifier = {
+          databaseSchemaName:
+            scoped.databaseSchemaName ?? SQLDefaultSchemaNameToken.from(),
+          tableName: options.tableName,
+        };
+
+        return dedupeMigrations([
+          ...(Object.keys(columns).length === 0
+            ? []
+            : [
+                sqlMigration(
+                  tableMigrationName(identifier, scoped.migrationNamePrefixes),
+                  [
+                    createTableSQL(
+                      component,
+                      SQL`${SQLTableReference.from(identifier)}`,
+                    ),
+                  ],
+                ),
+              ]),
+          ...(options.migrations?.(scoped) ?? []),
+          ...children.flatMap((child) => child.migrations(scoped)),
+        ]);
+      },
+    };
+
+  return component;
 };
 
 export const isTableComponent = (

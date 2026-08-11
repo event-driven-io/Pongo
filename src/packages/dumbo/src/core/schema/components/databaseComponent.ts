@@ -1,11 +1,12 @@
 import { SQLDefaultSchemaNameToken } from '../../sql';
 import type { ExtensionComponent } from '../extensionComponent';
 import {
-  createSchemaComponent,
+  dedupeMigrations,
   schemaComponentMap,
   schemaComponentType,
   type AnySchemaComponent,
   type SchemaComponent,
+  type SchemaComponentContext,
   type SchemaComponentOptions,
 } from '../schemaComponent';
 import type { AnyDatabaseSchemaComponent } from './databaseSchemaComponent';
@@ -76,20 +77,25 @@ export const databaseComponent = <
     }
   }
   const extensions = (options.extensions ?? {}) as Extensions;
-  const base = createSchemaComponent(
-    databaseComponentType,
-    {
-      components: [...Object.values(schemas), ...Object.values(extensions)],
-      migrations: options.migrations,
-    },
-    {
-      databaseName: databaseName as DatabaseName,
-      schemas: schemaComponentMap(schemas),
-      extensions: schemaComponentMap(extensions),
-    },
-  );
+  const children = Object.freeze([
+    ...Object.values(schemas),
+    ...Object.values(extensions),
+  ]);
 
-  return base;
+  const component: DatabaseComponent<Schemas, DatabaseName, Extensions> = {
+    [schemaComponentType]: databaseComponentType,
+    databaseName: databaseName as DatabaseName,
+    schemas: schemaComponentMap(schemas),
+    extensions: schemaComponentMap(extensions),
+    components: children,
+    migrations: (context: SchemaComponentContext = {}) =>
+      dedupeMigrations([
+        ...(options.migrations?.(context) ?? []),
+        ...children.flatMap((child) => child.migrations(context)),
+      ]),
+  };
+
+  return component;
 };
 
 export const isDatabaseComponent = (
