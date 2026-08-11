@@ -62,17 +62,28 @@ export const databaseSchemaComponent = <
 ): DatabaseSchemaComponent<Tables, SchemaName, Extensions> => {
   const tables = (options.tables ?? {}) as Tables;
   const extensions = (options.extensions ?? {}) as Extensions;
+  const schemaNameLabel =
+    typeof options.schemaName === 'string'
+      ? options.schemaName
+      : 'the default schema';
   if (options.schemaName === '')
     throw new Error(
       'A database schema name cannot be empty. Use the default schema token to leave it to the dialect',
     );
+  const tableNames = new Set<string>();
   for (const table of Object.values(tables)) {
+    if (tableNames.has(table.tableName)) {
+      throw new Error(
+        `Table "${table.tableName}" is declared more than once in database schema "${schemaNameLabel}"`,
+      );
+    }
+    tableNames.add(table.tableName);
     if (
       table.databaseSchemaName !== undefined &&
       table.databaseSchemaName !== options.schemaName
     ) {
       throw new Error(
-        `Table "${table.tableName}" is constrained to database schema "${table.databaseSchemaName}" and cannot be placed in "${typeof options.schemaName === 'string' ? options.schemaName : 'the default schema'}"`,
+        `Table "${table.tableName}" is constrained to database schema "${table.databaseSchemaName}" and cannot be placed in "${schemaNameLabel}"`,
       );
     }
   }

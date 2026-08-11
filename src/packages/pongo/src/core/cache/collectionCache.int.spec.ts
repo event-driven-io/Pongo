@@ -213,7 +213,7 @@ describe('pongoCollection cache integration', () => {
   });
 
   describe('behavioral cache correctness', () => {
-    const defaultUsersCacheKey = (id: string) => `db:main.users:${id}`;
+    const defaultUsersCacheKey = (id: string) => `db:.users:${id}`;
 
     beforeEach(async () => {
       client = pongoClient({
@@ -440,7 +440,7 @@ describe('pongoCollection cache integration', () => {
       await audit.insertOne({ _id: 'same-id', name: 'Audit' });
 
       const keys = spies.set.mock.calls.map(([key]) => key);
-      expect(keys).toContain('db:main.users:same-id');
+      expect(keys).toContain('db:.users:same-id');
       expect(keys).toContain('db:audit.users:same-id');
     });
 

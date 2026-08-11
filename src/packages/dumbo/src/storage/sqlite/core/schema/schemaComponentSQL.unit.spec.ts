@@ -32,7 +32,7 @@ describe('using Dumbo components in logical SQLite schemas', () => {
           databaseSchemaName: 'main',
         }),
       ),
-      'users',
+      '"main.users"',
     );
     assert.strictEqual(
       format(

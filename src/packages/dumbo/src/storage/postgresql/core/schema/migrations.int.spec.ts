@@ -161,7 +161,12 @@ describe('Migration Integration Tests', () => {
 
     assert.deepStrictEqual(
       migrationNames.rows.map((row) => row.name),
-      ['schema-table:001', 'schema-feature:001', 'database-feature:001'],
+      [
+        'dumboSchema:public:001:create',
+        'schema-table:001',
+        'schema-feature:001',
+        'database-feature:001',
+      ],
     );
     assert.ok(await tableExists(pool.execute, 'component_users'));
     assert.ok(await tableExists(pool.execute, 'schema_audit_log'));
@@ -217,6 +222,7 @@ describe('Migration Integration Tests', () => {
     assert.deepStrictEqual(
       migrationNames.rows.map((row) => row.name),
       [
+        'dumboSchema:public:001:create',
         'app:public:users:001:create-table',
         'dumboIndex:public:users:users_email_idx:create',
         'app:public:users:users_email_idx:002:create-index',

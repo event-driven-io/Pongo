@@ -20,13 +20,13 @@ export const resolvePongoDatabaseNames = ({
   declaredDatabaseName?: string | undefined;
   defaultSchemaName?: string | undefined;
   connectionString?: string | undefined;
-}): { databaseName: string; defaultSchemaName: string } => ({
+}): { databaseName: string; defaultSchemaName?: string | undefined } => ({
   databaseName:
     databaseName ??
     declaredDatabaseName ??
     metadata.parseDatabaseName?.(connectionString) ??
     metadata.defaultDatabaseName,
-  defaultSchemaName: defaultSchemaName ?? metadata.defaultSchemaName,
+  defaultSchemaName,
 });
 
 export const PongoDatabaseCache = <

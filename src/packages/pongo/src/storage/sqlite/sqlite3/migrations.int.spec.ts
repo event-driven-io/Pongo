@@ -32,7 +32,7 @@ describe('SQLite3 migration integration', () => {
     const schema = pongoSchema.client({
       database: pongoSchema.db({
         schemas: {
-          main: pongoSchema.schema('main', {
+          main: pongoSchema.defaultSchema({
             users: pongoSchema.collection('users'),
             explicitDefaultUsers: pongoSchema.collection(
               'explicit_default_users',
@@ -80,10 +80,10 @@ describe('SQLite3 migration integration', () => {
     });
     const pool = sqlite3Pool({ fileName });
     const expectedMigrationNames = [
-      'pongoSchema:main:001:create',
-      'pongoCollection:main:users:001:createtable',
-      'pongoCollection:main:explicit_default_users:001:createtable',
-      'pongoIndex:main:explicit_default_users:explicit_default_email_idx:create',
+      'pongoSchema:001:create',
+      'pongoCollection:users:001:createtable',
+      'pongoCollection:explicit_default_users:001:createtable',
+      'pongoIndex:explicit_default_users:explicit_default_email_idx:create',
       'pongoSchema:crm:001:create',
       'pongoCollection:crm:users:001:createtable',
       'pongoIndex:crm:users:users_email_idx:create',
@@ -113,6 +113,12 @@ describe('SQLite3 migration integration', () => {
       await db
         .collection('users', { databaseSchemaName: 'crm' })
         .insertOne({ _id: 'crm-user', email: 'crm@test' });
+      const lateUsers = db.collection('late_users', {
+        databaseSchemaName: 'readmodels',
+      });
+      await db.schema.migrate();
+      await db.schema.migrate();
+      await lateUsers.insertOne({ _id: 'late-user', email: 'late@test' });
 
       const objects = await pool.execute.query<{ name: string; type: string }>(
         SQL`
@@ -128,7 +134,8 @@ describe('SQLite3 migration integration', () => {
             'crm.users_external_id_uq',
             'crm.users_data_idx',
             'crm.users_custom_data_idx',
-            'audit.audit_users_email_idx'
+            'audit.audit_users_email_idx',
+            'readmodels.late_users'
           )
           ORDER BY type, name`,
       );
@@ -144,6 +151,9 @@ describe('SQLite3 migration integration', () => {
       const auditCount = await pool.execute.query<{ count: number }>(
         SQL`SELECT COUNT(*) as count FROM ${SQL.identifier('audit.users')}`,
       );
+      const lateCount = await pool.execute.query<{ count: number }>(
+        SQL`SELECT COUNT(*) as count FROM ${SQL.identifier('readmodels.late_users')}`,
+      );
 
       assert.deepStrictEqual(objects.rows, [
         { name: 'audit.audit_users_email_idx', type: 'index' },
@@ -155,15 +165,20 @@ describe('SQLite3 migration integration', () => {
         { name: 'audit.users', type: 'table' },
         { name: 'crm.users', type: 'table' },
         { name: 'explicit_default_users', type: 'table' },
+        { name: 'readmodels.late_users', type: 'table' },
         { name: 'users', type: 'table' },
       ]);
       assert.deepStrictEqual(
         migrationNames.rows.map((row) => row.name),
-        expectedAppliedNames,
+        [
+          ...expectedAppliedNames,
+          'pongoCollection:readmodels:late_users:001:createtable',
+        ],
       );
       assert.strictEqual(defaultCount.rows[0]?.count, 1);
       assert.strictEqual(crmCount.rows[0]?.count, 1);
       assert.strictEqual(auditCount.rows[0]?.count, 0);
+      assert.strictEqual(lateCount.rows[0]?.count, 1);
     } finally {
       await client.close();
       await pool.close();

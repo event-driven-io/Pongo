@@ -127,7 +127,9 @@ describe('pongoClient', () => {
     >[0];
 
     expectTypeOf<FactoryOptions['databaseName']>().toEqualTypeOf<string>();
-    expectTypeOf<FactoryOptions['defaultSchemaName']>().toEqualTypeOf<string>();
+    expectTypeOf<FactoryOptions['defaultSchemaName']>().toEqualTypeOf<
+      string | undefined
+    >();
   });
 
   it('resolves client database and default schema settings once', () => {
@@ -193,7 +195,7 @@ describe('pongoClient', () => {
     );
   });
 
-  it('uses metadata defaults for a fixed-database driver', () => {
+  it('uses metadata database defaults for a fixed-database driver', () => {
     const { driver, databaseFactoryCalls } = testPongoDriver({
       supportsMultipleDatabases: false,
     });
@@ -201,7 +203,7 @@ describe('pongoClient', () => {
     pongoClient({ driver }).db();
 
     assert.strictEqual(databaseFactoryCalls[0]?.databaseName, 'driver-default');
-    assert.strictEqual(databaseFactoryCalls[0]?.defaultSchemaName, 'native');
+    assert.strictEqual(databaseFactoryCalls[0]?.defaultSchemaName, undefined);
   });
 
   it('resolves migration-table settings with database precedence', () => {
@@ -509,7 +511,7 @@ describe('pongoClient', () => {
         },
       },
       databaseName: 'custom-db',
-      defaultSchemaName: 'native',
+      defaultSchemaName: undefined,
       schema: {},
       serializer: databaseFactoryCalls[0]?.serializer,
       errors: undefined,

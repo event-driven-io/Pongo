@@ -40,7 +40,6 @@ import type {
   PongoSchemaScope,
 } from '../typing';
 import type { PongoNestedTransactionOptions } from '../pongoTransaction';
-import { composePongoDatabase } from './pongoDatabaseSchemaComponent';
 
 export const pongoMigrationNamePrefixes: MigrationNamePrefixes = {
   databaseSchema: 'pongoSchema',
@@ -107,11 +106,7 @@ export const PongoDatabase = <
   const defaultSchemaKey = databaseSchemaKey(defaultSchemaName);
   const definition =
     options.schema?.definition ?? pongoSchema.db({ collections: {} });
-  let databaseComponent: DatabaseComponent = composePongoDatabase({
-    databaseName,
-    defaultSchemaName: options.defaultSchemaName,
-    definition,
-  });
+  let databaseComponent: DatabaseComponent = definition;
 
   const cache =
     cacheOptions === 'disabled' || cacheOptions === undefined
@@ -257,14 +252,15 @@ export const PongoDatabase = <
       collectionName: string,
       collectionOptions?: PongoDBCollectionOptions<T, Payload>,
     ) => {
-      const databaseSchemaName =
-        collectionOptions?.databaseSchemaName ?? defaultSchemaName;
       const databaseSchemaKeyName =
         collectionOptions?.databaseSchemaName ?? defaultSchemaKey;
+      const declaredSchema = databaseComponent.schemas[databaseSchemaKeyName];
+      const databaseSchemaName =
+        declaredSchema?.schemaName ??
+        collectionOptions?.databaseSchemaName ??
+        defaultSchemaName;
       const schemaCollections = collectionsIn(databaseSchemaKeyName);
-      const declared = Object.values(
-        databaseComponent.schemas[databaseSchemaKeyName]?.tables ?? {},
-      ).find(
+      const declared = Object.values(declaredSchema?.tables ?? {}).find(
         (table) =>
           isPongoCollectionComponent(table) &&
           table.tableName === collectionName,

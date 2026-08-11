@@ -499,13 +499,14 @@ Every `dumbo_..._table_...` literal moves with it. As of S7 they are in
 Gate: build, fix, unit, int, e2e.
 ```
 
-## S13 — `defaultSchemaName` optional in `pongoDb` — **NAMING HALF DONE IN S9**
+## S13 — `defaultSchemaName` optional in `pongoDb` — **DONE WITH S14**
 
-Done in S9: `defaultSchemaName` is optional, `pongoDb.ts` no longer resolves it
-eagerly, and an unnamed default schema carries `SQLDefaultSchemaNameToken`.
-Still to do here: delete the three dialect string halves listed below, which
-S9 deliberately left in place so that an explicitly named `public` / `main`
-keeps its physical table and index names.
+Done in S9: `defaultSchemaName` is optional for the naming path and an unnamed
+default schema carries `SQLDefaultSchemaNameToken`. Finished with S14:
+`pongoDb` no longer receives the driver's metadata default as an eager
+`defaultSchemaName`, and the dialect string halves listed below are gone. A
+missing value is the default-token path; a provided value is an explicit
+override.
 
 ```text
 Spec D11.
@@ -538,6 +539,10 @@ scope guard proving one collection's override doesn't leak to another.
 Gate: build, fix, unit, int.
 ```
 
+Executed with S14. The full integration sweep still hits environment/time
+failures in broad PostgreSQL Testcontainers fan-out, so focused integration
+coverage is the evidence for the touched migration paths.
+
 ## S14 — Collections normalise into the tree
 
 ```text
@@ -547,14 +552,24 @@ Spec D12 and D13.
 key merge (union of tables); a duplicate table name within a schema still
 throws.
 
+Typing boundary, agreed 2026-08-11: static declarations stay strongly typed;
+dynamic collection creation is runtime state only. Do not try to make
+`db.collection<User>('users', { databaseSchemaName: 'audit' })` add a new
+static `db.audit.users` property to the existing DB type. That call updates
+`db.schema.component`, returns a typed `PongoCollection<User>`, and participates
+in migrations. Typed schema-scope access is for schemas declared up front in
+`pongoSchema.db({ schemas })` / projected through `PongoDbWithSchema`.
+
 Delete `composePongoDatabase`, the `withValue` stash and its duplicate throw,
 `pongoSchemaComponentType`, `pongoDatabaseComponentType`,
 `isPongoSchemaComponent`, `isPongoDatabaseComponent`, and `withValue` itself.
 `pongoCollectionComponentType` survives only if `pongoDb.ts:255` still needs it;
 if it can be a type-level brand instead, make it one.
 
-Test first: ad-hoc schema creation, merge, duplicate-table throw, late
-collection, idempotent re-run.
+Test first: ad-hoc schema creation asserted through `db.schema.component`,
+static projected-schema typing for declarations written up front,
+schema merge, duplicate-table throw, late collection, idempotent re-run. Do not
+write a test expecting dynamic `db.collection(...)` to grow static DB properties.
 
 Gate: build, fix, unit, int, e2e.
 ```

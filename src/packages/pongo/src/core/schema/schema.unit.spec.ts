@@ -1,5 +1,6 @@
 import assert from 'node:assert';
 import {
+  defaultDatabaseSchemaKey,
   dumboSchema,
   isDatabaseComponent,
   isDatabaseSchemaComponent,
@@ -13,13 +14,9 @@ import {
 import { describe, expectTypeOf, it } from 'vitest';
 import {
   isPongoCollectionComponent,
-  isPongoDatabaseComponent,
-  isPongoSchemaComponent,
   pongoCollectionComponentType,
-  pongoDatabaseComponentType,
   pongoDocumentType,
   pongoSchema,
-  pongoSchemaComponentType,
   type PongoCollectionIndexSQLContext,
 } from './index';
 
@@ -169,9 +166,7 @@ describe('declaring Pongo schemas and databases', () => {
     });
 
     assert.strictEqual(isDatabaseSchemaComponent(schema), true);
-    assert.strictEqual(isPongoSchemaComponent(schema), true);
     assert.ok(SQLDefaultSchemaNameToken.check(schema.schemaName));
-    assert.strictEqual(schema[pongoSchemaComponentType], true);
   });
 
   it('keeps a reusable default schema under its database record key', () => {
@@ -205,23 +200,93 @@ describe('declaring Pongo schemas and databases', () => {
     );
   });
 
-  it('declares direct collections without inventing a default schema name', () => {
+  it('normalises direct collections into database schemas without inventing a default schema name', () => {
     const database = pongoSchema.db('app', {
       collections: {
         users: pongoSchema.collection<User>('users'),
+        auditEntries: pongoSchema.collection('entries', {
+          databaseSchemaName: 'audit',
+        }),
       },
     });
 
     assert.strictEqual(isDatabaseComponent(database), true);
-    assert.strictEqual(isPongoDatabaseComponent(database), true);
     assert.strictEqual(database.databaseName, 'app');
     assert.strictEqual(database.collections.users.tableName, 'users');
     assert.strictEqual(
       database.collections.users.databaseSchemaName,
       undefined,
     );
-    assert.deepStrictEqual(Object.keys(database.schemas), []);
-    assert.strictEqual(database[pongoDatabaseComponentType], true);
+    assert.ok(
+      SQLDefaultSchemaNameToken.check(
+        database.schemas[defaultDatabaseSchemaKey]?.schemaName,
+      ),
+    );
+    assert.strictEqual(
+      database.schemas[defaultDatabaseSchemaKey]?.tables.users?.tableName,
+      'users',
+    );
+    assert.strictEqual(database.schemas.audit?.schemaName, 'audit');
+    assert.strictEqual(
+      database.schemas.audit?.tables.auditEntries?.tableName,
+      'entries',
+    );
+  });
+
+  it('keeps an empty default schema for an empty direct-collection database', () => {
+    const database = pongoSchema.db('app', {
+      collections: {},
+    });
+
+    assert.deepStrictEqual(Object.keys(database.schemas), [
+      defaultDatabaseSchemaKey,
+    ]);
+    assert.ok(
+      SQLDefaultSchemaNameToken.check(
+        database.schemas[defaultDatabaseSchemaKey]?.schemaName,
+      ),
+    );
+    assert.deepStrictEqual(
+      Object.keys(database.schemas[defaultDatabaseSchemaKey]?.tables ?? {}),
+      [],
+    );
+  });
+
+  it('keeps an empty default schema when every direct collection names another schema', () => {
+    const database = pongoSchema.db('app', {
+      collections: {
+        auditEntries: pongoSchema.collection('entries', {
+          databaseSchemaName: 'audit',
+        }),
+      },
+    });
+
+    assert.ok(
+      SQLDefaultSchemaNameToken.check(
+        database.schemas[defaultDatabaseSchemaKey]?.schemaName,
+      ),
+    );
+    assert.deepStrictEqual(
+      Object.keys(database.schemas[defaultDatabaseSchemaKey]?.tables ?? {}),
+      [],
+    );
+    assert.strictEqual(
+      database.schemas.audit?.tables.auditEntries?.tableName,
+      'entries',
+    );
+  });
+
+  it('rejects two direct collections with the same table name in one schema', () => {
+    assert.throws(
+      () =>
+        pongoSchema.db('app', {
+          collections: {
+            users: pongoSchema.collection('users'),
+            customerDirectory: pongoSchema.collection('users'),
+          },
+        }),
+      /Table "users" is declared more than once in database schema "the default schema"/,
+    );
   });
 
   it('does not promote collections from named schemas onto the database', () => {
