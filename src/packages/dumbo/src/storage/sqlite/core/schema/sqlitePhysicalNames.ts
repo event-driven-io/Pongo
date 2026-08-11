@@ -3,20 +3,11 @@ import {
   type SQLIndexReference,
   type SQLTableReference,
 } from '../../../../core';
-import { sqliteMetadata } from './sqliteMetadata';
 
-const SQLiteMappedNamePrefix = 'dumbo_';
-
-const escapeName = (name: string): string => name.replaceAll('_', '__');
-
-const assertNativeName = (
-  kind: 'table' | 'index',
-  name: string,
-  prefix: string,
-): void => {
-  if (name.startsWith(prefix)) {
+const assertNativeName = (kind: 'table' | 'index', name: string): void => {
+  if (name.includes('.')) {
     throw new Error(
-      `SQLite ${kind} names starting with ${prefix} are reserved for logical schema mapping`,
+      `SQLite ${kind} names containing . are reserved for logical schema mapping`,
     );
   }
 };
@@ -25,28 +16,22 @@ export const sqliteTableName = (
   identifier: Omit<SQLTableReference, 'sqlTokenType'>,
 ): string => {
   const { databaseSchemaName, tableName } = identifier;
-  if (
-    SQLDefaultSchemaNameToken.check(databaseSchemaName) ||
-    databaseSchemaName === sqliteMetadata.defaultSchemaName
-  ) {
-    assertNativeName('table', tableName, SQLiteMappedNamePrefix);
+  if (SQLDefaultSchemaNameToken.check(databaseSchemaName)) {
+    assertNativeName('table', tableName);
     return tableName;
   }
 
-  return `${SQLiteMappedNamePrefix}${escapeName(databaseSchemaName)}_table_${escapeName(tableName)}`;
+  return `${databaseSchemaName}.${tableName}`;
 };
 
 export const sqliteIndexName = (
   identifier: Omit<SQLIndexReference, 'sqlTokenType'>,
 ): string => {
   const { databaseSchemaName, indexName } = identifier;
-  if (
-    SQLDefaultSchemaNameToken.check(databaseSchemaName) ||
-    databaseSchemaName === sqliteMetadata.defaultSchemaName
-  ) {
-    assertNativeName('index', indexName, SQLiteMappedNamePrefix);
+  if (SQLDefaultSchemaNameToken.check(databaseSchemaName)) {
+    assertNativeName('index', indexName);
     return indexName;
   }
 
-  return `${sqliteTableName(identifier)}_index_${escapeName(indexName)}`;
+  return `${databaseSchemaName}.${indexName}`;
 };

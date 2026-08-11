@@ -9,14 +9,11 @@ import {
   type SQLProcessorContext,
   type SQLTableReference,
 } from '../../../../../core';
-import { postgreSQLMetadata } from '../../schema/postgreSQLMetadata';
 import { PostgreSQLJSON } from '../json';
 
 const isDefaultSchema = (
   databaseSchemaName: string | SQLDefaultSchemaNameToken,
-): boolean =>
-  SQLDefaultSchemaNameToken.check(databaseSchemaName) ||
-  databaseSchemaName === postgreSQLMetadata.defaultSchemaName;
+): boolean => SQLDefaultSchemaNameToken.check(databaseSchemaName);
 
 const addIdentifier = (
   name: string,

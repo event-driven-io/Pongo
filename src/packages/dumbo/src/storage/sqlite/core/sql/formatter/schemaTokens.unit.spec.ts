@@ -22,7 +22,7 @@ const createSchema = (databaseSchemaName: string | SQLDefaultSchemaNameToken) =>
 
 describe('declaring a table and running it on SQLite', () => {
   it('reads a named schema as part of the name', () => {
-    assert.strictEqual(format(tableIn('crm')), 'dumbo_crm_table_users');
+    assert.strictEqual(format(tableIn('crm')), '"crm.users"');
   });
 
   it('drops the qualifier for the default schema', () => {
@@ -32,9 +32,9 @@ describe('declaring a table and running it on SQLite', () => {
     );
   });
 
-  it('treats a spelled-out default schema name as default on that dialect only', () => {
-    assert.strictEqual(format(tableIn('public')), 'dumbo_public_table_users');
-    assert.strictEqual(format(tableIn('main')), 'users');
+  it('treats a spelled-out default schema name as a named schema', () => {
+    assert.strictEqual(format(tableIn('public')), '"public.users"');
+    assert.strictEqual(format(tableIn('main')), '"main.users"');
   });
 
   it('keeps schemas that differ only by underscores on separate tables', () => {
@@ -44,26 +44,23 @@ describe('declaring a table and running it on SQLite', () => {
     );
   });
 
-  it('needs no quoting for reserved words once it has folded them in', () => {
-    assert.strictEqual(
-      format(tableIn('order', 'user')),
-      'dumbo_order_table_user',
-    );
+  it('quotes the folded logical name as one SQLite identifier', () => {
+    assert.strictEqual(format(tableIn('order', 'user')), '"order.user"');
   });
 
   it('refuses a native SQLite table name that would collide with a mapped one', () => {
-    const reserved = tableIn(SQLDefaultSchemaNameToken.from(), 'dumbo_users');
+    const reserved = tableIn(SQLDefaultSchemaNameToken.from(), 'crm.users');
 
     assert.throws(
       () => sqliteFormatter.format(reserved, { serializer: JSONSerializer }),
-      /SQLite table names starting with dumbo_ are reserved/,
+      /SQLite table names containing \. are reserved/,
     );
   });
 
   it('composes into a statement instead of only standing alone', () => {
     assert.strictEqual(
       format(SQL`SELECT ${SQL.identifier('email')} FROM ${tableIn('crm')}`),
-      'SELECT email FROM dumbo_crm_table_users',
+      'SELECT email FROM "crm.users"',
     );
   });
 });
