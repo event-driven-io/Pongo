@@ -5,9 +5,6 @@ import { haveSameSQL, type SQLMigration } from './sqlMigration';
 export const schemaComponentType: unique symbol = Symbol(
   'dumbo.schemaComponent.type',
 );
-export const genericComponentType: unique symbol = Symbol(
-  'dumbo.schemaComponent.generic',
-);
 
 export type SchemaComponentKind = symbol;
 
@@ -68,13 +65,14 @@ export const dedupeMigrations = (
   return result;
 };
 
-export const schemaComponent = (
+export const schemaComponent = <const Kind extends SchemaComponentKind>(
+  kind: Kind,
   options: SchemaComponentOptions = {},
-): SchemaComponent<typeof genericComponentType> => {
+): SchemaComponent<Kind> => {
   const children = Object.freeze([...(options.components ?? [])]);
 
-  const component: SchemaComponent<typeof genericComponentType> = {
-    [schemaComponentType]: genericComponentType,
+  const component: SchemaComponent<Kind> = {
+    [schemaComponentType]: kind,
     components: children,
     migrations: (context: SchemaComponentContext = {}) =>
       dedupeMigrations([

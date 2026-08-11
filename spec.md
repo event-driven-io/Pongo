@@ -98,7 +98,7 @@ Nothing else is shared. Each factory writes the merge itself, inline in its own 
 
 **There is no declaration concept at all.** No `componentMigrations`, no declaration function held in a local and passed to a helper, no component or child list threaded through one. A factory reads its own `options` and its own children and nothing else. `SchemaComponentDeclaration` is deleted with the rest of it: its only two readers were its own declaration and the `migrations` option on `SchemaComponentOptions`, whose signature is written inline there instead. Naming a one-use function type was what made "the declaration" look like a thing the design had.
 
-Rejected while settling this (Q62): expressing a component's own DDL as an extra child so that `migrations` collapses to a bare `flatMap` over `components`. It works, and it removes the merge entirely, but it puts a member in `components` that the caller never declared — `users.components` becomes `[<create-table emitter>, id, email]` — which breaks what `components` means, breaks the deep-equality assertions that read it, and needs a component kind for the emitter at the same moment D19 deletes the last untyped one.
+Rejected while settling this (Q62): expressing a component's own DDL as an extra child so that `migrations` collapses to a bare `flatMap` over `components`. It works, and it removes the merge entirely, but it puts a member in `components` that the caller never declared — `users.components` becomes `[<create-table emitter>, id, email]` — which breaks what `components` means, breaks the deep-equality assertions that read it, and needs a component kind for the emitter — one D19 obliges it to name, with no catch-all to fall back on, and there is no honest kind for "the DDL of the component you are already holding".
 
 `migrations` is a **method, not a getter**, and it is **always a function**; a plain array is not accepted and can be added as sugar later.
 
@@ -283,7 +283,21 @@ The alternative — a generic context each component extends, so a table sees `d
 
 `migrationTableComponentFor` hand-writes `CREATE TABLE IF NOT EXISTS` with `AutoIncrement`/`Varchar`/`Timestamp` column tokens through the generic `schemaComponent()` bag — its only production caller. Under D6 it becomes a real `tableComponent` in a real schema, emitting its DDL the same way every other table does.
 
-Deleted: `schemaComponent()`, `genericComponentType`, and with them the last untyped component kind.
+Deleted: `genericComponentType`.
+
+`schemaComponent()` **stays**, and its kind becomes a required first parameter:
+
+```ts
+schemaComponent(kind, options): SchemaComponent<Kind>
+```
+
+There is **no catch-all kind of any sort** — no default, no fallback, no "group" kind shipped alongside the factory. Every caller passes a kind symbol it declares itself.
+
+**Requiring the kind is what closes the untyped hole, not deleting the factory.** `genericComponentType` meant "we didn't say", and it was what you got by omission — the default kind of the default factory, so nothing ever had to name itself. Making the parameter required removes the escape hatch without removing the composition entry point. The factory keeps what it is worth: it writes the frozen child list and the standard merge — own migrations, then the children's, deduped — while the caller still has to declare what the thing is.
+
+Rejected while settling this: deleting `schemaComponent()` outright, which is what this decision first said. `SchemaComponentMigrator` takes exactly **one** component (`schemaComponentMigrator.ts:78`), so a caller holding several has no way to hand them over as one unit without claiming they are a database or a schema, which they are not. The migration table was `schemaComponent()`'s only production caller, which is what made it read as dead — but for a library's composition entry point, "no in-repo caller" is not "no purpose". The untyped-kind objection was real and is answered by the required parameter.
+
+Also rejected: exporting a `groupComponentType` meaning "these components travel together and migrate as one unit", so that a caller with nothing better to say has something to pass. That is `genericComponentType` under a better name — a kind the library hands out rather than one the caller declares, and the first thing anyone reaches for when they have not thought about what they are building. Naming the kind is the caller's job; the library provides no way to avoid it.
 
 ### D20 — Dead capability flags are removed
 
@@ -308,6 +322,8 @@ Every phase ships unit, integration and end-to-end coverage; nothing is marked "
 
 **Test names describe the use case, not the implementation.** A name states what someone using the library can rely on, in their vocabulary, and must still read correctly after the implementation is rewritten. "declaring the same migration in two places applies it once" is a use case; "collapses two structurally identical migrations built separately" is our internals leaking.
 
+**Core does not depend on a storage, and a spec is not exempt.** Nothing under `dumbo/src/core` imports from `storage/postgresql` or `storage/sqlite`, in tests as much as in production code — a spec that reaches across the boundary makes the layout unenforceable while the production code goes on claiming it. Rendered SQL is a dialect's answer, so a test asserting it is a dialect test and lives in that dialect's package, beside the formatter that produced it. Token construction, component structure and type-level assertions carry no dialect and stay in core. A spec left with nothing dialect-free in it is deleted rather than kept empty: vitest fails a spec file that declares no tests.
+
 Specifically required:
 
 - **Migration name back-compat:** a golden test asserting a default-schema pongo collection still produces `pongoCollection:users:001:createtable`, byte-identical to `main`.
@@ -320,7 +336,7 @@ Specifically required:
 - **Required schema name:** `dumboSchema.schema({ tables })` does not compile; `dumboSchema.defaultSchema({ tables })` does.
 - **Key/name disagreement:** `{ crm: dumboSchema.schema('audit', {...}) }` throws.
 - **SQLite name mapping:** `crm.users` maps to `"crm.users"`; a default-schema table named `a.b` is rejected.
-- **Migration table:** the migration table's own DDL is byte-identical to `main`'s.
+- **Migration table:** one exact DDL literal per dialect — the five columns in declared order, `application` defaulting to `'default'`, `timestamp` to `CURRENT_TIMESTAMP`, `name` unique and not null, and `IF NOT EXISTS`. **Not** byte-identical to `main`'s: `createTableSQL` emits a single line where the hand-written literal was multi-line, and the core migrations never expose that text — `migrator.ts:141-145` hands them to `execute.batchCommand` rather than `runSQLMigration`, bypassing hashing and recording — so the columns are load-bearing and the exact text is not.
 - **Ad-hoc collection:** `db.collection('users', { databaseSchemaName: 'readmodels' })` emits `CREATE SCHEMA readmodels` before its `CREATE TABLE`, and re-running is a no-op.
 - **Late collection:** a collection added after `migrate()` migrates itself on first use.
 

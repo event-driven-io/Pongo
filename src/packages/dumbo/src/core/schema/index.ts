@@ -4,7 +4,6 @@ export * from './dumboSchema';
 export * from './extensionComponent';
 export * from './migrators';
 export {
-  genericComponentType,
   isSchemaComponent,
   schemaComponent,
   schemaComponentType,
