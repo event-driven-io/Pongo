@@ -24,10 +24,7 @@ const identifier = {
 
 describe('using Dumbo components in logical SQLite schemas', () => {
   it('resolves mapped table references from their full logical identifier', () => {
-    assert.strictEqual(
-      format(sqliteTableReference(identifier)),
-      'dumbo_crm_table_users',
-    );
+    assert.strictEqual(format(sqliteTableReference(identifier)), '"crm.users"');
     assert.strictEqual(
       format(
         sqliteTableReference({
@@ -57,7 +54,7 @@ describe('using Dumbo components in logical SQLite schemas', () => {
 
     assert.strictEqual(
       format(createIndexSQL(index, identifier)),
-      'CREATE UNIQUE INDEX IF NOT EXISTS dumbo_crm_table_users_index_users__email__idx ON dumbo_crm_table_users (email)',
+      'CREATE UNIQUE INDEX IF NOT EXISTS "crm.users_email_idx" ON "crm.users" (email)',
     );
   });
 
@@ -70,7 +67,7 @@ describe('using Dumbo components in logical SQLite schemas', () => {
 
     assert.strictEqual(
       format(createIndexSQL(index, identifier)),
-      'CREATE INDEX IF NOT EXISTS dumbo_crm_table_users_index_users__email__idx ON dumbo_crm_table_users (email, tenant)',
+      'CREATE INDEX IF NOT EXISTS "crm.users_email_idx" ON "crm.users" (email, tenant)',
     );
   });
 
@@ -84,7 +81,7 @@ describe('using Dumbo components in logical SQLite schemas', () => {
 
     assert.strictEqual(
       format(createIndexSQL(index, identifier)),
-      "CREATE INDEX IF NOT EXISTS dumbo_crm_table_users_index_users__email__idx ON dumbo_crm_table_users (json_extract(data, '$.profile.email'))",
+      'CREATE INDEX IF NOT EXISTS "crm.users_email_idx" ON "crm.users" (json_extract(data, \'$.profile.email\'))',
     );
   });
 
@@ -103,7 +100,7 @@ describe('using Dumbo components in logical SQLite schemas', () => {
           indexName: 'users_document_idx',
         }),
       ),
-      'CREATE INDEX IF NOT EXISTS dumbo_crm_table_users_index_users__document__idx ON dumbo_crm_table_users (data)',
+      'CREATE INDEX IF NOT EXISTS "crm.users_document_idx" ON "crm.users" (data)',
     );
   });
 
@@ -122,7 +119,7 @@ describe('using Dumbo components in logical SQLite schemas', () => {
           indexName: 'users_document_uq',
         }),
       ),
-      'CREATE UNIQUE INDEX IF NOT EXISTS dumbo_crm_table_users_index_users__document__uq ON dumbo_crm_table_users (data)',
+      'CREATE UNIQUE INDEX IF NOT EXISTS "crm.users_document_uq" ON "crm.users" (data)',
     );
   });
 
@@ -142,7 +139,7 @@ describe('using Dumbo components in logical SQLite schemas', () => {
           indexName: 'users_custom_idx',
         }),
       ),
-      'CREATE INDEX dumbo_crm_table_users_index_users__custom__idx ON dumbo_crm_table_users (data)',
+      'CREATE INDEX "crm.users_custom_idx" ON "crm.users" (data)',
     );
   });
 });

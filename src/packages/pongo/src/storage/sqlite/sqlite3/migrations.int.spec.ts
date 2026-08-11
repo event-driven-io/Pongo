@@ -121,14 +121,14 @@ describe('SQLite3 migration integration', () => {
           WHERE name IN (
             'users',
             'explicit_default_users',
-            'dumbo_crm_table_users',
-            'dumbo_audit_table_users',
+            'crm.users',
+            'audit.users',
             'explicit_default_email_idx',
-            'dumbo_crm_table_users_index_users__email__idx',
-            'dumbo_crm_table_users_index_users__external__id__uq',
-            'dumbo_crm_table_users_index_users__data__idx',
-            'dumbo_crm_table_users_index_users__custom__data__idx',
-            'dumbo_audit_table_users_index_audit__users__email__idx'
+            'crm.users_email_idx',
+            'crm.users_external_id_uq',
+            'crm.users_data_idx',
+            'crm.users_custom_data_idx',
+            'audit.audit_users_email_idx'
           )
           ORDER BY type, name`,
       );
@@ -139,36 +139,21 @@ describe('SQLite3 migration integration', () => {
         SQL`SELECT COUNT(*) as count FROM users`,
       );
       const crmCount = await pool.execute.query<{ count: number }>(
-        SQL`SELECT COUNT(*) as count FROM ${SQL.identifier('dumbo_crm_table_users')}`,
+        SQL`SELECT COUNT(*) as count FROM ${SQL.identifier('crm.users')}`,
       );
       const auditCount = await pool.execute.query<{ count: number }>(
-        SQL`SELECT COUNT(*) as count FROM ${SQL.identifier('dumbo_audit_table_users')}`,
+        SQL`SELECT COUNT(*) as count FROM ${SQL.identifier('audit.users')}`,
       );
 
       assert.deepStrictEqual(objects.rows, [
-        {
-          name: 'dumbo_audit_table_users_index_audit__users__email__idx',
-          type: 'index',
-        },
-        {
-          name: 'dumbo_crm_table_users_index_users__custom__data__idx',
-          type: 'index',
-        },
-        {
-          name: 'dumbo_crm_table_users_index_users__data__idx',
-          type: 'index',
-        },
-        {
-          name: 'dumbo_crm_table_users_index_users__email__idx',
-          type: 'index',
-        },
-        {
-          name: 'dumbo_crm_table_users_index_users__external__id__uq',
-          type: 'index',
-        },
+        { name: 'audit.audit_users_email_idx', type: 'index' },
+        { name: 'crm.users_custom_data_idx', type: 'index' },
+        { name: 'crm.users_data_idx', type: 'index' },
+        { name: 'crm.users_email_idx', type: 'index' },
+        { name: 'crm.users_external_id_uq', type: 'index' },
         { name: 'explicit_default_email_idx', type: 'index' },
-        { name: 'dumbo_audit_table_users', type: 'table' },
-        { name: 'dumbo_crm_table_users', type: 'table' },
+        { name: 'audit.users', type: 'table' },
+        { name: 'crm.users', type: 'table' },
         { name: 'explicit_default_users', type: 'table' },
         { name: 'users', type: 'table' },
       ]);

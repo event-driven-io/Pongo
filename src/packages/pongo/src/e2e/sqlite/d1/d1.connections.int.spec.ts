@@ -98,16 +98,15 @@ describe('Pongo D1 connections', () => {
 
   it('runs schema-prefixed migrations and collection calls', async () => {
     const collectionName = uniqueCollectionName();
-    const escapedCollectionName = collectionName.replaceAll('_', '__');
-    const schemaTableName = `dumbo_crm_table_${escapedCollectionName}`;
+    const schemaTableName = `crm.${collectionName}`;
     const emailIndexName = `${collectionName}_email_idx`;
     const uniqueIndexName = `${collectionName}_external_id_uq`;
     const documentIndexName = `${collectionName}_data_idx`;
     const customIndexName = `${collectionName}_custom_idx`;
-    const physicalEmailIndexName = `${schemaTableName}_index_${emailIndexName.replaceAll('_', '__')}`;
-    const physicalUniqueIndexName = `${schemaTableName}_index_${uniqueIndexName.replaceAll('_', '__')}`;
-    const physicalDocumentIndexName = `${schemaTableName}_index_${documentIndexName.replaceAll('_', '__')}`;
-    const physicalCustomIndexName = `${schemaTableName}_index_${customIndexName.replaceAll('_', '__')}`;
+    const physicalEmailIndexName = `crm.${emailIndexName}`;
+    const physicalUniqueIndexName = `crm.${uniqueIndexName}`;
+    const physicalDocumentIndexName = `crm.${documentIndexName}`;
+    const physicalCustomIndexName = `crm.${customIndexName}`;
     const pongo = pongoClient({
       driver: databaseDriver,
       connectionOptions: {

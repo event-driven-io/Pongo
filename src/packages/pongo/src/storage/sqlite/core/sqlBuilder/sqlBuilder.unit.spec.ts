@@ -192,12 +192,8 @@ describe('sqliteSQLBuilder', () => {
         migrations[0]!.name,
         'pongoCollection:crm:users:001:createtable',
       );
-      assert.ok(
-        query.includes('CREATE TABLE IF NOT EXISTS dumbo_crm_table_users'),
-      );
-      assert.ok(
-        insert.query.includes('INSERT OR IGNORE INTO dumbo_crm_table_users'),
-      );
+      assert.ok(query.includes('CREATE TABLE IF NOT EXISTS "crm.users"'));
+      assert.ok(insert.query.includes('INSERT OR IGNORE INTO "crm.users"'));
     });
 
     it('keeps ambiguous logical schema tuples on distinct physical tables', () => {
@@ -217,33 +213,33 @@ describe('sqliteSQLBuilder', () => {
       ).query;
 
       assert.notEqual(firstSQL, secondSQL);
-      assert.ok(firstSQL.includes('dumbo_a_table_b__c'));
-      assert.ok(secondSQL.includes('dumbo_a__b_table_c'));
+      assert.ok(firstSQL.includes('a.b_c'));
+      assert.ok(secondSQL.includes('a_b.c'));
     });
 
-    it('reserves the mapped-name prefix for native tables and indexes', () => {
+    it('reserves dotted native table and index names', () => {
       assert.throws(
         () =>
           formatSQL(
-            builderFor(
-              collectionInSchema(defaultSchema, 'dumbo_users'),
-            ).findOne(SQL``),
+            builderFor(collectionInSchema(defaultSchema, 'crm.users')).findOne(
+              SQL``,
+            ),
             sqliteFormatter,
           ),
-        /SQLite table names starting with dumbo_ are reserved/,
+        /SQLite table names containing \. are reserved/,
       );
       assert.throws(
         () =>
           migrationsFor(
             databaseInSchemaWithIndexes(defaultSchema, 'users', {
               indexes: {
-                email: pongoSchema.index('dumbo_users_email_idx', 'email'),
+                email: pongoSchema.index('users.email_idx', 'email'),
               },
             }).database,
           ).forEach((migration) =>
             migration.sqls.forEach((sql) => formatSQL(sql, sqliteFormatter)),
           ),
-        /SQLite index names starting with dumbo_ are reserved/,
+        /SQLite index names containing \. are reserved/,
       );
     });
 
@@ -257,26 +253,26 @@ describe('sqliteSQLBuilder', () => {
         name: 'createCollection',
         sql: (builder) => builder.createCollection(),
         defaultIncludes: 'CREATE TABLE IF NOT EXISTS users',
-        schemaIncludes: 'CREATE TABLE IF NOT EXISTS dumbo_crm_table_users',
+        schemaIncludes: 'CREATE TABLE IF NOT EXISTS "crm.users"',
       },
       {
         name: 'insertOne',
         sql: (builder) => builder.insertOne({ _id: '1', email: 'a@test' }),
         defaultIncludes: 'INSERT OR IGNORE INTO users',
-        schemaIncludes: 'INSERT OR IGNORE INTO dumbo_crm_table_users',
+        schemaIncludes: 'INSERT OR IGNORE INTO "crm.users"',
       },
       {
         name: 'insertMany',
         sql: (builder) => builder.insertMany([{ _id: '1', email: 'a@test' }]),
         defaultIncludes: 'INSERT OR IGNORE INTO users',
-        schemaIncludes: 'INSERT OR IGNORE INTO dumbo_crm_table_users',
+        schemaIncludes: 'INSERT OR IGNORE INTO "crm.users"',
       },
       {
         name: 'insertOrReplace',
         sql: (builder) =>
           builder.insertOrReplace([{ _id: '1', email: 'a@test' }]),
         defaultIncludes: 'INSERT INTO users',
-        schemaIncludes: 'INSERT INTO dumbo_crm_table_users',
+        schemaIncludes: 'INSERT INTO "crm.users"',
       },
       {
         name: 'updateOne',
@@ -286,7 +282,7 @@ describe('sqliteSQLBuilder', () => {
             { $set: { name: 'A' } },
           ),
         defaultIncludes: 'UPDATE users',
-        schemaIncludes: 'UPDATE dumbo_crm_table_users',
+        schemaIncludes: 'UPDATE "crm.users"',
       },
       {
         name: 'replaceOne',
@@ -296,7 +292,7 @@ describe('sqliteSQLBuilder', () => {
             { email: 'b@test', name: 'B' },
           ),
         defaultIncludes: 'UPDATE users',
-        schemaIncludes: 'UPDATE dumbo_crm_table_users',
+        schemaIncludes: 'UPDATE "crm.users"',
       },
       {
         name: 'updateMany',
@@ -306,62 +302,62 @@ describe('sqliteSQLBuilder', () => {
             { $set: { name: 'A' } },
           ),
         defaultIncludes: 'UPDATE users',
-        schemaIncludes: 'UPDATE dumbo_crm_table_users',
+        schemaIncludes: 'UPDATE "crm.users"',
       },
       {
         name: 'deleteOne',
         sql: (builder) => builder.deleteOne({ email: 'a@test' }),
         defaultIncludes: 'DELETE FROM users',
-        schemaIncludes: 'DELETE FROM dumbo_crm_table_users',
+        schemaIncludes: 'DELETE FROM "crm.users"',
       },
       {
         name: 'deleteMany',
         sql: (builder) => builder.deleteMany({ email: 'a@test' }),
         defaultIncludes: 'DELETE FROM users',
-        schemaIncludes: 'DELETE FROM dumbo_crm_table_users',
+        schemaIncludes: 'DELETE FROM "crm.users"',
       },
       {
         name: 'replaceMany',
         sql: (builder) => builder.replaceMany([{ _id: '1', email: 'a@test' }]),
         defaultIncludes: 'UPDATE users',
-        schemaIncludes: 'UPDATE dumbo_crm_table_users',
+        schemaIncludes: 'UPDATE "crm.users"',
       },
       {
         name: 'deleteManyByIds',
         sql: (builder) => builder.deleteManyByIds([{ _id: '1' }]),
         defaultIncludes: 'DELETE FROM users',
-        schemaIncludes: 'DELETE FROM dumbo_crm_table_users',
+        schemaIncludes: 'DELETE FROM "crm.users"',
       },
       {
         name: 'findOne',
         sql: (builder) => builder.findOne({ email: 'a@test' }),
         defaultIncludes: 'FROM users',
-        schemaIncludes: 'FROM dumbo_crm_table_users',
+        schemaIncludes: 'FROM "crm.users"',
       },
       {
         name: 'find',
         sql: (builder) => builder.find({}),
         defaultIncludes: 'FROM users',
-        schemaIncludes: 'FROM dumbo_crm_table_users',
+        schemaIncludes: 'FROM "crm.users"',
       },
       {
         name: 'countDocuments',
         sql: (builder) => builder.countDocuments({}),
         defaultIncludes: 'FROM users',
-        schemaIncludes: 'FROM dumbo_crm_table_users',
+        schemaIncludes: 'FROM "crm.users"',
       },
       {
         name: 'rename',
         sql: (builder) => builder.rename('archived_users'),
         defaultIncludes: 'ALTER TABLE users RENAME TO archived_users',
         schemaIncludes:
-          'ALTER TABLE dumbo_crm_table_users RENAME TO dumbo_crm_table_archived__users',
+          'ALTER TABLE "crm.users" RENAME TO "crm.archived_users"',
       },
       {
         name: 'drop',
         sql: (builder) => builder.drop(),
         defaultIncludes: 'DROP TABLE IF EXISTS users',
-        schemaIncludes: 'DROP TABLE IF EXISTS dumbo_crm_table_users',
+        schemaIncludes: 'DROP TABLE IF EXISTS "crm.users"',
       },
     ];
 
@@ -383,7 +379,7 @@ describe('sqliteSQLBuilder', () => {
           `${testCase.name} default got: ${defaultSQL}`,
         );
         assert.ok(
-          !defaultSQL.includes('dumbo_crm_table_users'),
+          !defaultSQL.includes('"crm.users"'),
           `${testCase.name} default should not use the CRM table: ${defaultSQL}`,
         );
         assert.ok(
@@ -457,7 +453,7 @@ describe('sqliteSQLBuilder', () => {
       assert.strictEqual(email.indexName, indexes.email.indexName);
       assert.ok(
         indexSQL.includes(
-          'CREATE INDEX IF NOT EXISTS dumbo_crm_table_users_index_users__email__idx ON dumbo_crm_table_users',
+          'CREATE INDEX IF NOT EXISTS "crm.users_email_idx" ON "crm.users"',
         ),
         `got: ${indexSQL}`,
       );
@@ -517,8 +513,8 @@ describe('sqliteSQLBuilder', () => {
 
       assert.equal(migrations.length, 2);
       assert.deepStrictEqual(resolvedReferences, {
-        tableReference: 'dumbo_crm_table_users',
-        indexReference: 'dumbo_crm_table_users_index_users__custom__data__idx',
+        tableReference: '"crm.users"',
+        indexReference: '"crm.users_custom_data_idx"',
       });
       const custom = collection.indexes.custom;
       assert.ok(custom);

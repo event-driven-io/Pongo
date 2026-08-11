@@ -32,8 +32,8 @@ describe('declaring a table and running it on PostgreSQL', () => {
     );
   });
 
-  it('treats a spelled-out default schema name as default on that dialect only', () => {
-    assert.strictEqual(format(tableIn('public')), 'users');
+  it('treats a spelled-out default schema name as a named schema', () => {
+    assert.strictEqual(format(tableIn('public')), 'public.users');
     assert.strictEqual(format(tableIn('main')), 'main.users');
   });
 
@@ -76,7 +76,13 @@ describe('creating the schema a table was declared in on PostgreSQL', () => {
       format(createSchema(SQLDefaultSchemaNameToken.from())),
       '',
     );
-    assert.strictEqual(format(createSchema('public')), '');
+  });
+
+  it('creates an explicitly spelled default schema name as a named schema', () => {
+    assert.strictEqual(
+      format(createSchema('public')),
+      'CREATE SCHEMA IF NOT EXISTS public',
+    );
   });
 
   it('quotes a reserved schema name', () => {

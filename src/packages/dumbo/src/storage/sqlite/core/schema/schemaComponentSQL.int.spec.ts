@@ -78,13 +78,8 @@ describe('running SQLite schema component SQL against a database', () => {
   it('folds a named schema into the physical table and index names', async () => {
     await migrate(usersIn('crm'));
 
-    assert.ok(await tableExists(pool.execute, 'dumbo_crm_table_users'));
-    assert.ok(
-      await indexExists(
-        pool.execute,
-        'dumbo_crm_table_users_index_users__email__idx',
-      ),
-    );
+    assert.ok(await tableExists(pool.execute, 'crm.users'));
+    assert.ok(await indexExists(pool.execute, 'crm.users_email_idx'));
     assert.ok(!(await tableExists(pool.execute, 'users')));
   });
 
@@ -99,7 +94,7 @@ describe('running SQLite schema component SQL against a database', () => {
       SQL`SELECT COUNT(*) as count FROM users`,
     );
     const crmRows = await pool.execute.query<{ count: number }>(
-      SQL`SELECT COUNT(*) as count FROM dumbo_crm_table_users`,
+      SQL`SELECT COUNT(*) as count FROM ${SQL.identifier('crm.users')}`,
     );
 
     assert.strictEqual(defaultRows.rows[0]?.count, 1);
