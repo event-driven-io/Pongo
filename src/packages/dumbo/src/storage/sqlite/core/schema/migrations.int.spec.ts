@@ -4,7 +4,14 @@ import { afterEach, beforeEach, describe, it } from 'vitest';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { InMemorySQLiteDatabase, SQLiteConnectionString } from '..';
-import { count, dumbo, single, SQL, type Dumbo } from '../../../..';
+import {
+  count,
+  dumbo,
+  single,
+  SQL,
+  SQLDefaultSchemaNameToken,
+  type Dumbo,
+} from '../../../..';
 import {
   databaseComponent,
   databaseSchemaComponent,
@@ -200,7 +207,7 @@ describe('Migration Integration Tests', () => {
         const users = tableComponent({
           tableName: 'users',
           migrations: () => [
-            sqlMigration('app:main:users:001:create-table', [
+            sqlMigration('app:users:001:create-table', [
               SQL`CREATE TABLE users (id TEXT PRIMARY KEY, email TEXT NOT NULL);`,
             ]),
           ],
@@ -210,12 +217,9 @@ describe('Migration Integration Tests', () => {
               columnNames: ['email'],
               isUnique: true,
               migrations: () => [
-                sqlMigration(
-                  'app:main:users:users_email_idx:002:create-index',
-                  [
-                    SQL`CREATE UNIQUE INDEX IF NOT EXISTS users_email_idx ON users (email);`,
-                  ],
-                ),
+                sqlMigration('app:users:users_email_idx:002:create-index', [
+                  SQL`CREATE UNIQUE INDEX IF NOT EXISTS users_email_idx ON users (email);`,
+                ]),
               ],
             }),
           },
@@ -224,7 +228,7 @@ describe('Migration Integration Tests', () => {
           databaseName: 'app',
           schemas: {
             main: databaseSchemaComponent({
-              schemaName: 'main',
+              schemaName: SQLDefaultSchemaNameToken.from(),
               tables: { users },
             }),
           },
@@ -244,9 +248,9 @@ describe('Migration Integration Tests', () => {
         assert.deepStrictEqual(
           migrationNames.rows.map((row) => row.name),
           [
-            'app:main:users:001:create-table',
-            'dumboIndex:main:users:users_email_idx:create',
-            'app:main:users:users_email_idx:002:create-index',
+            'app:users:001:create-table',
+            'dumboIndex:users:users_email_idx:create',
+            'app:users:users_email_idx:002:create-index',
           ],
         );
       });

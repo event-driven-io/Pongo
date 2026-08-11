@@ -195,11 +195,15 @@ A schema carrying `SQLDefaultSchemaNameToken` contributes **no segment**, so nam
 - **not given** → collections go into `dumboSchema.defaultSchema(...)`, carrying the token. Names unchanged from `main`.
 - **given** → an explicit override meaning "put every collection here unless told otherwise". Names carry that segment.
 
-Done in S9 for the naming half. The dialect string tests — `isDefaultSchema` on Postgres, `sqliteTableName` and `sqliteIndexName` on SQLite — deliberately stay, so an explicitly named `public` / `main` still renders as the default schema in SQL and keeps its physical names. Only its migration name diverges.
+The naming half landed in S9. The remaining dialect-string default branches were removed in S13/S14: an explicitly named `public` / `main` is now an explicitly named schema to the DDL formatters and SQLite physical-name mapper. A missing `defaultSchemaName` stays the default-token path; a provided one is an override, not a value inferred from driver metadata.
 
 ### D12 — Pongo is sugar over dumbo
 
 `PongoDatabaseComponent` exposes `collections` flat, plus `schemas` when schemas are declared. It adds typed accessors and pongo marker types; it adds no structure dumbo does not have. Pongo owns the collection-to-schema mapping: it creates the default schema when none is given, and adds a named schema alongside it when a collection declares its own `databaseSchemaName`.
+
+Strong typing is for **static schema declarations**. A database declared up front with `pongoSchema.db({ schemas })` or `pongoSchema.db({ collections })` keeps its projected `PongoDbWithSchema<typeof definition>` accessors. A collection added later through `db.collection(...)` is dynamic runtime state: it updates `db.schema.component` and participates in migrations, but it does **not** make the already-created `db` value gain new static TypeScript properties.
+
+That boundary is intentional. Preserving the existing API means callers can write `pongoSchema.collection<User>('users', { databaseSchemaName: 'audit' })`; TypeScript cannot both accept the explicit `User` type argument and infer a later literal schema-name type from the options. S14 therefore does not try to make dynamic collection creation grow the static DB type. Users who need typed schema scopes declare them statically.
 
 Of pongo's three marker symbols, only `pongoCollectionComponentType` has a production reader once D6 deletes pongo's migration builders — `pongoDb.ts:255`. `pongoSchemaComponentType`, `pongoDatabaseComponentType`, `isPongoSchemaComponent`, `isPongoDatabaseComponent` and `withValue` are deleted; any surviving discrimination is a type-level brand, never a value on the component.
 
@@ -209,7 +213,9 @@ Of pongo's three marker symbols, only `pongoCollectionComponentType` has a produ
 
 This makes the database component an immutable value behind a mutable holder, and `db.schema.migrate()` reads `databaseComponent.migrations()` at call time.
 
-`composePongoDatabase` is deleted. `pongoSchema.db` already returns a real `databaseComponent` in both branches; in the `{ schemas }` form the composer takes it apart and rebuilds identical copies, and in the `{ collections }` form `pongoSchema.db` builds `schemas: {}` and stashes raw collections via `withValue` purely so the composer can group them later. D11 and this decision remove its reason to exist.
+The runtime component is the source of truth for dynamic additions. Tests assert `db.schema.component.schemas.readmodels.tables.users` after `db.collection('users', { databaseSchemaName: 'readmodels' })`, not a new `db.readmodels.users` TypeScript property. Typed `db.readmodels.users` access remains a guarantee only for a static `pongoSchema.db({ schemas: { readmodels: ... } })` declaration.
+
+`composePongoDatabase` is deleted. `pongoSchema.db` returns a real `databaseComponent` in both branches. In the `{ collections }` form it groups direct collections into schema components at declaration time, preserving the flat `collections` view only as Pongo's typed convenience surface. In the `{ schemas }` form it keeps the Dumbo schema tree as declared. D11 and this decision remove the old `withValue` stash and the need for runtime recomposition.
 
 ### D14 — Ordering
 

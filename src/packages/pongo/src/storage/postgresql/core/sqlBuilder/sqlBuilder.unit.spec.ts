@@ -10,7 +10,6 @@ import assert from 'assert';
 import { describe, it } from 'vitest';
 import { postgresSQLBuilder } from '.';
 import {
-  composePongoDatabase,
   pongoMigrationNamePrefixes,
   pongoSchema,
   type ExpectedDocumentVersion,
@@ -43,16 +42,13 @@ const databaseWithCollection = <const Indexes extends PongoCollectionIndexes>(
 
   return {
     collection,
-    database: composePongoDatabase({
-      databaseName: 'app',
-      definition: SQLDefaultSchemaNameToken.check(schemaName)
-        ? pongoSchema.db({ collections: { collection } })
-        : pongoSchema.db({
-            schemas: {
-              [schemaName]: pongoSchema.schema(schemaName, { collection }),
-            },
-          }),
-    }),
+    database: SQLDefaultSchemaNameToken.check(schemaName)
+      ? pongoSchema.db({ collections: { collection } })
+      : pongoSchema.db({
+          schemas: {
+            [schemaName]: pongoSchema.schema(schemaName, { collection }),
+          },
+        }),
   };
 };
 

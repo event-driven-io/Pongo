@@ -10,10 +10,12 @@ import type { PongoCollection, PongoDb, PongoDocument } from '../typing';
 import {
   pongoSchema,
   pongoDocumentType,
+  type PongoDatabaseDefinition,
   type PongoDbWithSchema,
 } from './index';
 
 type User = PongoDocument & { email: string };
+type EmptyRecord = Readonly<Record<never, never>>;
 
 describe('typing Pongo declarations and projected databases', () => {
   it('types direct collection properties from their document declarations', () => {
@@ -65,8 +67,9 @@ describe('typing Pongo declarations and projected databases', () => {
     expectTypeOf<GroupedDatabase['public']['users']>().toEqualTypeOf<
       PongoCollection<User>
     >();
-    // @ts-expect-error Named-schema mode does not promote collections.
-    void grouped.collections;
+    expectTypeOf<
+      Extract<keyof typeof grouped, 'collections'>
+    >().toEqualTypeOf<never>();
   });
 
   it('types every Pongo index as a Dumbo index', () => {
@@ -82,11 +85,11 @@ describe('typing Pongo declarations and projected databases', () => {
   });
 
   it('requires exactly one database declaration mode', () => {
-    // @ts-expect-error A database declaration must select exactly one mode.
-    pongoSchema.db({ collections: {}, schemas: {} });
-
-    // @ts-expect-error A database declaration must select a mode.
-    pongoSchema.db({});
+    expectTypeOf<{
+      collections: EmptyRecord;
+      schemas: EmptyRecord;
+    }>().not.toExtend<PongoDatabaseDefinition>();
+    expectTypeOf<EmptyRecord>().not.toExtend<PongoDatabaseDefinition>();
   });
 
   it('keeps database API collisions on the database API type', () => {
@@ -111,12 +114,11 @@ describe('typing Pongo declarations and projected databases', () => {
       },
     });
     type GroupedDatabase = PongoDbWithSchema<typeof _grouped>;
-    const db = undefined as unknown as GroupedDatabase;
-
-    // @ts-expect-error Schema groups are projected directly.
-    void db.schemas;
-
-    // @ts-expect-error The resolved default schema is internal state.
-    void db.defaultSchemaName;
+    expectTypeOf<
+      Extract<keyof GroupedDatabase, 'schemas'>
+    >().toEqualTypeOf<never>();
+    expectTypeOf<
+      Extract<keyof GroupedDatabase, 'defaultSchemaName'>
+    >().toEqualTypeOf<never>();
   });
 });

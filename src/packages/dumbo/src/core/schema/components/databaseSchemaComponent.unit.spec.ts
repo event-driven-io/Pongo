@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
-import { SQL } from '../../sql';
+import { SQL, SQLDefaultSchemaNameToken } from '../../sql';
 import { extensionComponent } from '../extensionComponent';
 import { sqlMigration } from '../sqlMigration';
 import { databaseSchemaComponent } from './databaseSchemaComponent';
@@ -69,5 +69,33 @@ describe('declaring a schema with tables', () => {
     assert.ok(!('schema' in schema.tables.users));
     assert.ok(!('parent' in schema.tables.users));
     assert.ok(!('table' in schema.tables.users.indexes.email));
+  });
+
+  it('rejects two table aliases resolving to the same table name in one schema', () => {
+    assert.throws(
+      () =>
+        databaseSchemaComponent({
+          schemaName: 'reporting',
+          tables: {
+            users: tableComponent({ tableName: 'users' }),
+            customerDirectory: tableComponent({ tableName: 'users' }),
+          },
+        }),
+      /Table "users" is declared more than once in database schema "reporting"/,
+    );
+  });
+
+  it('rejects two table aliases resolving to the same table name in the default schema', () => {
+    assert.throws(
+      () =>
+        databaseSchemaComponent({
+          schemaName: SQLDefaultSchemaNameToken.from(),
+          tables: {
+            users: tableComponent({ tableName: 'users' }),
+            customerDirectory: tableComponent({ tableName: 'users' }),
+          },
+        }),
+      /Table "users" is declared more than once in database schema "the default schema"/,
+    );
   });
 });

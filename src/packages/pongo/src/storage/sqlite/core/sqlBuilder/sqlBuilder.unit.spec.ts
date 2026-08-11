@@ -12,7 +12,6 @@ import { randomUUID } from 'crypto';
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 import {
-  composePongoDatabase,
   pongoMigrationNamePrefixes,
   pongoSchema,
   type ExpectedDocumentVersion,
@@ -65,16 +64,13 @@ const databaseInSchemaWithIndexes = <
 
   return {
     collection,
-    database: composePongoDatabase({
-      databaseName: 'app',
-      definition: SQLDefaultSchemaNameToken.check(schemaName)
-        ? pongoSchema.db({ collections: { collection } })
-        : pongoSchema.db({
-            schemas: {
-              [schemaName]: pongoSchema.schema(schemaName, { collection }),
-            },
-          }),
-    }),
+    database: SQLDefaultSchemaNameToken.check(schemaName)
+      ? pongoSchema.db({ collections: { collection } })
+      : pongoSchema.db({
+          schemas: {
+            [schemaName]: pongoSchema.schema(schemaName, { collection }),
+          },
+        }),
   };
 };
 

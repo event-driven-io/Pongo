@@ -36,7 +36,7 @@ describe('using Dumbo components in PostgreSQL schemas', () => {
           databaseSchemaName: 'public',
         }),
       ),
-      'users',
+      'public.users',
     );
     assert.strictEqual(
       format(
@@ -56,7 +56,10 @@ describe('using Dumbo components in PostgreSQL schemas', () => {
       format(databaseSchemaComponent({ schemaName }).migrations()[0]!.sqls[0]!);
 
     assert.strictEqual(schemaSQL('audit'), 'CREATE SCHEMA IF NOT EXISTS audit');
-    assert.strictEqual(schemaSQL('public'), '');
+    assert.strictEqual(
+      schemaSQL('public'),
+      'CREATE SCHEMA IF NOT EXISTS public',
+    );
     assert.strictEqual(schemaSQL(SQLDefaultSchemaNameToken.from()), '');
   });
 

@@ -40,6 +40,7 @@ const stubSQLBuilder: PongoCollectionSQLBuilder = {
 
 const createTestDb = (options?: {
   allowNestedTransactions?: boolean;
+  defaultSchemaName?: string;
   definition?: PongoDbSchema;
 }) => {
   let transactionOptions: DatabaseTransactionOptions | undefined;
@@ -79,6 +80,7 @@ const createTestDb = (options?: {
     databaseName: 'test',
     pool,
     serializer: JSONSerializer,
+    defaultSchemaName: options?.defaultSchemaName,
     transactionOptions: options,
     schema: {
       definition:
