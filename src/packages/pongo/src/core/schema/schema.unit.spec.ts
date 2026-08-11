@@ -72,6 +72,46 @@ describe('declaring Pongo indexes', () => {
     assert.strictEqual(custom.sql, sql);
     assert.strictEqual(isIndexComponent(custom), true);
   });
+
+  it('uses Pongo kinds only for collection tables and indexes', () => {
+    const users = pongoSchema.collection<User>('users', {
+      indexes: {
+        email: pongoSchema.index('users_email_idx', 'email'),
+        externalId: pongoSchema.index.unique('users_external_id_uq', [
+          'external',
+          'id',
+        ]),
+        document: pongoSchema.index.json('users_data_idx'),
+        custom: pongoSchema.index.custom(
+          'users_search_idx',
+          ({ tableReference }) => SQL`SELECT ${tableReference}`,
+        ),
+      },
+    });
+    const database = dumboSchema.database({
+      crm: dumboSchema.schema('crm', {
+        users,
+        accounts: dumboSchema.table('accounts', {
+          columns: {
+            id: dumboSchema.column('id', SQL.column.type.Text),
+          },
+        }),
+      }),
+    });
+
+    assert.deepStrictEqual(
+      database.migrations().map(({ name }) => name),
+      [
+        'schema:relational:crm:001:create',
+        'table:pongo_collection:crm:users:001:create',
+        'index:pongo_index:crm:users:users_email_idx:001:create',
+        'index:pongo_index:crm:users:users_external_id_uq:001:create',
+        'index:pongo_index:crm:users:users_data_idx:001:create',
+        'index:pongo_index:crm:users:users_search_idx:001:create',
+        'table:relational:crm:accounts:001:create',
+      ],
+    );
+  });
 });
 
 describe('declaring Pongo collections', () => {

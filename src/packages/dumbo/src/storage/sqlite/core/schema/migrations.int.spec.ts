@@ -156,20 +156,12 @@ describe('Migration Integration Tests', () => {
         const databaseFeatureMigration = sqlMigration('database-feature:001', [
           SQL`CREATE TABLE database_outbox (id TEXT PRIMARY KEY);`,
         ]);
-        const audit = extensionComponent(
-          'audit',
-          {},
-          {
-            migrations: () => [schemaFeatureMigration],
-          },
-        );
-        const eventStore = extensionComponent(
-          'eventStore',
-          {},
-          {
-            migrations: () => [databaseFeatureMigration],
-          },
-        );
+        const audit = extensionComponent('audit', {
+          migrations: () => [schemaFeatureMigration],
+        });
+        const eventStore = extensionComponent('eventStore', {
+          migrations: () => [databaseFeatureMigration],
+        });
         const users = tableComponent({
           tableName: 'users',
           migrations: () => [schemaTableMigration],
@@ -191,7 +183,7 @@ describe('Migration Integration Tests', () => {
         await migrator.run({ lock: { options: { timeoutMs: 300 } } });
 
         const migrationNames = await pool.execute.query<{ name: string }>(
-          SQL`SELECT name FROM dmb_migrations WHERE name <> 'dumboTable:dmb_migrations:001:createtable' ORDER BY id`,
+          SQL`SELECT name FROM dmb_migrations WHERE name <> 'table:relational:dmb_migrations:001:create' ORDER BY id`,
         );
 
         assert.deepStrictEqual(
@@ -238,7 +230,7 @@ describe('Migration Integration Tests', () => {
         await migrator.run({ lock: { options: { timeoutMs: 300 } } });
 
         const migrationNames = await pool.execute.query<{ name: string }>(
-          SQL`SELECT name FROM dmb_migrations WHERE name <> 'dumboTable:dmb_migrations:001:createtable' ORDER BY id`,
+          SQL`SELECT name FROM dmb_migrations WHERE name <> 'table:relational:dmb_migrations:001:create' ORDER BY id`,
         );
 
         assert.strictEqual(
@@ -249,7 +241,7 @@ describe('Migration Integration Tests', () => {
           migrationNames.rows.map((row) => row.name),
           [
             'app:users:001:create-table',
-            'dumboIndex:users:users_email_idx:create',
+            'index:relational:users:users_email_idx:001:create',
             'app:users:users_email_idx:002:create-index',
           ],
         );

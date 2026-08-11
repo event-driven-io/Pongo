@@ -46,11 +46,9 @@ describe('declaring a schema with tables', () => {
   });
 
   it('places extensions the same way it places tables', () => {
-    const audit = extensionComponent(
-      'audit',
-      {},
-      { migrations: () => [sqlMigration('audit:001', [SQL`SELECT 1`])] },
-    );
+    const audit = extensionComponent('audit', {
+      migrations: () => [sqlMigration('audit:001', [SQL`SELECT 1`])],
+    });
     const schema = databaseSchemaComponent({
       schemaName: 'reporting',
       extensions: { audit },

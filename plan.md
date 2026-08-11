@@ -442,30 +442,23 @@ assertion is weakened.
 Gate: build, fix, unit, int.
 ```
 
-## S11 — Migration naming moves into dumbo — **DONE IN S9**
+## S11 — Migration naming moves into dumbo — **DONE**
 
-Kept for the record. `pongo/storage/migrationNames.ts` is deleted and naming
-lives in `dumbo/core/schema/components/migrationNames.ts`. What the prompt below
-called a `migrationNamePrefix` option is currently a `migrationNamePrefixes`
-field on the read context, which is the wrong home - the open question recorded
-in todo.md.
+`pongo/storage/migrationNames.ts`, `MigrationNamePrefixes`,
+`defaultMigrationNamePrefixes`, `pongoMigrationNamePrefixes`, and the reader
+context override are gone. Naming lives in
+`dumbo/core/schema/components/migrationNames.ts` with the final grammar:
 
 ```text
-Spec D10.
-
-Golden test first, literal string: `pongoCollection:users:001:createtable`.
-Then schema-qualified, schema-component, index and plain-dumbo names, and the
-accepted divergence (explicit `public` on Postgres) asserted deliberately.
-
-Add a `migrationNamePrefix` option; pongo passes its three prefixes. Delete
-`packages/pongo/src/storage/migrationNames.ts` and all three functions,
-including the `defaultSchemaName` parameter and `schemaSegment`. The dumbo
-replacement tests the token only — one check, not S6's pair.
-
-Review gate R, specific question: is `migrationNamePrefix` net-negative?
-
-Gate: build, fix, unit, int.
+<component-type>:<component-kind>:<database-path>:<sequence>:<operation>
 ```
+
+`databaseSchemaComponent`, `tableComponent`, and `indexComponent` receive an
+optional `kind` and default it to `relational`. Pongo passes
+`pongo_collection` and `pongo_index` at the original factory calls. Every
+built-in create is `001:create`; caller-supplied `sqlMigration` names are not
+qualified or rewritten. Generated names intentionally have no compatibility
+alias and will create new migration-ledger rows on existing databases.
 
 ## S12 — SQLite physical names use the logical name
 
@@ -574,37 +567,45 @@ write a test expecting dynamic `db.collection(...)` to grow static DB properties
 Gate: build, fix, unit, int, e2e.
 ```
 
-## S15 — Extension as a database fragment
+## S15 — Extension as a database fragment — **DONE**
 
-```text
-Spec D15. `extensionComponent` gains `schemas` and `extensions`;
-`databaseComponent` merges extension-contributed schemas, typed as a record
+Spec D15. `extensionComponent` exposes `schemas`, nested `extensions`, and its
+existing migration callback. `databaseComponent.schemas` includes the original
+schema components contributed by extensions, typed as a non-recursive record
 intersection.
 
-Type spec first: `db.schemas.readmodels.tables.users` resolves.
-Then: a schema-attached extension resolves that schema; a database-attached one
-keeps its children's own schemas; two extensions contributing the same schema
-key merge; a projection factory contributes a table into the schema it names.
+Schema keys are unique rather than merged. Duplicate keys across direct
+schemas, extensions, or nested extensions throw. Rebuilding two schema
+components from `tables` was rejected because it loses schema-level custom
+migrations. A schema-attached extension may contribute only the same physical
+schema; a database-attached extension keeps each schema's own path.
 
-No conditional recursion in the types. If it starts creeping in, stop and ask.
+Migration traversal remains direct schemas followed by extensions. There is no
+runtime database wrapper, declaration layer, resolver, reconstructed schema,
+or second traversal.
 
 Gate: build, fix, unit, int.
+
+## S16 — Event-store example — **DONE**
+
+The PostgreSQL and SQLite migration integration specs declare an `event-store`
+extension entirely through public Dumbo/Pongo APIs. `messages` is in the real
+default schema with table kind `event_store`; the Pongo `users` collection is
+in `readmodels`.
+
+The extension and database components retain the exact users-table/document
+types. Runtime access uses the preserved public API:
+
+```ts
+db.collection<User>('users', { databaseSchemaName: 'readmodels' })
 ```
 
-## S16 — Event-store example
-
-```text
-Spec §5's end-to-end proof. An `eventStore` extension factory over projection
-registrations: `messages` in schema `emt`, one read-model table per projection
-in its own schema, composed into a `pongoDb`.
-
-E2E on Postgres and on SQLite. A name-based reference (spec D5) resolves to the
-correctly qualified identifier. Migrating twice is a no-op.
-
-Written so it can later move into emmett.
+No `db.readmodels.users` property is projected for an extension-only schema.
+Both dialect tests assert generated names, migrate twice, verify physical
+tables and one ledger row per non-empty migration, and insert/read a typed
+user. D5's unimplemented root-time reference resolution is not claimed here.
 
 Gate: build, fix, full suite.
-```
 
 ## S17 — Final sweep
 

@@ -98,4 +98,51 @@ describe('composing a schema through the Dumbo declaration API', () => {
       >
     >().toEqualTypeOf<never>();
   });
+
+  it('preserves schemas contributed by extensions without walking table maps', () => {
+    const messages = dumboSchema.table('messages', {
+      columns: {
+        id: dumboSchema.column('id', SQL.column.type.Text),
+      },
+    });
+    const readmodelUsers = dumboSchema.table('users', {
+      columns: {
+        id: dumboSchema.column('id', SQL.column.type.Text),
+      },
+    });
+    const auditLog = dumboSchema.table('audit_log', {
+      columns: {
+        id: dumboSchema.column('id', SQL.column.type.Text),
+      },
+    });
+    const audit = dumboSchema.extension('audit', {
+      schemas: {
+        audit: dumboSchema.schema('audit', { auditLog }),
+      },
+    });
+    const eventStore = dumboSchema.extension('event-store', {
+      schemas: {
+        default: dumboSchema.defaultSchema({ messages }),
+        readmodels: dumboSchema.schema('readmodels', {
+          users: readmodelUsers,
+        }),
+      },
+      extensions: { audit },
+    });
+    const direct = dumboSchema.schema('direct', {});
+    const database = dumboSchema.database('app', { direct }, { eventStore });
+
+    expectTypeOf(eventStore.schemas.readmodels.tables.users).toEqualTypeOf(
+      readmodelUsers,
+    );
+    expectTypeOf(eventStore.schemas.audit.tables.auditLog).toEqualTypeOf(
+      auditLog,
+    );
+    expectTypeOf(database.schemas.readmodels.tables.users).toEqualTypeOf(
+      readmodelUsers,
+    );
+    expectTypeOf(database.schemas.direct).toEqualTypeOf(direct);
+    expectTypeOf(database.extensions.eventStore).toEqualTypeOf(eventStore);
+    expectTypeOf(eventStore.extensions.audit).toEqualTypeOf(audit);
+  });
 });

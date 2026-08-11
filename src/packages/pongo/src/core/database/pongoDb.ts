@@ -7,7 +7,6 @@ import {
   type DatabaseComponent,
   type DatabaseDriverType,
   type Dumbo,
-  type MigrationNamePrefixes,
   type MigrationStyle,
   type MigrationTableOptions,
   type QueryResult,
@@ -40,12 +39,6 @@ import type {
   PongoSchemaScope,
 } from '../typing';
 import type { PongoNestedTransactionOptions } from '../pongoTransaction';
-
-export const pongoMigrationNamePrefixes: MigrationNamePrefixes = {
-  databaseSchema: 'pongoSchema',
-  table: 'pongoCollection',
-  index: 'pongoIndex',
-};
 
 type PongoTransactionOptionsFor<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -101,10 +94,7 @@ const pongoDatabaseSchemas = (
     get component() {
       return component;
     },
-    migrations: () =>
-      component.migrations({
-        migrationNamePrefixes: pongoMigrationNamePrefixes,
-      }),
+    migrations: () => component.migrations(),
     collection: <T extends Document>(
       collectionName: string,
       databaseSchemaName: string | undefined,

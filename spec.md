@@ -118,7 +118,7 @@ Duplicate detection keys on migration name. Same name + same SQL collapses; same
 
 ### D5 — Cross-component references are by name, never by object
 
-A component may reference another (e.g. a projection referencing the read-model table it builds) only by a strongly typed **name**, in the style of foreign keys. Resolution happens against the root at migration time.
+A component may reference another only by a strongly typed **name**, in the style of foreign keys. The current component tree validates names where the owning declaration has the complete namespace, such as table relationships. It does not provide root-time reference resolution across independent components. S16 deliberately does not invent a resolver to imply that capability.
 
 ### D6 — DDL as dialect-agnostic tokens
 
@@ -178,17 +178,22 @@ The only qualifier ever propagated is the schema name.
 ### D10 — Migration names mirror what was declared
 
 ```
-default schema      ->  pongoCollection:users:001:createtable
-schema "reporting"  ->  pongoCollection:reporting:users:001:createtable
+<component-type>:<component-kind>:<database-path>:<sequence>:<operation>
+
+schema:relational:001:create
+schema:relational:reporting:001:create
+table:relational:reporting:users:001:create
+table:pongo_collection:reporting:users:001:create
+index:pongo_index:reporting:users:users_email_idx:001:create
 ```
 
-A schema carrying `SQLDefaultSchemaNameToken` contributes **no segment**, so names stay byte-identical to `main` for the default case. The `identifier.databaseSchemaName === defaultSchemaName` comparison in `pongoCollectionMigrationName` is deleted and with it the `defaultSchemaName` parameter — the last place the dialect leaked into naming. `pongo/storage/migrationNames.ts` is deleted; naming moves into dumbo behind a `migrationNamePrefix` option.
+The component type is `schema`, `table`, or `index`. The component factory receives an optional `kind`, defaulting to `relational`; Pongo passes `pongo_collection` and `pongo_index`, and another library can pass a meaningful kind such as `event_store`. Kind belongs to the DDL-emitting component and is never selected by the reader context.
 
-**Accepted divergence:** a user explicitly writing the dialect's own default schema name (`databaseSchemaName: 'public'` on Postgres) now yields `pongoCollection:public:users:001:createtable` and will re-run for such a database.
+A schema carrying `SQLDefaultSchemaNameToken` contributes no path segment. Named schemas contribute their real name, followed by table and index names where applicable. Database names, extension aliases, and package names do not identify physical objects and are not included. Every built-in create migration is numbered `001` and ends in `create`.
 
-**How wide that divergence turned out, found while implementing S9.** `pongoSchema.db` takes either `collections` or `schemas`, so a definition that wants both an unqualified default schema and named ones has to write `pongoSchema.schema('public', ...)` — and every collection in it takes the segment. The divergence therefore fires for a common definition shape, not only for the user who typed `public` on purpose. It also reaches the runtime: `db.collection('users', { databaseSchemaName: 'public' })` and `db.collection('users')` are now two collections over one physical table. Closing this needs `pongoSchema.defaultSchema` to be usable inside `db({ schemas })`, which needs the default schema's record key settled — open, recorded in todo.md.
+Names supplied by callers through `sqlMigration(name, ...)` remain byte-for-byte unchanged. Their exact identity continues to drive same-name/same-SQL dedupe and same-name/different-SQL rejection.
 
-**Where the prefix lives is unsettled.** S9 implemented `migrationNamePrefix` as a field on the context a component's migrations are read with, so `pongoDb` names the whole tree. That makes the reader decide what a component is: an event-store extension table inside a pongo database comes out as `pongoCollection:events:001:createtable`. The prefix belongs on the component, set by the factory that built it. Two shapes are on the table — keep `pongoCollection` as a per-component word for byte-compatibility with released databases, or rename to `pongo:users:collection:001:createtable`, namespace then path then kind, which lets the kind come from the component type. A compatibility decision, still open.
+**Compatibility consequence:** every generated DDL migration name changes. Existing databases will record the new names and execute the idempotent generated SQL again. There is no legacy prefix reader, alias, fallback, or migration-history rewrite.
 
 ### D11 — `defaultSchemaName` is an optional override in `pongoDb`
 
@@ -223,12 +228,12 @@ A collection added after `db.schema.migrate()` has run migrates its own componen
 
 ### D15 — An extension has the same shape as a database
 
-`extensionComponent` stops being an opaque bag of components and becomes a composable _fragment of a database_: `schemas`, `extensions`, `migrations`. `databaseComponent` merges extension-contributed schemas into `schemas`.
+`extensionComponent` stops being an opaque bag of components and becomes a composable _fragment of a database_: `schemas`, `extensions`, `migrations`. `databaseComponent` exposes extension-contributed schemas through `schemas`.
 
 ```ts
-const eventStore = extensionComponent('emmett:eventStore', {
+const eventStore = extensionComponent('event-store', {
   schemas: {
-    emt: dumboSchema.schema('emt', { messages }),
+    default: dumboSchema.defaultSchema({ messages }),
     readmodels: dumboSchema.schema('readmodels', { users }),
   },
 });
@@ -237,14 +242,15 @@ const db = databaseComponent({ extensions: { eventStore } });
 db.schemas.readmodels.tables.users; // typed, plain record intersection
 ```
 
-Typing is a record intersection — no inference over nested component maps.
+Typing is a record intersection over each extension's already-declared `schemas` field. Nested extensions expose their own completed schema records; the types do not recursively inspect table or component child maps.
+
+Each schema key has one owner. A key declared directly and by an extension, by two extensions, or directly and through a nested extension throws with the key and extension names. Schema components are never rebuilt or merged from their public `tables` fields: doing so would lose schema-level custom migrations. Features targeting one schema compose their tables first and construct one schema component.
 
 Placement rules:
 
-- **Extension on a schema** → its children migrate with that schema's context; a child declaring a different schema throws.
-- **Extension on the database** → its children keep their own schemas. A table directly inside a database-level extension migrates under the default schema rather than being dropped, which fixes the §1 bug.
-
-Two schema components sharing a key merge (union of their tables); a duplicate table name within a schema still throws.
+- **Extension on a schema** → every schema it contributes must be that same physical schema; another schema throws. Its tables are not copied into the parent's `tables` record.
+- **Extension on the database** → its schema components keep their own default or named paths and are exposed through `database.schemas`.
+- `components` remains direct schemas followed by nested extensions, so each original component owns and executes its complete migration closure exactly once.
 
 ### D16 — `logicalSchemaMapping` is deleted
 

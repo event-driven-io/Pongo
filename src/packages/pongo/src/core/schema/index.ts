@@ -16,6 +16,7 @@ import {
   SQL,
   SQLDefaultSchemaNameToken,
   type SQL as SQLStatement,
+  type AnyDatabaseComponent,
   type DatabaseComponent,
   type DatabaseDriverType,
   type DatabaseExtensions,
@@ -23,6 +24,7 @@ import {
   type IndexComponent,
   type IndexSQLContext,
   type SchemaExtensions,
+  type SchemasFromExtensions,
   type TableComponent,
 } from '@event-driven-io/dumbo';
 import {
@@ -110,6 +112,7 @@ const pongoCollectionTable = <
   table(name, {
     columns: pongoCollectionColumns<Document>(),
     ...options,
+    kind: 'pongo_collection',
     primaryKey: ['_id'],
   });
 
@@ -177,22 +180,22 @@ export type PongoDatabaseComponent<
 export type PongoDbSchema<
   Definition extends PongoDatabaseDefinition = PongoDatabaseDefinition,
   Name extends string | undefined = string | undefined,
-> = PongoDatabaseComponent<Definition, Name>;
+> = PongoDatabaseComponent<Definition, Name> | AnyDatabaseComponent;
 
 export interface PongoClientSchema<
-  Databases extends Readonly<Record<string, PongoDatabaseComponent>> = Readonly<
-    Record<string, PongoDatabaseComponent>
+  Databases extends Readonly<Record<string, PongoDbSchema>> = Readonly<
+    Record<string, PongoDbSchema>
   >,
 > {
   dbs: Databases;
 }
 
-type PongoDatabaseSchemaKey<T extends PongoDatabaseComponent> =
+type PongoDatabaseSchemaKey<T extends PongoDbSchema> =
   T['databaseName'] extends string ? T['databaseName'] : string;
 
 export type PongoClientSchemaFromDefinition<T> = T extends PongoClientSchema
   ? T
-  : T extends PongoDatabaseComponent
+  : T extends PongoDbSchema
     ? PongoClientSchema<{ [Key in PongoDatabaseSchemaKey<T>]: T }>
     : PongoClientSchema;
 
@@ -218,7 +221,7 @@ export type PongoSchemaCollectionsMap<Schemas extends PongoDatabaseSchemas> = {
 };
 
 export type PongoDbWithSchema<
-  Definition extends PongoDatabaseComponent,
+  Definition extends PongoDbSchema,
   DriverType extends DatabaseDriverType = DatabaseDriverType,
 > = (Definition extends {
   collections: infer Collections extends Readonly<
@@ -228,15 +231,21 @@ export type PongoDbWithSchema<
   ? CollectionsMap<Collections>
   : Definition extends {
         schemas: infer Schemas;
+        extensions: infer Extensions extends DatabaseExtensions;
       }
     ? PongoSchemaCollectionsMap<
-        Schemas extends PongoDatabaseSchemas ? Schemas : PongoDatabaseSchemas
+        Omit<
+          Schemas,
+          keyof SchemasFromExtensions<Extensions>
+        > extends infer DirectSchemas extends PongoDatabaseSchemas
+          ? DirectSchemas
+          : PongoDatabaseSchemas
       >
     : object) &
   PongoDb<DriverType>;
 
 export type DBsMap<
-  Databases extends Readonly<Record<string, PongoDatabaseComponent>>,
+  Databases extends Readonly<Record<string, PongoDbSchema>>,
   DriverType extends DatabaseDriverType = DatabaseDriverType,
   Database extends PongoDb<DriverType> = PongoDb<DriverType>,
 > = {
@@ -261,6 +270,7 @@ const pongoIndex = <
 ): PongoIndexComponent<Name> => {
   const index = indexComponent({
     indexName: name,
+    kind: 'pongo_index',
     indexTargetNames: typeof path === 'string' ? [path] : path,
     columnNames: ['data'] as const,
     isUnique: unique,
@@ -282,6 +292,7 @@ const pongoDocumentIndex = <const Name extends string>(
 ): PongoIndexComponent<Name> => {
   const index = indexComponent({
     indexName: name,
+    kind: 'pongo_index',
     indexTargetNames: ['data'],
     columnNames: ['data'] as const,
     isUnique: false,
@@ -296,6 +307,7 @@ const pongoCustomSQLIndex = <const Name extends string>(
 ): PongoIndexComponent<Name> => {
   const index = indexComponent({
     indexName: name,
+    kind: 'pongo_index',
     indexTargetNames: ['data'],
     columnNames: ['data'] as const,
     isUnique: false,
@@ -474,7 +486,7 @@ pongoDatabase.from = (
       });
 
 const pongoClientSchema = <
-  const Databases extends Readonly<Record<string, PongoDatabaseComponent>>,
+  const Databases extends Readonly<Record<string, PongoDbSchema>>,
 >(
   dbs: Databases,
 ): PongoClientSchema<Databases> => ({ dbs });
@@ -509,7 +521,7 @@ export const isPongoCollectionComponent = (
   value[pongoCollectionComponentType] === true;
 
 export const projectPongoDb = <
-  Definition extends PongoDatabaseComponent,
+  Definition extends PongoDbSchema,
   DriverType extends DatabaseDriverType = DatabaseDriverType,
   Database extends PongoDb<DriverType> = PongoDb<DriverType>,
 >(
@@ -541,7 +553,13 @@ export const projectPongoDb = <
       });
     }
   } else {
+    const extensionSchemaKeys = new Set(
+      Object.values(definition.extensions).flatMap((extension) =>
+        Object.keys(extension.schemas),
+      ),
+    );
     for (const [schemaName, schema] of objectEntries(definition.schemas)) {
+      if (extensionSchemaKeys.has(schemaName)) continue;
       assertAvailable(pongoDb, schemaName, 'schema');
       const scope = Object.create(null) as Record<string, unknown>;
 
@@ -627,14 +645,14 @@ export type PongoClientSchemaMetadata = {
 };
 
 export const toDbSchemaMetadata = (
-  schema: PongoDatabaseComponent,
+  schema: PongoDbSchema,
 ): PongoDbSchemaMetadata => ({
   name: schema.databaseName,
   collections: ('collections' in schema
     ? Object.values(schema.collections)
-    : Object.values(schema.schemas).flatMap((databaseSchema) =>
-        Object.values(databaseSchema.tables),
-      )
+    : Object.values(schema.schemas)
+        .flatMap((databaseSchema) => Object.values(databaseSchema.tables))
+        .filter(isPongoCollectionComponent)
   ).map((collection) => ({ name: collection.tableName })),
 });
 

@@ -121,20 +121,12 @@ describe('Migration Integration Tests', () => {
     const databaseFeatureMigration = sqlMigration('database-feature:001', [
       SQL`CREATE TABLE database_outbox (id TEXT PRIMARY KEY);`,
     ]);
-    const audit = extensionComponent(
-      'audit',
-      {},
-      {
-        migrations: () => [schemaFeatureMigration],
-      },
-    );
-    const eventStore = extensionComponent(
-      'eventStore',
-      {},
-      {
-        migrations: () => [databaseFeatureMigration],
-      },
-    );
+    const audit = extensionComponent('audit', {
+      migrations: () => [schemaFeatureMigration],
+    });
+    const eventStore = extensionComponent('eventStore', {
+      migrations: () => [databaseFeatureMigration],
+    });
     const users = tableComponent({
       tableName: 'users',
       migrations: () => [schemaTableMigration],
@@ -156,13 +148,13 @@ describe('Migration Integration Tests', () => {
     await migrator.run({ lock: { options: { timeoutMs: 300 } } });
 
     const migrationNames = await pool.execute.query<{ name: string }>(
-      SQL`SELECT name FROM dmb_migrations WHERE name <> 'dumboTable:dmb_migrations:001:createtable' ORDER BY id`,
+      SQL`SELECT name FROM dmb_migrations WHERE name <> 'table:relational:dmb_migrations:001:create' ORDER BY id`,
     );
 
     assert.deepStrictEqual(
       migrationNames.rows.map((row) => row.name),
       [
-        'dumboSchema:public:001:create',
+        'schema:relational:public:001:create',
         'schema-table:001',
         'schema-feature:001',
         'database-feature:001',
@@ -215,16 +207,16 @@ describe('Migration Integration Tests', () => {
         )`,
     );
     const migrationNames = await pool.execute.query<{ name: string }>(
-      SQL`SELECT name FROM dmb_migrations WHERE name <> 'dumboTable:dmb_migrations:001:createtable' ORDER BY id`,
+      SQL`SELECT name FROM dmb_migrations WHERE name <> 'table:relational:dmb_migrations:001:create' ORDER BY id`,
     );
 
     assert.strictEqual(indexExists.rows[0]?.exists, true);
     assert.deepStrictEqual(
       migrationNames.rows.map((row) => row.name),
       [
-        'dumboSchema:public:001:create',
+        'schema:relational:public:001:create',
         'app:public:users:001:create-table',
-        'dumboIndex:public:users:users_email_idx:create',
+        'index:relational:public:users:users_email_idx:001:create',
         'app:public:users:users_email_idx:002:create-index',
       ],
     );
