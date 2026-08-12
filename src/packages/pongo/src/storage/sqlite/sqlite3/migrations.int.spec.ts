@@ -89,22 +89,21 @@ describe('SQLite3 migration integration', () => {
     });
     const pool = sqlite3Pool({ fileName });
     const expectedMigrationNames = [
-      'schema:relational:001:create',
-      'table:pongo_collection:users:001:create',
-      'table:pongo_collection:explicit_default_users:001:create',
-      'index:pongo_index:explicit_default_users:explicit_default_email_idx:001:create',
-      'schema:relational:crm:001:create',
-      'table:pongo_collection:crm:users:001:create',
-      'index:pongo_index:crm:users:users_email_idx:001:create',
-      'index:pongo_index:crm:users:users_external_id_uq:001:create',
-      'index:pongo_index:crm:users:users_data_idx:001:create',
-      'index:pongo_index:crm:users:users_custom_data_idx:001:create',
-      'schema:relational:audit:001:create',
-      'table:pongo_collection:audit:users:001:create',
-      'index:pongo_index:audit:users:audit_users_email_idx:001:create',
+      'table:pongo_collection:users:create',
+      'table:pongo_collection:explicit_default_users:create',
+      'index:pongo_index:explicit_default_users:explicit_default_email_idx:create',
+      'schema:crm:create',
+      'table:pongo_collection:crm:users:create',
+      'index:pongo_index:crm:users:users_email_idx:create',
+      'index:pongo_index:crm:users:users_external_id_uq:create',
+      'index:pongo_index:crm:users:users_data_idx:create',
+      'index:pongo_index:crm:users:users_custom_data_idx:create',
+      'schema:audit:create',
+      'table:pongo_collection:audit:users:create',
+      'index:pongo_index:audit:users:audit_users_email_idx:create',
     ];
     const expectedAppliedNames = expectedMigrationNames.filter(
-      (name) => !name.startsWith('schema:relational:'),
+      (name) => !name.startsWith('schema:'),
     );
 
     try {
@@ -181,7 +180,7 @@ describe('SQLite3 migration integration', () => {
         migrationNames.rows.map((row) => row.name),
         [
           ...expectedAppliedNames,
-          'table:pongo_collection:readmodels:late_users:001:create',
+          'table:pongo_collection:readmodels:late_users:create',
         ],
       );
       assert.strictEqual(defaultCount.rows[0]?.count, 1);
@@ -231,11 +230,11 @@ describe('SQLite3 migration integration', () => {
 
       assert.deepStrictEqual(
         clientLedger.rows.map((row) => row.name),
-        ['table:pongo_collection:users:001:create'],
+        ['table:pongo_collection:users:create'],
       );
       assert.deepStrictEqual(
         callLedger.rows.map((row) => row.name),
-        ['table:pongo_collection:users:001:create'],
+        ['table:pongo_collection:users:create'],
       );
       assert.strictEqual(defaultLedger.rows[0]?.count, 0);
     } finally {
@@ -291,10 +290,9 @@ describe('SQLite3 migration integration', () => {
       assert.deepStrictEqual(
         db.schema.migrations.map(({ name }) => name),
         [
-          'schema:relational:001:create',
-          'table:event_store:messages:001:create',
-          'schema:relational:readmodels:001:create',
-          'table:pongo_collection:readmodels:users:001:create',
+          'table:event_store:messages:create',
+          'schema:readmodels:create',
+          'table:pongo_collection:readmodels:users:create',
         ],
       );
 
@@ -321,8 +319,8 @@ describe('SQLite3 migration integration', () => {
       assert.deepStrictEqual(
         migrationNames.rows.map(({ name }) => name),
         [
-          'table:event_store:messages:001:create',
-          'table:pongo_collection:readmodels:users:001:create',
+          'table:event_store:messages:create',
+          'table:pongo_collection:readmodels:users:create',
         ],
       );
     } finally {

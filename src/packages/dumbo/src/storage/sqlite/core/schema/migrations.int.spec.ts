@@ -141,6 +141,100 @@ describe('Migration Integration Tests', () => {
         );
       });
 
+      it('accepts a migration name of exactly 255 characters', async () => {
+        const migration = sqlMigration('n'.repeat(255), [
+          SQL`CREATE TABLE longest_allowed_name (id TEXT PRIMARY KEY);`,
+        ]);
+
+        const result = await runSQLMigrations(pool, [migration]);
+        const recorded = await count(
+          pool.execute.query(
+            SQL`SELECT COUNT(*) AS count FROM dmb_migrations WHERE name = ${migration.name}`,
+          ),
+        );
+
+        assert.deepStrictEqual(result.applied, [migration]);
+        assert.strictEqual(recorded, 1);
+        assert.strictEqual(
+          await tableExists(pool.execute, 'longest_allowed_name'),
+          true,
+        );
+      });
+
+      it('rejects a migration name longer than 255 characters and leaves the ledger unchanged', async () => {
+        const alreadyApplied = sqlMigration('already-applied:001', [
+          SQL`CREATE TABLE already_applied_result (id TEXT PRIMARY KEY);`,
+        ]);
+        await runSQLMigrations(pool, [alreadyApplied]);
+
+        const tooLongName = 'n'.repeat(256);
+        const shortEnough = sqlMigration('short-enough:002', [
+          SQL`CREATE TABLE short_enough_result (id TEXT PRIMARY KEY);`,
+        ]);
+        const tooLong = sqlMigration(tooLongName, [
+          SQL`CREATE TABLE too_long_result (id TEXT PRIMARY KEY);`,
+        ]);
+
+        await assert.rejects(
+          runSQLMigrations(pool, [shortEnough, tooLong]),
+          new Error(
+            `Migration name "${tooLongName}" is 256 characters long, exceeding the maximum of 255 characters.`,
+          ),
+        );
+
+        const migrationNames = await pool.execute.query<{ name: string }>(
+          SQL`SELECT name FROM dmb_migrations WHERE name <> 'table:dmb_migrations:create' ORDER BY id`,
+        );
+
+        assert.deepStrictEqual(
+          migrationNames.rows.map((row) => row.name),
+          ['already-applied:001'],
+        );
+        assert.strictEqual(
+          await tableExists(pool.execute, 'short_enough_result'),
+          false,
+        );
+        assert.strictEqual(
+          await tableExists(pool.execute, 'too_long_result'),
+          false,
+        );
+      });
+
+      it('runs only the statements of a migration that render non-empty SQL', async () => {
+        const migration = sqlMigration('mixed-statements:001', [
+          SQL`CREATE TABLE mixed_first (id TEXT PRIMARY KEY);`,
+          SQL.EMPTY,
+          SQL`CREATE TABLE mixed_second (id TEXT PRIMARY KEY);`,
+        ]);
+
+        const result = await runSQLMigrations(pool, [migration]);
+
+        assert.deepStrictEqual(result.applied, [migration]);
+        assert.strictEqual(
+          await tableExists(pool.execute, 'mixed_first'),
+          true,
+        );
+        assert.strictEqual(
+          await tableExists(pool.execute, 'mixed_second'),
+          true,
+        );
+      });
+
+      it('does not record a migration whose statements all render empty SQL', async () => {
+        const migration = sqlMigration('all-empty:001', [SQL.EMPTY, SQL.EMPTY]);
+
+        const result = await runSQLMigrations(pool, [migration]);
+        const recorded = await count(
+          pool.execute.query(
+            SQL`SELECT COUNT(*) AS count FROM dmb_migrations WHERE name = ${migration.name}`,
+          ),
+        );
+
+        assert.deepStrictEqual(result.applied, []);
+        assert.deepStrictEqual(result.skipped, [migration]);
+        assert.strictEqual(recorded, 0);
+      });
+
       it('runs expanded database and schema feature component migrations in order', async () => {
         const schemaTableMigration = sqlMigration('schema-table:001', [
           SQL`CREATE TABLE component_users (id TEXT PRIMARY KEY);`,
@@ -178,7 +272,7 @@ describe('Migration Integration Tests', () => {
         await runSQLMigrations(pool, component.migrations(), options);
 
         const migrationNames = await pool.execute.query<{ name: string }>(
-          SQL`SELECT name FROM dmb_migrations WHERE name <> 'table:relational:dmb_migrations:001:create' ORDER BY id`,
+          SQL`SELECT name FROM dmb_migrations WHERE name <> 'table:dmb_migrations:create' ORDER BY id`,
         );
 
         assert.deepStrictEqual(
@@ -225,7 +319,7 @@ describe('Migration Integration Tests', () => {
         });
 
         const migrationNames = await pool.execute.query<{ name: string }>(
-          SQL`SELECT name FROM dmb_migrations WHERE name <> 'table:relational:dmb_migrations:001:create' ORDER BY id`,
+          SQL`SELECT name FROM dmb_migrations WHERE name <> 'table:dmb_migrations:create' ORDER BY id`,
         );
 
         assert.strictEqual(
@@ -236,7 +330,7 @@ describe('Migration Integration Tests', () => {
           migrationNames.rows.map((row) => row.name),
           [
             'app:users:001:create-table',
-            'index:relational:users:users_email_idx:001:create',
+            'index:users:users_email_idx:create',
             'app:users:users_email_idx:002:create-index',
           ],
         );

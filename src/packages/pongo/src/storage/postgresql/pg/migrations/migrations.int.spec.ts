@@ -199,20 +199,20 @@ describe('Migration Integration Tests', () => {
   it('applies each schema, table, and index migration only once', async () => {
     const db = client.db('database');
     const expectedMigrationNames = [
-      'schema:relational:public:001:create',
-      'table:pongo_collection:public:users:001:create',
-      'table:pongo_collection:public:explicit_default_users:001:create',
-      'index:pongo_index:public:explicit_default_users:explicit_default_email_idx:001:create',
-      'table:pongo_collection:public:roles:001:create',
-      'schema:relational:crm:001:create',
-      'table:pongo_collection:crm:users:001:create',
-      'index:pongo_index:crm:users:users_email_idx:001:create',
-      'index:pongo_index:crm:users:users_external_id_uq:001:create',
-      'index:pongo_index:crm:users:users_data_idx:001:create',
-      'index:pongo_index:crm:users:users_custom_data_idx:001:create',
-      'schema:relational:audit:001:create',
-      'table:pongo_collection:audit:users:001:create',
-      'index:pongo_index:audit:users:audit_users_email_idx:001:create',
+      'schema:public:create',
+      'table:pongo_collection:public:users:create',
+      'table:pongo_collection:public:explicit_default_users:create',
+      'index:pongo_index:public:explicit_default_users:explicit_default_email_idx:create',
+      'table:pongo_collection:public:roles:create',
+      'schema:crm:create',
+      'table:pongo_collection:crm:users:create',
+      'index:pongo_index:crm:users:users_email_idx:create',
+      'index:pongo_index:crm:users:users_external_id_uq:create',
+      'index:pongo_index:crm:users:users_data_idx:create',
+      'index:pongo_index:crm:users:users_custom_data_idx:create',
+      'schema:audit:create',
+      'table:pongo_collection:audit:users:create',
+      'index:pongo_index:audit:users:audit_users_email_idx:create',
     ];
     const expectedAppliedNames = expectedMigrationNames;
 
@@ -283,10 +283,9 @@ describe('Migration Integration Tests', () => {
       assert.deepStrictEqual(
         db.schema.migrations.map(({ name }) => name),
         [
-          'schema:relational:001:create',
-          'table:event_store:messages:001:create',
-          'schema:relational:readmodels:001:create',
-          'table:pongo_collection:readmodels:users:001:create',
+          'table:event_store:messages:create',
+          'schema:readmodels:create',
+          'table:pongo_collection:readmodels:users:create',
         ],
       );
 
@@ -307,9 +306,9 @@ describe('Migration Integration Tests', () => {
       assert.deepStrictEqual(
         migrationNames.rows.map(({ name }) => name),
         [
-          'table:event_store:messages:001:create',
-          'schema:relational:readmodels:001:create',
-          'table:pongo_collection:readmodels:users:001:create',
+          'table:event_store:messages:create',
+          'schema:readmodels:create',
+          'table:pongo_collection:readmodels:users:create',
         ],
       );
     } finally {

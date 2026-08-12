@@ -145,13 +145,13 @@ describe('Migration Integration Tests', () => {
     await runSQLMigrations(pool, component.migrations(), options);
 
     const migrationNames = await pool.execute.query<{ name: string }>(
-      SQL`SELECT name FROM dmb_migrations WHERE name <> 'table:relational:dmb_migrations:001:create' ORDER BY id`,
+      SQL`SELECT name FROM dmb_migrations WHERE name <> 'table:dmb_migrations:create' ORDER BY id`,
     );
 
     assert.deepStrictEqual(
       migrationNames.rows.map((row) => row.name),
       [
-        'schema:relational:public:001:create',
+        'schema:public:create',
         'schema-table:001',
         'schema-feature:001',
         'database-feature:001',
@@ -204,16 +204,16 @@ describe('Migration Integration Tests', () => {
         )`,
     );
     const migrationNames = await pool.execute.query<{ name: string }>(
-      SQL`SELECT name FROM dmb_migrations WHERE name <> 'table:relational:dmb_migrations:001:create' ORDER BY id`,
+      SQL`SELECT name FROM dmb_migrations WHERE name <> 'table:dmb_migrations:create' ORDER BY id`,
     );
 
     assert.strictEqual(indexExists.rows[0]?.exists, true);
     assert.deepStrictEqual(
       migrationNames.rows.map((row) => row.name),
       [
-        'schema:relational:public:001:create',
+        'schema:public:create',
         'app:public:users:001:create-table',
-        'index:relational:public:users:users_email_idx:001:create',
+        'index:public:users:users_email_idx:create',
         'app:public:users:users_email_idx:002:create-index',
       ],
     );

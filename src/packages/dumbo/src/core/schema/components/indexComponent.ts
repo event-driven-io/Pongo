@@ -13,11 +13,30 @@ import {
   type SchemaComponentContext,
 } from '../schemaComponent';
 import { sqlMigration, type SQLMigration } from '../sqlMigration';
-import { indexMigrationName } from './migrationNames';
+import { migrationName, schemaSegments } from './migrationName';
 
 export const indexComponentType: unique symbol = Symbol(
   'dumbo.schemaComponent.index',
 );
+
+const indexMigrationName = (
+  identifier: Readonly<{
+    databaseSchemaName: string | SQLDefaultSchemaNameToken | undefined;
+    tableName: string;
+    indexName: string;
+  }>,
+  kind: string | undefined,
+): string =>
+  migrationName(
+    'index',
+    kind,
+    [
+      ...schemaSegments(identifier.databaseSchemaName),
+      identifier.tableName,
+      identifier.indexName,
+    ],
+    'create',
+  );
 
 export const jsonPathIndexTargetType: unique symbol = Symbol(
   'dumbo.indexTarget.jsonPath',
@@ -166,8 +185,6 @@ export const indexComponent = <
 >(
   options: IndexComponentOptions<IndexName, ColumnNames>,
 ): IndexComponent<IndexName, ColumnNames> => {
-  const kind = options.kind ?? 'relational';
-
   const component: IndexComponent<IndexName, ColumnNames> = {
     ...schemaComponent(indexComponentType, {
       migrations: (context) => {
@@ -185,7 +202,7 @@ export const indexComponent = <
         };
 
         return [
-          sqlMigration(indexMigrationName(identifier, kind), [
+          sqlMigration(indexMigrationName(identifier, options.kind), [
             createIndexSQL(options, identifier),
           ]),
           ...(options.migrations?.(context) ?? []),
@@ -204,25 +221,3 @@ export const indexComponent = <
 
   return component;
 };
-
-export const generatedIndexNameSegment = (value: string): string =>
-  value
-    .replace(/[^a-zA-Z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .toLowerCase();
-
-export const generatedIndexName = ({
-  tableName,
-  indexTargetNames,
-  indexKind,
-}: {
-  tableName: string;
-  indexTargetNames: ReadonlyArray<string>;
-  indexKind: string;
-}): string =>
-  [
-    generatedIndexNameSegment(tableName),
-    ...indexTargetNames.map(generatedIndexNameSegment),
-    generatedIndexNameSegment(indexKind),
-    'idx',
-  ].join('_');
