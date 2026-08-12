@@ -140,8 +140,84 @@ checks in `dumboSchema`, both `sqlBuilder` specs, `pongoDb`, and the SQLite
 `migrationTableComponent` spec became migration-name or rendered-SQL claims. Two were
 deleted outright — both on column-less tables that emit no migration to assert against.
 
-## Step 4 — Correct generated migration names
-- [ ] Not started
+## Step 4 — Correct generated migration names — **done**
+- [x] Grammar is `<type>:[<kind>:]<encoded-path>:<operation>`. No number segment,
+      no numbering option added to any factory
+- [x] The three `?? 'relational'` defaults deleted from `tableComponent`,
+      `indexComponent` and `databaseSchemaComponent`. `kind?: string | undefined`
+      kept on all three option types; `dumboSchema` passthrough untouched; Pongo's
+      four `kind` call sites untouched
+- [x] `kind` and every path segment percent-encoded independently. The encoder is
+      private to its module. `encodeURIComponent` escapes both `:` and `%`, so an
+      identifier containing a literal `%3A` stays distinct from one containing `:`
+- [x] Collision tests for `:`, `%`, and kind-vs-path; a relational table and a
+      `pongo_collection` table sharing a name in one schema produce different names
+      and both survive `dedupeMigrations`
+- [x] Create-schema migration derived from the **resolved scoped placement**, not
+      from `options.schemaName`. None emitted while the placement stays a
+      `SQLDefaultSchemaNameToken`; custom migrations and children still run
+- [x] A logical-default schema given `defaults: { schemaName: 'pongo' }` emits
+      `schema:pongo:create`
+- [x] Migration name length validated against the ledger's `Varchar(255)` up front
+      in `runSQLMigrations`, before the lock, the ledger bootstrap and the loop
+- [x] Named-schema `SQLCreateSchema` migrations kept; migrator empty-SQL filtering kept
+- [x] Gate, verified independently of the agents: build exit 0, fix clean, unit
+      **1043/1043**, int:sqlite **955/959** (the same 4 D1 failures),
+      int:postgresql **740 passed / 5 skipped**, e2e:postgresql **729 passed / 5
+      skipped**. The two PostgreSQL suites were re-run after the name builders
+      were distributed, not only before
+- [x] Review gate — **pass**. No new type, alias or helper; three exports removed
+
+**Migration-name builders distributed to their components.** `migrationNames.ts`
+is now `migrationName.ts` and holds only the grammar: the private encoder, the
+segment join, and the placement-to-path-segment rule shared by tables and indexes.
+`databaseSchemaMigrationName`, `tableMigrationName` and `indexMigrationName` are
+module-local consts in the one component each serves, and the components barrel no
+longer re-exports any of it. Behaviour-neutral: no migration-name assertion changed.
+
+**`generatedIndexName` and `generatedIndexNameSegment` deleted.** They built a
+physical index identifier (`users_email_json_path_idx`) and had no production
+caller in either package — Pongo names every index from the caller's argument. The
+only importer was `schemaComponent.unit.spec.ts`, whose test `derives a readable
+default index name from its logical target` went with them. If Pongo should ever
+default an index name, this comes back wired up rather than orphaned.
+
+**Accepted break.** Every generated migration name changes, so an existing ledger
+re-runs each generated migration: a no-op against `CREATE TABLE IF NOT EXISTS` /
+`CREATE SCHEMA IF NOT EXISTS` that leaves a second row per object. Three names also
+left dumbo's public surface with the barrel export.
+
+**Assertions deleted, not renamed.** Nine `schema:relational:001:create` entries
+across dumbo and pongo specs — the default-token schema emits no migration now, so
+the entry has no successor. Three left a test asserting a single-entry list and one
+left `[]`; all four still carry their claim, the `[]` one as the "before" half of a
+before/after pair that guards exactly this regression.
+
+**One spec neither grep found.** `postgresql/core/schema/schemaComponentSQL.unit.spec.ts`
+holds no name literals, so it surfaced only at the gate. Its
+`renders nothing for the default one` claim had no migration left to attach to and
+is now `emits no migration for the default one`, which also removed two `!` assertions.
+
+**Tests added.** Name length exactly 255 accepted and recorded; 256 rejected with a
+clear error and the ledger unchanged — that one seeds an applied migration and puts
+a valid migration *before* the bad one, so a mid-loop check would fail it. Plus
+mixed empty/non-empty statements execute only the non-empty ones, and an all-empty
+migration is not recorded. The SQLite-skips and PostgreSQL-applies claims already
+had coverage.
+
+**Environment, not code.** `taskProcessor.unit.spec.ts` failed once under parallel
+load with `Task was not started within the maximum waiting time` and passed alone
+and on a full re-run. e2e:sqlite showed 10 failures, all in `connection.int.*.spec.ts`
+files that passed in the int:sqlite run minutes earlier — `SQLITE_IOERR: disk I/O
+error` with the root filesystem at 99% (4.1 G free). No `.e2e.spec` file failed.
+
+**Open, raised here, not fixed.** `indexComponent.ts` declares a second vocabulary
+for JSON index targets — two `unique symbol`s, two branded types and two exported
+guards — that duplicates the `SQLJSONPathTarget` / `SQLJSONDocumentIndexTarget` SQL
+tokens it converts into immediately. The symbols appear in no other file and both
+guards are called only by the private `indexTargetSQL` in the same file. Candidate
+for S5 or S8. `ref_plan.md:894` and `:1022` still name the deleted
+`generatedIndexName`.
 
 ## Step 5 — Simplify extensions without flattening
 - [ ] Not started
