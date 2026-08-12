@@ -4,14 +4,12 @@ import type {
   SchemasFromExtensions,
 } from '../extensionComponent';
 import {
-  dedupeMigrations,
+  schemaComponent,
   schemaComponentMap,
-  schemaComponentType,
-  type AnySchemaComponent,
   type SchemaComponent,
   type SchemaComponentContext,
-  type SchemaComponentOptions,
 } from '../schemaComponent';
+import type { SQLMigration } from '../sqlMigration';
 import type { AnyDatabaseSchemaComponent } from './databaseSchemaComponent';
 
 export const databaseComponentType: unique symbol = Symbol(
@@ -59,8 +57,10 @@ export type DatabaseComponentOptions<
   databaseName?: DatabaseName | undefined;
   schemas?: Schemas | undefined;
   extensions?: Extensions | undefined;
-}> &
-  Omit<SchemaComponentOptions, 'components'>;
+  migrations?:
+    | ((context: SchemaComponentContext) => ReadonlyArray<SQLMigration>)
+    | undefined;
+}>;
 
 export const databaseComponent = <
   const Schemas extends DatabaseSchemas = DatabaseSchemas,
@@ -106,24 +106,16 @@ export const databaseComponent = <
   ]);
 
   const component: DatabaseComponent<Schemas, DatabaseName, Extensions> = {
-    [schemaComponentType]: databaseComponentType,
+    ...schemaComponent(databaseComponentType, {
+      components: children,
+      migrations: options.migrations,
+    }),
     databaseName: databaseName as DatabaseName,
     schemas: schemaComponentMap(
       Object.fromEntries(exposedSchemaEntries),
     ) as Schemas & SchemasFromExtensions<Extensions>,
     extensions: schemaComponentMap(extensions),
-    components: children,
-    migrations: (context: SchemaComponentContext = {}) =>
-      dedupeMigrations([
-        ...(options.migrations?.(context) ?? []),
-        ...children.flatMap((child) => child.migrations(context)),
-      ]),
   };
 
   return component;
 };
-
-export const isDatabaseComponent = (
-  component: AnySchemaComponent,
-): component is AnyDatabaseComponent =>
-  component[schemaComponentType] === databaseComponentType;

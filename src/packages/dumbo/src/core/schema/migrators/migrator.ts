@@ -10,9 +10,8 @@ import { singleOrNull } from '../../query';
 import type { SQLFormatter } from '../../sql';
 import { SQL, getFormatter } from '../../sql';
 import { tracer } from '../../tracing';
-import type { SchemaComponent } from '../schemaComponent';
 import type { SQLMigration } from '../sqlMigration';
-import { migrationTableComponentFor } from './schemaComponentMigrator';
+import { migrationTableComponentFor } from './migrationTableComponent';
 
 export const MIGRATIONS_LOCK_ID = 999956789;
 
@@ -47,10 +46,7 @@ export type MigrationTableOptions = {
 };
 
 export type MigratorOptions = {
-  schema?: {
-    migrationTable?: MigrationTableOptions;
-    validateComponent?: (component: SchemaComponent) => void;
-  };
+  migrationTable?: MigrationTableOptions | undefined;
   lock?: {
     databaseLock?: DatabaseLock;
     options?: Omit<DatabaseLockOptions, 'lockId'> &
@@ -79,10 +75,8 @@ export const runSQLMigrations = (
     const options: MigratorOptions = {
       ...defaultOptions,
       ...partialOptions,
-      schema: {
-        ...defaultOptions.schema,
-        ...(partialOptions?.schema ?? {}),
-      },
+      migrationTable:
+        partialOptions?.migrationTable ?? defaultOptions.migrationTable,
       lock: {
         ...defaultOptions.lock,
         ...partialOptions?.lock,
@@ -109,7 +103,7 @@ export const runSQLMigrations = (
       ...rest,
     };
 
-    const migrationTableOptions = options.schema?.migrationTable;
+    const migrationTableOptions = options.migrationTable;
     const schemaName = migrationTableOptions?.schemaName;
 
     if (

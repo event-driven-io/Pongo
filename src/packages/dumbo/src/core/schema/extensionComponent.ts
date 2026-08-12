@@ -1,13 +1,11 @@
 import type { AnyDatabaseSchemaComponent } from './components/databaseSchemaComponent';
 import {
-  dedupeMigrations,
+  schemaComponent,
   schemaComponentMap,
-  schemaComponentType,
-  type AnySchemaComponent,
   type SchemaComponent,
   type SchemaComponentContext,
-  type SchemaComponentOptions,
 } from './schemaComponent';
+import type { SQLMigration } from './sqlMigration';
 
 export const extensionComponentType: unique symbol = Symbol(
   'dumbo.schemaComponent.extension',
@@ -64,8 +62,10 @@ export type ExtensionComponentOptions<
 > = Readonly<{
   schemas?: Schemas | undefined;
   extensions?: Extensions | undefined;
-}> &
-  Omit<SchemaComponentOptions, 'components'>;
+  migrations?:
+    | ((context: SchemaComponentContext) => ReadonlyArray<SQLMigration>)
+    | undefined;
+}>;
 
 export const extensionComponent = <
   const Name extends string,
@@ -117,22 +117,14 @@ export const extensionComponent = <
   ) as Schemas & SchemasFromExtensions<Extensions>;
 
   const component: ExtensionComponent<Name, Schemas, Extensions> = {
-    [schemaComponentType]: extensionComponentType,
+    ...schemaComponent(extensionComponentType, {
+      components: children,
+      migrations: options.migrations,
+    }),
     extensionName,
     schemas: exposedSchemas,
     extensions: schemaComponentMap(extensions),
-    components: children,
-    migrations: (context: SchemaComponentContext = {}) =>
-      dedupeMigrations([
-        ...(options.migrations?.(context) ?? []),
-        ...children.flatMap((child) => child.migrations(context)),
-      ]),
   };
 
   return component;
 };
-
-export const isExtensionComponent = (
-  component: AnySchemaComponent,
-): component is AnyExtensionComponent =>
-  component[schemaComponentType] === extensionComponentType;

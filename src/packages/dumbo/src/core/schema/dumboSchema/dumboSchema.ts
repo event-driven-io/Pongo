@@ -30,29 +30,38 @@ import {
 } from '../extensionComponent';
 import {
   schemaComponentType,
-  type SchemaComponentOptions,
+  type SchemaComponentContext,
 } from '../schemaComponent';
+import type { SQLMigration } from '../sqlMigration';
 
-const dumboColumn = <
+function dumboColumn<
   const ColumnType extends AnyColumnTypeToken | string,
-  const Options extends Omit<ColumnSchemaComponentOptions<ColumnType>, 'type'> =
-    Omit<ColumnSchemaComponentOptions<ColumnType>, 'type'>,
-  const ColumnName extends string = string,
+  const ColumnName extends string,
 >(
   name: ColumnName,
   type: ColumnType,
-  options?: Options,
-): ColumnSchemaComponent<ColumnType, ColumnName> &
-  (Options extends { notNull: true } | { primaryKey: true }
-    ? { notNull: true }
-    : { notNull?: false }) =>
-  columnSchemaComponent<ColumnType, Options & { type: ColumnType }, ColumnName>(
-    {
-      columnName: name,
-      type,
-      ...options,
-    } as { columnName: ColumnName; type: ColumnType } & Options,
-  );
+  options: Omit<ColumnSchemaComponentOptions<ColumnType>, 'type'> &
+    ({ notNull: true } | { primaryKey: true }),
+): ColumnSchemaComponent<ColumnType, ColumnName> & { notNull: true };
+function dumboColumn<
+  const ColumnType extends AnyColumnTypeToken | string,
+  const ColumnName extends string,
+>(
+  name: ColumnName,
+  type: ColumnType,
+  options?: Omit<ColumnSchemaComponentOptions<ColumnType>, 'type'>,
+): ColumnSchemaComponent<ColumnType, ColumnName> & { notNull?: false };
+function dumboColumn(
+  name: string,
+  type: AnyColumnTypeToken | string,
+  options?: Omit<ColumnSchemaComponentOptions, 'type'>,
+): ColumnSchemaComponent {
+  return columnSchemaComponent({
+    ...options,
+    columnName: name,
+    type,
+  });
+}
 
 const dumboIndex = <
   const Name extends string,
@@ -87,8 +96,10 @@ const dumboTable = <
     primaryKey?: ReadonlyArray<Extract<keyof Columns, string>>;
     relationships?: Relationships;
     indexes?: Indexes;
-  }> &
-    Omit<SchemaComponentOptions, 'components'> = {},
+    migrations?: (
+      context: SchemaComponentContext,
+    ) => ReadonlyArray<SQLMigration>;
+  }> = {},
 ): TableComponent<Columns, TableName, Indexes, Relationships> =>
   tableComponent({
     tableName: name,

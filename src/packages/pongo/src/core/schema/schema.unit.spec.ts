@@ -1,15 +1,17 @@
 import assert from 'node:assert';
 import {
+  databaseComponentType,
+  databaseSchemaComponentType,
   defaultDatabaseSchemaKey,
   dumboSchema,
-  isDatabaseComponent,
-  isDatabaseSchemaComponent,
-  isIndexComponent,
+  indexComponentType,
   isJSONDocumentIndexTarget,
   isJSONPathIndexTarget,
   isTableComponent,
+  schemaComponentType,
   SQL,
   SQLDefaultSchemaNameToken,
+  sqlMigration,
 } from '@event-driven-io/dumbo';
 import { describe, expectTypeOf, it } from 'vitest';
 import {
@@ -42,7 +44,7 @@ describe('declaring Pongo indexes', () => {
     assert.strictEqual(externalId.isUnique, true);
     assert.strictEqual(document.indexName, 'users_data_idx');
     assert.ok(document.target && isJSONDocumentIndexTarget(document.target));
-    assert.strictEqual(isIndexComponent(email), true);
+    assert.strictEqual(email[schemaComponentType], indexComponentType);
   });
 
   it('keeps explicit index names as typed collection aliases', () => {
@@ -70,7 +72,7 @@ describe('declaring Pongo indexes', () => {
 
     assert.strictEqual(custom.indexName, 'users_search_idx');
     assert.strictEqual(custom.sql, sql);
-    assert.strictEqual(isIndexComponent(custom), true);
+    assert.strictEqual(custom[schemaComponentType], indexComponentType);
   });
 
   it('uses Pongo kinds only for collection tables and indexes', () => {
@@ -155,7 +157,15 @@ describe('declaring Pongo collections', () => {
     const accounts = dumboSchema.table('accounts');
     const crm = dumboSchema.schema('crm', { accounts, users });
 
-    assert.strictEqual(crm.components.includes(crm.tables.users), true);
+    assert.strictEqual(crm.tables.users, users);
+    assert.strictEqual(
+      crm
+        .migrations()
+        .some(
+          ({ name }) => name === 'table:pongo_collection:crm:users:001:create',
+        ),
+      true,
+    );
     assert.strictEqual(crm.tables.users.tableName, users.tableName);
     assert.strictEqual(
       crm.tables.users.indexes.email.indexName,
@@ -205,7 +215,10 @@ describe('declaring Pongo schemas and databases', () => {
       users: pongoSchema.collection<User>('users'),
     });
 
-    assert.strictEqual(isDatabaseSchemaComponent(schema), true);
+    assert.strictEqual(
+      schema[schemaComponentType],
+      databaseSchemaComponentType,
+    );
     assert.ok(SQLDefaultSchemaNameToken.check(schema.schemaName));
   });
 
@@ -218,7 +231,8 @@ describe('declaring Pongo schemas and databases', () => {
     });
 
     assert.ok(SQLDefaultSchemaNameToken.check(reusable.schemaName));
-    assert.deepStrictEqual(database.components, [database.schemas.public]);
+    assert.strictEqual(database.schemas.public, reusable);
+    assert.deepStrictEqual(database.migrations(), reusable.migrations());
     assert.ok(
       SQLDefaultSchemaNameToken.check(database.schemas.public.schemaName),
     );
@@ -250,7 +264,7 @@ describe('declaring Pongo schemas and databases', () => {
       },
     });
 
-    assert.strictEqual(isDatabaseComponent(database), true);
+    assert.strictEqual(database[schemaComponentType], databaseComponentType);
     assert.strictEqual(database.databaseName, 'app');
     assert.strictEqual(database.collections.users.tableName, 'users');
     assert.strictEqual(
@@ -347,7 +361,10 @@ describe('declaring Pongo schemas and databases', () => {
   });
 
   it('attaches the same direct extension-map shape to schemas and databases', () => {
-    const eventStore = dumboSchema.extension('event-store', {});
+    const migration = sqlMigration('event-store:001', [SQL`SELECT 1`]);
+    const eventStore = dumboSchema.extension('event-store', {
+      migrations: () => [migration],
+    });
     const audit = pongoSchema.schema(
       'audit',
       { auditEntries: pongoSchema.collection('entries') },
@@ -359,14 +376,8 @@ describe('declaring Pongo schemas and databases', () => {
       { eventStore },
     );
 
-    assert.strictEqual(
-      audit.components.includes(audit.extensions.eventStore),
-      true,
-    );
-    assert.strictEqual(
-      database.components.includes(database.extensions.eventStore),
-      true,
-    );
+    assert.strictEqual(audit.migrations().includes(migration), true);
+    assert.strictEqual(database.migrations().includes(migration), true);
     assert.strictEqual(
       database.extensions.eventStore.extensionName,
       eventStore.extensionName,

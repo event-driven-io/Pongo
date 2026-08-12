@@ -1,2 +1,2 @@
 export * from './migrator';
-export * from './schemaComponentMigrator';
+export * from './migrationTableComponent';

@@ -250,18 +250,12 @@ export const PongoDatabase = <
     return scope;
   };
 
-  const migrate = (migrationOptions?: PongoMigrationOptions) => {
-    const { migrationTable, ...optionsWithoutMigrationTable } =
-      migrationOptions ?? {};
-    const resolvedMigrationTable = migrationTable ?? options.migrationTable;
-
-    return runSQLMigrations(pool, schemas.migrations(), {
-      ...optionsWithoutMigrationTable,
-      ...(resolvedMigrationTable
-        ? { schema: { migrationTable: resolvedMigrationTable } }
-        : {}),
+  const migrate = (migrationOptions?: PongoMigrationOptions) =>
+    runSQLMigrations(pool, schemas.migrations(), {
+      ...migrationOptions,
+      migrationTable:
+        migrationOptions?.migrationTable ?? options.migrationTable,
     });
-  };
 
   const schemaAccessor = schemaScope as PongoSchemaAccessor;
   Object.defineProperties(schemaAccessor, {

@@ -15,7 +15,6 @@ import {
   MIGRATIONS_LOCK_ID,
   runSQLMigrations,
   extensionComponent,
-  SchemaComponentMigrator,
   single,
   SQL,
   SQLDefaultSchemaNameToken,
@@ -90,11 +89,9 @@ describe('Migration Integration Tests', () => {
       SQL`CREATE TABLE custom_ledger_result (id TEXT PRIMARY KEY);`,
     ]);
     const options = {
-      schema: {
-        migrationTable: {
-          schemaName: 'infra',
-          tableName: 'app_migrations',
-        },
+      migrationTable: {
+        schemaName: 'infra',
+        tableName: 'app_migrations',
       },
     };
 
@@ -142,10 +139,10 @@ describe('Migration Integration Tests', () => {
       },
       extensions: { eventStore },
     });
-    const migrator = SchemaComponentMigrator(component, pool);
+    const options = { lock: { options: { timeoutMs: 300 } } };
 
-    await migrator.run({ lock: { options: { timeoutMs: 300 } } });
-    await migrator.run({ lock: { options: { timeoutMs: 300 } } });
+    await runSQLMigrations(pool, component.migrations(), options);
+    await runSQLMigrations(pool, component.migrations(), options);
 
     const migrationNames = await pool.execute.query<{ name: string }>(
       SQL`SELECT name FROM dmb_migrations WHERE name <> 'table:relational:dmb_migrations:001:create' ORDER BY id`,
@@ -195,9 +192,9 @@ describe('Migration Integration Tests', () => {
         }),
       },
     });
-    const migrator = SchemaComponentMigrator(component, pool);
-
-    await migrator.run({ lock: { options: { timeoutMs: 300 } } });
+    await runSQLMigrations(pool, component.migrations(), {
+      lock: { options: { timeoutMs: 300 } },
+    });
 
     const indexExists = await pool.execute.query<{ exists: boolean }>(
       SQL`

@@ -1,5 +1,3 @@
-import type { Dumbo } from '../..';
-import { fromDatabaseDriverType, type DatabaseDriverType } from '../../drivers';
 import { SQL } from '../../sql';
 import {
   columnSchemaComponent,
@@ -7,11 +5,6 @@ import {
   tableComponent,
 } from '../components';
 import type { SchemaComponent } from '../schemaComponent';
-import {
-  getDefaultMigratorOptionsFromRegistry,
-  type MigratorOptions,
-  runSQLMigrations,
-} from './migrator';
 
 const { AutoIncrement, Varchar, Timestamp } = SQL.column.type;
 
@@ -64,44 +57,4 @@ export const migrationTableComponentFor = ({
         tables: { [tableName]: migrationTable },
       })
     : migrationTable;
-};
-
-export const migrationTableComponent: SchemaComponent =
-  migrationTableComponentFor();
-
-export type SchemaComponentMigrator = {
-  component: SchemaComponent;
-  run: (options?: Partial<MigratorOptions>) => Promise<void>;
-};
-
-export const SchemaComponentMigrator = <DriverType extends DatabaseDriverType>(
-  component: SchemaComponent,
-  dumbo: Dumbo<DriverType>,
-): SchemaComponentMigrator => {
-  const completedMigrations: string[] = [];
-
-  return {
-    component,
-    run: async (options) => {
-      const validateComponent =
-        options?.schema?.validateComponent ??
-        getDefaultMigratorOptionsFromRegistry(
-          fromDatabaseDriverType(dumbo.driverType).databaseType,
-        ).schema?.validateComponent;
-
-      validateComponent?.(component);
-
-      const pendingMigrations = component
-        .migrations()
-        .filter((migration) => !completedMigrations.includes(migration.name));
-
-      if (pendingMigrations.length === 0) return;
-
-      await runSQLMigrations(dumbo, pendingMigrations, options);
-
-      completedMigrations.push(
-        ...pendingMigrations.map((migration) => migration.name),
-      );
-    },
-  };
 };

@@ -1,8 +1,10 @@
 import { SQL, type SQL as SQLStatement, type SQLIdentifier } from '../../sql';
-import type { AnyTableComponent } from './tableComponent';
+import type { AnyColumnSchemaComponent } from './columnSchemaComponent';
 
 export const createTableSQL = (
-  table: AnyTableComponent,
+  table: Readonly<{
+    columns: Readonly<Record<string, AnyColumnSchemaComponent>>;
+  }>,
   tableReference: SQLStatement | SQLIdentifier,
 ): SQLStatement => {
   const columns = SQL.merge(
