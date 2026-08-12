@@ -7,12 +7,17 @@ import {
   type SchemaComponentContext,
 } from '../schemaComponent';
 import { sqlMigration, type SQLMigration } from '../sqlMigration';
-import { databaseSchemaMigrationName } from './migrationNames';
+import { migrationName } from './migrationName';
 import type { AnyTableComponent } from './tableComponent';
 
 export const databaseSchemaComponentType: unique symbol = Symbol(
   'dumbo.schemaComponent.databaseSchema',
 );
+
+const databaseSchemaMigrationName = (
+  databaseSchemaName: string,
+  kind: string | undefined,
+): string => migrationName('schema', kind, [databaseSchemaName], 'create');
 
 export type DatabaseSchemaTables = Readonly<Record<string, AnyTableComponent>>;
 export type SchemaExtensions = Readonly<Record<string, AnyExtensionComponent>>;
@@ -58,7 +63,6 @@ export const databaseSchemaComponent = <
 ): DatabaseSchemaComponent<Tables, SchemaName, Extensions> => {
   const tables = (options.tables ?? {}) as Tables;
   const extensions = (options.extensions ?? {}) as Extensions;
-  const kind = options.kind ?? 'relational';
   const schemaNameLabel =
     typeof options.schemaName === 'string'
       ? options.schemaName
@@ -107,14 +111,22 @@ export const databaseSchemaComponent = <
           ? (parent.defaults?.schemaName ?? SQLDefaultSchemaNameToken.from())
           : options.schemaName,
       }),
-      migrations: (scoped) => [
-        sqlMigration(databaseSchemaMigrationName(options.schemaName, kind), [
-          SQL`${SQLCreateSchema.from({
-            databaseSchemaName: options.schemaName,
-          })}`,
-        ]),
-        ...(options.migrations?.(scoped) ?? []),
-      ],
+      migrations: (scoped) => {
+        const databaseSchemaName = scoped.databaseSchemaName;
+
+        return [
+          ...(databaseSchemaName === undefined ||
+          SQLDefaultSchemaNameToken.check(databaseSchemaName)
+            ? []
+            : [
+                sqlMigration(
+                  databaseSchemaMigrationName(databaseSchemaName, options.kind),
+                  [SQL`${SQLCreateSchema.from({ databaseSchemaName })}`],
+                ),
+              ]),
+          ...(options.migrations?.(scoped) ?? []),
+        ];
+      },
     }),
     schemaName: options.schemaName,
     tables: schemaComponentMap(tables),

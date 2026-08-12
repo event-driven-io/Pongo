@@ -15,6 +15,8 @@ import { migrationTableComponentFor } from './migrationTableComponent';
 
 export const MIGRATIONS_LOCK_ID = 999956789;
 
+const maxMigrationNameLength = 255;
+
 declare global {
   var defaultMigratorOptions: Record<DatabaseType, MigratorOptions>;
 }
@@ -68,6 +70,13 @@ export const runSQLMigrations = (
   partialOptions?: Partial<MigratorOptions>,
 ): Promise<RunSQLMigrationsResult> =>
   pool.withTransaction(async ({ execute }) => {
+    for (const migration of migrations) {
+      if (migration.name.length > maxMigrationNameLength)
+        throw new Error(
+          `Migration name "${migration.name}" is ${migration.name.length} characters long, exceeding the maximum of ${maxMigrationNameLength} characters.`,
+        );
+    }
+
     const databaseType = fromDatabaseDriverType(pool.driverType).databaseType;
     const defaultOptions = getDefaultMigratorOptionsFromRegistry(databaseType);
     partialOptions ??= {};

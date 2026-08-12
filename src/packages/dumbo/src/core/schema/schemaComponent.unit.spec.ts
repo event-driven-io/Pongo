@@ -9,7 +9,6 @@ import {
   databaseSchemaComponentType,
   extensionComponent,
   extensionComponentType,
-  generatedIndexName,
   indexComponent,
   indexComponentType,
   schemaComponent,
@@ -137,9 +136,9 @@ describe('composing schema components', () => {
     });
 
     assert.deepStrictEqual(migrationNames(crm.migrations()), [
-      'schema:relational:crm:001:create',
-      'table:relational:crm:users:001:create',
-      'table:relational:crm:roles:001:create',
+      'schema:crm:create',
+      'table:crm:users:create',
+      'table:crm:roles:create',
     ]);
   });
 
@@ -187,8 +186,8 @@ describe('composing schema components', () => {
     assert.strictEqual('addComponent' in crm, false);
     assert.strictEqual('addMigration' in crm, false);
     assert.deepStrictEqual(migrationNames(crm.migrations()), [
-      'schema:relational:crm:001:create',
-      'table:relational:crm:users:001:create',
+      'schema:crm:create',
+      'table:crm:users:create',
     ]);
     assert.deepStrictEqual(crm.migrations(), crm.migrations());
   });
@@ -257,9 +256,9 @@ describe('exposing a component as a plain frozen value', () => {
     });
 
     assert.deepStrictEqual(migrationNames(crm.migrations()), [
-      'schema:relational:crm:001:create',
+      'schema:crm:create',
       own.name,
-      'table:relational:crm:users:001:create',
+      'table:crm:users:create',
     ]);
   });
 
@@ -280,12 +279,12 @@ describe('exposing a component as a plain frozen value', () => {
     });
 
     assert.deepStrictEqual(migrationNames(users.migrations()), [
-      'table:relational:users:001:create',
+      'table:users:create',
       columnMigration.name,
     ]);
     assert.deepStrictEqual(migrationNames(crm.migrations()), [
-      'schema:relational:crm:001:create',
-      'table:relational:crm:users:001:create',
+      'schema:crm:create',
+      'table:crm:users:create',
       columnMigration.name,
     ]);
   });
@@ -359,8 +358,8 @@ describe('grouping components that migrate as one unit', () => {
     });
 
     assert.deepStrictEqual(migrationNames(group.migrations()), [
-      'table:relational:users:001:create',
-      'table:relational:roles:001:create',
+      'table:users:create',
+      'table:roles:create',
     ]);
   });
 
@@ -379,7 +378,7 @@ describe('grouping components that migrate as one unit', () => {
 
     assert.deepStrictEqual(migrationNames(group.migrations()), [
       own.name,
-      'table:relational:users:001:create',
+      'table:users:create',
     ]);
   });
 });
@@ -413,8 +412,8 @@ describe('grouping components in extensions', () => {
     });
 
     assert.deepStrictEqual(migrationNames(eventStore.migrations()), [
-      'schema:relational:event_store:001:create',
-      'schema:relational:checkpoints:001:create',
+      'schema:event_store:create',
+      'schema:checkpoints:create',
     ]);
     assert.deepStrictEqual(
       migrationNames(database.migrations()),
@@ -453,7 +452,7 @@ describe('grouping components in extensions', () => {
 
     assert.deepStrictEqual(Object.keys(schema.tables), []);
     assert.deepStrictEqual(migrationNames(schema.migrations()), [
-      'schema:relational:public:001:create',
+      'schema:public:create',
       migration.name,
     ]);
     assert.strictEqual(schema.extensions.audit.extensionName, 'audit');
@@ -513,7 +512,7 @@ describe('grouping components in extensions', () => {
       auditLog,
     );
     assert.deepStrictEqual(migrationNames(schema.migrations()), [
-      'schema:relational:public:001:create',
+      'schema:public:create',
       migration.name,
     ]);
   });
@@ -571,7 +570,7 @@ describe('grouping components in extensions', () => {
     });
 
     assert.deepStrictEqual(migrationNames(database.migrations()), [
-      'schema:relational:crm:001:create',
+      'schema:crm:create',
       tableMigration.name,
       schemaExtensionMigration.name,
       databaseExtensionMigration.name,
@@ -598,7 +597,7 @@ describe('grouping components in extensions', () => {
 
     assert.deepStrictEqual(migrationNames(eventStore.migrations()), [
       own.name,
-      'schema:relational:event_store:001:create',
+      'schema:event_store:create',
       schemaMigration.name,
       nestedMigration.name,
     ]);
@@ -641,10 +640,9 @@ describe('grouping components in extensions', () => {
     const database = databaseComponent({ extensions: { eventStore } });
 
     assert.deepStrictEqual(migrationNames(database.migrations()), [
-      'schema:relational:001:create',
-      'table:event_store:messages:001:create',
-      'schema:relational:readmodels:001:create',
-      'table:relational:readmodels:users:001:create',
+      'table:event_store:messages:create',
+      'schema:readmodels:create',
+      'table:readmodels:users:create',
     ]);
   });
 
@@ -770,10 +768,7 @@ describe('placing reusable declarations in the database hierarchy', () => {
     assert.strictEqual(contextualIndex.indexName, index.indexName);
     assert.deepStrictEqual(
       schema.migrations().map(({ name }) => name),
-      [
-        'schema:relational:crm:001:create',
-        'index:relational:crm:users:users_email_idx:001:create',
-      ],
+      ['schema:crm:create', 'index:crm:users:users_email_idx:create'],
     );
   });
 
@@ -843,36 +838,11 @@ describe('placing reusable declarations in the database hierarchy', () => {
     assert.strictEqual(auditSchema.tables.users.tableName, 'users');
     assert.deepStrictEqual(
       publicSchema.migrations().map(({ name }) => name),
-      [
-        'schema:relational:public:001:create',
-        'table:relational:public:users:001:create',
-      ],
+      ['schema:public:create', 'table:public:users:create'],
     );
     assert.deepStrictEqual(
       auditSchema.migrations().map(({ name }) => name),
-      [
-        'schema:relational:audit:001:create',
-        'table:relational:audit:users:001:create',
-      ],
-    );
-  });
-
-  it('derives a readable default index name from its logical target', () => {
-    assert.strictEqual(
-      generatedIndexName({
-        tableName: 'users',
-        indexTargetNames: ['email'],
-        indexKind: 'json_path',
-      }),
-      'users_email_json_path_idx',
-    );
-    assert.strictEqual(
-      generatedIndexName({
-        tableName: 'users',
-        indexTargetNames: ['data'],
-        indexKind: 'json_document',
-      }),
-      'users_data_json_document_idx',
+      ['schema:audit:create', 'table:audit:users:create'],
     );
   });
 });
@@ -897,7 +867,7 @@ describe('validating a composed database', () => {
     });
 
     assert.deepStrictEqual(migrationNames(database.migrations()), [
-      'schema:relational:audit:001:create',
+      'schema:audit:create',
       migration.name,
     ]);
     assert.strictEqual(database.extensions.audit.extensionName, 'audit');

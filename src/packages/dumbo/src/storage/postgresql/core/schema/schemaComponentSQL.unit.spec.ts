@@ -49,18 +49,22 @@ describe('using Dumbo components in PostgreSQL schemas', () => {
     );
   });
 
-  it('creates a named schema and renders nothing for the default one', () => {
-    const schemaSQL = (
+  it('creates a named schema and emits no migration for the default one', () => {
+    const schemaSQLs = (
       schemaName: string | SQLDefaultSchemaNameToken,
-    ): string =>
-      format(databaseSchemaComponent({ schemaName }).migrations()[0]!.sqls[0]!);
+    ): ReadonlyArray<string> =>
+      databaseSchemaComponent({ schemaName })
+        .migrations()
+        .flatMap((migration) => migration.sqls)
+        .map(format);
 
-    assert.strictEqual(schemaSQL('audit'), 'CREATE SCHEMA IF NOT EXISTS audit');
-    assert.strictEqual(
-      schemaSQL('public'),
+    assert.deepStrictEqual(schemaSQLs('audit'), [
+      'CREATE SCHEMA IF NOT EXISTS audit',
+    ]);
+    assert.deepStrictEqual(schemaSQLs('public'), [
       'CREATE SCHEMA IF NOT EXISTS public',
-    );
-    assert.strictEqual(schemaSQL(SQLDefaultSchemaNameToken.from()), '');
+    ]);
+    assert.deepStrictEqual(schemaSQLs(SQLDefaultSchemaNameToken.from()), []);
   });
 
   it('creates an index for ordinary columns', () => {

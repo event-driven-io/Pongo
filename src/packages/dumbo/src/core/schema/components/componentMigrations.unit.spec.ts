@@ -3,7 +3,10 @@ import { describe, it } from 'vitest';
 import { SQL, SQLDefaultSchemaNameToken } from '../../sql';
 import { dumboSchema } from '../dumboSchema';
 import { extensionComponent } from '../extensionComponent';
-import type { SchemaComponentContext } from '../schemaComponent';
+import {
+  dedupeMigrations,
+  type SchemaComponentContext,
+} from '../schemaComponent';
 import { sqlMigration } from '../sqlMigration';
 import { databaseComponent } from './databaseComponent';
 import { databaseSchemaComponent } from './databaseSchemaComponent';
@@ -42,9 +45,9 @@ describe('components emitting their own migrations', () => {
     assert.deepStrictEqual(
       database.migrations().map(({ name }) => name),
       [
-        'schema:relational:crm:001:create',
-        'table:relational:crm:users:001:create',
-        'index:relational:crm:users:users_email_idx:001:create',
+        'schema:crm:create',
+        'table:crm:users:create',
+        'index:crm:users:users_email_idx:create',
       ],
     );
   });
@@ -87,11 +90,11 @@ describe('components emitting their own migrations', () => {
     assert.deepStrictEqual(
       database.migrations().map(({ name }) => name),
       [
-        'schema:relational:crm:001:create',
-        'table:event_store:crm:users:001:create',
-        'index:pongo_index:crm:users:users_email_idx:001:create',
-        'table:relational:crm:roles:001:create',
-        'index:relational:crm:roles:roles_email_idx:001:create',
+        'schema:crm:create',
+        'table:event_store:crm:users:create',
+        'index:pongo_index:crm:users:users_email_idx:create',
+        'table:crm:roles:create',
+        'index:crm:roles:roles_email_idx:create',
       ],
     );
   });
@@ -112,10 +115,7 @@ describe('components emitting their own migrations', () => {
 
     assert.deepStrictEqual(
       named.map(({ name }) => name),
-      [
-        'schema:relational:crm:001:create',
-        'table:relational:crm:users:001:create',
-      ],
+      ['schema:crm:create', 'table:crm:users:create'],
     );
     assert.deepStrictEqual(unnamed, named);
   });
@@ -132,11 +132,7 @@ describe('components emitting their own migrations', () => {
 
     assert.deepStrictEqual(
       database.migrations().map(({ name }) => name),
-      [
-        'schema:relational:001:create',
-        'table:relational:users:001:create',
-        'index:relational:users:users_email_idx:001:create',
-      ],
+      ['table:users:create', 'index:users:users_email_idx:create'],
     );
   });
 
@@ -158,7 +154,7 @@ describe('components emitting their own migrations', () => {
 
     assert.deepStrictEqual(
       database.migrations().map(({ name }) => name),
-      ['schema:relational:001:create', 'table:relational:events:001:create'],
+      ['table:events:create'],
     );
   });
 
@@ -187,10 +183,7 @@ describe('components emitting their own migrations', () => {
     assert.deepStrictEqual(Object.keys(database.schemas.audit.tables), []);
     assert.deepStrictEqual(
       database.migrations().map(({ name }) => name),
-      [
-        'schema:relational:audit:001:create',
-        'table:relational:audit:events:001:create',
-      ],
+      ['schema:audit:create', 'table:audit:events:create'],
     );
   });
 
@@ -214,11 +207,7 @@ describe('components emitting their own migrations', () => {
 
     assert.deepStrictEqual(
       database.migrations().map(({ name }) => name),
-      [
-        'schema:relational:crm:001:create',
-        'table:relational:crm:users:001:create',
-        'users:backfill',
-      ],
+      ['schema:crm:create', 'table:crm:users:create', 'users:backfill'],
     );
   });
 
@@ -230,7 +219,7 @@ describe('components emitting their own migrations', () => {
 
     assert.deepStrictEqual(
       schema.migrations().map(({ name }) => name),
-      ['schema:relational:crm:001:create'],
+      ['schema:crm:create'],
     );
   });
 
@@ -258,9 +247,9 @@ describe('components emitting their own migrations', () => {
         .migrations({ defaults: { schemaName: 'pongo' } })
         .map(({ name }) => name),
       [
-        'schema:relational:001:create',
-        'table:relational:pongo:users:001:create',
-        'index:relational:pongo:users:users_email_idx:001:create',
+        'schema:pongo:create',
+        'table:pongo:users:create',
+        'index:pongo:users:users_email_idx:create',
       ],
     );
   });
@@ -279,9 +268,9 @@ describe('components emitting their own migrations', () => {
         })
         .map(({ name }) => name),
       [
-        'schema:relational:crm:001:create',
-        'table:relational:crm:users:001:create',
-        'index:relational:crm:users:users_email_idx:001:create',
+        'schema:crm:create',
+        'table:crm:users:create',
+        'index:crm:users:users_email_idx:create',
       ],
     );
   });
@@ -331,6 +320,99 @@ describe('components emitting their own migrations', () => {
         tableName: 'users',
       },
     ]);
+  });
+
+  it('escapes a colon in a schema name', () => {
+    const schema = databaseSchemaComponent({
+      schemaName: 'a:b',
+      tables: { c: tableComponent({ tableName: 'c', columns }) },
+    });
+
+    assert.deepStrictEqual(
+      schema.migrations().map(({ name }) => name),
+      ['schema:a%3Ab:create', 'table:a%3Ab:c:create'],
+    );
+  });
+
+  it('escapes a colon in a table name', () => {
+    const schema = databaseSchemaComponent({
+      schemaName: 'a',
+      tables: { 'b:c': tableComponent({ tableName: 'b:c', columns }) },
+    });
+
+    assert.deepStrictEqual(
+      schema.migrations().map(({ name }) => name),
+      ['schema:a:create', 'table:a:b%3Ac:create'],
+    );
+  });
+
+  it('escapes a colon in a component kind', () => {
+    const schema = databaseSchemaComponent({
+      schemaName: 'c',
+      tables: {
+        d: tableComponent({ tableName: 'd', kind: 'a:b', columns }),
+      },
+    });
+
+    assert.deepStrictEqual(
+      schema.migrations().map(({ name }) => name),
+      ['schema:c:create', 'table:a%3Ab:c:d:create'],
+    );
+  });
+
+  it('keeps a literal percent apart from the escape it looks like', () => {
+    const literal = databaseSchemaComponent({
+      schemaName: 'a%3Ab',
+      tables: { c: tableComponent({ tableName: 'c', columns }) },
+    });
+    const colon = databaseSchemaComponent({
+      schemaName: 'a:b',
+      tables: { c: tableComponent({ tableName: 'c', columns }) },
+    });
+
+    assert.deepStrictEqual(
+      literal.migrations().map(({ name }) => name),
+      ['schema:a%253Ab:create', 'table:a%253Ab:c:create'],
+    );
+    assert.notDeepStrictEqual(
+      literal.migrations().map(({ name }) => name),
+      colon.migrations().map(({ name }) => name),
+    );
+  });
+
+  it('keeps a relational and a Pongo table of the same name apart', () => {
+    const context = { databaseSchemaName: 'crm' };
+    const relational = tableComponent({ tableName: 'users', columns });
+    const collection = tableComponent({
+      tableName: 'users',
+      kind: 'pongo_collection',
+      columns,
+    });
+
+    assert.deepStrictEqual(
+      dedupeMigrations([
+        ...relational.migrations(context),
+        ...collection.migrations(context),
+      ]).map(({ name }) => name),
+      ['table:crm:users:create', 'table:pongo_collection:crm:users:create'],
+    );
+  });
+
+  it('creates no schema for a placement left to the dialect', () => {
+    const schema = databaseSchemaComponent({
+      schemaName: SQLDefaultSchemaNameToken.from(),
+      migrations: () => [sqlMigration('users:backfill', [SQL`SELECT 1`])],
+      tables: { users: usersTable() },
+    });
+
+    assert.deepStrictEqual(
+      schema.migrations().map(({ name }) => name),
+      [
+        'users:backfill',
+        'table:users:create',
+        'index:users:users_email_idx:create',
+      ],
+    );
   });
 
   it('rejects two components declaring the same migration name differently', () => {

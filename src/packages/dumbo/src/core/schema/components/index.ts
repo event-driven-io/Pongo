@@ -3,7 +3,6 @@ export * from './createTableSQL';
 export * from './databaseComponent';
 export * from './databaseSchemaComponent';
 export * from './indexComponent';
-export * from './migrationNames';
 export * from './relationships';
 export * from './tableComponent';
 export * from './tableTypesInference';

@@ -276,7 +276,7 @@ describe('postgres collection schema migrations', () => {
 
     assert.strictEqual(
       migrations[0]!.name,
-      'table:pongo_collection:users:001:create',
+      'table:pongo_collection:users:create',
     );
     assert.ok(query.includes('CREATE TABLE IF NOT EXISTS users'));
   });
@@ -299,12 +299,9 @@ describe('postgres collection schema migrations', () => {
 
     assert.strictEqual(
       tableMigration.name,
-      'table:pongo_collection:crm:users:001:create',
+      'table:pongo_collection:crm:users:create',
     );
-    assert.strictEqual(
-      schemaMigration.name,
-      'schema:relational:crm:001:create',
-    );
+    assert.strictEqual(schemaMigration.name, 'schema:crm:create');
     assert.ok(createSchema.query.includes('CREATE SCHEMA IF NOT EXISTS crm'));
     assert.ok(
       createTable.query.includes('CREATE TABLE IF NOT EXISTS crm.users'),
@@ -510,9 +507,9 @@ describe('postgres collection schema migrations', () => {
     assert.deepStrictEqual(
       migrations.map(({ name }) => name),
       [
-        'table:pongo_collection:users:001:create',
-        'index:pongo_index:users:users_email_idx:001:create',
-        'index:pongo_index:users:users_external_id_uq:001:create',
+        'table:pongo_collection:users:create',
+        'index:pongo_index:users:users_email_idx:create',
+        'index:pongo_index:users:users_external_id_uq:create',
       ],
     );
     assert.ok(emailIndex);
@@ -553,9 +550,9 @@ describe('postgres collection schema migrations', () => {
     assert.deepStrictEqual(
       migrations.map(({ name }) => name),
       [
-        'schema:relational:crm:001:create',
-        'table:pongo_collection:crm:users:001:create',
-        'index:pongo_index:crm:users:users_email_idx:001:create',
+        'schema:crm:create',
+        'table:pongo_collection:crm:users:create',
+        'index:pongo_index:crm:users:users_email_idx:create',
       ],
     );
     assert.ok(emailIndex);

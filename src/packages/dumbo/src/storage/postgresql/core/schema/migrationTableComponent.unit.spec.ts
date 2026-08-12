@@ -29,8 +29,8 @@ describe('keeping the migration ledger in a PostgreSQL table', () => {
     const component = migrationTableComponentFor({ schemaName: 'infra' });
 
     assert.deepStrictEqual(migrationNames(component), [
-      'schema:relational:infra:001:create',
-      'table:relational:infra:dmb_migrations:001:create',
+      'schema:infra:create',
+      'table:infra:dmb_migrations:create',
     ]);
     assert.deepStrictEqual(
       ledgerDDL(component)[0],
@@ -49,7 +49,7 @@ describe('keeping the migration ledger in a PostgreSQL table', () => {
       migrationNames(
         migrationTableComponentFor({ tableName: 'app_migrations' }),
       ),
-      ['table:relational:app_migrations:001:create'],
+      ['table:app_migrations:create'],
     );
   });
 });

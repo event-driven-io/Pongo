@@ -104,13 +104,13 @@ describe('declaring Pongo indexes', () => {
     assert.deepStrictEqual(
       database.migrations().map(({ name }) => name),
       [
-        'schema:relational:crm:001:create',
-        'table:pongo_collection:crm:users:001:create',
-        'index:pongo_index:crm:users:users_email_idx:001:create',
-        'index:pongo_index:crm:users:users_external_id_uq:001:create',
-        'index:pongo_index:crm:users:users_data_idx:001:create',
-        'index:pongo_index:crm:users:users_search_idx:001:create',
-        'table:relational:crm:accounts:001:create',
+        'schema:crm:create',
+        'table:pongo_collection:crm:users:create',
+        'index:pongo_index:crm:users:users_email_idx:create',
+        'index:pongo_index:crm:users:users_external_id_uq:create',
+        'index:pongo_index:crm:users:users_data_idx:create',
+        'index:pongo_index:crm:users:users_search_idx:create',
+        'table:crm:accounts:create',
       ],
     );
   });
@@ -161,9 +161,7 @@ describe('declaring Pongo collections', () => {
     assert.strictEqual(
       crm
         .migrations()
-        .some(
-          ({ name }) => name === 'table:pongo_collection:crm:users:001:create',
-        ),
+        .some(({ name }) => name === 'table:pongo_collection:crm:users:create'),
       true,
     );
     assert.strictEqual(crm.tables.users.tableName, users.tableName);
@@ -188,8 +186,7 @@ describe('declaring Pongo collections', () => {
       publicSchema
         .migrations()
         .some(
-          ({ name }) =>
-            name === 'table:pongo_collection:public:entries:001:create',
+          ({ name }) => name === 'table:pongo_collection:public:entries:create',
         ),
       true,
     );

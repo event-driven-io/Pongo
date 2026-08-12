@@ -135,10 +135,7 @@ describe('sqliteSQLBuilder', () => {
       );
       const { query } = formatSQL(migrations[0]!.sqls[0]!, sqliteFormatter);
 
-      assert.equal(
-        migrations[0]!.name,
-        'table:pongo_collection:users:001:create',
-      );
+      assert.equal(migrations[0]!.name, 'table:pongo_collection:users:create');
       assert.ok(query.includes('CREATE TABLE IF NOT EXISTS users'));
     });
 
@@ -156,10 +153,7 @@ describe('sqliteSQLBuilder', () => {
         sqliteFormatter,
       );
 
-      assert.equal(
-        migrations[0]!.name,
-        'table:pongo_collection:users:001:create',
-      );
+      assert.equal(migrations[0]!.name, 'table:pongo_collection:users:create');
       assert.ok(query.includes('CREATE TABLE IF NOT EXISTS users'));
       assert.ok(insert.query.includes('INSERT OR IGNORE INTO users'));
       assert.ok(!query.includes('main_users'));
@@ -182,7 +176,7 @@ describe('sqliteSQLBuilder', () => {
 
       assert.equal(
         migrations[0]!.name,
-        'table:pongo_collection:crm:users:001:create',
+        'table:pongo_collection:crm:users:create',
       );
       assert.ok(query.includes('CREATE TABLE IF NOT EXISTS "crm.users"'));
       assert.ok(insert.query.includes('INSERT OR IGNORE INTO "crm.users"'));
@@ -467,9 +461,9 @@ describe('sqliteSQLBuilder', () => {
       assert.deepStrictEqual(
         migrations.map((migration) => migration.name),
         [
-          'table:pongo_collection:users:001:create',
-          'index:pongo_index:users:users_email_idx:001:create',
-          'index:pongo_index:users:users_data_idx:001:create',
+          'table:pongo_collection:users:create',
+          'index:pongo_index:users:users_email_idx:create',
+          'index:pongo_index:users:users_data_idx:create',
         ],
       );
       const document = collection.indexes.document;

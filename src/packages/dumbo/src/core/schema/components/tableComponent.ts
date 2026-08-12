@@ -10,13 +10,27 @@ import {
 import { sqlMigration, type SQLMigration } from '../sqlMigration';
 import type { AnyColumnSchemaComponent } from './columnSchemaComponent';
 import { createTableSQL } from './createTableSQL';
-import { tableMigrationName } from './migrationNames';
+import { migrationName, schemaSegments } from './migrationName';
 import type { AnyIndexComponent } from './indexComponent';
 import type { TableRelationships } from './relationships/relationshipTypes';
 
 export const tableComponentType: unique symbol = Symbol(
   'dumbo.schemaComponent.table',
 );
+
+const tableMigrationName = (
+  identifier: Readonly<{
+    databaseSchemaName: string | SQLDefaultSchemaNameToken | undefined;
+    tableName: string;
+  }>,
+  kind: string | undefined,
+): string =>
+  migrationName(
+    'table',
+    kind,
+    [...schemaSegments(identifier.databaseSchemaName), identifier.tableName],
+    'create',
+  );
 
 export type TableColumns = Readonly<Record<string, AnyColumnSchemaComponent>>;
 export type TableIndexes = Readonly<Record<string, AnyIndexComponent>>;
@@ -89,7 +103,6 @@ export const tableComponent = <
 ): TableComponent<Columns, TableName, Indexes, Relationships> => {
   const columns = (options.columns ?? {}) as Columns;
   const indexes = (options.indexes ?? {}) as Indexes;
-  const kind = options.kind ?? 'relational';
   const children = Object.freeze([
     ...Object.values(columns),
     ...Object.values(indexes),
@@ -114,7 +127,7 @@ export const tableComponent = <
             ...(Object.keys(columns).length === 0
               ? []
               : [
-                  sqlMigration(tableMigrationName(identifier, kind), [
+                  sqlMigration(tableMigrationName(identifier, options.kind), [
                     createTableSQL(
                       { columns },
                       SQL`${SQLTableReference.from(identifier)}`,
