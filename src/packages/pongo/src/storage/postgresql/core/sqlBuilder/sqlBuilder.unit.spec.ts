@@ -507,11 +507,17 @@ describe('postgres collection schema migrations', () => {
     const emailIndex = collection.indexes.email;
     const externalIdIndex = collection.indexes.externalId;
 
-    assert.strictEqual(migrations.length, 3);
+    assert.deepStrictEqual(
+      migrations.map(({ name }) => name),
+      [
+        'table:pongo_collection:users:001:create',
+        'index:pongo_index:users:users_email_idx:001:create',
+        'index:pongo_index:users:users_external_id_uq:001:create',
+      ],
+    );
     assert.ok(emailIndex);
     assert.ok(externalIdIndex);
     assert.strictEqual(emailIndex.indexName, 'users_email_idx');
-    assert.strictEqual(emailIndex.tableName, undefined);
     assert.strictEqual(externalIdIndex.isUnique, true);
   });
 
@@ -544,11 +550,17 @@ describe('postgres collection schema migrations', () => {
     const migrations = migrationsFor(database);
     const emailIndex = collection.indexes.email;
 
-    assert.strictEqual(migrations.length, 3);
+    assert.deepStrictEqual(
+      migrations.map(({ name }) => name),
+      [
+        'schema:relational:crm:001:create',
+        'table:pongo_collection:crm:users:001:create',
+        'index:pongo_index:crm:users:users_email_idx:001:create',
+      ],
+    );
     assert.ok(emailIndex);
     assert.strictEqual(collection.databaseSchemaName, undefined);
     assert.strictEqual(emailIndex.indexName, indexes.email.indexName);
-    assert.strictEqual(emailIndex.databaseSchemaName, undefined);
   });
 
   it('keeps custom index SQL hooks on the collection table', () => {

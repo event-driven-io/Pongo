@@ -26,10 +26,7 @@ describe('keeping the migration ledger in a PostgreSQL table', () => {
   });
 
   it('creates the schema before the ledger when the ledger lives in its own schema', () => {
-    const component = migrationTableComponentFor({
-      schemaName: 'infra',
-      createSchema: true,
-    });
+    const component = migrationTableComponentFor({ schemaName: 'infra' });
 
     assert.deepStrictEqual(migrationNames(component), [
       'schema:relational:infra:001:create',

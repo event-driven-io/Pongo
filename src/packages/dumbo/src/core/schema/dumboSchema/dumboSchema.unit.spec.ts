@@ -45,8 +45,6 @@ describe('dumboSchema', () => {
     assert.ok(tbl.columns.id);
     assert.ok(tbl.columns.email);
     const boundEmailIndex = tbl.indexes.idx_email;
-    assert.strictEqual(boundEmailIndex?.databaseSchemaName, undefined);
-    assert.strictEqual(boundEmailIndex?.tableName, undefined);
     assert.strictEqual(boundEmailIndex?.indexName, emailIndex.indexName);
     assert.deepStrictEqual(
       tbl.migrations().map(({ name }) => name),
@@ -83,7 +81,10 @@ describe('dumboSchema', () => {
     });
 
     assert.ok(SQLDefaultSchemaNameToken.check(sch.schemaName));
-    assert.strictEqual(sch.tables.users.databaseSchemaName, undefined);
+    assert.deepStrictEqual(
+      sch.migrations().map(({ name }) => name),
+      ['schema:relational:001:create', 'table:relational:users:001:create'],
+    );
     assert.deepStrictEqual(Object.keys(sch.tables), ['users']);
   });
 
@@ -133,15 +134,14 @@ describe('dumboSchema', () => {
     });
 
     assert.ok(SQLDefaultSchemaNameToken.check(reusable.schemaName));
-    assert.strictEqual(reusable.tables.users.databaseSchemaName, undefined);
     assert.strictEqual(db.databaseName, 'myapp');
     assert.deepStrictEqual(Object.keys(db.schemas), ['public']);
     assert.strictEqual(db.schemas.public, reusable);
     assert.deepStrictEqual(db.migrations(), reusable.migrations());
     assert.ok(SQLDefaultSchemaNameToken.check(db.schemas.public.schemaName));
-    assert.strictEqual(
-      db.schemas.public.tables.users.databaseSchemaName,
-      undefined,
+    assert.deepStrictEqual(
+      db.migrations().map(({ name }) => name),
+      ['schema:relational:001:create', 'table:relational:users:001:create'],
     );
   });
 
@@ -175,7 +175,10 @@ describe('dumboSchema', () => {
     });
 
     assert.ok(SQLDefaultSchemaNameToken.check(reusable.schemaName));
-    assert.strictEqual(reusable.tables.users.databaseSchemaName, undefined);
+    assert.deepStrictEqual(
+      reusable.migrations().map(({ name }) => name),
+      ['schema:relational:001:create', 'table:relational:users:001:create'],
+    );
   });
 
   it('should create schema from table names', () => {

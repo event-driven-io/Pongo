@@ -11,15 +11,12 @@ const { AutoIncrement, Varchar, Timestamp } = SQL.column.type;
 export const migrationTableComponentFor = ({
   schemaName,
   tableName = 'dmb_migrations',
-  createSchema = false,
 }: {
   schemaName?: string | undefined;
   tableName?: string | undefined;
-  createSchema?: boolean | undefined;
 } = {}): SchemaComponent => {
   const migrationTable = tableComponent({
     tableName,
-    databaseSchemaName: schemaName,
     columns: {
       id: columnSchemaComponent({
         columnName: 'id',
@@ -51,7 +48,7 @@ export const migrationTableComponentFor = ({
     },
   });
 
-  return createSchema && schemaName
+  return schemaName !== undefined
     ? databaseSchemaComponent({
         schemaName,
         tables: { [tableName]: migrationTable },

@@ -105,7 +105,6 @@ const pongoCollectionTable = <
 >(
   name: Name,
   options: Readonly<{
-    databaseSchemaName?: string;
     indexes?: Indexes;
   }>,
 ): TableComponent<PongoCollectionColumns<Document>, Name, Indexes> =>
@@ -122,6 +121,7 @@ export type PongoCollectionComponent<
   Indexes extends PongoCollectionIndexes = PongoCollectionIndexes,
 > = TableComponent<PongoCollectionColumns<Document>, Name, Indexes> &
   Readonly<{
+    databaseSchemaName?: string | undefined;
     [schemaComponentType]: typeof tableComponentType;
     [pongoCollectionComponentType]: true;
     [pongoDocumentType]: Document;
@@ -327,12 +327,14 @@ const pongoCollection = <
     indexes?: Indexes;
   }> = {},
 ): PongoCollectionComponent<Document, Name, Indexes> => {
+  const { databaseSchemaName, ...tableOptions } = options;
   const collection = pongoCollectionTable<Document, Name, Indexes>(
     name,
-    options,
+    tableOptions,
   );
   return Object.freeze({
     ...collection,
+    databaseSchemaName,
     [pongoCollectionComponentType]: true,
   }) as PongoCollectionComponent<Document, Name, Indexes>;
 };

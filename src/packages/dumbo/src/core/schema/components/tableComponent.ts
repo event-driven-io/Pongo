@@ -30,7 +30,6 @@ export type TableComponent<
 > = SchemaComponent<typeof tableComponentType> &
   Readonly<{
     tableName: TableName;
-    databaseSchemaName?: string | undefined;
     columns: Columns;
     primaryKey: ReadonlyArray<Extract<keyof Columns, string>>;
     relationships: Relationships;
@@ -70,7 +69,6 @@ export type TableComponentOptions<
 > = Readonly<{
   tableName: TableName;
   kind?: string | undefined;
-  databaseSchemaName?: string | undefined;
   columns?: Columns | undefined;
   primaryKey?: ReadonlyArray<Extract<keyof Columns, string>> | undefined;
   relationships?: Relationships | undefined;
@@ -92,25 +90,6 @@ export const tableComponent = <
   const columns = (options.columns ?? {}) as Columns;
   const indexes = (options.indexes ?? {}) as Indexes;
   const kind = options.kind ?? 'relational';
-  for (const index of Object.values(indexes)) {
-    if (
-      index.databaseSchemaName !== undefined &&
-      options.databaseSchemaName !== undefined &&
-      index.databaseSchemaName !== options.databaseSchemaName
-    ) {
-      throw new Error(
-        `Index "${index.indexName}" is constrained to database schema "${index.databaseSchemaName}" and cannot be placed in "${options.databaseSchemaName}.${options.tableName}"`,
-      );
-    }
-    if (
-      index.tableName !== undefined &&
-      index.tableName !== options.tableName
-    ) {
-      throw new Error(
-        `Index "${index.indexName}" is constrained to table "${index.tableName}" and cannot be placed in "${options.tableName}"`,
-      );
-    }
-  }
   const children = Object.freeze([
     ...Object.values(columns),
     ...Object.values(indexes),
@@ -122,8 +101,6 @@ export const tableComponent = <
         components: children,
         context: (parent) => ({
           ...parent,
-          databaseSchemaName:
-            options.databaseSchemaName ?? parent.databaseSchemaName,
           tableName: options.tableName,
         }),
         migrations: (scoped) => {
@@ -149,7 +126,6 @@ export const tableComponent = <
         },
       }),
       tableName: options.tableName,
-      databaseSchemaName: options.databaseSchemaName,
       primaryKey: Object.freeze([...(options.primaryKey ?? [])]),
       relationships: Object.freeze({
         ...(options.relationships ?? {}),

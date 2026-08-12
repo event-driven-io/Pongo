@@ -3,6 +3,7 @@ import { describe, it } from 'vitest';
 import { SQL, SQLDefaultSchemaNameToken } from '../../sql';
 import { dumboSchema } from '../dumboSchema';
 import { extensionComponent } from '../extensionComponent';
+import type { SchemaComponentContext } from '../schemaComponent';
 import { sqlMigration } from '../sqlMigration';
 import { databaseComponent } from './databaseComponent';
 import { databaseSchemaComponent } from './databaseSchemaComponent';
@@ -233,14 +234,103 @@ describe('components emitting their own migrations', () => {
     );
   });
 
-  it('emits nothing for an index it cannot place in a table', () => {
+  it('refuses to create an index it cannot place in a table', () => {
     const index = indexComponent({
       indexName: 'users_email_idx',
       columnNames: ['email'],
       isUnique: false,
     });
 
-    assert.deepStrictEqual(index.migrations(), []);
+    assert.throws(
+      () => index.migrations(),
+      /Index "users_email_idx" cannot be created outside a table/,
+    );
+  });
+
+  it('places a default schema in the database default schema name', () => {
+    const schema = databaseSchemaComponent({
+      schemaName: SQLDefaultSchemaNameToken.from(),
+      tables: { users: usersTable() },
+    });
+
+    assert.deepStrictEqual(
+      schema
+        .migrations({ defaults: { schemaName: 'pongo' } })
+        .map(({ name }) => name),
+      [
+        'schema:relational:001:create',
+        'table:relational:pongo:users:001:create',
+        'index:relational:pongo:users:users_email_idx:001:create',
+      ],
+    );
+  });
+
+  it('ignores the database default schema name in an explicitly named schema', () => {
+    const schema = databaseSchemaComponent({
+      schemaName: 'crm',
+      tables: { users: usersTable() },
+    });
+
+    assert.deepStrictEqual(
+      schema
+        .migrations({
+          databaseSchemaName: 'audit',
+          defaults: { schemaName: 'pongo' },
+        })
+        .map(({ name }) => name),
+      [
+        'schema:relational:crm:001:create',
+        'table:relational:crm:users:001:create',
+        'index:relational:crm:users:users_email_idx:001:create',
+      ],
+    );
+  });
+
+  it('runs custom migrations with the placement of the component declaring them', () => {
+    const seen: SchemaComponentContext[] = [];
+    const record = (context: SchemaComponentContext) => {
+      seen.push(context);
+      return [];
+    };
+    const database = databaseComponent({
+      schemas: {
+        crm: databaseSchemaComponent({
+          schemaName: 'crm',
+          migrations: record,
+          tables: {
+            users: tableComponent({
+              tableName: 'users',
+              columns,
+              migrations: record,
+              indexes: {
+                email: indexComponent({
+                  indexName: 'users_email_idx',
+                  columnNames: ['email'],
+                  isUnique: true,
+                  migrations: record,
+                }),
+              },
+            }),
+          },
+        }),
+      },
+    });
+
+    database.migrations({ defaults: { schemaName: 'pongo' } });
+
+    assert.deepStrictEqual(seen, [
+      { databaseSchemaName: 'crm', defaults: { schemaName: 'pongo' } },
+      {
+        databaseSchemaName: 'crm',
+        defaults: { schemaName: 'pongo' },
+        tableName: 'users',
+      },
+      {
+        databaseSchemaName: 'crm',
+        defaults: { schemaName: 'pongo' },
+        tableName: 'users',
+      },
+    ]);
   });
 
   it('rejects two components declaring the same migration name differently', () => {

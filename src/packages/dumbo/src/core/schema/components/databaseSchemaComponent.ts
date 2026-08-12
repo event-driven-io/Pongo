@@ -75,14 +75,6 @@ export const databaseSchemaComponent = <
       );
     }
     tableNames.add(table.tableName);
-    if (
-      table.databaseSchemaName !== undefined &&
-      table.databaseSchemaName !== options.schemaName
-    ) {
-      throw new Error(
-        `Table "${table.tableName}" is constrained to database schema "${table.databaseSchemaName}" and cannot be placed in "${schemaNameLabel}"`,
-      );
-    }
   }
   for (const extension of Object.values(extensions)) {
     for (const schema of Object.values(extension.schemas)) {
@@ -111,7 +103,9 @@ export const databaseSchemaComponent = <
       components: children,
       context: (parent) => ({
         ...parent,
-        databaseSchemaName: options.schemaName,
+        databaseSchemaName: SQLDefaultSchemaNameToken.check(options.schemaName)
+          ? (parent.defaults?.schemaName ?? SQLDefaultSchemaNameToken.from())
+          : options.schemaName,
       }),
       migrations: (scoped) => [
         sqlMigration(databaseSchemaMigrationName(options.schemaName, kind), [

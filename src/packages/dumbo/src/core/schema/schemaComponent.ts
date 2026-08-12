@@ -8,6 +8,7 @@ export const schemaComponentType: unique symbol = Symbol(
 export type SchemaComponentKind = symbol;
 
 export type SchemaComponentContext = Readonly<{
+  defaults?: Readonly<{ schemaName?: string | undefined }> | undefined;
   databaseSchemaName?: string | SQLDefaultSchemaNameToken | undefined;
   tableName?: string | undefined;
 }>;
