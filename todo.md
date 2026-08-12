@@ -89,8 +89,56 @@ old conditional return type. Needs a decision; candidate for S8.
 by the disk being 99% full (4.1 G free). `hookTimeout` was raised 30s → 120s in
 `vitest.shared.ts`, which cleared every PostgreSQL container `Hook timed out`.
 
-## Step 3 — Make context the only Dumbo placement source
-- [ ] Not started
+## Step 3 — Make context the only Dumbo placement source — **done**
+- [x] `databaseSchemaName` removed from `TableComponent` and table options
+- [x] `databaseSchemaName` and `tableName` removed from `IndexComponent` and index options
+- [x] Table-vs-schema and both index-vs-table conflict loops deleted; the
+      duplicate-table-name and extension-schema-name loops kept — unrelated to placement
+- [x] Table context contributes only `tableName`; named schema context always overrides
+- [x] `defaults?: Readonly<{ schemaName?: string }>` added to `SchemaComponentContext` and made live
+- [x] Index migration throws naming the index when `tableName` is absent from context.
+      No `!`, no cast, no synthetic table name
+- [x] `migrationTableComponentFor` places through a `databaseSchemaComponent` when a
+      schema is requested; `createSchema` deleted
+- [x] Pongo keeps `databaseSchemaName` on `PongoCollectionComponent` only; it no longer
+      reaches `table(...)`
+- [x] Custom migration callbacks proven to receive the fully scoped context
+- [x] Gate, verified independently of the agent: build exit 0, fix clean, unit
+      **1038/1038**, int:sqlite **947/951** (the same 4 D1 failures)
+- [x] Review gate — **pass**. No new type, alias or helper. Net production **−41**
+
+**`defaults.schemaName` was made live here, not staged.** A
+`databaseSchemaComponent` whose `schemaName` is a `SQLDefaultSchemaNameToken`
+contributes `parent.defaults?.schemaName ?? SQLDefaultSchemaNameToken.from()`
+to its children — verbatim the plan's Placement block for the private
+logical-default child. S6 then only changes who constructs that child. Its own
+create-schema migration and name still come from `options.schemaName`. Nothing in
+the repo sets the field yet; S7 wires Pongo's producer side.
+
+**`createSchema` deleted, with evidence.** `migrator.ts` was its only production
+caller and passed `schemaName: databaseType === 'PostgreSQL' ? schemaName : undefined`
+alongside `createSchema: databaseType === 'PostgreSQL'`, so `createSchema && schemaName`
+already meant exactly `schemaName !== undefined`. Migrator behaviour is unchanged.
+The brief's feared spurious SQLite ledger row is structurally impossible: core
+migrations run through `execute.batchCommand` at `migrator.ts:135`, never through
+`runSQLMigration`, so they are neither empty-filtered nor recorded.
+
+**Accepted external break.** A PostgreSQL caller who wrote
+`migrationTableComponentFor({ schemaName: 'infra' })` without `createSchema`
+previously got no `CREATE SCHEMA` and now gets `CREATE SCHEMA IF NOT EXISTS infra`,
+which needs CREATE privilege. Idempotent, but real.
+
+**Four tests deleted.** Two index-placement conflict tests and two
+table-declares-its-own-schema tests — their premise, a component carrying its own
+placement, no longer exists. Replaced by `refuses to create an index it cannot place
+in a table` and by `reuses one table declaration in two independent schemas`, which
+asserts one declaration yields both `table:relational:public:users:…` and
+`table:relational:audit:users:…`.
+
+**Property assertions converted, not dropped.** `.databaseSchemaName` / `.tableName`
+checks in `dumboSchema`, both `sqlBuilder` specs, `pongoDb`, and the SQLite
+`migrationTableComponent` spec became migration-name or rendered-SQL claims. Two were
+deleted outright — both on column-less tables that emit no migration to assert against.
 
 ## Step 4 — Correct generated migration names
 - [ ] Not started
@@ -109,3 +157,19 @@ by the disk being 99% full (4.1 G free). `hookTimeout` was raised 30s → 120s i
 
 ## Step 9 — Documents and metrics
 - [ ] Not started
+
+## Step 10 — Decide the DDL privilege policy — **discussion open, nothing to implement**
+- [ ] Shape: a union, not booleans — a negative boolean encodes its default into its
+      name. Candidate `privileges?: 'full' | 'restricted'`, one privilege level rather
+      than one member per object type
+- [ ] Scope: schema creation is real; database creation has no emitter today — decide
+      whether it becomes a feature or is dropped
+- [ ] Transport: migrator option filtering by `schema:` name prefix, or a policy field
+      on `SchemaComponentContext` beside `defaults.schemaName`
+- [ ] Behaviour when disabled: omit create-schema migrations uniformly, migration table
+      included; confirm a genuinely missing schema still fails legibly
+- [ ] Default value, and whether the S3 break stays in place for external callers
+- [ ] Boundary: what else is privileged DDL under the same policy (`CREATE EXTENSION`)
+
+Raised by the S3 `createSchema` deletion. Does not block Steps 4–9; scheduled after
+them because S6 and S7 both change what emits `CREATE SCHEMA`.

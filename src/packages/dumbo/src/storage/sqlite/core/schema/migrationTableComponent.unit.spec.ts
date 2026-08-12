@@ -26,17 +26,19 @@ describe('keeping the migration ledger in a SQLite table', () => {
     ]);
   });
 
-  it('leaves an existing schema untouched when it is not asked to create one', () => {
-    assert.deepStrictEqual(
-      migrationNames(migrationTableComponentFor({ schemaName: 'infra' })),
-      ['table:relational:infra:dmb_migrations:001:create'],
-    );
+  it('renders no schema statement on SQLite when the ledger is schema-qualified', () => {
+    const component = migrationTableComponentFor({ schemaName: 'infra' });
+
+    assert.deepStrictEqual(migrationNames(component), [
+      'schema:relational:infra:001:create',
+      'table:relational:infra:dmb_migrations:001:create',
+    ]);
+    assert.deepStrictEqual(ledgerDDL(component)[0], '');
   });
 
   it('creates no schema when the ledger is not schema-qualified', () => {
-    assert.deepStrictEqual(
-      migrationNames(migrationTableComponentFor({ createSchema: true })),
-      ['table:relational:dmb_migrations:001:create'],
-    );
+    assert.deepStrictEqual(migrationNames(migrationTableComponentFor()), [
+      'table:relational:dmb_migrations:001:create',
+    ]);
   });
 });

@@ -86,8 +86,6 @@ export type IndexComponent<
     indexTargetNames: ReadonlyArray<string>;
     columnNames: ColumnNames;
     isUnique: boolean;
-    databaseSchemaName?: string | undefined;
-    tableName?: string | undefined;
     target?: IndexTarget | undefined;
     sql?: ((context: IndexSQLContext) => SQL) | undefined;
   }>;
@@ -101,8 +99,6 @@ export type IndexComponentOptions<
   indexName: IndexName;
   kind?: string | undefined;
   indexTargetNames?: ReadonlyArray<string> | undefined;
-  databaseSchemaName?: string | undefined;
-  tableName?: string | undefined;
   columnNames: ColumnNames;
   isUnique: boolean;
   target?: IndexTarget | undefined;
@@ -175,27 +171,23 @@ export const indexComponent = <
   const component: IndexComponent<IndexName, ColumnNames> = {
     ...schemaComponent(indexComponentType, {
       migrations: (context) => {
-        const tableName = options.tableName ?? context.tableName;
-        const identifier =
-          tableName === undefined
-            ? undefined
-            : {
-                databaseSchemaName:
-                  options.databaseSchemaName ??
-                  context.databaseSchemaName ??
-                  SQLDefaultSchemaNameToken.from(),
-                tableName,
-                indexName: options.indexName,
-              };
+        const tableName = context.tableName;
+        if (tableName === undefined)
+          throw new Error(
+            `Index "${options.indexName}" cannot be created outside a table. Declare it in the indexes of the table it belongs to`,
+          );
+
+        const identifier = {
+          databaseSchemaName:
+            context.databaseSchemaName ?? SQLDefaultSchemaNameToken.from(),
+          tableName,
+          indexName: options.indexName,
+        };
 
         return [
-          ...(identifier === undefined
-            ? []
-            : [
-                sqlMigration(indexMigrationName(identifier, kind), [
-                  createIndexSQL(options, identifier),
-                ]),
-              ]),
+          sqlMigration(indexMigrationName(identifier, kind), [
+            createIndexSQL(options, identifier),
+          ]),
           ...(options.migrations?.(context) ?? []),
         ];
       },
@@ -207,8 +199,6 @@ export const indexComponent = <
     columnNames: Object.freeze([...options.columnNames]) as ColumnNames,
     isUnique: options.isUnique,
     target: options.target,
-    databaseSchemaName: options.databaseSchemaName,
-    tableName: options.tableName,
     sql: options.sql,
   };
 

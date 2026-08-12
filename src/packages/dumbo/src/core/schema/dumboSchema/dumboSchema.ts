@@ -91,7 +91,6 @@ const dumboTable = <
   name: TableName,
   definition: Readonly<{
     kind?: string;
-    databaseSchemaName?: string;
     columns?: Columns;
     primaryKey?: ReadonlyArray<Extract<keyof Columns, string>>;
     relationships?: Relationships;

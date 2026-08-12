@@ -111,7 +111,7 @@ components contribute Dumbo placement:
 {
   ...parent,
   databaseSchemaName:
-    parent.defaultDatabaseSchemaName ?? SQLDefaultSchemaNameToken.from(),
+    parent.defaults?.schemaName ?? SQLDefaultSchemaNameToken.from(),
 }
 
 // Table: always contribute its own table name.
@@ -119,14 +119,14 @@ components contribute Dumbo placement:
 ```
 
 Column, index, extension, and database components use identity context.
-`defaultDatabaseSchemaName` is a database policy, while `databaseSchemaName` is
+`defaults.schemaName` is a database policy, while `databaseSchemaName` is
 the current component's actual placement. Keeping them separate prevents a
 Pongo default from leaking into database-level migrations or schema-scoped
 extensions.
 
 ```ts
 type SchemaComponentContext = Readonly<{
-  defaultDatabaseSchemaName?: string;
+  defaults?: Readonly<{ schemaName?: string }>;
   databaseSchemaName?: string | SQLDefaultSchemaNameToken;
   tableName?: string;
 }>;
@@ -363,10 +363,10 @@ recursive mode classification, recursive lookup, and bundle collision rules.
 slot:
 
 ```ts
-const defaultDatabaseSchemaName = options.defaultSchemaName;
+const defaults = { schemaName: options.defaultSchemaName };
 ```
 
-Pongo passes a configured value as `defaultDatabaseSchemaName` in the parent
+Pongo passes a configured value as `defaults.schemaName` in the parent
 migration context. The private logical-default child converts it into actual
 `databaseSchemaName`; named schemas set their explicit name independently.
 Runtime SQL identifiers use the same configured value, or
@@ -623,8 +623,9 @@ the same step. After each step, run the standard gate from
 - Delete table-vs-schema and index-vs-table conflict loops made obsolete by
   context-only placement.
 - Named schema context always overrides parent schema placement.
-- Add `defaultDatabaseSchemaName?: string` to `SchemaComponentContext` as a
-  database policy distinct from actual `databaseSchemaName` placement. The
+- Add `defaults?: Readonly<{ schemaName?: string }>` to
+  `SchemaComponentContext` as a database policy distinct from actual
+  `databaseSchemaName` placement. The
   private logical-default schema child converts that policy into actual
   placement and otherwise contributes `SQLDefaultSchemaNameToken`.
 - Table context always contributes `tableName`.
@@ -821,10 +822,10 @@ the same step. After each step, run the standard gate from
 
 - Keep `defaultSchemaName` on `PongoClientOptions`, `PongoDbOptions`, driver
   factory options, and `PongoDatabaseOptions`.
-- Keep the configured string as `defaultDatabaseSchemaName` and derive one
+- Keep the configured string as `defaults.schemaName` and derive one
   runtime placement value: that string or `SQLDefaultSchemaNameToken` when it is
   absent.
-- Pass only a configured string as `defaultDatabaseSchemaName` in the parent
+- Pass only a configured string as `defaults.schemaName` in the parent
   migration context. The private logical-default child converts it into actual
   `databaseSchemaName`; named schemas set their own placement, and database-level
   or schema-scoped extension migrations do not receive a false current schema.
@@ -931,6 +932,68 @@ the same step. After each step, run the standard gate from
   against both the recorded merge base and pre-refactor HEAD. Production code
   must be materially smaller than pre-refactor HEAD. Treat the comparison with
   `main` as context rather than a quota that justifies deleting useful behavior.
+
+### Step 10 - Decide the DDL privilege policy - discussion, not implementation
+
+Nothing is implemented under this step until the questions below are settled.
+It does not block Steps 4-9; it is scheduled after them because Step 6 moves who
+creates the logical-default schema child and Step 7 binds Pongo's configured
+default, and both change what emits `CREATE SCHEMA`.
+
+The problem Step 3 exposed. `migrationTableComponentFor` used to take
+`createSchema`, which was the only way a caller could ask for a schema-qualified
+ledger without also emitting `CREATE SCHEMA`. The flag was already dead - the
+migrator passed `createSchema: databaseType === 'PostgreSQL'` next to a
+`schemaName` that was `undefined` on every other dialect, so the conjunction was
+exactly `schemaName !== undefined` - and Step 3 deleted it. On PostgreSQL the
+statement now runs where it previously did not for an external caller, and it
+requires CREATE privilege on the database. Running migrations under a restricted
+role against a pre-provisioned schema is an ordinary deployment shape, so the
+capability the flag accidentally provided is worth having deliberately.
+
+Restore it as a deployment policy, not as a per-call flag on one internal
+factory. Whether the process running migrations may issue privileged DDL is a
+property of the deployment, not of the schema declaration, and the declaration
+must read identically in both cases.
+
+Open questions.
+
+- **Shape.** Prefer a union over booleans. A negative boolean encodes its default
+  into its name and reads as a double negative at the call site
+  (`disableDatabaseCreation: false`); a union has no implicit off state, so both
+  states are written out and the default is a recorded choice rather than an
+  absence. Prefer one union naming the privilege level over one member per object
+  type, which needs a cross product as soon as a third privileged statement
+  exists. Candidate: `privileges?: 'full' | 'restricted'`, where `restricted`
+  emits no statement requiring rights beyond the migrator's own objects.
+- **Scope.** Schema creation is the real case. Database creation addresses
+  nothing today: Dumbo emits no `CREATE DATABASE` anywhere, `databaseComponent`
+  contributes no migration of its own, and the statement cannot run against the
+  database it creates, so it needs a separate connection and a separate
+  lifecycle. Decide whether to introduce it as a real feature or leave it out.
+  Do not add an option that no code path can honor.
+- **Transport.** The create-schema migrations are produced inside
+  `databaseSchemaComponent`. Filtering them in the migrator by a `schema:` name
+  prefix couples the runner to the name grammar. Threading the policy down
+  through `SchemaComponentContext`, beside `defaults.schemaName`, reuses
+  the mechanism Step 3 established: a database-level policy flows down and the
+  component that owns the concern decides. Prefer the context unless it forces a
+  component to read a policy it has no business knowing.
+- **Behavior when disabled.** Silently omitting the create-schema migration is
+  the only coherent option - the whole premise is that the schema already
+  exists - but it must omit uniformly, including the migration table's own
+  schema. Failing fast contradicts the reason for asking. Confirm that a missing
+  schema then surfaces as the dialect's own error and not as a confusing
+  downstream failure.
+- **Default.** The permissive member preserves current behavior and keeps the
+  Step 3 break in place for external callers, who then opt out. The restricted
+  member is safer for constrained roles but silently changes every existing
+  deployment: named schemas stop being created and migrations fail with a
+  missing-schema error nobody asked for, where the permissive default fails
+  loudly and legibly with a permission error instead. Pick one and record why.
+- **Boundary.** Name what else counts as privileged DDL under the same policy -
+  PostgreSQL `CREATE EXTENSION` is the obvious candidate - so the option does not
+  grow a second, differently-shaped sibling later.
 
 ## Verification
 

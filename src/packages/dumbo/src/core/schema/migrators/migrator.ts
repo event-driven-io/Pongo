@@ -124,7 +124,6 @@ export const runSQLMigrations = (
     const coreMigrations = migrationTableComponentFor({
       schemaName: databaseType === 'PostgreSQL' ? schemaName : undefined,
       tableName,
-      createSchema: databaseType === 'PostgreSQL',
     }).migrations();
 
     const result: RunSQLMigrationsResult = { applied: [], skipped: [] };

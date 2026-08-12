@@ -417,7 +417,6 @@ describe('sqliteSQLBuilder', () => {
       assert.ok(email);
       assert.ok(externalId);
       assert.strictEqual(email.indexName, 'users_email_idx');
-      assert.strictEqual(email.tableName, undefined);
       assert.strictEqual(externalId.isUnique, true);
     });
 
@@ -449,7 +448,6 @@ describe('sqliteSQLBuilder', () => {
         ),
         `got: ${indexSQL}`,
       );
-      assert.equal(email.databaseSchemaName, undefined);
     });
 
     it('keeps declared document JSON indexes on the collection table', () => {

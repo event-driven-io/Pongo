@@ -173,30 +173,25 @@ describe('declaring Pongo collections', () => {
     );
     assert.strictEqual(users.databaseSchemaName, undefined);
     assert.strictEqual(crm.tables.users.databaseSchemaName, undefined);
-    assert.strictEqual(crm.tables.accounts.databaseSchemaName, undefined);
     assert.strictEqual(isPongoCollectionComponent(crm.tables.users), true);
     expectTypeOf(crm.tables.users[pongoDocumentType]).toEqualTypeOf<User>();
   });
 
-  it('accepts a collection placement constraint that matches its schema', () => {
+  it('groups a collection by its declared schema name without placing it', () => {
     const entries = pongoSchema.collection('entries', {
       databaseSchemaName: 'audit',
     });
-    const audit = pongoSchema.schema('audit', { auditEntries: entries });
+    const publicSchema = pongoSchema.schema('public', { entries });
 
     assert.strictEqual(entries.databaseSchemaName, 'audit');
-    assert.strictEqual(audit.tables.auditEntries.databaseSchemaName, 'audit');
-  });
-
-  it('rejects declaring a collection for one schema and putting it in another', () => {
-    assert.throws(
-      () =>
-        pongoSchema.schema('public', {
-          entries: pongoSchema.collection('entries', {
-            databaseSchemaName: 'audit',
-          }),
-        }),
-      /constrained to database schema "audit".*cannot be placed in "public"/,
+    assert.strictEqual(
+      publicSchema
+        .migrations()
+        .some(
+          ({ name }) =>
+            name === 'table:pongo_collection:public:entries:001:create',
+        ),
+      true,
     );
   });
 

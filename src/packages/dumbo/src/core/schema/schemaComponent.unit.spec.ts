@@ -742,7 +742,6 @@ describe('placing reusable declarations in the database hierarchy', () => {
     });
 
     assert.ok(SQLDefaultSchemaNameToken.check(reusable.schemaName));
-    assert.strictEqual(users.databaseSchemaName, undefined);
     assert.strictEqual(database.schemas.public, reusable);
     assert.deepStrictEqual(database.migrations(), reusable.migrations());
     assert.ok(
@@ -767,77 +766,15 @@ describe('placing reusable declarations in the database hierarchy', () => {
     });
     const contextualIndex = schema.tables.users.indexes.email;
 
-    assert.strictEqual(index.databaseSchemaName, undefined);
-    assert.strictEqual(index.tableName, undefined);
+    assert.strictEqual(contextualIndex, index);
     assert.strictEqual(contextualIndex.indexName, index.indexName);
-    assert.strictEqual(contextualIndex.databaseSchemaName, undefined);
-    assert.strictEqual(contextualIndex.tableName, undefined);
-  });
-
-  it('rejects placing an index under a table other than its constraint', () => {
-    assert.throws(
-      () =>
-        tableComponent({
-          tableName: 'users',
-          indexes: {
-            email: indexComponent({
-              indexName: 'accounts_email_idx',
-              tableName: 'accounts',
-              columnNames: ['email'],
-              isUnique: false,
-            }),
-          },
-        }),
-      /constrained to table "accounts".*placed in "users"/,
+    assert.deepStrictEqual(
+      schema.migrations().map(({ name }) => name),
+      [
+        'schema:relational:crm:001:create',
+        'index:relational:crm:users:users_email_idx:001:create',
+      ],
     );
-  });
-
-  it('rejects placing an index under a schema other than its constraint', () => {
-    assert.throws(
-      () =>
-        tableComponent({
-          tableName: 'users',
-          databaseSchemaName: 'public',
-          indexes: {
-            email: indexComponent({
-              indexName: 'users_email_idx',
-              databaseSchemaName: 'audit',
-              columnNames: ['email'],
-              isUnique: false,
-            }),
-          },
-        }),
-      /constrained to database schema "audit".*placed in "public\.users"/,
-    );
-  });
-
-  it('rejects declaring a collection for one schema and putting it in another', () => {
-    assert.throws(
-      () =>
-        databaseSchemaComponent({
-          schemaName: 'public',
-          tables: {
-            users: tableComponent({
-              tableName: 'users',
-              databaseSchemaName: 'audit',
-            }),
-          },
-        }),
-      /constrained to database schema "audit".*cannot be placed in "public"/,
-    );
-  });
-
-  it('lets a table declared for a schema be put in that same schema', () => {
-    const users = tableComponent({
-      tableName: 'users',
-      databaseSchemaName: 'audit',
-    });
-    const schema = databaseSchemaComponent({
-      schemaName: 'audit',
-      tables: { users },
-    });
-
-    assert.strictEqual(schema.tables.users, users);
   });
 
   it('types a column as not nullable exactly when it is declared so', () => {
@@ -887,7 +824,12 @@ describe('placing reusable declarations in the database hierarchy', () => {
   });
 
   it('reuses one table declaration in two independent schemas', () => {
-    const users = tableComponent({ tableName: 'users' });
+    const users = tableComponent({
+      tableName: 'users',
+      columns: {
+        email: columnSchemaComponent({ columnName: 'email', type: 'TEXT' }),
+      },
+    });
     const publicSchema = databaseSchemaComponent({
       schemaName: 'public',
       tables: { users },
@@ -897,9 +839,22 @@ describe('placing reusable declarations in the database hierarchy', () => {
       tables: { users },
     });
 
-    assert.strictEqual(users.databaseSchemaName, undefined);
     assert.strictEqual(publicSchema.tables.users.tableName, 'users');
     assert.strictEqual(auditSchema.tables.users.tableName, 'users');
+    assert.deepStrictEqual(
+      publicSchema.migrations().map(({ name }) => name),
+      [
+        'schema:relational:public:001:create',
+        'table:relational:public:users:001:create',
+      ],
+    );
+    assert.deepStrictEqual(
+      auditSchema.migrations().map(({ name }) => name),
+      [
+        'schema:relational:audit:001:create',
+        'table:relational:audit:users:001:create',
+      ],
+    );
   });
 
   it('derives a readable default index name from its logical target', () => {
