@@ -38,8 +38,8 @@ deletion criterion.
 | 2   | `components` is a constructor input only. It is not exposed on `SchemaComponent`.                                                                                                                                                                                                                       |
 | 3   | Dumbo tables lose `databaseSchemaName`; indexes lose `databaseSchemaName` and `tableName`. Dumbo placement comes only from context.                                                                                                                                                                     |
 | 4   | A standalone index cannot generate DDL without table context. It throws a clear placement error; no assertion or cast supplies a missing table.                                                                                                                                                         |
-| 5   | Generated migration names use `<type>:<encoded-path>:<operation>`. There is no `kind` or number segment. Index paths retain their table segment.                                                                                                                                                        |
-| 6   | Every migration name is validated against the migration ledger's 255-character limit before execution. Generated path segments are independently encoded so distinct identifiers cannot collide.                                                                                                        |
+| 5   | Generated migration names use `<type>:[<kind>:]<encoded-path>:<operation>`. `kind` is optional, has no default, and is emitted directly after the type segment only when the factory caller sets it. Because the migrator looks migrations up by name alone, a `kind` value is part of the migration's identity: it records what the object is, never where its declaration came from. There is no number segment. Index paths retain their table segment. |
+| 6   | Every migration name is validated against the migration ledger's 255-character limit before execution. The `kind` segment and every generated path segment are independently encoded so distinct identifiers cannot collide.                                                                            |
 | 7   | An unresolved `SQLDefaultSchemaNameToken` emits no create-schema migration. If Pongo binds that logical default slot to a concrete `defaultSchemaName`, it emits the same dialect-neutral `SQLCreateSchema` migration as an explicitly named schema.                                                    |
 | 8   | Empty rendered SQL is still filtered by the migrator. This is required because named-schema creation renders empty on SQLite.                                                                                                                                                                           |
 | 9   | An extension is flat and is table-scoped, schema-scoped, or migration-only. It does not contain nested extensions or mix placement-free `tables` with self-placing `schemas`. Table extensions attach to a tables-mode database or a named schema; schema extensions attach to a schemas-mode database. |
@@ -452,18 +452,44 @@ existing schema-mode validation unchanged.
 
 ### Migration names
 
-Every user-controlled identifier is encoded independently before segments are
-joined with `:`. Keep the encoding helper private in `migrationNames.ts`.
-Percent encoding is sufficient because it also escapes `%`, so encoded and
-literal encoded-looking identifiers remain distinct. Before any migration is
-executed, validate its complete name against the ledger's 255-character limit
-and throw a clear error rather than relying on a database insertion failure.
+The generated name is `<type>:[<kind>:]<encoded-path>:<operation>`.
+
+This `kind` is the optional string on the table, index, and schema component
+options. It is unrelated to `SchemaComponentKind` in `schemaComponent.ts`, which
+is the symbol tagging `[schemaComponentType]`; the two share a word only.
+
+`kind` is an optional caller-supplied marker recording what the declared object
+is. It is emitted directly after the type segment and has no default, so a
+caller that does not set it produces a name without a kind segment. Pongo sets
+`pongo_collection` on collection tables and `pongo_index` on collection indexes.
+That is the only thing distinguishing them anywhere: the ledger stores the name
+and a hash but not the SQL, and a Pongo collection's `CREATE TABLE` is shaped
+like any other table's.
+
+A `kind` value therefore belongs to the migration's identity, because the
+migrator looks migrations up by name alone. It must be a stable fact about the
+object, such as `pongo_collection`. It must not record where the declaration
+came from — an owning extension, or whether the collection was created
+dynamically — because those change while the physical table does not, and a
+changed name re-runs the migration, no-ops against `CREATE TABLE IF NOT EXISTS`,
+and records a second ledger row for the same table.
+
+Every user-controlled identifier — the `kind` segment and each path segment — is
+encoded independently before segments are joined with `:`. Keep the encoding
+helper private in `migrationNames.ts`. Percent encoding is sufficient because it
+also escapes `%`, so encoded and literal encoded-looking identifiers remain
+distinct. Before any migration is executed, validate its complete name against
+the ledger's 255-character limit and throw a clear error rather than relying on
+a database insertion failure.
 
 ```text
 schema:readmodels:create
 table:users:create
 table:readmodels:users:create
 index:readmodels:users:users_email_idx:create
+table:pongo_collection:users:create
+table:pongo_collection:readmodels:users:create
+index:pongo_index:readmodels:users:users_email_idx:create
 table:a%3Ab:c:create
 table:a:b%3Ac:create
 ```
@@ -608,14 +634,34 @@ the same step. After each step, run the standard gate from
 
 ### Step 4 - Correct generated migration names
 
-- Remove `kind` from schema, table, and index options and remove all
-  `relational`, `pongo_collection`, and `pongo_index` defaults/call sites.
-- Rewrite `migrationNames.ts` to join static type/operation segments with
-  independently encoded schema, table, and index path segments. Generated names
-  contain no number segment and no numbering option is added to any factory.
-- Add collision tests covering `:`, `%`, and the concrete pair:
+- Keep `kind?: string | undefined` on the schema, table, and index component
+  options. Delete only its three `?? 'relational'` defaults, at
+  `core/schema/components/tableComponent.ts:93`,
+  `core/schema/components/indexComponent.ts:164`, and
+  `core/schema/components/databaseSchemaComponent.ts:62`, so the segment is
+  emitted only when a caller sets it. Keep the `kind` passthrough on
+  `dumboSchema.ts:84`.
+- Leave Pongo's four `kind` call sites unchanged, all in
+  `pongo/src/core/schema/index.ts`: `kind: 'pongo_collection'` at `:115`, and
+  `kind: 'pongo_index'` at `:273`, `:295`, and `:310`.
+- Rewrite `migrationNames.ts` to emit
+  `<type>:[<kind>:]<encoded-path>:<operation>`, joining static type and operation
+  segments with the independently encoded kind, schema, table, and index
+  segments. Omit the kind segment entirely when `kind` is `undefined`. Run
+  `kind` through the same private encoder as the path segments: today it is
+  interpolated raw at `migrationNames.ts:14`, `:23`, and `:33`, so a `kind`
+  containing `:` silently corrupts the name. Generated names contain no number
+  segment and no numbering option is added to any factory.
+- Add collision tests covering `:`, `%`, and the concrete cases:
   - schema `a:b`, table `c`;
-  - schema `a`, table `b:c`.
+  - schema `a`, table `b:c`;
+  - kind `a:b`, schema `c`, table `d`.
+- Add a test proving a relational table and a Pongo collection sharing a name in
+  one schema produce different migration names — `table:crm:users:create` and
+  `table:pongo_collection:crm:users:create` — and are therefore no longer caught
+  by a migration-name collision in `dedupeMigrations`. That physical duplicate
+  must be rejected by the physical-identity checks required in Steps 5 and 6,
+  which compare resolved schema and table names rather than migration names.
 - Do not emit a generated create-schema migration when the scoped placement
   remains `SQLDefaultSchemaNameToken`. Continue running custom migrations and
   children of that component.
@@ -864,8 +910,10 @@ the same step. After each step, run the standard gate from
 - Rewrite `spec.md` against the final decisions, including:
   - Dumbo's `tables` xor `schemas` declaration and its two access paths;
   - the deliberate replacement of public `defaultSchema(...)` helpers;
-  - encoded migration names without kind or number segments and the
-    255-character ledger limit;
+  - encoded migration names carrying an optional caller-set `kind` segment and
+    no number segment, the rule that a `kind` value is part of a migration's
+    identity and records what an object is rather than where it came from, and
+    the 255-character ledger limit;
   - no generated schema migration for an unresolved default token, but a normal
     named migration for a concrete Pongo `defaultSchemaName` binding;
   - SQLite named-schema migrations rendering empty and remaining unrecorded;
@@ -906,7 +954,7 @@ npm run test:e2e:sqlite
 Final concept checks, excluding `dist` and `node_modules`:
 
 ```sh
-rg "SchemasFromExtensions|databaseSchemaKey|defaultDatabaseSchemaKey|relational"
+rg "SchemasFromExtensions|databaseSchemaKey|defaultDatabaseSchemaKey|'relational'"
 rg "\\bSchemaComponentMigrator\\b|\\bmigrationTableComponent\\b|validateComponent"
 rg "withTable|generatedIndexName|generatedIndexNameSegment|migrationNumber"
 rg "extensionContainsTables|extensionContainsSchemas"
@@ -914,8 +962,12 @@ rg "dumboSchema\.defaultSchema|pongoSchema\.defaultSchema" src/packages
 rg "\\.components\\b" src/packages --glob '*.ts' --glob '!*.spec.ts'
 ```
 
-Do not search for `rendersNothing` or `registerDefaultMigratorOptions` as deleted
-concepts; their behavior/registry remains deliberately. Search for
+Search for the quoted `'relational'` literal, not the bare word: the word still
+appears legitimately in prose and in local identifiers. Do not search for
+`kind`, `pongo_collection`, or `pongo_index` as deleted concepts; the option and
+both Pongo values are retained deliberately, and only the `'relational'` default
+is removed. Do not search for `rendersNothing` or `registerDefaultMigratorOptions`
+as deleted concepts; their behavior/registry remains deliberately. Search for
 `pongoDocumentType`, `supportsSchemas`, `supportsFunctions`,
 `toClientSchemaMetadata`, and other audited exports only when their individual
 review decision says they were deleted.
@@ -935,8 +987,12 @@ Run the same behavior on PostgreSQL and SQLite:
    `schema:readmodels:create` and `table:readmodels:messages:create`,
    while collections declared in collections mode remain root-level API
    properties.
-5. Verify a collections-mode Pongo declaration exposes
-   `database.users` and preserves `User` inference.
+5. Verify a collections-mode Pongo declaration exposes `database.users`,
+   preserves `User` inference, and generates
+   `table:pongo_collection:users:create` for the collection and
+   `index:pongo_index:users:users_email_idx:create` for a declared collection
+   index, while the `eventStore` extension's table in the same database
+   generates `table:messages:create` with no kind segment.
 6. Verify a schemas-mode Pongo declaration exposes `database.crm.users` and does
    not expose `database.users`.
 7. Verify Dumbo `tables` and `schemas`, and Pongo `collections` and `schemas`,
@@ -956,9 +1012,16 @@ Run the same behavior on PostgreSQL and SQLite:
 12. Migrate twice. The second run applies nothing; the ledger contains one row
     per non-empty generated migration, no row for an unresolved logical default
     schema, and no row for SQLite's empty named-schema creation.
-13. Use identifiers containing `:` and `%` and verify generated migration names
-    do not collide. Verify a 255-character migration name is accepted and a
-    longer name is rejected before ledger access.
+13. Use identifiers containing `:` and `%` in schema, table, and `kind` values
+    and verify generated migration names do not collide. Verify a 255-character
+    migration name is accepted and a longer name is rejected before ledger
+    access.
+14. Declare a Dumbo relational table `users` and a Pongo collection `users` in
+    the same schema. Verify their migration names differ —
+    `table:crm:users:create` versus `table:pongo_collection:crm:users:create` —
+    and that the duplicate physical table is rejected by the Step 5/6
+    physical-identity check rather than by a migration-name collision in
+    `dedupeMigrations`.
 
 ## Review Gate After Each Step
 
