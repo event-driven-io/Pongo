@@ -13,6 +13,7 @@ import {
   type SchemaComponentContext,
 } from '../schemaComponent';
 import { sqlMigration, type SQLMigration } from '../sqlMigration';
+import type { IndexTarget } from './indexTarget';
 import { migrationName, schemaSegments } from './migrationName';
 
 export const indexComponentType: unique symbol = Symbol(
@@ -37,56 +38,6 @@ const indexMigrationName = (
     ],
     'create',
   );
-
-export const jsonPathIndexTargetType: unique symbol = Symbol(
-  'dumbo.indexTarget.jsonPath',
-);
-export const jsonDocumentIndexTargetType: unique symbol = Symbol(
-  'dumbo.indexTarget.jsonDocument',
-);
-
-export type JSONPathIndexTarget<
-  Path extends string | readonly string[] = string | readonly string[],
-> = Readonly<{
-  [jsonPathIndexTargetType]: true;
-  columnName: string;
-  path: Path;
-}>;
-
-export type JSONDocumentIndexTarget = Readonly<{
-  [jsonDocumentIndexTargetType]: true;
-  columnName: string;
-}>;
-
-export type IndexTarget = JSONPathIndexTarget | JSONDocumentIndexTarget;
-
-export const jsonPathIndexTarget = <
-  const Path extends string | readonly string[],
->(
-  columnName: string,
-  path: Path,
-): JSONPathIndexTarget<Path> =>
-  Object.freeze({
-    [jsonPathIndexTargetType]: true as const,
-    columnName,
-    path,
-  });
-
-export const jsonDocumentIndexTarget = (
-  columnName: string,
-): JSONDocumentIndexTarget =>
-  Object.freeze({
-    [jsonDocumentIndexTargetType]: true as const,
-    columnName,
-  });
-
-export const isJSONPathIndexTarget = (
-  target: IndexTarget,
-): target is JSONPathIndexTarget => jsonPathIndexTargetType in target;
-
-export const isJSONDocumentIndexTarget = (
-  target: IndexTarget,
-): target is JSONDocumentIndexTarget => jsonDocumentIndexTargetType in target;
 
 export type IndexSQLContext = Readonly<{
   databaseSchemaName: string | SQLDefaultSchemaNameToken;
@@ -138,13 +89,13 @@ const indexTargetSQL = (
 ): SQLStatement => {
   const target = index.target;
 
-  if (target !== undefined && isJSONDocumentIndexTarget(target))
+  if (target?.targetType === 'jsonDocument')
     return SQL`${SQLJSONDocumentIndexTarget.from({
       columnName: target.columnName,
       isUnique: index.isUnique,
     })}`;
 
-  if (target !== undefined && isJSONPathIndexTarget(target))
+  if (target?.targetType === 'jsonPath')
     return SQL`${SQLJSONPathTarget.from({
       columnName: target.columnName,
       path:

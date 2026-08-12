@@ -5,8 +5,6 @@ import {
   defaultDatabaseSchemaKey,
   dumboSchema,
   indexComponentType,
-  isJSONDocumentIndexTarget,
-  isJSONPathIndexTarget,
   isTableComponent,
   schemaComponentType,
   SQL,
@@ -36,14 +34,14 @@ describe('declaring Pongo indexes', () => {
     const document = pongoSchema.index.json('users_data_idx');
 
     assert.strictEqual(email.indexName, 'users_email_idx');
-    assert.ok(email.target && isJSONPathIndexTarget(email.target));
+    assert.ok(email.target?.targetType === 'jsonPath');
     assert.strictEqual(email.target.path, 'email');
     assert.strictEqual(externalId.indexName, 'users_external_id_uq');
-    assert.ok(externalId.target && isJSONPathIndexTarget(externalId.target));
+    assert.ok(externalId.target?.targetType === 'jsonPath');
     assert.deepStrictEqual(externalId.target.path, ['external', 'id']);
     assert.strictEqual(externalId.isUnique, true);
     assert.strictEqual(document.indexName, 'users_data_idx');
-    assert.ok(document.target && isJSONDocumentIndexTarget(document.target));
+    assert.ok(document.target?.targetType === 'jsonDocument');
     assert.strictEqual(email[schemaComponentType], indexComponentType);
   });
 
