@@ -1,15 +1,12 @@
 import { SQL, SQLCreateSchema, SQLDefaultSchemaNameToken } from '../../sql';
 import type { AnyExtensionComponent } from '../extensionComponent';
 import {
-  dedupeMigrations,
+  schemaComponent,
   schemaComponentMap,
-  schemaComponentType,
-  type AnySchemaComponent,
   type SchemaComponent,
   type SchemaComponentContext,
-  type SchemaComponentOptions,
 } from '../schemaComponent';
-import { sqlMigration } from '../sqlMigration';
+import { sqlMigration, type SQLMigration } from '../sqlMigration';
 import { databaseSchemaMigrationName } from './migrationNames';
 import type { AnyTableComponent } from './tableComponent';
 
@@ -47,8 +44,10 @@ export type DatabaseSchemaComponentOptions<
   kind?: string | undefined;
   tables?: Tables | undefined;
   extensions?: Extensions | undefined;
-}> &
-  Omit<SchemaComponentOptions, 'components'>;
+  migrations?:
+    | ((context: SchemaComponentContext) => ReadonlyArray<SQLMigration>)
+    | undefined;
+}>;
 
 export const databaseSchemaComponent = <
   const Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
@@ -108,30 +107,25 @@ export const databaseSchemaComponent = <
   ]);
 
   const component: DatabaseSchemaComponent<Tables, SchemaName, Extensions> = {
-    [schemaComponentType]: databaseSchemaComponentType,
-    schemaName: options.schemaName,
-    tables: schemaComponentMap(tables),
-    extensions: schemaComponentMap(extensions),
-    components: children,
-    migrations: (context: SchemaComponentContext = {}) => {
-      const scoped = { ...context, databaseSchemaName: options.schemaName };
-
-      return dedupeMigrations([
+    ...schemaComponent(databaseSchemaComponentType, {
+      components: children,
+      context: (parent) => ({
+        ...parent,
+        databaseSchemaName: options.schemaName,
+      }),
+      migrations: (scoped) => [
         sqlMigration(databaseSchemaMigrationName(options.schemaName, kind), [
           SQL`${SQLCreateSchema.from({
             databaseSchemaName: options.schemaName,
           })}`,
         ]),
         ...(options.migrations?.(scoped) ?? []),
-        ...children.flatMap((child) => child.migrations(scoped)),
-      ]);
-    },
+      ],
+    }),
+    schemaName: options.schemaName,
+    tables: schemaComponentMap(tables),
+    extensions: schemaComponentMap(extensions),
   };
 
   return component;
 };
-
-export const isDatabaseSchemaComponent = (
-  component: AnySchemaComponent,
-): component is AnyDatabaseSchemaComponent =>
-  component[schemaComponentType] === databaseSchemaComponentType;

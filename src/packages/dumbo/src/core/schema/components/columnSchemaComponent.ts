@@ -1,11 +1,8 @@
 import type { AnyColumnTypeToken, SQLColumnToken } from '../../sql';
 import {
-  dedupeMigrations,
-  schemaComponentType,
-  type AnySchemaComponent,
+  schemaComponent,
   type SchemaComponent,
   type SchemaComponentContext,
-  type SchemaComponentOptions,
 } from '../schemaComponent';
 import type { SQLMigration } from '../sqlMigration';
 
@@ -28,56 +25,37 @@ export type AnyColumnSchemaComponent = ColumnSchemaComponent<
 export type ColumnSchemaComponentOptions<
   ColumnType extends AnyColumnTypeToken | string = AnyColumnTypeToken | string,
 > = Omit<SQLColumnToken<ColumnType>, 'name' | 'sqlTokenType'> &
-  Omit<SchemaComponentOptions, 'components'>;
+  Readonly<{
+    migrations?:
+      | ((context: SchemaComponentContext) => ReadonlyArray<SQLMigration>)
+      | undefined;
+  }>;
 
-export const columnSchemaComponent = <
+export function columnSchemaComponent<
   const ColumnType extends AnyColumnTypeToken | string,
-  const Options extends ColumnSchemaComponentOptions<ColumnType>,
   const ColumnName extends string,
 >(
-  params: { columnName: ColumnName } & Options,
-): ColumnSchemaComponent<ColumnType, ColumnName> &
-  (Options extends { notNull: true } | { primaryKey: true }
-    ? { notNull: true }
-    : { notNull?: false }) => {
-  const {
-    columnName,
-    type,
-    notNull,
-    unique,
-    primaryKey,
-    default: defaultValue,
-    migrations,
-  } = params;
-  const children: ReadonlyArray<AnySchemaComponent> = Object.freeze([]);
+  params: {
+    columnName: ColumnName;
+  } & ColumnSchemaComponentOptions<ColumnType> &
+    ({ notNull: true } | { primaryKey: true }),
+): ColumnSchemaComponent<ColumnType, ColumnName> & { notNull: true };
+export function columnSchemaComponent<
+  const ColumnType extends AnyColumnTypeToken | string,
+  const ColumnName extends string,
+>(
+  params: { columnName: ColumnName } & ColumnSchemaComponentOptions<ColumnType>,
+): ColumnSchemaComponent<ColumnType, ColumnName> & { notNull?: false };
+export function columnSchemaComponent(
+  params: { columnName: string } & ColumnSchemaComponentOptions,
+) {
+  const { columnName, migrations, ...column } = params;
 
-  const component = {
-    [schemaComponentType]: columnComponentType,
+  return {
+    ...schemaComponent(columnComponentType, { migrations }),
+    ...column,
     columnName,
     sqlTokenType: 'SQL_COLUMN',
     name: columnName,
-    type,
-    notNull,
-    unique,
-    primaryKey,
-    default: defaultValue,
-    components: children,
-    migrations: (
-      context: SchemaComponentContext = {},
-    ): ReadonlyArray<SQLMigration> =>
-      dedupeMigrations([
-        ...(migrations?.(context) ?? []),
-        ...children.flatMap((child) => child.migrations(context)),
-      ]),
   };
-
-  return component as unknown as ColumnSchemaComponent<ColumnType, ColumnName> &
-    (Options extends { notNull: true } | { primaryKey: true }
-      ? { notNull: true }
-      : { notNull?: false });
-};
-
-export const isColumnSchemaComponent = (
-  component: AnySchemaComponent,
-): component is AnyColumnSchemaComponent =>
-  component[schemaComponentType] === columnComponentType;
+}

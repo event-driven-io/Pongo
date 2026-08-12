@@ -1,0 +1,111 @@
+# TODO — Simplify the schema component model
+
+State for [ref_plan.md](ref_plan.md). Steps are sequential. A step is done only
+when the gate is green and the review gate has a verdict.
+
+Gate, from `/home/oskar/Repos/Pongo/src`:
+`npm run build:ts` → `npm run fix` → `npm run test:unit` → `npm run test:int:sqlite`
+
+`build:ts` runs **before** the tests. Pongo's specs import `@event-driven-io/dumbo`
+from its built `dist`, so an uncompiled dumbo change leaves every pongo suite
+testing the previous build — green for the wrong reason.
+
+Nothing is committed. Oskar handles git.
+
+---
+
+## Step 0 — Baseline and contract tests — **skipped, Oskar's call**
+
+Dropped on Oskar's instruction: the baseline/metrics/audit bookkeeping is not
+what this branch needs. The contract type tests it listed are folded into the
+steps that implement their subject — Dumbo `tables` xor `schemas` into S6,
+`defaultSchemaName` behaviour into S7, the export audit into S8.
+
+## Step 1 — Migrator cleanup — **done**
+- [x] `SchemaComponentMigrator` type and factory deleted
+- [x] `migrationTableComponent` singleton deleted
+- [x] `migrationTableComponentFor` kept; file renamed to `migrationTableComponent.ts`
+- [x] Three specs rewritten onto `runSQLMigrations(pool, component.migrations(), options)`
+- [x] `validateComponent` deleted from `MigratorOptions`
+- [x] `schema.migrationTable` flattened to top-level `migrationTable`
+- [x] Default-migrator-options registry kept
+- [x] Empty-render filter and `sqls.length === 0` short circuit kept; `rendersNothing` not renamed
+- [x] Migration-table bootstrap kept explicit; SQLite not routed through a create-schema token
+- [x] Gate: build green, fix green, unit **1039/1039**, int:sqlite 946/950 (4 known D1 failures)
+- [x] Review gate — **pass**. No new abstraction; deletions plus one file rename. Net production **−59**
+
+**Deleted test, with reason**
+- `reports schema validation failure before executing migrations` — its subject was
+  the `validateComponent` hook, and the only thing that could invoke it was
+  `SchemaComponentMigrator`. Both are gone; no guard or replacement left behind.
+
+**Added test.** `records migrations in the configured migration table`
+(`pongo/src/storage/sqlite/sqlite3/migrations.int.spec.ts`). The
+`PongoDbOptions.migrationTable` → `runSQLMigrations` hop was rewritten in this
+step and had no coverage reaching the ledger.
+
+## Step 2 — Make `schemaComponent` the base — **done**
+- [x] `SchemaComponent<Kind>` exposes only `[schemaComponentType]` and `migrations(context?)`
+- [x] Children stay a constructor option, captured in the migration closure
+- [x] `context(parent)` option added; own migrations then children run scoped; one final dedupe
+- [x] `isSchemaComponent` checks the marker and the migration function, not a children array
+- [x] `createTableSQL` / `createIndexSQL` take plain inline definitions
+- [x] `tableComponent`, `indexComponent`, `columnSchemaComponent` converted
+- [x] `isIndexComponent`, `isColumnSchemaComponent` deleted
+- [x] `databaseComponent`, `databaseSchemaComponent`, `extensionComponent` converted
+- [x] Last 4 `Omit<SchemaComponentOptions, 'components'>` removed — none remain
+- [x] `isDatabaseComponent`, `isDatabaseSchemaComponent`, `isExtensionComponent` deleted
+- [x] `.components` spec assertions converted to migration-order / identity / dedupe claims
+- [x] Column factory's `as unknown as` replaced with overloads + `expectTypeOf` proof
+- [x] Gate: build green, fix green, unit **1040/1040**, int:sqlite 944 passed / 7 failed (see below)
+- [x] Review gate — **pass**. No new type, alias or helper added. Net production **−25**
+
+**Rejected mid-step.** The first attempt introduced `CreateTableDefinition` and
+`CreateIndexDefinition`. Oskar rejected both: the plan says "plain definitions",
+which means an inline parameter shape or the existing `options` object, not a
+new named export. Deleted; `createIndexSQL` now receives `options` directly.
+
+**Naming rule set here.** No placeholder names like `declaration` — name the
+concrete thing. The `declaration` local in `schemaComponent.unit.spec.ts` is now
+`crm`.
+
+**Three assertions deleted, not whole tests.** Each because a sibling assertion
+in the same test already carried the claim over migration names: child order in
+`migrates the components it groups in declaration order`, the dedupe claim in
+`applies a nested extension placed under two aliases only once`, and the child
+order in `accepts the same direct extension-map shape on databases and schemas`.
+
+**`columnSchemaComponent`'s implementation destructures the options rest.**
+Re-listing each field inferred an all-required return type that neither overload
+accepts under `exactOptionalPropertyTypes` (TS2394). No cast was used.
+
+**Open, pre-existing, not introduced here.** For `{ primaryKey: true }` the type
+says `notNull: true` while the runtime property is absent — inherited from the
+old conditional return type. Needs a decision; candidate for S8.
+
+**Environment, not code.** The 7 integration failures are 4 D1
+`D1TransactionNotSupportedError`/miniflare cases, identical in isolation, and
+2–3 `SQLITE_IOERR: disk I/O error` in file-based SQLite connection specs caused
+by the disk being 99% full (4.1 G free). `hookTimeout` was raised 30s → 120s in
+`vitest.shared.ts`, which cleared every PostgreSQL container `Hook timed out`.
+
+## Step 3 — Make context the only Dumbo placement source
+- [ ] Not started
+
+## Step 4 — Correct generated migration names
+- [ ] Not started
+
+## Step 5 — Simplify extensions without flattening
+- [ ] Not started
+
+## Step 6 — Make database placement explicit and stop rebuilding components
+- [ ] Not started
+
+## Step 7 — Bind Pongo's logical default placement once
+- [ ] Not started
+
+## Step 8 — Simplify Pongo typing and audit the public surface
+- [ ] Not started
+
+## Step 9 — Documents and metrics
+- [ ] Not started

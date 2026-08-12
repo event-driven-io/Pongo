@@ -194,6 +194,56 @@ describe('SQLite3 migration integration', () => {
     }
   });
 
+  it('records migrations in the configured migration table', async () => {
+    const schema = pongoSchema.client({
+      database: pongoSchema.db({
+        schemas: {
+          main: pongoSchema.defaultSchema({
+            users: pongoSchema.collection<User>('users'),
+          }),
+        },
+      }),
+    });
+    const client = pongoClient({
+      driver: sqlite3Driver,
+      connectionString,
+      schema: { definition: schema },
+      migrationTable: { tableName: 'client_migrations' },
+    });
+    const pool = sqlite3Pool({ fileName });
+
+    try {
+      const db = client.db('database');
+      await db.schema.migrate();
+      await db.schema.migrate({
+        migrationTable: { tableName: 'call_migrations' },
+      });
+
+      const clientLedger = await pool.execute.query<{ name: string }>(
+        SQL`SELECT name FROM client_migrations ORDER BY id`,
+      );
+      const callLedger = await pool.execute.query<{ name: string }>(
+        SQL`SELECT name FROM call_migrations ORDER BY id`,
+      );
+      const defaultLedger = await pool.execute.query<{ count: number }>(
+        SQL`SELECT COUNT(*) as count FROM sqlite_master WHERE name = 'dmb_migrations'`,
+      );
+
+      assert.deepStrictEqual(
+        clientLedger.rows.map((row) => row.name),
+        ['table:pongo_collection:users:001:create'],
+      );
+      assert.deepStrictEqual(
+        callLedger.rows.map((row) => row.name),
+        ['table:pongo_collection:users:001:create'],
+      );
+      assert.strictEqual(defaultLedger.rows[0]?.count, 0);
+    } finally {
+      await client.close();
+      await pool.close();
+    }
+  });
+
   it('migrates mixed event-store and Pongo extension schemas', async () => {
     const users = pongoSchema.collection<User>('users');
     const eventStore = dumboSchema.extension('event-store', {

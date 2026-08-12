@@ -16,7 +16,6 @@ export type SchemaComponent<
   Kind extends SchemaComponentKind = SchemaComponentKind,
 > = Readonly<{
   [schemaComponentType]: Kind;
-  components: ReadonlyArray<AnySchemaComponent>;
   migrations: (context?: SchemaComponentContext) => ReadonlyArray<SQLMigration>;
 }>;
 
@@ -30,6 +29,8 @@ export type SchemaComponentOptions = Readonly<{
   migrations?:
     | ((context: SchemaComponentContext) => ReadonlyArray<SQLMigration>)
     | undefined;
+  context?:
+    ((parent: SchemaComponentContext) => SchemaComponentContext) | undefined;
   components?: ReadonlyArray<AnySchemaComponent> | undefined;
 }>;
 
@@ -71,12 +72,14 @@ export const schemaComponent = <const Kind extends SchemaComponentKind>(
 
   const component: SchemaComponent<Kind> = {
     [schemaComponentType]: kind,
-    components: children,
-    migrations: (context: SchemaComponentContext = {}) =>
-      dedupeMigrations([
-        ...(options.migrations?.(context) ?? []),
-        ...children.flatMap((child) => child.migrations(context)),
-      ]),
+    migrations: (context: SchemaComponentContext = {}) => {
+      const scoped = options.context?.(context) ?? context;
+
+      return dedupeMigrations([
+        ...(options.migrations?.(scoped) ?? []),
+        ...children.flatMap((child) => child.migrations(scoped)),
+      ]);
+    },
   };
 
   return component;
@@ -88,5 +91,5 @@ export const isSchemaComponent = (
   typeof value === 'object' &&
   value !== null &&
   schemaComponentType in value &&
-  'components' in value &&
-  'migrations' in value;
+  'migrations' in value &&
+  typeof value.migrations === 'function';

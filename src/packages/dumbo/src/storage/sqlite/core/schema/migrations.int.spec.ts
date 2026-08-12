@@ -18,7 +18,6 @@ import {
   indexComponent,
   runSQLMigrations,
   extensionComponent,
-  SchemaComponentMigrator,
   sqlMigration,
   tableComponent,
   type SQLMigration,
@@ -110,9 +109,7 @@ describe('Migration Integration Tests', () => {
           SQL`CREATE TABLE custom_ledger_result (id TEXT PRIMARY KEY);`,
         ]);
         const options = {
-          schema: {
-            migrationTable: { tableName: 'app_migrations' },
-          },
+          migrationTable: { tableName: 'app_migrations' },
         };
 
         const first = await runSQLMigrations(pool, [migration], options);
@@ -135,11 +132,9 @@ describe('Migration Integration Tests', () => {
       it('rejects a schema-qualified migration table', async () => {
         await assert.rejects(
           runSQLMigrations(pool, [], {
-            schema: {
-              migrationTable: {
-                schemaName: 'audit',
-                tableName: 'app_migrations',
-              },
+            migrationTable: {
+              schemaName: 'audit',
+              tableName: 'app_migrations',
             },
           }),
           /does not support schema-qualified migration tables/,
@@ -177,10 +172,10 @@ describe('Migration Integration Tests', () => {
           },
           extensions: { eventStore },
         });
-        const migrator = SchemaComponentMigrator(component, pool);
+        const options = { lock: { options: { timeoutMs: 300 } } };
 
-        await migrator.run({ lock: { options: { timeoutMs: 300 } } });
-        await migrator.run({ lock: { options: { timeoutMs: 300 } } });
+        await runSQLMigrations(pool, component.migrations(), options);
+        await runSQLMigrations(pool, component.migrations(), options);
 
         const migrationNames = await pool.execute.query<{ name: string }>(
           SQL`SELECT name FROM dmb_migrations WHERE name <> 'table:relational:dmb_migrations:001:create' ORDER BY id`,
@@ -225,9 +220,9 @@ describe('Migration Integration Tests', () => {
             }),
           },
         });
-        const migrator = SchemaComponentMigrator(component, pool);
-
-        await migrator.run({ lock: { options: { timeoutMs: 300 } } });
+        await runSQLMigrations(pool, component.migrations(), {
+          lock: { options: { timeoutMs: 300 } },
+        });
 
         const migrationNames = await pool.execute.query<{ name: string }>(
           SQL`SELECT name FROM dmb_migrations WHERE name <> 'table:relational:dmb_migrations:001:create' ORDER BY id`,

@@ -8,14 +8,11 @@ import {
   type SQL as SQLStatement,
 } from '../../sql';
 import {
-  dedupeMigrations,
-  schemaComponentType,
-  type AnySchemaComponent,
+  schemaComponent,
   type SchemaComponent,
   type SchemaComponentContext,
-  type SchemaComponentOptions,
 } from '../schemaComponent';
-import { sqlMigration } from '../sqlMigration';
+import { sqlMigration, type SQLMigration } from '../sqlMigration';
 import { indexMigrationName } from './migrationNames';
 
 export const indexComponentType: unique symbol = Symbol(
@@ -110,12 +107,20 @@ export type IndexComponentOptions<
   isUnique: boolean;
   target?: IndexTarget | undefined;
   sql?: ((context: IndexSQLContext) => SQL) | undefined;
-}> &
-  Omit<SchemaComponentOptions, 'components'>;
+  migrations?:
+    | ((context: SchemaComponentContext) => ReadonlyArray<SQLMigration>)
+    | undefined;
+}>;
 
 export type IndexIdentifier = Omit<SQLIndexReference, 'sqlTokenType'>;
 
-const indexTargetSQL = (index: AnyIndexComponent): SQLStatement => {
+const indexTargetSQL = (
+  index: Readonly<{
+    columnNames: ReadonlyArray<string>;
+    isUnique: boolean;
+    target?: IndexTarget | undefined;
+  }>,
+): SQLStatement => {
   const target = index.target;
 
   if (target !== undefined && isJSONDocumentIndexTarget(target))
@@ -138,7 +143,12 @@ const indexTargetSQL = (index: AnyIndexComponent): SQLStatement => {
 };
 
 export const createIndexSQL = (
-  index: AnyIndexComponent,
+  index: Readonly<{
+    columnNames: ReadonlyArray<string>;
+    isUnique: boolean;
+    target?: IndexTarget | undefined;
+    sql?: ((context: IndexSQLContext) => SQL) | undefined;
+  }>,
   identifier: IndexIdentifier,
 ): SQLStatement => {
   const tableReference = SQL`${SQLTableReference.from(identifier)}`;
@@ -160,11 +170,36 @@ export const indexComponent = <
 >(
   options: IndexComponentOptions<IndexName, ColumnNames>,
 ): IndexComponent<IndexName, ColumnNames> => {
-  const children: ReadonlyArray<AnySchemaComponent> = Object.freeze([]);
   const kind = options.kind ?? 'relational';
 
   const component: IndexComponent<IndexName, ColumnNames> = {
-    [schemaComponentType]: indexComponentType,
+    ...schemaComponent(indexComponentType, {
+      migrations: (context) => {
+        const tableName = options.tableName ?? context.tableName;
+        const identifier =
+          tableName === undefined
+            ? undefined
+            : {
+                databaseSchemaName:
+                  options.databaseSchemaName ??
+                  context.databaseSchemaName ??
+                  SQLDefaultSchemaNameToken.from(),
+                tableName,
+                indexName: options.indexName,
+              };
+
+        return [
+          ...(identifier === undefined
+            ? []
+            : [
+                sqlMigration(indexMigrationName(identifier, kind), [
+                  createIndexSQL(options, identifier),
+                ]),
+              ]),
+          ...(options.migrations?.(context) ?? []),
+        ];
+      },
+    }),
     indexName: options.indexName,
     indexTargetNames: Object.freeze([
       ...(options.indexTargetNames ?? options.columnNames),
@@ -175,42 +210,10 @@ export const indexComponent = <
     databaseSchemaName: options.databaseSchemaName,
     tableName: options.tableName,
     sql: options.sql,
-    components: children,
-    migrations: (context: SchemaComponentContext = {}) => {
-      const tableName = options.tableName ?? context.tableName;
-      const identifier =
-        tableName === undefined
-          ? undefined
-          : {
-              databaseSchemaName:
-                options.databaseSchemaName ??
-                context.databaseSchemaName ??
-                SQLDefaultSchemaNameToken.from(),
-              tableName,
-              indexName: options.indexName,
-            };
-
-      return dedupeMigrations([
-        ...(identifier === undefined
-          ? []
-          : [
-              sqlMigration(indexMigrationName(identifier, kind), [
-                createIndexSQL(component, identifier),
-              ]),
-            ]),
-        ...(options.migrations?.(context) ?? []),
-        ...children.flatMap((child) => child.migrations(context)),
-      ]);
-    },
   };
 
   return component;
 };
-
-export const isIndexComponent = (
-  component: AnySchemaComponent,
-): component is AnyIndexComponent =>
-  component[schemaComponentType] === indexComponentType;
 
 export const generatedIndexNameSegment = (value: string): string =>
   value

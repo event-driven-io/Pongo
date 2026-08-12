@@ -48,7 +48,13 @@ describe('dumboSchema', () => {
     assert.strictEqual(boundEmailIndex?.databaseSchemaName, undefined);
     assert.strictEqual(boundEmailIndex?.tableName, undefined);
     assert.strictEqual(boundEmailIndex?.indexName, emailIndex.indexName);
-    assert.strictEqual(tbl.components.includes(boundEmailIndex), true);
+    assert.deepStrictEqual(
+      tbl.migrations().map(({ name }) => name),
+      [
+        'table:relational:users:001:create',
+        'index:relational:users:idx_email:001:create',
+      ],
+    );
     assert.ok(tbl.columns.id !== undefined);
     assert.ok(tbl.columns.email !== undefined);
   });
@@ -130,7 +136,8 @@ describe('dumboSchema', () => {
     assert.strictEqual(reusable.tables.users.databaseSchemaName, undefined);
     assert.strictEqual(db.databaseName, 'myapp');
     assert.deepStrictEqual(Object.keys(db.schemas), ['public']);
-    assert.deepStrictEqual(db.components, [db.schemas.public]);
+    assert.strictEqual(db.schemas.public, reusable);
+    assert.deepStrictEqual(db.migrations(), reusable.migrations());
     assert.ok(SQLDefaultSchemaNameToken.check(db.schemas.public.schemaName));
     assert.strictEqual(
       db.schemas.public.tables.users.databaseSchemaName,

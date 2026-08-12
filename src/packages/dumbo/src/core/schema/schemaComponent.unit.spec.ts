@@ -2,7 +2,6 @@ import assert from 'node:assert';
 import { describe, expectTypeOf, it } from 'vitest';
 import { SQL, SQLDefaultSchemaNameToken } from '../sql';
 import {
-  SchemaComponentMigrator,
   columnSchemaComponent,
   databaseComponent,
   databaseComponentType,
@@ -13,13 +12,11 @@ import {
   generatedIndexName,
   indexComponent,
   indexComponentType,
-  isExtensionComponent,
   schemaComponent,
   schemaComponentType,
   sqlMigration,
   tableComponent,
   tableComponentType,
-  type AnySchemaComponent,
   type DatabaseComponent,
   type DatabaseSchemaComponent,
   type ExtensionComponent,
@@ -189,14 +186,11 @@ describe('composing schema components', () => {
 
     assert.strictEqual('addComponent' in crm, false);
     assert.strictEqual('addMigration' in crm, false);
-    assert.strictEqual(Object.isFrozen(crm.components), true);
-    assert.strictEqual(Object.isFrozen(users.components), true);
-    assert.throws(() => {
-      (crm.components as AnySchemaComponent[]).push(
-        tableComponent({ tableName: 'roles' }),
-      );
-    }, TypeError);
-    assert.deepStrictEqual(crm.components, [users]);
+    assert.deepStrictEqual(migrationNames(crm.migrations()), [
+      'schema:relational:crm:001:create',
+      'table:relational:crm:users:001:create',
+    ]);
+    assert.deepStrictEqual(crm.migrations(), crm.migrations());
   });
 
   it('keeps each ownership record immutable after composition', () => {
@@ -244,7 +238,6 @@ describe('exposing a component as a plain frozen value', () => {
       migrations: () => [first, second],
     });
 
-    assert.deepStrictEqual(email.components, []);
     assert.deepStrictEqual(email.migrations(), [first, second]);
   });
 
@@ -309,7 +302,7 @@ describe('exposing a component as a plain frozen value', () => {
 
     const copy = { ...root };
     assert.strictEqual(copy[schemaComponentType], extensionComponentType);
-    assert.strictEqual(copy.components, root.components);
+    assert.deepStrictEqual(copy.migrations(), root.migrations());
     assert.deepStrictEqual(copy.migrations(), [migration]);
   });
 
@@ -344,7 +337,7 @@ describe('grouping components that migrate as one unit', () => {
     const group = schemaComponent(migrationBundleType);
 
     assert.strictEqual(group[schemaComponentType], migrationBundleType);
-    assert.deepStrictEqual(group.components, []);
+    assert.deepStrictEqual(Object.getOwnPropertyNames(group), ['migrations']);
     assert.deepStrictEqual(group.migrations(), []);
   });
 
@@ -365,7 +358,6 @@ describe('grouping components that migrate as one unit', () => {
       components: [users, roles],
     });
 
-    assert.deepStrictEqual(group.components, [users, roles]);
     assert.deepStrictEqual(migrationNames(group.migrations()), [
       'table:relational:users:001:create',
       'table:relational:roles:001:create',
@@ -420,11 +412,14 @@ describe('grouping components in extensions', () => {
       extensions: { eventStore },
     });
 
-    assert.deepStrictEqual(eventStore.components, [
-      eventStoreSchema,
-      checkpoints,
+    assert.deepStrictEqual(migrationNames(eventStore.migrations()), [
+      'schema:relational:event_store:001:create',
+      'schema:relational:checkpoints:001:create',
     ]);
-    assert.deepStrictEqual(database.components, [eventStore]);
+    assert.deepStrictEqual(
+      migrationNames(database.migrations()),
+      migrationNames(eventStore.migrations()),
+    );
     assert.strictEqual(eventStore.schemas.event_store, eventStoreSchema);
     assert.strictEqual(eventStore.schemas.checkpoints, checkpointsSchema);
     assert.strictEqual(eventStore.extensions.checkpoints, checkpoints);
@@ -439,7 +434,11 @@ describe('grouping components in extensions', () => {
   });
 
   it('attaches an extension to a schema without exposing its internals as tables', () => {
-    const internalTable = tableComponent({ tableName: 'audit_log' });
+    const migration = sqlMigration('audit_log:001', [SQL`SELECT 1`]);
+    const internalTable = tableComponent({
+      tableName: 'audit_log',
+      migrations: () => [migration],
+    });
     const auditSchema = databaseSchemaComponent({
       schemaName: 'public',
       tables: { internalTable },
@@ -453,7 +452,10 @@ describe('grouping components in extensions', () => {
     });
 
     assert.deepStrictEqual(Object.keys(schema.tables), []);
-    assert.deepStrictEqual(schema.components, [audit]);
+    assert.deepStrictEqual(migrationNames(schema.migrations()), [
+      'schema:relational:public:001:create',
+      migration.name,
+    ]);
     assert.strictEqual(schema.extensions.audit.extensionName, 'audit');
     assert.strictEqual(
       schema.extensions.audit.schemas.public.tables.internalTable,
@@ -470,7 +472,6 @@ describe('grouping components in extensions', () => {
       extensions: { shared, sharedAgain: shared },
     });
 
-    assert.deepStrictEqual(extension.components, [shared, shared]);
     assert.deepStrictEqual(extension.migrations(), [migration]);
   });
 
@@ -479,8 +480,8 @@ describe('grouping components in extensions', () => {
     const table = tableComponent({ tableName: 'audit_log' });
 
     assert.strictEqual(extension[schemaComponentType], extensionComponentType);
-    assert.strictEqual(isExtensionComponent(extension), true);
-    assert.strictEqual(isExtensionComponent(table), false);
+    assert.strictEqual(table[schemaComponentType], tableComponentType);
+    assert.notStrictEqual(table[schemaComponentType], extensionComponentType);
   });
 
   it('finds tables and extensions nested inside another extension', () => {
@@ -538,7 +539,6 @@ describe('grouping components in extensions', () => {
       database.schemas.crm.extensions.audit.extensionName,
       'audit',
     );
-    assert.deepStrictEqual(database.components, [schema, eventStore]);
   });
 
   it('runs schema extensions before database extensions in structural order', () => {
@@ -719,13 +719,14 @@ describe('grouping components in extensions', () => {
 
 describe('placing reusable declarations in the database hierarchy', () => {
   it('places a schema in a database without changing the schema declaration', () => {
-    const declaration = databaseSchemaComponent({ schemaName: 'crm' });
+    const crm = databaseSchemaComponent({ schemaName: 'crm' });
     const database = databaseComponent({
       databaseName: 'app',
-      schemas: { crm: declaration },
+      schemas: { crm },
     });
 
-    assert.deepStrictEqual(database.components, [database.schemas.crm]);
+    assert.strictEqual(database.schemas.crm, crm);
+    assert.deepStrictEqual(database.migrations(), crm.migrations());
     assert.strictEqual(database.schemas.crm.schemaName, 'crm');
   });
 
@@ -742,7 +743,8 @@ describe('placing reusable declarations in the database hierarchy', () => {
 
     assert.ok(SQLDefaultSchemaNameToken.check(reusable.schemaName));
     assert.strictEqual(users.databaseSchemaName, undefined);
-    assert.deepStrictEqual(database.components, [database.schemas.public]);
+    assert.strictEqual(database.schemas.public, reusable);
+    assert.deepStrictEqual(database.migrations(), reusable.migrations());
     assert.ok(
       SQLDefaultSchemaNameToken.check(database.schemas.public.schemaName),
     );
@@ -838,6 +840,30 @@ describe('placing reusable declarations in the database hierarchy', () => {
     assert.strictEqual(schema.tables.users, users);
   });
 
+  it('types a column as not nullable exactly when it is declared so', () => {
+    const id = columnSchemaComponent({
+      columnName: 'id',
+      type: 'TEXT',
+      primaryKey: true,
+    });
+    const email = columnSchemaComponent({
+      columnName: 'email',
+      type: 'TEXT',
+      notNull: true,
+    });
+    const name = columnSchemaComponent({ columnName: 'name', type: 'TEXT' });
+
+    expectTypeOf(id.notNull).toEqualTypeOf<true>();
+    expectTypeOf(email.notNull).toEqualTypeOf<true>();
+    expectTypeOf(name.notNull).toEqualTypeOf<false | undefined>();
+    expectTypeOf(id.columnName).toEqualTypeOf<'id'>();
+    expectTypeOf(name.columnName).toEqualTypeOf<'name'>();
+
+    assert.strictEqual(id.primaryKey, true);
+    assert.strictEqual(email.notNull, true);
+    assert.strictEqual(name.notNull, undefined);
+  });
+
   it('gives a column no way to reach the table it belongs to', () => {
     const email = columnSchemaComponent({
       columnName: 'email',
@@ -921,26 +947,5 @@ describe('validating a composed database', () => {
     ]);
     assert.strictEqual(database.extensions.audit.extensionName, 'audit');
     assert.strictEqual(database.schemas.audit, auditSchema);
-  });
-
-  it('reports schema validation failure before executing migrations', async () => {
-    const component = extensionWith('root', {}, [
-      sqlMigration('root:001', [SQL`SELECT 1`]),
-    ]);
-    const migrator = SchemaComponentMigrator(component, {
-      driverType: 'Test:test',
-    } as never);
-
-    await assert.rejects(
-      () =>
-        migrator.run({
-          schema: {
-            validateComponent: () => {
-              throw new Error('schema validation failed');
-            },
-          },
-        }),
-      /schema validation failed/,
-    );
   });
 });
