@@ -4,13 +4,11 @@ import { InMemorySQLiteDatabase } from '..';
 import { dumbo, type Dumbo } from '../../../..';
 import {
   databaseComponent,
-  databaseSchemaKey,
   databaseSchemaComponent,
   dumboSchema,
   indexComponent,
   runSQLMigrations,
   SQL,
-  SQLDefaultSchemaNameToken,
   tableComponent,
 } from '../../../../core';
 import {
@@ -40,7 +38,7 @@ const users = () =>
     indexes: { email: usersEmail },
   });
 
-const usersIn = (schemaName: string | SQLDefaultSchemaNameToken) =>
+const usersIn = (schemaName: string) =>
   databaseSchemaComponent({ schemaName, tables: { users: users() } });
 
 describe('running SQLite schema component SQL against a database', () => {
@@ -55,28 +53,18 @@ describe('running SQLite schema component SQL against a database', () => {
 
   afterEach(() => pool.close());
 
-  const migrate = (...schemas: ReturnType<typeof usersIn>[]) =>
-    runSQLMigrations(
-      pool,
-      databaseComponent({
-        schemas: Object.fromEntries(
-          schemas.map((schema) => [
-            databaseSchemaKey(schema.schemaName),
-            schema,
-          ]),
-        ),
-      }).migrations(),
-    );
+  const migrate = (options: Parameters<typeof databaseComponent>[0]) =>
+    runSQLMigrations(pool, databaseComponent(options).migrations());
 
   it('creates a table for the default schema under its plain name', async () => {
-    await migrate(usersIn(SQLDefaultSchemaNameToken.from()));
+    await migrate({ tables: { users: users() } });
 
     assert.ok(await tableExists(pool.execute, 'users'));
     assert.ok(await indexExists(pool.execute, 'users_email_idx'));
   });
 
   it('folds a named schema into the physical table and index names', async () => {
-    await migrate(usersIn('crm'));
+    await migrate({ schemas: { crm: usersIn('crm') } });
 
     assert.ok(await tableExists(pool.execute, 'crm.users'));
     assert.ok(await indexExists(pool.execute, 'crm.users_email_idx'));
@@ -84,7 +72,10 @@ describe('running SQLite schema component SQL against a database', () => {
   });
 
   it('keeps the default schema and a named one on separate tables', async () => {
-    await migrate(usersIn(SQLDefaultSchemaNameToken.from()), usersIn('crm'));
+    await migrate({
+      tables: { users: users() },
+      schemas: { crm: usersIn('crm') },
+    });
 
     await pool.execute.command(
       SQL`INSERT INTO users (_id, email) VALUES ('1', 'default@test')`,

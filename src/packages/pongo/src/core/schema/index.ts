@@ -5,7 +5,6 @@ import type {
 } from '@event-driven-io/dumbo';
 import {
   databaseComponent,
-  databaseSchemaKey,
   databaseSchemaComponent,
   dumboSchema,
   indexComponent,
@@ -21,6 +20,7 @@ import {
   type DatabaseDriverType,
   type DatabaseExtensions,
   type DatabaseSchemaComponent,
+  type DatabaseTables,
   type IndexComponent,
   type IndexSQLContext,
   type SchemaExtensions,
@@ -129,8 +129,7 @@ export type PongoCollectionComponent<
 export type PongoSchemaComponent<
   Collections extends Readonly<Record<string, PongoCollectionComponent>> =
     Readonly<Record<string, PongoCollectionComponent>>,
-  Name extends string | SQLDefaultSchemaNameToken =
-    string | SQLDefaultSchemaNameToken,
+  Name extends string = string,
   Extensions extends SchemaExtensions = SchemaExtensions,
 > = DatabaseSchemaComponent<Collections, Name, Extensions> & Readonly<object>;
 
@@ -162,12 +161,17 @@ type PongoDatabaseShape<
   Extensions extends DatabaseExtensions,
 > =
   Definition extends PongoDbCollectionsDefinition<infer Collections>
-    ? DatabaseComponent<PongoDatabaseSchemas, Name, Extensions> &
+    ? DatabaseComponent<
+        Name,
+        DatabaseTables,
+        PongoDatabaseSchemas,
+        Extensions
+      > &
         Readonly<{
           collections: Collections;
         }>
     : Definition extends PongoDbSchemasDefinition<infer Schemas>
-      ? DatabaseComponent<Schemas, Name, Extensions>
+      ? DatabaseComponent<Name, DatabaseTables, Schemas, Extensions>
       : never;
 
 export type PongoDatabaseComponent<
@@ -353,52 +357,6 @@ const pongoDatabaseSchema = <
   });
 };
 
-const pongoDefaultDatabaseSchema = <
-  const Collections extends Readonly<Record<string, PongoCollectionComponent>>,
-  const Extensions extends SchemaExtensions = EmptyComponentRecord,
->(
-  collections: Collections,
-  extensions?: Extensions,
-): PongoSchemaComponent<Collections, SQLDefaultSchemaNameToken, Extensions> => {
-  return databaseSchemaComponent({
-    schemaName: SQLDefaultSchemaNameToken.from(),
-    tables: collections,
-    extensions,
-  });
-};
-
-const directCollectionsSchemas = (
-  collections: Readonly<Record<string, PongoCollectionComponent>>,
-): PongoDatabaseSchemas => {
-  const defaultSchemaName = SQLDefaultSchemaNameToken.from();
-  const grouped: Record<string, Record<string, PongoCollectionComponent>> = {
-    [databaseSchemaKey(defaultSchemaName)]: {},
-  };
-
-  for (const [alias, collection] of objectEntries(collections)) {
-    const schemaName = collection.databaseSchemaName ?? defaultSchemaName;
-    const key = databaseSchemaKey(schemaName);
-    grouped[key] = {
-      ...(grouped[key] ?? {}),
-      [alias]: collection,
-    };
-  }
-
-  return Object.fromEntries(
-    objectEntries(grouped).map(([key, schemaCollections]) => {
-      const schemaName =
-        key === databaseSchemaKey(defaultSchemaName) ? defaultSchemaName : key;
-
-      return [
-        key,
-        SQLDefaultSchemaNameToken.check(schemaName)
-          ? pongoDefaultDatabaseSchema(schemaCollections)
-          : pongoDatabaseSchema(schemaName, schemaCollections),
-      ];
-    }),
-  );
-};
-
 function pongoDatabase<
   const Definition extends PongoDatabaseDefinition,
   const Extensions extends DatabaseExtensions = EmptyComponentRecord,
@@ -447,9 +405,32 @@ function pongoDatabase(
 
   if (hasCollections) {
     const collections = Object.freeze({ ...definition.collections });
+    const tables: Record<string, PongoCollectionComponent> = {};
+    const scoped: Record<string, Record<string, PongoCollectionComponent>> = {};
+
+    for (const [alias, collection] of objectEntries(collections)) {
+      const { databaseSchemaName } = collection;
+
+      if (databaseSchemaName === undefined) {
+        tables[alias] = collection;
+        continue;
+      }
+
+      scoped[databaseSchemaName] = {
+        ...(scoped[databaseSchemaName] ?? {}),
+        [alias]: collection,
+      };
+    }
+
     const database = databaseComponent({
       databaseName,
-      schemas: directCollectionsSchemas(collections),
+      tables,
+      schemas: Object.fromEntries(
+        objectEntries(scoped).map(([schemaName, schemaCollections]) => [
+          schemaName,
+          pongoDatabaseSchema(schemaName, schemaCollections),
+        ]),
+      ),
       extensions: databaseExtensions,
     });
     return Object.freeze({
@@ -500,7 +481,6 @@ export const pongoSchema = {
   client: pongoClientSchema,
   db: pongoDatabase,
   schema: pongoDatabaseSchema,
-  defaultSchema: pongoDefaultDatabaseSchema,
   collection: pongoCollection,
   index: pongoIndexFactory,
 };
@@ -546,6 +526,19 @@ export const projectPongoDb = <
       });
     }
   } else {
+    for (const [alias, table] of objectEntries(
+      definition.defaultSchema.tables,
+    )) {
+      if (!isPongoCollectionComponent(table)) continue;
+
+      assertAvailable(pongoDb, alias, 'collection');
+      Object.defineProperty(pongoDb, alias, {
+        enumerable: true,
+        configurable: false,
+        get: () => pongoDb.collection(table.tableName),
+      });
+    }
+
     for (const [schemaName, schema] of objectEntries(definition.schemas)) {
       assertAvailable(pongoDb, schemaName, 'schema');
       const scope = Object.create(null) as Record<string, unknown>;
@@ -637,7 +630,7 @@ export const toDbSchemaMetadata = (
   name: schema.databaseName,
   collections: ('collections' in schema
     ? Object.values(schema.collections)
-    : Object.values(schema.schemas)
+    : [schema.defaultSchema, ...Object.values(schema.schemas)]
         .flatMap((databaseSchema) => Object.values(databaseSchema.tables))
         .filter(isPongoCollectionComponent)
   ).map((collection) => ({ name: collection.tableName })),

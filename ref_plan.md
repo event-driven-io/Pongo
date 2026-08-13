@@ -42,9 +42,9 @@ deletion criterion.
 | 6   | Every migration name is validated against the migration ledger's 255-character limit before execution. The `kind` segment and every generated path segment are independently encoded so distinct identifiers cannot collide.                                                                            |
 | 7   | An unresolved `SQLDefaultSchemaNameToken` emits no create-schema migration. If Pongo binds that logical default slot to a concrete `defaultSchemaName`, it emits the same dialect-neutral `SQLCreateSchema` migration as an explicitly named schema.                                                    |
 | 8   | Empty rendered SQL is still filtered by the migrator. This is required because named-schema creation renders empty on SQLite.                                                                                                                                                                           |
-| 9   | An extension is flat and is table-scoped, schema-scoped, or migration-only. It does not contain nested extensions or mix placement-free `tables` with self-placing `schemas`. Table extensions attach to a tables-mode database or a named schema; schema extensions attach to a schemas-mode database. |
+| 9   | An extension is flat and is table-scoped, schema-scoped, or migration-only. It does not contain nested extensions or mix placement-free `tables` with self-placing `schemas`. Placement follows the extension's own scope: table extensions attach to a named schema, or to a database, where they are placed in its default schema; schema extensions attach to a database directly. |
 | 10  | Extension schemas are not flattened into `database.schemas`. They remain under the extension that owns them.                                                                                                                                                                                            |
-| 11  | `DatabaseComponent` always exposes `tables` for its logical default namespace and `schemas` for explicitly named schemas. An inactive public declaration map is exactly empty. There is no `defaultSchema` field or empty-string schema key.                                                            |
+| 11  | `DatabaseComponent` always exposes a `defaultSchema` for its logical default namespace and `schemas` for explicitly named schemas. `tables` is a getter onto `defaultSchema.tables`, not a second map. There is no empty-string schema key.                                                             |
 | 12  | Dumbo's public database declaration contains exactly one of `tables` or `schemas`. Tables mode uses the dialect's native/default namespace; schemas mode requires every direct schema to be explicitly named.                                                                                           |
 | 13  | `dumboSchema.defaultSchema` and `pongoSchema.defaultSchema` are removed as an intentional public breaking change, not because repository production code has no reader. Their supported replacements are database `tables` mode and Pongo `collections` mode.                                           |
 | 14  | The lower-level `databaseComponent` can hold both direct `tables` and named `schemas`. This is required for Pongo collections mode, where root collections may have different physical placements; it is not the Dumbo declaration grammar.                                                             |
@@ -99,15 +99,15 @@ close over a component declared later and do not require casts.
 
 ### Placement
 
-The private logical-default schema child, named schema components, and table
-components contribute Dumbo placement:
+The default schema child, named schema components, and table components
+contribute Dumbo placement:
 
 ```ts
 // Named schema: always override the parent placement.
 { ...parent, databaseSchemaName: schemaName }
 
-// Private logical-default schema child: turn the database-wide default binding
-// into actual placement only when this child is entered.
+// Default schema child: turn the database-wide default binding into actual
+// placement only when this child is entered.
 {
   ...parent,
   databaseSchemaName:
@@ -134,10 +134,11 @@ type SchemaComponentContext = Readonly<{
 
 ### Database declarations
 
-Dumbo makes the caller choose one direct placement model.
+A database has one containment shape: a nameless default schema plus explicitly
+named schemas. The two declaration keys name where a table lands, not which of
+two shapes the database has, and a declaration may use both.
 
-Tables mode means that every direct table belongs to the dialect's native
-default namespace:
+`tables` places a table in the dialect's native default namespace:
 
 ```ts
 const app = dumboSchema.database("app", {
@@ -152,8 +153,7 @@ const app = dumboSchema.database("app", {
 app.tables.messages;
 ```
 
-Schemas mode means that every direct table is placed through an explicitly
-named schema:
+`schemas` places a table through an explicitly named schema:
 
 ```ts
 const app = dumboSchema.database("app", {
@@ -170,18 +170,15 @@ app.schemas.public.tables.messages;
 app.schemas.crm.tables.users;
 ```
 
-`tables` and `schemas` are a type-level and runtime XOR. An extensions-only or
-migrations-only database still chooses a mode explicitly with `tables: {}` or
-`schemas: {}`. Schema record keys remain canonical and must equal the explicit
-`schemaName`.
+`tables` and `schemas` may both appear. `tables` are the tables of the nameless
+default schema; `schemas` are explicitly named. Schema record keys remain
+canonical and must equal the explicit `schemaName`.
 
-On PostgreSQL, tables mode uses unqualified identifiers and therefore the
-connection's active namespace. Schemas mode with `public` explicitly targets
-`public`. On SQLite, tables mode uses ordinary table names, while schemas mode
-uses the existing logical-to-physical mapping such as `crm.users`.
+On PostgreSQL, direct tables use unqualified identifiers and therefore the
+connection's active namespace, while a `public` schema declared explicitly
+targets `public`. On SQLite, direct tables use ordinary table names, while named
+schemas use the existing logical-to-physical mapping such as `crm.users`.
 
-This makes the ambiguous combination impossible: callers cannot put a logical
-default schema beside an explicit `public` schema and hope they are distinct.
 The public `dumboSchema.defaultSchema(...)` helper is removed. This is a
 deliberate API replacement by `{ tables }`; lack of repository-internal callers
 is not used as evidence that external users do not call it.
@@ -200,17 +197,15 @@ dumboSchema.database("app", {
 });
 ```
 
-An old declaration mixing `defaultSchema(...)` with named schemas has no
-dialect-neutral one-to-one replacement because its physical placement was
-ambiguous. A PostgreSQL application that means `public` must choose schemas mode
-and declare `public` explicitly; a database intended to use the connection's
-native namespace chooses tables mode and cannot add direct named schemas.
+A declaration that means `public` on PostgreSQL must declare `public` as a named
+schema; one intended to use the connection's native namespace uses `tables`.
 
-The lower-level component has a broader storage shape:
+The component shape is:
 
 ```ts
-DatabaseComponent<DirectTables, NamedSchemas, Name, Extensions> = {
+DatabaseComponent<Name, Tables, Schemas, Extensions> = {
   databaseName,
+  defaultSchema,
   tables,
   schemas,
   extensions,
@@ -218,23 +213,21 @@ DatabaseComponent<DirectTables, NamedSchemas, Name, Extensions> = {
 };
 ```
 
-`databaseComponent` may receive both maps because Pongo collections mode needs
-that representation. For direct tables it constructs one private
-`databaseSchemaComponent` carrying `SQLDefaultSchemaNameToken`, places direct
-tables and table-scoped extensions under that child, and exposes the child's
-table record through `database.tables`. The private child is not exposed as
-`defaultSchema`, and tables, extensions, or their owning database component are
-not cloned or rebuilt.
+`databaseComponent` always constructs the `defaultSchema`, a
+`databaseSchemaComponent` carrying `SQLDefaultSchemaNameToken`, and places the
+direct tables and table-contributing extensions under it. `database.tables` is a
+getter onto `defaultSchema.tables`, so there is one source of truth and tables,
+extensions, or their owning database component are never cloned or rebuilt.
 
 This is one component model with a stricter Dumbo declaration boundary, not a
 parallel Pongo component or a second migration traversal.
 
-Both maps are always present on the returned component. Dumbo's public XOR
-controls declaration intent, not the runtime object shape: tables mode returns
-an exactly empty `schemas` map and schemas mode returns an exactly empty
-`tables` map. The lower-level Pongo representation may populate both.
+Both maps are always present on the returned component, and either may be empty.
+There is no XOR: a database with unscoped tables and named schemas is a normal
+declaration, so Pongo needs no privileged lower-level representation to express
+one.
 
-Pongo preserves its mutually exclusive declaration modes:
+Pongo keeps its mutually exclusive declaration modes:
 
 ```ts
 pongoSchema.db("app", {
@@ -337,8 +330,8 @@ const unqualified = dumboSchema.database("app", {
 });
 ```
 
-A schema-scoped extension owns explicitly named schemas and attaches only to a
-schemas-mode database:
+A schema-scoped extension owns explicitly named schemas and attaches to the
+database itself:
 
 ```ts
 const audit = dumboSchema.extension("audit", {
@@ -367,7 +360,7 @@ const defaults = { schemaName: options.defaultSchemaName };
 ```
 
 Pongo passes a configured value as `defaults.schemaName` in the parent
-migration context. The private logical-default child converts it into actual
+migration context. The default schema child converts it into actual
 `databaseSchemaName`; named schemas set their explicit name independently.
 Runtime SQL identifiers use the same configured value, or
 `SQLDefaultSchemaNameToken` when none was configured.
@@ -404,10 +397,10 @@ The same collection component is reused; two different components targeting
 the same physical table are rejected before migration deduplication. There is
 no component merge or rewrite.
 
-This collision case cannot be expressed through Dumbo's public declaration:
-tables mode has no named schemas, and schemas mode has no logical-default
-tables. A PostgreSQL caller wanting `public` and `crm` uses schemas mode and
-declares both explicitly.
+Dumbo's public declaration expresses this collision case directly, since
+`tables` and `schemas` may both appear. A PostgreSQL caller wanting `public` and
+`crm` still declares both as named schemas rather than leaning on the default
+binding.
 
 ### Dynamic collections
 
@@ -432,23 +425,17 @@ Pongo.
 
 ### Relationship validation for direct tables
 
-The relationship validator itself does not change. Today database-level
-validation accepts a map of schemas, so the new `{ tables }` declaration would
-otherwise bypass cross-table reference checks. A private type-only adapter
-presents those tables to the existing validator as one logical scope:
+Direct tables are the default schema's tables, so they reach the existing
+`ValidateDatabaseSchemas` as an ordinary schema. Two changes inside the existing
+validator let a nameless schema pass through it:
 
-```ts
-type ValidateDatabaseTables<Tables> = ValidateDatabaseSchemas<{
-  default: DatabaseSchemaComponent<Tables, "default">;
-}>;
-```
+- a schema's lookup key is separate from its name — `DatabaseSchemaKey`, which
+  falls back to `DefaultSchemaKey` when the name is a token rather than a string;
+- a nameless schema contributes no path segment, built that way in
+  `QualifyColumnName` rather than stripped back out afterwards.
 
-This creates no runtime schema and does not affect SQL placement. Its only job is
-to preserve the existing validation of local-column and `table.column`
-relationships for the new tables-mode input. The internal key must not appear in
-public error types. If that cannot be achieved with this adapter and focused
-formatting, do not build a second relationship validator; stop and retain the
-existing schema-mode validation unchanged.
+Named-schema behavior is unchanged and the internal key never reaches a public
+error type. There is no adapter and no second validator.
 
 ### Migration names
 
@@ -503,15 +490,15 @@ or a second migration path:
 
 - `tsconfig.shared.json` enables strict mode and
   `exactOptionalPropertyTypes`. Pongo's existing `collections?: never` /
-  `schemas?: never` union already proves the exact XOR pattern required by
-  Dumbo.
+  `schemas?: never` union carries its declaration modes; Dumbo requires no
+  such XOR.
 - `schemaComponent.migrations(context?)` already passes context downward.
   `databaseSchemaComponent` already owns schema placement, schema DDL, table
-  traversal, and schema-level extensions. A private token-scoped instance can
-  therefore own tables-mode traversal without duplicating that logic.
-- `databaseComponent` already determines the child list once. It can choose
-  between the private default scope and direct named-schema children during
-  construction; nothing needs to be attached or rewritten later.
+  traversal, and schema-level extensions. A token-scoped instance can therefore
+  own direct-table traversal without duplicating that logic.
+- `databaseComponent` already determines the child list once. The default schema
+  is simply its first child, alongside the named schemas; nothing needs to be
+  attached or rewritten later.
 - Pongo's static grouping is currently concentrated in
   `directCollectionsSchemas` in `pongo/core/schema/index.ts`. Replace that one
   grouping step with direct tables plus named schemas while retaining the
@@ -524,15 +511,13 @@ or a second migration path:
   SQLite's registered processor renders the same token empty, and the migrator
   already removes and does not record empty SQL. A bound `defaultSchemaName`
   therefore uses existing dialect behavior.
-- Direct tables can reuse the existing relationship validator through one
-  private, type-only default-schema scope. This changes neither runtime
-  placement nor relationship semantics and avoids a parallel unqualified
-  validation stack. Step 0 proves the adapter before the database factory uses
-  it.
+- Direct tables reuse the existing relationship validator as the default
+  schema's tables. This changes neither runtime placement nor relationship
+  semantics and avoids a parallel unqualified validation stack.
 
 The implementation must stop if preserving exact table/collection inference
-requires an assertion or if the private default scope would cause a table or
-extension migration to be traversed twice.
+requires an assertion or if the default schema would cause a table or extension
+migration to be traversed twice.
 
 ## Steps
 
@@ -626,8 +611,8 @@ the same step. After each step, run the standard gate from
 - Add `defaults?: Readonly<{ schemaName?: string }>` to
   `SchemaComponentContext` as a database policy distinct from actual
   `databaseSchemaName` placement. The
-  private logical-default schema child converts that policy into actual
-  placement and otherwise contributes `SQLDefaultSchemaNameToken`.
+  default schema child converts that policy into actual placement and otherwise
+  contributes `SQLDefaultSchemaNameToken`.
 - Table context always contributes `tableName`.
 - Make index migration generation throw a clear error when `tableName` is absent
   from context. Do not use `!`, a cast, or a synthetic table name.
@@ -702,16 +687,15 @@ the same step. After each step, run the standard gate from
 - Keep `database.schemas` limited to direct named schemas. Extension-owned
   schemas remain at `database.extensions.x.schemas`.
 - Enforce in this step that a named schema accepts only a table-scoped or
-  neutral extension. Database-mode routing is completed atomically with the
-  `tables` xor `schemas` factory change in Step 6, so this step does not add a
-  temporary default-placement branch.
+  neutral extension. Database-level routing is completed in Step 6, so this step
+  does not add a temporary default-placement branch.
 - The final attachment rules are:
-  - a table-scoped extension attaches to a tables-mode database or to one named
-    schema;
-  - a schema-scoped extension attaches to a schemas-mode database;
+  - a table-scoped extension attaches to one named schema, or to a database,
+    where it is placed in the default schema;
+  - a schema-scoped extension attaches to a database directly;
   - a neutral extension attaches in either place;
-  - an incompatible attachment throws at construction rather than inheriting
-    an accidental default placement.
+  - placement follows the extension's own scope, so no attachment is
+    incompatible at the database level and none is traversed twice.
 - Remove Pongo's type-level extension-schema subtraction and runtime
   `extensionSchemaKeys` set.
 - Centralize collection lookup inside the existing internal
@@ -723,62 +707,68 @@ the same step. After each step, run the standard gate from
 
 ### Step 6 - Make database placement explicit and stop rebuilding components
 
-- Add a `tables` record to `DatabaseComponent`; keep `schemas` as direct,
-  explicitly named schemas. Always expose both frozen maps and use an exactly
-  empty map for the inactive side of a public Dumbo declaration. Do not add a
-  `defaultSchema` field.
+A database has exactly one containment shape: a nameless default schema plus a
+record of explicitly named schemas. Direct tables on a database are not a second
+shape; they are the default schema's tables. Every rule below follows from that.
+
+- `DatabaseComponent` becomes `DatabaseComponent<DatabaseName, Tables, Schemas,
+  Extensions>`, matching the options object order. It exposes:
+  - `defaultSchema`, always present, a real `databaseSchemaComponent` named by
+    `SQLDefaultSchemaNameToken`, holding the direct tables. It is visible, not a
+    hidden private component;
+  - `schemas`, the explicitly named schemas, whose record keys continue to equal
+    their explicit `schemaName`. The default schema is not in this record,
+    because it has no name to key by;
+  - `tables`, a getter onto `defaultSchema.tables`. One source of truth: no
+    second map, no copied components.
 - Delete `databaseSchemaKey` and `defaultDatabaseSchemaKey = ''`.
-- Let the lower-level `databaseComponent` accept `tables`, `schemas`,
-  `extensions`, and migrations together. This is the single general component
-  representation used by Pongo; it is not a second public declaration shape.
-- When the `tables` option is present, `databaseComponent` creates one private
-  `databaseSchemaComponent` with `SQLDefaultSchemaNameToken`, even when the
-  table map is empty. Give it the direct tables and the table-scoped or neutral
-  database extensions. Capture it as the first migration child, before named
-  schemas. Expose its one normalized table map as `database.tables`, not the
-  private schema component; table and extension components are not copied.
-- In schemas mode, named schemas and schema-scoped or neutral database
-  extensions are the database's direct migration children. Never traverse an
-  extension both directly and through the private default scope.
-- Enforce the final database extension rules from Step 5 here. Pongo collections
-  mode accepts table-scoped database extensions; Pongo schemas mode accepts
-  schema-scoped database extensions. A table extension can still attach to an
-  individual Pongo schema.
-- In Dumbo's public `dumboSchema.database` factory, accept exactly one definition
-  object shape:
-  - `{ tables: ...; schemas?: never; extensions?; migrations? }`;
-  - `{ schemas: ...; tables?: never; extensions?; migrations? }`.
-- Keep the optional database name positional. Remove positional schema and
-  positional extension overloads rather than normalizing several ambiguous
-  call shapes.
-- Validate the XOR both statically and at runtime. A declaration with both or
-  neither fails; an empty database chooses `tables: {}` or `schemas: {}`.
-- Tables mode returns exact `database.tables` access with an empty `schemas`
-  map. Schemas mode returns exact `database.schemas.<name>.tables` access with an
-  empty `tables` map. Named schema record keys continue to equal their explicit
-  `schemaName`; do not introduce aliases or conditional component wrappers.
+- `databaseComponent` accepts `{ databaseName?, tables?, schemas?, extensions?,
+  migrations? }`. Both `tables` and `schemas` may be present together: a database
+  with unscoped tables and named schemas is legitimate, and Pongo collections
+  mode is exactly that. There is no XOR, statically or at runtime, and Pongo
+  needs no privileged lower-level representation.
+- The default schema is the first migration child, before named schemas. It
+  emits no `CREATE SCHEMA`, because it has no name.
+- Extensions route by their own scope, with no dependence on any mode: an
+  extension contributing tables attaches to the default schema; one contributing
+  schemas attaches to the database; a neutral one attaches to the database. Each
+  is traversed exactly once, so no extension can be reached twice.
+- In Dumbo's public `dumboSchema.database` factory, accept `database(definition)`
+  and `database(name, definition)` with `{ tables?, schemas?, extensions?,
+  migrations? }`. Keep the optional database name positional. Remove the
+  positional schema and positional extension overloads rather than normalizing
+  several ambiguous call shapes.
+- Exact access survives on both sides: `database.tables.<name>` and
+  `database.schemas.<name>.tables.<name>` are exactly typed from the
+  declaration. Do not introduce aliases or conditional component wrappers.
 - Remove `dumboSchema.defaultSchema` and `pongoSchema.defaultSchema` from their
   public factory objects and update all repository call sites. This is an
   accepted public API break with explicit replacements, not a zero-reader
   cleanup:
   - Dumbo default-only declarations use `{ tables }`;
   - Pongo default-only declarations use `{ collections }`.
-- Add a private `ValidateDatabaseTables<Tables>` adapter that feeds direct tables
-  through the existing `ValidateDatabaseSchemas` machinery using one type-only
-  default-schema scope. Tables-mode callers continue to write `table.column` or
-  a local `column`; no runtime schema/component is created and no internal
-  default label may appear in public error types. Do not create a second
-  relationship normalization, validation, or formatting stack. If the adapter
-  cannot satisfy those constraints, stop and keep the existing validator
-  unchanged rather than duplicating it.
+- Validation needs no adapter. The default schema is a real schema, so it goes
+  through the existing `ValidateDatabaseSchemas` machinery unchanged. Two
+  supporting changes make that work, both inside the existing stack:
+  - separate a schema's lookup key from its name. Named schemas key by their
+    name and behave identically to before; the nameless default schema keys by
+    a stable well-known value derived from `SQLDefaultSchemaNameToken`, never
+    by `''`, an ad-hoc magic string, or a freshly allocated token;
+  - a nameless schema contributes no segment. Reference paths are built as
+    `table.column` for the default schema and `schema.table.column` for a named
+    one, and its table errors carry no `{ schema }` wrapper. This happens at
+    path construction: never build a qualified string and strip a prefix back
+    off it, and never add a second normalization, validation, or formatting
+    stack.
 - Preserve Pongo's declaration union exactly:
   - `{ collections: ...; schemas?: never }`;
   - `{ schemas: ...; collections?: never }`.
 - In Pongo collections mode:
   - put unscoped collections in `database.tables`;
   - group explicitly scoped collections into named `schemas`;
-  - pass `tables` even when the declared collection record is empty, preserving
-    the selected logical-default scope for dynamic collections;
+  - the default schema exists whether or not the declared collection record is
+    empty, so it always carries the selected logical-default scope for dynamic
+    collections;
   - retain the original `collections` record for root API/type projection.
 - In Pongo schemas mode, accept only explicitly named schemas and retain nested
   projection.
@@ -797,6 +787,15 @@ the same step. After each step, run the standard gate from
   the dynamic overlay. Compare the resolved physical schema and table identifiers,
   so a configured default equal to a named scope is searched as one namespace.
   An existing non-Pongo table with the requested physical name is an error.
+- The declared-and-extension half of that lookup is Dumbo's `findTables`, added
+  in Step 5. It walks one list here, the default schema followed by the named
+  schemas, with no containment branch; do not re-walk the containment shape in
+  Pongo. Move the duplicate-physical-table rejection
+  next to it in Dumbo: end-to-end proof 14 rejects a Dumbo relational table and
+  a Pongo collection sharing one physical name, and the Dumbo-only side of that
+  check must hold with no Pongo collection involved. Pongo keeps only the
+  dynamic-overlay search, the Pongo-collection predicate, and what to create on
+  a miss.
 - For each dynamic named scope not represented by a declaration, reuse an empty
   `databaseSchemaComponent` privately as the source of its schema-create
   migration. It is runtime overlay state, is not attached to the declaration,
@@ -826,7 +825,7 @@ the same step. After each step, run the standard gate from
   runtime placement value: that string or `SQLDefaultSchemaNameToken` when it is
   absent.
 - Pass only a configured string as `defaults.schemaName` in the parent
-  migration context. The private logical-default child converts it into actual
+  migration context. The default schema child converts it into actual
   `databaseSchemaName`; named schemas set their own placement, and database-level
   or schema-scoped extension migrations do not receive a false current schema.
 - A concrete binding emits the normal named create-schema migration before its
@@ -839,19 +838,22 @@ the same step. After each step, run the standard gate from
   resolve the token in SQL formatters.
 - Explicit collection `databaseSchemaName` and schema declarations always win
   over the database default binding.
-- Resolve collection lookup by final physical schema and table name across
-  `database.tables`, named schemas, directly attached flat extensions, and the
+- Resolve collection lookup by final physical schema and table name across the
+  default schema, named schemas, directly attached flat extensions, and the
   dynamic overlay. This handles `defaultSchemaName: 'crm'` alongside a
   collection explicitly placed in `crm` without merging or rebuilding the
-  declarations.
-- Fix `PongoDatabaseCache`: if a database instance already exists for a database
-  name, a later request with a different `defaultSchemaName` must throw a clear
-  configuration error instead of silently returning the first instance.
+  declarations. Step 6 landed the declared side as Dumbo's `findTable`; what
+  remains here is feeding it the bound `defaults.schemaName`.
+- Fix `PongoDatabaseCache`: `db(name, options)` options are creation-time
+  configuration. If a database instance already exists for a database name, a
+  later `db(name, options)` call with any options must throw a clear
+  configuration error instead of silently returning the first instance. Reuse is
+  `db(name)` with no options.
 - Add tests for client-level default, per-database override, unconfigured native
   default, creation of a custom PostgreSQL default schema, SQLite's empty schema
   DDL, named-schema immunity, equal default/explicit physical placement,
   duplicate physical-table rejection, dynamic collection placement, migration
-  names, and conflicting cached bindings.
+  names, and setting up a cached database with options.
 
 ### Step 8 - Simplify Pongo typing and audit the public surface
 
@@ -884,9 +886,10 @@ the same step. After each step, run the standard gate from
   `symbol`, `used on main`, `current role`, `consumer value`, `replacement`, and
   `decision`.
 - Apply these already verified dispositions:
-  - remove `dumboSchema.defaultSchema` and `pongoSchema.defaultSchema` only as
-    the agreed `{ tables }` / `{ collections }` API replacement from Step 6;
-    list the external migration in release notes;
+  - both `dumboSchema.defaultSchema` and `pongoSchema.defaultSchema` were
+    removed in Step 6 as the agreed `{ tables }` / `{ collections }` API
+    replacement; what remains here is listing the external migration in release
+    notes;
   - move `MigrationStyle` from Dumbo to Pongo; it has active Pongo readers;
   - keep `IndexIdentifier` internally if `createIndexSQL` needs it, but stop
     exporting it;
@@ -909,7 +912,8 @@ the same step. After each step, run the standard gate from
 ### Step 9 - Documents and metrics
 
 - Rewrite `spec.md` against the final decisions, including:
-  - Dumbo's `tables` xor `schemas` declaration and its two access paths;
+  - Dumbo's single containment shape — a nameless default schema plus named
+    schemas — and the `tables` / `schemas` declaration keys that place into it;
   - the deliberate replacement of public `defaultSchema(...)` helpers;
   - encoded migration names carrying an optional caller-set `kind` segment and
     no number segment, the rule that a `kind` value is part of a migration's

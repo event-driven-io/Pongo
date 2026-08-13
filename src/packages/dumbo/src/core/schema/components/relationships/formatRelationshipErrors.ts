@@ -22,10 +22,30 @@ type ExtractSchemaFromReference<T extends string> =
   T extends `${infer Schema}.${string}.${string}` ? Schema : never;
 
 type ExtractTableFromReference<T extends string> =
-  T extends `${string}.${infer Table}.${string}` ? Table : never;
+  T extends `${string}.${infer Table}.${string}`
+    ? Table
+    : T extends `${infer Table}.${string}`
+      ? Table
+      : never;
 
 type ExtractColumnFromReference<T extends string> =
-  T extends `${string}.${string}.${infer Column}` ? Column : never;
+  T extends `${string}.${string}.${infer Column}`
+    ? Column
+    : T extends `${string}.${infer Column}`
+      ? Column
+      : never;
+
+type SchemaOfReference<T extends string> =
+  T extends `${infer Schema}.${string}.${string}`
+    ? `schema "${Schema}"`
+    : 'the default schema';
+
+type TableOfReference<T extends string> =
+  T extends `${infer Schema}.${infer Table}.${string}`
+    ? `${Schema}.${Table}`
+    : T extends `${infer Table}.${string}`
+      ? Table
+      : never;
 
 type TupleLength<T extends readonly unknown[]> = T extends { length: infer L }
   ? L
@@ -52,12 +72,12 @@ export type FormatSingleError<E> = E extends {
             errorCode: 'missing_table';
             reference: infer Ref extends string;
           }
-        ? `Table "${ExtractTableFromReference<Ref>}" does not exist in schema "${ExtractSchemaFromReference<Ref>}" (${Ref})`
+        ? `Table "${ExtractTableFromReference<Ref>}" does not exist in ${SchemaOfReference<Ref>} (${Ref})`
         : E extends {
               errorCode: 'missing_column';
               reference: infer Ref extends string;
             }
-          ? `Column "${ExtractColumnFromReference<Ref>}" does not exist in table "${ExtractSchemaFromReference<Ref>}.${ExtractTableFromReference<Ref>}" (${Ref})`
+          ? `Column "${ExtractColumnFromReference<Ref>}" does not exist in table "${TableOfReference<Ref>}" (${Ref})`
           : E extends {
                 errorCode: 'type_mismatch';
                 reference: infer Ref extends string;
@@ -134,14 +154,18 @@ export type FormatSchemaLevel<E> = E extends {
   ? `Schema "${SchemaName}":\n${FormatTableBlocks<TableErrors>}`
   : never;
 
+type FormatSchemaBlock<E> = E extends { schema: string }
+  ? FormatSchemaLevel<E>
+  : FormatTableLevel<E>;
+
 type FormatSchemaBlocks<SchemaErrors extends readonly unknown[]> =
   SchemaErrors extends readonly [
     infer First,
     ...infer Rest extends readonly unknown[],
   ]
     ? Rest extends readonly []
-      ? FormatSchemaLevel<First>
-      : `${FormatSchemaLevel<First>}\n${FormatSchemaBlocks<Rest>}`
+      ? FormatSchemaBlock<First>
+      : `${FormatSchemaBlock<First>}\n${FormatSchemaBlocks<Rest>}`
     : '';
 
 export type FormatDatabaseValidationErrors<Errors extends readonly unknown[]> =

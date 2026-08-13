@@ -11,10 +11,15 @@ import type {
   Writable,
 } from '..';
 import type { ColumnTypeToken } from '../../../sql/tokens/columnTokens';
+import type { SQLDefaultSchemaNameToken } from '../../../sql/tokens/sqlToken';
 import type { NotEmptyTuple } from '../../../typing';
 
 export type ExtractSchemaNames<DB> =
-  DB extends DatabaseComponent<infer Schemas extends DatabaseSchemas>
+  DB extends DatabaseComponent<
+    infer _DatabaseName,
+    infer _Tables,
+    infer Schemas extends DatabaseSchemas
+  >
     ? keyof Schemas
     : never;
 
@@ -113,28 +118,49 @@ export type AllColumnReferencesInSchema<
       }[keyof Tables]
     : never;
 
+/**
+ * Key under which the nameless default schema is registered. The default schema
+ * has no name to qualify references with, so it is looked up by a well-known key
+ * instead.
+ */
+export type DefaultSchemaKey = SQLDefaultSchemaNameToken['sqlTokenType'];
+
+export type DatabaseSchemaKey<
+  SchemaName extends string | SQLDefaultSchemaNameToken,
+> = [Extract<SchemaName, string>] extends [never]
+  ? DefaultSchemaKey
+  : Extract<SchemaName, string>;
+
+type QualifyColumnName<
+  SchemaKey extends string,
+  TableName extends string,
+  ColName extends string,
+> = SchemaKey extends DefaultSchemaKey
+  ? TableColumnName<TableName, ColName>
+  : SchemaColumnName<SchemaKey, TableName, ColName>;
+
 export type NormalizeReference<
   Path extends string,
-  CurrentSchema extends string,
+  CurrentSchemaKey extends string,
   CurrentTable extends string,
 > = Path extends `${infer Schema}.${infer Table}.${infer Column}`
   ? `${Schema}.${Table}.${Column}`
   : Path extends `${infer Table}.${infer Column}`
-    ? `${CurrentSchema}.${Table}.${Column}`
+    ? QualifyColumnName<CurrentSchemaKey, Table, Column>
     : Path extends string
-      ? `${CurrentSchema}.${CurrentTable}.${Path}`
+      ? QualifyColumnName<CurrentSchemaKey, CurrentTable, Path>
       : never;
 
 export type NormalizeColumnPath<
   References extends readonly string[],
-  SchemaName extends string,
+  SchemaKey extends string,
   TableName extends string,
 > = References extends readonly [infer First, ...infer Rest]
   ? First extends string
     ? Rest extends readonly string[]
       ? readonly [
-          NormalizeReference<First, SchemaName, TableName>,
-          ...NormalizeColumnPath<Rest, SchemaName, TableName>,
+          NormalizeReference<First, SchemaKey, TableName>,
+          ...NormalizeColumnPath<Rest, SchemaKey, TableName>,
         ]
       : readonly []
     : readonly []
@@ -153,14 +179,23 @@ export type SchemaColumnName<
   ColumnName extends string = string,
 > = `${SchemaName}.${TableName}.${ColumnName}`;
 
-export type ColumnPath<
+/**
+ * A normalized reference: schema qualified in a named schema, table qualified in
+ * the nameless default schema.
+ */
+export type QualifiedColumnName<
   SchemaName extends string = string,
   TableName extends string = string,
   ColName extends string = string,
 > =
   | SchemaColumnName<SchemaName, TableName, ColName>
-  | TableColumnName<TableName, ColName>
-  | ColumnName<ColName>;
+  | TableColumnName<TableName, ColName>;
+
+export type ColumnPath<
+  SchemaName extends string = string,
+  TableName extends string = string,
+  ColName extends string = string,
+> = QualifiedColumnName<SchemaName, TableName, ColName> | ColumnName<ColName>;
 
 export type ColumnReference<
   SchemaName extends string = string,

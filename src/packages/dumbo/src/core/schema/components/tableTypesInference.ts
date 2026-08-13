@@ -58,4 +58,6 @@ export type InferSchemaTables<T extends AnyDatabaseSchemaComponent> =
   T extends DatabaseSchemaComponent<infer Tables> ? Tables : never;
 
 export type InferDatabaseSchemas<T extends AnyDatabaseComponent> =
-  T extends DatabaseComponent<infer Schemas> ? Schemas : never;
+  T extends DatabaseComponent<infer _DatabaseName, infer _Tables, infer Schemas>
+    ? Schemas
+    : never;

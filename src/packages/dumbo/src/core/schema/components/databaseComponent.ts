@@ -7,21 +7,18 @@ import {
   type SchemaComponentContext,
 } from '../schemaComponent';
 import type { SQLMigration } from '../sqlMigration';
-import type { AnyDatabaseSchemaComponent } from './databaseSchemaComponent';
+import {
+  databaseSchemaComponent,
+  type AnyDatabaseSchemaComponent,
+  type DatabaseSchemaComponent,
+} from './databaseSchemaComponent';
+import type { AnyTableComponent } from './tableComponent';
 
 export const databaseComponentType: unique symbol = Symbol(
   'dumbo.schemaComponent.database',
 );
 
-export const defaultDatabaseSchemaKey = '';
-
-export const databaseSchemaKey = (
-  schemaName: string | SQLDefaultSchemaNameToken,
-): string =>
-  SQLDefaultSchemaNameToken.check(schemaName)
-    ? defaultDatabaseSchemaKey
-    : schemaName;
-
+export type DatabaseTables = Readonly<Record<string, AnyTableComponent>>;
 export type DatabaseSchemas = Readonly<
   Record<string, AnyDatabaseSchemaComponent>
 >;
@@ -30,28 +27,34 @@ export type DatabaseExtensions = Readonly<
 >;
 
 export type DatabaseComponent<
-  Schemas extends DatabaseSchemas = DatabaseSchemas,
   DatabaseName extends string | undefined = string | undefined,
+  Tables extends DatabaseTables = DatabaseTables,
+  Schemas extends DatabaseSchemas = DatabaseSchemas,
   Extensions extends DatabaseExtensions = DatabaseExtensions,
 > = SchemaComponent<typeof databaseComponentType> &
   Readonly<{
     databaseName: DatabaseName;
+    defaultSchema: DatabaseSchemaComponent<Tables, SQLDefaultSchemaNameToken>;
+    tables: Tables;
     schemas: Schemas;
     extensions: Extensions;
   }>;
 
 export type AnyDatabaseComponent = DatabaseComponent<
-  DatabaseSchemas,
   string | undefined,
+  DatabaseTables,
+  DatabaseSchemas,
   DatabaseExtensions
 >;
 
 export type DatabaseComponentOptions<
-  Schemas extends DatabaseSchemas,
-  DatabaseName extends string | undefined,
-  Extensions extends DatabaseExtensions,
+  DatabaseName extends string | undefined = string | undefined,
+  Tables extends DatabaseTables = DatabaseTables,
+  Schemas extends DatabaseSchemas = DatabaseSchemas,
+  Extensions extends DatabaseExtensions = DatabaseExtensions,
 > = Readonly<{
   databaseName?: DatabaseName | undefined;
+  tables?: Tables | undefined;
   schemas?: Schemas | undefined;
   extensions?: Extensions | undefined;
   migrations?:
@@ -60,12 +63,13 @@ export type DatabaseComponentOptions<
 }>;
 
 export const databaseComponent = <
-  const Schemas extends DatabaseSchemas = DatabaseSchemas,
   const DatabaseName extends string | undefined = undefined,
+  const Tables extends DatabaseTables = DatabaseTables,
+  const Schemas extends DatabaseSchemas = DatabaseSchemas,
   const Extensions extends DatabaseExtensions = DatabaseExtensions,
 >(
-  options: DatabaseComponentOptions<Schemas, DatabaseName, Extensions>,
-): DatabaseComponent<Schemas, DatabaseName, Extensions> => {
+  options: DatabaseComponentOptions<DatabaseName, Tables, Schemas, Extensions>,
+): DatabaseComponent<DatabaseName, Tables, Schemas, Extensions> => {
   const schemas = (options.schemas ?? {}) as Schemas;
   const databaseName = options.databaseName;
   for (const [schemaName, schema] of Object.entries(schemas)) {
@@ -79,24 +83,45 @@ export const databaseComponent = <
     }
   }
   const extensions = (options.extensions ?? {}) as Extensions;
-  for (const extension of Object.values(extensions)) {
-    const [contributedTable] = Object.values(extension.tables);
-    if (contributedTable !== undefined)
-      throw new Error(
-        `Extension "${extension.extensionName}" contributes database table "${contributedTable.tableName}" and cannot be attached to a database`,
-      );
+  const defaultSchemaExtensions: Record<string, AnyExtensionComponent> = {};
+  const databaseExtensions: Record<string, AnyExtensionComponent> = {};
+
+  for (const [key, extension] of Object.entries(extensions)) {
+    if (Object.keys(extension.tables).length > 0)
+      defaultSchemaExtensions[key] = extension;
+    else databaseExtensions[key] = extension;
   }
+
+  const defaultSchema = databaseSchemaComponent<
+    Tables,
+    SQLDefaultSchemaNameToken
+  >({
+    schemaName: SQLDefaultSchemaNameToken.from(),
+    tables: options.tables,
+    extensions: defaultSchemaExtensions,
+  });
+
   const children = Object.freeze([
+    defaultSchema,
     ...Object.values(schemas),
-    ...Object.values(extensions),
+    ...Object.values(databaseExtensions),
   ]);
 
-  const component: DatabaseComponent<Schemas, DatabaseName, Extensions> = {
+  const component: DatabaseComponent<
+    DatabaseName,
+    Tables,
+    Schemas,
+    Extensions
+  > = {
     ...schemaComponent(databaseComponentType, {
       components: children,
       migrations: options.migrations,
     }),
     databaseName: databaseName as DatabaseName,
+    defaultSchema,
+    get tables() {
+      return defaultSchema.tables;
+    },
     schemas: schemaComponentMap(schemas),
     extensions: schemaComponentMap(extensions),
   };

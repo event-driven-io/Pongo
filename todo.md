@@ -18,7 +18,7 @@ Nothing is committed. Oskar handles git.
 
 Dropped on Oskar's instruction: the baseline/metrics/audit bookkeeping is not
 what this branch needs. The contract type tests it listed are folded into the
-steps that implement their subject — Dumbo `tables` xor `schemas` into S6,
+steps that implement their subject — Dumbo's database declaration shape into S6,
 `defaultSchemaName` behaviour into S7, the export audit into S8.
 
 ## Step 1 — Migrator cleanup — **done**
@@ -257,6 +257,35 @@ because a declaration-time factory cannot know it. Pongo needed no edit beyond
       the `ExtensionSchemas` already in that file and required by the new table side;
       four types deleted against it
 
+**The traversal belongs to dumbo, the decisions to Pongo.** The lookup first
+landed wholesale inside `pongoDatabaseSchemas` — the plan says "centralize
+collection lookup" there, and that was read as "implement it there". Twenty-one
+lines of it were a transcript of dumbo's containment rules: which schemas sit at a
+physical placement, and which tables sit in them. `findTables(database, schemaKey,
+tableName)` now answers that in dumbo, a sibling of `withTable.ts`, returning
+`{ schema, table }` pairs with no wrapper type and no found/ambiguous
+discriminator — the caller reads `.length`. Pongo keeps only what is its own: the
+ambiguity throw, the not-a-Pongo-collection throw, reuse, and create-on-miss.
+Behaviour-neutral by construction: the five `pongoDb.unit.spec.ts` lookup tests
+stayed green unedited, and six dumbo unit tests now cover the traversal directly.
+The reason this matters is S6, which adds a `tables` record to `DatabaseComponent`
+— a fourth home for tables that would otherwise have grown a fourth branch in
+Pongo, in lockstep with a dumbo shape change. Proof #14's physical-identity check
+also needs this traversal for plain Dumbo declarations, with no Pongo involved.
+
+**One line of containment knowledge is still in Pongo.** `component.schemas[schemaKey]`
+survives in `pongoDb.ts` as the `schemaName` fallback when nothing matched. It
+wants revisiting if S6 changes where a schema's name comes from.
+
+**`'the unnamed database'` deleted.** The table-extension rejection in
+`databaseComponent.ts` built a label for a name that is optional and usually
+absent, so the filler stood in for nothing. The message now ends "cannot be
+attached to a database" and the `continue`-then-unconditional-throw shape went
+with it. Unlike `databaseSchemaComponent`'s `schemaNameLabel`, which names a real
+placement — a schema always has one, even if it is the default. Two spec regexes
+followed, one of them in Pongo. See the S7 note: that message needs a mode
+qualifier back in S6.
+
 **Extension schemas are matched by placement, not by record key.** An extension
 keys its default schema arbitrarily — both migration int specs use `default` —
 while Pongo's default key is `''`. Pongo's lookup compares
@@ -297,10 +326,87 @@ database shape — and nothing regressed, but it is a real narrowing rather than
 no-op.
 
 ## Step 6 — Make database placement explicit and stop rebuilding components
-- [ ] Not started
+- [x] Done — full build, lint clean, 1082/1082 unit across 61 files,
+      int:sqlite 955/959 and e2e:sqlite 992/1002 with only the four known D1
+      failures (plus the `sqlite3/connections` parallel-load flake, 38/38 in
+      isolation)
+- [ ] `test:int:postgresql` and `test:e2e:postgresql` not run for this step
+
+**The plan was rewritten mid-step.** The first attempt followed Step 6 as
+written: `tables` xor `schemas` as two containment shapes, a hidden private
+default-schema component, mode-dependent extension routing, the XOR enforced
+statically and at runtime, and a `ValidateDatabaseTables` adapter that fed direct
+tables through `ValidateDatabaseSchemas` under a fake `''` scope and then
+stripped the residue back out of every rendered reference. It worked and it was
+rejected as needless complexity — every downstream piece had to fork on the
+containment fork.
+
+What replaced it is one shape: a database always has a nameless `defaultSchema`
+plus named `schemas`, and direct tables are simply the default schema's tables.
+`database.tables` is a getter, not a second map. `tables` and `schemas` may both
+be present, so the XOR is gone entirely — which also means Pongo collections mode
+no longer needs a privileged lower-level representation. Extensions route by
+their own scope with no mode branch. `ref_plan.md` Step 6 was rewritten to match,
+along with the stale claims it left in proofs 9 and 11, the Step 5 attachment
+rules, and the component sketch in the design section.
+
+The adapter disappeared instead of shrinking. The blocker was that the machinery
+qualifies references by the schema's own name — `Extract<Schema['schemaName'],
+string>`, which is `never` for a token-named schema — so a nameless scope could
+not pass through and any string chosen leaked into public error types. Two
+changes inside the existing stack fixed it: a schema's lookup key is now separate
+from its name (`DatabaseSchemaKey`, defaulting to `DefaultSchemaKey`), and a
+nameless schema contributes no path segment, built that way in `QualifyColumnName`
+rather than stripped afterwards. Named-schema behavior is unchanged.
+
+**Carried in from S5, done.** `findTables` now walks one list — the default
+schema, named schemas, then extension-contributed schemas — with no containment
+branch, and `findTable` above it carries the duplicate-physical-table rejection
+that used to live in `pongoDb.ts`. That check is a physical-identity rule, not a
+Pongo one: proof 14 rejects a Dumbo relational table and a Pongo collection
+sharing a physical name, and the Dumbo-only side holds with no Pongo collection
+involved.
+
+One Step 5 test went with the old model: "rejects a table extension attached to a
+database" asserted a throw that the single shape deliberately removes, since such
+an extension now lands in the default schema. It was rewritten to assert that
+placement and to prove the table is traversed exactly once.
+
+**Pongo side.** `pongoDatabaseSchemas` holds the declared component as a `const`
+plus two pieces of runtime state: a `defaultScope` map field for the logical
+default scope — a field, so it needs no key, which is what made `''` tempting in
+the first place — and `namedScopes` keyed by physical schema name. Lookup is
+Dumbo's `findTable`, then the overlay, then create. What survived as Pongo's is
+`isPongoCollectionComponent`, the overlay search, and the "not a Pongo
+collection" rejection; the duplicate-physical-table message now comes from
+Dumbo. Collections mode splits the declared record in one pass into `tables` and
+named `schemas`, both passed to a single `databaseComponent` call — no mode
+selection, which is what dropping Dumbo's XOR bought. `db.schema.definition` is
+deleted; `db.schema.component` is the single value, and `commandLine/migrate.ts`
+moved to `db.schema.migrations` to keep including runtime collections.
+
+`dedupeMigrations` was added to Dumbo's export list — the only Dumbo change, no
+behavior touched. Pongo's `migrations()` is specified to combine through it, and
+the alternative was manufacturing an aggregate component, which Step 6 forbids.
+
+Two deliberate boundaries: binding the configured `defaultSchemaName` into the
+declared component's migration context is Step 7, so declared unscoped
+collections still emit unqualified migration names; and
+`samples/simple-ts/src/pongo.config.ts` was already invalid before this step, and
+belongs to Step 9.
 
 ## Step 7 — Bind Pongo's logical default placement once
-- [ ] Not started
+- [x] Pongo passes a configured `defaultSchemaName` as `defaults.schemaName`
+      when reading declared component migrations
+- [x] Declared default collections now emit concrete default-schema migration
+      names when the configured default resolves to a named schema
+- [x] `PongoDatabaseCache` treats `db(name, options)` options as setup-time
+      configuration and rejects setting up an existing database with options;
+      reuse is `db(name)` with no options
+- [x] Focused checks green:
+      `npx vitest run packages/pongo/src/core/database/pongoDb.unit.spec.ts`
+      and `npx vitest run packages/pongo/src/core/pongoClient.unit.spec.ts`
+- [x] Gate: `npm run fix` and `npm run build:ts`
 
 **Carried in from S5.** `defaults.schemaName` is read in exactly one place —
 `databaseSchemaComponent.ts:106`, `parent.defaults?.schemaName ??
@@ -312,23 +418,19 @@ policy-vs-placement split is exercised only by dumbo's own unit spec.
 That single line is also what separates `SQLDefaultSchemaNameToken` (an explicit
 "let the dialect pick") from `undefined` (no placement anywhere in the ancestry).
 Only a table with a `databaseSchemaComponent` ancestor passes through it, so only
-such a table resolves the configured logical default. A table reached any other
-way silently ignores it. This is why S5 rejects a table-scoped extension attached
-to a database instead of letting it mean `undefined`: the database has no
-vocabulary for that placement until S6 gives it a private default-token schema.
-With no `defaults` set today the divergence is latent — both paths land
-unqualified — so nothing observable proves it until this step lands. End-to-end
-proof #4 is the check: `defaultSchemaName: 'readmodels'` must yield
-`schema:readmodels:create` and `table:readmodels:messages:create`, not
-`table:messages:create` with no schema creation.
+such a table resolves the configured logical default. With no `defaults` set
+today the divergence is latent — every path lands unqualified — so nothing
+observable proves it until this step lands. End-to-end proof #4 is the check:
+`defaultSchemaName: 'readmodels'` must yield `schema:readmodels:create` and
+`table:readmodels:messages:create`, not `table:messages:create` with no schema
+creation.
 
-**S5's throw is a placeholder, not a rule.** `rejects a table extension attached
-to a database` (dumbo `schemaComponent.unit.spec.ts`, Pongo `schema.unit.spec.ts`)
-narrows in S6 from "cannot be attached to a database" to "cannot be attached to a
-schemas-mode database", and its message needs the mode qualifier back — a
-meaningful one, unlike the `'the unnamed database'` filler deleted in S5. If
-carrying an error that exists only to be reworded twice is not worth it, the
-alternative is folding S5/S6/S7's default-placement work into one step.
+**S5's throw is gone, not narrowed.** S5 rejected a table-scoped extension
+attached to a database because the database had no vocabulary for that
+placement. S6 gave it one: such an extension lands in the default schema, so
+every table now has a `databaseSchemaComponent` ancestor and there is no path
+that silently ignores `defaults.schemaName`. Both specs were rewritten to assert
+the placement instead of the throw.
 
 ## Step 8 — Simplify Pongo typing and audit the public surface
 - [ ] Not started

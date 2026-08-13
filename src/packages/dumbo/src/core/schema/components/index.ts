@@ -8,4 +8,3 @@ export * from './indexTarget';
 export * from './relationships';
 export * from './tableComponent';
 export * from './tableTypesInference';
-export * from './withTable';

@@ -104,6 +104,7 @@ export const pongoClient = <
         ...connectionOptions,
         databaseName: dbName ?? defaultDatabaseName,
         defaultSchemaName: options?.defaultSchemaName ?? defaultSchemaName,
+        hasExplicitDatabaseOptions: options !== undefined,
         ...(resolvedMigrationTable === undefined
           ? {}
           : { migrationTable: resolvedMigrationTable }),

@@ -61,6 +61,7 @@ export const PongoDatabaseCache = <
       > & {
         databaseName?: string | undefined;
         defaultSchemaName?: string | undefined;
+        hasExplicitDatabaseOptions?: boolean | undefined;
       } & JSONSerializationOptions & {
           schema?: {
             autoMigration?: MigrationStyle;
@@ -97,7 +98,15 @@ export const PongoDatabaseCache = <
       }
 
       const existing = dbClients.get(dbName);
-      if (existing) return existing;
+      if (existing !== undefined) {
+        if (createOptions.hasExplicitDatabaseOptions === true) {
+          throw new Error(
+            `Database "${dbName}" is already set up. Call db("${dbName}") without options to reuse it`,
+          );
+        }
+
+        return existing;
+      }
 
       const definition = declaredDefinition ?? getDatabaseDefinition(dbName);
 
@@ -111,8 +120,10 @@ export const PongoDatabaseCache = <
         schemaOptions.definition = schemaDefinitionForDatabase;
       }
 
+      const { hasExplicitDatabaseOptions: _, ...databaseFactoryOptions } =
+        createOptions;
       const newDb: Database = driver.databaseFactory({
-        ...createOptions,
+        ...databaseFactoryOptions,
         databaseName: dbName,
         defaultSchemaName,
         schema: schemaOptions,

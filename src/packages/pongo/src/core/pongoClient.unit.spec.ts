@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import type { DatabaseDriverType } from '@event-driven-io/dumbo';
+import { dumboSchema, type DatabaseDriverType } from '@event-driven-io/dumbo';
 import { describe, expectTypeOf, it } from 'vitest';
 import type { PongoDatabaseFactoryOptions, PongoDriver } from './drivers';
 import { pongoClient } from './pongoClient';
@@ -421,6 +421,38 @@ describe('pongoClient', () => {
     assert.deepStrictEqual(calls, ['users']);
   });
 
+  it('projects the default schema collections of a plain Dumbo database', () => {
+    const calls: string[] = [];
+    const base = testPongoDb({
+      databaseName: 'app',
+      onConnect: () => undefined,
+      onClose: () => undefined,
+    });
+    const db = {
+      ...base,
+      collection: <T extends PongoDocument, Payload extends PongoDocument = T>(
+        name: string,
+        options?: PongoDBCollectionOptions<T, Payload>,
+      ) => {
+        calls.push(name);
+        return base.collection<T, Payload>(name, options);
+      },
+    };
+    const projected = projectPongoDb(
+      db,
+      dumboSchema.database('app', {
+        tables: {
+          users: pongoSchema.collection('users'),
+          accounts: dumboSchema.table('accounts'),
+        },
+      }),
+    ) as typeof db & Record<string, unknown>;
+
+    assert.ok(projected.users);
+    assert.strictEqual(projected.accounts, undefined);
+    assert.deepStrictEqual(calls, ['users']);
+  });
+
   it('projects a database component supplied in the client definition record', () => {
     type User = PongoDocument & { email: string };
     const { driver, databaseFactoryCalls } = testPongoDriver();
@@ -529,6 +561,18 @@ describe('pongoClient', () => {
 
     assert.strictEqual(first, second);
     assert.strictEqual(databaseFactoryCalls.length, 1);
+  });
+
+  it('rejects setting up an existing database with options', () => {
+    const { driver } = testPongoDriver();
+    const client = pongoClient({ driver });
+
+    client.db('same-db', { defaultSchemaName: 'crm' });
+
+    assert.throws(
+      () => client.db('same-db', {}),
+      /Database "same-db" is already set up.*without options/,
+    );
   });
 
   it('rejects switching databases for fixed-database drivers', () => {

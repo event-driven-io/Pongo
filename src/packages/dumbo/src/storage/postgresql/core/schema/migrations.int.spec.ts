@@ -7,7 +7,6 @@ import { dumbo, type Dumbo } from '../../../..';
 import {
   count,
   databaseComponent,
-  databaseSchemaKey,
   databaseSchemaComponent,
   dumboSchema,
   indexComponent,
@@ -17,7 +16,6 @@ import {
   extensionComponent,
   single,
   SQL,
-  SQLDefaultSchemaNameToken,
   sqlMigration,
   tableComponent,
   type SQLMigration,
@@ -498,7 +496,7 @@ describe('Migration Integration Tests', () => {
       });
 
     const usersIn = (
-      schemaName: string | SQLDefaultSchemaNameToken,
+      schemaName: string,
       indexes?: Record<string, ReturnType<typeof indexComponent>>,
     ) =>
       databaseSchemaComponent({
@@ -506,20 +504,10 @@ describe('Migration Integration Tests', () => {
         tables: { users: usersTable(indexes) },
       });
 
-    const migrate = (
-      ...schemas: ReturnType<typeof databaseSchemaComponent>[]
-    ) =>
+    const migrate = (options: Parameters<typeof databaseComponent>[0]) =>
       runSQLMigrations(
         pool,
-        databaseComponent({
-          databaseName: 'app',
-          schemas: Object.fromEntries(
-            schemas.map((schema) => [
-              databaseSchemaKey(schema.schemaName),
-              schema,
-            ]),
-          ),
-        }).migrations(),
+        databaseComponent({ databaseName: 'app', ...options }).migrations(),
       );
 
     const indexAccessMethod = async (indexName: string): Promise<string> =>
@@ -553,32 +541,37 @@ describe('Migration Integration Tests', () => {
     );
 
     it('creates a table for the default schema in the search path', async () => {
-      await migrate(usersIn(SQLDefaultSchemaNameToken.from()));
+      await migrate({ tables: { users: usersTable() } });
 
       assert.ok(await tableExistsIn('public', 'users'));
     });
 
     it('indexes a JSON document with GIN, and with btree when it is unique', async () => {
-      await migrate(
-        usersIn(SQLDefaultSchemaNameToken.from(), {
-          document: usersDocument,
-          uniqueDocument: usersUniqueDocument,
-        }),
-      );
+      await migrate({
+        tables: {
+          users: usersTable({
+            document: usersDocument,
+            uniqueDocument: usersUniqueDocument,
+          }),
+        },
+      });
 
       assert.strictEqual(await indexAccessMethod('users_document_idx'), 'gin');
       assert.strictEqual(await indexAccessMethod('users_document_uq'), 'btree');
     });
 
     it('creates a named schema and qualifies its table with it', async () => {
-      await migrate(usersIn('crm'));
+      await migrate({ schemas: { crm: usersIn('crm') } });
 
       assert.ok(await tableExistsIn('crm', 'users'));
       assert.ok(!(await tableExistsIn('public', 'users')));
     });
 
     it('keeps the default schema and a named one on separate tables', async () => {
-      await migrate(usersIn(SQLDefaultSchemaNameToken.from()), usersIn('crm'));
+      await migrate({
+        tables: { users: usersTable() },
+        schemas: { crm: usersIn('crm') },
+      });
       await pool.execute.command(
         SQL`INSERT INTO users (_id, email) VALUES ('1', 'default@test')`,
       );
