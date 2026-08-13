@@ -40,44 +40,37 @@ describe('SQLite3 migration integration', () => {
   it('applies default and schema-prefixed collection migrations in order', async () => {
     const schema = pongoSchema.client({
       database: pongoSchema.db({
-        schemas: {
-          main: pongoSchema.defaultSchema({
-            users: pongoSchema.collection('users'),
-            explicitDefaultUsers: pongoSchema.collection(
-              'explicit_default_users',
-              {
-                indexes: {
-                  email: pongoSchema.index(
-                    'explicit_default_email_idx',
-                    'email',
-                  ),
-                },
-              },
-            ),
-          }),
-          crm: pongoSchema.schema('crm', {
-            crmUsers: pongoSchema.collection('users', {
+        collections: {
+          users: pongoSchema.collection('users'),
+          explicitDefaultUsers: pongoSchema.collection(
+            'explicit_default_users',
+            {
               indexes: {
-                email: pongoSchema.index('users_email_idx', 'email'),
-                externalId: pongoSchema.index.unique('users_external_id_uq', [
-                  'external',
-                  'id',
-                ]),
-                document: pongoSchema.index.json('users_data_idx'),
-                custom: pongoSchema.index.custom(
-                  'users_custom_data_idx',
-                  ({ tableReference, indexReference }) =>
-                    SQL`CREATE INDEX IF NOT EXISTS ${indexReference} ON ${tableReference} (data)`,
-                ),
+                email: pongoSchema.index('explicit_default_email_idx', 'email'),
               },
-            }),
+            },
+          ),
+          crmUsers: pongoSchema.collection('users', {
+            databaseSchemaName: 'crm',
+            indexes: {
+              email: pongoSchema.index('users_email_idx', 'email'),
+              externalId: pongoSchema.index.unique('users_external_id_uq', [
+                'external',
+                'id',
+              ]),
+              document: pongoSchema.index.json('users_data_idx'),
+              custom: pongoSchema.index.custom(
+                'users_custom_data_idx',
+                ({ tableReference, indexReference }) =>
+                  SQL`CREATE INDEX IF NOT EXISTS ${indexReference} ON ${tableReference} (data)`,
+              ),
+            },
           }),
-          audit: pongoSchema.schema('audit', {
-            auditUsers: pongoSchema.collection('users', {
-              indexes: {
-                email: pongoSchema.index('audit_users_email_idx', 'email'),
-              },
-            }),
+          auditUsers: pongoSchema.collection('users', {
+            databaseSchemaName: 'audit',
+            indexes: {
+              email: pongoSchema.index('audit_users_email_idx', 'email'),
+            },
           }),
         },
       }),
@@ -196,10 +189,8 @@ describe('SQLite3 migration integration', () => {
   it('records migrations in the configured migration table', async () => {
     const schema = pongoSchema.client({
       database: pongoSchema.db({
-        schemas: {
-          main: pongoSchema.defaultSchema({
-            users: pongoSchema.collection<User>('users'),
-          }),
+        collections: {
+          users: pongoSchema.collection<User>('users'),
         },
       }),
     });
@@ -246,21 +237,25 @@ describe('SQLite3 migration integration', () => {
   it('migrates mixed event-store and Pongo extension schemas', async () => {
     const users = pongoSchema.collection<User>('users');
     const eventStore = dumboSchema.extension('event-store', {
-      schemas: {
-        default: dumboSchema.defaultSchema({
-          messages: dumboSchema.table('messages', {
-            kind: 'event_store',
-            columns: {
-              id: dumboSchema.column('id', SQL.column.type.Text, {
-                primaryKey: true,
-              }),
-            },
-          }),
+      tables: {
+        messages: dumboSchema.table('messages', {
+          kind: 'event_store',
+          columns: {
+            id: dumboSchema.column('id', SQL.column.type.Text, {
+              primaryKey: true,
+            }),
+          },
         }),
-        readmodels: dumboSchema.schema('readmodels', { users }),
       },
     });
-    const definition = pongoSchema.db({ schemas: {} }, { eventStore });
+    const eventStoreReadModels = dumboSchema.extension(
+      'event-store-readmodels',
+      { schemas: { readmodels: dumboSchema.schema('readmodels', { users }) } },
+    );
+    const definition = pongoSchema.db(
+      { schemas: {} },
+      { eventStore, eventStoreReadModels },
+    );
     const client = pongoClient({
       driver: sqlite3Driver,
       connectionString,
@@ -270,14 +265,15 @@ describe('SQLite3 migration integration', () => {
     });
     const pool = sqlite3Pool({ fileName });
 
-    expectTypeOf(eventStore.schemas.readmodels.tables.users).toEqualTypeOf(
-      users,
-    );
     expectTypeOf(
-      eventStore.schemas.readmodels.tables.users[pongoDocumentType],
+      eventStoreReadModels.schemas.readmodels.tables.users,
+    ).toEqualTypeOf(users);
+    expectTypeOf(
+      eventStoreReadModels.schemas.readmodels.tables.users[pongoDocumentType],
     ).toEqualTypeOf<User>();
     expectTypeOf(
-      definition.extensions.eventStore.schemas.readmodels.tables.users,
+      definition.extensions.eventStoreReadModels.schemas.readmodels.tables
+        .users,
     ).toEqualTypeOf(users);
 
     try {

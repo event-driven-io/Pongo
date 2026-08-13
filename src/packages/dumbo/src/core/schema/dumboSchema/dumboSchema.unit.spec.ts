@@ -1,12 +1,12 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
-import { SQL, SQLDefaultSchemaNameToken } from '../../sql';
+import { SQL } from '../../sql';
 import type { Equals, Expect } from '../../testing';
 import type { TableColumnNames, TableRowType } from '../components';
 import { relationship } from '../components';
 import { dumboSchema } from './index';
 
-const { database, schema, defaultSchema, table, column, index } = dumboSchema;
+const { database, schema, table, column, index } = dumboSchema;
 const { Varchar, JSONB } = SQL.column.type;
 
 describe('dumboSchema', () => {
@@ -68,47 +68,71 @@ describe('dumboSchema', () => {
     assert.ok(sch.tables.users.columns.id !== undefined);
   });
 
-  it('should create a default schema carrying the default schema token', () => {
-    const sch = defaultSchema({
-      users: table('users', {
-        columns: {
-          id: column('id', Varchar('max')),
-        },
-      }),
+  it('should create a database declaring tables directly', () => {
+    const db = database({
+      tables: {
+        users: table('users', {
+          columns: {
+            id: column('id', Varchar('max')),
+          },
+        }),
+      },
     });
 
-    assert.ok(SQLDefaultSchemaNameToken.check(sch.schemaName));
+    assert.strictEqual(db.databaseName, undefined);
+    assert.deepStrictEqual(Object.keys(db.tables), ['users']);
+    assert.deepStrictEqual(Object.keys(db.schemas), []);
+    assert.ok(db.tables.users.columns.id !== undefined);
     assert.deepStrictEqual(
-      sch.migrations().map(({ name }) => name),
+      db.migrations().map(({ name }) => name),
       ['table:users:create'],
     );
-    assert.deepStrictEqual(Object.keys(sch.tables), ['users']);
+  });
+
+  it('should name a database declaring tables directly', () => {
+    const db = database('myapp', {
+      tables: {
+        users: table('users', {
+          columns: {
+            id: column('id', Varchar('max')),
+          },
+        }),
+      },
+    });
+
+    assert.strictEqual(db.databaseName, 'myapp');
+    assert.deepStrictEqual(Object.keys(db.tables), ['users']);
   });
 
   it('should create a default database', () => {
     const db = database({
-      public: schema('public', {
-        users: table('users', {
-          columns: {
-            id: column('id', Varchar('max')),
-          },
+      schemas: {
+        public: schema('public', {
+          users: table('users', {
+            columns: {
+              id: column('id', Varchar('max')),
+            },
+          }),
         }),
-      }),
+      },
     });
 
     assert.strictEqual(db.databaseName, undefined);
     assert.deepStrictEqual(Object.keys(db.schemas), ['public']);
+    assert.deepStrictEqual(Object.keys(db.tables), []);
   });
 
   it('should create a named database', () => {
     const db = database('myapp', {
-      public: schema('public', {
-        users: table('users', {
-          columns: {
-            id: column('id', Varchar('max')),
-          },
+      schemas: {
+        public: schema('public', {
+          users: table('users', {
+            columns: {
+              id: column('id', Varchar('max')),
+            },
+          }),
         }),
-      }),
+      },
     });
 
     assert.strictEqual(db.databaseName, 'myapp');
@@ -118,48 +142,61 @@ describe('dumboSchema', () => {
     assert.ok(db.schemas.public.tables.users.columns.id !== undefined);
   });
 
-  it('should keep a default schema under its record key', () => {
-    const reusable = defaultSchema({
-      users: table('users', {
-        columns: {
-          id: column('id', Varchar('max')),
-        },
-      }),
-    });
+  it('should create a database declaring tables and schemas together', () => {
     const db = database('myapp', {
-      public: reusable,
+      tables: {
+        users: table('users', {
+          columns: {
+            id: column('id', Varchar('max')),
+          },
+        }),
+      },
+      schemas: {
+        crm: schema('crm', {
+          customers: table('customers', {
+            columns: {
+              id: column('id', Varchar('max')),
+            },
+          }),
+        }),
+      },
     });
 
-    assert.ok(SQLDefaultSchemaNameToken.check(reusable.schemaName));
+    assert.deepStrictEqual(Object.keys(db.tables), ['users']);
+    assert.deepStrictEqual(Object.keys(db.schemas), ['crm']);
+    assert.ok(db.tables.users.columns.id !== undefined);
+    assert.ok(db.schemas.crm.tables.customers.columns.id !== undefined);
+  });
+
+  it('should create a database declaring neither tables nor schemas', () => {
+    const db = database('myapp', {});
+
     assert.strictEqual(db.databaseName, 'myapp');
-    assert.deepStrictEqual(Object.keys(db.schemas), ['public']);
-    assert.strictEqual(db.schemas.public, reusable);
-    assert.deepStrictEqual(db.migrations(), reusable.migrations());
-    assert.ok(SQLDefaultSchemaNameToken.check(db.schemas.public.schemaName));
-    assert.deepStrictEqual(
-      db.migrations().map(({ name }) => name),
-      ['table:users:create'],
-    );
+    assert.deepStrictEqual(Object.keys(db.tables), []);
+    assert.deepStrictEqual(Object.keys(db.schemas), []);
+    assert.deepStrictEqual(db.migrations(), []);
   });
 
   it('should reject a schema record key conflicting with an explicit name', () => {
     assert.throws(
       () =>
         database('myapp', {
-          public: schema('audit', {
-            users: table('users', {
-              columns: {
-                id: column('id', Varchar('max')),
-              },
+          schemas: {
+            public: schema('audit', {
+              users: table('users', {
+                columns: {
+                  id: column('id', Varchar('max')),
+                },
+              }),
             }),
-          }),
+          },
         }),
       /record key "public" conflicts with its explicit name "audit"/,
     );
   });
 
   it('should preserve the reusable schema declaration', () => {
-    const reusable = defaultSchema({
+    const reusable = schema('public', {
       users: table('users', {
         columns: {
           id: column('id', Varchar('max')),
@@ -167,21 +204,13 @@ describe('dumboSchema', () => {
       }),
     });
 
-    database('myapp', {
-      public: reusable,
-    });
+    const db = database('myapp', { schemas: { public: reusable } });
 
-    assert.ok(SQLDefaultSchemaNameToken.check(reusable.schemaName));
+    assert.strictEqual(db.schemas.public, reusable);
     assert.deepStrictEqual(
       reusable.migrations().map(({ name }) => name),
-      ['table:users:create'],
+      ['schema:public:create', 'table:public:users:create'],
     );
-  });
-
-  it('should create schema from table names', () => {
-    const sch = schema.from('public', ['users', 'posts']);
-    assert.strictEqual(sch.schemaName, 'public');
-    assert.deepStrictEqual(Object.keys(sch.tables), ['users', 'posts']);
   });
 
   it('should create database from schema names', () => {
@@ -222,40 +251,44 @@ const _users2 = table('users', {
 });
 
 export const simpleDb = database('myapp', {
-  public: schema('public', {
-    users,
-  }),
+  schemas: {
+    public: schema('public', {
+      users,
+    }),
+  },
 });
 
 // Database with multiple schemas
 const multiSchemaDb = database('myapp', {
-  public: schema('public', {
-    users: table('users', {
-      columns: {
-        id: column('id', Varchar('max'), { notNull: true }),
-        email: column('email', Varchar('max'), { notNull: true }),
-        name: column('name', Varchar('max')),
-        metadata: column('metadata', JSONB<{ preferences: string[] }>()),
-      },
-      primaryKey: ['id'],
-    }),
-  }),
-  analytics: schema('analytics', {
-    events: table('events', {
-      columns: {
-        id: column('id', Varchar('max'), { notNull: true, primaryKey: true }),
-        userId: column('user_id', Varchar('max')),
-        timestamp: column('timestamp', Varchar('max')),
-      },
-      relationships: {
-        user: {
-          columns: ['userId'],
-          references: ['public.users.id'],
-          type: 'many-to-one',
+  schemas: {
+    public: schema('public', {
+      users: table('users', {
+        columns: {
+          id: column('id', Varchar('max'), { notNull: true }),
+          email: column('email', Varchar('max'), { notNull: true }),
+          name: column('name', Varchar('max')),
+          metadata: column('metadata', JSONB<{ preferences: string[] }>()),
         },
-      },
+        primaryKey: ['id'],
+      }),
     }),
-  }),
+    analytics: schema('analytics', {
+      events: table('events', {
+        columns: {
+          id: column('id', Varchar('max'), { notNull: true, primaryKey: true }),
+          userId: column('user_id', Varchar('max')),
+          timestamp: column('timestamp', Varchar('max')),
+        },
+        relationships: {
+          user: {
+            columns: ['userId'],
+            references: ['public.users.id'],
+            type: 'many-to-one',
+          },
+        },
+      }),
+    }),
+  },
 });
 
 // Access using name-based maps
@@ -278,27 +311,29 @@ const _userColumns: UserColumns[] = ['id', 'email', 'name', 'metadata'];
 describe('Foreign Key Validation', () => {
   it('should accept valid single foreign key', () => {
     const db = database('test', {
-      public: schema('public', {
-        users: table('users', {
-          columns: {
-            id: column('id', Varchar('max')),
-            email: column('email', Varchar('max')),
-          },
-        }),
-        posts: table('posts', {
-          columns: {
-            id: column('id', Varchar('max')),
-            user_id: column('user_id', Varchar('max')),
-          },
-          relationships: {
-            user: {
-              columns: ['user_id'],
-              references: ['public.users.id'],
-              type: 'many-to-one',
+      schemas: {
+        public: schema('public', {
+          users: table('users', {
+            columns: {
+              id: column('id', Varchar('max')),
+              email: column('email', Varchar('max')),
             },
-          },
+          }),
+          posts: table('posts', {
+            columns: {
+              id: column('id', Varchar('max')),
+              user_id: column('user_id', Varchar('max')),
+            },
+            relationships: {
+              user: {
+                columns: ['user_id'],
+                references: ['public.users.id'],
+                type: 'many-to-one',
+              },
+            },
+          }),
         }),
-      }),
+      },
     });
 
     assert.ok(db.schemas.public.tables.posts.relationships);
@@ -310,28 +345,30 @@ describe('Foreign Key Validation', () => {
 
   it('should accept valid composite foreign key', () => {
     const db = database('test', {
-      public: schema('public', {
-        users: table('users', {
-          columns: {
-            id: column('id', Varchar('max')),
-            tenant_id: column('tenant_id', Varchar('max')),
-          },
-        }),
-        posts: table('posts', {
-          columns: {
-            id: column('id', Varchar('max')),
-            user_id: column('user_id', Varchar('max')),
-            tenant_id: column('tenant_id', Varchar('max')),
-          },
-          relationships: {
-            user: {
-              columns: ['user_id', 'tenant_id'],
-              references: ['public.users.id', 'public.users.tenant_id'],
-              type: 'many-to-one',
+      schemas: {
+        public: schema('public', {
+          users: table('users', {
+            columns: {
+              id: column('id', Varchar('max')),
+              tenant_id: column('tenant_id', Varchar('max')),
             },
-          },
+          }),
+          posts: table('posts', {
+            columns: {
+              id: column('id', Varchar('max')),
+              user_id: column('user_id', Varchar('max')),
+              tenant_id: column('tenant_id', Varchar('max')),
+            },
+            relationships: {
+              user: {
+                columns: ['user_id', 'tenant_id'],
+                references: ['public.users.id', 'public.users.tenant_id'],
+                type: 'many-to-one',
+              },
+            },
+          }),
         }),
-      }),
+      },
     });
 
     assert.deepStrictEqual(
@@ -342,21 +379,23 @@ describe('Foreign Key Validation', () => {
 
   it('should accept self-referential foreign key', () => {
     const db = database('test', {
-      public: schema('public', {
-        users: table('users', {
-          columns: {
-            id: column('id', Varchar('max')),
-            manager_id: column('manager_id', Varchar('max')),
-          },
-          relationships: {
-            manager: {
-              columns: ['manager_id'],
-              references: ['public.users.id'],
-              type: 'many-to-one',
+      schemas: {
+        public: schema('public', {
+          users: table('users', {
+            columns: {
+              id: column('id', Varchar('max')),
+              manager_id: column('manager_id', Varchar('max')),
             },
-          } as const,
+            relationships: {
+              manager: {
+                columns: ['manager_id'],
+                references: ['public.users.id'],
+                type: 'many-to-one',
+              },
+            } as const,
+          }),
         }),
-      }),
+      },
     });
 
     assert.ok(db.schemas.public.tables.users.relationships);
@@ -368,32 +407,34 @@ describe('Foreign Key Validation', () => {
 
   it('should accept multiple foreign keys in one table', () => {
     const db = database('test', {
-      public: schema('public', {
-        users: table('users', {
-          columns: {
-            id: column('id', Varchar('max')),
-          },
-        }),
-        posts: table('posts', {
-          columns: {
-            id: column('id', Varchar('max')),
-            user_id: column('user_id', Varchar('max')),
-            author_id: column('author_id', Varchar('max')),
-          },
-          relationships: {
-            user: {
-              columns: ['user_id'],
-              references: ['public.users.id'],
-              type: 'many-to-one',
+      schemas: {
+        public: schema('public', {
+          users: table('users', {
+            columns: {
+              id: column('id', Varchar('max')),
             },
-            author: {
-              columns: ['author_id'],
-              references: ['public.users.id'],
-              type: 'many-to-one',
+          }),
+          posts: table('posts', {
+            columns: {
+              id: column('id', Varchar('max')),
+              user_id: column('user_id', Varchar('max')),
+              author_id: column('author_id', Varchar('max')),
             },
-          } as const,
+            relationships: {
+              user: {
+                columns: ['user_id'],
+                references: ['public.users.id'],
+                type: 'many-to-one',
+              },
+              author: {
+                columns: ['author_id'],
+                references: ['public.users.id'],
+                type: 'many-to-one',
+              },
+            } as const,
+          }),
         }),
-      }),
+      },
     });
 
     assert.strictEqual(
@@ -404,28 +445,30 @@ describe('Foreign Key Validation', () => {
 
   it('should accept cross-schema foreign key', () => {
     const db = database('test', {
-      public: schema('public', {
-        users: table('users', {
-          columns: {
-            id: column('id', Varchar('max')),
-          },
-        }),
-      }),
-      analytics: schema('analytics', {
-        events: table('events', {
-          columns: {
-            id: column('id', Varchar('max')),
-            user_id: column('user_id', Varchar('max')),
-          },
-          relationships: {
-            user: {
-              columns: ['user_id'],
-              references: ['public.users.id'],
-              type: 'many-to-one',
+      schemas: {
+        public: schema('public', {
+          users: table('users', {
+            columns: {
+              id: column('id', Varchar('max')),
             },
-          },
+          }),
         }),
-      }),
+        analytics: schema('analytics', {
+          events: table('events', {
+            columns: {
+              id: column('id', Varchar('max')),
+              user_id: column('user_id', Varchar('max')),
+            },
+            relationships: {
+              user: {
+                columns: ['user_id'],
+                references: ['public.users.id'],
+                type: 'many-to-one',
+              },
+            },
+          }),
+        }),
+      },
     });
 
     assert.deepStrictEqual(

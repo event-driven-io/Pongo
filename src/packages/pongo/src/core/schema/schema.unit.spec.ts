@@ -1,8 +1,6 @@
 import assert from 'node:assert';
 import {
   databaseComponentType,
-  databaseSchemaComponentType,
-  defaultDatabaseSchemaKey,
   dumboSchema,
   indexComponentType,
   isTableComponent,
@@ -89,14 +87,16 @@ describe('declaring Pongo indexes', () => {
       },
     });
     const database = dumboSchema.database({
-      crm: dumboSchema.schema('crm', {
-        users,
-        accounts: dumboSchema.table('accounts', {
-          columns: {
-            id: dumboSchema.column('id', SQL.column.type.Text),
-          },
+      schemas: {
+        crm: dumboSchema.schema('crm', {
+          users,
+          accounts: dumboSchema.table('accounts', {
+            columns: {
+              id: dumboSchema.column('id', SQL.column.type.Text),
+            },
+          }),
         }),
-      }),
+      },
     });
 
     assert.deepStrictEqual(
@@ -200,38 +200,6 @@ describe('declaring Pongo collections', () => {
 });
 
 describe('declaring Pongo schemas and databases', () => {
-  it('declares a reusable default schema component', () => {
-    const schema = pongoSchema.defaultSchema({
-      users: pongoSchema.collection<User>('users'),
-    });
-
-    assert.strictEqual(
-      schema[schemaComponentType],
-      databaseSchemaComponentType,
-    );
-    assert.ok(SQLDefaultSchemaNameToken.check(schema.schemaName));
-  });
-
-  it('keeps a reusable default schema under its database record key', () => {
-    const reusable = pongoSchema.defaultSchema({
-      users: pongoSchema.collection<User>('users'),
-    });
-    const database = pongoSchema.db('app', {
-      schemas: { public: reusable },
-    });
-
-    assert.ok(SQLDefaultSchemaNameToken.check(reusable.schemaName));
-    assert.strictEqual(database.schemas.public, reusable);
-    assert.deepStrictEqual(database.migrations(), reusable.migrations());
-    assert.ok(
-      SQLDefaultSchemaNameToken.check(database.schemas.public.schemaName),
-    );
-    assert.strictEqual(
-      database.schemas.public.tables.users.databaseSchemaName,
-      undefined,
-    );
-  });
-
   it('rejects an explicitly named schema stored under another key', () => {
     assert.throws(
       () =>
@@ -244,7 +212,7 @@ describe('declaring Pongo schemas and databases', () => {
     );
   });
 
-  it('normalises direct collections into database schemas without inventing a default schema name', () => {
+  it('splits direct collections into database tables and explicitly named schemas', () => {
     const database = pongoSchema.db('app', {
       collections: {
         users: pongoSchema.collection<User>('users'),
@@ -262,18 +230,35 @@ describe('declaring Pongo schemas and databases', () => {
       undefined,
     );
     assert.ok(
-      SQLDefaultSchemaNameToken.check(
-        database.schemas[defaultDatabaseSchemaKey]?.schemaName,
-      ),
+      SQLDefaultSchemaNameToken.check(database.defaultSchema.schemaName),
     );
-    assert.strictEqual(
-      database.schemas[defaultDatabaseSchemaKey]?.tables.users?.tableName,
-      'users',
-    );
+    assert.strictEqual(database.tables.users?.tableName, 'users');
+    assert.deepStrictEqual(Object.keys(database.schemas), ['audit']);
     assert.strictEqual(database.schemas.audit?.schemaName, 'audit');
     assert.strictEqual(
       database.schemas.audit?.tables.auditEntries?.tableName,
       'entries',
+    );
+    assert.deepStrictEqual(
+      database.migrations().map(({ name }) => name),
+      [
+        'table:pongo_collection:users:create',
+        'schema:audit:create',
+        'table:pongo_collection:audit:entries:create',
+      ],
+    );
+  });
+
+  it('reads database tables from the default schema', () => {
+    const database = pongoSchema.db('app', {
+      collections: {
+        users: pongoSchema.collection<User>('users'),
+      },
+    });
+
+    assert.strictEqual(
+      database.tables.users,
+      database.defaultSchema.tables.users,
     );
   });
 
@@ -282,18 +267,11 @@ describe('declaring Pongo schemas and databases', () => {
       collections: {},
     });
 
-    assert.deepStrictEqual(Object.keys(database.schemas), [
-      defaultDatabaseSchemaKey,
-    ]);
+    assert.deepStrictEqual(Object.keys(database.schemas), []);
     assert.ok(
-      SQLDefaultSchemaNameToken.check(
-        database.schemas[defaultDatabaseSchemaKey]?.schemaName,
-      ),
+      SQLDefaultSchemaNameToken.check(database.defaultSchema.schemaName),
     );
-    assert.deepStrictEqual(
-      Object.keys(database.schemas[defaultDatabaseSchemaKey]?.tables ?? {}),
-      [],
-    );
+    assert.deepStrictEqual(Object.keys(database.tables), []);
   });
 
   it('keeps an empty default schema when every direct collection names another schema', () => {
@@ -306,14 +284,9 @@ describe('declaring Pongo schemas and databases', () => {
     });
 
     assert.ok(
-      SQLDefaultSchemaNameToken.check(
-        database.schemas[defaultDatabaseSchemaKey]?.schemaName,
-      ),
+      SQLDefaultSchemaNameToken.check(database.defaultSchema.schemaName),
     );
-    assert.deepStrictEqual(
-      Object.keys(database.schemas[defaultDatabaseSchemaKey]?.tables ?? {}),
-      [],
-    );
+    assert.deepStrictEqual(Object.keys(database.tables), []);
     assert.strictEqual(
       database.schemas.audit?.tables.auditEntries?.tableName,
       'entries',
@@ -385,14 +358,22 @@ describe('declaring Pongo schemas and databases', () => {
     );
   });
 
-  it('rejects a table extension attached to a Pongo database', () => {
-    const eventStore = dumboSchema.extension('event-store', {
-      tables: { messages: dumboSchema.table('messages') },
+  it('places a table extension attached to a Pongo database in its default schema', () => {
+    const messages = dumboSchema.table('messages', {
+      columns: { id: dumboSchema.column('id', SQL.column.type.Text) },
     });
+    const eventStore = dumboSchema.extension('event-store', {
+      tables: { messages },
+    });
+    const database = pongoSchema.db('app', { schemas: {} }, { eventStore });
 
-    assert.throws(
-      () => pongoSchema.db('app', { schemas: {} }, { eventStore }),
-      /Extension "event-store" contributes database table "messages" and cannot be attached to a database/,
+    assert.strictEqual(
+      database.defaultSchema.extensions.eventStore,
+      eventStore,
+    );
+    assert.deepStrictEqual(
+      database.migrations().map(({ name }) => name),
+      ['table:messages:create'],
     );
   });
 

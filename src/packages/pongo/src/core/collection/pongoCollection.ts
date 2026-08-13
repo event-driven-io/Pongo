@@ -4,6 +4,7 @@ import {
   mapColumnToJSON,
   runSQLMigrations,
   single,
+  SQLDefaultSchemaNameToken,
   type DatabaseDriverType,
   type DatabaseTransaction,
   type Dumbo,
@@ -63,7 +64,7 @@ export type PongoCollectionOptions<
   collectionName: string;
   pool: Dumbo<DatabaseDriverType>;
   component: PongoCollectionComponent;
-  databaseSchemaName: string;
+  databaseSchemaName: string | SQLDefaultSchemaNameToken;
   sqlBuilder: PongoCollectionSQLBuilder;
   schema?: {
     autoMigration?: MigrationStyle;
@@ -198,8 +199,12 @@ export const pongoCollection = <
     return row ? { ...row.data, _id: row._id, _version: row._version } : null;
   };
 
+  const cacheKeySchemaName = SQLDefaultSchemaNameToken.check(databaseSchemaName)
+    ? ''
+    : databaseSchemaName;
+
   const cacheKey = (id: string): PongoDocumentCacheKey =>
-    `${db.databaseName}:${databaseSchemaName}.${collectionName}:${id}`;
+    `${db.databaseName}:${cacheKeySchemaName}.${collectionName}:${id}`;
 
   const txCacheFor = (options: CollectionOperationOptions | undefined) =>
     options?.session?.transaction?.cache ?? null;

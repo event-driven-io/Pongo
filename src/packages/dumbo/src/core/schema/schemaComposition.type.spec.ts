@@ -29,7 +29,8 @@ const users = dumboSchema.table('users', {
   primaryKey: ['id'],
 });
 const publicSchema = dumboSchema.schema('public', { users });
-const app = dumboSchema.database('app', { public: publicSchema });
+const app = dumboSchema.database('app', { schemas: { public: publicSchema } });
+const flat = dumboSchema.database('app', { tables: { users } });
 
 describe('composing a schema through the Dumbo declaration API', () => {
   it('types each declaration as its own component kind', () => {
@@ -37,6 +38,7 @@ describe('composing a schema through the Dumbo declaration API', () => {
     expectTypeOf(email).toExtend<IndexComponent>();
     expectTypeOf(publicSchema).toExtend<DatabaseSchemaComponent>();
     expectTypeOf(app).toExtend<DatabaseComponent>();
+    expectTypeOf(flat).toExtend<DatabaseComponent>();
   });
 
   it('keeps declared names and row types reachable through the tree', () => {
@@ -46,6 +48,76 @@ describe('composing a schema through the Dumbo declaration API', () => {
     expectTypeOf<TableRowType<typeof users>>().toEqualTypeOf<{
       id: string;
       email: string;
+    }>();
+  });
+
+  it('declares unscoped tables and named schemas side by side', () => {
+    expectTypeOf(flat.tables.users).toEqualTypeOf(users);
+    expectTypeOf<
+      Extract<keyof typeof flat.schemas, 'public'>
+    >().toEqualTypeOf<never>();
+    expectTypeOf<
+      Extract<keyof typeof app.tables, 'users'>
+    >().toEqualTypeOf<never>();
+
+    const mixed = dumboSchema.database('mixed', {
+      tables: { users },
+      schemas: { public: publicSchema },
+    });
+
+    expectTypeOf(mixed.tables.users).toEqualTypeOf(users);
+    expectTypeOf(mixed.schemas.public.tables.users).toEqualTypeOf(users);
+
+    const empty = dumboSchema.database('empty', {});
+
+    expectTypeOf(empty).toExtend<DatabaseComponent>();
+    expectTypeOf<
+      Extract<keyof typeof empty.tables, 'users'>
+    >().toEqualTypeOf<never>();
+  });
+
+  it('holds unscoped tables in the nameless default schema', () => {
+    expectTypeOf(flat.defaultSchema.tables.users).toEqualTypeOf(users);
+    expectTypeOf(
+      flat.defaultSchema.schemaName,
+    ).toEqualTypeOf<SQLDefaultSchemaNameToken>();
+  });
+
+  it('validates relationships of directly declared tables without naming a scope', () => {
+    const posts = dumboSchema.table('posts', {
+      columns: {
+        id: dumboSchema.column('id', SQL.column.type.Varchar(100)),
+        user_id: dumboSchema.column('user_id', SQL.column.type.Varchar(100)),
+      },
+      relationships: {
+        user: {
+          columns: ['user_id'],
+          references: ['users.id'],
+          type: 'many-to-one',
+        },
+      },
+    });
+
+    const valid = dumboSchema.database({ tables: { users, posts } });
+
+    expectTypeOf(valid).toExtend<DatabaseComponent>();
+    expectTypeOf(valid.tables.posts).toEqualTypeOf(posts);
+
+    const invalid = dumboSchema.database({ tables: { posts } });
+
+    expectTypeOf(invalid).toEqualTypeOf<{
+      valid: false;
+      error: [
+        {
+          table: 'posts';
+          errors: [
+            {
+              relationship: 'user';
+              errors: [{ errorCode: 'missing_table'; reference: 'users.id' }];
+            },
+          ];
+        },
+      ];
     }>();
   });
 
@@ -65,14 +137,17 @@ describe('composing a schema through the Dumbo declaration API', () => {
     >().toEqualTypeOf<never>();
   });
 
-  it('names every schema, either explicitly or as the default one', () => {
+  it('names every schema explicitly', () => {
     expectTypeOf(dumboSchema.schema).parameter(0).toEqualTypeOf<string>();
-    expectTypeOf(dumboSchema.defaultSchema)
-      .parameter(0)
+    expectTypeOf(dumboSchema.schema)
+      .parameter(1)
       .toExtend<DatabaseSchemaTables>();
-    expectTypeOf(
-      dumboSchema.defaultSchema({ users }).schemaName,
-    ).toEqualTypeOf<SQLDefaultSchemaNameToken>();
+    expectTypeOf<
+      Extract<keyof typeof dumboSchema, 'defaultSchema'>
+    >().toEqualTypeOf<never>();
+    expectTypeOf<
+      Extract<keyof typeof dumboSchema.schema, 'from'>
+    >().toEqualTypeOf<never>();
   });
 
   it('declares schema columns only through dumboSchema.column', () => {
@@ -100,11 +175,6 @@ describe('composing a schema through the Dumbo declaration API', () => {
   });
 
   it('keeps schemas contributed by extensions reachable through the extension', () => {
-    const messages = dumboSchema.table('messages', {
-      columns: {
-        id: dumboSchema.column('id', SQL.column.type.Text),
-      },
-    });
     const readmodelUsers = dumboSchema.table('users', {
       columns: {
         id: dumboSchema.column('id', SQL.column.type.Text),
@@ -122,18 +192,16 @@ describe('composing a schema through the Dumbo declaration API', () => {
     });
     const eventStore = dumboSchema.extension('event-store', {
       schemas: {
-        default: dumboSchema.defaultSchema({ messages }),
         readmodels: dumboSchema.schema('readmodels', {
           users: readmodelUsers,
         }),
       },
     });
     const direct = dumboSchema.schema('direct', {});
-    const database = dumboSchema.database(
-      'app',
-      { direct },
-      { eventStore, audit },
-    );
+    const database = dumboSchema.database('app', {
+      schemas: { direct },
+      extensions: { eventStore, audit },
+    });
 
     expectTypeOf(eventStore.schemas.readmodels.tables.users).toEqualTypeOf(
       readmodelUsers,

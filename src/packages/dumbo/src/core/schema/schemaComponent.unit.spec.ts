@@ -703,19 +703,29 @@ describe('grouping components in extensions', () => {
     );
   });
 
-  it('rejects a table extension attached to a database', () => {
+  it('places a table extension attached to a database in its default schema', () => {
     const audit = extensionComponent('audit', {
-      tables: { auditLog: tableComponent({ tableName: 'audit_log' }) },
+      tables: {
+        auditLog: tableComponent({
+          tableName: 'audit_log',
+          columns: {
+            message: columnSchemaComponent({
+              columnName: 'message',
+              type: 'TEXT',
+            }),
+          },
+        }),
+      },
+    });
+    const database = databaseComponent({
+      databaseName: 'app',
+      extensions: { audit },
     });
 
-    assert.throws(
-      () =>
-        databaseComponent({
-          databaseName: 'app',
-          extensions: { audit },
-        }),
-      /Extension "audit".*table "audit_log".*attached to a database/,
-    );
+    assert.strictEqual(database.defaultSchema.extensions.audit, audit);
+    assert.deepStrictEqual(migrationNames(database.migrations()), [
+      'table:audit_log:create',
+    ]);
   });
 
   it('keeps a schema contributed by an extension out of the database schema map', () => {

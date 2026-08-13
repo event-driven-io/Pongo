@@ -240,21 +240,25 @@ describe('Migration Integration Tests', () => {
   it('migrates mixed event-store and Pongo extension schemas', async () => {
     const users = pongoSchema.collection<User>('users');
     const eventStore = dumboSchema.extension('event-store', {
-      schemas: {
-        default: dumboSchema.defaultSchema({
-          messages: dumboSchema.table('messages', {
-            kind: 'event_store',
-            columns: {
-              id: dumboSchema.column('id', SQL.column.type.Text, {
-                primaryKey: true,
-              }),
-            },
-          }),
+      tables: {
+        messages: dumboSchema.table('messages', {
+          kind: 'event_store',
+          columns: {
+            id: dumboSchema.column('id', SQL.column.type.Text, {
+              primaryKey: true,
+            }),
+          },
         }),
-        readmodels: dumboSchema.schema('readmodels', { users }),
       },
     });
-    const definition = pongoSchema.db({ schemas: {} }, { eventStore });
+    const eventStoreReadModels = dumboSchema.extension(
+      'event-store-readmodels',
+      { schemas: { readmodels: dumboSchema.schema('readmodels', { users }) } },
+    );
+    const definition = pongoSchema.db(
+      { schemas: {} },
+      { eventStore, eventStoreReadModels },
+    );
     const extensionClient = pongoClient({
       driver: pongoDriver,
       connectionString,
@@ -263,14 +267,15 @@ describe('Migration Integration Tests', () => {
       },
     });
 
-    expectTypeOf(eventStore.schemas.readmodels.tables.users).toEqualTypeOf(
-      users,
-    );
     expectTypeOf(
-      eventStore.schemas.readmodels.tables.users[pongoDocumentType],
+      eventStoreReadModels.schemas.readmodels.tables.users,
+    ).toEqualTypeOf(users);
+    expectTypeOf(
+      eventStoreReadModels.schemas.readmodels.tables.users[pongoDocumentType],
     ).toEqualTypeOf<User>();
     expectTypeOf(
-      definition.extensions.eventStore.schemas.readmodels.tables.users,
+      definition.extensions.eventStoreReadModels.schemas.readmodels.tables
+        .users,
     ).toEqualTypeOf(users);
 
     try {
