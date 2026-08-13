@@ -276,9 +276,9 @@ describe('SQLite3 migration integration', () => {
     expectTypeOf(
       eventStore.schemas.readmodels.tables.users[pongoDocumentType],
     ).toEqualTypeOf<User>();
-    expectTypeOf(definition.schemas.readmodels.tables.users).toEqualTypeOf(
-      users,
-    );
+    expectTypeOf(
+      definition.extensions.eventStore.schemas.readmodels.tables.users,
+    ).toEqualTypeOf(users);
 
     try {
       const db = client.db('database');
@@ -287,6 +287,7 @@ describe('SQLite3 migration integration', () => {
       });
       expectTypeOf(usersCollection).toEqualTypeOf<PongoCollection<User>>();
 
+      assert.strictEqual(usersCollection.schema.component, users);
       assert.deepStrictEqual(
         db.schema.migrations.map(({ name }) => name),
         [

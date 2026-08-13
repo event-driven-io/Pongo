@@ -374,6 +374,28 @@ describe('declaring Pongo schemas and databases', () => {
     );
   });
 
+  it('rejects a schema extension attached to a Pongo schema', () => {
+    const eventStore = dumboSchema.extension('event-store', {
+      schemas: { readmodels: dumboSchema.schema('readmodels', {}) },
+    });
+
+    assert.throws(
+      () => pongoSchema.schema('audit', {}, { eventStore }),
+      /Extension "event-store" contributes database schema "readmodels" and cannot be attached to database schema "audit"/,
+    );
+  });
+
+  it('rejects a table extension attached to a Pongo database', () => {
+    const eventStore = dumboSchema.extension('event-store', {
+      tables: { messages: dumboSchema.table('messages') },
+    });
+
+    assert.throws(
+      () => pongoSchema.db('app', { schemas: {} }, { eventStore }),
+      /Extension "event-store" contributes database table "messages" and cannot be attached to a database/,
+    );
+  });
+
   it('leaves frozen collection and schema source records unchanged', () => {
     const users = pongoSchema.collection<User>('users');
     const collections = Object.freeze({ users });

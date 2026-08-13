@@ -1,6 +1,7 @@
 import type { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import {
   databaseSchemaKey,
+  findTables,
   runSQLMigrations,
   SQLDefaultSchemaNameToken,
   withTable,
@@ -101,20 +102,36 @@ const pongoDatabaseSchemas = (
     ) => {
       const schemaKey = databaseSchemaName ?? defaultSchemaKey;
       const declaredSchema = component.schemas[schemaKey];
+      const matches = findTables(component, schemaKey, collectionName);
+      const [match] = matches;
       const schemaName =
-        declaredSchema?.schemaName ?? databaseSchemaName ?? defaultSchemaName;
-      const declared = Object.values(declaredSchema?.tables ?? {}).find(
-        (table) =>
-          isPongoCollectionComponent(table) &&
-          table.tableName === collectionName,
-      );
+        match?.schema.schemaName ??
+        declaredSchema?.schemaName ??
+        databaseSchemaName ??
+        defaultSchemaName;
+      const schemaLabel =
+        typeof schemaName === 'string' ? schemaName : 'the default schema';
+
+      if (matches.length > 1) {
+        throw new Error(
+          `Collection "${collectionName}" matches more than one table in database schema "${schemaLabel}"`,
+        );
+      }
+
+      const declared = match?.table;
+
+      if (declared !== undefined && !isPongoCollectionComponent(declared)) {
+        throw new Error(
+          `Table "${collectionName}" in database schema "${schemaLabel}" is not a Pongo collection`,
+        );
+      }
+
       const collectionComponent =
-        declared !== undefined && isPongoCollectionComponent(declared)
-          ? declared
-          : pongoSchema.collection<T>(
-              collectionName,
-              databaseSchemaName !== undefined ? { databaseSchemaName } : {},
-            );
+        declared ??
+        pongoSchema.collection<T>(
+          collectionName,
+          databaseSchemaName !== undefined ? { databaseSchemaName } : {},
+        );
 
       if (declared === undefined) {
         component = withTable(

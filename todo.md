@@ -211,22 +211,124 @@ and on a full re-run. e2e:sqlite showed 10 failures, all in `connection.int.*.sp
 files that passed in the int:sqlite run minutes earlier — `SQLITE_IOERR: disk I/O
 error` with the root filesystem at 99% (4.1 G free). No `.e2e.spec` file failed.
 
-**Open, raised here, not fixed.** `indexComponent.ts` declares a second vocabulary
-for JSON index targets — two `unique symbol`s, two branded types and two exported
-guards — that duplicates the `SQLJSONPathTarget` / `SQLJSONDocumentIndexTarget` SQL
-tokens it converts into immediately. The symbols appear in no other file and both
-guards are called only by the private `indexTargetSQL` in the same file. Candidate
-for S5 or S8. `ref_plan.md:894` and `:1022` still name the deleted
+**JSON index-target vocabulary extracted and cut to three exports.** The two
+`unique symbol`s, the two branded types and the two exported guards are gone;
+`indexTarget.ts` now holds `IndexTarget` plus the two factories, and
+`indexTargetSQL` branches on `target.targetType`. The SQL token layer is
+untouched — `isUnique` still comes from the enclosing index, not the target,
+because a declaration-time factory cannot know it. Pongo needed no edit beyond
+`schema.unit.spec.ts`; it only ever imported the two factories.
+
+**Still open.** `ref_plan.md:894` and `:1022` name the deleted
 `generatedIndexName`.
 
-## Step 5 — Simplify extensions without flattening
-- [ ] Not started
+## Step 5 — Simplify extensions without flattening — **done**
+- [x] `ExtensionComponent` takes one three-member declaration union — `{ tables }`,
+      `{ schemas }`, or neither, each with optional `migrations`. `tables` is new;
+      extensions had no table side before this step
+- [x] Nested `extensions` removed from `ExtensionComponent` and its options, with
+      the schema-hoisting owner-map loop. Composition is listing several flat
+      extensions at one attachment point. No recursive mode classifier, no public
+      mode marker, no replacement bundle abstraction
+- [x] Children listed once, tables then schemas; the base still emits own
+      migrations before children
+- [x] `SchemasFromExtensions` deleted with its three casts, and both database-level
+      schema owner-map loops. `ExtensionComponents` deleted — no referent left once
+      the nested option went; `SchemaExtensions` and `DatabaseExtensions` cover the
+      attachment points. The three duplicate record aliases were otherwise left alone
+- [x] `database.schemas` is direct named schemas only. Extension-owned schemas stay
+      at `database.extensions.<key>.schemas`
+- [x] Attachment rules throw at construction: a schema-scoped extension cannot
+      attach to a database schema; a table-scoped extension cannot attach to a
+      database. No temporary default-placement branch — tables-mode arrives in S6
+- [x] Pongo's `Omit<Schemas, keyof SchemasFromExtensions<Extensions>>` and the
+      runtime `extensionSchemaKeys` set both deleted
+- [x] Collection lookup centralized in `pongoDatabaseSchemas`. It searches direct
+      declarations and directly attached flat extensions; no recursive traversal
+- [x] More than one matching physical table throws immediately; a single match that
+      is not a Pongo collection throws; one matching Pongo collection is reused
+- [x] The physical-table traversal moved back into dumbo as `findTables`
+- [x] Gate, verified independently of the agents: build exit 0, fix clean, unit
+      **1060/1060** across 60 files, int:sqlite **955/959** (the same 4 D1
+      failures, no `sqlite3` flake on either run). Concept greps for
+      `SchemasFromExtensions`, `extensionSchemaKeys`, `ExtensionComponents` and
+      `extensionContains*` return nothing outside `dist/`
+- [x] Review gate — **pass**. One new type alias, `ExtensionTables`, symmetric with
+      the `ExtensionSchemas` already in that file and required by the new table side;
+      four types deleted against it
+
+**Extension schemas are matched by placement, not by record key.** An extension
+keys its default schema arbitrarily — both migration int specs use `default` —
+while Pongo's default key is `''`. Pongo's lookup compares
+`databaseSchemaKey(schema.schemaName)` against the requested key, so a record-key
+match would have silently missed. Tables are gathered from each candidate schema's
+own `tables` **and** its directly attached `extensions[*].tables`; a table-scoped
+extension on a named schema puts its collections there, one flat gather each way.
+
+**A live bug went with the merged schema map.** `withTable` rebuilds a database
+from `{...database.schemas, [key]: schema}` plus `database.extensions`. While
+`database.schemas` carried extension schemas, that combination threw
+`Database schema key "…" is declared directly and by extension "…"` — so requesting
+any *undeclared* collection on a database with an extension threw. The two
+extension int specs never hit it because they only request declared collections.
+It is now covered by a test that passed before the lookup was touched, which is
+what proves the throw came from the merge and not from the lookup.
+
+**Accepted break.** `database.schemas` no longer exposes extension-contributed
+schemas, so `definition.schemas.readmodels` is `undefined`; both
+`migrates mixed event-store and Pongo extension schemas` specs now reach
+`definition.extensions.eventStore.schemas.readmodels`. Migration names and order
+are unchanged in both, and both now also assert the collection component is
+*reused*, not deduplicated by accident.
+
+**Three tests deleted, each a dead concept.** Extensions nested inside extensions;
+and the two schema-key-collision rejections — a key shared by a direct schema and
+an extension, and one shared by two extensions — which cannot occur now that the
+maps are not merged. Fifteen added across both packages, including
+`table:emt:messages:create` from a table-scoped extension asserted equal to the
+same table declared directly, and a `@ts-expect-error` proof that `tables` and
+`schemas` cannot be declared together.
+
+**Open, needs your call.** Removing the `Omit` also removed a fallback: a
+non-Pongo `schemas` map used to widen to `PongoSchemaCollectionsMap<PongoDatabaseSchemas>`,
+an open `[x: string]` index signature, and now falls to `object`. That reads as
+consistent with decision 19 — a plain Dumbo declaration must not change the static
+database shape — and nothing regressed, but it is a real narrowing rather than a
+no-op.
 
 ## Step 6 — Make database placement explicit and stop rebuilding components
 - [ ] Not started
 
 ## Step 7 — Bind Pongo's logical default placement once
 - [ ] Not started
+
+**Carried in from S5.** `defaults.schemaName` is read in exactly one place —
+`databaseSchemaComponent.ts:106`, `parent.defaults?.schemaName ??
+SQLDefaultSchemaNameToken.from()` — and written in exactly one place,
+`componentMigrations.unit.spec.ts`. **Pongo never passes it.** Binding Pongo's
+`defaultSchemaName` to it is this step's job, and until then the whole
+policy-vs-placement split is exercised only by dumbo's own unit spec.
+
+That single line is also what separates `SQLDefaultSchemaNameToken` (an explicit
+"let the dialect pick") from `undefined` (no placement anywhere in the ancestry).
+Only a table with a `databaseSchemaComponent` ancestor passes through it, so only
+such a table resolves the configured logical default. A table reached any other
+way silently ignores it. This is why S5 rejects a table-scoped extension attached
+to a database instead of letting it mean `undefined`: the database has no
+vocabulary for that placement until S6 gives it a private default-token schema.
+With no `defaults` set today the divergence is latent — both paths land
+unqualified — so nothing observable proves it until this step lands. End-to-end
+proof #4 is the check: `defaultSchemaName: 'readmodels'` must yield
+`schema:readmodels:create` and `table:readmodels:messages:create`, not
+`table:messages:create` with no schema creation.
+
+**S5's throw is a placeholder, not a rule.** `rejects a table extension attached
+to a database` (dumbo `schemaComponent.unit.spec.ts`, Pongo `schema.unit.spec.ts`)
+narrows in S6 from "cannot be attached to a database" to "cannot be attached to a
+schemas-mode database", and its message needs the mode qualifier back — a
+meaningful one, unlike the `'the unnamed database'` filler deleted in S5. If
+carrying an error that exists only to be reworded twice is not worth it, the
+alternative is folding S5/S6/S7's default-placement work into one step.
 
 ## Step 8 — Simplify Pongo typing and audit the public surface
 - [ ] Not started

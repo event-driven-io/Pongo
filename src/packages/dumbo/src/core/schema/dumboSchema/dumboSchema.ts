@@ -25,8 +25,8 @@ import {
   extensionComponent,
   type ExtensionComponent,
   type ExtensionComponentOptions,
-  type ExtensionComponents,
   type ExtensionSchemas,
+  type ExtensionTables,
 } from '../extensionComponent';
 import {
   schemaComponentType,
@@ -229,12 +229,12 @@ dumboDatabase.from = (
 
 const dumboExtension = <
   const Name extends string,
+  const Tables extends ExtensionTables = Readonly<Record<never, never>>,
   const Schemas extends ExtensionSchemas = Readonly<Record<never, never>>,
-  const Extensions extends ExtensionComponents = Readonly<Record<never, never>>,
 >(
   name: Name,
-  options: ExtensionComponentOptions<Schemas, Extensions> = {},
-): ExtensionComponent<Name, Schemas, Extensions> =>
+  options: ExtensionComponentOptions<Tables, Schemas> = {},
+): ExtensionComponent<Name, Tables, Schemas> =>
   extensionComponent(name, options);
 
 export const dumboSchema = {

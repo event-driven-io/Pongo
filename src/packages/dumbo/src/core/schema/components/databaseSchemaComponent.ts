@@ -81,21 +81,16 @@ export const databaseSchemaComponent = <
     tableNames.add(table.tableName);
   }
   for (const extension of Object.values(extensions)) {
-    for (const schema of Object.values(extension.schemas)) {
-      const hasSameSchemaName =
-        typeof options.schemaName === 'string'
-          ? schema.schemaName === options.schemaName
-          : SQLDefaultSchemaNameToken.check(schema.schemaName);
-      if (!hasSameSchemaName) {
-        const contributedSchemaName =
-          typeof schema.schemaName === 'string'
-            ? `"${schema.schemaName}"`
-            : 'the default schema';
-        throw new Error(
-          `Extension "${extension.extensionName}" contributes database schema ${contributedSchemaName} and cannot be attached to database schema "${schemaNameLabel}"`,
-        );
-      }
-    }
+    const [contributedSchema] = Object.values(extension.schemas);
+    if (contributedSchema === undefined) continue;
+
+    const contributedSchemaName =
+      typeof contributedSchema.schemaName === 'string'
+        ? `"${contributedSchema.schemaName}"`
+        : 'the default schema';
+    throw new Error(
+      `Extension "${extension.extensionName}" contributes database schema ${contributedSchemaName} and cannot be attached to database schema "${schemaNameLabel}"`,
+    );
   }
   const children = Object.freeze([
     ...Object.values(tables),

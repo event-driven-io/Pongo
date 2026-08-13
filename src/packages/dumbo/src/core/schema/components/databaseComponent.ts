@@ -1,8 +1,5 @@
 import { SQLDefaultSchemaNameToken } from '../../sql';
-import type {
-  AnyExtensionComponent,
-  SchemasFromExtensions,
-} from '../extensionComponent';
+import type { AnyExtensionComponent } from '../extensionComponent';
 import {
   schemaComponent,
   schemaComponentMap,
@@ -39,7 +36,7 @@ export type DatabaseComponent<
 > = SchemaComponent<typeof databaseComponentType> &
   Readonly<{
     databaseName: DatabaseName;
-    schemas: Schemas & SchemasFromExtensions<Extensions>;
+    schemas: Schemas;
     extensions: Extensions;
   }>;
 
@@ -71,8 +68,6 @@ export const databaseComponent = <
 ): DatabaseComponent<Schemas, DatabaseName, Extensions> => {
   const schemas = (options.schemas ?? {}) as Schemas;
   const databaseName = options.databaseName;
-  const exposedSchemaEntries: [string, AnyDatabaseSchemaComponent][] = [];
-  const schemaOwners = new Map<string, string | undefined>();
   for (const [schemaName, schema] of Object.entries(schemas)) {
     if (
       typeof schema.schemaName === 'string' &&
@@ -82,23 +77,14 @@ export const databaseComponent = <
         `Database schema record key "${schemaName}" conflicts with its explicit name "${schema.schemaName}"`,
       );
     }
-    exposedSchemaEntries.push([schemaName, schema]);
-    schemaOwners.set(schemaName, undefined);
   }
   const extensions = (options.extensions ?? {}) as Extensions;
   for (const extension of Object.values(extensions)) {
-    for (const [schemaName, schema] of Object.entries(extension.schemas)) {
-      if (schemaOwners.has(schemaName)) {
-        const owner = schemaOwners.get(schemaName);
-        throw new Error(
-          owner === undefined
-            ? `Database schema key "${schemaName}" is declared directly and by extension "${extension.extensionName}"`
-            : `Database schema key "${schemaName}" is declared by extensions "${owner}" and "${extension.extensionName}"`,
-        );
-      }
-      exposedSchemaEntries.push([schemaName, schema]);
-      schemaOwners.set(schemaName, extension.extensionName);
-    }
+    const [contributedTable] = Object.values(extension.tables);
+    if (contributedTable !== undefined)
+      throw new Error(
+        `Extension "${extension.extensionName}" contributes database table "${contributedTable.tableName}" and cannot be attached to a database`,
+      );
   }
   const children = Object.freeze([
     ...Object.values(schemas),
@@ -111,9 +97,7 @@ export const databaseComponent = <
       migrations: options.migrations,
     }),
     databaseName: databaseName as DatabaseName,
-    schemas: schemaComponentMap(
-      Object.fromEntries(exposedSchemaEntries),
-    ) as Schemas & SchemasFromExtensions<Extensions>,
+    schemas: schemaComponentMap(schemas),
     extensions: schemaComponentMap(extensions),
   };
 
