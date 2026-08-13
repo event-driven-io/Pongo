@@ -166,13 +166,8 @@ describe('components emitting their own migrations', () => {
           schemaName: 'audit',
           extensions: {
             eventStore: extensionComponent('event-store', {
-              schemas: {
-                audit: databaseSchemaComponent({
-                  schemaName: 'audit',
-                  tables: {
-                    events: tableComponent({ tableName: 'events', columns }),
-                  },
-                }),
+              tables: {
+                events: tableComponent({ tableName: 'events', columns }),
               },
             }),
           },

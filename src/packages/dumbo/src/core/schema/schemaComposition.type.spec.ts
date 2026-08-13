@@ -99,7 +99,7 @@ describe('composing a schema through the Dumbo declaration API', () => {
     >().toEqualTypeOf<never>();
   });
 
-  it('preserves schemas contributed by extensions without walking table maps', () => {
+  it('keeps schemas contributed by extensions reachable through the extension', () => {
     const messages = dumboSchema.table('messages', {
       columns: {
         id: dumboSchema.column('id', SQL.column.type.Text),
@@ -127,22 +127,41 @@ describe('composing a schema through the Dumbo declaration API', () => {
           users: readmodelUsers,
         }),
       },
-      extensions: { audit },
     });
     const direct = dumboSchema.schema('direct', {});
-    const database = dumboSchema.database('app', { direct }, { eventStore });
+    const database = dumboSchema.database(
+      'app',
+      { direct },
+      { eventStore, audit },
+    );
 
     expectTypeOf(eventStore.schemas.readmodels.tables.users).toEqualTypeOf(
       readmodelUsers,
     );
-    expectTypeOf(eventStore.schemas.audit.tables.auditLog).toEqualTypeOf(
-      auditLog,
-    );
-    expectTypeOf(database.schemas.readmodels.tables.users).toEqualTypeOf(
-      readmodelUsers,
-    );
+    expectTypeOf(audit.schemas.audit.tables.auditLog).toEqualTypeOf(auditLog);
+    expectTypeOf(
+      database.extensions.eventStore.schemas.readmodels.tables.users,
+    ).toEqualTypeOf(readmodelUsers);
     expectTypeOf(database.schemas.direct).toEqualTypeOf(direct);
     expectTypeOf(database.extensions.eventStore).toEqualTypeOf(eventStore);
-    expectTypeOf(eventStore.extensions.audit).toEqualTypeOf(audit);
+    expectTypeOf<
+      Extract<keyof typeof database.schemas, 'readmodels'>
+    >().toEqualTypeOf<never>();
+  });
+
+  it('declares an extension with tables or schemas, never with both', () => {
+    const auditLog = dumboSchema.table('audit_log', {
+      columns: {
+        id: dumboSchema.column('id', SQL.column.type.Text),
+      },
+    });
+    const audit = dumboSchema.extension('audit', { tables: { auditLog } });
+
+    expectTypeOf(audit.tables.auditLog).toEqualTypeOf(auditLog);
+    dumboSchema.extension('mixed', {
+      tables: { auditLog },
+      // @ts-expect-error an extension declares tables or schemas, never both
+      schemas: { audit: dumboSchema.schema('audit', { auditLog }) },
+    });
   });
 });

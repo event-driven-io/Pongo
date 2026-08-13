@@ -24,7 +24,6 @@ import {
   type IndexComponent,
   type IndexSQLContext,
   type SchemaExtensions,
-  type SchemasFromExtensions,
   type TableComponent,
 } from '@event-driven-io/dumbo';
 import {
@@ -230,17 +229,9 @@ export type PongoDbWithSchema<
 }
   ? CollectionsMap<Collections>
   : Definition extends {
-        schemas: infer Schemas;
-        extensions: infer Extensions extends DatabaseExtensions;
+        schemas: infer Schemas extends PongoDatabaseSchemas;
       }
-    ? PongoSchemaCollectionsMap<
-        Omit<
-          Schemas,
-          keyof SchemasFromExtensions<Extensions>
-        > extends infer DirectSchemas extends PongoDatabaseSchemas
-          ? DirectSchemas
-          : PongoDatabaseSchemas
-      >
+    ? PongoSchemaCollectionsMap<Schemas>
     : object) &
   PongoDb<DriverType>;
 
@@ -555,13 +546,7 @@ export const projectPongoDb = <
       });
     }
   } else {
-    const extensionSchemaKeys = new Set(
-      Object.values(definition.extensions).flatMap((extension) =>
-        Object.keys(extension.schemas),
-      ),
-    );
     for (const [schemaName, schema] of objectEntries(definition.schemas)) {
-      if (extensionSchemaKeys.has(schemaName)) continue;
       assertAvailable(pongoDb, schemaName, 'schema');
       const scope = Object.create(null) as Record<string, unknown>;
 

@@ -1,6 +1,7 @@
 import assert from 'node:assert';
 import {
   defaultDatabaseSchemaKey,
+  dumboSchema,
   JSONSerializer,
   SQL,
   SQLDefaultSchemaNameToken,
@@ -297,6 +298,126 @@ describe('using a Pongo database', () => {
     assert.strictEqual(
       db.schema.component.schemas.crm?.tables.customerDirectory?.tableName,
       users.tableName,
+    );
+  });
+
+  it('reuses a collection declared by a table extension attached to a named schema', () => {
+    const users = pongoSchema.collection('users');
+    const crmExtension = dumboSchema.extension('crm-extension', {
+      tables: { users },
+    });
+    const { db } = createTestDb({
+      definition: pongoSchema.db('test', {
+        schemas: {
+          crm: pongoSchema.schema('crm', {}, { crmExtension }),
+        },
+      }),
+    });
+
+    const collection = db.collection('users', { databaseSchemaName: 'crm' });
+
+    assert.strictEqual(collection.schema.component, users);
+    assert.deepStrictEqual(
+      Object.keys(db.schema.component.schemas.crm?.tables ?? {}),
+      [],
+    );
+    assert.deepStrictEqual(migrationNames(db.schema.migrations), [
+      'schema:crm:create',
+      'table:pongo_collection:crm:users:create',
+    ]);
+  });
+
+  it('reuses a collection declared by an extension schema bound to the default schema', () => {
+    const users = pongoSchema.collection('users');
+    const eventStore = dumboSchema.extension('event-store', {
+      schemas: { default: dumboSchema.defaultSchema({ users }) },
+    });
+    const { db } = createTestDb({
+      definition: pongoSchema.db('test', { schemas: {} }, { eventStore }),
+    });
+
+    const collection = db.collection('users');
+
+    assert.strictEqual(collection.schema.component, users);
+    assert.deepStrictEqual(migrationNames(db.schema.migrations), [
+      'table:pongo_collection:users:create',
+    ]);
+  });
+
+  it('rejects a collection matching more than one table in the same schema', () => {
+    const crmExtension = dumboSchema.extension('crm-extension', {
+      tables: { users: pongoSchema.collection('users') },
+    });
+    const { db } = createTestDb({
+      definition: pongoSchema.db('test', {
+        schemas: {
+          crm: pongoSchema.schema(
+            'crm',
+            { users: pongoSchema.collection('users') },
+            { crmExtension },
+          ),
+        },
+      }),
+    });
+
+    assert.throws(
+      () => db.collection('users', { databaseSchemaName: 'crm' }),
+      /Collection "users" matches more than one table in database schema "crm"/,
+    );
+  });
+
+  it('rejects a collection whose physical table is not a Pongo collection', () => {
+    const legacy = dumboSchema.extension('legacy', {
+      tables: {
+        users: dumboSchema.table('users', {
+          columns: {
+            id: dumboSchema.column('id', SQL.column.type.Text, {
+              primaryKey: true,
+            }),
+          },
+        }),
+      },
+    });
+    const { db } = createTestDb({
+      definition: pongoSchema.db('test', {
+        schemas: { crm: pongoSchema.schema('crm', {}, { legacy }) },
+      }),
+    });
+
+    assert.throws(
+      () => db.collection('users', { databaseSchemaName: 'crm' }),
+      /Table "users" in database schema "crm" is not a Pongo collection/,
+    );
+  });
+
+  it('registers an undeclared collection on a database that has an extension', () => {
+    const eventStore = dumboSchema.extension('event-store', {
+      schemas: {
+        readmodels: dumboSchema.schema('readmodels', {
+          summaries: pongoSchema.collection('summaries'),
+        }),
+      },
+    });
+    const { db } = createTestDb({
+      definition: pongoSchema.db('test', { schemas: {} }, { eventStore }),
+    });
+
+    const collection = db.collection('users', { databaseSchemaName: 'crm' });
+
+    assert.strictEqual(collection.collectionName, 'users');
+    assert.strictEqual(
+      db.schema.component.schemas.crm?.tables.users?.tableName,
+      'users',
+    );
+    assert.ok(
+      migrationNames(db.schema.migrations).includes(
+        'table:pongo_collection:crm:users:create',
+      ),
+    );
+    assert.ok(
+      migrationNames(db.schema.migrations).includes(
+        'table:pongo_collection:readmodels:summaries:create',
+      ),
     );
   });
 

@@ -269,9 +269,9 @@ describe('Migration Integration Tests', () => {
     expectTypeOf(
       eventStore.schemas.readmodels.tables.users[pongoDocumentType],
     ).toEqualTypeOf<User>();
-    expectTypeOf(definition.schemas.readmodels.tables.users).toEqualTypeOf(
-      users,
-    );
+    expectTypeOf(
+      definition.extensions.eventStore.schemas.readmodels.tables.users,
+    ).toEqualTypeOf(users);
 
     try {
       const db = extensionClient.db('database');
@@ -280,6 +280,7 @@ describe('Migration Integration Tests', () => {
       });
       expectTypeOf(usersCollection).toEqualTypeOf<PongoCollection<User>>();
 
+      assert.strictEqual(usersCollection.schema.component, users);
       assert.deepStrictEqual(
         db.schema.migrations.map(({ name }) => name),
         [
