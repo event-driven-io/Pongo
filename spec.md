@@ -1,7 +1,7 @@
 # Spec: simplified schema component model
 
 Branch: `schema_features`
-Status: implemented through Step 8
+Status: implemented through Step 8 plus the approved baseline migration follow-up
 
 This document describes the model that the current branch implements. It
 replaces the older parent-pointer and second-migration-traversal designs.
@@ -62,6 +62,7 @@ type SchemaComponentContext = Readonly<{
   defaults?: Readonly<{ schemaName?: string | undefined }> | undefined;
   databaseSchemaName?: string | SQLDefaultSchemaNameToken | undefined;
   tableName?: string | undefined;
+  skipGeneratedInitialMigrations?: boolean | undefined;
 }>;
 ```
 
@@ -69,6 +70,46 @@ type SchemaComponentContext = Readonly<{
 component placement. Keeping those separate lets Pongo bind a logical default
 to a concrete schema without leaking that choice into database-level migrations
 or unrelated components.
+
+## Baseline Migrations
+
+`sqlMigration(name, sqls, { baseline: true })` marks that migration as the
+initial schema for the component that declares it. When a component's own
+`migrations` callback returns a baseline migration, Dumbo includes that
+migration and skips generated initial DDL for that component subtree.
+
+The flag suppresses only Dumbo-generated initial DDL:
+
+- generated `CREATE SCHEMA`;
+- generated `CREATE TABLE`;
+- generated `CREATE INDEX`.
+
+Other migrations returned by the same callback still run after the baseline in
+the order returned by the callback. The component also stays in the typed schema
+model, so future snapshot/diff tooling can still inspect it. Snapshot storage,
+schema diffing, and incremental migration generation are future work and are not
+implemented in this branch.
+
+`ignoreHashMismatch: true` can be set on a migration that is intentionally
+dynamic. If that migration was already applied and its SQL changes later, the
+migrator skips it without failing and without updating the recorded hash. If it
+has not been applied yet, it runs normally.
+
+This supports PostgreSQL-specific baselines where raw SQL is clearer than the
+cross-dialect table DSL:
+
+```ts
+databaseComponent({
+  migrations: () => [
+    sqlMigration("event-store:baseline", [eventStoreSQL], {
+      baseline: true,
+      ignoreHashMismatch: true,
+    }),
+    sqlMigration("event-store:functions", [eventStoreFunctionsSQL]),
+  ],
+  tables: { messages, streams },
+});
+```
 
 ## DDL Tokens
 

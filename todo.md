@@ -14,9 +14,9 @@ Nothing is committed. Oskar handles git.
 
 ---
 
-## Step 0 — Baseline and contract tests — **skipped, Oskar's call**
+## Step 0 — Initial bookkeeping and contract tests — **skipped, Oskar's call**
 
-Dropped on Oskar's instruction: the baseline/metrics/audit bookkeeping is not
+Dropped on Oskar's instruction: the initial metrics/audit bookkeeping is not
 what this branch needs. The contract type tests it listed are folded into the
 steps that implement their subject — Dumbo's database declaration shape into S6,
 `defaultSchemaName` behaviour into S7, the export audit into S8.
@@ -470,6 +470,27 @@ the placement instead of the throw.
 - [x] `plan.md` rewritten to describe the implemented state and remaining
       Step 10 discussion
 - [x] `todo.md` updated with this documentation-only closeout
+- [x] Gate: `npm run fix && npm run build:ts`
+
+## Follow-up — Baseline migration metadata and advisory lock options — **done**
+- [x] Added migration options to `sqlMigration`
+- [x] `baseline: true` marks a migration as the initial schema for the
+      component declaring it
+- [x] A baseline migration suppresses generated initial DDL for that component
+      subtree only: `CREATE SCHEMA`, `CREATE TABLE`, and `CREATE INDEX`
+- [x] Other migrations returned by the same callback still run after the
+      baseline, while typed components remain available for schema typing and
+      future snapshot/diff tooling
+- [x] `ignoreHashMismatch: true` skips an already-applied changed migration
+      without failing and without updating the recorded hash
+- [x] Added usage-scenario tests:
+      `runs a baseline migration instead of generated schema table and index creates`,
+      `runs a table baseline while keeping generated schema creates around it`,
+      and `skips an already applied baseline when its SQL changes`
+- [x] Fixed `runSQLMigrations` to pass merged `lock.options` into the selected
+      database lock, so custom `lockId` and `timeoutMs` are effective
+- [x] Verified the GitHub Actions failure locally with
+      `npx vitest run src/packages/dumbo/src/storage/postgresql/core/schema/migrations.int.spec.ts`
 - [x] Gate: `npm run fix && npm run build:ts`
 
 ## Step 10 — Decide the DDL privilege policy — **discussion open, nothing to implement**

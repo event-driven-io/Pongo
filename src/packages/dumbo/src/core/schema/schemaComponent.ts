@@ -11,6 +11,7 @@ export type SchemaComponentContext = Readonly<{
   defaults?: Readonly<{ schemaName?: string | undefined }> | undefined;
   databaseSchemaName?: string | SQLDefaultSchemaNameToken | undefined;
   tableName?: string | undefined;
+  skipGeneratedInitialMigrations?: boolean | undefined;
 }>;
 
 export type SchemaComponent<
@@ -55,7 +56,12 @@ export const dedupeMigrations = (
     if (previous === undefined) {
       migrationsByName.set(migration.name, migration);
       result.push(migration);
-    } else if (!haveSameSQL(previous, migration)) {
+    } else if (
+      !haveSameSQL(previous, migration) ||
+      (previous.baseline === true) !== (migration.baseline === true) ||
+      (previous.ignoreHashMismatch === true) !==
+        (migration.ignoreHashMismatch === true)
+    ) {
       throw new Error(
         `Duplicate migration name "${migration.name}" in schema component tree`,
       );
@@ -75,10 +81,16 @@ export const schemaComponent = <const Kind extends SchemaComponentKind>(
     [schemaComponentType]: kind,
     migrations: (context: SchemaComponentContext = {}) => {
       const scoped = options.context?.(context) ?? context;
+      const ownMigrations = options.migrations?.(scoped) ?? [];
+      const childContext =
+        ownMigrations.some((migration) => migration.baseline === true) ||
+        scoped.skipGeneratedInitialMigrations === true
+          ? { ...scoped, skipGeneratedInitialMigrations: true }
+          : scoped;
 
       return dedupeMigrations([
-        ...(options.migrations?.(scoped) ?? []),
-        ...children.flatMap((child) => child.migrations(scoped)),
+        ...ownMigrations,
+        ...children.flatMap((child) => child.migrations(childContext)),
       ]);
     },
   };

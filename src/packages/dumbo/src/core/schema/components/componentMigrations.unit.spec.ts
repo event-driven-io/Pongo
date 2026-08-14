@@ -206,6 +206,58 @@ describe('components emitting their own migrations', () => {
     );
   });
 
+  it('runs a baseline migration instead of generated schema table and index creates', () => {
+    const baseline = sqlMigration(
+      'event-store:baseline',
+      [SQL`SELECT 'baseline'`],
+      { baseline: true },
+    );
+    const database = databaseComponent({
+      migrations: () => [baseline],
+      schemas: {
+        crm: databaseSchemaComponent({
+          schemaName: 'crm',
+          tables: { users: usersTable() },
+        }),
+      },
+    });
+
+    assert.deepStrictEqual(database.migrations(), [baseline]);
+  });
+
+  it('runs a table baseline while keeping generated schema creates around it', () => {
+    const baseline = sqlMigration('users:baseline', [SQL`SELECT 'baseline'`], {
+      baseline: true,
+    });
+    const backfill = sqlMigration('users:backfill', [SQL`SELECT 'backfill'`]);
+    const database = databaseComponent({
+      schemas: {
+        crm: databaseSchemaComponent({
+          schemaName: 'crm',
+          tables: {
+            users: tableComponent({
+              tableName: 'users',
+              columns,
+              migrations: () => [baseline, backfill],
+              indexes: {
+                email: indexComponent({
+                  indexName: 'users_email_idx',
+                  columnNames: ['email'],
+                  isUnique: true,
+                }),
+              },
+            }),
+          },
+        }),
+      },
+    });
+
+    assert.deepStrictEqual(
+      database.migrations().map(({ name }) => name),
+      ['schema:crm:create', 'users:baseline', 'users:backfill'],
+    );
+  });
+
   it('emits nothing for a table that declares no columns', () => {
     const schema = databaseSchemaComponent({
       schemaName: 'crm',

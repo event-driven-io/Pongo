@@ -151,12 +151,20 @@ export const indexComponent = <
           tableName,
           indexName: options.indexName,
         };
+        const explicitMigrations = options.migrations?.(context) ?? [];
+        const hasBaseline =
+          context.skipGeneratedInitialMigrations === true ||
+          explicitMigrations.some((migration) => migration.baseline === true);
 
         return [
-          sqlMigration(indexMigrationName(identifier, options.kind), [
-            createIndexSQL(options, identifier),
-          ]),
-          ...(options.migrations?.(context) ?? []),
+          ...(hasBaseline
+            ? []
+            : [
+                sqlMigration(indexMigrationName(identifier, options.kind), [
+                  createIndexSQL(options, identifier),
+                ]),
+              ]),
+          ...explicitMigrations,
         ];
       },
     }),

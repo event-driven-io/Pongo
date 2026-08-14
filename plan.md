@@ -5,7 +5,8 @@ Implements [spec.md](spec.md). Detailed execution notes live in
 
 ## Current State
 
-Implementation work through Step 8 is complete:
+Implementation work through Step 8 is complete, plus the approved baseline
+migration follow-up:
 
 1. Migrator cleanup.
 2. `schemaComponent` as the base migration traversal.
@@ -16,6 +17,8 @@ Implementation work through Step 8 is complete:
 6. One Dumbo database shape: default schema plus named schemas.
 7. Pongo logical-default binding through `defaultSchemaName`.
 8. Pongo typing/public-surface simplification and export audit.
+9. Dumbo baseline migration metadata for hand-written initial SQL without
+   removing typed components from the schema model.
 
 Metrics are intentionally ignored for this branch per Oskar's instruction.
 
@@ -48,11 +51,30 @@ type SchemaComponentContext = Readonly<{
   defaults?: Readonly<{ schemaName?: string | undefined }> | undefined;
   databaseSchemaName?: string | SQLDefaultSchemaNameToken | undefined;
   tableName?: string | undefined;
+  skipGeneratedInitialMigrations?: boolean | undefined;
 }>;
 ```
 
 Dumbo tables and indexes do not store placement. An index without table context
 throws instead of synthesizing placement.
+
+### Baseline Migrations
+
+`sqlMigration(name, sqls, { baseline: true })` marks a migration as the initial
+schema for the component that declares it. When a component's own `migrations`
+callback returns a baseline migration, Dumbo emits that migration and skips
+generated `CREATE SCHEMA`, `CREATE TABLE`, and `CREATE INDEX` migrations for
+that component subtree. Other migrations returned by the same callback still
+run in order after the baseline.
+
+`sqlMigration(name, sqls, { ignoreHashMismatch: true })` makes a hash mismatch
+local to that migration. If the migration was already applied, a changed SQL
+hash is skipped without failing and without updating the recorded hash. If the
+migration was not applied yet, it runs normally.
+
+Typed components remain in the schema model. Future snapshot/diff tooling can
+still inspect them and generate incremental migrations from stored snapshots;
+that tooling is not implemented in this branch.
 
 ### DDL and Migration Names
 
@@ -128,12 +150,13 @@ Kept:
 - `supportsSchemas` and `supportsFunctions`;
 - `toClientSchemaMetadata`.
 
+### Advisory Lock Options
+
+`runSQLMigrations` passes merged `lock.options` to the selected database lock.
+Custom `lockId` and `timeoutMs` are effective, fixing the PostgreSQL
+advisory-lock timeout integration test seen failing in GitHub Actions.
+
 ## Remaining Work
-
-### Documentation
-
-This update replaces the stale design text in `spec.md` and `plan.md`, and marks
-the documentation-only Step 9 state in `todo.md`. Metrics are not produced.
 
 ### Step 10: DDL Privilege Policy
 
