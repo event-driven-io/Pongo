@@ -4,8 +4,55 @@ import { SQLDefaultSchemaNameToken } from '../../sql';
 import { extensionComponent } from '../extensionComponent';
 import { databaseComponent } from './databaseComponent';
 import { databaseSchemaComponent } from './databaseSchemaComponent';
-import { findTable, findTables } from './findTables';
+import { findDatabaseSchemas, findTable, findTables } from './findTables';
 import { tableComponent } from './tableComponent';
+
+describe('finding database schemas by resolved placement', () => {
+  it('finds a direct named schema', () => {
+    const crm = databaseSchemaComponent({ schemaName: 'crm' });
+    const database = databaseComponent({ schemas: { crm } });
+
+    assert.deepStrictEqual(
+      findDatabaseSchemas(database, { databaseSchemaName: 'crm' }),
+      [{ databaseSchemaName: 'crm', schema: crm }],
+    );
+  });
+
+  it('finds a schema contributed by a database extension', () => {
+    const readmodels = databaseSchemaComponent({ schemaName: 'readmodels' });
+    const eventStore = extensionComponent('event-store', {
+      schemas: { readmodels },
+    });
+    const database = databaseComponent({ extensions: { eventStore } });
+
+    assert.deepStrictEqual(
+      findDatabaseSchemas(database, { databaseSchemaName: 'readmodels' }),
+      [{ databaseSchemaName: 'readmodels', schema: readmodels }],
+    );
+  });
+
+  it('searches a configured default and a schema of that name as one namespace', () => {
+    const direct = tableComponent({ tableName: 'users' });
+    const named = databaseSchemaComponent({
+      schemaName: 'pongo',
+      tables: { users: direct },
+    });
+    const database = databaseComponent({
+      schemas: { pongo: named },
+    });
+
+    assert.deepStrictEqual(
+      findDatabaseSchemas(database, {
+        databaseSchemaName: 'pongo',
+        defaults: { schemaName: 'pongo' },
+      }),
+      [
+        { databaseSchemaName: 'pongo', schema: database.defaultSchema },
+        { databaseSchemaName: 'pongo', schema: named },
+      ],
+    );
+  });
+});
 
 describe('finding tables placed in a database schema', () => {
   it('finds a table declared by the schema itself', () => {

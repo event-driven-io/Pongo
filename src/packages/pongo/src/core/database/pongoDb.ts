@@ -2,10 +2,10 @@ import type { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import {
   databaseSchemaComponent,
   dedupeMigrations,
+  findDatabaseSchemas,
   findTable,
   runSQLMigrations,
   SQLDefaultSchemaNameToken,
-  type AnyDatabaseSchemaComponent,
   type DatabaseDriverType,
   type Dumbo,
   type MigrationStyle,
@@ -108,8 +108,8 @@ const pongoDatabaseSchemas = (
   const namedScopes = new Map<
     string,
     {
-      schema: AnyDatabaseSchemaComponent | undefined;
       collections: Map<string, PongoCollectionComponent>;
+      migrations: () => ReturnType<PongoCollectionComponent['migrations']>;
     }
   >();
 
@@ -117,33 +117,48 @@ const pongoDatabaseSchemas = (
     const existing = namedScopes.get(databaseSchemaName);
     if (existing !== undefined) return existing;
 
+    const collections = new Map<string, PongoCollectionComponent>();
+    const declaredSchema =
+      findDatabaseSchemas(component, {
+        databaseSchemaName,
+        defaults,
+      }).length > 0;
     const scope = {
-      schema:
-        component.schemas[databaseSchemaName] === undefined
-          ? databaseSchemaComponent({ schemaName: databaseSchemaName })
-          : undefined,
-      collections: new Map<string, PongoCollectionComponent>(),
+      collections,
+      migrations: () =>
+        declaredSchema
+          ? [...collections.values()].flatMap((collection) =>
+              collection.migrations({ databaseSchemaName }),
+            )
+          : databaseSchemaComponent({
+              schemaName: databaseSchemaName,
+              tables: Object.fromEntries(collections),
+            }).migrations(),
     };
     namedScopes.set(databaseSchemaName, scope);
     return scope;
   };
 
+  const defaultSchemaMigrations = () =>
+    [...defaultScope.values()].flatMap((collection) =>
+      collection.migrations({ databaseSchemaName: defaultSchemaName }),
+    );
+
+  const declaredSchemaMigrations = () =>
+    component.migrations({
+      ...(defaults === undefined ? {} : { defaults }),
+    });
+
+  const runtimeNamedSchemaMigrations = () =>
+    [...namedScopes.values()].flatMap((scope) => scope.migrations());
+
   return {
     component,
     migrations: () =>
       dedupeMigrations([
-        ...component.migrations(
-          defaults === undefined ? undefined : { defaults },
-        ),
-        ...[...defaultScope.values()].flatMap((collection) =>
-          collection.migrations({ databaseSchemaName: defaultSchemaName }),
-        ),
-        ...[...namedScopes].flatMap(([databaseSchemaName, scope]) => [
-          ...(scope.schema?.migrations() ?? []),
-          ...[...scope.collections.values()].flatMap((collection) =>
-            collection.migrations({ databaseSchemaName }),
-          ),
-        ]),
+        ...declaredSchemaMigrations(),
+        ...defaultSchemaMigrations(),
+        ...runtimeNamedSchemaMigrations(),
       ]),
     collection: <T extends Document>(
       collectionName: string,
@@ -159,7 +174,10 @@ const pongoDatabaseSchemas = (
             `Table "${collectionName}" in ${databaseSchemaLabel(databaseSchemaName)} is not a Pongo collection`,
           );
         }
-        return { component: declared, identifier };
+        return {
+          component: declared,
+          identifier,
+        };
       }
 
       const dynamic =
@@ -169,7 +187,11 @@ const pongoDatabaseSchemas = (
           : defaultScope;
       const existing = dynamic.get(collectionName);
 
-      if (existing !== undefined) return { component: existing, identifier };
+      if (existing !== undefined)
+        return {
+          component: existing,
+          identifier,
+        };
 
       const created = pongoSchema.collection<T>(
         collectionName,
@@ -179,7 +201,10 @@ const pongoDatabaseSchemas = (
       );
       dynamic.set(collectionName, created);
 
-      return { component: created, identifier };
+      return {
+        component: created,
+        identifier,
+      };
     },
   };
 };
