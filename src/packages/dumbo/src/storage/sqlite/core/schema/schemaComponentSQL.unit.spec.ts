@@ -8,7 +8,6 @@ import {
   jsonPathIndexTarget,
   SQL,
   SQLDefaultSchemaNameToken,
-  type IndexIdentifier,
 } from '../../../../core';
 import { sqliteFormatter } from '../sql';
 import { sqliteTableReference } from './schemaComponentSQL';
@@ -20,7 +19,7 @@ const identifier = {
   databaseSchemaName: 'crm',
   tableName: 'users',
   indexName: 'users_email_idx',
-} satisfies IndexIdentifier;
+} satisfies Parameters<typeof createIndexSQL>[1];
 
 describe('using Dumbo components in logical SQLite schemas', () => {
   it('resolves mapped table references from their full logical identifier', () => {

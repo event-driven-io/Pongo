@@ -11,7 +11,6 @@ import {
   dumboSchema,
   indexComponent,
   jsonDocumentIndexTarget,
-  MIGRATIONS_LOCK_ID,
   runSQLMigrations,
   extensionComponent,
   single,
@@ -22,6 +21,8 @@ import {
 } from '../../../../core';
 import { pgDumboDriver } from '../../pg';
 import { acquireAdvisoryLock, releaseAdvisoryLock } from '../locks';
+
+const migrationsLockId = 123456789;
 
 describe('Migration Integration Tests', () => {
   let pool: Dumbo;
@@ -232,13 +233,13 @@ describe('Migration Integration Tests', () => {
     const connection = await pool.connection();
     try {
       await acquireAdvisoryLock(connection.execute, {
-        lockId: MIGRATIONS_LOCK_ID,
+        lockId: migrationsLockId,
         mode: 'Permanent',
       });
 
       try {
         await runSQLMigrations(pool, [migration], {
-          lock: { options: { timeoutMs: 300 } },
+          lock: { options: { lockId: migrationsLockId, timeoutMs: 300 } },
         });
 
         assert.fail('The migration should have timed out and not proceeded.');
@@ -252,7 +253,7 @@ describe('Migration Integration Tests', () => {
       }
     } finally {
       await releaseAdvisoryLock(connection.execute, {
-        lockId: MIGRATIONS_LOCK_ID,
+        lockId: migrationsLockId,
       });
       await connection.close();
     }
@@ -275,14 +276,16 @@ describe('Migration Integration Tests', () => {
     try {
       // Simulate other migration holding the advisory lock
       await acquireAdvisoryLock(connection.execute, {
-        lockId: MIGRATIONS_LOCK_ID,
+        lockId: migrationsLockId,
       });
       await Promise.all([
-        runSQLMigrations(pool, [migration]),
+        runSQLMigrations(pool, [migration], {
+          lock: { options: { lockId: migrationsLockId } },
+        }),
         // simulate other projection running in parallel
         new Promise((resolve) => setTimeout(resolve, 100)).then(() =>
           releaseAdvisoryLock(connection.execute, {
-            lockId: MIGRATIONS_LOCK_ID,
+            lockId: migrationsLockId,
           }),
         ),
       ]); // This should wait due to the lock

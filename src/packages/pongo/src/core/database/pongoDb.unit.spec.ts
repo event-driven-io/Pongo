@@ -12,7 +12,6 @@ import {
 import { describe, it } from 'vitest';
 import type { PongoCollectionSQLBuilder } from '../collection';
 import { pongoSchema, type PongoDbSchema } from '../schema';
-import type { PongoDBCollectionOptions } from '../typing';
 import { PongoDatabase } from './pongoDb';
 
 const migrationNames = (migrations: ReadonlyArray<{ name: string }>) =>
@@ -462,24 +461,6 @@ describe('using a Pongo database', () => {
       migrationNames(db.schema.migrations).includes(
         'table:pongo_collection:readmodels:summaries:create',
       ),
-    );
-  });
-
-  it('rejects a collection placement conflicting with its schema scope', () => {
-    const { db } = createTestDb();
-    const scope = db.schema('crm') as {
-      collection: (
-        name: string,
-        options?: PongoDBCollectionOptions<{ _id: string }>,
-      ) => unknown;
-    };
-
-    assert.throws(
-      () =>
-        scope.collection('users', {
-          databaseSchemaName: 'audit',
-        }),
-      /schema scope "crm".*database schema "audit"/,
     );
   });
 

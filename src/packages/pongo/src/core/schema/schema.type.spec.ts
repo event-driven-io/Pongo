@@ -5,12 +5,13 @@ import type {
   TableComponent,
   TableRowType,
 } from '@event-driven-io/dumbo';
+import { dumboSchema, SQL } from '@event-driven-io/dumbo';
 import { describe, expectTypeOf, it } from 'vitest';
 import type { PongoCollection, PongoDb, PongoDocument } from '../typing';
 import {
   pongoSchema,
-  pongoDocumentType,
   type PongoDatabaseDefinition,
+  type PongoDbSchema,
   type PongoDbWithSchema,
 } from './index';
 
@@ -48,6 +49,25 @@ describe('typing Pongo declarations and projected databases', () => {
     }>();
   });
 
+  it('accepts a plain Dumbo database for dynamic Pongo collections', () => {
+    const relational = dumboSchema.database('app', {
+      tables: {
+        users: dumboSchema.table('users', {
+          columns: {
+            id: dumboSchema.column('id', SQL.column.type.Text),
+          },
+        }),
+      },
+    });
+    type RelationalDatabase = PongoDbWithSchema<typeof relational>;
+
+    expectTypeOf(relational).toMatchTypeOf<PongoDbSchema>();
+    expectTypeOf<RelationalDatabase>().toMatchTypeOf<PongoDb>();
+    expectTypeOf<
+      Extract<keyof RelationalDatabase, 'users'>
+    >().toEqualTypeOf<never>();
+  });
+
   it('types named schema scopes without promoting their collections', () => {
     const grouped = pongoSchema.db('app', {
       schemas: {
@@ -61,9 +81,9 @@ describe('typing Pongo declarations and projected databases', () => {
     expectTypeOf(
       grouped.schemas.public,
     ).toMatchTypeOf<DatabaseSchemaComponent>();
-    expectTypeOf(
-      grouped.schemas.public.tables.users[pongoDocumentType],
-    ).toEqualTypeOf<User>();
+    expectTypeOf<
+      TableRowType<typeof grouped.schemas.public.tables.users>['data']
+    >().toEqualTypeOf<User>();
     expectTypeOf<GroupedDatabase['public']['users']>().toEqualTypeOf<
       PongoCollection<User>
     >();

@@ -279,19 +279,6 @@ export const PongoDatabase = <
           'databaseSchemaName'
         >,
       ) => {
-        const requestedDatabaseSchemaName =
-          collectionOptions !== undefined &&
-          'databaseSchemaName' in collectionOptions
-            ? collectionOptions.databaseSchemaName
-            : undefined;
-        if (
-          typeof requestedDatabaseSchemaName === 'string' &&
-          requestedDatabaseSchemaName !== schemaName
-        ) {
-          throw new Error(
-            `Pongo schema scope ${schemaName === undefined ? 'without a name' : `"${schemaName}"`} cannot place a collection in database schema "${requestedDatabaseSchemaName}"`,
-          );
-        }
         return db.collection<T, Payload>(collectionName, {
           ...collectionOptions,
           databaseSchemaName: schemaName,

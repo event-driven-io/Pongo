@@ -25,6 +25,7 @@ import {
   type IndexSQLContext,
   type SchemaExtensions,
   type TableComponent,
+  type TableRowType,
 } from '@event-driven-io/dumbo';
 import {
   type PongoClient,
@@ -37,7 +38,6 @@ import {
 export const pongoCollectionComponentType: unique symbol = Symbol(
   'pongo.collectionComponent',
 );
-export const pongoDocumentType: unique symbol = Symbol('pongo.documentType');
 
 type EmptyComponentRecord = Readonly<Record<never, never>>;
 
@@ -123,7 +123,6 @@ export type PongoCollectionComponent<
     databaseSchemaName?: string | undefined;
     [schemaComponentType]: typeof tableComponentType;
     [pongoCollectionComponentType]: true;
-    [pongoDocumentType]: Document;
   }>;
 
 export type PongoSchemaComponent<
@@ -203,7 +202,9 @@ export type PongoClientSchemaFromDefinition<T> = T extends PongoClientSchema
     : PongoClientSchema;
 
 type DocumentOf<Collection extends PongoCollectionComponent> =
-  Collection extends PongoCollectionComponent<infer Document>
+  TableRowType<Collection> extends {
+    data: infer Document extends PongoDocument;
+  }
     ? Document
     : PongoDocument;
 

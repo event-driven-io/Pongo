@@ -12,6 +12,5 @@ export {
   type SchemaComponent,
   type SchemaComponentKind,
   type SchemaComponentOptions,
-  type SchemaComponentMap as SchemaComponentRecord,
 } from './schemaComponent';
 export * from './sqlMigration';

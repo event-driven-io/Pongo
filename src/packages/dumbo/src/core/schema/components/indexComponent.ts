@@ -78,7 +78,7 @@ export type IndexComponentOptions<
     | undefined;
 }>;
 
-export type IndexIdentifier = Omit<SQLIndexReference, 'sqlTokenType'>;
+type IndexIdentifier = Omit<SQLIndexReference, 'sqlTokenType'>;
 
 const indexTargetSQL = (
   index: Readonly<{
