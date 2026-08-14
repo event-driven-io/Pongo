@@ -87,10 +87,11 @@ export const extensionComponent = <
     ...Object.values(tables),
     ...Object.values(schemas),
   ]);
+  const ownsMigrations = options.migrations !== undefined;
 
   const component: ExtensionComponent<Name, Tables, Schemas> = {
     ...schemaComponent(extensionComponentType, {
-      components: children,
+      components: ownsMigrations ? [] : children,
       migrations: options.migrations,
     }),
     extensionName,
