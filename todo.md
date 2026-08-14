@@ -464,7 +464,13 @@ the placement instead of the throw.
 | `toClientSchemaMetadata` | yes | Public Pongo schema metadata converter | Useful conversion utility; `toDbSchemaMetadata` is used by CLI | none | keep |
 
 ## Step 9 — Documents and metrics
-- [ ] Not started
+- [x] Metrics ignored on Oskar's instruction
+- [x] `spec.md` rewritten to describe the implemented component model through
+      Step 8
+- [x] `plan.md` rewritten to describe the implemented state and remaining
+      Step 10 discussion
+- [x] `todo.md` updated with this documentation-only closeout
+- [x] Gate: `npm run fix && npm run build:ts`
 
 ## Step 10 — Decide the DDL privilege policy — **discussion open, nothing to implement**
 - [ ] Shape: a union, not booleans — a negative boolean encodes its default into its
