@@ -141,6 +141,27 @@ describe('Migration Integration Tests', () => {
         );
       });
 
+      it('rolls back migration SQL and ledger writes during dry run', async () => {
+        const migration = sqlMigration('dry-run:001', [
+          SQL`CREATE TABLE dry_run_result (id TEXT PRIMARY KEY);`,
+        ]);
+
+        const result = await runSQLMigrations(pool, [migration], {
+          dryRun: true,
+        });
+
+        assert.deepStrictEqual(result.applied, [migration]);
+        assert.deepStrictEqual(result.skipped, []);
+        assert.strictEqual(
+          await tableExists(pool.execute, 'dry_run_result'),
+          false,
+        );
+        assert.strictEqual(
+          await tableExists(pool.execute, 'dmb_migrations'),
+          false,
+        );
+      });
+
       it('accepts a migration name of exactly 255 characters', async () => {
         const migration = sqlMigration('n'.repeat(255), [
           SQL`CREATE TABLE longest_allowed_name (id TEXT PRIMARY KEY);`,

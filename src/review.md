@@ -2,16 +2,16 @@
 
 Scope: diff against `main`, with `*.spec.ts` and Markdown ignored for the primary code pass. I also read `/home/oskar/Repos/Pongo/spec.md` and checked adjacent runtime paths and dead-code candidates.
 
-Follow-up status: after this review, the low-hanging fixes for findings 1, 4, and 6 were implemented with focused tests. Finding 2 (`dryRun` mutating state) remains a separate pre-existing issue.
+Follow-up status: after this review, the low-hanging fixes for findings 1, 4, and 6 were implemented with focused tests. Finding 2 was rechecked against the transaction implementation: `dryRun` already rolls back through `withTransaction`, and focused SQLite/PostgreSQL tests were added to pin that behavior.
 
 ## Executive Summary
 
 The branch mostly implements the simplified model described in `spec.md`: immutable declarations, one downward `migrations(context?)` traversal, flat placement context, and dialect-neutral schema/table/index tokens.
 
-The main design is coherent, but there are two important bugs to address:
+The main design is coherent. The initially suspected migration bugs have been narrowed:
 
 1. Collection-level migration lost placement context for named/default-bound schemas.
-2. Migrator `dryRun` still executes migrations.
+2. Migrator `dryRun` executes migrations inside a transaction and rolls back; the missing piece was test coverage.
 
 The main simplification opportunity is in Pongo's runtime schema overlay: it currently owns lookup, dynamic component creation, dynamic schema creation, and runtime collection cache bucketing in one closure. That is the only area that feels harder than the model in `spec.md` requires.
 
@@ -46,9 +46,9 @@ Recommendation: make collection-level migration call `component.migrations({ dat
 
 Tradeoff: passing `{ databaseSchemaName }` is minimal, but it only fixes table/index placement. Reusing the overlay migration path is slightly larger, but keeps all migration behavior in one place.
 
-### 2. `dryRun` still writes to the database
+### 2. `dryRun` rollback behavior needed explicit coverage
 
-Severity: high, pre-existing on `main`.
+Severity: medium test gap, pre-existing on `main`.
 
 `runSQLMigrations` accepts `dryRun`, and the CLI exposes it as "Perform dry run without commiting changes":
 
@@ -56,20 +56,22 @@ Severity: high, pre-existing on `main`.
 - `packages/pongo/src/commandLine/migrate.ts:125`
 - `packages/dumbo/src/core/schema/migrators/migrator.ts:98`
 
-But the migrator still creates the migration table, executes every pending migration, and records migration rows:
+The migrator creates the migration table, executes every pending migration, and records migration rows inside `pool.withTransaction`:
 
 - `packages/dumbo/src/core/schema/migrators/migrator.ts:141`
 - `packages/dumbo/src/core/schema/migrators/migrator.ts:147`
 - `packages/dumbo/src/core/schema/migrators/migrator.ts:235`
 - `packages/dumbo/src/core/schema/migrators/migrator.ts:239`
 
-The only visible effect of `dryRun` is the returned success flag:
+For `dryRun`, it returns `{ success: false, result }` from the transaction handler:
 
 - `packages/dumbo/src/core/schema/migrators/migrator.ts:169`
 
-Recommendation: either remove/rename the option if this is not meant to be supported, or make dry-run collect pending/skipped migrations without executing core migrations, user migrations, or ledger writes. If SQL preview is the intended behavior, the CLI should use SQL rendering rather than `runSQLMigrations`.
+The transaction layer treats `success: false` as rollback while still returning `result`, so the implemented semantics are "execute in a transaction and rollback", not "inspect without executing".
 
-Tradeoff: a pure dry-run cannot perfectly model transactional/lock behavior, but it should never mutate the database.
+Recommendation: keep `dryRun` as-is for now and cover it explicitly. Focused SQLite and PostgreSQL tests now assert that dry-run reports the migration as applied inside the attempted run, but leaves neither the user-created table nor `dmb_migrations` committed.
+
+Tradeoff: rollback dry-run is closer to real execution than a pure planner, but it depends on transactional DDL support. That is acceptable for PostgreSQL and the tested SQLite paths; a future non-executing preview would be a separate feature.
 
 ### 3. Runtime overlay in `pongoDatabaseSchemas` is doing too much
 
@@ -216,7 +218,7 @@ Where the implementation drifts:
 ## Recommended Order
 
 1. Fix `pongoCollection.schema.migrate()` placement first. This is the branch-specific correctness issue.
-2. Fix or remove `dryRun` before advertising/using it.
+2. Keep `dryRun` as rollback-based execution and retain the added integration coverage.
 3. Simplify `pongoDatabaseSchemas` locally around a single runtime scope resolver.
 4. Align dynamic schema creation with `findTables` by considering extension-owned schemas.
 5. Remove `ReadonlyMap` compatibility filtering from `TableColumnNames` if type tests still pass.
