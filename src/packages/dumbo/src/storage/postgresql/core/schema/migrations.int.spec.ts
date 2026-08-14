@@ -440,24 +440,24 @@ describe('Migration Integration Tests', () => {
     );
   });
 
-  it('skips an already applied baseline when its SQL changes', async () => {
+  it('skips an already applied migration with ignored hash mismatch when its SQL changes', async () => {
     const migration = sqlMigration(
-      'baseline_hash_check_migration',
+      'ignored_hash_check_migration',
       [
         SQL`
-          CREATE TABLE baseline_hash_table (
+          CREATE TABLE ignored_hash_table (
             id SERIAL PRIMARY KEY,
             data TEXT NOT NULL
           );`,
       ],
-      { baseline: true, ignoreHashMismatch: true },
+      { ignoreHashMismatch: true },
     );
 
     await runSQLMigrations(pool, [migration]);
 
     const { sql_hash: initialHash } = await single(
       pool.execute.query<{ sql_hash: string }>(
-        SQL`SELECT sql_hash FROM dmb_migrations WHERE name = 'baseline_hash_check_migration'`,
+        SQL`SELECT sql_hash FROM dmb_migrations WHERE name = 'ignored_hash_check_migration'`,
       ),
     );
 
@@ -465,13 +465,13 @@ describe('Migration Integration Tests', () => {
       migration.name,
       [
         SQL`
-          CREATE TABLE baseline_hash_table (
+          CREATE TABLE ignored_hash_table (
             id SERIAL PRIMARY KEY,
             data TEXT NOT NULL,
             extra_column INT
           );`,
       ],
-      { baseline: true, ignoreHashMismatch: true },
+      { ignoreHashMismatch: true },
     );
 
     const result = await runSQLMigrations(pool, [modifiedMigration]);
@@ -480,7 +480,7 @@ describe('Migration Integration Tests', () => {
 
     const { sql_hash: recordedHash } = await single(
       pool.execute.query<{ sql_hash: string }>(
-        SQL`SELECT sql_hash FROM dmb_migrations WHERE name = 'baseline_hash_check_migration'`,
+        SQL`SELECT sql_hash FROM dmb_migrations WHERE name = 'ignored_hash_check_migration'`,
       ),
     );
     assert.strictEqual(recordedHash, initialHash);

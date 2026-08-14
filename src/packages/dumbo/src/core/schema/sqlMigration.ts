@@ -4,7 +4,6 @@ import type { SQL } from '../sql';
 export type MigrationStyle = 'None' | 'CreateOrUpdate';
 
 export type SQLMigrationOptions = {
-  baseline?: boolean | undefined;
   ignoreHashMismatch?: boolean | undefined;
 };
 

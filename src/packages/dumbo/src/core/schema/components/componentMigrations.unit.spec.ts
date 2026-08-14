@@ -182,7 +182,7 @@ describe('components emitting their own migrations', () => {
     );
   });
 
-  it('creates a table before running the migrations declared on it', () => {
+  it('uses table migrations instead of generated table and index creates', () => {
     const database = databaseComponent({
       schemas: {
         crm: databaseSchemaComponent({
@@ -202,18 +202,14 @@ describe('components emitting their own migrations', () => {
 
     assert.deepStrictEqual(
       database.migrations().map(({ name }) => name),
-      ['schema:crm:create', 'table:crm:users:create', 'users:backfill'],
+      ['schema:crm:create', 'users:backfill'],
     );
   });
 
-  it('runs a baseline migration instead of generated schema table and index creates', () => {
-    const baseline = sqlMigration(
-      'event-store:baseline',
-      [SQL`SELECT 'baseline'`],
-      { baseline: true },
-    );
+  it('uses database migrations instead of generated subtree creates', () => {
+    const custom = sqlMigration('event-store:custom', [SQL`SELECT 'custom'`]);
     const database = databaseComponent({
-      migrations: () => [baseline],
+      migrations: () => [custom],
       schemas: {
         crm: databaseSchemaComponent({
           schemaName: 'crm',
@@ -222,13 +218,11 @@ describe('components emitting their own migrations', () => {
       },
     });
 
-    assert.deepStrictEqual(database.migrations(), [baseline]);
+    assert.deepStrictEqual(database.migrations(), [custom]);
   });
 
-  it('runs a table baseline while keeping generated schema creates around it', () => {
-    const baseline = sqlMigration('users:baseline', [SQL`SELECT 'baseline'`], {
-      baseline: true,
-    });
+  it('uses table migrations while keeping generated schema creates around them', () => {
+    const custom = sqlMigration('users:custom', [SQL`SELECT 'custom'`]);
     const backfill = sqlMigration('users:backfill', [SQL`SELECT 'backfill'`]);
     const database = databaseComponent({
       schemas: {
@@ -238,7 +232,7 @@ describe('components emitting their own migrations', () => {
             users: tableComponent({
               tableName: 'users',
               columns,
-              migrations: () => [baseline, backfill],
+              migrations: () => [custom, backfill],
               indexes: {
                 email: indexComponent({
                   indexName: 'users_email_idx',
@@ -254,7 +248,7 @@ describe('components emitting their own migrations', () => {
 
     assert.deepStrictEqual(
       database.migrations().map(({ name }) => name),
-      ['schema:crm:create', 'users:baseline', 'users:backfill'],
+      ['schema:crm:create', 'users:custom', 'users:backfill'],
     );
   });
 
@@ -356,6 +350,45 @@ describe('components emitting their own migrations', () => {
 
     assert.deepStrictEqual(seen, [
       { databaseSchemaName: 'crm', defaults: { schemaName: 'pongo' } },
+    ]);
+  });
+
+  it('runs table and index migrations with their declaring placement', () => {
+    const seen: SchemaComponentContext[] = [];
+    const record = (context: SchemaComponentContext) => {
+      seen.push(context);
+      return [];
+    };
+    const database = databaseComponent({
+      schemas: {
+        crm: databaseSchemaComponent({
+          schemaName: 'crm',
+          tables: {
+            users: tableComponent({
+              tableName: 'users',
+              columns,
+              indexes: {
+                email: indexComponent({
+                  indexName: 'users_email_idx',
+                  columnNames: ['email'],
+                  isUnique: true,
+                  migrations: record,
+                }),
+              },
+            }),
+            roles: tableComponent({
+              tableName: 'roles',
+              columns,
+              migrations: record,
+            }),
+          },
+        }),
+      },
+    });
+
+    database.migrations({ defaults: { schemaName: 'pongo' } });
+
+    assert.deepStrictEqual(seen, [
       {
         databaseSchemaName: 'crm',
         defaults: { schemaName: 'pongo' },
@@ -364,7 +397,7 @@ describe('components emitting their own migrations', () => {
       {
         databaseSchemaName: 'crm',
         defaults: { schemaName: 'pongo' },
-        tableName: 'users',
+        tableName: 'roles',
       },
     ]);
   });
@@ -454,11 +487,7 @@ describe('components emitting their own migrations', () => {
 
     assert.deepStrictEqual(
       schema.migrations().map(({ name }) => name),
-      [
-        'users:backfill',
-        'table:users:create',
-        'index:users:users_email_idx:create',
-      ],
+      ['users:backfill'],
     );
   });
 

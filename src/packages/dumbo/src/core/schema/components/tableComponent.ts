@@ -107,40 +107,38 @@ export const tableComponent = <
     ...Object.values(columns),
     ...Object.values(indexes),
   ]);
+  const ownsMigrations = options.migrations !== undefined;
 
   const component: TableComponent<Columns, TableName, Indexes, Relationships> =
     {
       ...schemaComponent(tableComponentType, {
-        components: children,
+        components: ownsMigrations ? [] : children,
         context: (parent) => ({
           ...parent,
           tableName: options.tableName,
         }),
-        migrations: (scoped) => {
-          const identifier = {
-            databaseSchemaName:
-              scoped.databaseSchemaName ?? SQLDefaultSchemaNameToken.from(),
-            tableName: options.tableName,
-          };
-          const explicitMigrations = options.migrations?.(scoped) ?? [];
-          const hasBaseline =
-            scoped.skipGeneratedInitialMigrations === true ||
-            explicitMigrations.some((migration) => migration.baseline === true);
+        migrations:
+          options.migrations ??
+          ((scoped) => {
+            const identifier = {
+              databaseSchemaName:
+                scoped.databaseSchemaName ?? SQLDefaultSchemaNameToken.from(),
+              tableName: options.tableName,
+            };
 
-          return [
-            ...(hasBaseline || Object.keys(columns).length === 0
-              ? []
-              : [
-                  sqlMigration(tableMigrationName(identifier, options.kind), [
-                    createTableSQL(
-                      { columns },
-                      SQL`${SQLTableReference.from(identifier)}`,
-                    ),
+            return [
+              ...(Object.keys(columns).length === 0
+                ? []
+                : [
+                    sqlMigration(tableMigrationName(identifier, options.kind), [
+                      createTableSQL(
+                        { columns },
+                        SQL`${SQLTableReference.from(identifier)}`,
+                      ),
+                    ]),
                   ]),
-                ]),
-            ...explicitMigrations,
-          ];
-        },
+            ];
+          }),
       }),
       tableName: options.tableName,
       primaryKey: Object.freeze([...(options.primaryKey ?? [])]),

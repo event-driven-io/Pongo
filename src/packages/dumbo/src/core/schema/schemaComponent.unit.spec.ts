@@ -59,6 +59,20 @@ describe('collapsing repeated migrations', () => {
     );
   });
 
+  it('collapses repeated migrations with the same name and SQL regardless of hash mismatch handling', () => {
+    const first = sqlMigration('same:001', [SQL`SELECT 1`]);
+
+    assert.deepStrictEqual(
+      dedupeMigrations([
+        first,
+        sqlMigration('same:001', [SQL`SELECT 1`], {
+          ignoreHashMismatch: true,
+        }),
+      ]),
+      [first],
+    );
+  });
+
   it('rejects two different migrations that would share one ledger identity', () => {
     assert.throws(
       () =>
@@ -238,7 +252,7 @@ describe('exposing a component as a plain frozen value', () => {
     assert.deepStrictEqual(email.migrations(), [first, second]);
   });
 
-  it('returns its own migrations before its children in insertion order', () => {
+  it('uses schema migrations instead of generated schema and child creates', () => {
     const own = sqlMigration('crm:001', [SQL`SELECT 0`]);
     const crm = databaseSchemaComponent({
       schemaName: 'crm',
@@ -253,11 +267,7 @@ describe('exposing a component as a plain frozen value', () => {
       migrations: () => [own],
     });
 
-    assert.deepStrictEqual(migrationNames(crm.migrations()), [
-      'schema:crm:create',
-      own.name,
-      'table:crm:users:create',
-    ]);
+    assert.deepStrictEqual(migrationNames(crm.migrations()), [own.name]);
   });
 
   it('composes migrations transitively through a three-level tree', () => {
@@ -579,7 +589,7 @@ describe('grouping components in extensions', () => {
     ]);
   });
 
-  it('runs extension migrations before its schemas', () => {
+  it('uses extension migrations instead of traversing its schemas', () => {
     const own = sqlMigration('event-store:001', [SQL`SELECT 1`]);
     const schemaMigration = sqlMigration('messages:002', [SQL`SELECT 2`]);
     const eventStore = extensionComponent('event-store', {
@@ -592,14 +602,10 @@ describe('grouping components in extensions', () => {
       migrations: () => [own],
     });
 
-    assert.deepStrictEqual(migrationNames(eventStore.migrations()), [
-      own.name,
-      'schema:event_store:create',
-      schemaMigration.name,
-    ]);
+    assert.deepStrictEqual(migrationNames(eventStore.migrations()), [own.name]);
   });
 
-  it('runs extension migrations before its tables', () => {
+  it('uses extension migrations instead of traversing its tables', () => {
     const own = sqlMigration('outbox:001', [SQL`SELECT 1`]);
     const tableMigration = sqlMigration('messages:002', [SQL`SELECT 2`]);
     const outbox = extensionComponent('outbox', {
@@ -612,10 +618,7 @@ describe('grouping components in extensions', () => {
       migrations: () => [own],
     });
 
-    assert.deepStrictEqual(migrationNames(outbox.migrations()), [
-      own.name,
-      tableMigration.name,
-    ]);
+    assert.deepStrictEqual(migrationNames(outbox.migrations()), [own.name]);
   });
 
   it('keeps extension schema paths when attached to a database', () => {
