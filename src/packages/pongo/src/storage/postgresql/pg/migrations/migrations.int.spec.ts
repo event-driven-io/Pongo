@@ -1,4 +1,10 @@
-import { dumbo, dumboSchema, SQL, type Dumbo } from '@event-driven-io/dumbo';
+import {
+  dumbo,
+  dumboSchema,
+  SQL,
+  type Dumbo,
+  type TableRowType,
+} from '@event-driven-io/dumbo';
 import {
   PostgreSQLConnectionString,
   tableExists,
@@ -17,7 +23,6 @@ import {
 import { pongoDriver } from '..';
 import {
   pongoClient,
-  pongoDocumentType,
   pongoSchema,
   type PongoClient,
   type PongoCollection,
@@ -270,9 +275,11 @@ describe('Migration Integration Tests', () => {
     expectTypeOf(
       eventStoreReadModels.schemas.readmodels.tables.users,
     ).toEqualTypeOf(users);
-    expectTypeOf(
-      eventStoreReadModels.schemas.readmodels.tables.users[pongoDocumentType],
-    ).toEqualTypeOf<User>();
+    expectTypeOf<
+      TableRowType<
+        typeof eventStoreReadModels.schemas.readmodels.tables.users
+      >['data']
+    >().toEqualTypeOf<User>();
     expectTypeOf(
       definition.extensions.eventStoreReadModels.schemas.readmodels.tables
         .users,

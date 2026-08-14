@@ -433,7 +433,35 @@ that silently ignores `defaults.schemaName`. Both specs were rewritten to assert
 the placement instead of the throw.
 
 ## Step 8 — Simplify Pongo typing and audit the public surface
-- [ ] Not started
+- [x] Keep `MigrationStyle` in Dumbo; Pongo imports the generic migration style
+      type from Dumbo where needed
+- [x] Preserve the existing Pongo/Dumbo input boundary without adding markers,
+      wrappers, brands, new conditional helper layers, or casts
+- [x] Keep explicit Pongo projection types unless one can be removed by direct
+      substitution with an existing type
+- [x] Deleted `pongoDocumentType`; exact document inference now comes from Dumbo
+      `TableRowType<Collection>['data']`, with positive type tests and no casts
+- [x] Removed only the redundant `PongoSchemaScope` runtime option check
+- [x] Audit export candidates in a table with `symbol`, `used on main`,
+      `current role`, `consumer value`, `replacement`, and `decision`
+- [x] Keep positive type tests named by supported usage scenario; remove only
+      absence-only tests for APIs already deleted
+- [x] Focused checks green:
+      `npx vitest run packages/pongo/src/core/schema/schema.type.spec.ts packages/pongo/src/core/schema/schema.unit.spec.ts packages/pongo/src/core/database/pongoDb.unit.spec.ts packages/dumbo/src/storage/sqlite/core/schema/schemaComponentSQL.unit.spec.ts packages/dumbo/src/storage/postgresql/core/schema/schemaComponentSQL.unit.spec.ts`
+- [x] Gate: `npm run fix && npm run build:ts`
+
+| symbol | used on main | current role | consumer value | replacement | decision |
+| --- | --- | --- | --- | --- | --- |
+| `dumboSchema.defaultSchema` / `pongoSchema.defaultSchema` | no | Removed in S6 | Legacy default namespace helpers | `{ tables }` / `{ collections }`; release notes in S9 | delete |
+| `MigrationStyle` | yes | Generic migration option imported by Pongo | Shared migration configuration type | none | keep in Dumbo |
+| `IndexIdentifier` | no | Internal `createIndexSQL` identifier shape | No public value beyond the function signature | `Parameters<typeof createIndexSQL>[1]` for internal tests | make private |
+| `MIGRATIONS_LOCK_ID` | yes | Migrator's default advisory lock id | Users can already pass `lock.options.lockId` | explicit `lock.options.lockId` | make private |
+| `generatedIndexName` / `generatedIndexNameSegment` | no | Already deleted in S4 after Pongo kept explicit index names | none | explicit index names | delete |
+| `MigrationRecord` | yes | Orphaned ledger-row shape; no public API returns or accepts it | none clear | none | delete |
+| `SchemaComponentRecord` | no | Barrel alias to `SchemaComponentMap` | Duplicate name only | `SchemaComponentMap` | delete |
+| `jsonPathIndexTarget` / `jsonDocumentIndexTarget` | no | Dumbo index target factories used by Pongo index factories and SQL rendering | Existing public target factories | none | keep |
+| `supportsSchemas` / `supportsFunctions` | yes | Database metadata capabilities returned by metadata APIs | Public capability metadata | none | keep |
+| `toClientSchemaMetadata` | yes | Public Pongo schema metadata converter | Useful conversion utility; `toDbSchemaMetadata` is used by CLI | none | keep |
 
 ## Step 9 — Documents and metrics
 - [ ] Not started

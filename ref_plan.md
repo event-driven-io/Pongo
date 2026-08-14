@@ -866,31 +866,36 @@ shape; they are the default schema's tables. Every rule below follows from that.
 - Keep this distinction at the existing input/projection boundary. Runtime
   projection may inspect the existing `collections` declaration field and
   `isPongoCollectionComponent`; do not add a database marker, wrapper component,
-  or cast to distinguish definitions. Prove both return shapes with Vitest type
-  tests; if structural inference cannot distinguish them cleanly, stop rather
-  than adding a phantom brand.
+  phantom brand, new conditional-type extraction layer, or cast to distinguish
+  definitions. Prove both return shapes with Vitest type tests; if structural
+  inference cannot distinguish them cleanly, stop.
 - Evaluate `pongoDocumentType` by replacing `DocumentOf` inference with existing
   typed collection/column information. Delete the marker only if Vitest type
-  tests retain exact `User` inference without a cast. If inference fails, stop
-  and report the missing type relation rather than laundering it.
+  tests retain exact `User` inference without a cast or new helper type. If
+  inference fails, keep the marker and record the missing type relation rather
+  than laundering it.
 - Keep `PongoSchemaScope` as the public `db.schema(name)` accessor. Remove only
   its redundant runtime check for an option that its signature already omits.
 - Do not collapse `PongoDatabaseShape` and `PongoDbWithSchema` merely because
   their conditional chains look similar; one describes a component and the
-  other a runtime projection. Share logic only if one existing type can express
-  both without a cast or a new vague helper.
+  other a runtime projection. Remove either one only by direct substitution with
+  an existing type. If removing one needs a new vague helper or a clever bridge,
+  keep the explicit types.
 - Do not split the Pongo schema file solely to reduce line count. First remove
   obsolete logic; split only along an existing responsibility if the remaining
   file is still difficult to navigate.
 - Review export candidates in an explicit table containing:
   `symbol`, `used on main`, `current role`, `consumer value`, `replacement`, and
-  `decision`.
+  `decision`. Each decision is one of `keep`, `make private`, `delete`, or
+  `stop`; prefer `keep` over replacing a simple explicit type with a more
+  abstract one.
 - Apply these already verified dispositions:
   - both `dumboSchema.defaultSchema` and `pongoSchema.defaultSchema` were
     removed in Step 6 as the agreed `{ tables }` / `{ collections }` API
     replacement; what remains here is listing the external migration in release
     notes;
-  - move `MigrationStyle` from Dumbo to Pongo; it has active Pongo readers;
+  - keep `MigrationStyle` in Dumbo; migration style is generic migration
+    configuration, and Pongo imports it from Dumbo where needed;
   - keep `IndexIdentifier` internally if `createIndexSQL` needs it, but stop
     exporting it;
   - make `MIGRATIONS_LOCK_ID` private;

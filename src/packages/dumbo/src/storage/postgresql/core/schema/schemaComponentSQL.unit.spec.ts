@@ -9,7 +9,6 @@ import {
   jsonPathIndexTarget,
   SQL,
   SQLDefaultSchemaNameToken,
-  type IndexIdentifier,
 } from '../../../../core';
 import { pgFormatter } from '../sql';
 import { postgreSQLTableReference } from './schemaComponentSQL';
@@ -21,7 +20,7 @@ const identifier = {
   databaseSchemaName: 'audit',
   tableName: 'users',
   indexName: 'users_email_idx',
-} satisfies IndexIdentifier;
+} satisfies Parameters<typeof createIndexSQL>[1];
 
 describe('using Dumbo components in PostgreSQL schemas', () => {
   it('resolves table references from their full logical identifier', () => {

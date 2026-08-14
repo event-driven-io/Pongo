@@ -8,12 +8,12 @@ import {
   SQL,
   SQLDefaultSchemaNameToken,
   sqlMigration,
+  type TableRowType,
 } from '@event-driven-io/dumbo';
 import { describe, expectTypeOf, it } from 'vitest';
 import {
   isPongoCollectionComponent,
   pongoCollectionComponentType,
-  pongoDocumentType,
   pongoSchema,
   type PongoCollectionIndexSQLContext,
 } from './index';
@@ -170,7 +170,9 @@ describe('declaring Pongo collections', () => {
     assert.strictEqual(users.databaseSchemaName, undefined);
     assert.strictEqual(crm.tables.users.databaseSchemaName, undefined);
     assert.strictEqual(isPongoCollectionComponent(crm.tables.users), true);
-    expectTypeOf(crm.tables.users[pongoDocumentType]).toEqualTypeOf<User>();
+    expectTypeOf<
+      TableRowType<typeof crm.tables.users>['data']
+    >().toEqualTypeOf<User>();
   });
 
   it('groups a collection by its declared schema name without placing it', () => {

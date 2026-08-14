@@ -13,7 +13,7 @@ import { tracer } from '../../tracing';
 import type { SQLMigration } from '../sqlMigration';
 import { migrationTableComponentFor } from './migrationTableComponent';
 
-export const MIGRATIONS_LOCK_ID = 999956789;
+const MIGRATIONS_LOCK_ID = 999956789;
 
 const maxMigrationNameLength = 255;
 

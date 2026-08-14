@@ -1,4 +1,4 @@
-import { dumboSchema, SQL } from '@event-driven-io/dumbo';
+import { dumboSchema, SQL, type TableRowType } from '@event-driven-io/dumbo';
 import {
   SQLiteConnectionString,
   sqlite3Pool,
@@ -8,12 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'node:crypto';
 import { afterEach, describe, expectTypeOf, it } from 'vitest';
-import {
-  pongoClient,
-  pongoDocumentType,
-  pongoSchema,
-  type PongoCollection,
-} from '../../../core';
+import { pongoClient, pongoSchema, type PongoCollection } from '../../../core';
 import { sqlite3Driver } from '.';
 
 type User = {
@@ -268,9 +263,11 @@ describe('SQLite3 migration integration', () => {
     expectTypeOf(
       eventStoreReadModels.schemas.readmodels.tables.users,
     ).toEqualTypeOf(users);
-    expectTypeOf(
-      eventStoreReadModels.schemas.readmodels.tables.users[pongoDocumentType],
-    ).toEqualTypeOf<User>();
+    expectTypeOf<
+      TableRowType<
+        typeof eventStoreReadModels.schemas.readmodels.tables.users
+      >['data']
+    >().toEqualTypeOf<User>();
     expectTypeOf(
       definition.extensions.eventStoreReadModels.schemas.readmodels.tables
         .users,
