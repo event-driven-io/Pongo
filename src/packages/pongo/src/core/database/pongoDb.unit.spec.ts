@@ -1,5 +1,6 @@
 import assert from 'node:assert';
 import {
+  databaseSchemaComponent,
   dumboSchema,
   JSONSerializer,
   SQL,
@@ -192,9 +193,25 @@ describe('using a Pongo database', () => {
 
     assert.strictEqual(collection.collectionName, 'users');
     assert.strictEqual(collection.schema.component, repeated.schema.component);
+    assert.strictEqual('migrations' in collection.schema, false);
+    assert.strictEqual(db.schema.component.schemas.crm, undefined);
     assert.deepStrictEqual(migrationNames(db.schema.migrations), [
       'schema:crm:create',
       'table:pongo_collection:crm:users:create',
+    ]);
+  });
+
+  it('adds dynamic collections to a generated schema when it is not declared', () => {
+    const { db } = createTestDb();
+
+    db.collection('users', { databaseSchemaName: 'crm' });
+    db.collection('orders', { databaseSchemaName: 'crm' });
+
+    assert.strictEqual(db.schema.component.schemas.crm, undefined);
+    assert.deepStrictEqual(migrationNames(db.schema.migrations), [
+      'schema:crm:create',
+      'table:pongo_collection:crm:users:create',
+      'table:pongo_collection:crm:orders:create',
     ]);
   });
 
@@ -462,6 +479,31 @@ describe('using a Pongo database', () => {
         'table:pongo_collection:readmodels:summaries:create',
       ),
     );
+  });
+
+  it('does not synthesize a schema migration for a dynamic collection in an extension-owned schema', () => {
+    const eventStore = dumboSchema.extension('event-store', {
+      schemas: {
+        readmodels: databaseSchemaComponent({
+          schemaName: 'readmodels',
+          kind: 'event_store',
+          tables: {
+            summaries: pongoSchema.collection('summaries'),
+          },
+        }),
+      },
+    });
+    const { db } = createTestDb({
+      definition: pongoSchema.db('test', { schemas: {} }, { eventStore }),
+    });
+
+    db.collection('orders', { databaseSchemaName: 'readmodels' });
+
+    assert.deepStrictEqual(migrationNames(db.schema.migrations), [
+      'schema:event_store:readmodels:create',
+      'table:pongo_collection:readmodels:summaries:create',
+      'table:pongo_collection:readmodels:orders:create',
+    ]);
   });
 
   it('starts transactions with nested transactions enabled while preserving savepoints', () => {

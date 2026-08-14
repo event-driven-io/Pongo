@@ -1,13 +1,23 @@
 import { SQLDefaultSchemaNameToken } from '../../sql';
 import type { SchemaComponentContext } from '../schemaComponent';
 import type { AnyDatabaseComponent } from './databaseComponent';
+import type { AnyDatabaseSchemaComponent } from './databaseSchemaComponent';
 import type { AnyTableComponent } from './tableComponent';
 
-export type FindTablesContext = SchemaComponentContext &
+export type FindDatabaseSchemasContext = SchemaComponentContext &
   Readonly<{
     databaseSchemaName: string | SQLDefaultSchemaNameToken;
+  }>;
+
+export type FindTablesContext = FindDatabaseSchemasContext &
+  Readonly<{
     tableName: string;
   }>;
+
+export type FoundDatabaseSchema = Readonly<{
+  databaseSchemaName: string | SQLDefaultSchemaNameToken;
+  schema: AnyDatabaseSchemaComponent;
+}>;
 
 export type FoundTable = Readonly<{
   databaseSchemaName: string | SQLDefaultSchemaNameToken;
@@ -20,39 +30,48 @@ const resolvedSchemaName = (
 ): string | undefined =>
   SQLDefaultSchemaNameToken.check(schemaName) ? defaultSchemaName : schemaName;
 
-export const findTables = (
+export const findDatabaseSchemas = (
   database: AnyDatabaseComponent,
-  context: FindTablesContext,
-): ReadonlyArray<FoundTable> => {
+  context: FindDatabaseSchemasContext,
+): ReadonlyArray<FoundDatabaseSchema> => {
   const defaultSchemaName = context.defaults?.schemaName;
   const searched = resolvedSchemaName(
     context.databaseSchemaName,
     defaultSchemaName,
   );
   const databaseSchemaName = searched ?? SQLDefaultSchemaNameToken.from();
-  const isSearched = (table: AnyTableComponent) =>
-    table.tableName === context.tableName;
 
-  const schemas = [
+  return [
     database.defaultSchema,
     ...Object.values(database.schemas),
     ...Object.values(database.extensions).flatMap((extension) =>
       Object.values(extension.schemas),
     ),
-  ].filter(
-    (schema) =>
-      resolvedSchemaName(schema.schemaName, defaultSchemaName) === searched,
-  );
+  ]
+    .filter(
+      (schema) =>
+        resolvedSchemaName(schema.schemaName, defaultSchemaName) === searched,
+    )
+    .map((schema) => ({ databaseSchemaName, schema }));
+};
 
-  return schemas
-    .flatMap((schema) => [
-      ...Object.values(schema.tables),
-      ...Object.values(schema.extensions).flatMap((extension) =>
-        Object.values(extension.tables),
-      ),
-    ])
-    .filter(isSearched)
-    .map((table) => ({ databaseSchemaName, table }));
+export const findTables = (
+  database: AnyDatabaseComponent,
+  context: FindTablesContext,
+): ReadonlyArray<FoundTable> => {
+  const isSearched = (table: AnyTableComponent) =>
+    table.tableName === context.tableName;
+
+  return findDatabaseSchemas(database, context)
+    .flatMap(({ databaseSchemaName, schema }) =>
+      [
+        ...Object.values(schema.tables),
+        ...Object.values(schema.extensions).flatMap((extension) =>
+          Object.values(extension.tables),
+        ),
+      ].map((table) => ({ databaseSchemaName, table })),
+    )
+    .filter(({ table }) => isSearched(table));
 };
 
 export const findTable = (

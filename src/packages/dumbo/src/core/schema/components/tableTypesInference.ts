@@ -40,10 +40,7 @@ export type TableColumnType<T extends AnyColumnSchemaComponent> = T extends {
   : unknown;
 
 export type TableColumnNames<T extends AnyTableComponent> = Extract<
-  Exclude<
-    T extends TableComponent<infer Columns> ? keyof Columns : never,
-    keyof ReadonlyMap<string, AnyColumnSchemaComponent>
-  >,
+  T extends TableComponent<infer Columns> ? keyof Columns : never,
   string
 >;
 
