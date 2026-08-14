@@ -108,9 +108,14 @@ export const databaseSchemaComponent = <
       }),
       migrations: (scoped) => {
         const databaseSchemaName = scoped.databaseSchemaName;
+        const explicitMigrations = options.migrations?.(scoped) ?? [];
+        const hasBaseline =
+          scoped.skipGeneratedInitialMigrations === true ||
+          explicitMigrations.some((migration) => migration.baseline === true);
 
         return [
-          ...(databaseSchemaName === undefined ||
+          ...(hasBaseline ||
+          databaseSchemaName === undefined ||
           SQLDefaultSchemaNameToken.check(databaseSchemaName)
             ? []
             : [
@@ -119,7 +124,7 @@ export const databaseSchemaComponent = <
                   [SQL`${SQLCreateSchema.from({ databaseSchemaName })}`],
                 ),
               ]),
-          ...(options.migrations?.(scoped) ?? []),
+          ...explicitMigrations,
         ];
       },
     }),

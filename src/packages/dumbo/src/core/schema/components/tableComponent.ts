@@ -122,9 +122,13 @@ export const tableComponent = <
               scoped.databaseSchemaName ?? SQLDefaultSchemaNameToken.from(),
             tableName: options.tableName,
           };
+          const explicitMigrations = options.migrations?.(scoped) ?? [];
+          const hasBaseline =
+            scoped.skipGeneratedInitialMigrations === true ||
+            explicitMigrations.some((migration) => migration.baseline === true);
 
           return [
-            ...(Object.keys(columns).length === 0
+            ...(hasBaseline || Object.keys(columns).length === 0
               ? []
               : [
                   sqlMigration(tableMigrationName(identifier, options.kind), [
@@ -134,7 +138,7 @@ export const tableComponent = <
                     ),
                   ]),
                 ]),
-            ...(options.migrations?.(scoped) ?? []),
+            ...explicitMigrations,
           ];
         },
       }),

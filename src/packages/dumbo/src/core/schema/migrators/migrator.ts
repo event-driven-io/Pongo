@@ -103,13 +103,11 @@ export const runSQLMigrations = (
         partialOptions?.migrationTimeoutMs ?? defaultOptions.migrationTimeoutMs,
     };
 
-    const { databaseLock: _, ...rest } = options.lock ?? {};
-
     const databaseLock = options.lock?.databaseLock ?? NoDatabaseLock;
 
     const lockOptions: DatabaseLockOptions = {
       lockId: MIGRATIONS_LOCK_ID,
-      ...rest,
+      ...options.lock?.options,
     };
 
     const migrationTableOptions = options.migrationTable;
@@ -213,7 +211,10 @@ const runSQLMigration = async (
         });
         return false;
       }
-      if (options?.ignoreMigrationHashMismatch !== true)
+      if (
+        migration.ignoreHashMismatch !== true &&
+        options?.ignoreMigrationHashMismatch !== true
+      )
         throw new Error(
           `Migration hash mismatch for "${migration.name}". Aborting migration.`,
         );
@@ -223,6 +224,8 @@ const runSQLMigration = async (
         expectedHash: sqlHash,
         actualHash: checkResult.hashFromDB,
       });
+
+      if (migration.ignoreHashMismatch === true) return false;
 
       await updateMigrationHash(execute, newMigration, migrationTableReference);
 

@@ -419,6 +419,52 @@ describe('Migration Integration Tests', () => {
     );
   });
 
+  it('skips an already applied baseline when its SQL changes', async () => {
+    const migration = sqlMigration(
+      'baseline_hash_check_migration',
+      [
+        SQL`
+          CREATE TABLE baseline_hash_table (
+            id SERIAL PRIMARY KEY,
+            data TEXT NOT NULL
+          );`,
+      ],
+      { baseline: true, ignoreHashMismatch: true },
+    );
+
+    await runSQLMigrations(pool, [migration]);
+
+    const { sql_hash: initialHash } = await single(
+      pool.execute.query<{ sql_hash: string }>(
+        SQL`SELECT sql_hash FROM dmb_migrations WHERE name = 'baseline_hash_check_migration'`,
+      ),
+    );
+
+    const modifiedMigration = sqlMigration(
+      migration.name,
+      [
+        SQL`
+          CREATE TABLE baseline_hash_table (
+            id SERIAL PRIMARY KEY,
+            data TEXT NOT NULL,
+            extra_column INT
+          );`,
+      ],
+      { baseline: true, ignoreHashMismatch: true },
+    );
+
+    const result = await runSQLMigrations(pool, [modifiedMigration]);
+
+    assert.deepStrictEqual(result.skipped, [modifiedMigration]);
+
+    const { sql_hash: recordedHash } = await single(
+      pool.execute.query<{ sql_hash: string }>(
+        SQL`SELECT sql_hash FROM dmb_migrations WHERE name = 'baseline_hash_check_migration'`,
+      ),
+    );
+    assert.strictEqual(recordedHash, initialHash);
+  });
+
   it('handles a large migration with multiple SQL statements', async () => {
     const migration: SQLMigration = {
       name: 'large_migration',
