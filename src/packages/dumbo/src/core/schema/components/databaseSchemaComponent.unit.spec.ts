@@ -97,3 +97,80 @@ describe('declaring a schema with tables', () => {
     );
   });
 });
+
+describe('schema.withTable(tables)', () => {
+  it('returns a schema containing its previous and added tables', () => {
+    const roles = tableComponent({ tableName: 'roles' });
+    const users = usersTable();
+    const schema = databaseSchemaComponent({
+      schemaName: 'reporting',
+      tables: { roles },
+    });
+
+    const next = schema.withTable({ users });
+
+    assert.strictEqual(next.tables.roles, roles);
+    assert.strictEqual(next.tables.users, users);
+  });
+
+  it('leaves the source schema and source table records unchanged', () => {
+    const roles = tableComponent({ tableName: 'roles' });
+    const sourceTables = { roles };
+    const schema = databaseSchemaComponent({
+      schemaName: 'reporting',
+      tables: sourceTables,
+    });
+
+    const next = schema.withTable({ users: usersTable() });
+
+    assert.notStrictEqual(next, schema);
+    assert.deepStrictEqual(Object.keys(schema.tables), ['roles']);
+    assert.deepStrictEqual(Object.keys(sourceTables), ['roles']);
+    assert.ok(Object.isFrozen(next.tables));
+  });
+
+  it('preserves the schema name, extensions, kind, and custom migrations', () => {
+    const audit = extensionComponent('audit', {
+      migrations: () => [sqlMigration('audit:001', [SQL`SELECT 1`])],
+    });
+    const custom = sqlMigration('reporting:custom', [SQL`SELECT 2`]);
+    const customSchema = databaseSchemaComponent({
+      schemaName: 'reporting',
+      kind: 'read_model',
+      extensions: { audit },
+      migrations: () => [custom],
+    });
+    const generatedSchema = databaseSchemaComponent({
+      schemaName: 'reporting',
+      kind: 'read_model',
+    });
+
+    const nextCustom = customSchema.withTable({ users: usersTable() });
+    const nextGenerated = generatedSchema.withTable({
+      users: tableComponent({ tableName: 'users' }),
+    });
+
+    assert.strictEqual(nextCustom.schemaName, 'reporting');
+    assert.strictEqual(nextCustom.extensions.audit, audit);
+    assert.deepStrictEqual(nextCustom.migrations(), [custom]);
+    assert.deepStrictEqual(
+      nextGenerated.migrations().map(({ name }) => name),
+      ['schema:read_model:reporting:create'],
+    );
+  });
+
+  it('rejects an added alias resolving to an existing physical table', () => {
+    const schema = databaseSchemaComponent({
+      schemaName: 'reporting',
+      tables: { users: usersTable() },
+    });
+
+    assert.throws(
+      () =>
+        schema.withTable({
+          customerDirectory: tableComponent({ tableName: 'users' }),
+        }),
+      /Table "users" is declared more than once in database schema "reporting"/,
+    );
+  });
+});

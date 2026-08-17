@@ -3,6 +3,7 @@ import { describe, it } from 'vitest';
 import { SQL, SQLDefaultSchemaNameToken } from '../../sql';
 import { dumboSchema } from '../dumboSchema';
 import { extensionComponent } from '../extensionComponent';
+import { sqlMigration } from '../sqlMigration';
 import { databaseComponent } from './databaseComponent';
 import { databaseSchemaComponent } from './databaseSchemaComponent';
 import { tableComponent } from './tableComponent';
@@ -184,5 +185,115 @@ describe('placing tables and schemas in a database', () => {
     }).migrations();
 
     assert.strictEqual(calls, 1);
+  });
+});
+
+describe('database.withSchema(schemas)', () => {
+  it('returns a database containing its previous and added schemas', () => {
+    const audit = databaseSchemaComponent({ schemaName: 'audit' });
+    const crm = databaseSchemaComponent({ schemaName: 'crm' });
+    const database = databaseComponent({ schemas: { audit } });
+
+    const next = database.withSchema({ crm });
+
+    assert.strictEqual(next.schemas.audit, audit);
+    assert.strictEqual(next.schemas.crm, crm);
+    assert.deepStrictEqual(Object.keys(database.schemas), ['audit']);
+  });
+
+  it('replaces one schema without changing unrelated schemas', () => {
+    const audit = databaseSchemaComponent({ schemaName: 'audit' });
+    const crm = databaseSchemaComponent({ schemaName: 'crm' });
+    const replacement = crm.withTable({ users: table('users') });
+    const database = databaseComponent({ schemas: { audit, crm } });
+
+    const next = database.withSchema({ crm: replacement });
+
+    assert.strictEqual(next.schemas.audit, audit);
+    assert.strictEqual(next.schemas.crm, replacement);
+    assert.strictEqual(database.schemas.crm, crm);
+  });
+
+  it('preserves default tables, extensions, and custom database migrations', () => {
+    const users = table('users');
+    const audit = extensionComponent('audit', {});
+    const custom = sqlMigration('database:custom', [SQL`SELECT 1`]);
+    const database = databaseComponent({
+      databaseName: 'app',
+      tables: { users },
+      extensions: { audit },
+      migrations: () => [custom],
+    });
+
+    const next = database.withSchema({
+      crm: databaseSchemaComponent({ schemaName: 'crm' }),
+    });
+
+    assert.strictEqual(next.databaseName, 'app');
+    assert.strictEqual(next.tables.users, users);
+    assert.strictEqual(next.extensions.audit, audit);
+    assert.deepStrictEqual(next.migrations(), [custom]);
+  });
+});
+
+describe('database.withTable(tables)', () => {
+  it('adds a table to the default schema without changing the source database', () => {
+    const roles = table('roles');
+    const users = table('users');
+    const database = databaseComponent({ tables: { roles } });
+
+    const next = database.withTable({ users });
+
+    assert.strictEqual(next.tables.roles, roles);
+    assert.strictEqual(next.tables.users, users);
+    assert.strictEqual(next.defaultSchema.tables, next.tables);
+    assert.deepStrictEqual(Object.keys(database.tables), ['roles']);
+    assert.ok(SQLDefaultSchemaNameToken.check(next.defaultSchema.schemaName));
+  });
+
+  it('preserves database extensions and custom database migrations', () => {
+    const audit = extensionComponent('audit', {});
+    const custom = sqlMigration('database:custom', [SQL`SELECT 1`]);
+    const database = databaseComponent({
+      extensions: { audit },
+      migrations: () => [custom],
+    });
+
+    const next = database.withTable({ users: table('users') });
+
+    assert.strictEqual(next.extensions.audit, audit);
+    assert.deepStrictEqual(next.migrations(), [custom]);
+  });
+});
+
+describe('database.withTable(tables, schemaName)', () => {
+  it('adds a table to an existing named schema', () => {
+    const roles = table('roles');
+    const users = table('users');
+    const crm = databaseSchemaComponent({
+      schemaName: 'crm',
+      tables: { roles },
+    });
+    const database = databaseComponent({ schemas: { crm } });
+
+    const next = database.withTable({ users }, 'crm');
+
+    assert.strictEqual(next.schemas.crm.tables.roles, roles);
+    assert.strictEqual(next.schemas.crm.tables.users, users);
+    assert.strictEqual(database.schemas.crm, crm);
+    assert.deepStrictEqual(Object.keys(crm.tables), ['roles']);
+  });
+
+  it('creates the named schema when it does not exist', () => {
+    const users = table('users');
+
+    const next = databaseComponent({}).withTable({ users }, 'crm');
+
+    assert.strictEqual(next.schemas.crm.schemaName, 'crm');
+    assert.strictEqual(next.schemas.crm.tables.users, users);
+    assert.deepStrictEqual(
+      next.migrations().map(({ name }) => name),
+      ['schema:crm:create', 'table:crm:users:create'],
+    );
   });
 });
