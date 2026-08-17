@@ -26,6 +26,8 @@ export type SchemaComponentMap<
   Component extends AnySchemaComponent = AnySchemaComponent,
 > = Readonly<Record<string, Component>>;
 
+export type MergeRecords<Current, Added> = Omit<Current, keyof Added> & Added;
+
 export type SchemaComponentOptions = Readonly<{
   migrations?:
     | ((context: SchemaComponentContext) => ReadonlyArray<SQLMigration>)

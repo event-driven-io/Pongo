@@ -3,6 +3,7 @@ import type { AnyExtensionComponent } from '../extensionComponent';
 import {
   schemaComponent,
   schemaComponentMap,
+  type MergeRecords,
   type SchemaComponent,
   type SchemaComponentContext,
 } from '../schemaComponent';
@@ -32,6 +33,13 @@ export type DatabaseSchemaComponent<
     schemaName: SchemaName;
     tables: Tables;
     extensions: Extensions;
+    withTable: <const Added extends DatabaseSchemaTables>(
+      tables: Added,
+    ) => DatabaseSchemaComponent<
+      MergeRecords<Tables, Added>,
+      SchemaName,
+      Extensions
+    >;
   }>;
 
 export type AnyDatabaseSchemaComponent = DatabaseSchemaComponent<
@@ -131,6 +139,18 @@ export const databaseSchemaComponent = <
     schemaName: options.schemaName,
     tables: schemaComponentMap(tables),
     extensions: schemaComponentMap(extensions),
+    withTable: <const Added extends DatabaseSchemaTables>(added: Added) =>
+      databaseSchemaComponent<
+        MergeRecords<Tables, Added>,
+        SchemaName,
+        Extensions
+      >({
+        schemaName: options.schemaName,
+        kind: options.kind,
+        tables: { ...tables, ...added },
+        extensions,
+        migrations: options.migrations,
+      }),
   };
 
   return component;

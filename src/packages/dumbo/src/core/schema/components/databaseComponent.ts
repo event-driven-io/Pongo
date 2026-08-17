@@ -3,6 +3,7 @@ import type { AnyExtensionComponent } from '../extensionComponent';
 import {
   schemaComponent,
   schemaComponentMap,
+  type MergeRecords,
   type SchemaComponent,
   type SchemaComponentContext,
 } from '../schemaComponent';
@@ -26,6 +27,37 @@ export type DatabaseExtensions = Readonly<
   Record<string, AnyExtensionComponent>
 >;
 
+type SchemaWithTables<Schema, Added extends DatabaseTables> =
+  Schema extends DatabaseSchemaComponent<
+    infer Tables,
+    infer SchemaName,
+    infer Extensions
+  >
+    ? DatabaseSchemaComponent<
+        MergeRecords<Tables, Added>,
+        SchemaName,
+        Extensions
+      >
+    : never;
+
+type UpsertSchemaTables<
+  Schemas extends DatabaseSchemas,
+  SchemaName extends string,
+  Added extends DatabaseTables,
+> = string extends SchemaName
+  ? Schemas & DatabaseSchemas
+  : MergeRecords<
+      Schemas,
+      Readonly<
+        Record<
+          SchemaName,
+          SchemaName extends keyof Schemas
+            ? SchemaWithTables<Schemas[SchemaName], Added>
+            : DatabaseSchemaComponent<Added, SchemaName>
+        >
+      >
+    >;
+
 export type DatabaseComponent<
   DatabaseName extends string | undefined = string | undefined,
   Tables extends DatabaseTables = DatabaseTables,
@@ -38,6 +70,33 @@ export type DatabaseComponent<
     tables: Tables;
     schemas: Schemas;
     extensions: Extensions;
+    withSchema: <const Added extends DatabaseSchemas>(
+      schemas: Added,
+    ) => DatabaseComponent<
+      DatabaseName,
+      Tables,
+      MergeRecords<Schemas, Added>,
+      Extensions
+    >;
+    withTable: {
+      <const Added extends DatabaseTables>(
+        tables: Added,
+      ): DatabaseComponent<
+        DatabaseName,
+        MergeRecords<Tables, Added>,
+        Schemas,
+        Extensions
+      >;
+      <const Added extends DatabaseTables, const SchemaName extends string>(
+        tables: Added,
+        schemaName: SchemaName,
+      ): DatabaseComponent<
+        DatabaseName,
+        Tables,
+        UpsertSchemaTables<Schemas, SchemaName, Added>,
+        Extensions
+      >;
+    };
   }>;
 
 export type AnyDatabaseComponent = DatabaseComponent<
@@ -125,6 +184,43 @@ export const databaseComponent = <
     },
     schemas: schemaComponentMap(schemas),
     extensions: schemaComponentMap(extensions),
+    withSchema: <const Added extends DatabaseSchemas>(added: Added) =>
+      databaseComponent<
+        DatabaseName,
+        Tables,
+        MergeRecords<Schemas, Added>,
+        Extensions
+      >({
+        databaseName,
+        tables: defaultSchema.tables,
+        schemas: { ...schemas, ...added },
+        extensions,
+        migrations: options.migrations,
+      }),
+    withTable: ((added: DatabaseTables, schemaName?: string) => {
+      if (schemaName === undefined) {
+        const nextDefaultSchema = defaultSchema.withTable(added);
+
+        return databaseComponent({
+          databaseName,
+          tables: nextDefaultSchema.tables,
+          schemas,
+          extensions,
+          migrations: options.migrations,
+        });
+      }
+
+      const schema =
+        schemas[schemaName] ?? databaseSchemaComponent({ schemaName });
+      const nextSchema = schema.withTable(added);
+
+      return component.withSchema({ [schemaName]: nextSchema });
+    }) as DatabaseComponent<
+      DatabaseName,
+      Tables,
+      Schemas,
+      Extensions
+    >['withTable'],
   };
 
   return component;

@@ -33,6 +33,58 @@ const app = dumboSchema.database('app', { schemas: { public: publicSchema } });
 const flat = dumboSchema.database('app', { tables: { users } });
 
 describe('composing a schema through the Dumbo declaration API', () => {
+  it('infers tables added through schema.withTable({ posts })', () => {
+    const posts = dumboSchema.table('posts');
+
+    const next = publicSchema.withTable({ posts });
+
+    expectTypeOf(next.tables.users).toEqualTypeOf(users);
+    expectTypeOf(next.tables.posts).toEqualTypeOf(posts);
+    expectTypeOf<
+      Extract<keyof typeof publicSchema.tables, 'posts'>
+    >().toEqualTypeOf<never>();
+  });
+
+  it('infers schemas added through database.withSchema({ audit })', () => {
+    const audit = dumboSchema.schema('audit', {});
+
+    const next = app.withSchema({ audit });
+
+    expectTypeOf(next.schemas.public).toEqualTypeOf(publicSchema);
+    expectTypeOf(next.schemas.audit).toEqualTypeOf(audit);
+  });
+
+  it('infers default tables added through database.withTable({ posts })', () => {
+    const posts = dumboSchema.table('posts');
+
+    const next = flat.withTable({ posts });
+
+    expectTypeOf(next.tables.users).toEqualTypeOf(users);
+    expectTypeOf(next.tables.posts).toEqualTypeOf(posts);
+    expectTypeOf(next.defaultSchema.tables.posts).toEqualTypeOf(posts);
+  });
+
+  it("infers named tables added through database.withTable({ posts }, 'public')", () => {
+    const posts = dumboSchema.table('posts');
+
+    const existing = app.withTable({ posts }, 'public');
+    const created = flat.withTable({ posts }, 'content');
+
+    expectTypeOf(existing.schemas.public.tables.users).toEqualTypeOf(users);
+    expectTypeOf(existing.schemas.public.tables.posts).toEqualTypeOf(posts);
+    expectTypeOf(created.schemas.content.tables.posts).toEqualTypeOf(posts);
+  });
+
+  it('accepts a runtime schema name without changing known schema types', () => {
+    const posts = dumboSchema.table('posts');
+    const schemaName: string = 'content';
+
+    const next = app.withTable({ posts }, schemaName);
+
+    expectTypeOf(next.schemas.public).toEqualTypeOf(publicSchema);
+    expectTypeOf(next).toExtend<DatabaseComponent>();
+  });
+
   it('types each declaration as its own component kind', () => {
     expectTypeOf(users).toExtend<TableComponent>();
     expectTypeOf(email).toExtend<IndexComponent>();
