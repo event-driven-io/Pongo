@@ -250,7 +250,7 @@ describe('database.findTable(tableName, options)', () => {
     );
   });
 
-  it("database.findTable('users') rejects duplicates in the configured default schema", () => {
+  it("database.findTable('users', { defaultSchemaName: 'crm' }) reports conflicting users declarations across the default and crm schemas", () => {
     const database = databaseComponent({
       tables: { users: table('users') },
       schemas: {
@@ -264,6 +264,21 @@ describe('database.findTable(tableName, options)', () => {
     assert.throws(
       () => database.findTable('users', { defaultSchemaName: 'crm' }),
       /Table "users" is declared more than once in database schema "crm"/,
+    );
+  });
+
+  it("database.findTable('users') reports conflicting users declarations from the application and its table extension", () => {
+    const eventStore = extensionComponent('event-store', {
+      tables: { users: table('users') },
+    });
+    const database = databaseComponent({
+      tables: { users: table('users') },
+      extensions: { eventStore },
+    });
+
+    assert.throws(
+      () => database.findTable('users'),
+      /Table "users" is declared more than once in the default database schema/,
     );
   });
 });

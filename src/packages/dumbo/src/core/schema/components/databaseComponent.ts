@@ -32,6 +32,12 @@ export type FindDatabaseTableOptions = Readonly<{
   defaultSchemaName?: string | undefined;
 }>;
 
+const resolveSchemaName = (
+  schemaName: string | SQLDefaultSchemaNameToken,
+  defaultSchemaName: string | undefined,
+): string | undefined =>
+  SQLDefaultSchemaNameToken.check(schemaName) ? defaultSchemaName : schemaName;
+
 type SchemaWithTables<Schema, Added extends DatabaseTables> =
   Schema extends DatabaseSchemaComponent<
     infer Tables,
@@ -196,33 +202,30 @@ export const databaseComponent = <
       tableName: string,
       findOptions: FindDatabaseTableOptions = {},
     ) => {
-      const requestedSchemaName = findOptions.databaseSchemaName;
-      const resolvedRequestedSchemaName =
-        requestedSchemaName ?? findOptions.defaultSchemaName;
-      const matchingSchemas = [
+      const databaseSchemaName =
+        findOptions.databaseSchemaName ?? findOptions.defaultSchemaName;
+      const [found, duplicate] = [
         defaultSchema,
         ...Object.values(schemas),
         ...Object.values(extensions).flatMap((extension) =>
           Object.values(extension.schemas),
         ),
-      ].filter((schema) => {
-        const resolvedSchemaName = SQLDefaultSchemaNameToken.check(
-          schema.schemaName,
+      ]
+        .filter(
+          (schema) =>
+            resolveSchemaName(
+              schema.schemaName,
+              findOptions.defaultSchemaName,
+            ) === databaseSchemaName,
         )
-          ? findOptions.defaultSchemaName
-          : schema.schemaName;
-
-        return resolvedSchemaName === resolvedRequestedSchemaName;
-      });
-      const [found, duplicate] = matchingSchemas
         .map((schema) => schema.findTable(tableName))
         .filter((table) => table !== undefined);
 
       if (duplicate !== undefined) {
         const placement =
-          resolvedRequestedSchemaName === undefined
+          databaseSchemaName === undefined
             ? 'the default database schema'
-            : `database schema "${resolvedRequestedSchemaName}"`;
+            : `database schema "${databaseSchemaName}"`;
         throw new Error(
           `Table "${tableName}" is declared more than once in ${placement}`,
         );

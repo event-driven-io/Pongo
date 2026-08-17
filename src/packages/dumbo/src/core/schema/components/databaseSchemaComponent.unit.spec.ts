@@ -69,7 +69,7 @@ describe('declaring a schema with tables', () => {
     assert.ok(!('table' in schema.tables.users.indexes.email));
   });
 
-  it('rejects two table aliases resolving to the same table name in one schema', () => {
+  it('databaseSchemaComponent({ tables: { users, customerDirectory } }) reports that both application aliases use the users table', () => {
     assert.throws(
       () =>
         databaseSchemaComponent({
@@ -83,7 +83,7 @@ describe('declaring a schema with tables', () => {
     );
   });
 
-  it('rejects two table aliases resolving to the same table name in the default schema', () => {
+  it('databaseSchemaComponent({ tables: { users, customerDirectory } }) reports conflicting users aliases in the default schema', () => {
     assert.throws(
       () =>
         databaseSchemaComponent({
@@ -126,7 +126,7 @@ describe('schema.findTable(tableName)', () => {
     assert.strictEqual(schema.findTable('users'), undefined);
   });
 
-  it("schema.findTable('users') rejects duplicate physical tables", () => {
+  it("schema.findTable('users') reports conflicting users declarations from the application schema and its table extension", () => {
     const crm = extensionComponent('crm', {
       tables: { users: usersTable() },
     });
@@ -211,7 +211,7 @@ describe('schema.withTable(tables)', () => {
     );
   });
 
-  it('rejects an added alias resolving to an existing physical table', () => {
+  it("schema.withTable({ customerDirectory: table('users') }) reports that the application already declared the users table", () => {
     const schema = databaseSchemaComponent({
       schemaName: 'reporting',
       tables: { users: usersTable() },
