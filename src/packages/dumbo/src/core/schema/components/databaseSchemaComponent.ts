@@ -33,6 +33,7 @@ export type DatabaseSchemaComponent<
     schemaName: SchemaName;
     tables: Tables;
     extensions: Extensions;
+    findTable: (tableName: string) => AnyTableComponent | undefined;
     withTable: <const Added extends DatabaseSchemaTables>(
       tables: Added,
     ) => DatabaseSchemaComponent<
@@ -117,8 +118,9 @@ export const databaseSchemaComponent = <
       migrations: (scoped) => {
         const databaseSchemaName = scoped.databaseSchemaName;
 
-        return [
-          ...(databaseSchemaName === undefined ||
+        return (
+          options.migrations?.(scoped) ??
+          (databaseSchemaName === undefined ||
           SQLDefaultSchemaNameToken.check(databaseSchemaName)
             ? []
             : [
@@ -126,14 +128,29 @@ export const databaseSchemaComponent = <
                   databaseSchemaMigrationName(databaseSchemaName, options.kind),
                   [SQL`${SQLCreateSchema.from({ databaseSchemaName })}`],
                 ),
-              ]),
-          ...(options.migrations?.(scoped) ?? []),
-        ];
+              ])
+        );
       },
     }),
     schemaName: options.schemaName,
     tables: schemaComponentMap(tables),
     extensions: schemaComponentMap(extensions),
+    findTable: (tableName: string) => {
+      const [found, duplicate] = [
+        ...Object.values(tables),
+        ...Object.values(extensions).flatMap((extension) =>
+          Object.values(extension.tables),
+        ),
+      ].filter((table) => table.tableName === tableName);
+
+      if (duplicate !== undefined) {
+        throw new Error(
+          `Table "${tableName}" is declared more than once in database schema "${schemaNameLabel}"`,
+        );
+      }
+
+      return found;
+    },
     withTable: <const Added extends DatabaseSchemaTables>(added: Added) =>
       databaseSchemaComponent<
         MergeRecords<Tables, Added>,

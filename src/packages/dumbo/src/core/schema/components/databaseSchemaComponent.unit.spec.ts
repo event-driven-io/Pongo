@@ -98,6 +98,51 @@ describe('declaring a schema with tables', () => {
   });
 });
 
+describe('schema.findTable(tableName)', () => {
+  it("schema.findTable('users') finds a table by its physical name", () => {
+    const users = usersTable();
+    const schema = databaseSchemaComponent({
+      schemaName: 'reporting',
+      tables: { customerDirectory: users },
+    });
+
+    assert.strictEqual(schema.findTable('users'), users);
+  });
+
+  it("schema.findTable('users') finds a table contributed by an extension", () => {
+    const users = usersTable();
+    const crm = extensionComponent('crm', { tables: { users } });
+    const schema = databaseSchemaComponent({
+      schemaName: 'reporting',
+      extensions: { crm },
+    });
+
+    assert.strictEqual(schema.findTable('users'), users);
+  });
+
+  it("schema.findTable('users') returns undefined when the table does not exist", () => {
+    const schema = databaseSchemaComponent({ schemaName: 'reporting' });
+
+    assert.strictEqual(schema.findTable('users'), undefined);
+  });
+
+  it("schema.findTable('users') rejects duplicate physical tables", () => {
+    const crm = extensionComponent('crm', {
+      tables: { users: usersTable() },
+    });
+    const schema = databaseSchemaComponent({
+      schemaName: 'reporting',
+      tables: { users: usersTable() },
+      extensions: { crm },
+    });
+
+    assert.throws(
+      () => schema.findTable('users'),
+      /Table "users" is declared more than once in database schema "reporting"/,
+    );
+  });
+});
+
 describe('schema.withTable(tables)', () => {
   it('returns a schema containing its previous and added tables', () => {
     const roles = tableComponent({ tableName: 'roles' });
@@ -129,7 +174,7 @@ describe('schema.withTable(tables)', () => {
     assert.ok(Object.isFrozen(next.tables));
   });
 
-  it('preserves the schema name, extensions, kind, and custom migrations', () => {
+  it('withTable preserves custom schema migration ownership and child traversal', () => {
     const audit = extensionComponent('audit', {
       migrations: () => [sqlMigration('audit:001', [SQL`SELECT 1`])],
     });
@@ -155,7 +200,6 @@ describe('schema.withTable(tables)', () => {
     assert.deepStrictEqual(
       nextCustom.migrations().map(({ name }) => name),
       [
-        'schema:read_model:reporting:create',
         custom.name,
         'index:reporting:users:users_email_idx:create',
         'audit:001',

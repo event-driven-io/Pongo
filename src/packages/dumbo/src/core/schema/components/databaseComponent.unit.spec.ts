@@ -188,6 +188,86 @@ describe('placing tables and schemas in a database', () => {
   });
 });
 
+describe('database.findTable(tableName, options)', () => {
+  it("database.findTable('users') finds a default-schema table", () => {
+    const users = table('users');
+    const database = databaseComponent({
+      tables: { customerDirectory: users },
+    });
+
+    assert.strictEqual(database.findTable('users'), users);
+  });
+
+  it("database.findTable('users', { databaseSchemaName: 'crm' }) finds a named-schema table", () => {
+    const users = table('users');
+    const database = databaseComponent({
+      schemas: {
+        crm: databaseSchemaComponent({
+          schemaName: 'crm',
+          tables: { customerDirectory: users },
+        }),
+      },
+    });
+
+    assert.strictEqual(
+      database.findTable('users', { databaseSchemaName: 'crm' }),
+      users,
+    );
+  });
+
+  it("database.findTable('users') finds a table in the configured default schema", () => {
+    const users = table('users');
+    const database = databaseComponent({
+      schemas: {
+        crm: databaseSchemaComponent({
+          schemaName: 'crm',
+          tables: { users },
+        }),
+      },
+    });
+
+    assert.strictEqual(
+      database.findTable('users', { defaultSchemaName: 'crm' }),
+      users,
+    );
+  });
+
+  it("database.findTable('users', { databaseSchemaName: 'readmodels' }) finds a table contributed by a database extension", () => {
+    const users = table('users');
+    const eventStore = extensionComponent('event-store', {
+      schemas: {
+        readmodels: databaseSchemaComponent({
+          schemaName: 'readmodels',
+          tables: { users },
+        }),
+      },
+    });
+    const database = databaseComponent({ extensions: { eventStore } });
+
+    assert.strictEqual(
+      database.findTable('users', { databaseSchemaName: 'readmodels' }),
+      users,
+    );
+  });
+
+  it("database.findTable('users') rejects duplicates in the configured default schema", () => {
+    const database = databaseComponent({
+      tables: { users: table('users') },
+      schemas: {
+        crm: databaseSchemaComponent({
+          schemaName: 'crm',
+          tables: { users: table('users') },
+        }),
+      },
+    });
+
+    assert.throws(
+      () => database.findTable('users', { defaultSchemaName: 'crm' }),
+      /Table "users" is declared more than once in database schema "crm"/,
+    );
+  });
+});
+
 describe('database.withSchema(schemas)', () => {
   it('returns a database containing its previous and added schemas', () => {
     const audit = databaseSchemaComponent({ schemaName: 'audit' });

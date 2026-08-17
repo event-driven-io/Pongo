@@ -1,15 +1,10 @@
 import assert from 'node:assert';
-import { dumboSchema, type DatabaseDriverType } from '@event-driven-io/dumbo';
+import type { DatabaseDriverType } from '@event-driven-io/dumbo';
 import { describe, expectTypeOf, it } from 'vitest';
 import type { PongoDatabaseFactoryOptions, PongoDriver } from './drivers';
 import { pongoClient } from './pongoClient';
-import { pongoSchema, projectPongoDb } from './schema';
-import type {
-  PongoCollection,
-  PongoDBCollectionOptions,
-  PongoDb,
-  PongoDocument,
-} from './typing';
+import { pongoSchema } from './schema';
+import type { PongoCollection, PongoDb, PongoDocument } from './typing';
 
 type TestDriverType = DatabaseDriverType<'Test'>;
 const TestDriverType: TestDriverType = 'Test:fake';
@@ -19,18 +14,11 @@ const testPongoDb = (options: {
   onConnect: (databaseName: string) => void;
   onClose: (databaseName: string) => void;
 }): PongoDb<TestDriverType> => {
-  const schema = Object.assign(
-    () => ({
-      collection: () => ({}) as never,
-      collections: () => [],
-    }),
-    {
-      component: {} as never,
-      definition: pongoSchema.db({ collections: {} }),
-      migrations: [],
-      migrate: () => Promise.resolve({ applied: [], skipped: [] }),
-    },
-  );
+  const schema = {
+    component: pongoSchema.db({ collections: {} }),
+    migrations: [],
+    migrate: () => Promise.resolve({ applied: [], skipped: [] }),
+  };
 
   return {
     driverType: TestDriverType,
@@ -222,7 +210,7 @@ describe('pongoClient', () => {
     });
   });
 
-  it('keeps typed client schema access', () => {
+  it('types a default collection through its declared database', () => {
     type User = PongoDocument & { email: string };
     const { driver } = testPongoDriver();
     const schema = pongoSchema.client({
@@ -245,20 +233,24 @@ describe('pongoClient', () => {
     >();
   });
 
-  it('keeps typed database and schema access', () => {
+  it('types default and named collections through one declared database', () => {
     type User = PongoDocument & { email: string };
     type Audit = PongoDocument & { reason: string };
     const { driver } = testPongoDriver();
-    const schema = pongoSchema.db('app', {
-      schemas: {
+    const schema = pongoSchema
+      .db('app', {
+        collections: {
+          accounts: pongoSchema.collection<User>('accounts'),
+        },
+      })
+      .withSchema({
         crm: pongoSchema.schema('crm', {
           users: pongoSchema.collection<User>('users'),
         }),
         audit: pongoSchema.schema('audit', {
           auditLogs: pongoSchema.collection<Audit>('audit_logs'),
         }),
-      },
-    });
+      });
 
     const _client = pongoClient({
       driver,
@@ -267,6 +259,9 @@ describe('pongoClient', () => {
 
     type Client = typeof _client;
 
+    expectTypeOf<Client['app']['accounts']>().toEqualTypeOf<
+      PongoCollection<User>
+    >();
     expectTypeOf<Client['app']['crm']['users']>().toEqualTypeOf<
       PongoCollection<User>
     >();
@@ -275,185 +270,7 @@ describe('pongoClient', () => {
     >();
   });
 
-  it('projects database schema collections with their schema names', () => {
-    type User = PongoDocument & { email: string };
-    const collectionCalls: { name: string; schema?: string | undefined }[] = [];
-    const db = {
-      ...testPongoDb({
-        databaseName: 'app',
-        onConnect: () => undefined,
-        onClose: () => undefined,
-      }),
-      collection: <T extends PongoDocument, Payload extends PongoDocument = T>(
-        name: string,
-        options?: PongoDBCollectionOptions<T, Payload>,
-      ) => {
-        const schema = options?.databaseSchemaName;
-
-        collectionCalls.push({ name, schema });
-        return { name, schema } as never;
-      },
-    };
-    const schema = pongoSchema.db('app', {
-      schemas: {
-        crm: pongoSchema.schema('crm', {
-          users: pongoSchema.collection<User>('users'),
-        }),
-      },
-    });
-    const projected = projectPongoDb(db, schema);
-
-    assert.deepStrictEqual(projected.crm.users, {
-      name: 'users',
-      schema: 'crm',
-    });
-    assert.deepStrictEqual(collectionCalls, [{ name: 'users', schema: 'crm' }]);
-    type Projected = typeof projected;
-
-    expectTypeOf<Projected['crm']['users']>().toEqualTypeOf<
-      PongoCollection<User>
-    >();
-  });
-
-  it('rejects projected aliases that conflict with the actual database API', () => {
-    const db = testPongoDb({
-      databaseName: 'app',
-      onConnect: () => undefined,
-      onClose: () => undefined,
-    });
-
-    assert.throws(
-      () =>
-        projectPongoDb(
-          db,
-          pongoSchema.db({
-            collections: {
-              schema: pongoSchema.collection('schema'),
-            },
-          }),
-        ),
-      /collection name schema conflicts with a database API member/,
-    );
-    assert.throws(
-      () =>
-        projectPongoDb(
-          db,
-          pongoSchema.db({
-            schemas: {
-              collection: pongoSchema.schema('collection', {}),
-            },
-          }),
-        ),
-      /schema name collection conflicts with a database API member/,
-    );
-  });
-
-  it('keeps duplicate schema-group collection aliases scoped at runtime', () => {
-    type User = PongoDocument & { email: string };
-    const db = {
-      ...testPongoDb({
-        databaseName: 'app',
-        onConnect: () => undefined,
-        onClose: () => undefined,
-      }),
-      collection: <T extends PongoDocument, Payload extends PongoDocument = T>(
-        name: string,
-        options?: PongoDBCollectionOptions<T, Payload>,
-      ) =>
-        ({
-          name,
-          schema: options?.databaseSchemaName,
-        }) as never,
-    };
-    const schema = pongoSchema.db('app', {
-      schemas: {
-        crm: pongoSchema.schema('crm', {
-          users: pongoSchema.collection<User>('users'),
-        }),
-        audit: pongoSchema.schema('audit', {
-          users: pongoSchema.collection<User>('users'),
-        }),
-      },
-    });
-    const projected = projectPongoDb(db, schema);
-
-    assert.strictEqual(
-      (projected as unknown as Record<string, unknown>).users,
-      undefined,
-    );
-    assert.deepStrictEqual(projected.crm.users, {
-      name: 'users',
-      schema: 'crm',
-    });
-    assert.deepStrictEqual(projected.audit.users, {
-      name: 'users',
-      schema: 'audit',
-    });
-  });
-
-  it('projects direct collection aliases onto the database object', () => {
-    const calls: string[] = [];
-    const base = testPongoDb({
-      databaseName: 'app',
-      onConnect: () => undefined,
-      onClose: () => undefined,
-    });
-    const db = {
-      ...base,
-      collection: <T extends PongoDocument, Payload extends PongoDocument = T>(
-        name: string,
-        options?: PongoDBCollectionOptions<T, Payload>,
-      ) => {
-        calls.push(name);
-        return base.collection<T, Payload>(name, options);
-      },
-    };
-    const projected = projectPongoDb(
-      db,
-      pongoSchema.db('app', {
-        collections: {
-          users: pongoSchema.collection('users'),
-        },
-      }),
-    );
-
-    assert.ok(projected.users);
-    assert.deepStrictEqual(calls, ['users']);
-  });
-
-  it('projects the default schema collections of a plain Dumbo database', () => {
-    const calls: string[] = [];
-    const base = testPongoDb({
-      databaseName: 'app',
-      onConnect: () => undefined,
-      onClose: () => undefined,
-    });
-    const db = {
-      ...base,
-      collection: <T extends PongoDocument, Payload extends PongoDocument = T>(
-        name: string,
-        options?: PongoDBCollectionOptions<T, Payload>,
-      ) => {
-        calls.push(name);
-        return base.collection<T, Payload>(name, options);
-      },
-    };
-    const projected = projectPongoDb(
-      db,
-      dumboSchema.database('app', {
-        tables: {
-          users: pongoSchema.collection('users'),
-          accounts: dumboSchema.table('accounts'),
-        },
-      }),
-    ) as typeof db & Record<string, unknown>;
-
-    assert.ok(projected.users);
-    assert.strictEqual(projected.accounts, undefined);
-    assert.deepStrictEqual(calls, ['users']);
-  });
-
-  it('projects a database component supplied in the client definition record', () => {
+  it('accesses a declared database as a client property', () => {
     type User = PongoDocument & { email: string };
     const { driver, databaseFactoryCalls } = testPongoDriver();
     const database = pongoSchema.db('app', {
@@ -472,7 +289,39 @@ describe('pongoClient', () => {
 
     assert.strictEqual(app.databaseName, 'app');
     assert.strictEqual(databaseFactoryCalls[0]?.schema?.definition, database);
-    assert.deepStrictEqual(Object.keys(database.collections), ['users']);
+    assert.deepStrictEqual(Object.keys(database.tables), ['users']);
+  });
+
+  it('preserves declared database identity across property access', () => {
+    const { driver, databaseFactoryCalls } = testPongoDriver();
+    const client = pongoClient({
+      driver,
+      schema: {
+        definition: pongoSchema.client({
+          app: pongoSchema.db('app', { collections: {} }),
+        }),
+      },
+    });
+
+    assert.strictEqual(databaseFactoryCalls.length, 0);
+    assert.strictEqual(client.app, client.app);
+    assert.strictEqual(databaseFactoryCalls.length, 1);
+  });
+
+  it("client.db('db') opens a declared database named db", () => {
+    const { driver, databaseFactoryCalls } = testPongoDriver();
+    const database = pongoSchema.db('db', { collections: {} });
+    const client = pongoClient({
+      driver,
+      schema: {
+        definition: pongoSchema.client({
+          db: database,
+        }),
+      },
+    });
+
+    assert.strictEqual(client.db('db').databaseName, 'db');
+    assert.strictEqual(databaseFactoryCalls[0]?.schema?.definition, database);
   });
 
   it('does not select an unnamed database declaration for an unqualified db call', () => {

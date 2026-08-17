@@ -27,6 +27,11 @@ export type DatabaseExtensions = Readonly<
   Record<string, AnyExtensionComponent>
 >;
 
+export type FindDatabaseTableOptions = Readonly<{
+  databaseSchemaName?: string | undefined;
+  defaultSchemaName?: string | undefined;
+}>;
+
 type SchemaWithTables<Schema, Added extends DatabaseTables> =
   Schema extends DatabaseSchemaComponent<
     infer Tables,
@@ -70,6 +75,10 @@ export type DatabaseComponent<
     tables: Tables;
     schemas: Schemas;
     extensions: Extensions;
+    findTable: (
+      tableName: string,
+      options?: FindDatabaseTableOptions,
+    ) => AnyTableComponent | undefined;
     withSchema: <const Added extends DatabaseSchemas>(
       schemas: Added,
     ) => DatabaseComponent<
@@ -183,6 +192,44 @@ export const databaseComponent = <
     },
     schemas: schemaComponentMap(schemas),
     extensions: schemaComponentMap(extensions),
+    findTable: (
+      tableName: string,
+      findOptions: FindDatabaseTableOptions = {},
+    ) => {
+      const requestedSchemaName = findOptions.databaseSchemaName;
+      const resolvedRequestedSchemaName =
+        requestedSchemaName ?? findOptions.defaultSchemaName;
+      const matchingSchemas = [
+        defaultSchema,
+        ...Object.values(schemas),
+        ...Object.values(extensions).flatMap((extension) =>
+          Object.values(extension.schemas),
+        ),
+      ].filter((schema) => {
+        const resolvedSchemaName = SQLDefaultSchemaNameToken.check(
+          schema.schemaName,
+        )
+          ? findOptions.defaultSchemaName
+          : schema.schemaName;
+
+        return resolvedSchemaName === resolvedRequestedSchemaName;
+      });
+      const [found, duplicate] = matchingSchemas
+        .map((schema) => schema.findTable(tableName))
+        .filter((table) => table !== undefined);
+
+      if (duplicate !== undefined) {
+        const placement =
+          resolvedRequestedSchemaName === undefined
+            ? 'the default database schema'
+            : `database schema "${resolvedRequestedSchemaName}"`;
+        throw new Error(
+          `Table "${tableName}" is declared more than once in ${placement}`,
+        );
+      }
+
+      return found;
+    },
     withSchema: <const Added extends DatabaseSchemas>(added: Added) =>
       databaseComponent<
         DatabaseName,
