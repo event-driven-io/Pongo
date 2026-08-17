@@ -2,7 +2,6 @@ export * from './columnSchemaComponent';
 export * from './createTableSQL';
 export * from './databaseComponent';
 export * from './databaseSchemaComponent';
-export * from './findTables';
 export * from './indexComponent';
 export * from './indexTarget';
 export * from './relationships';

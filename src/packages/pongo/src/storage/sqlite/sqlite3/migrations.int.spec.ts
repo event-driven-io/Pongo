@@ -34,41 +34,49 @@ describe('SQLite3 migration integration', () => {
 
   it('applies default and schema-prefixed collection migrations in order', async () => {
     const schema = pongoSchema.client({
-      database: pongoSchema.db({
-        collections: {
-          users: pongoSchema.collection('users'),
-          explicitDefaultUsers: pongoSchema.collection(
-            'explicit_default_users',
-            {
-              indexes: {
-                email: pongoSchema.index('explicit_default_email_idx', 'email'),
+      database: pongoSchema
+        .db({
+          collections: {
+            users: pongoSchema.collection('users'),
+            explicitDefaultUsers: pongoSchema.collection(
+              'explicit_default_users',
+              {
+                indexes: {
+                  email: pongoSchema.index(
+                    'explicit_default_email_idx',
+                    'email',
+                  ),
+                },
               },
-            },
-          ),
-          crmUsers: pongoSchema.collection('users', {
-            databaseSchemaName: 'crm',
-            indexes: {
-              email: pongoSchema.index('users_email_idx', 'email'),
-              externalId: pongoSchema.index.unique('users_external_id_uq', [
-                'external',
-                'id',
-              ]),
-              document: pongoSchema.index.json('users_data_idx'),
-              custom: pongoSchema.index.custom(
-                'users_custom_data_idx',
-                ({ tableReference, indexReference }) =>
-                  SQL`CREATE INDEX IF NOT EXISTS ${indexReference} ON ${tableReference} (data)`,
-              ),
-            },
+            ),
+          },
+        })
+        .withSchema({
+          crm: pongoSchema.schema('crm', {
+            crmUsers: pongoSchema.collection('users', {
+              indexes: {
+                email: pongoSchema.index('users_email_idx', 'email'),
+                externalId: pongoSchema.index.unique('users_external_id_uq', [
+                  'external',
+                  'id',
+                ]),
+                document: pongoSchema.index.json('users_data_idx'),
+                custom: pongoSchema.index.custom(
+                  'users_custom_data_idx',
+                  ({ tableReference, indexReference }) =>
+                    SQL`CREATE INDEX IF NOT EXISTS ${indexReference} ON ${tableReference} (data)`,
+                ),
+              },
+            }),
           }),
-          auditUsers: pongoSchema.collection('users', {
-            databaseSchemaName: 'audit',
-            indexes: {
-              email: pongoSchema.index('audit_users_email_idx', 'email'),
-            },
+          audit: pongoSchema.schema('audit', {
+            auditUsers: pongoSchema.collection('users', {
+              indexes: {
+                email: pongoSchema.index('audit_users_email_idx', 'email'),
+              },
+            }),
           }),
-        },
-      }),
+        }),
     });
     const client = pongoClient({
       driver: sqlite3Driver,

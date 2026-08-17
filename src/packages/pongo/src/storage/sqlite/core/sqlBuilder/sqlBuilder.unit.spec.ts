@@ -432,7 +432,6 @@ describe('sqliteSQLBuilder', () => {
       ).query;
 
       assert.equal(migrations.length, 2);
-      assert.equal(collection.databaseSchemaName, undefined);
       const email = collection.indexes.email;
       assert.ok(email);
       assert.strictEqual(email.indexName, indexes.email.indexName);

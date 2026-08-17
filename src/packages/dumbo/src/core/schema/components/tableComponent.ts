@@ -123,8 +123,9 @@ export const tableComponent = <
             tableName: options.tableName,
           };
 
-          return [
-            ...(Object.keys(columns).length === 0
+          return (
+            options.migrations?.(scoped) ??
+            (Object.keys(columns).length === 0
               ? []
               : [
                   sqlMigration(tableMigrationName(identifier, options.kind), [
@@ -133,9 +134,8 @@ export const tableComponent = <
                       SQL`${SQLTableReference.from(identifier)}`,
                     ),
                   ]),
-                ]),
-            ...(options.migrations?.(scoped) ?? []),
-          ];
+                ])
+          );
         },
       }),
       tableName: options.tableName,

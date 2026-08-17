@@ -1,9 +1,7 @@
 import type { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import {
-  findTable,
   runSQLMigrations,
   SQLDefaultSchemaNameToken,
-  type AnyDatabaseComponent,
   type DatabaseDriverType,
   type Dumbo,
   type MigrationStyle,
@@ -19,25 +17,18 @@ import {
   transactionExecutorOrDefault,
   type PongoCollectionSQLBuilder,
 } from '../collection';
-import {
-  pongoSchema,
-  projectPongoDb,
-  isPongoCollectionComponent,
-  type PongoCollectionComponent,
-  type PongoDbSchema,
-} from '../schema';
+import type { PongoCollectionComponent, PongoDbSchema } from '../schema';
 import type {
   AnyPongoDb,
   CollectionOperationOptions,
-  Document,
-  PongoCollection,
   PongoDb,
-  PongoDBCollectionOptions,
   PongoMigrationOptions,
-  PongoSchemaAccessor,
-  PongoSchemaScope,
 } from '../typing';
 import type { PongoNestedTransactionOptions } from '../pongoTransaction';
+import {
+  PongoDatabaseComponent,
+  type PongoCollectionIdentifier,
+} from './pongoDatabaseComponent';
 
 type PongoTransactionOptionsFor<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -64,10 +55,7 @@ export type PongoDatabaseOptions<
   defaultSchemaName?: string | undefined;
   sqlBuilderFor: (
     collection: PongoCollectionComponent,
-    identifier: {
-      databaseSchemaName: string | SQLDefaultSchemaNameToken;
-      tableName: string;
-    },
+    identifier: PongoCollectionIdentifier,
   ) => PongoCollectionSQLBuilder;
   migrationTable?: MigrationTableOptions | undefined;
   schema?:
@@ -80,13 +68,6 @@ export type PongoDatabaseOptions<
   cache?: CacheConfig | 'disabled' | PongoCache | undefined;
   transactionOptions?: PongoTransactionOptionsFor<DumboType> | undefined;
 };
-
-const databaseSchemaLabel = (
-  databaseSchemaName: string | SQLDefaultSchemaNameToken,
-): string =>
-  typeof databaseSchemaName === 'string'
-    ? `database schema "${databaseSchemaName}"`
-    : 'the default database schema';
 
 export const PongoDatabase = <
   Database extends AnyPongoDb = AnyPongoDb,
@@ -102,81 +83,11 @@ export const PongoDatabase = <
   const { databaseName, pool, cache: cacheOptions, serializer } = options;
   const defaultSchemaName: string | SQLDefaultSchemaNameToken =
     options.defaultSchemaName ?? SQLDefaultSchemaNameToken.from();
-  const definition =
-    options.schema?.definition ?? pongoSchema.db({ collections: {} });
-  let component: AnyDatabaseComponent = definition;
-  const defaults =
-    typeof defaultSchemaName === 'string'
-      ? { schemaName: defaultSchemaName }
-      : undefined;
-
-  const collectionComponent = <T extends Document>(
-    collectionName: string,
-    requestedSchemaName: string | undefined,
-  ) => {
-    const databaseSchemaName = requestedSchemaName ?? defaultSchemaName;
-    const identifier = { databaseSchemaName, tableName: collectionName };
-    const declared = findTable(component, { ...identifier, defaults })?.table;
-
-    if (declared !== undefined) {
-      if (!isPongoCollectionComponent(declared)) {
-        throw new Error(
-          `Table "${collectionName}" in ${databaseSchemaLabel(databaseSchemaName)} is not a Pongo collection`,
-        );
-      }
-      return { component: declared, identifier };
-    }
-
-    const tables =
-      requestedSchemaName === undefined
-        ? component.tables
-        : component.schemas[requestedSchemaName]?.tables;
-    const aliased = tables?.[collectionName];
-    if (aliased !== undefined) {
-      throw new Error(
-        `Cannot add collection "${collectionName}" to ${databaseSchemaLabel(databaseSchemaName)} because that alias already refers to table "${aliased.tableName}"`,
-      );
-    }
-
-    const created = pongoSchema.collection<T>(
-      collectionName,
-      requestedSchemaName === undefined
-        ? {}
-        : { databaseSchemaName: requestedSchemaName },
-    );
-    component =
-      requestedSchemaName === undefined
-        ? component.withTable({ [collectionName]: created })
-        : component.withTable(
-            { [collectionName]: created },
-            requestedSchemaName,
-          );
-
-    return { component: created, identifier };
-  };
 
   const cache =
     cacheOptions === 'disabled' || cacheOptions === undefined
       ? 'disabled'
       : pongoCache(cacheOptions);
-
-  const defaultSchemaCollections = new Map<string, PongoCollection<Document>>();
-  const collections = new Map<string, Map<string, PongoCollection<Document>>>();
-  const collectionsIn = (schemaName: string | undefined) => {
-    if (schemaName === undefined || schemaName === defaultSchemaName)
-      return defaultSchemaCollections;
-
-    let schemaCollections = collections.get(schemaName);
-    if (!schemaCollections) {
-      schemaCollections = new Map<string, PongoCollection<Document>>();
-      collections.set(schemaName, schemaCollections);
-    }
-    return schemaCollections;
-  };
-  const allCollections = () =>
-    [defaultSchemaCollections, ...collections.values()].flatMap(
-      (schemaCollections) => [...schemaCollections.values()],
-    );
   const command = async <Result extends QueryResultRow = QueryResultRow>(
     sql: SQL,
     options?: CollectionOperationOptions & SQLCommandOptions,
@@ -215,101 +126,20 @@ export const PongoDatabase = <
     };
   };
 
-  let defaultSchemaHandle: PongoSchemaScope | undefined;
-  const schemaHandles = new Map<string, PongoSchemaScope>();
-  const schemaHandle = (schemaName?: string): PongoSchemaScope => {
-    const existing =
-      schemaName === undefined
-        ? defaultSchemaHandle
-        : schemaHandles.get(schemaName);
-    if (existing !== undefined) return existing;
-
-    const handle: PongoSchemaScope = {
-      collection: <T extends Document, Payload extends Document = T>(
-        collectionName: string,
-        collectionOptions?: Omit<
-          PongoDBCollectionOptions<T, Payload>,
-          'databaseSchemaName'
-        >,
-      ) => {
-        return db.collection<T, Payload>(collectionName, {
-          ...collectionOptions,
-          databaseSchemaName: schemaName,
-        });
-      },
-      collections: () => [...collectionsIn(schemaName).values()],
-    };
-    if (schemaName === undefined) defaultSchemaHandle = handle;
-    else schemaHandles.set(schemaName, handle);
-    return handle;
-  };
-
-  const migrate = (migrationOptions?: PongoMigrationOptions) =>
-    runSQLMigrations(
-      pool,
-      component.migrations(defaults === undefined ? undefined : { defaults }),
-      {
-        ...migrationOptions,
-        migrationTable:
-          migrationOptions?.migrationTable ?? options.migrationTable,
-      },
-    );
-
-  const schemaAccessor = schemaHandle as PongoSchemaAccessor;
-  Object.defineProperties(schemaAccessor, {
-    component: { enumerable: true, get: () => component },
-    migrations: {
-      enumerable: true,
-      get: () =>
-        component.migrations(defaults === undefined ? undefined : { defaults }),
-    },
-    migrate: { enumerable: true, value: migrate },
-  });
-
-  const db: PongoDb<Database['driverType']> = {
-    driverType,
-    databaseName,
-    connect: () => Promise.resolve(),
-    close: async () => {
-      await Promise.allSettled([
-        pool.close(),
-        cache !== 'disabled' ? cache.close() : Promise.resolve(),
-        ...allCollections().map((collection) => collection.close()),
-      ]);
-    },
-
-    collections: allCollections,
-    collection: <T extends Document, Payload extends Document = T>(
-      collectionName: string,
-      collectionOptions?: PongoDBCollectionOptions<T, Payload>,
-    ) => {
-      const requestedSchemaName = collectionOptions?.databaseSchemaName;
-      const schemaCollections = collectionsIn(requestedSchemaName);
+  const databaseComponent = PongoDatabaseComponent({
+    component: options.schema?.definition,
+    defaultSchemaName,
+    createCollection: (component, identifier, collectionOptions) => {
+      const collectionName = identifier.tableName;
       const collectionRuntimeSchema = collectionOptions?.schema;
-      const hasRuntimeOverrides =
-        collectionOptions?.cache !== undefined ||
-        collectionOptions?.errors !== undefined ||
-        collectionRuntimeSchema !== undefined;
 
-      const existing = schemaCollections.get(collectionName) as
-        PongoCollection<T> | undefined;
-
-      if (!hasRuntimeOverrides && existing) return existing;
-
-      const schemaCollection = collectionComponent<T>(
-        collectionName,
-        requestedSchemaName,
-      );
-      const collection = pongoCollection({
+      return pongoCollection({
         collectionName,
         db,
         pool,
-        component: schemaCollection.component,
-        databaseSchemaName: schemaCollection.identifier.databaseSchemaName,
-        sqlBuilder: options.sqlBuilderFor(
-          schemaCollection.component,
-          schemaCollection.identifier,
-        ),
+        component,
+        databaseSchemaName: identifier.databaseSchemaName,
+        sqlBuilder: options.sqlBuilderFor(component, identifier),
         schema: { ...options.schema, ...collectionRuntimeSchema },
         serializer,
         errors: { ...options.errors, ...collectionOptions?.errors },
@@ -318,15 +148,32 @@ export const PongoDatabase = <
             ? collectionOptions.cache
             : cache,
       });
-
-      if (!hasRuntimeOverrides) {
-        schemaCollections.set(
-          collectionName,
-          collection as unknown as PongoCollection<Document>,
-        );
-      }
-      return collection;
     },
+  });
+
+  const migrate = (migrationOptions?: PongoMigrationOptions) =>
+    runSQLMigrations(pool, databaseComponent.migrations, {
+      ...migrationOptions,
+      migrationTable:
+        migrationOptions?.migrationTable ?? options.migrationTable,
+    });
+
+  const core: PongoDb<Database['driverType']> = {
+    driverType,
+    databaseName,
+    connect: () => Promise.resolve(),
+    close: async () => {
+      await Promise.allSettled([
+        pool.close(),
+        cache !== 'disabled' ? cache.close() : Promise.resolve(),
+        ...databaseComponent
+          .collections()
+          .map((collection) => collection.close()),
+      ]);
+    },
+
+    collections: databaseComponent.collections,
+    collection: databaseComponent.collection,
     transaction: (transactionOptions) =>
       pool.transaction(
         pongoTransactionOptions(
@@ -343,7 +190,15 @@ export const PongoDatabase = <
         ),
       ),
 
-    schema: schemaAccessor,
+    schema: {
+      get component() {
+        return databaseComponent.component;
+      },
+      get migrations() {
+        return databaseComponent.migrations;
+      },
+      migrate,
+    },
     sql: {
       async query<Result extends QueryResultRow = QueryResultRow>(
         sql: SQL,
@@ -361,18 +216,7 @@ export const PongoDatabase = <
     },
   };
 
-  const typedDb = db as unknown as Database;
+  const db = databaseComponent.expose(core) as Database;
 
-  const dbSchema = definition;
-
-  if (
-    ('collections' in dbSchema &&
-      Object.keys(dbSchema.collections).length > 0) ||
-    Object.keys(dbSchema.defaultSchema.tables).length > 0 ||
-    Object.keys(dbSchema.schemas).length > 0
-  ) {
-    return projectPongoDb(typedDb, dbSchema);
-  }
-
-  return typedDb;
+  return db;
 };

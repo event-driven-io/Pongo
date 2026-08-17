@@ -121,7 +121,6 @@ describe('declaring Pongo collections', () => {
     assert.strictEqual(isTableComponent(users), true);
     assert.strictEqual(isPongoCollectionComponent(users), true);
     assert.strictEqual(users.tableName, 'users');
-    assert.strictEqual(users.databaseSchemaName, undefined);
     assert.deepStrictEqual(Object.keys(users.columns), [
       '_id',
       'data',
@@ -167,28 +166,26 @@ describe('declaring Pongo collections', () => {
       crm.tables.users.indexes.email.indexName,
       email.indexName,
     );
-    assert.strictEqual(users.databaseSchemaName, undefined);
-    assert.strictEqual(crm.tables.users.databaseSchemaName, undefined);
     assert.strictEqual(isPongoCollectionComponent(crm.tables.users), true);
     expectTypeOf<
       TableRowType<typeof crm.tables.users>['data']
     >().toEqualTypeOf<User>();
   });
 
-  it('groups a collection by its declared schema name without placing it', () => {
-    const entries = pongoSchema.collection('entries', {
-      databaseSchemaName: 'audit',
-    });
-    const publicSchema = pongoSchema.schema('public', { entries });
+  it('one collection component can be reused in different schemas', () => {
+    const users = pongoSchema.collection<User>('users');
+    const crm = pongoSchema.schema('crm', { users });
+    const audit = pongoSchema.schema('audit', { users });
 
-    assert.strictEqual(entries.databaseSchemaName, 'audit');
-    assert.strictEqual(
-      publicSchema
-        .migrations()
-        .some(
-          ({ name }) => name === 'table:pongo_collection:public:entries:create',
-        ),
-      true,
+    assert.strictEqual(crm.tables.users, users);
+    assert.strictEqual(audit.tables.users, users);
+    assert.deepStrictEqual(
+      crm.migrations().map(({ name }) => name),
+      ['schema:crm:create', 'table:pongo_collection:crm:users:create'],
+    );
+    assert.deepStrictEqual(
+      audit.migrations().map(({ name }) => name),
+      ['schema:audit:create', 'table:pongo_collection:audit:users:create'],
     );
   });
 
@@ -214,23 +211,21 @@ describe('declaring Pongo schemas and databases', () => {
     );
   });
 
-  it('splits direct collections into database tables and explicitly named schemas', () => {
-    const database = pongoSchema.db('app', {
-      collections: {
-        users: pongoSchema.collection<User>('users'),
-        auditEntries: pongoSchema.collection('entries', {
-          databaseSchemaName: 'audit',
+  it('adds named schemas to a database declared with default collections', () => {
+    const database = pongoSchema
+      .db('app', {
+        collections: {
+          users: pongoSchema.collection<User>('users'),
+        },
+      })
+      .withSchema({
+        audit: pongoSchema.schema('audit', {
+          entries: pongoSchema.collection('entries'),
         }),
-      },
-    });
+      });
 
     assert.strictEqual(database[schemaComponentType], databaseComponentType);
     assert.strictEqual(database.databaseName, 'app');
-    assert.strictEqual(database.collections.users.tableName, 'users');
-    assert.strictEqual(
-      database.collections.users.databaseSchemaName,
-      undefined,
-    );
     assert.ok(
       SQLDefaultSchemaNameToken.check(database.defaultSchema.schemaName),
     );
@@ -238,7 +233,7 @@ describe('declaring Pongo schemas and databases', () => {
     assert.deepStrictEqual(Object.keys(database.schemas), ['audit']);
     assert.strictEqual(database.schemas.audit?.schemaName, 'audit');
     assert.strictEqual(
-      database.schemas.audit?.tables.auditEntries?.tableName,
+      database.schemas.audit?.tables.entries?.tableName,
       'entries',
     );
     assert.deepStrictEqual(
@@ -251,7 +246,7 @@ describe('declaring Pongo schemas and databases', () => {
     );
   });
 
-  it('reads database tables from the default schema', () => {
+  it('declares collections in the default schema', () => {
     const database = pongoSchema.db('app', {
       collections: {
         users: pongoSchema.collection<User>('users'),
@@ -264,10 +259,8 @@ describe('declaring Pongo schemas and databases', () => {
     );
   });
 
-  it('keeps an empty default schema for an empty direct-collection database', () => {
-    const database = pongoSchema.db('app', {
-      collections: {},
-    });
+  it('declares an empty database', () => {
+    const database = pongoSchema.db('app', { collections: {} });
 
     assert.deepStrictEqual(Object.keys(database.schemas), []);
     assert.ok(
@@ -276,11 +269,11 @@ describe('declaring Pongo schemas and databases', () => {
     assert.deepStrictEqual(Object.keys(database.tables), []);
   });
 
-  it('keeps an empty default schema when every direct collection names another schema', () => {
+  it('declares collections in named schemas', () => {
     const database = pongoSchema.db('app', {
-      collections: {
-        auditEntries: pongoSchema.collection('entries', {
-          databaseSchemaName: 'audit',
+      schemas: {
+        audit: pongoSchema.schema('audit', {
+          entries: pongoSchema.collection('entries'),
         }),
       },
     });
@@ -290,7 +283,7 @@ describe('declaring Pongo schemas and databases', () => {
     );
     assert.deepStrictEqual(Object.keys(database.tables), []);
     assert.strictEqual(
-      database.schemas.audit?.tables.auditEntries?.tableName,
+      database.schemas.audit?.tables.entries?.tableName,
       'entries',
     );
   });
@@ -308,7 +301,7 @@ describe('declaring Pongo schemas and databases', () => {
     );
   });
 
-  it('does not promote collections from named schemas onto the database', () => {
+  it('a parent Pongo schema determines collection placement', () => {
     const database = pongoSchema.db('app', {
       schemas: {
         crm: pongoSchema.schema('crm', {
@@ -320,7 +313,6 @@ describe('declaring Pongo schemas and databases', () => {
       },
     });
 
-    assert.strictEqual('collections' in database, false);
     assert.strictEqual(database.schemas.crm.tables.users.tableName, 'users');
     assert.strictEqual(database.schemas.audit.tables.users.tableName, 'users');
   });

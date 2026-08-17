@@ -233,7 +233,6 @@ describe('Migration Integration Tests', () => {
       [
         'schema:public:create',
         'app:public:users:001:create-table',
-        'index:public:users:users_email_idx:create',
         'app:public:users:users_email_idx:002:create-index',
       ],
     );

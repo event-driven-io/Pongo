@@ -182,7 +182,7 @@ describe('components emitting their own migrations', () => {
     );
   });
 
-  it('runs generated table migrations before custom table migrations', () => {
+  it('uses custom table migrations instead of generated table creation', () => {
     const database = databaseComponent({
       schemas: {
         crm: databaseSchemaComponent({
@@ -202,7 +202,7 @@ describe('components emitting their own migrations', () => {
 
     assert.deepStrictEqual(
       database.migrations().map(({ name }) => name),
-      ['schema:crm:create', 'table:crm:users:create', 'users:backfill'],
+      ['schema:crm:create', 'users:backfill'],
     );
   });
 
@@ -229,7 +229,7 @@ describe('components emitting their own migrations', () => {
     );
   });
 
-  it('runs generated and custom table migrations before declared indexes', () => {
+  it('uses custom table migrations while still creating declared indexes', () => {
     const custom = sqlMigration('users:custom', [SQL`SELECT 'custom'`]);
     const backfill = sqlMigration('users:backfill', [SQL`SELECT 'backfill'`]);
     const database = databaseComponent({
@@ -258,7 +258,6 @@ describe('components emitting their own migrations', () => {
       database.migrations().map(({ name }) => name),
       [
         'schema:crm:create',
-        'table:crm:users:create',
         'users:custom',
         'users:backfill',
         'index:crm:users:users_email_idx:create',
@@ -266,7 +265,7 @@ describe('components emitting their own migrations', () => {
     );
   });
 
-  it('runs migrations from indexes declared on tables with custom migrations', () => {
+  it('uses custom table and index migrations exactly once', () => {
     const database = databaseComponent({
       schemas: {
         crm: databaseSchemaComponent({
@@ -297,12 +296,7 @@ describe('components emitting their own migrations', () => {
 
     assert.deepStrictEqual(
       database.migrations().map(({ name }) => name),
-      [
-        'schema:crm:create',
-        'users:001:create-table',
-        'index:crm:users:users_email_idx:create',
-        'users:email:002:custom',
-      ],
+      ['schema:crm:create', 'users:001:create-table', 'users:email:002:custom'],
     );
   });
 

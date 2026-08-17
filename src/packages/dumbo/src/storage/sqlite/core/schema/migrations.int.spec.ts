@@ -351,7 +351,6 @@ describe('Migration Integration Tests', () => {
           migrationNames.rows.map((row) => row.name),
           [
             'app:users:001:create-table',
-            'index:users:users_email_idx:create',
             'app:users:users_email_idx:002:create-index',
           ],
         );

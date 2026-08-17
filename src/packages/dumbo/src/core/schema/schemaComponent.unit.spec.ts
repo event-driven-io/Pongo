@@ -252,7 +252,7 @@ describe('exposing a component as a plain frozen value', () => {
     assert.deepStrictEqual(email.migrations(), [first, second]);
   });
 
-  it('runs generated and custom schema migrations before child migrations', () => {
+  it('uses a custom schema migration while still migrating its tables', () => {
     const own = sqlMigration('crm:001', [SQL`SELECT 0`]);
     const crm = databaseSchemaComponent({
       schemaName: 'crm',
@@ -268,7 +268,6 @@ describe('exposing a component as a plain frozen value', () => {
     });
 
     assert.deepStrictEqual(migrationNames(crm.migrations()), [
-      'schema:crm:create',
       own.name,
       'table:crm:users:create',
     ]);
@@ -593,7 +592,7 @@ describe('grouping components in extensions', () => {
     ]);
   });
 
-  it('runs extension migrations before contributed schema migrations', () => {
+  it('runs extension migrations before a contributed custom schema migration', () => {
     const own = sqlMigration('event-store:001', [SQL`SELECT 1`]);
     const schemaMigration = sqlMigration('messages:002', [SQL`SELECT 2`]);
     const eventStore = extensionComponent('event-store', {
@@ -608,7 +607,6 @@ describe('grouping components in extensions', () => {
 
     assert.deepStrictEqual(migrationNames(eventStore.migrations()), [
       own.name,
-      'schema:event_store:create',
       schemaMigration.name,
     ]);
   });

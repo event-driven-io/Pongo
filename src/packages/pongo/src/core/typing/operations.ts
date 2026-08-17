@@ -138,20 +138,11 @@ export type PongoDbOptions = {
   migrationTable?: MigrationTableOptions | undefined;
 };
 
-export interface PongoSchemaScope {
-  collection<T extends PongoDocument, Payload extends PongoDocument = T>(
-    name: string,
-    options?: Omit<PongoDBCollectionOptions<T, Payload>, 'databaseSchemaName'>,
-  ): PongoCollection<T>;
-  collections(): ReadonlyArray<PongoCollection<PongoDocument>>;
+export interface PongoDatabaseSchema {
+  readonly component: AnyDatabaseComponent;
+  readonly migrations: ReturnType<DatabaseComponent['migrations']>;
+  migrate(options?: PongoMigrationOptions): Promise<RunSQLMigrationsResult>;
 }
-
-export type PongoSchemaAccessor = ((schemaName?: string) => PongoSchemaScope) &
-  Readonly<{
-    component: AnyDatabaseComponent;
-    migrations: ReturnType<DatabaseComponent['migrations']>;
-    migrate(options?: PongoMigrationOptions): Promise<RunSQLMigrationsResult>;
-  }>;
 
 export interface PongoDb<
   DriverType extends DatabaseDriverType = DatabaseDriverType,
@@ -165,7 +156,7 @@ export interface PongoDb<
     options?: PongoDBCollectionOptions<T, Payload>,
   ): PongoCollection<T>;
   collections(): ReadonlyArray<PongoCollection<PongoDocument>>;
-  readonly schema: PongoSchemaAccessor;
+  readonly schema: PongoDatabaseSchema;
   sql: {
     query<Result extends QueryResultRow = QueryResultRow>(
       sql: SQL,

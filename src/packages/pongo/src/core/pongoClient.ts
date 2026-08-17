@@ -8,7 +8,6 @@ import type {
 import { pongoSession } from './pongoSession';
 import {
   pongoSchema,
-  projectPongoClient,
   type PongoClientSchema,
   type PongoClientSchemaFromDefinition,
   type PongoClientWithSchema,
@@ -51,25 +50,25 @@ export const pongoClient = <
     ...connectionOptions
   } = options;
 
-  const schemaDefinition = schema?.definition;
-  const typedSchema = (
-    schemaDefinition === undefined
+  const providedSchema = schema?.definition;
+  const clientSchema = (
+    providedSchema === undefined
       ? undefined
-      : isPongoClientSchema(schemaDefinition)
-        ? schemaDefinition
+      : isPongoClientSchema(providedSchema)
+        ? providedSchema
         : pongoSchema.client({
-            [schemaDefinition.databaseName ??
+            [providedSchema.databaseName ??
             driver.dumboDriver.databaseMetadata.defaultDatabaseName]:
-              schemaDefinition,
+              providedSchema,
           })
   ) as TypedClientSchema | undefined;
 
   const dbClients = PongoDatabaseCache<PongoDb, TypedClientSchema>({
     driver,
-    typedSchema,
-    schemaDefinition: isPongoClientSchema(schemaDefinition)
+    typedSchema: clientSchema,
+    schemaDefinition: isPongoClientSchema(providedSchema)
       ? undefined
-      : schemaDefinition,
+      : providedSchema,
   });
 
   const serializer = JSONSerializer.from(options);
@@ -83,7 +82,7 @@ export const pongoClient = <
       ? {}
       : { autoMigration: schema.autoMigration };
 
-  const pongoClient: PongoClient<
+  const core: PongoClient<
     DatabaseDriver['driverType'],
     ExtractPongoDatabaseTypeFromDriver<DatabaseDriver>
   > = {
@@ -131,5 +130,23 @@ export const pongoClient = <
     },
   };
 
-  return projectPongoClient(pongoClient, typedSchema);
+  const pongoClient = new Proxy(core, {
+    get: (target, property) => {
+      if (property in target) {
+        return target[property as keyof typeof target];
+      }
+      if (typeof property !== 'string') return undefined;
+
+      const database = clientSchema?.dbs[property];
+      return database === undefined
+        ? undefined
+        : pongoClient.db(database.databaseName ?? property);
+    },
+  });
+
+  return pongoClient as PongoClientWithSchema<
+    TypedClientSchema,
+    DatabaseDriver['driverType'],
+    ExtractPongoDatabaseTypeFromDriver<DatabaseDriver>
+  >;
 };

@@ -152,12 +152,13 @@ export const indexComponent = <
           indexName: options.indexName,
         };
 
-        return [
-          sqlMigration(indexMigrationName(identifier, options.kind), [
-            createIndexSQL(options, identifier),
-          ]),
-          ...(options.migrations?.(context) ?? []),
-        ];
+        return (
+          options.migrations?.(context) ?? [
+            sqlMigration(indexMigrationName(identifier, options.kind), [
+              createIndexSQL(options, identifier),
+            ]),
+          ]
+        );
       },
     }),
     indexName: options.indexName,
