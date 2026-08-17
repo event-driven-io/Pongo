@@ -182,7 +182,7 @@ describe('components emitting their own migrations', () => {
     );
   });
 
-  it('uses table migrations instead of generated table and index creates', () => {
+  it('runs generated table migrations before custom table migrations', () => {
     const database = databaseComponent({
       schemas: {
         crm: databaseSchemaComponent({
@@ -202,11 +202,11 @@ describe('components emitting their own migrations', () => {
 
     assert.deepStrictEqual(
       database.migrations().map(({ name }) => name),
-      ['schema:crm:create', 'users:backfill'],
+      ['schema:crm:create', 'table:crm:users:create', 'users:backfill'],
     );
   });
 
-  it('uses database migrations instead of generated subtree creates', () => {
+  it('runs custom database migrations before generated subtree migrations', () => {
     const custom = sqlMigration('event-store:custom', [SQL`SELECT 'custom'`]);
     const database = databaseComponent({
       migrations: () => [custom],
@@ -218,10 +218,18 @@ describe('components emitting their own migrations', () => {
       },
     });
 
-    assert.deepStrictEqual(database.migrations(), [custom]);
+    assert.deepStrictEqual(
+      database.migrations().map(({ name }) => name),
+      [
+        custom.name,
+        'schema:crm:create',
+        'table:crm:users:create',
+        'index:crm:users:users_email_idx:create',
+      ],
+    );
   });
 
-  it('uses table migrations while keeping generated schema creates around them', () => {
+  it('runs generated and custom table migrations before declared indexes', () => {
     const custom = sqlMigration('users:custom', [SQL`SELECT 'custom'`]);
     const backfill = sqlMigration('users:backfill', [SQL`SELECT 'backfill'`]);
     const database = databaseComponent({
@@ -248,7 +256,53 @@ describe('components emitting their own migrations', () => {
 
     assert.deepStrictEqual(
       database.migrations().map(({ name }) => name),
-      ['schema:crm:create', 'users:custom', 'users:backfill'],
+      [
+        'schema:crm:create',
+        'table:crm:users:create',
+        'users:custom',
+        'users:backfill',
+        'index:crm:users:users_email_idx:create',
+      ],
+    );
+  });
+
+  it('runs migrations from indexes declared on tables with custom migrations', () => {
+    const database = databaseComponent({
+      schemas: {
+        crm: databaseSchemaComponent({
+          schemaName: 'crm',
+          tables: {
+            users: tableComponent({
+              tableName: 'users',
+              migrations: () => [
+                sqlMigration('users:001:create-table', [
+                  SQL`CREATE TABLE users (email TEXT NOT NULL)`,
+                ]),
+              ],
+              indexes: {
+                email: indexComponent({
+                  indexName: 'users_email_idx',
+                  columnNames: ['email'],
+                  isUnique: true,
+                  migrations: () => [
+                    sqlMigration('users:email:002:custom', [SQL`SELECT 1`]),
+                  ],
+                }),
+              },
+            }),
+          },
+        }),
+      },
+    });
+
+    assert.deepStrictEqual(
+      database.migrations().map(({ name }) => name),
+      [
+        'schema:crm:create',
+        'users:001:create-table',
+        'index:crm:users:users_email_idx:create',
+        'users:email:002:custom',
+      ],
     );
   });
 
@@ -350,6 +404,16 @@ describe('components emitting their own migrations', () => {
 
     assert.deepStrictEqual(seen, [
       { databaseSchemaName: 'crm', defaults: { schemaName: 'pongo' } },
+      {
+        databaseSchemaName: 'crm',
+        defaults: { schemaName: 'pongo' },
+        tableName: 'users',
+      },
+      {
+        databaseSchemaName: 'crm',
+        defaults: { schemaName: 'pongo' },
+        tableName: 'users',
+      },
     ]);
   });
 
@@ -487,7 +551,11 @@ describe('components emitting their own migrations', () => {
 
     assert.deepStrictEqual(
       schema.migrations().map(({ name }) => name),
-      ['users:backfill'],
+      [
+        'users:backfill',
+        'table:users:create',
+        'index:users:users_email_idx:create',
+      ],
     );
   });
 

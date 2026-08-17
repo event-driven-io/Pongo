@@ -138,28 +138,27 @@ export const indexComponent = <
 ): IndexComponent<IndexName, ColumnNames> => {
   const component: IndexComponent<IndexName, ColumnNames> = {
     ...schemaComponent(indexComponentType, {
-      migrations:
-        options.migrations ??
-        ((context) => {
-          const tableName = context.tableName;
-          if (tableName === undefined)
-            throw new Error(
-              `Index "${options.indexName}" cannot be created outside a table. Declare it in the indexes of the table it belongs to`,
-            );
+      migrations: (context) => {
+        const tableName = context.tableName;
+        if (tableName === undefined)
+          throw new Error(
+            `Index "${options.indexName}" cannot be created outside a table. Declare it in the indexes of the table it belongs to`,
+          );
 
-          const identifier = {
-            databaseSchemaName:
-              context.databaseSchemaName ?? SQLDefaultSchemaNameToken.from(),
-            tableName,
-            indexName: options.indexName,
-          };
+        const identifier = {
+          databaseSchemaName:
+            context.databaseSchemaName ?? SQLDefaultSchemaNameToken.from(),
+          tableName,
+          indexName: options.indexName,
+        };
 
-          return [
-            sqlMigration(indexMigrationName(identifier, options.kind), [
-              createIndexSQL(options, identifier),
-            ]),
-          ];
-        }),
+        return [
+          sqlMigration(indexMigrationName(identifier, options.kind), [
+            createIndexSQL(options, identifier),
+          ]),
+          ...(options.migrations?.(context) ?? []),
+        ];
+      },
     }),
     indexName: options.indexName,
     indexTargetNames: Object.freeze([

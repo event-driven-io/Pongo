@@ -165,7 +165,6 @@ export const databaseComponent = <
     ...Object.values(schemas),
     ...Object.values(databaseExtensions),
   ]);
-  const ownsMigrations = options.migrations !== undefined;
 
   const component: DatabaseComponent<
     DatabaseName,
@@ -174,7 +173,7 @@ export const databaseComponent = <
     Extensions
   > = {
     ...schemaComponent(databaseComponentType, {
-      components: ownsMigrations ? [] : children,
+      components: children,
       migrations: options.migrations,
     }),
     databaseName: databaseName as DatabaseName,

@@ -232,7 +232,10 @@ describe('database.withSchema(schemas)', () => {
     assert.strictEqual(next.databaseName, 'app');
     assert.strictEqual(next.tables.users, users);
     assert.strictEqual(next.extensions.audit, audit);
-    assert.deepStrictEqual(next.migrations(), [custom]);
+    assert.deepStrictEqual(
+      next.migrations().map(({ name }) => name),
+      [custom.name, 'table:users:create', 'schema:crm:create'],
+    );
   });
 });
 
@@ -262,7 +265,10 @@ describe('database.withTable(tables)', () => {
     const next = database.withTable({ users: table('users') });
 
     assert.strictEqual(next.extensions.audit, audit);
-    assert.deepStrictEqual(next.migrations(), [custom]);
+    assert.deepStrictEqual(
+      next.migrations().map(({ name }) => name),
+      [custom.name, 'table:users:create'],
+    );
   });
 });
 

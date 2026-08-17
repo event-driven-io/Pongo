@@ -131,15 +131,21 @@ describe('using a Pongo database', () => {
 
   it('uses the default schema when the callable schema accessor has no name', () => {
     const { db } = createTestDb();
+    const initial = db.schema.component;
 
     const scoped = db.schema().collection('users');
     const direct = db.collection('users');
 
     assert.strictEqual(scoped, direct);
+    assert.notStrictEqual(db.schema.component, initial);
     assert.ok(
       SQLDefaultSchemaNameToken.check(
         db.schema.component.defaultSchema.schemaName,
       ),
+    );
+    assert.strictEqual(
+      db.schema.component.tables.users,
+      scoped.schema.component,
     );
     assert.strictEqual(scoped.schema.component.tableName, 'users');
     assert.deepStrictEqual(migrationNames(db.schema.migrations), [
@@ -155,9 +161,10 @@ describe('using a Pongo database', () => {
     assert.notStrictEqual(db.schema(), db.schema('audit'));
   });
 
-  it('leaves the declared component untouched while collections are registered', () => {
-    const { db } = createTestDb();
-    const declared = db.schema.component;
+  it('updates db.schema.component without changing the schema definition', () => {
+    const definition = pongoSchema.db('test', { collections: {} });
+    const { db } = createTestDb({ definition });
+    const initial = db.schema.component;
 
     assert.deepStrictEqual(migrationNames(db.schema.migrations), []);
 
@@ -167,8 +174,12 @@ describe('using a Pongo database', () => {
     });
 
     assert.strictEqual(scoped, direct);
-    assert.strictEqual(db.schema.component, declared);
+    assert.notStrictEqual(db.schema.component, initial);
     assert.strictEqual(scoped.schema.component.databaseSchemaName, 'audit');
+    assert.strictEqual(
+      db.schema.component.schemas.audit?.tables.entries,
+      scoped.schema.component,
+    );
     assert.deepStrictEqual(
       scoped.schema.component.migrations().map((migration) => migration.name),
       ['table:pongo_collection:entries:create'],
@@ -177,37 +188,50 @@ describe('using a Pongo database', () => {
       'schema:audit:create',
       'table:pongo_collection:audit:entries:create',
     ]);
-    assert.strictEqual(declared.schemas.audit, undefined);
-    assert.deepStrictEqual(Object.keys(declared.tables), []);
+    assert.strictEqual(definition.schemas.audit, undefined);
+    assert.deepStrictEqual(Object.keys(definition.tables), []);
   });
 
-  it('creates schema-qualified collection components lazily', () => {
+  it('reuses the component and runtime collection on repeated access', () => {
     const { db } = createTestDb();
 
     const collection = db.collection('users', {
       databaseSchemaName: 'crm',
     });
+    const registered = db.schema.component;
     const repeated = db.collection('users', {
       databaseSchemaName: 'crm',
     });
 
+    assert.strictEqual(collection, repeated);
     assert.strictEqual(collection.collectionName, 'users');
     assert.strictEqual(collection.schema.component, repeated.schema.component);
     assert.strictEqual('migrations' in collection.schema, false);
-    assert.strictEqual(db.schema.component.schemas.crm, undefined);
+    assert.strictEqual(db.schema.component, registered);
+    assert.strictEqual(
+      db.schema.component.schemas.crm?.tables.users,
+      collection.schema.component,
+    );
     assert.deepStrictEqual(migrationNames(db.schema.migrations), [
       'schema:crm:create',
       'table:pongo_collection:crm:users:create',
     ]);
   });
 
-  it('adds dynamic collections to a generated schema when it is not declared', () => {
+  it('accumulates collections added to the same named schema', () => {
     const { db } = createTestDb();
 
-    db.collection('users', { databaseSchemaName: 'crm' });
-    db.collection('orders', { databaseSchemaName: 'crm' });
+    const users = db.collection('users', { databaseSchemaName: 'crm' });
+    const orders = db.collection('orders', { databaseSchemaName: 'crm' });
 
-    assert.strictEqual(db.schema.component.schemas.crm, undefined);
+    assert.strictEqual(
+      db.schema.component.schemas.crm?.tables.users,
+      users.schema.component,
+    );
+    assert.strictEqual(
+      db.schema.component.schemas.crm?.tables.orders,
+      orders.schema.component,
+    );
     assert.deepStrictEqual(migrationNames(db.schema.migrations), [
       'schema:crm:create',
       'table:pongo_collection:crm:users:create',
@@ -229,6 +253,18 @@ describe('using a Pongo database', () => {
     assert.notStrictEqual(defaultUsers, explicitDefaultUsers);
     assert.notStrictEqual(defaultUsers, crmUsers);
     assert.strictEqual(db.collections().length, 3);
+    assert.strictEqual(
+      db.schema.component.tables.users,
+      defaultUsers.schema.component,
+    );
+    assert.strictEqual(
+      db.schema.component.schemas.public?.tables.users,
+      explicitDefaultUsers.schema.component,
+    );
+    assert.strictEqual(
+      db.schema.component.schemas.crm?.tables.users,
+      crmUsers.schema.component,
+    );
     assert.deepStrictEqual(migrationNames(db.schema.migrations), [
       'table:pongo_collection:users:create',
       'schema:public:create',
@@ -258,10 +294,12 @@ describe('using a Pongo database', () => {
       db.collection('orders').schema.component.tableName,
       'orders',
     );
+    assert.strictEqual(db.schema.component.tables.orders?.tableName, 'orders');
+    assert.strictEqual(db.schema.component.schemas.crm?.tables.crmUsers, users);
     assert.deepStrictEqual(migrationNames(db.schema.migrations), [
       'schema:crm:create',
-      'table:pongo_collection:crm:users:create',
       'table:pongo_collection:crm:orders:create',
+      'table:pongo_collection:crm:users:create',
     ]);
     assert.ok(
       migrationNames(db.schema.migrations).includes(
@@ -336,6 +374,18 @@ describe('using a Pongo database', () => {
     assert.deepStrictEqual(Object.keys(db.schema.component.tables), []);
   });
 
+  it('does not project dynamically added collections as database properties', () => {
+    const { db } = createTestDb();
+
+    db.collection('entries');
+
+    assert.strictEqual('entries' in db, false);
+    assert.strictEqual(
+      db.schema.component.tables.entries?.tableName,
+      'entries',
+    );
+  });
+
   it('reuses a declared collection when its alias differs from its table name', () => {
     const users = pongoSchema.collection('users');
     const { db } = createTestDb({
@@ -361,6 +411,23 @@ describe('using a Pongo database', () => {
     assert.strictEqual(
       db.schema.component.schemas.crm?.tables.customerDirectory?.tableName,
       users.tableName,
+    );
+  });
+
+  it('rejects adding a collection whose name is already a table alias', () => {
+    const { db } = createTestDb({
+      definition: pongoSchema.db('test', {
+        schemas: {
+          crm: pongoSchema.schema('crm', {
+            customerDirectory: pongoSchema.collection('users'),
+          }),
+        },
+      }),
+    });
+
+    assert.throws(
+      () => db.collection('customerDirectory', { databaseSchemaName: 'crm' }),
+      /alias already refers to table "users"/,
     );
   });
 
@@ -468,7 +535,10 @@ describe('using a Pongo database', () => {
     const collection = db.collection('users', { databaseSchemaName: 'crm' });
 
     assert.strictEqual(collection.collectionName, 'users');
-    assert.strictEqual(db.schema.component.schemas.crm, undefined);
+    assert.strictEqual(
+      db.schema.component.schemas.crm?.tables.users,
+      collection.schema.component,
+    );
     assert.ok(
       migrationNames(db.schema.migrations).includes(
         'table:pongo_collection:crm:users:create',
@@ -481,7 +551,7 @@ describe('using a Pongo database', () => {
     );
   });
 
-  it('does not synthesize a schema migration for a dynamic collection in an extension-owned schema', () => {
+  it('adds a direct schema beside an extension-contributed schema', () => {
     const eventStore = dumboSchema.extension('event-store', {
       schemas: {
         readmodels: databaseSchemaComponent({
@@ -499,10 +569,15 @@ describe('using a Pongo database', () => {
 
     db.collection('orders', { databaseSchemaName: 'readmodels' });
 
+    assert.strictEqual(
+      db.schema.component.schemas.readmodels?.tables.orders?.tableName,
+      'orders',
+    );
     assert.deepStrictEqual(migrationNames(db.schema.migrations), [
+      'schema:readmodels:create',
+      'table:pongo_collection:readmodels:orders:create',
       'schema:event_store:readmodels:create',
       'table:pongo_collection:readmodels:summaries:create',
-      'table:pongo_collection:readmodels:orders:create',
     ]);
   });
 

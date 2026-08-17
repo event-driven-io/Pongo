@@ -1,5 +1,7 @@
 import type {
   AnyConnection,
+  AnyDatabaseComponent,
+  DatabaseComponent,
   DatabaseDriverType,
   DatabaseTransaction,
   JSONSerializationOptions,
@@ -19,7 +21,6 @@ import { v7 as uuid } from 'uuid';
 import type { MaybePromise } from '.';
 import type { CacheConfig, PongoCache, PongoTransactionCache } from '../cache';
 import type { DocumentCommandHandlerInput } from '../collection';
-import type { DatabaseComponent } from '@event-driven-io/dumbo';
 import type { AnyPongoDriver, ExtractPongoDriverOptions } from '../drivers';
 import { ConcurrencyError } from '../errors';
 import type {
@@ -147,7 +148,7 @@ export interface PongoSchemaScope {
 
 export type PongoSchemaAccessor = ((schemaName?: string) => PongoSchemaScope) &
   Readonly<{
-    component: PongoDbSchema;
+    component: AnyDatabaseComponent;
     migrations: ReturnType<DatabaseComponent['migrations']>;
     migrate(options?: PongoMigrationOptions): Promise<RunSQLMigrationsResult>;
   }>;

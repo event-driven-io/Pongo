@@ -372,22 +372,18 @@ database" asserted a throw that the single shape deliberately removes, since suc
 an extension now lands in the default schema. It was rewritten to assert that
 placement and to prove the table is traversed exactly once.
 
-**Pongo side.** `pongoDatabaseSchemas` holds the declared component as a `const`
-plus two pieces of runtime state: a `defaultScope` map field for the logical
-default scope — a field, so it needs no key, which is what made `''` tempting in
-the first place — and `namedScopes` keyed by physical schema name. Lookup is
-Dumbo's `findTable`, then the overlay, then create. What survived as Pongo's is
-`isPongoCollectionComponent`, the overlay search, and the "not a Pongo
-collection" rejection; the duplicate-physical-table message now comes from
-Dumbo. Collections mode splits the declared record in one pass into `tables` and
-named `schemas`, both passed to a single `databaseComponent` call — no mode
-selection, which is what dropping Dumbo's XOR bought. `db.schema.definition` is
-deleted; `db.schema.component` is the single value, and `commandLine/migrate.ts`
-moved to `db.schema.migrations` to keep including runtime collections.
+**Pongo side, superseded by immutable growth.** Collection lookup still uses
+Dumbo's `findTable`, and the duplicate-physical-table message still comes from
+Dumbo. Pongo now owns one evolving immutable database component rather than an
+overlay. A collection miss replaces that value through `withTable`; the source
+definition remains reusable and unchanged. `db.schema.component` is a getter for
+the current value, and its Dumbo traversal is the only source for
+`db.schema.migrations` and `migrate()`.
 
-`dedupeMigrations` was added to Dumbo's export list — the only Dumbo change, no
-behavior touched. Pongo's `migrations()` is specified to combine through it, and
-the alternative was manufacturing an aggregate component, which Step 6 forbids.
+Runtime collection maps remain because they cache configured `PongoCollection`
+objects and runtime options. Cached `db.schema(name)` handles remain because the
+public API guarantees stable identity. Neither stores schema declarations or
+contributes migrations.
 
 Two deliberate boundaries: binding the configured `defaultSchemaName` into the
 declared component's migration context is Step 7, so declared unscoped
@@ -472,7 +468,7 @@ the placement instead of the throw.
 - [x] `todo.md` updated with this documentation-only closeout
 - [x] Gate: `npm run fix && npm run build:ts`
 
-## Follow-up — Baseline migration metadata and advisory lock options — **done**
+## Follow-up — Baseline migration metadata and advisory lock options — **historical; baseline metadata was later removed**
 - [x] Added migration options to `sqlMigration`
 - [x] `baseline: true` marks a migration as the initial schema for the
       component declaring it
@@ -492,6 +488,23 @@ the placement instead of the throw.
 - [x] Verified the GitHub Actions failure locally with
       `npx vitest run src/packages/dumbo/src/storage/postgresql/core/schema/migrations.int.spec.ts`
 - [x] Gate: `npm run fix && npm run build:ts`
+
+## Follow-up — Immutable component growth — **done**
+- [x] Added typed immutable `DatabaseSchemaComponent.withTable`
+- [x] Added typed immutable `DatabaseComponent.withSchema` and default/named
+      `withTable`
+- [x] Kept extensions, custom migrations, and source declarations reusable
+- [x] Restored generated/custom own migrations followed by child traversal;
+      custom callbacks no longer suppress declared index migrations
+- [x] Replaced Pongo's runtime schema overlay and migration concatenation with
+      one evolving `AnyDatabaseComponent`
+- [x] Made `db.schema.component` expose the current component and kept static
+      projected properties declaration-based
+- [x] Kept runtime collection caches and public `db.schema(name)` handle caching
+- [x] Added usage-focused runtime and type tests for immutable growth, dynamic
+      registration, accumulation, projection, extensions, and aliases
+- [x] Focused verification: 761 Dumbo unit tests, 344 Pongo unit tests, and the
+      PostgreSQL plus both SQLite index-migration integration scenarios passed
 
 ## Step 10 — Decide the DDL privilege policy — **discussion open, nothing to implement**
 - [ ] Shape: a union, not booleans — a negative boolean encodes its default into its
