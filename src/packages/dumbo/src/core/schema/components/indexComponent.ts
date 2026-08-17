@@ -130,36 +130,50 @@ export const createIndexSQL = (
     : SQL`CREATE INDEX IF NOT EXISTS ${indexReference} ON ${tableReference} ${target}`;
 };
 
+const generatedIndexMigrations = (
+  identifier: IndexIdentifier,
+  index: Readonly<{
+    kind?: string | undefined;
+    columnNames: ReadonlyArray<string>;
+    isUnique: boolean;
+    target?: IndexTarget | undefined;
+    sql?: ((context: IndexSQLContext) => SQL) | undefined;
+  }>,
+): ReadonlyArray<SQLMigration> => [
+  sqlMigration(indexMigrationName(identifier, index.kind), [
+    createIndexSQL(index, identifier),
+  ]),
+];
+
 export const indexComponent = <
   const IndexName extends string,
   const ColumnNames extends readonly string[],
 >(
   options: IndexComponentOptions<IndexName, ColumnNames>,
 ): IndexComponent<IndexName, ColumnNames> => {
+  const ownMigrations = (context: SchemaComponentContext) => {
+    const tableName = context.tableName;
+    if (tableName === undefined)
+      throw new Error(
+        `Index "${options.indexName}" cannot be created outside a table. Declare it in the indexes of the table it belongs to`,
+      );
+
+    if (options.migrations !== undefined) return options.migrations(context);
+
+    return generatedIndexMigrations(
+      {
+        databaseSchemaName:
+          context.databaseSchemaName ?? SQLDefaultSchemaNameToken.from(),
+        tableName,
+        indexName: options.indexName,
+      },
+      options,
+    );
+  };
+
   const component: IndexComponent<IndexName, ColumnNames> = {
     ...schemaComponent(indexComponentType, {
-      migrations: (context) => {
-        const tableName = context.tableName;
-        if (tableName === undefined)
-          throw new Error(
-            `Index "${options.indexName}" cannot be created outside a table. Declare it in the indexes of the table it belongs to`,
-          );
-
-        const identifier = {
-          databaseSchemaName:
-            context.databaseSchemaName ?? SQLDefaultSchemaNameToken.from(),
-          tableName,
-          indexName: options.indexName,
-        };
-
-        return (
-          options.migrations?.(context) ?? [
-            sqlMigration(indexMigrationName(identifier, options.kind), [
-              createIndexSQL(options, identifier),
-            ]),
-          ]
-        );
-      },
+      migrations: ownMigrations,
     }),
     indexName: options.indexName,
     indexTargetNames: Object.freeze([

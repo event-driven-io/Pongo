@@ -32,6 +32,32 @@ const tableMigrationName = (
     'create',
   );
 
+const generatedTableMigrations = (
+  context: SchemaComponentContext,
+  table: Readonly<{
+    tableName: string;
+    kind?: string | undefined;
+    columns: TableColumns;
+  }>,
+): ReadonlyArray<SQLMigration> => {
+  if (Object.keys(table.columns).length === 0) return [];
+
+  const identifier = {
+    databaseSchemaName:
+      context.databaseSchemaName ?? SQLDefaultSchemaNameToken.from(),
+    tableName: table.tableName,
+  };
+
+  return [
+    sqlMigration(tableMigrationName(identifier, table.kind), [
+      createTableSQL(
+        { columns: table.columns },
+        SQL`${SQLTableReference.from(identifier)}`,
+      ),
+    ]),
+  ];
+};
+
 export type TableColumns = Readonly<Record<string, AnyColumnSchemaComponent>>;
 export type TableIndexes = Readonly<Record<string, AnyIndexComponent>>;
 
@@ -107,6 +133,14 @@ export const tableComponent = <
     ...Object.values(columns),
     ...Object.values(indexes),
   ]);
+  const ownMigrations =
+    options.migrations ??
+    ((context: SchemaComponentContext) =>
+      generatedTableMigrations(context, {
+        tableName: options.tableName,
+        kind: options.kind,
+        columns,
+      }));
 
   const component: TableComponent<Columns, TableName, Indexes, Relationships> =
     {
@@ -116,27 +150,7 @@ export const tableComponent = <
           ...parent,
           tableName: options.tableName,
         }),
-        migrations: (scoped) => {
-          const identifier = {
-            databaseSchemaName:
-              scoped.databaseSchemaName ?? SQLDefaultSchemaNameToken.from(),
-            tableName: options.tableName,
-          };
-
-          return (
-            options.migrations?.(scoped) ??
-            (Object.keys(columns).length === 0
-              ? []
-              : [
-                  sqlMigration(tableMigrationName(identifier, options.kind), [
-                    createTableSQL(
-                      { columns },
-                      SQL`${SQLTableReference.from(identifier)}`,
-                    ),
-                  ]),
-                ])
-          );
-        },
+        migrations: ownMigrations,
       }),
       tableName: options.tableName,
       primaryKey: Object.freeze([...(options.primaryKey ?? [])]),

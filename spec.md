@@ -1,7 +1,8 @@
 # Spec: simplified schema component model
 
 Branch: `schema_features`
-Status: implemented through Step 8 plus immutable database-component growth
+Status: implemented, including immutable growth, component-owned lookup, and
+Pongo runtime encapsulation
 
 This document describes the model that the current branch implements. It
 replaces the older parent-pointer and second-migration-traversal designs.
@@ -48,7 +49,7 @@ migration closure and is not exposed on `SchemaComponent`.
 
 Migration order is:
 
-1. the component's own generated and custom migrations;
+1. the component's selected own migrations;
 2. child migrations in the order supplied by the owning factory;
 3. one dedupe pass by migration name and SQL.
 
@@ -72,10 +73,16 @@ or unrelated components.
 
 ## Custom Migrations
 
-A component's `migrations` callback adds custom migrations to that component's
-generated migrations. It does not replace generated migrations and does not
-remove child components from traversal. The order is generated migrations,
-custom migrations, then child migrations.
+For schemas, tables, and indexes, a component's custom `migrations` callback
+replaces that component's generated own migration. Returning `[]` therefore
+disables only that component's generated DDL. It does not remove child
+components from traversal: `schemaComponent` still appends their migrations in
+declaration order.
+
+The factories make this selection explicit through their generated fallback
+helpers: `generatedDatabaseSchemaMigrations`, `generatedTableMigrations`, and
+`generatedIndexMigrations`. Database and extension components have no generated
+own DDL, so their optional callback is simply their own migration source.
 
 `ignoreHashMismatch: true` can be set on an intentionally dynamic migration. If
 an already applied migration changes, the migrator skips it without failing and
@@ -205,11 +212,16 @@ under the extension that owns them:
 database.extensions.eventStoreReadModels.schemas.readmodels.tables.users;
 ```
 
-Pongo collection lookup searches the current database component, including
-direct declarations and direct extension-owned schemas. Dumbo owns the generic
-physical table traversal through `findTable` / `findTables`; Pongo owns the
-Pongo-specific decisions such as "not a Pongo collection" and dynamic
-collection creation.
+`DatabaseSchemaComponent.findTable(tableName)` searches that schema's direct
+tables and table extensions. `DatabaseComponent.findTable(tableName, options)`
+resolves the requested physical schema across the default schema, direct named
+schemas, and extension-owned schemas, then delegates table lookup to the schema
+component. Both levels reject ambiguous physical declarations. There is no
+standalone traversal helper.
+
+Pongo delegates generic lookup to the current Dumbo database component. It owns
+only Pongo-specific decisions such as rejecting a relational table where a
+collection is requested and creating a collection component on a miss.
 
 ## Immutable Database Growth
 
@@ -228,7 +240,8 @@ centralized. Extensions do not receive special lookup or mutation behavior.
 
 Pongo accepts:
 
-- a Pongo database declaration, which receives projected typed properties;
+- a Pongo database declaration, which receives strongly typed direct collection
+  and named-schema properties;
 - a plain Dumbo `AnyDatabaseComponent`, which supports relational migrations and
   dynamic `db.collection<User>(...)` without changing the static database shape.
 
@@ -250,15 +263,15 @@ pongoSchema.db("app", {
 });
 ```
 
-In `collections` mode, root collections remain available as root projected
-properties, regardless of physical placement:
+In `collections` mode, root collections remain available as root properties,
+regardless of physical placement:
 
 ```ts
 database.users;
 database.auditUsers;
 ```
 
-In `schemas` mode, declared collections are projected under their declared
+In `schemas` mode, declared collections are available under their declared
 schema:
 
 ```ts
@@ -271,18 +284,33 @@ Dynamic collections remain typed through the explicit call:
 db.collection<User>("users", { databaseSchemaName: "crm" });
 ```
 
-They update the runtime schema component and participate in migrations, but do
-not add static properties to an already-created database value.
+They update the runtime schema component, participate in migrations, and become
+available through the runtime property surface. They do not retroactively widen
+the database value's compile-time type.
 
-Each Pongo database owns one current `AnyDatabaseComponent`. On a collection
-miss, Pongo creates a collection component and replaces the current value with
-`component.withTable(...)`. `db.schema.component`, `db.schema.migrations`, and
-`migrate()` all read that same current value. Runtime `PongoCollection` caches
-remain separate because they own connection, serializer, error, cache, and
-runtime-option behavior rather than schema declarations.
+Each Pongo database has one internal `PongoDatabaseComponent`. It owns:
 
-`db.schema(name)` remains the public schema-scope accessor. Its collection
-options omit `databaseSchemaName`; the scope supplies that placement.
+- the current immutable Dumbo `AnyDatabaseComponent`;
+- lookup through `component.findTable` and growth through `component.withTable`;
+- canonical live `PongoCollection` caching by physical schema and table;
+- stable named-schema collection views;
+- root and named-schema runtime property exposure;
+- migrations read from the current component.
+
+`PongoDb` owns the pool, cache setup, transactions, SQL execution, collection
+construction dependencies, and migration execution. It delegates collection
+lookup/listing and property exposure to `PongoDatabaseComponent`.
+
+`db.schema` is a non-callable `PongoDatabaseSchema` facade containing
+`component`, `migrations`, and `migrate`. All three read the same current
+component. There are no schema scopes, schema handles, projection functions, or
+second runtime schema structure.
+
+Repeated collection access without per-call runtime options returns the same
+canonical wrapper, including implicit and explicit access to a configured
+default schema. Calls with `cache`, `errors`, or a document `schema` create a
+temporary configured wrapper; they neither replace the canonical wrapper nor
+appear in `db.collections()`.
 
 ## Pongo Default Schema Binding
 
@@ -326,7 +354,7 @@ The following public surface was intentionally removed or made private:
 from Dumbo table typing:
 
 ```ts
-TableRowType<Collection>["data"]
+TableRowType < Collection > ["data"];
 ```
 
 The JSON index target factories stay public because Pongo index factories and
@@ -351,5 +379,9 @@ npm run test:unit
 npm run test:int:sqlite
 ```
 
-For this documentation update, metrics are intentionally out of scope by
-Oskar's instruction.
+The completed refactor was also verified with the full available suites: 60
+unit files with 1104 tests, 32 integration files with 391 tests, and 9 e2e files
+with 465 passing tests and 5 skipped. `npm run build:ts`, `npm run fix`, and
+`git diff --check` passed.
+
+Metrics remain intentionally out of scope by Oskar's instruction.

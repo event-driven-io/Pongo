@@ -3,6 +3,9 @@
 State for [ref_plan.md](ref_plan.md). Steps are sequential. A step is done only
 when the gate is green and the review gate has a verdict.
 
+Current status: Steps 1-9 and the component-owned lookup/Pongo runtime
+encapsulation follow-up are done. Step 10 remains a separate policy discussion.
+
 Gate, from `/home/oskar/Repos/Pongo/src`:
 `npm run build:ts` → `npm run fix` → `npm run test:unit` → `npm run test:int:sqlite`
 
@@ -22,6 +25,7 @@ steps that implement their subject — Dumbo's database declaration shape into S
 `defaultSchemaName` behaviour into S7, the export audit into S8.
 
 ## Step 1 — Migrator cleanup — **done**
+
 - [x] `SchemaComponentMigrator` type and factory deleted
 - [x] `migrationTableComponent` singleton deleted
 - [x] `migrationTableComponentFor` kept; file renamed to `migrationTableComponent.ts`
@@ -35,6 +39,7 @@ steps that implement their subject — Dumbo's database declaration shape into S
 - [x] Review gate — **pass**. No new abstraction; deletions plus one file rename. Net production **−59**
 
 **Deleted test, with reason**
+
 - `reports schema validation failure before executing migrations` — its subject was
   the `validateComponent` hook, and the only thing that could invoke it was
   `SchemaComponentMigrator`. Both are gone; no guard or replacement left behind.
@@ -45,6 +50,7 @@ steps that implement their subject — Dumbo's database declaration shape into S
 step and had no coverage reaching the ledger.
 
 ## Step 2 — Make `schemaComponent` the base — **done**
+
 - [x] `SchemaComponent<Kind>` exposes only `[schemaComponentType]` and `migrations(context?)`
 - [x] Children stay a constructor option, captured in the migration closure
 - [x] `context(parent)` option added; own migrations then children run scoped; one final dedupe
@@ -90,6 +96,7 @@ by the disk being 99% full (4.1 G free). `hookTimeout` was raised 30s → 120s i
 `vitest.shared.ts`, which cleared every PostgreSQL container `Hook timed out`.
 
 ## Step 3 — Make context the only Dumbo placement source — **done**
+
 - [x] `databaseSchemaName` removed from `TableComponent` and table options
 - [x] `databaseSchemaName` and `tableName` removed from `IndexComponent` and index options
 - [x] Table-vs-schema and both index-vs-table conflict loops deleted; the
@@ -141,6 +148,7 @@ checks in `dumboSchema`, both `sqlBuilder` specs, `pongoDb`, and the SQLite
 deleted outright — both on column-less tables that emit no migration to assert against.
 
 ## Step 4 — Correct generated migration names — **done**
+
 - [x] Grammar is `<type>:[<kind>:]<encoded-path>:<operation>`. No number segment,
       no numbering option added to any factory
 - [x] The three `?? 'relational'` defaults deleted from `tableComponent`,
@@ -200,7 +208,7 @@ is now `emits no migration for the default one`, which also removed two `!` asse
 
 **Tests added.** Name length exactly 255 accepted and recorded; 256 rejected with a
 clear error and the ledger unchanged — that one seeds an applied migration and puts
-a valid migration *before* the bad one, so a mid-loop check would fail it. Plus
+a valid migration _before_ the bad one, so a mid-loop check would fail it. Plus
 mixed empty/non-empty statements execute only the non-empty ones, and an all-empty
 migration is not recorded. The SQLite-skips and PostgreSQL-applies claims already
 had coverage.
@@ -219,10 +227,11 @@ untouched — `isUnique` still comes from the enclosing index, not the target,
 because a declaration-time factory cannot know it. Pongo needed no edit beyond
 `schema.unit.spec.ts`; it only ever imported the two factories.
 
-**Still open.** `ref_plan.md:894` and `:1022` name the deleted
-`generatedIndexName`.
+The planning and audit references to the deleted generated-index-name helpers
+are retained only as historical decisions; no implementation depends on them.
 
 ## Step 5 — Simplify extensions without flattening — **done**
+
 - [x] `ExtensionComponent` takes one three-member declaration union — `{ tables }`,
       `{ schemas }`, or neither, each with optional `migrations`. `tables` is new;
       extensions had no table side before this step
@@ -243,11 +252,10 @@ because a declaration-time factory cannot know it. Pongo needed no edit beyond
       database. No temporary default-placement branch — tables-mode arrives in S6
 - [x] Pongo's `Omit<Schemas, keyof SchemasFromExtensions<Extensions>>` and the
       runtime `extensionSchemaKeys` set both deleted
-- [x] Collection lookup centralized in `pongoDatabaseSchemas`. It searches direct
-      declarations and directly attached flat extensions; no recursive traversal
-- [x] More than one matching physical table throws immediately; a single match that
-      is not a Pongo collection throws; one matching Pongo collection is reused
-- [x] The physical-table traversal moved back into dumbo as `findTables`
+- [x] Collection lookup initially moved out of extension traversal code; its
+      final component-owned placement is recorded in the completed follow-up
+- [x] More than one matching physical table throws immediately; Pongo rejects a
+      relational table requested as a collection and reuses a matching collection
 - [x] Gate, verified independently of the agents: build exit 0, fix clean, unit
       **1060/1060** across 60 files, int:sqlite **955/959** (the same 4 D1
       failures, no `sqlite3` flake on either run). Concept greps for
@@ -257,25 +265,12 @@ because a declaration-time factory cannot know it. Pongo needed no edit beyond
       the `ExtensionSchemas` already in that file and required by the new table side;
       four types deleted against it
 
-**The traversal belongs to dumbo, the decisions to Pongo.** The lookup first
-landed wholesale inside `pongoDatabaseSchemas` — the plan says "centralize
-collection lookup" there, and that was read as "implement it there". Twenty-one
-lines of it were a transcript of dumbo's containment rules: which schemas sit at a
-physical placement, and which tables sit in them. `findTables(database, schemaKey,
-tableName)` now answers that in dumbo, a sibling of `withTable.ts`, returning
-`{ schema, table }` pairs with no wrapper type and no found/ambiguous
-discriminator — the caller reads `.length`. Pongo keeps only what is its own: the
-ambiguity throw, the not-a-Pongo-collection throw, reuse, and create-on-miss.
-Behaviour-neutral by construction: the five `pongoDb.unit.spec.ts` lookup tests
-stayed green unedited, and six dumbo unit tests now cover the traversal directly.
-The reason this matters is S6, which adds a `tables` record to `DatabaseComponent`
-— a fourth home for tables that would otherwise have grown a fourth branch in
-Pongo, in lockstep with a dumbo shape change. Proof #14's physical-identity check
-also needs this traversal for plain Dumbo declarations, with no Pongo involved.
-
-**One line of containment knowledge is still in Pongo.** `component.schemas[schemaKey]`
-survives in `pongoDb.ts` as the `schemaName` fallback when nothing matched. It
-wants revisiting if S6 changes where a schema's name comes from.
+**Superseded lookup placement.** This step first moved generic traversal from
+Pongo into standalone Dumbo helpers. The final follow-up moved it onto the
+components that own the data: `DatabaseSchemaComponent.findTable` searches one
+schema, and `DatabaseComponent.findTable` resolves physical schema placement and
+delegates. The standalone helpers and the remaining containment knowledge in
+Pongo were removed.
 
 **`'the unnamed database'` deleted.** The table-extension rejection in
 `databaseComponent.ts` built a label for a name that is optional and usually
@@ -298,7 +293,7 @@ extension on a named schema puts its collections there, one flat gather each way
 from `{...database.schemas, [key]: schema}` plus `database.extensions`. While
 `database.schemas` carried extension schemas, that combination threw
 `Database schema key "…" is declared directly and by extension "…"` — so requesting
-any *undeclared* collection on a database with an extension threw. The two
+any _undeclared_ collection on a database with an extension threw. The two
 extension int specs never hit it because they only request declared collections.
 It is now covered by a test that passed before the lookup was touched, which is
 what proves the throw came from the merge and not from the lookup.
@@ -308,7 +303,7 @@ schemas, so `definition.schemas.readmodels` is `undefined`; both
 `migrates mixed event-store and Pongo extension schemas` specs now reach
 `definition.extensions.eventStore.schemas.readmodels`. Migration names and order
 are unchanged in both, and both now also assert the collection component is
-*reused*, not deduplicated by accident.
+_reused_, not deduplicated by accident.
 
 **Three tests deleted, each a dead concept.** Extensions nested inside extensions;
 and the two schema-key-collision rejections — a key shared by a direct schema and
@@ -326,6 +321,7 @@ database shape — and nothing regressed, but it is a real narrowing rather than
 no-op.
 
 ## Step 6 — Make database placement explicit and stop rebuilding components
+
 - [x] Done — full build, lint clean, 1082/1082 unit across 61 files,
       int:sqlite 955/959 and e2e:sqlite 992/1002 with only the four known D1
       failures (plus the `sqlite3/connections` parallel-load flake, 38/38 in
@@ -359,31 +355,22 @@ from its name (`DatabaseSchemaKey`, defaulting to `DefaultSchemaKey`), and a
 nameless schema contributes no path segment, built that way in `QualifyColumnName`
 rather than stripped afterwards. Named-schema behavior is unchanged.
 
-**Carried in from S5, done.** `findTables` now walks one list — the default
-schema, named schemas, then extension-contributed schemas — with no containment
-branch, and `findTable` above it carries the duplicate-physical-table rejection
-that used to live in `pongoDb.ts`. That check is a physical-identity rule, not a
-Pongo one: proof 14 rejects a Dumbo relational table and a Pongo collection
-sharing a physical name, and the Dumbo-only side holds with no Pongo collection
-involved.
+**Carried in from S5, later simplified.** Physical lookup covers the default,
+named, and extension-contributed schemas. The final implementation performs that
+work through `DatabaseComponent.findTable`, delegating schema-local lookup to
+`DatabaseSchemaComponent.findTable`; the intermediate standalone traversal was
+deleted.
 
 One Step 5 test went with the old model: "rejects a table extension attached to a
 database" asserted a throw that the single shape deliberately removes, since such
 an extension now lands in the default schema. It was rewritten to assert that
 placement and to prove the table is traversed exactly once.
 
-**Pongo side, superseded by immutable growth.** Collection lookup still uses
-Dumbo's `findTable`, and the duplicate-physical-table message still comes from
-Dumbo. Pongo now owns one evolving immutable database component rather than an
-overlay. A collection miss replaces that value through `withTable`; the source
-definition remains reusable and unchanged. `db.schema.component` is a getter for
-the current value, and its Dumbo traversal is the only source for
-`db.schema.migrations` and `migrate()`.
-
-Runtime collection maps remain because they cache configured `PongoCollection`
-objects and runtime options. Cached `db.schema(name)` handles remain because the
-public API guarantees stable identity. Neither stores schema declarations or
-contributes migrations.
+**Pongo side, superseded by the completed runtime follow-up.** One internal
+`PongoDatabaseComponent` now owns the evolving immutable Dumbo component,
+canonical collection identity, named-schema views, and runtime property
+exposure. `db.schema` is a non-callable facade over the current component,
+migrations, and migration execution; callable schema handles were removed.
 
 Two deliberate boundaries: binding the configured `defaultSchemaName` into the
 declared component's migration context is Step 7, so declared unscoped
@@ -392,6 +379,7 @@ collections still emit unqualified migration names; and
 belongs to Step 9.
 
 ## Step 7 — Bind Pongo's logical default placement once
+
 - [x] Pongo passes a configured `defaultSchemaName` as `defaults.schemaName`
       when reading declared component migrations
 - [x] Declared default collections now emit concrete default-schema migration
@@ -429,6 +417,7 @@ that silently ignores `defaults.schemaName`. Both specs were rewritten to assert
 the placement instead of the throw.
 
 ## Step 8 — Simplify Pongo typing and audit the public surface
+
 - [x] Keep `MigrationStyle` in Dumbo; Pongo imports the generic migration style
       type from Dumbo where needed
 - [x] Preserve the existing Pongo/Dumbo input boundary without adding markers,
@@ -437,7 +426,8 @@ the placement instead of the throw.
       substitution with an existing type
 - [x] Deleted `pongoDocumentType`; exact document inference now comes from Dumbo
       `TableRowType<Collection>['data']`, with positive type tests and no casts
-- [x] Removed only the redundant `PongoSchemaScope` runtime option check
+- [x] Initially reduced `PongoSchemaScope`; the completed runtime follow-up
+      removed the scope and callable `db.schema(name)` entirely
 - [x] Audit export candidates in a table with `symbol`, `used on main`,
       `current role`, `consumer value`, `replacement`, and `decision`
 - [x] Keep positive type tests named by supported usage scenario; remove only
@@ -446,29 +436,31 @@ the placement instead of the throw.
       `npx vitest run packages/pongo/src/core/schema/schema.type.spec.ts packages/pongo/src/core/schema/schema.unit.spec.ts packages/pongo/src/core/database/pongoDb.unit.spec.ts packages/dumbo/src/storage/sqlite/core/schema/schemaComponentSQL.unit.spec.ts packages/dumbo/src/storage/postgresql/core/schema/schemaComponentSQL.unit.spec.ts`
 - [x] Gate: `npm run fix && npm run build:ts`
 
-| symbol | used on main | current role | consumer value | replacement | decision |
-| --- | --- | --- | --- | --- | --- |
-| `dumboSchema.defaultSchema` / `pongoSchema.defaultSchema` | no | Removed in S6 | Legacy default namespace helpers | `{ tables }` / `{ collections }`; release notes in S9 | delete |
-| `MigrationStyle` | yes | Generic migration option imported by Pongo | Shared migration configuration type | none | keep in Dumbo |
-| `IndexIdentifier` | no | Internal `createIndexSQL` identifier shape | No public value beyond the function signature | `Parameters<typeof createIndexSQL>[1]` for internal tests | make private |
-| `MIGRATIONS_LOCK_ID` | yes | Migrator's default advisory lock id | Users can already pass `lock.options.lockId` | explicit `lock.options.lockId` | make private |
-| `generatedIndexName` / `generatedIndexNameSegment` | no | Already deleted in S4 after Pongo kept explicit index names | none | explicit index names | delete |
-| `MigrationRecord` | yes | Orphaned ledger-row shape; no public API returns or accepts it | none clear | none | delete |
-| `SchemaComponentRecord` | no | Barrel alias to `SchemaComponentMap` | Duplicate name only | `SchemaComponentMap` | delete |
-| `jsonPathIndexTarget` / `jsonDocumentIndexTarget` | no | Dumbo index target factories used by Pongo index factories and SQL rendering | Existing public target factories | none | keep |
-| `supportsSchemas` / `supportsFunctions` | yes | Database metadata capabilities returned by metadata APIs | Public capability metadata | none | keep |
-| `toClientSchemaMetadata` | yes | Public Pongo schema metadata converter | Useful conversion utility; `toDbSchemaMetadata` is used by CLI | none | keep |
+| symbol                                                    | used on main | current role                                                                 | consumer value                                                 | replacement                                               | decision      |
+| --------------------------------------------------------- | ------------ | ---------------------------------------------------------------------------- | -------------------------------------------------------------- | --------------------------------------------------------- | ------------- |
+| `dumboSchema.defaultSchema` / `pongoSchema.defaultSchema` | no           | Removed in S6                                                                | Legacy default namespace helpers                               | `{ tables }` / `{ collections }`; release notes in S9     | delete        |
+| `MigrationStyle`                                          | yes          | Generic migration option imported by Pongo                                   | Shared migration configuration type                            | none                                                      | keep in Dumbo |
+| `IndexIdentifier`                                         | no           | Internal `createIndexSQL` identifier shape                                   | No public value beyond the function signature                  | `Parameters<typeof createIndexSQL>[1]` for internal tests | make private  |
+| `MIGRATIONS_LOCK_ID`                                      | yes          | Migrator's default advisory lock id                                          | Users can already pass `lock.options.lockId`                   | explicit `lock.options.lockId`                            | make private  |
+| `generatedIndexName` / `generatedIndexNameSegment`        | no           | Already deleted in S4 after Pongo kept explicit index names                  | none                                                           | explicit index names                                      | delete        |
+| `MigrationRecord`                                         | yes          | Orphaned ledger-row shape; no public API returns or accepts it               | none clear                                                     | none                                                      | delete        |
+| `SchemaComponentRecord`                                   | no           | Barrel alias to `SchemaComponentMap`                                         | Duplicate name only                                            | `SchemaComponentMap`                                      | delete        |
+| `jsonPathIndexTarget` / `jsonDocumentIndexTarget`         | no           | Dumbo index target factories used by Pongo index factories and SQL rendering | Existing public target factories                               | none                                                      | keep          |
+| `supportsSchemas` / `supportsFunctions`                   | yes          | Database metadata capabilities returned by metadata APIs                     | Public capability metadata                                     | none                                                      | keep          |
+| `toClientSchemaMetadata`                                  | yes          | Public Pongo schema metadata converter                                       | Useful conversion utility; `toDbSchemaMetadata` is used by CLI | none                                                      | keep          |
 
 ## Step 9 — Documents and metrics
+
 - [x] Metrics ignored on Oskar's instruction
 - [x] `spec.md` rewritten to describe the implemented component model through
       Step 8
-- [x] `plan.md` rewritten to describe the implemented state and remaining
+- [x] `ref_plan.md` rewritten to describe the implemented state and remaining
       Step 10 discussion
 - [x] `todo.md` updated with this documentation-only closeout
 - [x] Gate: `npm run fix && npm run build:ts`
 
 ## Follow-up — Baseline migration metadata and advisory lock options — **historical; baseline metadata was later removed**
+
 - [x] Added migration options to `sqlMigration`
 - [x] `baseline: true` marks a migration as the initial schema for the
       component declaring it
@@ -490,23 +482,56 @@ the placement instead of the throw.
 - [x] Gate: `npm run fix && npm run build:ts`
 
 ## Follow-up — Immutable component growth — **done**
+
 - [x] Added typed immutable `DatabaseSchemaComponent.withTable`
 - [x] Added typed immutable `DatabaseComponent.withSchema` and default/named
       `withTable`
 - [x] Kept extensions, custom migrations, and source declarations reusable
-- [x] Restored generated/custom own migrations followed by child traversal;
-      custom callbacks no longer suppress declared index migrations
+- [x] Preserved child traversal when custom own migrations are supplied; custom
+      schema/table/index callbacks replace only that component's generated DDL
 - [x] Replaced Pongo's runtime schema overlay and migration concatenation with
       one evolving `AnyDatabaseComponent`
 - [x] Made `db.schema.component` expose the current component and kept static
-      projected properties declaration-based
-- [x] Kept runtime collection caches and public `db.schema(name)` handle caching
+      collection/schema properties declaration-based
+- [x] This first version kept external runtime caches and callable schema handles;
+      both were superseded by the completed runtime encapsulation follow-up
 - [x] Added usage-focused runtime and type tests for immutable growth, dynamic
       registration, accumulation, projection, extensions, and aliases
 - [x] Focused verification: 761 Dumbo unit tests, 344 Pongo unit tests, and the
       PostgreSQL plus both SQLite index-migration integration scenarios passed
 
+## Follow-up — Component-owned lookup and Pongo runtime encapsulation — **done**
+
+- [x] Added schema-local `DatabaseSchemaComponent.findTable` across direct and
+      extension tables
+- [x] Added `DatabaseComponent.findTable` for physical schema resolution and
+      delegation across default, named, and extension-owned schemas
+- [x] Deleted standalone `findTable` / `findTables` helpers and their obsolete tests
+- [x] Added and plugged in one internal `PongoDatabaseComponent` owning the
+      evolving Dumbo component, canonical collection cache, `collections()`,
+      stable named-schema views, and runtime property exposure
+- [x] Kept `PongoDb` responsible for pool/cache setup, transactions, SQL,
+      collection construction dependencies, and migration execution
+- [x] Removed `PongoSchemaScope`, `PongoSchemaManagement`, callable
+      `db.schema(name)`, schema handles, projection helpers, property installers,
+      reflection, and descriptor maps
+- [x] Exposed non-callable `PongoDatabaseSchema` as `db.schema`, with
+      `component`, `migrations`, and `migrate` reading the current component
+- [x] Preserved strongly typed root collections and named schemas while exposing
+      runtime additions without claiming static type growth
+- [x] Preserved canonical wrapper identity for normal access; per-call cache,
+      error, or document-schema options create temporary wrappers outside
+      `db.collections()`
+- [x] Extracted explicit generated schema/table/index migration fallbacks and
+      retained custom-own-migration replacement plus child traversal
+- [x] Renamed tests around declaration, access, composition, and migration usage
+      scenarios; removed defensive tests for obsolete implementation states
+- [x] Gate: build and fix green; unit **1104/1104** across 60 files; integration
+      **391/391** across 32 files; e2e **465 passed, 5 skipped** across 9 files;
+      `git diff --check` clean
+
 ## Step 10 — Decide the DDL privilege policy — **discussion open, nothing to implement**
+
 - [ ] Shape: a union, not booleans — a negative boolean encodes its default into its
       name. Candidate `privileges?: 'full' | 'restricted'`, one privilege level rather
       than one member per object type

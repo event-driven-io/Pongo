@@ -345,7 +345,7 @@ describe('using a Pongo database', () => {
     ]);
   });
 
-  it('rejects two declared collections resolving to the same physical table', () => {
+  it("db.collection('users') reports conflicting users collections when crm combines default and named schema declarations", () => {
     const { db } = createTestDb({
       defaultSchemaName: 'crm',
       definition: pongoSchema
@@ -547,7 +547,7 @@ describe('using a Pongo database', () => {
     );
   });
 
-  it('rejects adding a collection whose name is already a table alias', () => {
+  it("db.collection('customerDirectory', { databaseSchemaName: 'crm' }) does not replace the application's customerDirectory alias for users", () => {
     const { db } = createTestDb({
       definition: pongoSchema.db('test', {
         schemas: {
@@ -607,7 +607,7 @@ describe('using a Pongo database', () => {
     ]);
   });
 
-  it('rejects a collection matching more than one table in the same schema', () => {
+  it("db.collection('users', { databaseSchemaName: 'crm' }) reports conflicting users collections from the crm schema and its extension", () => {
     const crmExtension = dumboSchema.extension('crm-extension', {
       tables: { users: pongoSchema.collection('users') },
     });
@@ -629,7 +629,7 @@ describe('using a Pongo database', () => {
     );
   });
 
-  it('rejects a collection whose physical table is not a Pongo collection', () => {
+  it("db.collection('users', { databaseSchemaName: 'crm' }) does not open a Pongo collection over an extension's relational users table", () => {
     const legacy = dumboSchema.extension('legacy', {
       tables: {
         users: dumboSchema.table('users', {

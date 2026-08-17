@@ -20,6 +20,20 @@ const databaseSchemaMigrationName = (
   kind: string | undefined,
 ): string => migrationName('schema', kind, [databaseSchemaName], 'create');
 
+const generatedDatabaseSchemaMigrations = (
+  context: SchemaComponentContext,
+  kind: string | undefined,
+): ReadonlyArray<SQLMigration> => {
+  const { databaseSchemaName } = context;
+  if (typeof databaseSchemaName !== 'string') return [];
+
+  return [
+    sqlMigration(databaseSchemaMigrationName(databaseSchemaName, kind), [
+      SQL`${SQLCreateSchema.from({ databaseSchemaName })}`,
+    ]),
+  ];
+};
+
 export type DatabaseSchemaTables = Readonly<Record<string, AnyTableComponent>>;
 export type SchemaExtensions = Readonly<Record<string, AnyExtensionComponent>>;
 
@@ -105,6 +119,10 @@ export const databaseSchemaComponent = <
     ...Object.values(tables),
     ...Object.values(extensions),
   ]);
+  const ownMigrations =
+    options.migrations ??
+    ((context: SchemaComponentContext) =>
+      generatedDatabaseSchemaMigrations(context, options.kind));
 
   const component: DatabaseSchemaComponent<Tables, SchemaName, Extensions> = {
     ...schemaComponent(databaseSchemaComponentType, {
@@ -115,22 +133,7 @@ export const databaseSchemaComponent = <
           ? (parent.defaults?.schemaName ?? SQLDefaultSchemaNameToken.from())
           : options.schemaName,
       }),
-      migrations: (scoped) => {
-        const databaseSchemaName = scoped.databaseSchemaName;
-
-        return (
-          options.migrations?.(scoped) ??
-          (databaseSchemaName === undefined ||
-          SQLDefaultSchemaNameToken.check(databaseSchemaName)
-            ? []
-            : [
-                sqlMigration(
-                  databaseSchemaMigrationName(databaseSchemaName, options.kind),
-                  [SQL`${SQLCreateSchema.from({ databaseSchemaName })}`],
-                ),
-              ])
-        );
-      },
+      migrations: ownMigrations,
     }),
     schemaName: options.schemaName,
     tables: schemaComponentMap(tables),
@@ -144,8 +147,12 @@ export const databaseSchemaComponent = <
       ].filter((table) => table.tableName === tableName);
 
       if (duplicate !== undefined) {
+        const placement =
+          typeof options.schemaName === 'string'
+            ? `database schema "${options.schemaName}"`
+            : 'the default database schema';
         throw new Error(
-          `Table "${tableName}" is declared more than once in database schema "${schemaNameLabel}"`,
+          `Table "${tableName}" is declared more than once in ${placement}`,
         );
       }
 
