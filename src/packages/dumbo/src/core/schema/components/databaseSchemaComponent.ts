@@ -104,37 +104,32 @@ export const databaseSchemaComponent = <
     ...Object.values(tables),
     ...Object.values(extensions),
   ]);
-  const ownsMigrations = options.migrations !== undefined;
 
   const component: DatabaseSchemaComponent<Tables, SchemaName, Extensions> = {
     ...schemaComponent(databaseSchemaComponentType, {
-      components: ownsMigrations ? [] : children,
+      components: children,
       context: (parent) => ({
         ...parent,
         databaseSchemaName: SQLDefaultSchemaNameToken.check(options.schemaName)
           ? (parent.defaults?.schemaName ?? SQLDefaultSchemaNameToken.from())
           : options.schemaName,
       }),
-      migrations:
-        options.migrations ??
-        ((scoped) => {
-          const databaseSchemaName = scoped.databaseSchemaName;
+      migrations: (scoped) => {
+        const databaseSchemaName = scoped.databaseSchemaName;
 
-          return [
-            ...(databaseSchemaName === undefined ||
-            SQLDefaultSchemaNameToken.check(databaseSchemaName)
-              ? []
-              : [
-                  sqlMigration(
-                    databaseSchemaMigrationName(
-                      databaseSchemaName,
-                      options.kind,
-                    ),
-                    [SQL`${SQLCreateSchema.from({ databaseSchemaName })}`],
-                  ),
-                ]),
-          ];
-        }),
+        return [
+          ...(databaseSchemaName === undefined ||
+          SQLDefaultSchemaNameToken.check(databaseSchemaName)
+            ? []
+            : [
+                sqlMigration(
+                  databaseSchemaMigrationName(databaseSchemaName, options.kind),
+                  [SQL`${SQLCreateSchema.from({ databaseSchemaName })}`],
+                ),
+              ]),
+          ...(options.migrations?.(scoped) ?? []),
+        ];
+      },
     }),
     schemaName: options.schemaName,
     tables: schemaComponentMap(tables),

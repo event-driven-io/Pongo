@@ -23,8 +23,8 @@ context, but do not delete useful behavior merely to force the total below a
 baseline that did not support named schemas or extensions. Breaking changes are
 accepted.
 There will be no aliases, fallback readers, migration-name compatibility layer,
-runtime component reconstruction, monkey patching, or casts used to hide
-incorrect inference. Nothing is committed; Oskar handles git.
+runtime overlays, monkey patching, or casts used to hide incorrect inference.
+Nothing is committed; Oskar handles git.
 
 Before implementation, record the exact merge-base SHA and the commands used
 for production-line and export counts. Historical counts are evidence, not a
@@ -51,7 +51,7 @@ deletion criterion.
 | 15  | A Pongo database declaration still contains exactly one of `collections` or `schemas`. This invariant is not changed.                                                                                                                                                                                   |
 | 16  | In Pongo `collections` mode, root collections remain available as `database.users`, regardless of their physical placement. In `schemas` mode, declared collections remain available as `database.crm.users`.                                                                                           |
 | 17  | `defaultSchemaName` stays. It binds Pongo's logical default slot to a concrete physical schema at database construction time, before migration names and SQL tokens are produced. It does not rewrite components or affect explicitly named schemas.                                                    |
-| 18  | Dynamic Pongo collections are held in an internal overlay. Declared components remain immutable and are never rebuilt.                                                                                                                                                                                  |
+| 18  | A Pongo database owns one evolving immutable `DatabaseComponent`. Dynamic collections replace that current value through `withTable`; reusable input declarations remain unchanged.                                                                                                                       |
 | 19  | Pongo accepts both `PongoDatabaseComponent` and a plain Dumbo `AnyDatabaseComponent`. Only Pongo declarations receive inferred database properties; a plain Dumbo declaration uses typed `db.collection<User>(...)` without changing the static database shape.                                         |
 | 20  | An export is removed only after its semantic role and its state on `main` are reviewed. Zero internal production readers alone are not enough.                                                                                                                                                          |
 
@@ -404,24 +404,18 @@ binding.
 
 ### Dynamic collections
 
-Dynamic collections exist only in `PongoDatabase` runtime state and are created
-through `db.collection<Document>(name, options)`. They never enter or rebuild
-the declared database component, never change `db.schema.component`, and never
-change the static database type. This refactor does not add a Dumbo runtime
-`.table(name)` API.
+Dynamic collections are created through
+`db.collection<Document>(name, options)`. Each Pongo database keeps one current
+immutable database component, initialized from the reusable schema definition.
+On a lookup miss, Pongo creates a collection component and replaces the current
+value through `component.withTable(...)`. The source definition remains
+unchanged and the static database type does not grow.
 
-The runtime overlay groups collection components by their final physical schema
-and table identifier. Its combined migration list contains, in order:
-
-1. migrations from the immutable declaration;
-2. schema creation required by previously undeclared runtime named scopes;
-3. migrations from dynamic collection components in those scopes.
-
-For item 2, reuse the existing `databaseSchemaComponent` with an empty table map
-as a migration source. Keep that component private to the runtime scope; do not
-attach it to the declaration or build a runtime database aggregate. This keeps
-schema migration naming and SQL generation in Dumbo without duplicating them in
-Pongo.
+`db.schema.component` is a getter for the current value. Its normal Dumbo
+traversal is also the only source for `db.schema.migrations` and `migrate()`.
+Creating a missing named schema is delegated to `DatabaseComponent.withTable`;
+Pongo does not own schema-creation state, migration concatenation, or a second
+dedupe pass.
 
 ### Relationship validation for direct tables
 
@@ -496,17 +490,16 @@ or a second migration path:
   `databaseSchemaComponent` already owns schema placement, schema DDL, table
   traversal, and schema-level extensions. A token-scoped instance can therefore
   own direct-table traversal without duplicating that logic.
-- `databaseComponent` already determines the child list once. The default schema
-  is simply its first child, alongside the named schemas; nothing needs to be
-  attached or rewritten later.
+- `databaseComponent` determines the child list for each immutable value. The
+  default schema is its first child, alongside named schemas; `withTable` and
+  `withSchema` rebuild that value through the same factory.
 - Pongo's static grouping is currently concentrated in
   `directCollectionsSchemas` in `pongo/core/schema/index.ts`. Replace that one
   grouping step with direct tables plus named schemas while retaining the
   original collections record for root projection.
-- Pongo's runtime lookup and migration access are already concentrated in
-  `pongoDatabaseSchemas` in `pongo/core/database/pongoDb.ts`. The dynamic overlay
-  and final physical-identifier lookup stay there; no `runtimeDatabaseComponent`
-  is needed.
+- Pongo's runtime lookup and migration access are concentrated in
+  `pongo/core/database/pongoDb.ts`. Final physical-identifier lookup stays there,
+  while one evolving `AnyDatabaseComponent` is the schema and migration source.
 - PostgreSQL's existing `SQLCreateSchema` processor creates a concrete schema.
   SQLite's registered processor renders the same token empty, and the migrator
   already removes and does not record empty SQL. A bound `defaultSchemaName`
@@ -698,14 +691,14 @@ the same step. After each step, run the standard gate from
     incompatible at the database level and none is traversed twice.
 - Remove Pongo's type-level extension-schema subtraction and runtime
   `extensionSchemaKeys` set.
-- Centralize collection lookup inside the existing internal
-  `pongoDatabaseSchemas` helper. Search direct declarations and directly
-  attached flat extensions; there is no recursive extension traversal.
+- Centralize collection lookup in `PongoDatabase`. Search the current database
+  component, including direct declarations and directly attached flat
+  extensions; there is no recursive extension traversal.
 - If multiple matching physical tables are found, throw immediately. Reuse one
   matching Pongo collection; reject an ordinary Dumbo table with the same
   physical name. Do not add a duplicate and wait for migration deduplication.
 
-### Step 6 - Make database placement explicit and stop rebuilding components
+### Step 6 - Make database placement explicit and keep declarations reusable
 
 A database has exactly one containment shape: a nameless default schema plus a
 record of explicitly named schemas. Direct tables on a database are not a second
@@ -776,16 +769,13 @@ shape; they are the default schema's tables. Every rule below follows from that.
   `databaseSchemaName`, treat them as one physical namespace. Distinct tables
   coexist. Reuse the same collection component by physical identifier and
   reject different components targeting the same physical table.
-- Delete Dumbo's generic `withTable` helper.
-- Do not fold its reconstruction into `pongoDatabaseSchemas`. Instead, keep an
-  internal dynamic overlay with one map for the logical default scope and a
-  map of named scopes. Do not encode the default scope as `''`, another magic
-  string, or a freshly allocated SQL token used as a `Map` key. Dynamic entries
-  are added only through `db.collection`; do not add a Dumbo runtime `.table`
-  API in this refactor.
-- Lookup order is declared components, directly attached flat extensions, then
-  the dynamic overlay. Compare the resolved physical schema and table identifiers,
-  so a configured default equal to a named scope is searched as one namespace.
+- Add immutable `withTable` to schema/database components and `withSchema` to
+  database components. Rebuild through the existing factories, preserving
+  migrations and extensions while leaving reusable input declarations unchanged.
+  Dynamic entries are still added only through `db.collection`; do not add a
+  mutable Dumbo runtime `.table` API.
+- Search the current component by resolved physical schema and table identifier,
+  so a configured default equal to a named schema is one physical namespace.
   An existing non-Pongo table with the requested physical name is an error.
 - The declared-and-extension half of that lookup is Dumbo's `findTables`, added
   in Step 5. It walks one list here, the default schema followed by the named
@@ -794,19 +784,11 @@ shape; they are the default schema's tables. Every rule below follows from that.
   next to it in Dumbo: end-to-end proof 14 rejects a Dumbo relational table and
   a Pongo collection sharing one physical name, and the Dumbo-only side of that
   check must hold with no Pongo collection involved. Pongo keeps only the
-  dynamic-overlay search, the Pongo-collection predicate, and what to create on
-  a miss.
-- For each dynamic named scope not represented by a declaration, reuse an empty
-  `databaseSchemaComponent` privately as the source of its schema-create
-  migration. It is runtime overlay state, is not attached to the declaration,
-  and is ordered before the scope's collection migrations.
-- `migrations()` combines declared database migrations, required runtime schema
-  migrations, and dynamic collection migrations through the existing
-  `dedupeMigrations` behavior.
-- Do not manufacture a `runtimeDatabaseComponent` or any aggregate component.
-  `db.schema.component` continues to refer to the immutable declared component;
-  dynamic collections are runtime state and appear through collection APIs and
-  the combined migration list, not by pretending the declaration changed.
+  Pongo-collection predicate and what to create on a miss.
+- Let named `DatabaseComponent.withTable` create a normal direct schema when it
+  is absent. Pongo does not keep separate schema-creation ownership state.
+- `db.schema.component`, `db.schema.migrations`, and `migrate()` read the same
+  current component. Dumbo traversal provides ordering and deduplication.
 - Remove or merge a duplicate `schema.definition`/`schema.component` accessor
   only if they become the same value and repository consumers are updated in
   this step.
@@ -839,11 +821,9 @@ shape; they are the default schema's tables. Every rule below follows from that.
 - Explicit collection `databaseSchemaName` and schema declarations always win
   over the database default binding.
 - Resolve collection lookup by final physical schema and table name across the
-  default schema, named schemas, directly attached flat extensions, and the
-  dynamic overlay. This handles `defaultSchemaName: 'crm'` alongside a
-  collection explicitly placed in `crm` without merging or rebuilding the
-  declarations. Step 6 landed the declared side as Dumbo's `findTable`; what
-  remains here is feeding it the bound `defaults.schemaName`.
+  current default schema, named schemas, and directly attached flat extensions.
+  This handles `defaultSchemaName: 'crm'` alongside a collection explicitly
+  placed in `crm`. Dumbo's `findTable` receives the bound `defaults.schemaName`.
 - Fix `PongoDatabaseCache`: `db(name, options)` options are creation-time
   configuration. If a database instance already exists for a database name, a
   later `db(name, options)` call with any options must throw a clear
@@ -933,7 +913,7 @@ shape; they are the default schema's tables. Every rule below follows from that.
   - plain Dumbo database definitions remaining valid for unprojected dynamic
     Pongo collections;
   - runtime `defaultSchemaName` binding;
-  - immutable declarations plus a runtime-only dynamic collection overlay;
+  - reusable immutable declarations plus one evolving Pongo database component;
   - flat, non-nested extensions.
 - Rewrite `plan.md` and `todo.md` to describe the implementation actually
   completed. Update samples and public API documentation.
@@ -1070,8 +1050,9 @@ Run the same behavior on PostgreSQL and SQLite:
 7. Verify Dumbo `tables` and `schemas`, and Pongo `collections` and `schemas`,
    cannot be supplied together.
 8. Create dynamic unscoped and previously undeclared named-schema collections.
-   Verify the named schema is created before its table, both use runtime overlay
-   state, and neither changes the declared component or static database type.
+   Verify the current component contains them, a missing named schema is created
+   before its table, the source declaration stays unchanged, and the static
+   database type does not grow.
 9. Pass a plain Dumbo database component to Pongo. Verify its relational
    migrations remain active, no collection property is inferred, and
    `db.collection<User>(...)` remains strongly typed.

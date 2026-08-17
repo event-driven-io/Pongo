@@ -107,38 +107,36 @@ export const tableComponent = <
     ...Object.values(columns),
     ...Object.values(indexes),
   ]);
-  const ownsMigrations = options.migrations !== undefined;
 
   const component: TableComponent<Columns, TableName, Indexes, Relationships> =
     {
       ...schemaComponent(tableComponentType, {
-        components: ownsMigrations ? [] : children,
+        components: children,
         context: (parent) => ({
           ...parent,
           tableName: options.tableName,
         }),
-        migrations:
-          options.migrations ??
-          ((scoped) => {
-            const identifier = {
-              databaseSchemaName:
-                scoped.databaseSchemaName ?? SQLDefaultSchemaNameToken.from(),
-              tableName: options.tableName,
-            };
+        migrations: (scoped) => {
+          const identifier = {
+            databaseSchemaName:
+              scoped.databaseSchemaName ?? SQLDefaultSchemaNameToken.from(),
+            tableName: options.tableName,
+          };
 
-            return [
-              ...(Object.keys(columns).length === 0
-                ? []
-                : [
-                    sqlMigration(tableMigrationName(identifier, options.kind), [
-                      createTableSQL(
-                        { columns },
-                        SQL`${SQLTableReference.from(identifier)}`,
-                      ),
-                    ]),
+          return [
+            ...(Object.keys(columns).length === 0
+              ? []
+              : [
+                  sqlMigration(tableMigrationName(identifier, options.kind), [
+                    createTableSQL(
+                      { columns },
+                      SQL`${SQLTableReference.from(identifier)}`,
+                    ),
                   ]),
-            ];
-          }),
+                ]),
+            ...(options.migrations?.(scoped) ?? []),
+          ];
+        },
       }),
       tableName: options.tableName,
       primaryKey: Object.freeze([...(options.primaryKey ?? [])]),

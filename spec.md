@@ -1,17 +1,18 @@
 # Spec: simplified schema component model
 
 Branch: `schema_features`
-Status: implemented through Step 8 plus the approved baseline migration follow-up
+Status: implemented through Step 8 plus immutable database-component growth
 
 This document describes the model that the current branch implements. It
 replaces the older parent-pointer and second-migration-traversal designs.
 
 ## Goal
 
-Schema components are immutable declarations. A table, schema, extension, or
-database component does not learn where it is placed by being attached to a
-parent, and it is not rebuilt to carry placement. Placement is passed downward
-when migrations are read.
+Schema components are immutable values. A table, schema, extension, or database
+component does not learn where it is placed by being attached to a parent.
+Placement is passed downward when migrations are read. `withTable` and
+`withSchema` rebuild containing schema/database values without mutating the
+reusable declarations supplied by the caller.
 
 There is one migration traversal:
 
@@ -27,9 +28,8 @@ Each component contributes only the context it owns:
   received, except that an index requires table context before it can create DDL.
 
 The model is intentionally smaller than the previous branch. There are no parent
-pointers, runtime component reconstruction for declared schema, fallback
-migration-name readers, aliases for deleted APIs, monkey patches, or casts used
-to hide broken inference.
+pointers, runtime overlays, fallback migration-name readers, aliases for deleted
+APIs, monkey patches, or casts used to hide broken inference.
 
 ## Base Component
 
@@ -62,7 +62,6 @@ type SchemaComponentContext = Readonly<{
   defaults?: Readonly<{ schemaName?: string | undefined }> | undefined;
   databaseSchemaName?: string | SQLDefaultSchemaNameToken | undefined;
   tableName?: string | undefined;
-  skipGeneratedInitialMigrations?: boolean | undefined;
 }>;
 ```
 
@@ -71,45 +70,17 @@ component placement. Keeping those separate lets Pongo bind a logical default
 to a concrete schema without leaking that choice into database-level migrations
 or unrelated components.
 
-## Baseline Migrations
+## Custom Migrations
 
-`sqlMigration(name, sqls, { baseline: true })` marks that migration as the
-initial schema for the component that declares it. When a component's own
-`migrations` callback returns a baseline migration, Dumbo includes that
-migration and skips generated initial DDL for that component subtree.
+A component's `migrations` callback adds custom migrations to that component's
+generated migrations. It does not replace generated migrations and does not
+remove child components from traversal. The order is generated migrations,
+custom migrations, then child migrations.
 
-The flag suppresses only Dumbo-generated initial DDL:
-
-- generated `CREATE SCHEMA`;
-- generated `CREATE TABLE`;
-- generated `CREATE INDEX`.
-
-Other migrations returned by the same callback still run after the baseline in
-the order returned by the callback. The component also stays in the typed schema
-model, so future snapshot/diff tooling can still inspect it. Snapshot storage,
-schema diffing, and incremental migration generation are future work and are not
-implemented in this branch.
-
-`ignoreHashMismatch: true` can be set on a migration that is intentionally
-dynamic. If that migration was already applied and its SQL changes later, the
-migrator skips it without failing and without updating the recorded hash. If it
-has not been applied yet, it runs normally.
-
-This supports PostgreSQL-specific baselines where raw SQL is clearer than the
-cross-dialect table DSL:
-
-```ts
-databaseComponent({
-  migrations: () => [
-    sqlMigration("event-store:baseline", [eventStoreSQL], {
-      baseline: true,
-      ignoreHashMismatch: true,
-    }),
-    sqlMigration("event-store:functions", [eventStoreFunctionsSQL]),
-  ],
-  tables: { messages, streams },
-});
-```
+`ignoreHashMismatch: true` can be set on an intentionally dynamic migration. If
+an already applied migration changes, the migrator skips it without failing and
+without updating the recorded hash. If it has not been applied yet, it runs
+normally.
 
 ## DDL Tokens
 
@@ -234,10 +205,24 @@ under the extension that owns them:
 database.extensions.eventStoreReadModels.schemas.readmodels.tables.users;
 ```
 
-Pongo collection lookup searches direct declarations, direct extension-owned
-schemas, and the runtime overlay. Dumbo owns the generic physical table
-traversal through `findTable` / `findTables`; Pongo owns the Pongo-specific
-decisions such as "not a Pongo collection" and dynamic collection creation.
+Pongo collection lookup searches the current database component, including
+direct declarations and direct extension-owned schemas. Dumbo owns the generic
+physical table traversal through `findTable` / `findTables`; Pongo owns the
+Pongo-specific decisions such as "not a Pongo collection" and dynamic
+collection creation.
+
+## Immutable Database Growth
+
+`DatabaseSchemaComponent.withTable(tables)` returns a new schema containing the
+previous and added tables. `DatabaseComponent.withSchema(schemas)` immutably
+upserts direct schemas by alias. `DatabaseComponent.withTable(tables)` updates
+the logical default schema, while `withTable(tables, schemaName)` updates or
+creates a direct named schema.
+
+These operations preserve custom migrations and extensions, leave source
+components and source records unchanged, and rebuild through the existing
+factories so validation, context propagation, ordering, and deduplication remain
+centralized. Extensions do not receive special lookup or mutation behavior.
 
 ## Pongo Declarations
 
@@ -288,6 +273,13 @@ db.collection<User>("users", { databaseSchemaName: "crm" });
 
 They update the runtime schema component and participate in migrations, but do
 not add static properties to an already-created database value.
+
+Each Pongo database owns one current `AnyDatabaseComponent`. On a collection
+miss, Pongo creates a collection component and replaces the current value with
+`component.withTable(...)`. `db.schema.component`, `db.schema.migrations`, and
+`migrate()` all read that same current value. Runtime `PongoCollection` caches
+remain separate because they own connection, serializer, error, cache, and
+runtime-option behavior rather than schema declarations.
 
 `db.schema(name)` remains the public schema-scope accessor. Its collection
 options omit `databaseSchemaName`; the scope supplies that placement.

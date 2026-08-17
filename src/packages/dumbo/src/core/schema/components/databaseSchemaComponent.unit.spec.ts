@@ -152,7 +152,15 @@ describe('schema.withTable(tables)', () => {
 
     assert.strictEqual(nextCustom.schemaName, 'reporting');
     assert.strictEqual(nextCustom.extensions.audit, audit);
-    assert.deepStrictEqual(nextCustom.migrations(), [custom]);
+    assert.deepStrictEqual(
+      nextCustom.migrations().map(({ name }) => name),
+      [
+        'schema:read_model:reporting:create',
+        custom.name,
+        'index:reporting:users:users_email_idx:create',
+        'audit:001',
+      ],
+    );
     assert.deepStrictEqual(
       nextGenerated.migrations().map(({ name }) => name),
       ['schema:read_model:reporting:create'],
