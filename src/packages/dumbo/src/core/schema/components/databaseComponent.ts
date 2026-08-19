@@ -1,4 +1,4 @@
-import { SQLDefaultSchemaNameToken } from '../../sql';
+import { DefaultDatabaseSchemaName } from '../../sql';
 import type { UnionToIntersection } from '../../typing';
 import type { AnyExtensionComponent } from '../extensionComponent';
 import {
@@ -41,12 +41,6 @@ export type WithExtensionSchemas<
       Schemas
     >;
 
-const resolveSchemaName = (
-  schemaName: string | SQLDefaultSchemaNameToken,
-  defaultSchemaName: string | undefined,
-): string | undefined =>
-  SQLDefaultSchemaNameToken.check(schemaName) ? defaultSchemaName : schemaName;
-
 type SchemaWithTables<Schema, Added extends DatabaseTables> =
   Schema extends DatabaseSchemaComponent<
     infer Tables,
@@ -86,11 +80,7 @@ export type DatabaseComponent<
 > = SchemaComponent<typeof databaseComponentType> &
   Readonly<{
     databaseName: DatabaseName;
-    defaultSchema: DatabaseSchemaComponent<
-      Tables,
-      string | SQLDefaultSchemaNameToken,
-      Extensions
-    >;
+    defaultSchema: DatabaseSchemaComponent<Tables, string, Extensions>;
     tables: WithExtensionTables<Tables, Extensions>;
     schemas: WithExtensionSchemas<Schemas, Extensions>;
     extensions: Extensions;
@@ -203,25 +193,22 @@ const buildDatabaseComponent = <
     Extensions
   >,
 ): DatabaseComponent<DatabaseName, Tables, Schemas, Extensions> => {
-  const { databaseName, defaultSchemaName } = options;
+  const { databaseName, defaultSchemaName = DefaultDatabaseSchemaName } =
+    options;
   const schemas = (options.schemas ?? {}) as Schemas;
   const extensions = (options.extensions ?? {}) as Extensions;
 
   assertSchemaKeysAreNotEmpty(schemas);
 
-  const declaresTables = (extension: AnyExtensionComponent) =>
+  const hasTables = (extension: AnyExtensionComponent) =>
     Object.keys(extension.tables).length > 0;
 
-  const defaultSchema = databaseSchemaComponent<
-    Tables,
-    string | SQLDefaultSchemaNameToken,
-    Extensions
-  >({
-    schemaName: defaultSchemaName ?? SQLDefaultSchemaNameToken.from(),
+  const defaultSchema = databaseSchemaComponent<Tables, string, Extensions>({
+    schemaName: defaultSchemaName,
     tables: options.tables,
     extensions: Object.fromEntries(
       Object.entries(extensions).filter(([, extension]) =>
-        declaresTables(extension),
+        hasTables(extension),
       ),
     ) as Extensions,
   });
@@ -235,7 +222,7 @@ const buildDatabaseComponent = <
 
   const schemasByName = Map.groupBy(
     [defaultSchema, ...Object.values<AnyDatabaseSchemaComponent>(allSchemas)],
-    (schema) => resolveSchemaName(schema.schemaName, defaultSchemaName),
+    (schema) => schema.schemaName,
   );
 
   for (const [resolvedSchemaName, named] of schemasByName)
@@ -255,7 +242,7 @@ const buildDatabaseComponent = <
         defaultSchema,
         ...Object.values(schemas),
         ...Object.values(extensions).filter(
-          (extension) => !declaresTables(extension),
+          (extension) => !hasTables(extension),
         ),
       ]),
       migrations: options.migrations,
@@ -294,11 +281,10 @@ const buildDatabaseComponent = <
 
       const [schemaKey, schema] = Object.entries<AnyDatabaseSchemaComponent>(
         schemas,
-      ).find(
-        ([, declared]) =>
-          resolveSchemaName(declared.schemaName, defaultSchemaName) ===
-          schemaName,
-      ) ?? [schemaName, databaseSchemaComponent({ schemaName })];
+      ).find(([, declared]) => declared.schemaName === schemaName) ?? [
+        schemaName,
+        databaseSchemaComponent({ schemaName }),
+      ];
 
       return component.withSchema({ [schemaKey]: schema.withTable(added) });
     }) as DatabaseComponent<

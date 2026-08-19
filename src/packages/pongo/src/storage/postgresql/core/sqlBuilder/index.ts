@@ -1,10 +1,10 @@
 import {
   createTableSQL,
+  DefaultDatabaseSchemaName,
   isSQL,
   JSONParam,
   SQL,
   SQLCreateSchema,
-  SQLDefaultSchemaNameToken,
   type JSONSerializer,
   type SQLTableReference,
 } from '@event-driven-io/dumbo';
@@ -47,7 +47,7 @@ export const postgresSQLBuilder = (
 
   return {
     createCollection: (): SQL[] =>
-      SQLDefaultSchemaNameToken.check(databaseSchemaName)
+      databaseSchemaName === DefaultDatabaseSchemaName
         ? [createTableSQL(collection)]
         : [
             SQL`${SQLCreateSchema.from({ databaseSchemaName })}`,

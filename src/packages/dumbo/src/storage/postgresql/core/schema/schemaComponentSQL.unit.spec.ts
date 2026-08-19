@@ -4,13 +4,13 @@ import {
   createIndexSQL,
   databaseComponent,
   databaseSchemaComponent,
+  DefaultDatabaseSchemaName,
   dumboSchema,
   indexComponent,
-  JSONSerializer,
   jsonDocumentIndexTarget,
   jsonPathIndexTarget,
+  JSONSerializer,
   SQL,
-  SQLDefaultSchemaNameToken,
   SQLTableReference,
 } from '../../../../core';
 import { pgFormatter } from '../sql';
@@ -43,7 +43,7 @@ describe('using Dumbo components in PostgreSQL schemas', () => {
       format(
         SQL`${SQLTableReference.from({
           ...identifier,
-          databaseSchemaName: SQLDefaultSchemaNameToken.from(),
+          databaseSchemaName: DefaultDatabaseSchemaName,
         })}`,
       ),
       'users',
@@ -51,9 +51,7 @@ describe('using Dumbo components in PostgreSQL schemas', () => {
   });
 
   it('creates a named schema and emits no migration for the default one', () => {
-    const schemaSQLs = (
-      schemaName: string | SQLDefaultSchemaNameToken,
-    ): ReadonlyArray<string> =>
+    const schemaSQLs = (schemaName: string): ReadonlyArray<string> =>
       databaseSchemaComponent({ schemaName })
         .migrations()
         .flatMap((migration) => migration.sqls)
@@ -65,7 +63,7 @@ describe('using Dumbo components in PostgreSQL schemas', () => {
     assert.deepStrictEqual(schemaSQLs('public'), [
       'CREATE SCHEMA IF NOT EXISTS public',
     ]);
-    assert.deepStrictEqual(schemaSQLs(SQLDefaultSchemaNameToken.from()), []);
+    assert.deepStrictEqual(schemaSQLs(DefaultDatabaseSchemaName), []);
   });
 
   it('renders the schema name of a schema declared under another record key', () => {

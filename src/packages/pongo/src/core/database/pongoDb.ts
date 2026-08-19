@@ -1,7 +1,7 @@
 import type { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import {
+  DefaultDatabaseSchemaName,
   runSQLMigrations,
-  SQLDefaultSchemaNameToken,
   type DatabaseDriverType,
   type Dumbo,
   type MigrationStyle,
@@ -17,6 +17,7 @@ import {
   transactionExecutorOrDefault,
   type PongoCollectionSQLBuilder,
 } from '../collection';
+import type { PongoNestedTransactionOptions } from '../pongoTransaction';
 import type { PongoCollectionComponent, PongoDbSchema } from '../schema';
 import type {
   AnyPongoDb,
@@ -24,7 +25,6 @@ import type {
   PongoDb,
   PongoMigrationOptions,
 } from '../typing';
-import type { PongoNestedTransactionOptions } from '../pongoTransaction';
 import { PongoDatabaseComponent } from './pongoDatabaseComponent';
 
 type PongoTransactionOptionsFor<
@@ -77,8 +77,8 @@ export const PongoDatabase = <
   options: PongoDatabaseOptions<DumboType>,
 ): Database => {
   const { databaseName, pool, cache: cacheOptions, serializer } = options;
-  const defaultSchemaName: string | SQLDefaultSchemaNameToken =
-    options.defaultSchemaName ?? SQLDefaultSchemaNameToken.from();
+  const defaultSchemaName: string =
+    options.defaultSchemaName ?? DefaultDatabaseSchemaName;
 
   const cache =
     cacheOptions === 'disabled' || cacheOptions === undefined

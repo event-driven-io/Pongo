@@ -61,7 +61,7 @@ The context is flat:
 ```ts
 type SchemaComponentContext = Readonly<{
   defaults?: Readonly<{ schemaName?: string | undefined }> | undefined;
-  databaseSchemaName?: string | SQLDefaultSchemaNameToken | undefined;
+  databaseSchemaName?: string | DefaultDatabaseSchemaName | undefined;
   tableName?: string | undefined;
 }>;
 ```
@@ -98,7 +98,7 @@ Components emit dialect-neutral SQL tokens:
 - `SQLCreateSchema`
 - `SQLJSONDocumentIndexTarget`
 - `SQLJSONPathTarget`
-- `SQLDefaultSchemaNameToken`
+- `DefaultDatabaseSchemaName`
 
 Dialect formatters decide how those tokens render. SQLite named schemas map to
 physical names such as `"crm.users"`; PostgreSQL renders schema-qualified
@@ -186,7 +186,7 @@ Dumbo tables do not carry `databaseSchemaName`. Indexes do not carry
 
 A table contributes its own `tableName` to child context. A named schema
 contributes its explicit name. The private logical default schema contributes
-`parent.defaults?.schemaName ?? SQLDefaultSchemaNameToken.from()`.
+`parent.defaults?.schemaName ?? DefaultDatabaseSchemaName`.
 
 An index declared outside a table cannot create DDL and throws a clear placement
 error. No assertion, cast, or synthetic table name supplies missing placement.

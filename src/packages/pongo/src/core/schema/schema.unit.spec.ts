@@ -1,16 +1,16 @@
-import assert from 'node:assert';
 import {
   databaseComponentType,
+  DefaultDatabaseSchemaName,
   dumboSchema,
   indexComponentType,
   isTableComponent,
   schemaComponentType,
   SQL,
-  SQLDefaultSchemaNameToken,
   sqlMigration,
   SQLTableReference,
   type TableRowType,
 } from '@event-driven-io/dumbo';
+import assert from 'node:assert';
 import { describe, expectTypeOf, it } from 'vitest';
 import {
   isPongoCollectionComponent,
@@ -164,8 +164,8 @@ describe('declaring Pongo collections', () => {
       }),
     );
     assert.strictEqual(
-      SQLDefaultSchemaNameToken.check(users.tableReference.databaseSchemaName),
-      true,
+      users.tableReference.databaseSchemaName,
+      DefaultDatabaseSchemaName,
     );
     assert.strictEqual(
       crm
@@ -204,8 +204,8 @@ describe('declaring Pongo collections', () => {
       }),
     );
     assert.strictEqual(
-      SQLDefaultSchemaNameToken.check(users.tableReference.databaseSchemaName),
-      true,
+      users.tableReference.databaseSchemaName,
+      DefaultDatabaseSchemaName,
     );
     assert.deepStrictEqual(
       crm.migrations().map(({ name }) => name),
@@ -256,9 +256,7 @@ describe('declaring Pongo schemas and databases', () => {
 
     assert.strictEqual(database[schemaComponentType], databaseComponentType);
     assert.strictEqual(database.databaseName, 'app');
-    assert.ok(
-      SQLDefaultSchemaNameToken.check(database.defaultSchema.schemaName),
-    );
+    assert.ok(database.defaultSchema.schemaName, DefaultDatabaseSchemaName);
     assert.strictEqual(database.tables.users?.tableName, 'users');
     assert.deepStrictEqual(Object.keys(database.schemas), ['audit']);
     assert.strictEqual(database.schemas.audit?.schemaName, 'audit');
@@ -293,9 +291,7 @@ describe('declaring Pongo schemas and databases', () => {
     const database = pongoSchema.db('app', { collections: {} });
 
     assert.deepStrictEqual(Object.keys(database.schemas), []);
-    assert.ok(
-      SQLDefaultSchemaNameToken.check(database.defaultSchema.schemaName),
-    );
+    assert.ok(database.defaultSchema.schemaName, DefaultDatabaseSchemaName);
     assert.deepStrictEqual(Object.keys(database.tables), []);
   });
 
@@ -308,9 +304,7 @@ describe('declaring Pongo schemas and databases', () => {
       },
     });
 
-    assert.ok(
-      SQLDefaultSchemaNameToken.check(database.defaultSchema.schemaName),
-    );
+    assert.ok(database.defaultSchema.schemaName, DefaultDatabaseSchemaName);
     assert.deepStrictEqual(Object.keys(database.tables), []);
     assert.strictEqual(
       database.schemas.audit?.tables.entries?.tableName,

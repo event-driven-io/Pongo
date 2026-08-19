@@ -115,8 +115,8 @@ by the disk being 99% full (4.1 G free). `hookTimeout` was raised 30s → 120s i
 - [x] Review gate — **pass**. No new type, alias or helper. Net production **−41**
 
 **`defaults.schemaName` was made live here, not staged.** A
-`databaseSchemaComponent` whose `schemaName` is a `SQLDefaultSchemaNameToken`
-contributes `parent.defaults?.schemaName ?? SQLDefaultSchemaNameToken.from()`
+`databaseSchemaComponent` whose `schemaName` is a `DefaultDatabaseSchemaName`
+contributes `parent.defaults?.schemaName ?? DefaultDatabaseSchemaName`
 to its children — verbatim the plan's Placement block for the private
 logical-default child. S6 then only changes who constructs that child. Its own
 create-schema migration and name still come from `options.schemaName`. Nothing in
@@ -163,7 +163,7 @@ deleted outright — both on column-less tables that emit no migration to assert
       and both survive `dedupeMigrations`
 - [x] Create-schema migration derived from the **resolved scoped placement**, not
       from `options.schemaName`. None emitted while the placement stays a
-      `SQLDefaultSchemaNameToken`; custom migrations and children still run
+      `DefaultDatabaseSchemaName`; custom migrations and children still run
 - [x] A logical-default schema given `defaults: { schemaName: 'pongo' }` emits
       `schema:pongo:create`
 - [x] Migration name length validated against the ledger's `Varchar(255)` up front
@@ -394,12 +394,12 @@ belongs to Step 9.
 
 **Carried in from S5.** `defaults.schemaName` is read in exactly one place —
 `databaseSchemaComponent.ts:106`, `parent.defaults?.schemaName ??
-SQLDefaultSchemaNameToken.from()` — and written in exactly one place,
+DefaultDatabaseSchemaName` — and written in exactly one place,
 `componentMigrations.unit.spec.ts`. **Pongo never passes it.** Binding Pongo's
 `defaultSchemaName` to it is this step's job, and until then the whole
 policy-vs-placement split is exercised only by dumbo's own unit spec.
 
-That single line is also what separates `SQLDefaultSchemaNameToken` (an explicit
+That single line is also what separates `DefaultDatabaseSchemaName` (an explicit
 "let the dialect pick") from `undefined` (no placement anywhere in the ancestry).
 Only a table with a `databaseSchemaComponent` ancestor passes through it, so only
 such a table resolves the configured logical default. With no `defaults` set

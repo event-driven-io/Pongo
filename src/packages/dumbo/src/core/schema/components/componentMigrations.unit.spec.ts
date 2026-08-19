@@ -1,8 +1,8 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
 import {
+  DefaultDatabaseSchemaName,
   SQL,
-  SQLDefaultSchemaNameToken,
   SQLIndexReference,
   SQLTableReference,
 } from '../../sql';
@@ -126,7 +126,7 @@ describe('components emitting their own migrations', () => {
     const database = databaseComponent({
       schemas: {
         main: databaseSchemaComponent({
-          schemaName: SQLDefaultSchemaNameToken.from(),
+          schemaName: DefaultDatabaseSchemaName,
           tables: { users: usersTable() },
         }),
       },
@@ -144,7 +144,7 @@ describe('components emitting their own migrations', () => {
         eventStore: extensionComponent('event-store', {
           schemas: {
             default: databaseSchemaComponent({
-              schemaName: SQLDefaultSchemaNameToken.from(),
+              schemaName: DefaultDatabaseSchemaName,
               tables: {
                 events: tableComponent({ tableName: 'events', columns }),
               },
@@ -544,7 +544,7 @@ describe('components emitting their own migrations', () => {
 
   it('creates no schema for a placement left to the dialect', () => {
     const schema = databaseSchemaComponent({
-      schemaName: SQLDefaultSchemaNameToken.from(),
+      schemaName: DefaultDatabaseSchemaName,
       migrations: () => [sqlMigration('users:backfill', [SQL`SELECT 1`])],
       tables: { users: usersTable() },
     });

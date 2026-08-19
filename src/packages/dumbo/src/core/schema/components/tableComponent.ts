@@ -1,8 +1,4 @@
-import {
-  haveSameDatabaseSchemaName,
-  SQLDefaultSchemaNameToken,
-  SQLTableReference,
-} from '../../sql';
+import { DefaultDatabaseSchemaName, SQLTableReference } from '../../sql';
 import {
   schemaComponent,
   schemaComponentMap,
@@ -13,8 +9,8 @@ import {
 import { sqlMigration, type SQLMigration } from '../sqlMigration';
 import type { AnyColumnSchemaComponent } from './columnSchemaComponent';
 import { createTableSQL } from './createTableSQL';
-import { migrationName, schemaSegments } from './migrationName';
 import type { AnyIndexComponent } from './indexComponent';
+import { migrationName, schemaSegments } from './migrationName';
 import type { TableRelationships } from './relationships/relationshipTypes';
 
 export const tableComponentType: unique symbol = Symbol(
@@ -23,7 +19,7 @@ export const tableComponentType: unique symbol = Symbol(
 
 const tableMigrationName = (
   identifier: Readonly<{
-    databaseSchemaName: string | SQLDefaultSchemaNameToken | undefined;
+    databaseSchemaName: string | undefined;
     tableName: string;
   }>,
   kind: string | undefined,
@@ -72,7 +68,7 @@ export type TableComponent<
     relationships: Relationships;
     indexes: Indexes;
     withDatabaseSchemaName: (
-      databaseSchemaName: string | SQLDefaultSchemaNameToken,
+      databaseSchemaName: string,
     ) => TableComponent<Columns, TableName, Indexes, Relationships>;
     withTableName: <const NewTableName extends string>(
       tableName: NewTableName,
@@ -111,7 +107,7 @@ export type TableComponentOptions<
   Relationships extends TableRelationships<keyof Columns & string>,
 > = Readonly<{
   tableName: TableName;
-  databaseSchemaName?: string | SQLDefaultSchemaNameToken | undefined;
+  databaseSchemaName?: string | undefined;
   kind?: string | undefined;
   columns?: Columns | undefined;
   primaryKey?: ReadonlyArray<Extract<keyof Columns, string>> | undefined;
@@ -133,8 +129,7 @@ export const tableComponent = <
 ): TableComponent<Columns, TableName, Indexes, Relationships> => {
   const columns = (options.columns ?? {}) as Columns;
   const tableReference = SQLTableReference.from({
-    databaseSchemaName:
-      options.databaseSchemaName ?? SQLDefaultSchemaNameToken.from(),
+    databaseSchemaName: options.databaseSchemaName ?? DefaultDatabaseSchemaName,
     tableName: options.tableName,
   });
   const indexes = Object.fromEntries(
@@ -172,15 +167,8 @@ export const tableComponent = <
       indexes: schemaComponentMap(indexes),
       // spreading the receiver first keeps the properties outer factories
       // added to it, as Pongo does for its collection components
-      withDatabaseSchemaName(
-        databaseSchemaName: string | SQLDefaultSchemaNameToken,
-      ) {
-        if (
-          haveSameDatabaseSchemaName(
-            tableReference.databaseSchemaName,
-            databaseSchemaName,
-          )
-        )
+      withDatabaseSchemaName(databaseSchemaName: string) {
+        if (tableReference.databaseSchemaName === databaseSchemaName)
           return this;
 
         return {

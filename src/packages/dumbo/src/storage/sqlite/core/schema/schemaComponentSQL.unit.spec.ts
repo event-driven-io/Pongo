@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 import {
   createIndexSQL,
+  DefaultDatabaseSchemaName,
   indexComponent,
-  JSONSerializer,
   jsonDocumentIndexTarget,
   jsonPathIndexTarget,
+  JSONSerializer,
   SQL,
-  SQLDefaultSchemaNameToken,
   SQLTableReference,
 } from '../../../../core';
 import { sqliteFormatter } from '../sql';
@@ -40,7 +40,7 @@ describe('using Dumbo components in logical SQLite schemas', () => {
       format(
         SQL`${SQLTableReference.from({
           ...identifier,
-          databaseSchemaName: SQLDefaultSchemaNameToken.from(),
+          databaseSchemaName: DefaultDatabaseSchemaName,
         })}`,
       ),
       'users',

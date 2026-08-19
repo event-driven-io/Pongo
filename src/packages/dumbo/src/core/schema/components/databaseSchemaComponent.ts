@@ -1,4 +1,3 @@
-import type { SQLDefaultSchemaNameToken } from '../../sql';
 import { SQL, SQLCreateSchema } from '../../sql';
 import type { UnionToIntersection } from '../../typing';
 import type { AnyExtensionComponent } from '../extensionComponent';
@@ -23,7 +22,7 @@ const databaseSchemaMigrationName = (
 ): string => migrationName('schema', kind, [databaseSchemaName], 'create');
 
 const generatedDatabaseSchemaMigrations = (
-  databaseSchemaName: string | SQLDefaultSchemaNameToken,
+  databaseSchemaName: string,
   kind: string | undefined,
 ): ReadonlyArray<SQLMigration> => {
   if (typeof databaseSchemaName !== 'string') return [];
@@ -36,14 +35,14 @@ const generatedDatabaseSchemaMigrations = (
 };
 
 export const databaseSchemaLabel = (
-  databaseSchemaName: string | SQLDefaultSchemaNameToken | undefined,
+  databaseSchemaName: string | undefined,
 ): string =>
   typeof databaseSchemaName === 'string'
     ? databaseSchemaName
     : 'the default schema';
 
 export const assertTableNamesAreUnique = (
-  databaseSchemaName: string | SQLDefaultSchemaNameToken | undefined,
+  databaseSchemaName: string | undefined,
   tables: Iterable<AnyTableComponent>,
 ): void => {
   const tableNames = new Set<string>();
@@ -70,14 +69,12 @@ const placeIn = <
     Record<
       string,
       {
-        withDatabaseSchemaName: (
-          databaseSchemaName: string | SQLDefaultSchemaNameToken,
-        ) => unknown;
+        withDatabaseSchemaName: (databaseSchemaName: string) => unknown;
       }
     >
   >,
 >(
-  databaseSchemaName: string | SQLDefaultSchemaNameToken,
+  databaseSchemaName: string,
   components: Components,
 ): Components =>
   Object.fromEntries(
@@ -102,8 +99,7 @@ export type WithExtensionTables<
 
 export type DatabaseSchemaComponent<
   Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
-  SchemaName extends string | SQLDefaultSchemaNameToken =
-    string | SQLDefaultSchemaNameToken,
+  SchemaName extends string = string,
   Extensions extends SchemaExtensions = Readonly<Record<never, never>>,
 > = SchemaComponent<typeof databaseSchemaComponentType> &
   Readonly<{
@@ -122,13 +118,13 @@ export type DatabaseSchemaComponent<
 
 export type AnyDatabaseSchemaComponent = DatabaseSchemaComponent<
   DatabaseSchemaTables,
-  string | SQLDefaultSchemaNameToken,
+  string,
   SchemaExtensions
 >;
 
 export type DatabaseSchemaComponentOptions<
   Tables extends DatabaseSchemaTables,
-  SchemaName extends string | SQLDefaultSchemaNameToken,
+  SchemaName extends string,
   Extensions extends SchemaExtensions,
 > = Readonly<{
   schemaName: SchemaName;
@@ -136,15 +132,12 @@ export type DatabaseSchemaComponentOptions<
   tables?: Tables | undefined;
   extensions?: Extensions | undefined;
   migrations?:
-    | ((
-        databaseSchemaName: string | SQLDefaultSchemaNameToken,
-      ) => ReadonlyArray<SQLMigration>)
-    | undefined;
+    ((databaseSchemaName: string) => ReadonlyArray<SQLMigration>) | undefined;
 }>;
 
 export const databaseSchemaComponent = <
   const Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
-  const SchemaName extends string | SQLDefaultSchemaNameToken = string,
+  const SchemaName extends string = string,
   const Extensions extends SchemaExtensions = Readonly<Record<never, never>>,
 >(
   options: DatabaseSchemaComponentOptions<Tables, SchemaName, Extensions>,

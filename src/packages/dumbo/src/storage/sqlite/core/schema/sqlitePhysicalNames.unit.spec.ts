@@ -1,7 +1,7 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
 import {
-  SQLDefaultSchemaNameToken,
+  DefaultDatabaseSchemaName,
   type SQLIndexReference,
   type SQLTableReference,
 } from '../../../../core';
@@ -21,14 +21,14 @@ describe('using logical database schemas in SQLite', () => {
     assert.strictEqual(
       sqliteTableName({
         ...table,
-        databaseSchemaName: SQLDefaultSchemaNameToken.from(),
+        databaseSchemaName: DefaultDatabaseSchemaName,
       }),
       'users',
     );
     assert.strictEqual(
       sqliteIndexName({
         ...index,
-        databaseSchemaName: SQLDefaultSchemaNameToken.from(),
+        databaseSchemaName: DefaultDatabaseSchemaName,
       }),
       'users_email_idx',
     );
@@ -67,7 +67,7 @@ describe('using logical database schemas in SQLite', () => {
     assert.throws(
       () =>
         sqliteTableName({
-          databaseSchemaName: SQLDefaultSchemaNameToken.from(),
+          databaseSchemaName: DefaultDatabaseSchemaName,
           tableName: 'crm.users',
         }),
       /SQLite table names containing \. are reserved/,
@@ -75,7 +75,7 @@ describe('using logical database schemas in SQLite', () => {
     assert.throws(
       () =>
         sqliteIndexName({
-          databaseSchemaName: SQLDefaultSchemaNameToken.from(),
+          databaseSchemaName: DefaultDatabaseSchemaName,
           tableName: 'users',
           indexName: 'users.email_idx',
         }),

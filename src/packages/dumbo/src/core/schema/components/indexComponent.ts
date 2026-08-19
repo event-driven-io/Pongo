@@ -5,7 +5,6 @@ import {
   SQLJSONDocumentIndexTarget,
   SQLJSONPathTarget,
   SQLTableReference,
-  type SQLDefaultSchemaNameToken,
 } from '../../sql';
 import { schemaComponent, type SchemaComponent } from '../schemaComponent';
 import { sqlMigration, type SQLMigration } from '../sqlMigration';
@@ -18,7 +17,7 @@ export const indexComponentType: unique symbol = Symbol(
 
 const indexMigrationName = (
   identifier: Readonly<{
-    databaseSchemaName: string | SQLDefaultSchemaNameToken | undefined;
+    databaseSchemaName: string | undefined;
     tableName: string;
     indexName: string;
   }>,
@@ -36,7 +35,7 @@ const indexMigrationName = (
   );
 
 export type IndexSQLContext = Readonly<{
-  databaseSchemaName: string | SQLDefaultSchemaNameToken;
+  databaseSchemaName: string;
   tableName: string;
   indexName: string;
   tableReference: SQL;

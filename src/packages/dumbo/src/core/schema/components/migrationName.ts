@@ -1,12 +1,12 @@
-import { SQLDefaultSchemaNameToken } from '../../sql';
+import { DefaultDatabaseSchemaName } from '../../sql';
 
 const encodeSegment = (segment: string): string => encodeURIComponent(segment);
 
 export const schemaSegments = (
-  databaseSchemaName: string | SQLDefaultSchemaNameToken | undefined,
+  databaseSchemaName: string | undefined,
 ): ReadonlyArray<string> =>
   databaseSchemaName === undefined ||
-  SQLDefaultSchemaNameToken.check(databaseSchemaName)
+  databaseSchemaName === DefaultDatabaseSchemaName
     ? []
     : [databaseSchemaName];
 

@@ -1,31 +1,31 @@
 import assert from 'assert';
 import fs from 'fs';
-import { afterEach, beforeEach, describe, it } from 'vitest';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { afterEach, beforeEach, describe, it } from 'vitest';
 import { InMemorySQLiteDatabase, SQLiteConnectionString } from '..';
 import {
   count,
+  DefaultDatabaseSchemaName,
   dumbo,
   single,
   SQL,
   SQLCreateSchema,
-  SQLDefaultSchemaNameToken,
   type Dumbo,
 } from '../../../..';
 import {
   databaseComponent,
   databaseSchemaComponent,
+  extensionComponent,
   indexComponent,
   runSQLMigrations,
-  extensionComponent,
   sqlMigration,
   tableComponent,
   type SQLMigration,
 } from '../../../../core/schema';
 import {
-  SQLite3DriverType,
   indexExists,
+  SQLite3DriverType,
   tableExists,
 } from '../../../../sqlite3';
 
@@ -346,7 +346,7 @@ describe('Migration Integration Tests', () => {
           databaseName: 'app',
           schemas: {
             main: databaseSchemaComponent({
-              schemaName: SQLDefaultSchemaNameToken.from(),
+              schemaName: DefaultDatabaseSchemaName,
               tables: { users },
             }),
           },

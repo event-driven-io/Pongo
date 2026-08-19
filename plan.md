@@ -49,7 +49,7 @@ Placement is carried by `SchemaComponentContext`:
 ```ts
 type SchemaComponentContext = Readonly<{
   defaults?: Readonly<{ schemaName?: string | undefined }> | undefined;
-  databaseSchemaName?: string | SQLDefaultSchemaNameToken | undefined;
+  databaseSchemaName?: string | DefaultDatabaseSchemaName | undefined;
   tableName?: string | undefined;
   skipGeneratedInitialMigrations?: boolean | undefined;
 }>;

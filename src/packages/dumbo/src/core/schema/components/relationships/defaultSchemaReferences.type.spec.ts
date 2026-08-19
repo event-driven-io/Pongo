@@ -1,16 +1,16 @@
 import { describe, it } from 'vitest';
-import { SQL, SQLDefaultSchemaNameToken } from '../../../sql';
+import { DefaultDatabaseSchemaName, SQL } from '../../../sql';
 import type { Equals, Expect, IsError } from '../../../testing';
 import type { TypeValidationResult } from '../../../typing';
 import { dumboSchema } from '../../dumboSchema';
 import { databaseSchemaComponent } from '../databaseSchemaComponent';
 import type { InferTableComponentColumns } from '../tableComponent';
-import { relationship } from './relationshipTypes';
+import type { FormatSingleError } from './formatRelationshipErrors';
 import type {
   DefaultSchemaKey,
   NormalizeColumnPath,
 } from './relationshipTypes';
-import type { FormatSingleError } from './formatRelationshipErrors';
+import { relationship } from './relationshipTypes';
 import type {
   ValidateReference,
   ValidateRelationship,
@@ -22,7 +22,7 @@ const { Integer, BigInteger } = SQL.column.type;
 
 describe('DefaultSchemaKey', () => {
   it('is the default schema name token type', () => {
-    type _Then = Expect<Equals<DefaultSchemaKey, 'SQLDefaultSchemaNameToken'>>;
+    type _Then = Expect<Equals<DefaultSchemaKey, DefaultDatabaseSchemaName>>;
   });
 });
 
@@ -94,7 +94,7 @@ describe('default schema references', () => {
   });
 
   const _defaultSchema = databaseSchemaComponent({
-    schemaName: SQLDefaultSchemaNameToken.from(),
+    schemaName: DefaultDatabaseSchemaName,
     tables: {
       users: usersTable,
       posts: postsTable,

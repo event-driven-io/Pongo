@@ -1,4 +1,4 @@
-import type { AnyColumnTypeToken, SQLDefaultSchemaNameToken } from '../../sql';
+import type { AnyColumnTypeToken, DefaultDatabaseSchemaName } from '../../sql';
 import type { DefaultSchemaKey, ValidateDatabaseSchemas } from '../components';
 import {
   columnSchemaComponent,
@@ -117,7 +117,7 @@ type DeclaredSchemas<
 > = Readonly<
   Record<
     DefaultSchemaKey,
-    DatabaseSchemaComponent<Tables, SQLDefaultSchemaNameToken>
+    DatabaseSchemaComponent<Tables, DefaultDatabaseSchemaName>
   >
 > &
   Schemas;

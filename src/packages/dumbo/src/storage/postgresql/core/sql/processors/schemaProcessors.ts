@@ -1,5 +1,5 @@
 import {
-  SQLDefaultSchemaNameToken,
+  DefaultDatabaseSchemaName,
   SQLIdentifier,
   SQLProcessor,
   type SQLCreateSchema,
@@ -10,10 +10,6 @@ import {
   type SQLTableReference,
 } from '../../../../../core';
 import { PostgreSQLJSON } from '../json';
-
-const isDefaultSchema = (
-  databaseSchemaName: string | SQLDefaultSchemaNameToken,
-): boolean => SQLDefaultSchemaNameToken.check(databaseSchemaName);
 
 const addIdentifier = (
   name: string,
@@ -28,8 +24,8 @@ export const PostgreSQLTableReferenceProcessor: SQLProcessor<SQLTableReference> 
   SQLProcessor({
     canHandle: 'SQL_TABLE_REFERENCE',
     handle: (token, context) => {
-      if (!isDefaultSchema(token.databaseSchemaName)) {
-        addIdentifier(token.databaseSchemaName as string, context);
+      if (token.databaseSchemaName !== DefaultDatabaseSchemaName) {
+        addIdentifier(token.databaseSchemaName, context);
         context.builder.addSQL('.');
       }
       addIdentifier(token.tableName, context);
@@ -69,9 +65,9 @@ export const PostgreSQLCreateSchemaProcessor: SQLProcessor<SQLCreateSchema> =
   SQLProcessor({
     canHandle: 'SQL_CREATE_SCHEMA',
     handle: (token, context) => {
-      if (isDefaultSchema(token.databaseSchemaName)) return;
+      if (token.databaseSchemaName === DefaultDatabaseSchemaName) return;
 
       context.builder.addSQL('CREATE SCHEMA IF NOT EXISTS ');
-      addIdentifier(token.databaseSchemaName as string, context);
+      addIdentifier(token.databaseSchemaName, context);
     },
   });

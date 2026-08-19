@@ -68,23 +68,11 @@ export const SQLIdentifier = SQLToken<SQLIdentifier, string>(
     value,
   }),
 );
-export type SQLDefaultSchemaNameToken = SQLToken<'SQLDefaultSchemaNameToken'>;
-export const SQLDefaultSchemaNameToken = SQLToken<SQLDefaultSchemaNameToken>(
-  'SQLDefaultSchemaNameToken',
-);
-
-export const haveSameDatabaseSchemaName = (
-  left: string | SQLDefaultSchemaNameToken,
-  right: string | SQLDefaultSchemaNameToken,
-): boolean =>
-  SQLDefaultSchemaNameToken.check(left)
-    ? SQLDefaultSchemaNameToken.check(right)
-    : left === right;
 
 export type SQLTableReference = SQLToken<
   'SQL_TABLE_REFERENCE',
   {
-    databaseSchemaName: string | SQLDefaultSchemaNameToken;
+    databaseSchemaName: string;
     tableName: string;
   }
 >;
@@ -97,12 +85,12 @@ export const haveSameTableReference = (
   right: SQLTableReference,
 ): boolean =>
   left.tableName === right.tableName &&
-  haveSameDatabaseSchemaName(left.databaseSchemaName, right.databaseSchemaName);
+  left.databaseSchemaName === right.databaseSchemaName;
 
 export type SQLIndexReference = SQLToken<
   'SQL_INDEX_REFERENCE',
   {
-    databaseSchemaName: string | SQLDefaultSchemaNameToken;
+    databaseSchemaName: string;
     tableName: string;
     indexName: string;
   }
@@ -111,9 +99,12 @@ export const SQLIndexReference = SQLToken<SQLIndexReference>(
   'SQL_INDEX_REFERENCE',
 );
 
+export type DefaultDatabaseSchemaName = 'dmb:database:schema:default:name';
+export const DefaultDatabaseSchemaName = 'dmb:database:schema:default:name';
+
 export type SQLCreateSchema = SQLToken<
   'SQL_CREATE_SCHEMA',
-  { databaseSchemaName: string | SQLDefaultSchemaNameToken }
+  { databaseSchemaName: string }
 >;
 export const SQLCreateSchema = SQLToken<SQLCreateSchema>('SQL_CREATE_SCHEMA');
 

@@ -1,23 +1,21 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
+import { sqliteFormatter } from '.';
 import { JSONSerializer } from '../../../../../core';
 import {
+  DefaultDatabaseSchemaName,
   SQL,
   SQLCreateSchema,
-  SQLDefaultSchemaNameToken,
   SQLTableReference,
 } from '../../../../../core/sql';
-import { sqliteFormatter } from '.';
 
 const format = (sql: SQL): string =>
   sqliteFormatter.format(sql, { serializer: JSONSerializer }).query;
 
-const tableIn = (
-  databaseSchemaName: string | SQLDefaultSchemaNameToken,
-  tableName = 'users',
-) => SQL`${SQLTableReference.from({ databaseSchemaName, tableName })}`;
+const tableIn = (databaseSchemaName: string, tableName = 'users') =>
+  SQL`${SQLTableReference.from({ databaseSchemaName, tableName })}`;
 
-const createSchema = (databaseSchemaName: string | SQLDefaultSchemaNameToken) =>
+const createSchema = (databaseSchemaName: string) =>
   SQL`${SQLCreateSchema.from({ databaseSchemaName })}`;
 
 describe('declaring a table and running it on SQLite', () => {
@@ -26,10 +24,7 @@ describe('declaring a table and running it on SQLite', () => {
   });
 
   it('drops the qualifier for the default schema', () => {
-    assert.strictEqual(
-      format(tableIn(SQLDefaultSchemaNameToken.from())),
-      'users',
-    );
+    assert.strictEqual(format(tableIn(DefaultDatabaseSchemaName)), 'users');
   });
 
   it('treats a spelled-out default schema name as a named schema', () => {
@@ -49,7 +44,7 @@ describe('declaring a table and running it on SQLite', () => {
   });
 
   it('refuses a native SQLite table name that would collide with a mapped one', () => {
-    const reserved = tableIn(SQLDefaultSchemaNameToken.from(), 'crm.users');
+    const reserved = tableIn(DefaultDatabaseSchemaName, 'crm.users');
 
     assert.throws(
       () => sqliteFormatter.format(reserved, { serializer: JSONSerializer }),
@@ -71,9 +66,6 @@ describe('creating the schema a table was declared in on SQLite', () => {
   });
 
   it('creates nothing for the default schema', () => {
-    assert.strictEqual(
-      format(createSchema(SQLDefaultSchemaNameToken.from())),
-      '',
-    );
+    assert.strictEqual(format(createSchema(DefaultDatabaseSchemaName)), '');
   });
 });

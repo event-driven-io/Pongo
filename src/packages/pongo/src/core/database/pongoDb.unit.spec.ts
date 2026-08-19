@@ -1,16 +1,16 @@
-import assert from 'node:assert';
 import {
   databaseSchemaComponent,
+  DefaultDatabaseSchemaName,
   dumboSchema,
   JSONSerializer,
   SQL,
-  SQLDefaultSchemaNameToken,
   SQLTableReference,
-  type AnyConnection,
   type Abort,
+  type AnyConnection,
   type ConnectionPool,
   type DatabaseTransactionOptions,
 } from '@event-driven-io/dumbo';
+import assert from 'node:assert';
 import { describe, it } from 'vitest';
 import type { PongoCollectionSQLBuilder } from '../collection';
 import {
@@ -143,10 +143,9 @@ describe('using a Pongo database', () => {
     const users = db.collection('users');
 
     assert.notStrictEqual(db.schema.component, initial);
-    assert.ok(
-      SQLDefaultSchemaNameToken.check(
-        db.schema.component.defaultSchema.schemaName,
-      ),
+    assert.strictEqual(
+      db.schema.component.defaultSchema.schemaName,
+      DefaultDatabaseSchemaName,
     );
     assert.strictEqual(
       db.schema.component.tables.users,

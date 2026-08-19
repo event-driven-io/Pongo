@@ -13,7 +13,7 @@ The foundations that stay are:
 - placement passed downward through `SchemaComponentContext`;
 - one migration traversal with deterministic ordering and deduplication;
 - dialect-neutral SQL tokens;
-- `SQLDefaultSchemaNameToken` as the logical default-schema marker;
+- `DefaultDatabaseSchemaName` as the logical default-schema marker;
 - named database schemas;
 - strong typing for declared Pongo collections and schemas.
 
@@ -58,7 +58,7 @@ deletion criterion.
 | 4   | A standalone index cannot generate DDL without table context. It throws a clear placement error; no assertion or cast supplies a missing table.                                                                                                                                                                                                                                                                                                            |
 | 5   | Generated migration names use `<type>:[<kind>:]<encoded-path>:<operation>`. `kind` is optional, has no default, and is emitted directly after the type segment only when the factory caller sets it. Because the migrator looks migrations up by name alone, a `kind` value is part of the migration's identity: it records what the object is, never where its declaration came from. There is no number segment. Index paths retain their table segment. |
 | 6   | Every migration name is validated against the migration ledger's 255-character limit before execution. The `kind` segment and every generated path segment are independently encoded so distinct identifiers cannot collide.                                                                                                                                                                                                                               |
-| 7   | An unresolved `SQLDefaultSchemaNameToken` emits no create-schema migration. If Pongo binds that logical default slot to a concrete `defaultSchemaName`, it emits the same dialect-neutral `SQLCreateSchema` migration as an explicitly named schema.                                                                                                                                                                                                       |
+| 7   | An unresolved `DefaultDatabaseSchemaName` emits no create-schema migration. If Pongo binds that logical default slot to a concrete `defaultSchemaName`, it emits the same dialect-neutral `SQLCreateSchema` migration as an explicitly named schema.                                                                                                                                                                                                       |
 | 8   | Empty rendered SQL is still filtered by the migrator. This is required because named-schema creation renders empty on SQLite.                                                                                                                                                                                                                                                                                                                              |
 | 9   | An extension is flat and is table-scoped, schema-scoped, or migration-only. It does not contain nested extensions or mix placement-free `tables` with self-placing `schemas`. Placement follows the extension's own scope: table extensions attach to a named schema, or to a database, where they are placed in its default schema; schema extensions attach to a database directly.                                                                      |
 | 10  | Extension schemas are not flattened into `database.schemas`. They remain under the extension that owns them.                                                                                                                                                                                                                                                                                                                                               |
@@ -136,7 +136,7 @@ contribute Dumbo placement:
 {
   ...parent,
   databaseSchemaName:
-    parent.defaults?.schemaName ?? SQLDefaultSchemaNameToken.from(),
+    parent.defaults?.schemaName ?? DefaultDatabaseSchemaName,
 }
 
 // Table: always contribute its own table name.
@@ -152,7 +152,7 @@ extensions.
 ```ts
 type SchemaComponentContext = Readonly<{
   defaults?: Readonly<{ schemaName?: string }>;
-  databaseSchemaName?: string | SQLDefaultSchemaNameToken;
+  databaseSchemaName?: string | DefaultDatabaseSchemaName;
   tableName?: string;
 }>;
 ```
@@ -239,7 +239,7 @@ DatabaseComponent<Name, Tables, Schemas, Extensions> = {
 ```
 
 `databaseComponent` always constructs the `defaultSchema`, a
-`databaseSchemaComponent` carrying `SQLDefaultSchemaNameToken`, and places the
+`databaseSchemaComponent` carrying `DefaultDatabaseSchemaName`, and places the
 direct tables and table-contributing extensions under it. `database.tables` is a
 getter onto `defaultSchema.tables`, so there is one source of truth and tables,
 extensions, or their owning database component are never cloned or rebuilt.
@@ -388,7 +388,7 @@ Pongo passes a configured value as `defaults.schemaName` in the parent
 migration context. The default schema child converts it into actual
 `databaseSchemaName`; named schemas set their explicit name independently.
 Runtime SQL identifiers use the same configured value, or
-`SQLDefaultSchemaNameToken` when none was configured.
+`DefaultDatabaseSchemaName` when none was configured.
 
 With `defaultSchemaName: 'analytics'`:
 
@@ -627,7 +627,7 @@ the same step. After each step, run the standard gate from
   `SchemaComponentContext` as a database policy distinct from actual
   `databaseSchemaName` placement. The
   default schema child converts that policy into actual placement and otherwise
-  contributes `SQLDefaultSchemaNameToken`.
+  contributes `DefaultDatabaseSchemaName`.
 - Table context always contributes `tableName`.
 - Make index migration generation throw a clear error when `tableName` is absent
   from context. Do not use `!`, a cast, or a synthetic table name.
@@ -664,7 +664,7 @@ the same step. After each step, run the standard gate from
   must be rejected by the physical-identity checks required in Steps 5 and 6,
   which compare resolved schema and table names rather than migration names.
 - Do not emit a generated create-schema migration when the scoped placement
-  remains `SQLDefaultSchemaNameToken`. Continue running custom migrations and
+  remains `DefaultDatabaseSchemaName`. Continue running custom migrations and
   children of that component.
 - When a logical-default schema child receives a concrete default binding from
   Pongo, emit `schema:<encoded-name>:create` and `SQLCreateSchema` for that
@@ -728,7 +728,7 @@ shape; they are the default schema's tables. Every rule below follows from that.
 - `DatabaseComponent` becomes `DatabaseComponent<DatabaseName, Tables, Schemas,
 Extensions>`, matching the options object order. It exposes:
   - `defaultSchema`, always present, a real `databaseSchemaComponent` named by
-    `SQLDefaultSchemaNameToken`, holding the direct tables. It is visible, not a
+    `DefaultDatabaseSchemaName`, holding the direct tables. It is visible, not a
     hidden private component;
   - `schemas`, the explicitly named schemas, whose record keys continue to equal
     their explicit `schemaName`. The default schema is not in this record,
@@ -766,7 +766,7 @@ migrations? }`. Keep the optional database name positional. Remove the
   supporting changes make that work, both inside the existing stack:
   - separate a schema's lookup key from its name. Named schemas key by their
     name and behave identically to before; the nameless default schema keys by
-    a stable well-known value derived from `SQLDefaultSchemaNameToken`, never
+    a stable well-known value derived from `DefaultDatabaseSchemaName`, never
     by `''`, an ad-hoc magic string, or a freshly allocated token;
   - a nameless schema contributes no segment. Reference paths are built as
     `table.column` for the default schema and `schema.table.column` for a named
@@ -824,7 +824,7 @@ migrations? }`. Keep the optional database name positional. Remove the
 - Keep `defaultSchemaName` on `PongoClientOptions`, `PongoDbOptions`, driver
   factory options, and `PongoDatabaseOptions`.
 - Keep the configured string as `defaults.schemaName` and derive one
-  runtime placement value: that string or `SQLDefaultSchemaNameToken` when it is
+  runtime placement value: that string or `DefaultDatabaseSchemaName` when it is
   absent.
 - Pass only a configured string as `defaults.schemaName` in the parent
   migration context. The default schema child converts it into actual
