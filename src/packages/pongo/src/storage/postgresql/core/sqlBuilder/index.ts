@@ -3,7 +3,10 @@ import {
   isSQL,
   JSONParam,
   SQL,
+  SQLCreateSchema,
+  SQLDefaultSchemaNameToken,
   type JSONSerializer,
+  type SQLIdentifier,
 } from '@event-driven-io/dumbo';
 import { PostgreSQLJSON } from '@event-driven-io/dumbo/postgresql';
 import {
@@ -26,7 +29,7 @@ import { constructFilterQuery } from './filter';
 import { buildUpdateQuery } from './update';
 
 const versionCheckClause = (
-  collection: SQL,
+  collection: SQL | SQLIdentifier,
   expectedVersion: ExpectedDocumentVersion | undefined,
 ): SQL => {
   const predicate = expectedVersionPredicate(expectedVersion);
@@ -37,18 +40,30 @@ const versionCheckClause = (
 
 export const postgresSQLBuilder = (
   collection: PongoCollectionComponent,
-  reference: SQL,
+  {
+    tableReference,
+    databaseSchemaName,
+  }: Readonly<{
+    tableReference: SQL | SQLIdentifier;
+    databaseSchemaName: string | SQLDefaultSchemaNameToken;
+  }>,
   serializer: JSONSerializer,
 ): PongoCollectionSQLBuilder => {
   return {
-    createCollection: (): SQL => createTableSQL(collection, reference),
+    createCollection: (): SQL[] =>
+      SQLDefaultSchemaNameToken.check(databaseSchemaName)
+        ? [createTableSQL(collection, tableReference)]
+        : [
+            SQL`${SQLCreateSchema.from({ databaseSchemaName })}`,
+            createTableSQL(collection, tableReference),
+          ],
     insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
       const serialized = JSONParam.document(document, serializer);
       const id = document._id;
       const version = document._version ?? 1n;
 
       return SQL`
-      INSERT INTO ${reference} (_id, data, _version)
+      INSERT INTO ${tableReference} (_id, data, _version)
       VALUES (${id}, ${serialized}, ${version}) ON CONFLICT(_id) DO NOTHING;`;
     },
     insertMany: <T>(
@@ -63,12 +78,12 @@ export const postgresSQLBuilder = (
       );
 
       return SQL`
-      INSERT INTO ${reference} (_id, data, _version) VALUES ${values}
+      INSERT INTO ${tableReference} (_id, data, _version) VALUES ${values}
       ON CONFLICT(_id) DO NOTHING
       RETURNING _id;`;
     },
     insertOrReplace: <T>(documents: Array<WithId<T>>): SQL => {
-      const col = reference;
+      const col = tableReference;
       const values = SQL.merge(
         documents.map(
           (d) =>
@@ -93,7 +108,7 @@ export const postgresSQLBuilder = (
       options?: UpdateOneOptions,
     ): SQL => {
       const expectedVersionUpdate = versionCheckClause(
-        reference,
+        tableReference,
         options?.expectedVersion,
       );
 
@@ -107,17 +122,17 @@ export const postgresSQLBuilder = (
       return SQL`
       WITH existing AS (
         SELECT _id, _version as current_version
-        FROM ${reference} ${where(filterQuery)}
+        FROM ${tableReference} ${where(filterQuery)}
         LIMIT 1
       ),
       updated AS (
-        UPDATE ${reference}
+        UPDATE ${tableReference}
         SET
-          data = ${updateQuery} || jsonb_build_object('_id', ${reference}._id) || jsonb_build_object('_version', (_version + 1)::text),
+          data = ${updateQuery} || jsonb_build_object('_id', ${tableReference}._id) || jsonb_build_object('_version', (_version + 1)::text),
           _version = _version + 1
         FROM existing
-        WHERE ${reference}._id = existing._id ${expectedVersionUpdate}
-        RETURNING ${reference}._id, ${reference}._version
+        WHERE ${tableReference}._id = existing._id ${expectedVersionUpdate}
+        RETURNING ${tableReference}._id, ${tableReference}._version
       )
       SELECT
         existing._id,
@@ -134,7 +149,7 @@ export const postgresSQLBuilder = (
       options?: ReplaceOneOptions,
     ): SQL => {
       const expectedVersionUpdate = versionCheckClause(
-        reference,
+        tableReference,
         options?.expectedVersion,
       );
 
@@ -145,17 +160,17 @@ export const postgresSQLBuilder = (
       return SQL`
       WITH existing AS (
         SELECT _id, _version as current_version
-        FROM ${reference} ${where(filterQuery)}
+        FROM ${tableReference} ${where(filterQuery)}
         LIMIT 1
       ),
       updated AS (
-        UPDATE ${reference}
+        UPDATE ${tableReference}
         SET
-          data = ${JSONParam.document(document, serializer)} || jsonb_build_object('_id', ${reference}._id) || jsonb_build_object('_version', (_version + 1)::text),
+          data = ${JSONParam.document(document, serializer)} || jsonb_build_object('_id', ${tableReference}._id) || jsonb_build_object('_version', (_version + 1)::text),
           _version = _version + 1
         FROM existing
-        WHERE ${reference}._id = existing._id ${expectedVersionUpdate}
-        RETURNING ${reference}._id, ${reference}._version
+        WHERE ${tableReference}._id = existing._id ${expectedVersionUpdate}
+        RETURNING ${tableReference}._id, ${tableReference}._version
       )
       SELECT
         existing._id,
@@ -178,7 +193,7 @@ export const postgresSQLBuilder = (
         : buildUpdateQuery(update, serializer);
 
       return SQL`
-      UPDATE ${reference}
+      UPDATE ${tableReference}
       SET
         data = ${updateQuery} || jsonb_build_object('_version', (_version + 1)::text),
         _version = _version + 1
@@ -189,7 +204,7 @@ export const postgresSQLBuilder = (
       options?: DeleteOneOptions,
     ): SQL => {
       const expectedVersionUpdate = versionCheckClause(
-        reference,
+        tableReference,
         options?.expectedVersion,
       );
 
@@ -200,14 +215,14 @@ export const postgresSQLBuilder = (
       return SQL`
       WITH existing AS (
         SELECT _id
-        FROM ${reference} ${where(filterQuery)}
+        FROM ${tableReference} ${where(filterQuery)}
         LIMIT 1
       ),
       deleted AS (
-        DELETE FROM ${reference}
+        DELETE FROM ${tableReference}
         USING existing
-        WHERE ${reference}._id = existing._id ${expectedVersionUpdate}
-        RETURNING ${reference}._id
+        WHERE ${tableReference}._id = existing._id ${expectedVersionUpdate}
+        RETURNING ${tableReference}._id
       )
       SELECT
         existing._id,
@@ -222,7 +237,7 @@ export const postgresSQLBuilder = (
         ? filter
         : constructFilterQuery(filter, serializer);
 
-      return SQL`DELETE FROM ${reference} ${where(filterQuery)}`;
+      return SQL`DELETE FROM ${tableReference} ${where(filterQuery)}`;
     },
     replaceMany: <T>(
       documents: Array<WithIdAndVersion<T>> | Array<WithId<T>>,
@@ -245,7 +260,7 @@ export const postgresSQLBuilder = (
         WITH replacements(_id, data, expected_version) AS (
           VALUES ${values}
         )
-        UPDATE ${reference} t
+        UPDATE ${tableReference} t
         SET
           data = r.data
             || jsonb_build_object('_id', t._id)
@@ -267,7 +282,7 @@ export const postgresSQLBuilder = (
       WITH replacements(_id, data) AS (
         VALUES ${values}
       )
-      UPDATE ${reference} t
+      UPDATE ${tableReference} t
       SET
         data = r.data
           || jsonb_build_object('_id', t._id)
@@ -291,7 +306,7 @@ export const postgresSQLBuilder = (
           VALUES ${values}
         ),
         deleted AS (
-          DELETE FROM ${reference} t
+          DELETE FROM ${tableReference} t
           USING targets r
           WHERE t._id = r._id AND t._version = r.expected_version
           RETURNING t._id
@@ -312,7 +327,7 @@ export const postgresSQLBuilder = (
         VALUES ${values}
       ),
       deleted AS (
-        DELETE FROM ${reference} t
+        DELETE FROM ${tableReference} t
         USING targets r
         WHERE t._id = r._id
         RETURNING t._id
@@ -327,7 +342,7 @@ export const postgresSQLBuilder = (
         ? filter
         : constructFilterQuery(filter, serializer);
 
-      return SQL`SELECT data, _id, _version FROM ${reference} ${where(filterQuery)} LIMIT 1;`;
+      return SQL`SELECT data, _id, _version FROM ${tableReference} ${where(filterQuery)} LIMIT 1;`;
     },
     find: <T>(filter: PongoFilter<T> | SQL, options?: FindOptions): SQL => {
       const filterQuery = isSQL(filter)
@@ -335,7 +350,7 @@ export const postgresSQLBuilder = (
         : constructFilterQuery(filter, serializer);
       const query: SQL[] = [];
 
-      query.push(SQL`SELECT data, _id, _version FROM ${reference}`);
+      query.push(SQL`SELECT data, _id, _version FROM ${tableReference}`);
 
       query.push(where(filterQuery));
 
@@ -371,11 +386,11 @@ export const postgresSQLBuilder = (
       const filterQuery = SQL.check.isSQL(filter)
         ? filter
         : constructFilterQuery(filter, serializer);
-      return SQL`SELECT COUNT(1) as count FROM ${reference} ${where(filterQuery)};`;
+      return SQL`SELECT COUNT(1) as count FROM ${tableReference} ${where(filterQuery)};`;
     },
     rename: (newName: string): SQL =>
-      SQL`ALTER TABLE ${reference} RENAME TO ${SQL.identifier(newName)};`,
-    drop: (): SQL => SQL`DROP TABLE IF EXISTS ${reference}`,
+      SQL`ALTER TABLE ${tableReference} RENAME TO ${SQL.identifier(newName)};`,
+    drop: (): SQL => SQL`DROP TABLE IF EXISTS ${tableReference}`,
   };
 };
 

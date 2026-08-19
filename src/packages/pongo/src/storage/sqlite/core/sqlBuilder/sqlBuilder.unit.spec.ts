@@ -114,8 +114,8 @@ describe('sqliteSQLBuilder', () => {
 
   describe('createCollection', () => {
     it('creates a collection from its Dumbo columns', () => {
-      const result = builder.createCollection();
-      const { query } = formatSQL(result, sqliteFormatter);
+      const [result] = builder.createCollection();
+      const { query } = formatSQL(result!, sqliteFormatter);
 
       assert.strictEqual(
         query,
@@ -237,7 +237,7 @@ describe('sqliteSQLBuilder', () => {
     }[] = [
       {
         name: 'createCollection',
-        sql: (builder) => builder.createCollection(),
+        sql: (builder) => SQL.merge(builder.createCollection(), '; '),
         defaultIncludes: 'CREATE TABLE IF NOT EXISTS users',
         schemaIncludes: 'CREATE TABLE IF NOT EXISTS "crm.users"',
       },

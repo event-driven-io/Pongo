@@ -139,7 +139,8 @@ export const PongoDatabase = <
         pool,
         component,
         databaseSchemaName: identifier.databaseSchemaName,
-        sqlBuilder: options.sqlBuilderFor(component, identifier),
+        sqlBuilderFor: (tableName) =>
+          options.sqlBuilderFor(component, { ...identifier, tableName }),
         schema: { ...options.schema, ...collectionRuntimeSchema },
         serializer,
         errors: { ...options.errors, ...collectionOptions?.errors },

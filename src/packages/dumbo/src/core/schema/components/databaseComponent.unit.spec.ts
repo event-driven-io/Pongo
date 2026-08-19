@@ -397,4 +397,13 @@ describe('database.withTable(tables, schemaName)', () => {
       ['schema:crm:create', 'table:crm:users:create'],
     );
   });
+
+  it('creates a named schema whose name collides with an Object prototype member', () => {
+    const users = table('users');
+
+    const next = databaseComponent({}).withTable({ users }, 'toString');
+
+    assert.strictEqual(next.schemas.toString.schemaName, 'toString');
+    assert.strictEqual(next.schemas.toString.tables.users, users);
+  });
 });

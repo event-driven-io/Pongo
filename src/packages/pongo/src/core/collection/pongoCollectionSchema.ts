@@ -13,7 +13,7 @@ import type {
 } from '../typing';
 
 export type PongoCollectionSQLBuilder = {
-  createCollection: () => SQL;
+  createCollection: () => SQL[];
   insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>) => SQL;
   insertMany: <T>(documents: OptionalUnlessRequiredIdAndVersion<T>[]) => SQL;
   insertOrReplace: <T>(documents: Array<WithId<T>>) => SQL;

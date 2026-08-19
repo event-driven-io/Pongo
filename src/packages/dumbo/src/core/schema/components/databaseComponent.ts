@@ -259,8 +259,9 @@ export const databaseComponent = <
         });
       }
 
-      const schema =
-        schemas[schemaName] ?? databaseSchemaComponent({ schemaName });
+      const schema = Object.hasOwn(schemas, schemaName)
+        ? schemas[schemaName]!
+        : databaseSchemaComponent({ schemaName });
       const nextSchema = schema.withTable(added);
 
       return component.withSchema({ [schemaName]: nextSchema });

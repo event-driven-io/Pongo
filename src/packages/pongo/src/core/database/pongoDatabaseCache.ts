@@ -75,9 +75,9 @@ export const PongoDatabaseCache = <
       );
       const resolvedNames = resolvePongoDatabaseNames({
         metadata,
-        databaseName: createOptions.databaseName,
-        declaredDatabaseName:
-          declaredDefinition?.databaseName ?? schemaDefinition?.databaseName,
+        databaseName:
+          declaredDefinition?.databaseName ?? createOptions.databaseName,
+        declaredDatabaseName: schemaDefinition?.databaseName,
         defaultSchemaName: createOptions.defaultSchemaName,
         connectionString:
           'connectionString' in createOptions

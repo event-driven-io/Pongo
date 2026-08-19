@@ -79,7 +79,10 @@ const builderFor = (
 ): PongoCollectionSQLBuilder =>
   postgresSQLBuilder(
     fixture.collection,
-    postgreSQLTableReference(fixture.identifier),
+    {
+      tableReference: postgreSQLTableReference(fixture.identifier),
+      databaseSchemaName: fixture.identifier.databaseSchemaName,
+    },
     JSONSerializer,
   );
 
@@ -350,7 +353,7 @@ describe('postgres collection schema migrations', () => {
   }[] = [
     {
       name: 'createCollection',
-      sql: (builder) => builder.createCollection(),
+      sql: (builder) => SQL.merge(builder.createCollection(), '; '),
       defaultIncludes: 'CREATE TABLE IF NOT EXISTS users',
       schemaIncludes: 'CREATE TABLE IF NOT EXISTS crm.users',
     },

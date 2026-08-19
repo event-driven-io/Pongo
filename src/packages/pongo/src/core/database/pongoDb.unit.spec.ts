@@ -24,7 +24,7 @@ const migrationNames = (migrations: ReadonlyArray<{ name: string }>) =>
 
 const emptySQL = () => SQL``;
 const stubSQLBuilder: PongoCollectionSQLBuilder = {
-  createCollection: emptySQL,
+  createCollection: () => [SQL``],
   insertOne: emptySQL,
   insertMany: emptySQL,
   insertOrReplace: emptySQL,

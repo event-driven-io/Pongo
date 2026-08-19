@@ -59,4 +59,23 @@ describe('creating a table from a Dumbo declaration in SQLite', () => {
     assert.deepStrictEqual(result.params, []);
     assert.strictEqual(result.query.includes('BLOB'), false);
   });
+
+  it('creates an unbounded VARCHAR column for the max length', () => {
+    const table = dumboSchema.table('accounts', {
+      columns: {
+        name: dumboSchema.column('name', SQL.column.type.Varchar('max')),
+        code: dumboSchema.column('code', SQL.column.type.Varchar(10)),
+      },
+    });
+
+    const result = sqliteFormatter.format(
+      createTableSQL(table, SQL.identifier('accounts')),
+      { serializer: JSONSerializer },
+    );
+
+    assert.strictEqual(
+      result.query,
+      'CREATE TABLE IF NOT EXISTS accounts (name VARCHAR, code VARCHAR (10))',
+    );
+  });
 });
