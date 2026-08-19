@@ -87,6 +87,15 @@ export const haveSameTableReference = (
   left.tableName === right.tableName &&
   left.databaseSchemaName === right.databaseSchemaName;
 
+export type SQLRenameTable = SQLToken<
+  'SQL_RENAME_TABLE',
+  {
+    table: SQLTableReference;
+    newTableName: string;
+  }
+>;
+export const SQLRenameTable = SQLToken<SQLRenameTable>('SQL_RENAME_TABLE');
+
 export type SQLIndexReference = SQLToken<
   'SQL_INDEX_REFERENCE',
   {

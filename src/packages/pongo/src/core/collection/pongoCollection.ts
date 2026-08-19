@@ -4,8 +4,6 @@ import {
   mapColumnToJSON,
   runSQLMigrations,
   single,
-  sqlMigration,
-  tableRenameMigrationName,
   type DatabaseDriverType,
   type DatabaseTransaction,
   type Dumbo,
@@ -956,12 +954,9 @@ export const pongoCollection = <
       options?: CollectionOperationOptions,
     ): Promise<PongoCollection<T>> => {
       await ensureCollectionCreated(options);
-      const renameMigration = sqlMigration(
-        tableRenameMigrationName(component, newName),
-        [SqlFor.rename(newName)],
-      );
-      await runSQLMigrations(pool, [renameMigration], { migrationTable });
-      component = component.withTableName(newName);
+      const renamed = component.rename(newName);
+      await runSQLMigrations(pool, [renamed.migration], { migrationTable });
+      component = renamed.table;
       SqlFor = sqlBuilderFor(component);
       return collection;
     },

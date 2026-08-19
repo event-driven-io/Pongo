@@ -7,6 +7,7 @@ import {
 import {
   sqliteColumnProcessors,
   SQLiteCreateSchemaProcessor,
+  SQLiteRenameTableProcessor,
   SQLiteIndexReferenceProcessor,
   SQLiteJSONDocumentIndexTargetProcessor,
   SQLiteJSONPathTargetProcessor,
@@ -20,6 +21,7 @@ const sqliteSQLProcessorsRegistry = SQLProcessorsRegistry({
   .register(
     SQLiteTableReferenceProcessor,
     SQLiteCreateSchemaProcessor,
+    SQLiteRenameTableProcessor,
     SQLiteIndexReferenceProcessor,
     SQLiteJSONDocumentIndexTargetProcessor,
     SQLiteJSONPathTargetProcessor,

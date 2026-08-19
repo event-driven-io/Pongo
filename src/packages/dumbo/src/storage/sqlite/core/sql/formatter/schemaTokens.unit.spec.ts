@@ -6,6 +6,7 @@ import {
   DefaultDatabaseSchemaName,
   SQL,
   SQLCreateSchema,
+  SQLRenameTable,
   SQLTableReference,
 } from '../../../../../core/sql';
 
@@ -14,6 +15,12 @@ const format = (sql: SQL): string =>
 
 const tableIn = (databaseSchemaName: string, tableName = 'users') =>
   SQL`${SQLTableReference.from({ databaseSchemaName, tableName })}`;
+
+const renameTable = (databaseSchemaName: string) =>
+  SQL`${SQLRenameTable.from({
+    table: SQLTableReference.from({ databaseSchemaName, tableName: 'users' }),
+    newTableName: 'archived_users',
+  })}`;
 
 const createSchema = (databaseSchemaName: string) =>
   SQL`${SQLCreateSchema.from({ databaseSchemaName })}`;
@@ -29,6 +36,17 @@ describe('declaring a table and running it on SQLite', () => {
 
   it('treats a spelled-out default schema name as a named schema', () => {
     assert.strictEqual(format(tableIn('public')), '"public.users"');
+  });
+
+  it('renames a table using the name the dialect gives it', () => {
+    assert.strictEqual(
+      format(renameTable(DefaultDatabaseSchemaName)),
+      'ALTER TABLE users RENAME TO archived_users',
+    );
+    assert.strictEqual(
+      format(renameTable('crm')),
+      'ALTER TABLE "crm.users" RENAME TO "crm.archived_users"',
+    );
   });
 
   it('keeps schemas that differ only by underscores on separate tables', () => {

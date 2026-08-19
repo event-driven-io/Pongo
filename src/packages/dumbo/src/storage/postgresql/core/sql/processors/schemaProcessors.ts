@@ -1,5 +1,7 @@
 import {
   DefaultDatabaseSchemaName,
+  isDefaultDatabaseSchema,
+  processSQLToken,
   SQLIdentifier,
   SQLProcessor,
   type SQLCreateSchema,
@@ -7,6 +9,7 @@ import {
   type SQLJSONDocumentIndexTarget,
   type SQLJSONPathTarget,
   type SQLProcessorContext,
+  type SQLRenameTable,
   type SQLTableReference,
 } from '../../../../../core';
 import { PostgreSQLJSON } from '../json';
@@ -23,12 +26,23 @@ const addIdentifier = (
 export const PostgreSQLTableReferenceProcessor: SQLProcessor<SQLTableReference> =
   SQLProcessor({
     canHandle: 'SQL_TABLE_REFERENCE',
-    handle: (token, context) => {
-      if (token.databaseSchemaName !== DefaultDatabaseSchemaName) {
-        addIdentifier(token.databaseSchemaName, context);
+    handle: ({ databaseSchemaName, tableName }, context) => {
+      if (!isDefaultDatabaseSchema(databaseSchemaName)) {
+        addIdentifier(databaseSchemaName, context);
         context.builder.addSQL('.');
       }
-      addIdentifier(token.tableName, context);
+      addIdentifier(tableName, context);
+    },
+  });
+
+export const PostgreSQLRenameTableProcessor: SQLProcessor<SQLRenameTable> =
+  SQLProcessor({
+    canHandle: 'SQL_RENAME_TABLE',
+    handle: (token, context) => {
+      context.builder.addSQL('ALTER TABLE ');
+      processSQLToken(token.table, context);
+      context.builder.addSQL(' RENAME TO ');
+      addIdentifier(token.newTableName, context);
     },
   });
 

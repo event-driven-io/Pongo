@@ -27,3 +27,14 @@ export type SQLProcessorOptions<Token extends AnySQLToken = AnySQLToken> = {
 export const SQLProcessor = <Token extends AnySQLToken = AnySQLToken>(
   options: SQLProcessorOptions<Token>,
 ): SQLProcessor<Token> => options;
+
+export const processSQLToken = (
+  token: AnySQLToken,
+  context: SQLProcessorContext,
+): void => {
+  const processor = context.processorsRegistry.get(token.sqlTokenType);
+  if (processor === null)
+    throw new Error(`No SQL processor registered for ${token.sqlTokenType}`);
+
+  processor.handle(token, context);
+};

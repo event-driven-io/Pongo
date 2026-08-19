@@ -24,6 +24,7 @@ import {
   type IndexComponent,
   type IndexSQLContext,
   type SchemaExtensions,
+  type SQLMigration,
   type SQL as SQLStatement,
   type TableComponent,
   type TableRowType,
@@ -121,7 +122,7 @@ export type PongoCollectionComponent<
   Indexes extends PongoCollectionIndexes = PongoCollectionIndexes,
 > = Omit<
   TableComponent<PongoCollectionColumns<Document>, Name, Indexes>,
-  'withDatabaseSchemaName' | 'withTableName'
+  'withDatabaseSchemaName' | 'withTableName' | 'rename'
 > &
   Readonly<{
     [schemaComponentType]: typeof tableComponentType;
@@ -132,6 +133,12 @@ export type PongoCollectionComponent<
     withTableName: <const NewTableName extends string>(
       tableName: NewTableName,
     ) => PongoCollectionComponent<Document, NewTableName, Indexes>;
+    rename: <const NewTableName extends string>(
+      tableName: NewTableName,
+    ) => Readonly<{
+      table: PongoCollectionComponent<Document, NewTableName, Indexes>;
+      migration: SQLMigration;
+    }>;
   }>;
 
 export type PongoSchemaComponent<

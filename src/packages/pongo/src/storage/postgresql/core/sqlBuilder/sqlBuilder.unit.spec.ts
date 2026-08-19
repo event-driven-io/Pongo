@@ -429,12 +429,6 @@ describe('postgres collection schema migrations', () => {
       schemaIncludes: 'FROM crm.users',
     },
     {
-      name: 'rename',
-      sql: (builder) => builder.rename('archived_users'),
-      defaultIncludes: 'ALTER TABLE users RENAME TO archived_users',
-      schemaIncludes: 'ALTER TABLE crm.users RENAME TO archived_users',
-    },
-    {
       name: 'drop',
       sql: (builder) => builder.drop(),
       defaultIncludes: 'DROP TABLE IF EXISTS users',

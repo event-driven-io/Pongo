@@ -384,8 +384,6 @@ export const postgresSQLBuilder = (
         : constructFilterQuery(filter, serializer);
       return SQL`SELECT COUNT(1) as count FROM ${tableReference} ${where(filterQuery)};`;
     },
-    rename: (newName: string): SQL =>
-      SQL`ALTER TABLE ${tableReference} RENAME TO ${SQL.identifier(newName)};`,
     drop: (): SQL => SQL`DROP TABLE IF EXISTS ${tableReference}`,
   };
 };

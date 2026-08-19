@@ -1,12 +1,14 @@
 import {
+  processSQLToken,
   SQLIdentifier,
   SQLProcessor,
+  SQLTableReference,
   type SQLCreateSchema,
   type SQLIndexReference,
   type SQLJSONDocumentIndexTarget,
   type SQLJSONPathTarget,
   type SQLProcessorContext,
-  type SQLTableReference,
+  type SQLRenameTable,
 } from '../../../../../core';
 import {
   sqliteIndexName,
@@ -27,6 +29,25 @@ export const SQLiteTableReferenceProcessor: SQLProcessor<SQLTableReference> =
   SQLProcessor({
     canHandle: 'SQL_TABLE_REFERENCE',
     handle: (token, context) => addIdentifier(sqliteTableName(token), context),
+  });
+
+export const SQLiteRenameTableProcessor: SQLProcessor<SQLRenameTable> =
+  SQLProcessor({
+    canHandle: 'SQL_RENAME_TABLE',
+    handle: (token, context) => {
+      const { table, newTableName } = token;
+
+      context.builder.addSQL('ALTER TABLE ');
+      processSQLToken(table, context);
+      context.builder.addSQL(' RENAME TO ');
+      processSQLToken(
+        SQLTableReference.from({
+          databaseSchemaName: table.databaseSchemaName,
+          tableName: newTableName,
+        }),
+        context,
+      );
+    },
   });
 
 export const SQLiteIndexReferenceProcessor: SQLProcessor<SQLIndexReference> =
