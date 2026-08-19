@@ -5,7 +5,6 @@ import {
   type PgConnection,
   type PgTransactionOptions,
 } from '@event-driven-io/dumbo/pg';
-import { postgreSQLTableReference } from '@event-driven-io/dumbo/postgresql';
 import type pg from 'pg';
 import {
   PongoDatabase,
@@ -90,15 +89,8 @@ const pgPongoDriver: PongoDriver<
         ...connectionOptions,
         serialization: { serializer: options.serializer },
       }),
-      sqlBuilderFor: (collection, identifier) =>
-        postgresSQLBuilder(
-          collection,
-          {
-            tableReference: postgreSQLTableReference(identifier),
-            databaseSchemaName: identifier.databaseSchemaName,
-          },
-          options.serializer,
-        ),
+      sqlBuilderFor: (collection) =>
+        postgresSQLBuilder(collection, options.serializer),
       databaseName,
       defaultSchemaName,
     });

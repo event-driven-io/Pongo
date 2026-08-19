@@ -3,6 +3,7 @@ import {
   isSQL,
   JSONParam,
   SQL,
+  SQLTableReference,
   type JSONSerializer,
 } from '@event-driven-io/dumbo';
 import { SQLiteJSON } from '@event-driven-io/dumbo/sqlite';
@@ -36,12 +37,12 @@ const versionCheckClause = (
 
 export const sqliteSQLBuilder = (
   collection: PongoCollectionComponent,
-  tableReference: SQL,
-  tableReferenceFor: (tableName: string) => SQL,
   serializer: JSONSerializer,
 ): PongoCollectionSQLBuilder => {
+  const tableReference = collection.tableReference;
+
   return {
-    createCollection: (): SQL[] => [createTableSQL(collection, tableReference)],
+    createCollection: (): SQL[] => [createTableSQL(collection)],
     insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
       const serialized = JSONParam.document(document, serializer);
       const id = document._id;
@@ -319,7 +320,11 @@ export const sqliteSQLBuilder = (
       return SQL`SELECT COUNT(1) as count FROM ${tableReference} ${where(filterQuery)};`;
     },
     rename: (newName: string): SQL => {
-      return SQL`ALTER TABLE ${tableReference} RENAME TO ${tableReferenceFor(newName)};`;
+      const renamedTableReference = SQLTableReference.from({
+        ...tableReference,
+        tableName: newName,
+      });
+      return SQL`ALTER TABLE ${tableReference} RENAME TO ${renamedTableReference};`;
     },
     drop: (): SQL => SQL`DROP TABLE IF EXISTS ${tableReference}`,
   };

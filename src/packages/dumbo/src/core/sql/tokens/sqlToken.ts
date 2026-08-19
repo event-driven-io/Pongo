@@ -73,6 +73,14 @@ export const SQLDefaultSchemaNameToken = SQLToken<SQLDefaultSchemaNameToken>(
   'SQLDefaultSchemaNameToken',
 );
 
+export const haveSameDatabaseSchemaName = (
+  left: string | SQLDefaultSchemaNameToken,
+  right: string | SQLDefaultSchemaNameToken,
+): boolean =>
+  SQLDefaultSchemaNameToken.check(left)
+    ? SQLDefaultSchemaNameToken.check(right)
+    : left === right;
+
 export type SQLTableReference = SQLToken<
   'SQL_TABLE_REFERENCE',
   {
@@ -83,6 +91,13 @@ export type SQLTableReference = SQLToken<
 export const SQLTableReference = SQLToken<SQLTableReference>(
   'SQL_TABLE_REFERENCE',
 );
+
+export const haveSameTableReference = (
+  left: SQLTableReference,
+  right: SQLTableReference,
+): boolean =>
+  left.tableName === right.tableName &&
+  haveSameDatabaseSchemaName(left.databaseSchemaName, right.databaseSchemaName);
 
 export type SQLIndexReference = SQLToken<
   'SQL_INDEX_REFERENCE',

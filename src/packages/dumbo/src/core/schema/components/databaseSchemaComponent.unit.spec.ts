@@ -20,14 +20,18 @@ const usersTable = () =>
   });
 
 describe('declaring a schema with tables', () => {
-  it('holds the very table declaration it was given', () => {
+  it('places the very table declaration it was given', () => {
     const users = usersTable();
     const schema = databaseSchemaComponent({
       schemaName: 'reporting',
       tables: { users },
     });
 
-    assert.strictEqual(schema.tables.users, users);
+    assert.strictEqual(schema.tables.users.tableName, users.tableName);
+    assert.strictEqual(
+      schema.tables.users.tableReference.databaseSchemaName,
+      'reporting',
+    );
   });
 
   it('leaves the table declaration it was given reusable in another schema', () => {
@@ -41,8 +45,17 @@ describe('declaring a schema with tables', () => {
       tables: { users },
     });
 
-    assert.strictEqual(reporting.tables.users, users);
-    assert.strictEqual(audit.tables.users, users);
+    assert.strictEqual(
+      reporting.tables.users.tableReference.databaseSchemaName,
+      'reporting',
+    );
+    assert.strictEqual(
+      audit.tables.users.tableReference.databaseSchemaName,
+      'audit',
+    );
+    assert.ok(
+      SQLDefaultSchemaNameToken.check(users.tableReference.databaseSchemaName),
+    );
   });
 
   it('places extensions the same way it places tables', () => {
@@ -96,6 +109,22 @@ describe('declaring a schema with tables', () => {
       /Table "users" is declared more than once in database schema "the default schema"/,
     );
   });
+
+  it('reports conflicting users declarations from the application schema and its table extension', () => {
+    const crm = extensionComponent('crm', {
+      tables: { users: usersTable() },
+    });
+
+    assert.throws(
+      () =>
+        databaseSchemaComponent({
+          schemaName: 'reporting',
+          tables: { users: usersTable() },
+          extensions: { crm },
+        }),
+      /Table "users" is declared more than once in database schema "reporting"/,
+    );
+  });
 });
 
 describe('schema.findTable(tableName)', () => {
@@ -106,7 +135,7 @@ describe('schema.findTable(tableName)', () => {
       tables: { customerDirectory: users },
     });
 
-    assert.strictEqual(schema.findTable('users'), users);
+    assert.strictEqual(schema.findTable('users')?.tableName, users.tableName);
   });
 
   it("schema.findTable('users') finds a table contributed by an extension", () => {
@@ -117,18 +146,23 @@ describe('schema.findTable(tableName)', () => {
       extensions: { crm },
     });
 
-    assert.strictEqual(schema.findTable('users'), users);
+    assert.strictEqual(schema.findTable('users')?.tableName, users.tableName);
   });
 
-  it("schema.findTable('users') returns undefined when the table does not exist", () => {
-    const schema = databaseSchemaComponent({ schemaName: 'reporting' });
+  it('schema.tables lists a table contributed by an extension', () => {
+    const users = usersTable();
+    const crm = extensionComponent('crm', { tables: { users } });
+    const schema = databaseSchemaComponent({
+      schemaName: 'reporting',
+      extensions: { crm },
+    });
 
-    assert.strictEqual(schema.findTable('users'), undefined);
+    assert.strictEqual(schema.tables.users, schema.extensions.crm.tables.users);
   });
 
-  it("schema.findTable('users') reports conflicting users declarations from the application schema and its table extension", () => {
+  it('schema.tables keeps the schema own table when an extension declares the same alias', () => {
     const crm = extensionComponent('crm', {
-      tables: { users: usersTable() },
+      tables: { users: tableComponent({ tableName: 'crm_users' }) },
     });
     const schema = databaseSchemaComponent({
       schemaName: 'reporting',
@@ -136,10 +170,13 @@ describe('schema.findTable(tableName)', () => {
       extensions: { crm },
     });
 
-    assert.throws(
-      () => schema.findTable('users'),
-      /Table "users" is declared more than once in database schema "reporting"/,
-    );
+    assert.strictEqual(schema.tables.users.tableName, 'users');
+  });
+
+  it("schema.findTable('users') returns undefined when the table does not exist", () => {
+    const schema = databaseSchemaComponent({ schemaName: 'reporting' });
+
+    assert.strictEqual(schema.findTable('users'), undefined);
   });
 });
 
@@ -154,8 +191,8 @@ describe('schema.withTable(tables)', () => {
 
     const next = schema.withTable({ users });
 
-    assert.strictEqual(next.tables.roles, roles);
-    assert.strictEqual(next.tables.users, users);
+    assert.strictEqual(next.tables.roles.tableName, roles.tableName);
+    assert.strictEqual(next.tables.users.tableName, users.tableName);
   });
 
   it('leaves the source schema and source table records unchanged', () => {

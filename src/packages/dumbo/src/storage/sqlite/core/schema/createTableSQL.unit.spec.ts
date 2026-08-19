@@ -47,10 +47,9 @@ const documents = dumboSchema.table('documents', {
 
 describe('creating a table from a Dumbo declaration in SQLite', () => {
   it('creates SQLite DDL with text JSON storage instead of blobs', () => {
-    const result = sqliteFormatter.format(
-      createTableSQL(documents, SQL.identifier('documents')),
-      { serializer: JSONSerializer },
-    );
+    const result = sqliteFormatter.format(createTableSQL(documents), {
+      serializer: JSONSerializer,
+    });
 
     assert.strictEqual(
       result.query,
@@ -68,10 +67,9 @@ describe('creating a table from a Dumbo declaration in SQLite', () => {
       },
     });
 
-    const result = sqliteFormatter.format(
-      createTableSQL(table, SQL.identifier('accounts')),
-      { serializer: JSONSerializer },
-    );
+    const result = sqliteFormatter.format(createTableSQL(table), {
+      serializer: JSONSerializer,
+    });
 
     assert.strictEqual(
       result.query,

@@ -60,10 +60,9 @@ export type FilterNotExistingInUnion<
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type EnsureTuple<T> = T extends any[] ? T : [T];
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type UnionToIntersection<U> = (U extends any ? (k: U) => void : never) extends (
-  k: infer I,
-) => void
+export type UnionToIntersection<U> = (
+  U extends unknown ? (k: U) => void : never
+) extends (k: infer I) => void
   ? I
   : never;
 

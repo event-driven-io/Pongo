@@ -13,11 +13,13 @@ import {
   isSchemaComponent,
   isTableComponent,
   SQL,
+  type SQLDefaultSchemaNameToken,
   type SQL as SQLStatement,
   type AnyDatabaseComponent,
   type DatabaseComponent,
   type DatabaseDriverType,
   type DatabaseExtensions,
+  type AnyDatabaseSchemaComponent,
   type DatabaseSchemaComponent,
   type DatabaseTables,
   type IndexComponent,
@@ -117,10 +119,19 @@ export type PongoCollectionComponent<
   Document extends PongoDocument = PongoDocument,
   Name extends string = string,
   Indexes extends PongoCollectionIndexes = PongoCollectionIndexes,
-> = TableComponent<PongoCollectionColumns<Document>, Name, Indexes> &
+> = Omit<
+  TableComponent<PongoCollectionColumns<Document>, Name, Indexes>,
+  'withDatabaseSchemaName' | 'withTableName'
+> &
   Readonly<{
     [schemaComponentType]: typeof tableComponentType;
     [pongoCollectionComponentType]: true;
+    withDatabaseSchemaName: (
+      databaseSchemaName: string | SQLDefaultSchemaNameToken,
+    ) => PongoCollectionComponent<Document, Name, Indexes>;
+    withTableName: <const NewTableName extends string>(
+      tableName: NewTableName,
+    ) => PongoCollectionComponent<Document, NewTableName, Indexes>;
   }>;
 
 export type PongoSchemaComponent<
@@ -135,7 +146,7 @@ export type PongoDatabaseCollections = Readonly<
 >;
 
 export type PongoDatabaseSchemas = Readonly<
-  Record<string, PongoSchemaComponent>
+  Record<string, AnyDatabaseSchemaComponent>
 >;
 
 export type PongoDatabaseDefinition<
@@ -200,16 +211,12 @@ export type PongoSchemaCollectionsMap<
   Schemas extends AnyDatabaseComponent['schemas'],
 > = {
   [
-    Key in keyof Schemas as Schemas[Key] extends DatabaseSchemaComponent<
-      infer Tables
-    >
-      ? HasPongoCollections<Tables> extends true
-        ? Exclude<Key, keyof PongoDb>
-        : never
+    Key in keyof Schemas as HasPongoCollections<
+      Schemas[Key]['tables']
+    > extends true
+      ? Exclude<Key, keyof PongoDb>
       : never
-  ]: Schemas[Key] extends DatabaseSchemaComponent<infer Tables>
-    ? CollectionsMap<Tables>
-    : never;
+  ]: CollectionsMap<Schemas[Key]['tables']>;
 };
 
 export type PongoDbWithSchema<
@@ -380,12 +387,17 @@ function pongoDatabase(
     );
   }
 
-  return databaseComponent({
-    databaseName,
-    tables: hasCollections ? definition.collections : undefined,
-    schemas: hasSchemas ? definition.schemas : undefined,
-    extensions: databaseExtensions,
-  });
+  return hasCollections
+    ? databaseComponent({
+        databaseName,
+        tables: definition.collections,
+        extensions: databaseExtensions,
+      })
+    : databaseComponent({
+        databaseName,
+        schemas: definition.schemas,
+        extensions: databaseExtensions,
+      });
 }
 
 pongoDatabase.from = (
@@ -408,35 +420,38 @@ pongoDatabase.from = (
     ),
   ];
 
-  const definition = {
-    ...(unscoped.length > 0
-      ? { collections: pongoCollection.from(unscoped) }
-      : {}),
-    ...(databaseSchemaNames.length > 0
-      ? {
-          schemas: Object.fromEntries(
-            databaseSchemaNames.map((databaseSchemaName) => [
-              databaseSchemaName,
-              pongoDatabaseSchema(
-                databaseSchemaName,
-                pongoCollection.from(
-                  placed
-                    .filter(
-                      (collection) =>
-                        collection.databaseSchemaName === databaseSchemaName,
-                    )
-                    .map(({ name }) => name),
-                ),
-              ),
-            ]),
-          ),
-        }
-      : {}),
-  };
+  const schemas = Object.fromEntries(
+    databaseSchemaNames.map((databaseSchemaName) => [
+      databaseSchemaName,
+      pongoDatabaseSchema(
+        databaseSchemaName,
+        pongoCollection.from(
+          placed
+            .filter(
+              (collection) =>
+                collection.databaseSchemaName === databaseSchemaName,
+            )
+            .map(({ name }) => name),
+        ),
+      ),
+    ]),
+  );
 
-  return databaseName === undefined
-    ? pongoDatabase(definition as never)
-    : pongoDatabase(databaseName, definition as never);
+  const declaresUnscoped =
+    unscoped.length > 0 || databaseSchemaNames.length === 0;
+
+  const definition = declaresUnscoped
+    ? { collections: pongoCollection.from(unscoped) }
+    : { schemas };
+
+  const database =
+    databaseName === undefined
+      ? pongoDatabase(definition)
+      : pongoDatabase(databaseName, definition);
+
+  return declaresUnscoped && databaseSchemaNames.length > 0
+    ? database.withSchema(schemas)
+    : database;
 };
 
 const pongoClientSchema = <

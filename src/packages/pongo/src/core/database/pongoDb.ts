@@ -25,10 +25,7 @@ import type {
   PongoMigrationOptions,
 } from '../typing';
 import type { PongoNestedTransactionOptions } from '../pongoTransaction';
-import {
-  PongoDatabaseComponent,
-  type PongoCollectionIdentifier,
-} from './pongoDatabaseComponent';
+import { PongoDatabaseComponent } from './pongoDatabaseComponent';
 
 type PongoTransactionOptionsFor<
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -55,7 +52,6 @@ export type PongoDatabaseOptions<
   defaultSchemaName?: string | undefined;
   sqlBuilderFor: (
     collection: PongoCollectionComponent,
-    identifier: PongoCollectionIdentifier,
   ) => PongoCollectionSQLBuilder;
   migrationTable?: MigrationTableOptions | undefined;
   schema?:
@@ -129,20 +125,17 @@ export const PongoDatabase = <
   const databaseComponent = PongoDatabaseComponent({
     component: options.schema?.definition,
     defaultSchemaName,
-    createCollection: (component, identifier, collectionOptions) => {
-      const collectionName = identifier.tableName;
+    createCollection: (component, collectionOptions) => {
       const collectionRuntimeSchema = collectionOptions?.schema;
 
       return pongoCollection({
-        collectionName,
         db,
         pool,
         component,
-        databaseSchemaName: identifier.databaseSchemaName,
-        sqlBuilderFor: (tableName) =>
-          options.sqlBuilderFor(component, { ...identifier, tableName }),
+        sqlBuilderFor: options.sqlBuilderFor,
         schema: { ...options.schema, ...collectionRuntimeSchema },
         serializer,
+        migrationTable: options.migrationTable,
         errors: { ...options.errors, ...collectionOptions?.errors },
         cache:
           collectionOptions?.cache !== undefined

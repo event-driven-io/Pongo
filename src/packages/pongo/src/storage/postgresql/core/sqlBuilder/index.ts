@@ -6,7 +6,7 @@ import {
   SQLCreateSchema,
   SQLDefaultSchemaNameToken,
   type JSONSerializer,
-  type SQLIdentifier,
+  type SQLTableReference,
 } from '@event-driven-io/dumbo';
 import { PostgreSQLJSON } from '@event-driven-io/dumbo/postgresql';
 import {
@@ -29,7 +29,7 @@ import { constructFilterQuery } from './filter';
 import { buildUpdateQuery } from './update';
 
 const versionCheckClause = (
-  collection: SQL | SQLIdentifier,
+  collection: SQLTableReference,
   expectedVersion: ExpectedDocumentVersion | undefined,
 ): SQL => {
   const predicate = expectedVersionPredicate(expectedVersion);
@@ -40,22 +40,18 @@ const versionCheckClause = (
 
 export const postgresSQLBuilder = (
   collection: PongoCollectionComponent,
-  {
-    tableReference,
-    databaseSchemaName,
-  }: Readonly<{
-    tableReference: SQL | SQLIdentifier;
-    databaseSchemaName: string | SQLDefaultSchemaNameToken;
-  }>,
   serializer: JSONSerializer,
 ): PongoCollectionSQLBuilder => {
+  const tableReference = collection.tableReference;
+  const { databaseSchemaName } = tableReference;
+
   return {
     createCollection: (): SQL[] =>
       SQLDefaultSchemaNameToken.check(databaseSchemaName)
-        ? [createTableSQL(collection, tableReference)]
+        ? [createTableSQL(collection)]
         : [
             SQL`${SQLCreateSchema.from({ databaseSchemaName })}`,
-            createTableSQL(collection, tableReference),
+            createTableSQL(collection),
           ],
     insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
       const serialized = JSONParam.document(document, serializer);

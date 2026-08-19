@@ -1,10 +1,10 @@
+import type { SQLDefaultSchemaNameToken } from '../sql';
 import type { AnyDatabaseSchemaComponent } from './components/databaseSchemaComponent';
 import type { AnyTableComponent } from './components/tableComponent';
 import {
   schemaComponent,
   schemaComponentMap,
   type SchemaComponent,
-  type SchemaComponentContext,
 } from './schemaComponent';
 import type { SQLMigration } from './sqlMigration';
 
@@ -24,6 +24,9 @@ export interface AnyExtensionComponent extends SchemaComponent<
   readonly extensionName: string;
   readonly tables: ExtensionTables;
   readonly schemas: ExtensionSchemas;
+  readonly withDatabaseSchemaName: (
+    databaseSchemaName: string | SQLDefaultSchemaNameToken,
+  ) => AnyExtensionComponent;
 }
 
 export type ExtensionComponent<
@@ -35,11 +38,12 @@ export type ExtensionComponent<
     extensionName: Name;
     tables: Tables;
     schemas: Schemas;
+    withDatabaseSchemaName: (
+      databaseSchemaName: string | SQLDefaultSchemaNameToken,
+    ) => ExtensionComponent<Name, Tables, Schemas>;
   }>;
 
-type ExtensionMigrations =
-  | ((context: SchemaComponentContext) => ReadonlyArray<SQLMigration>)
-  | undefined;
+type ExtensionMigrations = (() => ReadonlyArray<SQLMigration>) | undefined;
 
 export type ExtensionComponentOptions<
   Tables extends ExtensionTables,
@@ -99,6 +103,25 @@ export const extensionComponent = <
     extensionName,
     tables: schemaComponentMap(tables),
     schemas: schemaComponentMap(schemas),
+    withDatabaseSchemaName: (
+      databaseSchemaName: string | SQLDefaultSchemaNameToken,
+    ) => {
+      const placed = Object.fromEntries(
+        Object.entries(tables).map(([key, table]) => [
+          key,
+          table.withDatabaseSchemaName(databaseSchemaName),
+        ]),
+      ) as Tables;
+
+      return Object.entries(placed).every(
+        ([key, table]) => table === tables[key],
+      )
+        ? component
+        : extensionComponent<Name, Tables, Schemas>(extensionName, {
+            tables: placed,
+            migrations: options.migrations,
+          });
+    },
   };
 
   return component;

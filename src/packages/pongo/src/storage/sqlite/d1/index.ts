@@ -7,7 +7,6 @@ import {
   d1DumboDriver as dumboDriver,
   d1Pool,
 } from '@event-driven-io/dumbo/cloudflare';
-import { sqliteTableReference } from '@event-driven-io/dumbo/sqlite';
 import {
   PongoDatabase,
   pongoDriverRegistry,
@@ -46,16 +45,8 @@ const d1PongoDriver: PongoDriver<
       pool: d1Pool({
         ...pongoConnectionOptions,
       }),
-      sqlBuilderFor: (collection, identifier) => {
-        const referenceFor = (tableName: string) =>
-          sqliteTableReference({ ...identifier, tableName });
-        return sqliteSQLBuilder(
-          collection,
-          referenceFor(identifier.tableName),
-          referenceFor,
-          options.serializer,
-        );
-      },
+      sqlBuilderFor: (collection) =>
+        sqliteSQLBuilder(collection, options.serializer),
       databaseName,
       defaultSchemaName,
     });

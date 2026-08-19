@@ -1,11 +1,12 @@
-import { SQL, SQLCreateSchema, SQLDefaultSchemaNameToken } from '../../sql';
+import type { SQLDefaultSchemaNameToken } from '../../sql';
+import { SQL, SQLCreateSchema } from '../../sql';
+import type { UnionToIntersection } from '../../typing';
 import type { AnyExtensionComponent } from '../extensionComponent';
 import {
   schemaComponent,
   schemaComponentMap,
   type MergeRecords,
   type SchemaComponent,
-  type SchemaComponentContext,
 } from '../schemaComponent';
 import { sqlMigration, type SQLMigration } from '../sqlMigration';
 import { migrationName } from './migrationName';
@@ -21,10 +22,9 @@ const databaseSchemaMigrationName = (
 ): string => migrationName('schema', kind, [databaseSchemaName], 'create');
 
 const generatedDatabaseSchemaMigrations = (
-  context: SchemaComponentContext,
+  databaseSchemaName: string | SQLDefaultSchemaNameToken,
   kind: string | undefined,
 ): ReadonlyArray<SQLMigration> => {
-  const { databaseSchemaName } = context;
   if (typeof databaseSchemaName !== 'string') return [];
 
   return [
@@ -34,18 +34,48 @@ const generatedDatabaseSchemaMigrations = (
   ];
 };
 
+export const assertTableNamesAreUnique = (
+  databaseSchemaName: string | SQLDefaultSchemaNameToken | undefined,
+  tables: Iterable<AnyTableComponent>,
+): void => {
+  const schemaNameLabel =
+    typeof databaseSchemaName === 'string'
+      ? databaseSchemaName
+      : 'the default schema';
+  const tableNames = new Set<string>();
+
+  for (const table of tables) {
+    if (tableNames.has(table.tableName))
+      throw new Error(
+        `Table "${table.tableName}" is declared more than once in database schema "${schemaNameLabel}"`,
+      );
+
+    tableNames.add(table.tableName);
+  }
+};
+
 export type DatabaseSchemaTables = Readonly<Record<string, AnyTableComponent>>;
 export type SchemaExtensions = Readonly<Record<string, AnyExtensionComponent>>;
+
+export type WithExtensionTables<
+  Tables extends DatabaseSchemaTables,
+  Extensions extends SchemaExtensions,
+> = [Extensions[keyof Extensions]] extends [never]
+  ? Tables
+  : MergeRecords<
+      UnionToIntersection<Extensions[keyof Extensions]['tables']>,
+      Tables
+    >;
 
 export type DatabaseSchemaComponent<
   Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
   SchemaName extends string | SQLDefaultSchemaNameToken =
     string | SQLDefaultSchemaNameToken,
-  Extensions extends SchemaExtensions = SchemaExtensions,
+  Extensions extends SchemaExtensions = Readonly<Record<never, never>>,
 > = SchemaComponent<typeof databaseSchemaComponentType> &
   Readonly<{
     schemaName: SchemaName;
-    tables: Tables;
+    tables: WithExtensionTables<Tables, Extensions>;
     extensions: Extensions;
     findTable: (tableName: string) => AnyTableComponent | undefined;
     withTable: <const Added extends DatabaseSchemaTables>(
@@ -73,14 +103,16 @@ export type DatabaseSchemaComponentOptions<
   tables?: Tables | undefined;
   extensions?: Extensions | undefined;
   migrations?:
-    | ((context: SchemaComponentContext) => ReadonlyArray<SQLMigration>)
+    | ((
+        databaseSchemaName: string | SQLDefaultSchemaNameToken,
+      ) => ReadonlyArray<SQLMigration>)
     | undefined;
 }>;
 
 export const databaseSchemaComponent = <
   const Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
   const SchemaName extends string | SQLDefaultSchemaNameToken = string,
-  const Extensions extends SchemaExtensions = SchemaExtensions,
+  const Extensions extends SchemaExtensions = Readonly<Record<never, never>>,
 >(
   options: DatabaseSchemaComponentOptions<Tables, SchemaName, Extensions>,
 ): DatabaseSchemaComponent<Tables, SchemaName, Extensions> => {
@@ -94,15 +126,12 @@ export const databaseSchemaComponent = <
     throw new Error(
       'A database schema name cannot be empty. Use the default schema token to leave it to the dialect',
     );
-  const tableNames = new Set<string>();
-  for (const table of Object.values(tables)) {
-    if (tableNames.has(table.tableName)) {
-      throw new Error(
-        `Table "${table.tableName}" is declared more than once in database schema "${schemaNameLabel}"`,
-      );
-    }
-    tableNames.add(table.tableName);
-  }
+  assertTableNamesAreUnique(options.schemaName, [
+    ...Object.values(tables),
+    ...Object.values(extensions).flatMap((extension) =>
+      Object.values(extension.tables),
+    ),
+  ]);
   for (const extension of Object.values(extensions)) {
     const [contributedSchema] = Object.values(extension.schemas);
     if (contributedSchema === undefined) continue;
@@ -115,49 +144,47 @@ export const databaseSchemaComponent = <
       `Extension "${extension.extensionName}" contributes database schema ${contributedSchemaName} and cannot be attached to database schema "${schemaNameLabel}"`,
     );
   }
+  const placedTables = Object.fromEntries(
+    Object.entries(tables).map(([key, table]) => [
+      key,
+      table.withDatabaseSchemaName(options.schemaName),
+    ]),
+  ) as Tables;
+  const placedExtensions = Object.fromEntries(
+    Object.entries(extensions).map(([key, extension]) => [
+      key,
+      extension.withDatabaseSchemaName(options.schemaName),
+    ]),
+  ) as Extensions;
+  const extensionTables = Object.assign(
+    {},
+    ...Object.values(placedExtensions).map((extension) => extension.tables),
+  ) as DatabaseSchemaTables;
+  const allTables = schemaComponentMap({
+    ...extensionTables,
+    ...placedTables,
+  } as WithExtensionTables<Tables, Extensions>);
   const children = Object.freeze([
-    ...Object.values(tables),
-    ...Object.values(extensions),
+    ...Object.values(placedTables),
+    ...Object.values(placedExtensions),
   ]);
-  const ownMigrations =
-    options.migrations ??
-    ((context: SchemaComponentContext) =>
-      generatedDatabaseSchemaMigrations(context, options.kind));
+  const ownMigrations = () =>
+    options.migrations !== undefined
+      ? options.migrations(options.schemaName)
+      : generatedDatabaseSchemaMigrations(options.schemaName, options.kind);
 
   const component: DatabaseSchemaComponent<Tables, SchemaName, Extensions> = {
     ...schemaComponent(databaseSchemaComponentType, {
       components: children,
-      context: (parent) => ({
-        ...parent,
-        databaseSchemaName: SQLDefaultSchemaNameToken.check(options.schemaName)
-          ? (parent.defaults?.schemaName ?? SQLDefaultSchemaNameToken.from())
-          : options.schemaName,
-      }),
       migrations: ownMigrations,
     }),
     schemaName: options.schemaName,
-    tables: schemaComponentMap(tables),
-    extensions: schemaComponentMap(extensions),
-    findTable: (tableName: string) => {
-      const [found, duplicate] = [
-        ...Object.values(tables),
-        ...Object.values(extensions).flatMap((extension) =>
-          Object.values(extension.tables),
-        ),
-      ].filter((table) => table.tableName === tableName);
-
-      if (duplicate !== undefined) {
-        const placement =
-          typeof options.schemaName === 'string'
-            ? `database schema "${options.schemaName}"`
-            : 'the default database schema';
-        throw new Error(
-          `Table "${tableName}" is declared more than once in ${placement}`,
-        );
-      }
-
-      return found;
-    },
+    tables: allTables,
+    extensions: schemaComponentMap(placedExtensions),
+    findTable: (tableName: string) =>
+      Object.values<AnyTableComponent>(allTables).find(
+        (table) => table.tableName === tableName,
+      ),
     withTable: <const Added extends DatabaseSchemaTables>(added: Added) =>
       databaseSchemaComponent<
         MergeRecords<Tables, Added>,
@@ -166,7 +193,7 @@ export const databaseSchemaComponent = <
       >({
         schemaName: options.schemaName,
         kind: options.kind,
-        tables: { ...tables, ...added },
+        tables: { ...placedTables, ...added },
         extensions,
         migrations: options.migrations,
       }),

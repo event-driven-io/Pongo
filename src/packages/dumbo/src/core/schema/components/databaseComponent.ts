@@ -1,17 +1,19 @@
 import { SQLDefaultSchemaNameToken } from '../../sql';
+import type { UnionToIntersection } from '../../typing';
 import type { AnyExtensionComponent } from '../extensionComponent';
 import {
   schemaComponent,
   schemaComponentMap,
   type MergeRecords,
   type SchemaComponent,
-  type SchemaComponentContext,
 } from '../schemaComponent';
 import type { SQLMigration } from '../sqlMigration';
 import {
+  assertTableNamesAreUnique,
   databaseSchemaComponent,
   type AnyDatabaseSchemaComponent,
   type DatabaseSchemaComponent,
+  type WithExtensionTables,
 } from './databaseSchemaComponent';
 import type { AnyTableComponent } from './tableComponent';
 
@@ -27,10 +29,15 @@ export type DatabaseExtensions = Readonly<
   Record<string, AnyExtensionComponent>
 >;
 
-export type FindDatabaseTableOptions = Readonly<{
-  databaseSchemaName?: string | undefined;
-  defaultSchemaName?: string | undefined;
-}>;
+export type WithExtensionSchemas<
+  Schemas extends DatabaseSchemas,
+  Extensions extends DatabaseExtensions,
+> = [Extensions[keyof Extensions]] extends [never]
+  ? Schemas
+  : MergeRecords<
+      UnionToIntersection<Extensions[keyof Extensions]['schemas']>,
+      Schemas
+    >;
 
 const resolveSchemaName = (
   schemaName: string | SQLDefaultSchemaNameToken,
@@ -77,14 +84,21 @@ export type DatabaseComponent<
 > = SchemaComponent<typeof databaseComponentType> &
   Readonly<{
     databaseName: DatabaseName;
-    defaultSchema: DatabaseSchemaComponent<Tables, SQLDefaultSchemaNameToken>;
-    tables: Tables;
-    schemas: Schemas;
+    defaultSchema: DatabaseSchemaComponent<
+      Tables,
+      string | SQLDefaultSchemaNameToken,
+      Extensions
+    >;
+    tables: WithExtensionTables<Tables, Extensions>;
+    schemas: WithExtensionSchemas<Schemas, Extensions>;
     extensions: Extensions;
-    findTable: (
-      tableName: string,
-      options?: FindDatabaseTableOptions,
-    ) => AnyTableComponent | undefined;
+    findTable: (options: {
+      tableName: string;
+      databaseSchemaName?: string | undefined;
+    }) => AnyTableComponent | undefined;
+    withDefaultSchemaName: (
+      defaultSchemaName: string | undefined,
+    ) => DatabaseComponent<DatabaseName, Tables, Schemas, Extensions>;
     withSchema: <const Added extends DatabaseSchemas>(
       schemas: Added,
     ) => DatabaseComponent<
@@ -121,31 +135,72 @@ export type AnyDatabaseComponent = DatabaseComponent<
   DatabaseExtensions
 >;
 
+type DatabaseComponentSharedOptions<
+  DatabaseName extends string | undefined,
+  Extensions extends DatabaseExtensions,
+> = Readonly<{
+  databaseName?: DatabaseName | undefined;
+  defaultSchemaName?: string | undefined;
+  extensions?: Extensions | undefined;
+  migrations?: (() => ReadonlyArray<SQLMigration>) | undefined;
+}>;
+
 export type DatabaseComponentOptions<
   DatabaseName extends string | undefined = string | undefined,
   Tables extends DatabaseTables = DatabaseTables,
   Schemas extends DatabaseSchemas = DatabaseSchemas,
   Extensions extends DatabaseExtensions = DatabaseExtensions,
-> = Readonly<{
-  databaseName?: DatabaseName | undefined;
-  tables?: Tables | undefined;
-  schemas?: Schemas | undefined;
-  extensions?: Extensions | undefined;
-  migrations?:
-    | ((context: SchemaComponentContext) => ReadonlyArray<SQLMigration>)
-    | undefined;
-}>;
+> = DatabaseComponentSharedOptions<DatabaseName, Extensions> &
+  (
+    | Readonly<{ tables?: Tables | undefined; schemas?: never }>
+    | Readonly<{ schemas?: Schemas | undefined; tables?: never }>
+  );
+
+type DatabaseComponentCompositionOptions<
+  DatabaseName extends string | undefined,
+  Tables extends DatabaseTables,
+  Schemas extends DatabaseSchemas,
+  Extensions extends DatabaseExtensions,
+> = DatabaseComponentSharedOptions<DatabaseName, Extensions> &
+  Readonly<{
+    tables?: Tables | undefined;
+    schemas?: Schemas | undefined;
+  }>;
 
 export const databaseComponent = <
   const DatabaseName extends string | undefined = undefined,
   const Tables extends DatabaseTables = DatabaseTables,
   const Schemas extends DatabaseSchemas = DatabaseSchemas,
-  const Extensions extends DatabaseExtensions = DatabaseExtensions,
+  const Extensions extends DatabaseExtensions = Readonly<Record<never, never>>,
 >(
   options: DatabaseComponentOptions<DatabaseName, Tables, Schemas, Extensions>,
 ): DatabaseComponent<DatabaseName, Tables, Schemas, Extensions> => {
+  if (options.tables !== undefined && options.schemas !== undefined)
+    throw new Error(
+      'A database declaration can contain either tables or schemas, not both',
+    );
+
+  return buildDatabaseComponent<DatabaseName, Tables, Schemas, Extensions>(
+    options,
+  );
+};
+
+const buildDatabaseComponent = <
+  const DatabaseName extends string | undefined = undefined,
+  const Tables extends DatabaseTables = DatabaseTables,
+  const Schemas extends DatabaseSchemas = DatabaseSchemas,
+  const Extensions extends DatabaseExtensions = DatabaseExtensions,
+>(
+  options: DatabaseComponentCompositionOptions<
+    DatabaseName,
+    Tables,
+    Schemas,
+    Extensions
+  >,
+): DatabaseComponent<DatabaseName, Tables, Schemas, Extensions> => {
   const schemas = (options.schemas ?? {}) as Schemas;
   const databaseName = options.databaseName;
+  const defaultSchemaName = options.defaultSchemaName;
   for (const [schemaName, schema] of Object.entries(schemas)) {
     if (schemaName === '')
       throw new Error('Database schema record key cannot be an empty string');
@@ -171,12 +226,44 @@ export const databaseComponent = <
 
   const defaultSchema = databaseSchemaComponent<
     Tables,
-    SQLDefaultSchemaNameToken
+    string | SQLDefaultSchemaNameToken,
+    Extensions
   >({
-    schemaName: SQLDefaultSchemaNameToken.from(),
+    schemaName: defaultSchemaName ?? SQLDefaultSchemaNameToken.from(),
     tables: options.tables,
-    extensions: defaultSchemaExtensions,
+    extensions: defaultSchemaExtensions as Extensions,
   });
+
+  const extensionSchemas = Object.assign(
+    {},
+    ...Object.values(extensions).map((extension) => extension.schemas),
+  ) as DatabaseSchemas;
+  const allSchemas = schemaComponentMap({
+    ...extensionSchemas,
+    ...schemas,
+  } as WithExtensionSchemas<Schemas, Extensions>);
+
+  const schemasByName = new Map<
+    string | undefined,
+    AnyDatabaseSchemaComponent[]
+  >();
+  for (const schema of [
+    defaultSchema,
+    ...Object.values<AnyDatabaseSchemaComponent>(allSchemas),
+  ]) {
+    const resolvedSchemaName = resolveSchemaName(
+      schema.schemaName,
+      defaultSchemaName,
+    );
+    const named = schemasByName.get(resolvedSchemaName) ?? [];
+    named.push(schema);
+    schemasByName.set(resolvedSchemaName, named);
+  }
+  for (const [resolvedSchemaName, named] of schemasByName)
+    assertTableNamesAreUnique(
+      resolvedSchemaName,
+      named.flatMap((schema) => Object.values(schema.tables)),
+    );
 
   const children = Object.freeze([
     defaultSchema,
@@ -199,51 +286,28 @@ export const databaseComponent = <
     get tables() {
       return defaultSchema.tables;
     },
-    schemas: schemaComponentMap(schemas),
+    schemas: allSchemas,
     extensions: schemaComponentMap(extensions),
-    findTable: (
-      tableName: string,
-      findOptions: FindDatabaseTableOptions = {},
-    ) => {
-      const databaseSchemaName =
-        findOptions.databaseSchemaName ?? findOptions.defaultSchemaName;
-      const [found, duplicate] = [
-        defaultSchema,
-        ...Object.values(schemas),
-        ...Object.values(extensions).flatMap((extension) =>
-          Object.values(extension.schemas),
-        ),
-      ]
-        .filter(
-          (schema) =>
-            resolveSchemaName(
-              schema.schemaName,
-              findOptions.defaultSchemaName,
-            ) === databaseSchemaName,
-        )
+    findTable: ({ tableName, databaseSchemaName }) =>
+      (schemasByName.get(databaseSchemaName ?? defaultSchemaName) ?? [])
         .map((schema) => schema.findTable(tableName))
-        .filter((table) => table !== undefined);
-
-      if (duplicate !== undefined) {
-        const placement =
-          databaseSchemaName === undefined
-            ? 'the default database schema'
-            : `database schema "${databaseSchemaName}"`;
-        throw new Error(
-          `Table "${tableName}" is declared more than once in ${placement}`,
-        );
-      }
-
-      return found;
-    },
+        .find((table) => table !== undefined),
+    withDefaultSchemaName: (nextDefaultSchemaName: string | undefined) =>
+      nextDefaultSchemaName === defaultSchemaName
+        ? component
+        : buildDatabaseComponent<DatabaseName, Tables, Schemas, Extensions>({
+            ...options,
+            defaultSchemaName: nextDefaultSchemaName,
+          }),
     withSchema: <const Added extends DatabaseSchemas>(added: Added) =>
-      databaseComponent<
+      buildDatabaseComponent<
         DatabaseName,
         Tables,
         MergeRecords<Schemas, Added>,
         Extensions
       >({
         databaseName,
+        defaultSchemaName,
         tables: defaultSchema.tables,
         schemas: { ...schemas, ...added },
         extensions,
@@ -253,8 +317,9 @@ export const databaseComponent = <
       if (schemaName === undefined) {
         const nextDefaultSchema = defaultSchema.withTable(added);
 
-        return databaseComponent({
+        return buildDatabaseComponent({
           databaseName,
+          defaultSchemaName,
           tables: nextDefaultSchema.tables,
           schemas,
           extensions,
@@ -265,6 +330,7 @@ export const databaseComponent = <
       const schema = Object.hasOwn(schemas, schemaName)
         ? schemas[schemaName]!
         : databaseSchemaComponent({ schemaName });
+
       const nextSchema = schema.withTable(added);
 
       return component.withSchema({ [schemaName]: nextSchema });

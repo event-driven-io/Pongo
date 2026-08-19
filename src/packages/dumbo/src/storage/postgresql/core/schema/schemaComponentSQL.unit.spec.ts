@@ -9,9 +9,9 @@ import {
   jsonPathIndexTarget,
   SQL,
   SQLDefaultSchemaNameToken,
+  SQLTableReference,
 } from '../../../../core';
 import { pgFormatter } from '../sql';
-import { postgreSQLTableReference } from './schemaComponentSQL';
 
 const format = (sql: SQL): string =>
   pgFormatter.format(sql, { serializer: JSONSerializer }).query;
@@ -25,24 +25,24 @@ const identifier = {
 describe('using Dumbo components in PostgreSQL schemas', () => {
   it('resolves table references from their full logical identifier', () => {
     assert.strictEqual(
-      format(postgreSQLTableReference(identifier)),
+      format(SQL`${SQLTableReference.from(identifier)}`),
       'audit.users',
     );
     assert.strictEqual(
       format(
-        postgreSQLTableReference({
+        SQL`${SQLTableReference.from({
           ...identifier,
           databaseSchemaName: 'public',
-        }),
+        })}`,
       ),
       'public.users',
     );
     assert.strictEqual(
       format(
-        postgreSQLTableReference({
+        SQL`${SQLTableReference.from({
           ...identifier,
           databaseSchemaName: SQLDefaultSchemaNameToken.from(),
-        }),
+        })}`,
       ),
       'users',
     );

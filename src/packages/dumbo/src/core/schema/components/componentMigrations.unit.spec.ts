@@ -1,12 +1,14 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
-import { SQL, SQLDefaultSchemaNameToken } from '../../sql';
+import {
+  SQL,
+  SQLDefaultSchemaNameToken,
+  SQLIndexReference,
+  SQLTableReference,
+} from '../../sql';
 import { dumboSchema } from '../dumboSchema';
 import { extensionComponent } from '../extensionComponent';
-import {
-  dedupeMigrations,
-  type SchemaComponentContext,
-} from '../schemaComponent';
+import { dedupeMigrations } from '../schemaComponent';
 import { sqlMigration } from '../sqlMigration';
 import { databaseComponent } from './databaseComponent';
 import { databaseSchemaComponent } from './databaseSchemaComponent';
@@ -175,7 +177,9 @@ describe('components emitting their own migrations', () => {
       },
     });
 
-    assert.deepStrictEqual(Object.keys(database.schemas.audit.tables), []);
+    assert.deepStrictEqual(Object.keys(database.schemas.audit.tables), [
+      'events',
+    ]);
     assert.deepStrictEqual(
       database.migrations().map(({ name }) => name),
       ['schema:audit:create', 'table:audit:events:create'],
@@ -326,15 +330,13 @@ describe('components emitting their own migrations', () => {
   });
 
   it('places a default schema in the database default schema name', () => {
-    const schema = databaseSchemaComponent({
-      schemaName: SQLDefaultSchemaNameToken.from(),
+    const database = databaseComponent({
+      defaultSchemaName: 'pongo',
       tables: { users: usersTable() },
     });
 
     assert.deepStrictEqual(
-      schema
-        .migrations({ defaults: { schemaName: 'pongo' } })
-        .map(({ name }) => name),
+      database.migrations().map(({ name }) => name),
       [
         'schema:pongo:create',
         'table:pongo:users:create',
@@ -344,18 +346,18 @@ describe('components emitting their own migrations', () => {
   });
 
   it('ignores the database default schema name in an explicitly named schema', () => {
-    const schema = databaseSchemaComponent({
-      schemaName: 'crm',
-      tables: { users: usersTable() },
+    const database = databaseComponent({
+      defaultSchemaName: 'pongo',
+      schemas: {
+        crm: databaseSchemaComponent({
+          schemaName: 'crm',
+          tables: { users: usersTable() },
+        }),
+      },
     });
 
     assert.deepStrictEqual(
-      schema
-        .migrations({
-          databaseSchemaName: 'audit',
-          defaults: { schemaName: 'pongo' },
-        })
-        .map(({ name }) => name),
+      database.schemas.crm.migrations().map(({ name }) => name),
       [
         'schema:crm:create',
         'table:crm:users:create',
@@ -365,12 +367,13 @@ describe('components emitting their own migrations', () => {
   });
 
   it('runs custom migrations with the placement of the component declaring them', () => {
-    const seen: SchemaComponentContext[] = [];
-    const record = (context: SchemaComponentContext) => {
-      seen.push(context);
+    const seen: unknown[] = [];
+    const record = (placement: unknown) => {
+      seen.push(placement);
       return [];
     };
     const database = databaseComponent({
+      defaultSchemaName: 'pongo',
       schemas: {
         crm: databaseSchemaComponent({
           schemaName: 'crm',
@@ -394,30 +397,30 @@ describe('components emitting their own migrations', () => {
       },
     });
 
-    database.migrations({ defaults: { schemaName: 'pongo' } });
+    database.migrations();
 
     assert.deepStrictEqual(seen, [
-      { databaseSchemaName: 'crm', defaults: { schemaName: 'pongo' } },
-      {
+      'crm',
+      SQLTableReference.from({
         databaseSchemaName: 'crm',
-        defaults: { schemaName: 'pongo' },
         tableName: 'users',
-      },
-      {
+      }),
+      SQLIndexReference.from({
         databaseSchemaName: 'crm',
-        defaults: { schemaName: 'pongo' },
         tableName: 'users',
-      },
+        indexName: 'users_email_idx',
+      }),
     ]);
   });
 
   it('runs table and index migrations with their declaring placement', () => {
-    const seen: SchemaComponentContext[] = [];
-    const record = (context: SchemaComponentContext) => {
-      seen.push(context);
+    const seen: unknown[] = [];
+    const record = (placement: unknown) => {
+      seen.push(placement);
       return [];
     };
     const database = databaseComponent({
+      defaultSchemaName: 'pongo',
       schemas: {
         crm: databaseSchemaComponent({
           schemaName: 'crm',
@@ -444,19 +447,18 @@ describe('components emitting their own migrations', () => {
       },
     });
 
-    database.migrations({ defaults: { schemaName: 'pongo' } });
+    database.migrations();
 
     assert.deepStrictEqual(seen, [
-      {
+      SQLIndexReference.from({
         databaseSchemaName: 'crm',
-        defaults: { schemaName: 'pongo' },
         tableName: 'users',
-      },
-      {
+        indexName: 'users_email_idx',
+      }),
+      SQLTableReference.from({
         databaseSchemaName: 'crm',
-        defaults: { schemaName: 'pongo' },
         tableName: 'roles',
-      },
+      }),
     ]);
   });
 
@@ -519,18 +521,22 @@ describe('components emitting their own migrations', () => {
   });
 
   it('keeps a relational and a Pongo table of the same name apart', () => {
-    const context = { databaseSchemaName: 'crm' };
-    const relational = tableComponent({ tableName: 'users', columns });
+    const relational = tableComponent({
+      tableName: 'users',
+      databaseSchemaName: 'crm',
+      columns,
+    });
     const collection = tableComponent({
       tableName: 'users',
+      databaseSchemaName: 'crm',
       kind: 'pongo_collection',
       columns,
     });
 
     assert.deepStrictEqual(
       dedupeMigrations([
-        ...relational.migrations(context),
-        ...collection.migrations(context),
+        ...relational.migrations(),
+        ...collection.migrations(),
       ]).map(({ name }) => name),
       ['table:crm:users:create', 'table:pongo_collection:crm:users:create'],
     );

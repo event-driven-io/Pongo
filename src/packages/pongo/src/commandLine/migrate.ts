@@ -14,8 +14,8 @@ import {
   type AnyPongoDriverOptions,
   type PongoDatabaseFactoryOptions,
 } from '../core';
-import { loadConfigFile } from './configFile';
 import type { PongoCollectionSchemaMetadata } from '../core/schema';
+import { loadConfigFile } from './configFile';
 
 interface MigrateRunOptions {
   collection: string[];
@@ -100,9 +100,10 @@ migrateCommand
     }
 
     if (options.config) {
-      const config = await loadConfigFile(options.config);
+      const config = await loadConfigFile(options.config, databaseName);
 
       collectionNames = config.collections;
+      options.databaseName = databaseName ?? config.name;
     } else if (collection) {
       collectionNames = collection;
     } else {
@@ -117,7 +118,7 @@ migrateCommand
     const migrations = getMigrations({
       driverType,
       connectionString,
-      databaseName,
+      databaseName: options.databaseName,
       collectionNames,
     });
 
@@ -159,13 +160,15 @@ migrateCommand
   //.option('--write <filename>', 'Write the SQL to a specified file')
   .action(async (options: MigrateSqlOptions) => {
     const { collection, databaseName, databaseType, databaseDriver } = options;
+    let resolvedDatabaseName = databaseName;
 
     let collectionNames: (string | PongoCollectionSchemaMetadata)[];
 
     if (options.config) {
-      const config = await loadConfigFile(options.config);
+      const config = await loadConfigFile(options.config, databaseName);
 
       collectionNames = config.collections;
+      resolvedDatabaseName = databaseName ?? config.name;
     } else if (collection) {
       collectionNames = collection;
     } else {
@@ -180,7 +183,7 @@ migrateCommand
     const migrations = getMigrations({
       driverType,
       connectionString: undefined,
-      databaseName,
+      databaseName: resolvedDatabaseName,
       collectionNames,
     });
 
@@ -231,5 +234,5 @@ const getMigrations = ({
 
   const db = driver.databaseFactory({ ...driverOptions, ...customOptions });
 
-  return db.schema.migrations;
+  return db.schema.component.migrations();
 };

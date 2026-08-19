@@ -4,7 +4,6 @@ import {
   SQLite3DriverType,
   type SQLiteTransactionOptions,
 } from '@event-driven-io/dumbo/sqlite3';
-import { sqliteTableReference } from '@event-driven-io/dumbo/sqlite';
 import {
   PongoDatabase,
   pongoDriverRegistry,
@@ -45,16 +44,8 @@ const sqlite3PongoDriver: PongoDriver<
         ...connectionOptions,
         serialization: { serializer: options.serializer },
       }),
-      sqlBuilderFor: (collection, identifier) => {
-        const referenceFor = (tableName: string) =>
-          sqliteTableReference({ ...identifier, tableName });
-        return sqliteSQLBuilder(
-          collection,
-          referenceFor(identifier.tableName),
-          referenceFor,
-          options.serializer,
-        );
-      },
+      sqlBuilderFor: (collection) =>
+        sqliteSQLBuilder(collection, options.serializer),
       databaseName,
       defaultSchemaName,
     });
