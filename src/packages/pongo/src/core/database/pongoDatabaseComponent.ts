@@ -1,6 +1,6 @@
-import type { SQLDefaultSchemaNameToken } from '@event-driven-io/dumbo';
 import {
   databaseComponent,
+  DefaultDatabaseSchemaName,
   type AnyDatabaseComponent,
 } from '@event-driven-io/dumbo';
 import {
@@ -17,7 +17,7 @@ import type {
 
 type PongoDatabaseComponentOptions = Readonly<{
   component?: AnyDatabaseComponent | undefined;
-  defaultSchemaName: string | SQLDefaultSchemaNameToken;
+  defaultSchemaName: string;
   createCollection: <
     Document extends PongoDocument,
     Payload extends PongoDocument = Document,
@@ -27,12 +27,10 @@ type PongoDatabaseComponentOptions = Readonly<{
   ) => PongoCollection<Document>;
 }>;
 
-const databaseSchemaLabel = (
-  databaseSchemaName: string | SQLDefaultSchemaNameToken,
-): string =>
-  typeof databaseSchemaName === 'string'
-    ? `database schema "${databaseSchemaName}"`
-    : 'the default database schema';
+const databaseSchemaLabel = (databaseSchemaName: string): string =>
+  databaseSchemaName === DefaultDatabaseSchemaName
+    ? 'the default database schema'
+    : `database schema "${databaseSchemaName}"`;
 
 export const PongoDatabaseComponent = ({
   component: initialComponent,
@@ -47,7 +45,7 @@ export const PongoDatabaseComponent = ({
       : initialComponent.withDefaultSchemaName(configuredDefaultSchemaName);
 
   const collectionsBySchema = new Map<
-    string | SQLDefaultSchemaNameToken,
+    string,
     Map<string, PongoCollection<PongoDocument>>
   >([[defaultSchemaName, new Map()]]);
   const collectionsIn = (requestedSchemaName?: string) => {

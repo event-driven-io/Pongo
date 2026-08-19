@@ -1,11 +1,11 @@
 import type { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import {
+  DefaultDatabaseSchemaName,
   mapColumnToBigint,
   mapColumnToJSON,
   runSQLMigrations,
   single,
   sqlMigration,
-  SQLDefaultSchemaNameToken,
   type DatabaseDriverType,
   type DatabaseTransaction,
   type Dumbo,
@@ -61,15 +61,15 @@ const encodeMigrationNameSegment = (segment: string): string =>
   encodeURIComponent(segment);
 
 const migrationSchemaSegments = (
-  databaseSchemaName: string | SQLDefaultSchemaNameToken | undefined,
+  databaseSchemaName: string | undefined,
 ): ReadonlyArray<string> =>
   databaseSchemaName === undefined ||
-  SQLDefaultSchemaNameToken.check(databaseSchemaName)
+  databaseSchemaName === DefaultDatabaseSchemaName
     ? []
     : [databaseSchemaName];
 
 const tableRenameMigrationName = (
-  databaseSchemaName: string | SQLDefaultSchemaNameToken | undefined,
+  databaseSchemaName: string | undefined,
   tableName: string,
   newName: string,
 ): string =>
@@ -237,11 +237,10 @@ export const pongoCollection = <
     return row ? { ...row.data, _id: row._id, _version: row._version } : null;
   };
 
-  const cacheKeySchemaName = SQLDefaultSchemaNameToken.check(
-    component.tableReference.databaseSchemaName,
-  )
-    ? ''
-    : component.tableReference.databaseSchemaName;
+  const cacheKeySchemaName =
+    component.tableReference.databaseSchemaName === DefaultDatabaseSchemaName
+      ? ''
+      : component.tableReference.databaseSchemaName;
 
   const cacheKey = (id: string): PongoDocumentCacheKey =>
     `${db.databaseName}:${cacheKeySchemaName}.${component.tableName}:${id}`;

@@ -2,8 +2,8 @@ import type {
   AnyDatabaseSchemaComponent,
   AnyTableComponent,
   DatabaseComponent,
-  DatabaseSchemas,
   DatabaseSchemaComponent,
+  DatabaseSchemas,
   DatabaseSchemaTables,
   TableColumnNames,
   TableColumns,
@@ -11,7 +11,7 @@ import type {
   Writable,
 } from '..';
 import type { ColumnTypeToken } from '../../../sql/tokens/columnTokens';
-import type { SQLDefaultSchemaNameToken } from '../../../sql/tokens/sqlToken';
+import type { DefaultDatabaseSchemaName } from '../../../sql/tokens/sqlToken';
 import type { NotEmptyTuple } from '../../../typing';
 
 export type ExtractSchemaNames<DB> =
@@ -123,11 +123,11 @@ export type AllColumnReferencesInSchema<
  * has no name to qualify references with, so it is looked up by a well-known key
  * instead.
  */
-export type DefaultSchemaKey = SQLDefaultSchemaNameToken['sqlTokenType'];
+export type DefaultSchemaKey = DefaultDatabaseSchemaName;
 
-export type DatabaseSchemaKey<
-  SchemaName extends string | SQLDefaultSchemaNameToken,
-> = [Extract<SchemaName, string>] extends [never]
+export type DatabaseSchemaKey<SchemaName extends string> = [
+  Extract<SchemaName, string>,
+] extends [never]
   ? DefaultSchemaKey
   : Extract<SchemaName, string>;
 

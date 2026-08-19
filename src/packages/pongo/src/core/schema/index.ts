@@ -1,39 +1,38 @@
 import type {
+  columnComponentType,
   schemaComponentType,
   tableComponentType,
-  columnComponentType,
 } from '@event-driven-io/dumbo';
 import {
   databaseComponent,
   databaseSchemaComponent,
   dumboSchema,
   indexComponent,
-  jsonDocumentIndexTarget,
-  jsonPathIndexTarget,
   isSchemaComponent,
   isTableComponent,
+  jsonDocumentIndexTarget,
+  jsonPathIndexTarget,
   SQL,
-  type SQLDefaultSchemaNameToken,
-  type SQL as SQLStatement,
   type AnyDatabaseComponent,
+  type AnyDatabaseSchemaComponent,
   type DatabaseComponent,
   type DatabaseDriverType,
   type DatabaseExtensions,
-  type AnyDatabaseSchemaComponent,
   type DatabaseSchemaComponent,
   type DatabaseTables,
   type IndexComponent,
   type IndexSQLContext,
   type SchemaExtensions,
+  type SQL as SQLStatement,
   type TableComponent,
   type TableRowType,
 } from '@event-driven-io/dumbo';
 import {
+  objectEntries,
   type PongoClient,
   type PongoCollection,
   type PongoDb,
   type PongoDocument,
-  objectEntries,
 } from '../typing';
 
 export const pongoCollectionComponentType: unique symbol = Symbol(
@@ -127,7 +126,7 @@ export type PongoCollectionComponent<
     [schemaComponentType]: typeof tableComponentType;
     [pongoCollectionComponentType]: true;
     withDatabaseSchemaName: (
-      databaseSchemaName: string | SQLDefaultSchemaNameToken,
+      databaseSchemaName: string,
     ) => PongoCollectionComponent<Document, Name, Indexes>;
     withTableName: <const NewTableName extends string>(
       tableName: NewTableName,
@@ -516,7 +515,7 @@ export const toDbSchemaMetadata = (
         .filter(isPongoCollectionComponent)
         .map((collection) => ({
           name: collection.tableName,
-          databaseSchemaName: databaseSchema.schemaName as string,
+          databaseSchemaName: databaseSchema.schemaName,
         })),
     ),
   ],

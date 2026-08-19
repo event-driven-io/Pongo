@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
-import { SQL, SQLDefaultSchemaNameToken } from '../../sql';
+import { DefaultDatabaseSchemaName, SQL } from '../../sql';
 import { extensionComponent } from '../extensionComponent';
 import { sqlMigration } from '../sqlMigration';
 import { databaseSchemaComponent } from './databaseSchemaComponent';
@@ -53,8 +53,9 @@ describe('declaring a schema with tables', () => {
       audit.tables.users.tableReference.databaseSchemaName,
       'audit',
     );
-    assert.ok(
-      SQLDefaultSchemaNameToken.check(users.tableReference.databaseSchemaName),
+    assert.strictEqual(
+      users.tableReference.databaseSchemaName,
+      DefaultDatabaseSchemaName,
     );
   });
 
@@ -100,7 +101,7 @@ describe('declaring a schema with tables', () => {
     assert.throws(
       () =>
         databaseSchemaComponent({
-          schemaName: SQLDefaultSchemaNameToken.from(),
+          schemaName: DefaultDatabaseSchemaName,
           tables: {
             users: tableComponent({ tableName: 'users' }),
             customerDirectory: tableComponent({ tableName: 'users' }),

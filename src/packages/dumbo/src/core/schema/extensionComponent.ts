@@ -1,4 +1,3 @@
-import type { SQLDefaultSchemaNameToken } from '../sql';
 import {
   assertSchemaKeysAreNotEmpty,
   type AnyDatabaseSchemaComponent,
@@ -28,7 +27,7 @@ export interface AnyExtensionComponent extends SchemaComponent<
   readonly tables: ExtensionTables;
   readonly schemas: ExtensionSchemas;
   readonly withDatabaseSchemaName: (
-    databaseSchemaName: string | SQLDefaultSchemaNameToken,
+    databaseSchemaName: string,
   ) => AnyExtensionComponent;
 }
 
@@ -42,7 +41,7 @@ export type ExtensionComponent<
     tables: Tables;
     schemas: Schemas;
     withDatabaseSchemaName: (
-      databaseSchemaName: string | SQLDefaultSchemaNameToken,
+      databaseSchemaName: string,
     ) => ExtensionComponent<Name, Tables, Schemas>;
   }>;
 
@@ -94,9 +93,7 @@ export const extensionComponent = <
     extensionName,
     tables: schemaComponentMap(tables),
     schemas: schemaComponentMap(schemas),
-    withDatabaseSchemaName: (
-      databaseSchemaName: string | SQLDefaultSchemaNameToken,
-    ) => {
+    withDatabaseSchemaName: (databaseSchemaName: string) => {
       const placed = Object.fromEntries(
         Object.entries(tables).map(([key, table]) => [
           key,

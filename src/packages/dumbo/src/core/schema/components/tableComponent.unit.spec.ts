@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
-import { SQL, SQLDefaultSchemaNameToken } from '../../sql';
+import { DefaultDatabaseSchemaName, SQL } from '../../sql';
 import { dumboSchema } from '../dumboSchema';
 import { indexComponent } from './indexComponent';
 import { tableComponent } from './tableComponent';
@@ -35,8 +35,9 @@ describe('declaring a table in a database schema', () => {
   it('leaves the placement of a table declaring no database schema to the dialect', () => {
     const users = usersTable();
 
-    assert.ok(
-      SQLDefaultSchemaNameToken.check(users.tableReference.databaseSchemaName),
+    assert.strictEqual(
+      users.tableReference.databaseSchemaName,
+      DefaultDatabaseSchemaName,
     );
     assert.strictEqual(users.tableReference.tableName, 'users');
     assert.deepStrictEqual(
@@ -107,8 +108,9 @@ describe('table.withDatabaseSchemaName(databaseSchemaName)', () => {
       placed.migrations().map(({ name }) => name),
       ['table:crm:users:create', 'index:crm:users:users_email_idx:create'],
     );
-    assert.ok(
-      SQLDefaultSchemaNameToken.check(users.tableReference.databaseSchemaName),
+    assert.strictEqual(
+      users.tableReference.databaseSchemaName,
+      DefaultDatabaseSchemaName,
     );
   });
 

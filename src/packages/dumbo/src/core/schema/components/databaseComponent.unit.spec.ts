@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
-import { SQL, SQLDefaultSchemaNameToken } from '../../sql';
+import { DefaultDatabaseSchemaName, SQL } from '../../sql';
 import { dumboSchema } from '../dumboSchema';
 import { extensionComponent } from '../extensionComponent';
 import { sqlMigration } from '../sqlMigration';
@@ -19,8 +19,9 @@ describe('placing tables and schemas in a database', () => {
     const users = table('users');
     const database = databaseComponent({ tables: { users } });
 
-    assert.ok(
-      SQLDefaultSchemaNameToken.check(database.defaultSchema.schemaName),
+    assert.strictEqual(
+      database.defaultSchema.schemaName,
+      DefaultDatabaseSchemaName,
     );
     assert.strictEqual(database.defaultSchema.tables.users, users);
     assert.strictEqual(database.tables, database.defaultSchema.tables);
@@ -435,7 +436,10 @@ describe('database.withTable(tables)', () => {
     assert.strictEqual(next.tables.users, users);
     assert.strictEqual(next.defaultSchema.tables, next.tables);
     assert.deepStrictEqual(Object.keys(database.tables), ['roles']);
-    assert.ok(SQLDefaultSchemaNameToken.check(next.defaultSchema.schemaName));
+    assert.strictEqual(
+      next.defaultSchema.schemaName,
+      DefaultDatabaseSchemaName,
+    );
   });
 
   it('preserves database extensions and custom database migrations', () => {
@@ -504,7 +508,7 @@ describe('database.withTable(tables, schemaName)', () => {
         databaseComponent({
           schemas: {
             '': databaseSchemaComponent({
-              schemaName: SQLDefaultSchemaNameToken.from(),
+              schemaName: DefaultDatabaseSchemaName,
               tables: { users },
             }),
           },

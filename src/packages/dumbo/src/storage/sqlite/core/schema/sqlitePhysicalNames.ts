@@ -1,5 +1,5 @@
 import {
-  SQLDefaultSchemaNameToken,
+  DefaultDatabaseSchemaName,
   type SQLIndexReference,
   type SQLTableReference,
 } from '../../../../core';
@@ -21,7 +21,7 @@ export const sqliteTableName = (
   const { databaseSchemaName, tableName } = identifier;
   assertNativeName('table', tableName);
 
-  if (SQLDefaultSchemaNameToken.check(databaseSchemaName)) return tableName;
+  if (databaseSchemaName === DefaultDatabaseSchemaName) return tableName;
 
   assertNativeName('database schema', databaseSchemaName);
 
@@ -34,7 +34,7 @@ export const sqliteIndexName = (
   const { databaseSchemaName, indexName } = identifier;
   assertNativeName('index', indexName);
 
-  if (SQLDefaultSchemaNameToken.check(databaseSchemaName)) return indexName;
+  if (databaseSchemaName === DefaultDatabaseSchemaName) return indexName;
 
   assertNativeName('database schema', databaseSchemaName);
 

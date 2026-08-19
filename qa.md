@@ -51,7 +51,7 @@
 
 **A4 (verbatim):**
 
-> Yes, SQLDefaultSchemaNameToken that's why I added it, but the concern is that user still need to pass the schema. When we define table we don't know the schema, we only know it when we attach it to schema.
+> Yes, DefaultDatabaseSchemaName that's why I added it, but the concern is that user still need to pass the schema. When we define table we don't know the schema, we only know it when we attach it to schema.
 >
 > I want to keep it as simple as possible, and reduce this high ceremony from this PR where possible.
 
@@ -137,7 +137,7 @@
 
 ## Q13
 
-> Can `defaultSchemaName` stop being resolved eagerly in `pongoDb` — with the no-schema-given path producing an unnamed schema component backed by `SQLDefaultSchemaNameToken` — or does something downstream need that string at construction time?
+> Can `defaultSchemaName` stop being resolved eagerly in `pongoDb` — with the no-schema-given path producing an unnamed schema component backed by `DefaultDatabaseSchemaName` — or does something downstream need that string at construction time?
 
 **A13 (verbatim):**
 
@@ -149,7 +149,7 @@
 
 **A14 (verbatim):**
 
-> > One thing I should flag: SQLDefaultSchemaNameToken is currently declared but never consumed — the only references are its own definition in
+> > One thing I should flag: DefaultDatabaseSchemaName is currently declared but never consumed — the only references are its own definition in
 >
 > Yes, I added with the intention to use it, but never plugged. If it's useful, use it, if not we could drop it.
 >
@@ -511,12 +511,12 @@ The component is where both builders meet, and it is where the check already liv
 
 Two runtime values are the composer's stated reason to be deferred:
 
-- `defaultSchemaName` — dissolved by Q37. An unnamed schema resolves to `SQLDefaultSchemaNameToken` at `migrations()` time, so the flat form can group at declaration time without knowing whether the driver says `public` or `main`.
+- `defaultSchemaName` — dissolved by Q37. An unnamed schema resolves to `DefaultDatabaseSchemaName` at `migrations()` time, so the flat form can group at declaration time without knowing whether the driver says `public` or `main`.
 - `databaseName` — still only known at connection time. It reaches no emitted SQL: `migrationNames.ts` and `databaseObjectSQL.ts` read `databaseSchemaName`, `tableName` and `indexName` only. Its live uses are the guard at `databaseComponent.ts:58-66`, the throw at `databaseMigrations.ts:58-60`, and `IndexSQLContext.databaseName` exposed to custom index SQL callbacks.
 
 ## Q45
 
-> Dude, didn't we already agree that we don't need database name in the migrations (besides creating database potentially_ and the whole databaseMigration should be removed eventually? DId you even read the fng spec?
+> Dude, didn't we already agree that we don't need database name in the migrations (besides creating database potentially\_ and the whole databaseMigration should be removed eventually? DId you even read the fng spec?
 
 **Yes — D7 removes `databaseName` from the resolution chain and Phase 4 deletes `databaseMigrations` entirely. The question should not have been asked.**
 
@@ -532,7 +532,7 @@ With `defaultSchemaName` dissolved by D5 and `databaseName` reduced to connectio
 
 > Dude, we were already discussing it, read the spec.md
 
-**D9 already answers it:** with no `defaultSchemaName`, collections go into an _unnamed_ default schema component whose qualifier is `SQLDefaultSchemaNameToken`. A schema created without a name carries the token; its map key is never read as a name. The alias fills in only for schemas the user keyed in a `schemas` block.
+**D9 already answers it:** with no `defaultSchemaName`, collections go into an _unnamed_ default schema component whose qualifier is `DefaultDatabaseSchemaName`. A schema created without a name carries the token; its map key is never read as a name. The alias fills in only for schemas the user keyed in a `schemas` block.
 
 **Correction to Q44/Q46:** `defaultSchemaName` does not dissolve — D9 keeps it as an optional explicit override, so it remains a runtime input. `composePongoDatabase` therefore is not replaced by declaration-time grouping; it is replaced by D10, where `pongoDb` get-or-creates schema components through `withTable` and holds the database component as an immutable value behind a mutable holder. Its removal belongs with D9/D10 in **Phase 5**, not Phase 3.
 
@@ -540,7 +540,7 @@ With `defaultSchemaName` dissolved by D5 and `databaseName` reduced to connectio
 
 > dude, stop, we're circlicng back and forth. Let's again discuss the real issue. Do we really need to clone it, can't we just assign parent?
 
-**No, and cloning is what created every problem in this thread.** Assigning `parent` on the child itself means the parent's `components` and its named maps (`tables`, `indexes`, `columns`, `schemas`) hold the *same objects*, so there is nothing to keep in sync. That deletes, in one move: `attachChildren`, `isAliasedComponents`, the repoint step, the recursive `withParent`, the grandchild-staleness problem that forced the recursion, and the `alias`/`componentGroups` inventions that were only ever attempts to survive cloning.
+**No, and cloning is what created every problem in this thread.** Assigning `parent` on the child itself means the parent's `components` and its named maps (`tables`, `indexes`, `columns`, `schemas`) hold the _same objects_, so there is nothing to keep in sync. That deletes, in one move: `attachChildren`, `isAliasedComponents`, the repoint step, the recursive `withParent`, the grandchild-staleness problem that forced the recursion, and the `alias`/`componentGroups` inventions that were only ever attempts to survive cloning.
 
 `withParent` itself disappears — the attach loop becomes `child.parent = component`.
 
@@ -593,11 +593,11 @@ Three places in the code as it stands:
 
 > No schema means default schema.
 
-**Settled, and it answers the open default-schema question.** Absence of a schema component *is* the default schema. Therefore:
+**Settled, and it answers the open default-schema question.** Absence of a schema component _is_ the default schema. Therefore:
 
-- `databaseSchemaName: undefined` in the context means the default schema. `SQLDefaultSchemaNameToken` is never a value in `SchemaComponentContext`; it appears only in emitted SQL, for the formatter to resolve. `SchemaComponentContext.databaseSchemaName` stays `string | undefined`.
+- `databaseSchemaName: undefined` in the context means the default schema. `DefaultDatabaseSchemaName` is never a value in `SchemaComponentContext`; it appears only in emitted SQL, for the formatter to resolve. `SchemaComponentContext.databaseSchemaName` stays `string | undefined`.
 - "Unnamed schema" and "no schema" stop being two encodings of one state — there is no unnamed schema.
-- Spec D9's *unnamed default schema component* is withdrawn. Pongo with no `defaultSchemaName` puts collections directly under the database, so no name has to be invented and D8's migration names stay byte-identical to `main` (no schema segment).
+- Spec D9's _unnamed default schema component_ is withdrawn. Pongo with no `defaultSchemaName` puts collections directly under the database, so no name has to be invented and D8's migration names stay byte-identical to `main` (no schema segment).
 - The guard at `databaseMigrations.ts:94-97` (`isTableComponent(component) && databaseSchemaName !== undefined`) goes. It exists only because unqualified DDL was unrepresentable, and it is the cause of spec §1's silently-dropped table in a database-level extension.
 
 ## Q54
@@ -620,17 +620,17 @@ Three places in the code as it stands:
 
 ## Q57
 
-> Is the default schema a real schema component named by `SQLDefaultSchemaNameToken`, and how is it spelled?
+> Is the default schema a real schema component named by `DefaultDatabaseSchemaName`, and how is it spelled?
 
 **Yes, and it is spelled `dumboSchema.defaultSchema({ users })`.**
 
 ```ts
-schemaName: string | SQLDefaultSchemaNameToken   // always present, never undefined
+schemaName: string | DefaultDatabaseSchemaName; // always present, never undefined
 ```
 
 - `dumboSchema.schema('crm', { users })` — a named schema. A name is mandatory on this form.
 - `dumboSchema.defaultSchema({ users })` — the default schema, carrying the token.
-- `SchemaComponentContext.databaseSchemaName` becomes `string | SQLDefaultSchemaNameToken`. There is no "unknown qualifier" state, so the skip-if-undefined guard at `databaseMigrations.ts:94-97` disappears and with it spec §1's silently-dropped table.
+- `SchemaComponentContext.databaseSchemaName` becomes `string | DefaultDatabaseSchemaName`. There is no "unknown qualifier" state, so the skip-if-undefined guard at `databaseMigrations.ts:94-97` disappears and with it spec §1's silently-dropped table.
 - The formatter resolves the token: no prefix on SQLite, no prefix on Postgres (resolved through `search_path`). Migration names get no schema segment for it, so D8's back-compat holds without the `=== defaultSchemaName` comparison.
 
 **Corrects Q53**, which claimed the token was redundant with `undefined` and could be deleted. The reverse: the token is what stops `undefined` from existing.
@@ -652,7 +652,7 @@ schemaName: string | SQLDefaultSchemaNameToken   // always present, never undefi
 **We don't, once nothing reads the erased child list by key.** It existed to build that list and to throw when the same key appeared in two typed maps — a throw only needed because the list was a keyed record. After `findComponents` goes, the recursion only ever does `Object.values(...)`, so the list becomes a plain array:
 
 ```ts
-components: [...Object.values(tables), ...Object.values(extensions)]
+components: [...Object.values(tables), ...Object.values(extensions)];
 ```
 
 A key reused for both a column and an index stops being a collision — both children are present and both migrate. `mergeSchemaComponentMaps`, its duplicate-key throw and that test all go. The typed maps keep their keys and `schemaComponentMap` stays for them.

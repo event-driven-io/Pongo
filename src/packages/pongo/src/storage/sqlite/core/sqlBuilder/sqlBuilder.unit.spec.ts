@@ -1,7 +1,7 @@
 import {
+  DefaultDatabaseSchemaName,
   JSONSerializer,
   SQL,
-  SQLDefaultSchemaNameToken,
 } from '@event-driven-io/dumbo';
 import { sqliteFormatter } from '@event-driven-io/dumbo/sqlite';
 import { randomUUID } from 'crypto';
@@ -19,17 +19,15 @@ import { sqliteSQLBuilder } from './index';
 const formatSQL = (sql: SQL, formatter = sqliteFormatter) =>
   formatter.format(sql, { serializer: JSONSerializer });
 
-const defaultSchema = SQLDefaultSchemaNameToken.from();
+const defaultSchema = DefaultDatabaseSchemaName;
 
-const collectionInSchema = (
-  schemaName: string | SQLDefaultSchemaNameToken,
-  collectionName: string,
-) => collectionInSchemaWithIndexes(schemaName, collectionName, { indexes: {} });
+const collectionInSchema = (schemaName: string, collectionName: string) =>
+  collectionInSchemaWithIndexes(schemaName, collectionName, { indexes: {} });
 
 const collectionInSchemaWithIndexes = <
   const Indexes extends PongoCollectionIndexes,
 >(
-  schemaName: string | SQLDefaultSchemaNameToken,
+  schemaName: string,
   collectionName: string,
   options: { indexes: Indexes },
 ) => ({
@@ -40,24 +38,26 @@ const collectionInSchemaWithIndexes = <
 const databaseInSchemaWithIndexes = <
   const Indexes extends PongoCollectionIndexes,
 >(
-  schemaName: string | SQLDefaultSchemaNameToken,
+  schemaName: string,
   collectionName: string,
   options: { indexes: Indexes },
 ) => {
   const collection = pongoSchema.collection(collectionName, { ...options });
-  const placedCollection = SQLDefaultSchemaNameToken.check(schemaName)
-    ? collection
-    : collection.withDatabaseSchemaName(schemaName);
+  const placedCollection =
+    schemaName == DefaultDatabaseSchemaName
+      ? collection
+      : collection.withDatabaseSchemaName(schemaName);
 
   return {
     collection: placedCollection,
-    database: SQLDefaultSchemaNameToken.check(schemaName)
-      ? pongoSchema.db({ collections: { collection } })
-      : pongoSchema.db({
-          schemas: {
-            [schemaName]: pongoSchema.schema(schemaName, { collection }),
-          },
-        }),
+    database:
+      schemaName === DefaultDatabaseSchemaName
+        ? pongoSchema.db({ collections: { collection } })
+        : pongoSchema.db({
+            schemas: {
+              [schemaName]: pongoSchema.schema(schemaName, { collection }),
+            },
+          }),
   };
 };
 

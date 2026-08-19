@@ -2,16 +2,11 @@ import type {
   AnyColumnSchemaComponent,
   AnyDatabaseSchemaComponent,
   ColumnSchemaComponent,
-  DatabaseSchemas,
   DatabaseSchemaComponent,
+  DatabaseSchemas,
   DatabaseSchemaTables,
 } from '..';
-import type { FormatValidationErrors } from './formatRelationshipErrors';
-import type {
-  AnyColumnTypeToken,
-  ColumnTypeToken,
-  SQLDefaultSchemaNameToken,
-} from '../../../sql';
+import type { AnyColumnTypeToken, ColumnTypeToken } from '../../../sql';
 import type {
   ALL,
   AND,
@@ -38,6 +33,7 @@ import type {
   TableColumns,
   TableComponent,
 } from '../tableComponent';
+import type { FormatValidationErrors } from './formatRelationshipErrors';
 import type {
   AnyTableRelationshipDefinition,
   AnyTableRelationshipDefinitionWithColumns,
@@ -513,7 +509,7 @@ export type ValidateTable<
  * are reported as they stand and flattened into the database error list.
  */
 type ScopeSchemaErrors<
-  SchemaName extends string | SQLDefaultSchemaNameToken,
+  SchemaName extends string,
   Errors extends readonly unknown[],
 > = [Extract<SchemaName, string>] extends [never]
   ? Errors
@@ -531,7 +527,7 @@ type FlattenSchemaErrors<Errors extends readonly unknown[]> =
 
 export type ValidateSchemaTables<
   Tables extends Record<string, AnyTableComponent>,
-  SchemaName extends string | SQLDefaultSchemaNameToken,
+  SchemaName extends string,
   Schema extends AnyDatabaseSchemaComponent,
   Schemas extends DatabaseSchemas = DatabaseSchemasWithSingle<Schema>,
 > =

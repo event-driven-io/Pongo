@@ -1,5 +1,5 @@
 import { describe, expectTypeOf, it } from 'vitest';
-import { SQL, type SQLDefaultSchemaNameToken } from '../sql';
+import { SQL } from '../sql';
 import type {
   DatabaseSchemaComponentOptions,
   DatabaseSchemaTables,
@@ -129,9 +129,7 @@ describe('composing a schema through the Dumbo declaration API', () => {
 
   it('holds unscoped tables in the nameless default schema', () => {
     expectTypeOf(flat.defaultSchema.tables.users).toEqualTypeOf(users);
-    expectTypeOf(flat.defaultSchema.schemaName).toEqualTypeOf<
-      string | SQLDefaultSchemaNameToken
-    >();
+    expectTypeOf(flat.defaultSchema.schemaName).toEqualTypeOf<string>();
   });
 
   it('validates relationships of directly declared tables without naming a scope', () => {
