@@ -190,7 +190,7 @@ const runSQLMigration = async (
 
   if (sqls.length === 0) return false;
 
-  const sqlHash = await getMigrationHash(migration, formatter);
+  const sqlHash = await getMigrationHash(sqls, formatter);
 
   try {
     const newMigration = {
@@ -249,10 +249,10 @@ const runSQLMigration = async (
 };
 
 const getMigrationHash = async (
-  sqlMigration: SQLMigration,
+  sqls: SQL[],
   sqlFormatter: SQLFormatter,
 ): Promise<string> => {
-  const content = sqlFormatter.describe(sqlMigration.sqls, {
+  const content = sqlFormatter.describe(sqls, {
     serializer: JSONSerializer,
   });
 

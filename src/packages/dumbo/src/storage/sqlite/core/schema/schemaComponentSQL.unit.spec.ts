@@ -84,6 +84,20 @@ describe('using Dumbo components in logical SQLite schemas', () => {
     );
   });
 
+  it('keeps a JSON path segment containing a dot as one segment', () => {
+    const index = indexComponent({
+      indexName: 'users_email_idx',
+      columnNames: ['data'],
+      isUnique: false,
+      target: jsonPathIndexTarget('data', ['user.name']),
+    });
+
+    assert.strictEqual(
+      format(createIndexSQL(index, identifier)),
+      'CREATE INDEX IF NOT EXISTS "crm.users_email_idx" ON "crm.users" (json_extract(data, \'$."user.name"\'))',
+    );
+  });
+
   it('creates an index for a JSON document', () => {
     const index = indexComponent({
       indexName: 'users_document_idx',

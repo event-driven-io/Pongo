@@ -15,6 +15,7 @@ import {
   isPongoCollectionComponent,
   pongoCollectionComponentType,
   pongoSchema,
+  toDbSchemaMetadata,
   type PongoCollectionIndexSQLContext,
 } from './index';
 
@@ -383,5 +384,26 @@ describe('declaring Pongo schemas and databases', () => {
     assert.strictEqual(collections.users, users);
     assert.deepStrictEqual(Object.keys(schemas), ['public']);
     assert.strictEqual(schemas.public, publicSchema);
+  });
+});
+
+describe('describing a database schema for the CLI', () => {
+  it('keeps the schema a collection was declared in', () => {
+    const definition = pongoSchema.db({
+      schemas: {
+        crm: pongoSchema.schema('crm', {
+          users: pongoSchema.collection<{ name: string }>('users'),
+        }),
+      },
+    });
+
+    const metadata = toDbSchemaMetadata(definition);
+
+    const rebuilt = pongoSchema.db.from(metadata.name, metadata.collections);
+
+    assert.deepStrictEqual(
+      rebuilt.migrations().map(({ name }) => name),
+      definition.migrations().map(({ name }) => name),
+    );
   });
 });

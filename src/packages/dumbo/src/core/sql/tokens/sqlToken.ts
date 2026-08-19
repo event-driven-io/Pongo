@@ -112,7 +112,7 @@ export const SQLJSONDocumentIndexTarget = SQLToken<SQLJSONDocumentIndexTarget>(
 
 export type SQLJSONPathTarget = SQLToken<
   'SQL_JSON_PATH_TARGET',
-  { columnName: string; path: string }
+  { columnName: string; path: readonly string[] }
 >;
 export const SQLJSONPathTarget = SQLToken<SQLJSONPathTarget>(
   'SQL_JSON_PATH_TARGET',

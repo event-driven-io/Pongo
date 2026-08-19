@@ -1,6 +1,7 @@
 import { SQL } from '../../../../core';
 
-const pathParts = (path: string): string[] => path.split('.');
+const pathParts = (path: string | readonly string[]): string[] =>
+  typeof path === 'string' ? path.split('.') : [...path];
 
 const canUseUnquotedArrayElement = (value: string): boolean =>
   /^[A-Za-z0-9_$]+$/.test(value);
@@ -15,7 +16,8 @@ const pathArrayLiteral = (values: string[]): string => {
   return SQL.literal(arrayValue).value;
 };
 
-const path = (path: string) => SQL.plain(pathArrayLiteral(pathParts(path)));
+const path = (path: string | readonly string[]) =>
+  SQL.plain(pathArrayLiteral(pathParts(path)));
 
 const field = (source: SQL, path: string): SQL => {
   const parts = pathParts(path);

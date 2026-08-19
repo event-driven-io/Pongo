@@ -29,7 +29,8 @@ export const SQLProcessorsRegistry = (options?: {
     if (
       args.length === 1 &&
       typeof args[0] === 'object' &&
-      !Array.isArray(args[0])
+      !Array.isArray(args[0]) &&
+      !('canHandle' in args[0])
     ) {
       Object.entries(args[0] as Record<string, AnySQLProcessor>).forEach(
         ([_, processor]) => {

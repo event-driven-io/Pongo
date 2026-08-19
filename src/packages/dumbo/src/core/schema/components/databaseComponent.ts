@@ -147,6 +147,9 @@ export const databaseComponent = <
   const schemas = (options.schemas ?? {}) as Schemas;
   const databaseName = options.databaseName;
   for (const [schemaName, schema] of Object.entries(schemas)) {
+    if (schemaName === '')
+      throw new Error('Database schema record key cannot be an empty string');
+
     if (
       typeof schema.schemaName === 'string' &&
       schema.schemaName !== schemaName

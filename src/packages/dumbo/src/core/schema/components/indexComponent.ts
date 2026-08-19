@@ -99,7 +99,7 @@ const indexTargetSQL = (
     return SQL`${SQLJSONPathTarget.from({
       columnName: target.columnName,
       path:
-        typeof target.path === 'string' ? target.path : target.path.join('.'),
+        typeof target.path === 'string' ? target.path.split('.') : target.path,
     })}`;
 
   return SQL`(${SQL.merge(

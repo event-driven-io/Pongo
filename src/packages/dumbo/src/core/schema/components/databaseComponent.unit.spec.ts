@@ -398,6 +398,23 @@ describe('database.withTable(tables, schemaName)', () => {
     );
   });
 
+  it('rejects an empty database schema record key', () => {
+    const users = table('users');
+
+    assert.throws(
+      () =>
+        databaseComponent({
+          schemas: {
+            '': databaseSchemaComponent({
+              schemaName: SQLDefaultSchemaNameToken.from(),
+              tables: { users },
+            }),
+          },
+        }),
+      /empty/i,
+    );
+  });
+
   it('creates a named schema whose name collides with an Object prototype member', () => {
     const users = table('users');
 
