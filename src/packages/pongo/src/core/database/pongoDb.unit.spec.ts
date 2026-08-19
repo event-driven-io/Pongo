@@ -572,6 +572,20 @@ describe('using a Pongo database', () => {
     );
   });
 
+  it('reuses a collection declared in a schema aliased under another key', () => {
+    const users = pongoSchema.collection('users');
+    const { db } = createTestDb({
+      definition: pongoSchema.db('test', {
+        schemas: { reporting: pongoSchema.schema('crm', { users }) },
+      }),
+    });
+
+    assert.strictEqual(
+      db.collection('users', { databaseSchemaName: 'crm' }).schema.component,
+      db.schema.component.schemas.reporting?.tables.users,
+    );
+  });
+
   it('reuses a collection declared by a table extension attached to a named schema', () => {
     const users = pongoSchema.collection('users');
     const crmExtension = dumboSchema.extension('crm-extension', {

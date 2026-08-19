@@ -35,6 +35,13 @@ export const schemaComponentMap = <
   return Object.freeze(result);
 };
 
+export const mergeSchemaComponentMaps = <
+  ComponentMap extends SchemaComponentMap,
+>(
+  ...records: ReadonlyArray<SchemaComponentMap>
+): ComponentMap =>
+  schemaComponentMap(Object.assign({}, ...records) as ComponentMap);
+
 export const dedupeMigrations = (
   migrations: ReadonlyArray<SQLMigration>,
 ): ReadonlyArray<SQLMigration> => {

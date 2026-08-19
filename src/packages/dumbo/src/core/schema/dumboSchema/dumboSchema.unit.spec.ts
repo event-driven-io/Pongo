@@ -176,21 +176,22 @@ describe('dumboSchema', () => {
     assert.deepStrictEqual(db.migrations(), []);
   });
 
-  it('should reject a schema record key conflicting with an explicit name', () => {
-    assert.throws(
-      () =>
-        database('myapp', {
-          schemas: {
-            public: schema('audit', {
-              users: table('users', {
-                columns: {
-                  id: column('id', Varchar('max')),
-                },
-              }),
-            }),
-          },
+  it('should render the SQL name of a schema stored under another record key', () => {
+    const declared = database('myapp', {
+      schemas: {
+        public: schema('audit', {
+          users: table('users', {
+            columns: {
+              id: column('id', Varchar('max')),
+            },
+          }),
         }),
-      /record key "public" conflicts with its explicit name "audit"/,
+      },
+    });
+
+    assert.deepStrictEqual(
+      declared.migrations().map(({ name }) => name),
+      ['schema:audit:create', 'table:audit:users:create'],
     );
   });
 

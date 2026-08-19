@@ -706,16 +706,17 @@ describe('grouping components in extensions', () => {
     );
   });
 
-  it('rejects an extension schema stored under a different record key', () => {
-    assert.throws(
-      () =>
-        extensionComponent('audit', {
-          schemas: {
-            public: databaseSchemaComponent({ schemaName: 'audit' }),
-          },
-        }),
-      /record key "public" conflicts with its explicit name "audit"/,
-    );
+  it('renders the SQL name of an extension schema stored under a different record key', () => {
+    const extension = extensionComponent('audit', {
+      schemas: {
+        public: databaseSchemaComponent({ schemaName: 'audit' }),
+      },
+    });
+
+    assert.strictEqual(extension.schemas.public.schemaName, 'audit');
+    assert.deepStrictEqual(migrationNames(extension.migrations()), [
+      'schema:audit:create',
+    ]);
   });
 
   it('places a table extension attached to a database in its default schema', () => {
@@ -878,17 +879,19 @@ describe('placing reusable declarations in the database hierarchy', () => {
     assert.strictEqual('table' in email, false);
   });
 
-  it('rejects an explicitly named schema stored under a different record key', () => {
+  it('renders the SQL name of a schema stored under a different record key', () => {
     const audit = databaseSchemaComponent({ schemaName: 'audit' });
 
-    assert.throws(
-      () =>
-        databaseComponent({
-          databaseName: 'app',
-          schemas: { public: audit },
-        }),
-      /record key "public" conflicts with its explicit name "audit"/,
-    );
+    const database = databaseComponent({
+      databaseName: 'app',
+      schemas: { public: audit },
+    });
+
+    assert.strictEqual(database.schemas.public, audit);
+    assert.strictEqual(database.findSchema('audit'), audit);
+    assert.deepStrictEqual(migrationNames(database.migrations()), [
+      'schema:audit:create',
+    ]);
   });
 
   it('reuses one table declaration in two independent schemas', () => {

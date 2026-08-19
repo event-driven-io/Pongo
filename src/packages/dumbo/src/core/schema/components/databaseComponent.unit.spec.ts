@@ -286,6 +286,24 @@ describe('database.findTable', () => {
     );
   });
 
+  it('finds a table in a schema declared under a different alias', () => {
+    const users = table('users');
+    const database = databaseComponent({
+      schemas: {
+        reporting: databaseSchemaComponent({
+          schemaName: 'crm',
+          tables: { users },
+        }),
+      },
+    });
+
+    assert.strictEqual(
+      database.findTable({ tableName: 'users', databaseSchemaName: 'crm' })
+        ?.tableName,
+      users.tableName,
+    );
+  });
+
   it('database.tables lists a table contributed by a default schema extension', () => {
     const users = table('users');
     const eventStore = extensionComponent('event-store', {
@@ -317,7 +335,44 @@ describe('database.findTable', () => {
   });
 });
 
+describe('database.withTable(tables, schemaName)', () => {
+  it('adds a table to a schema declared under a different alias', () => {
+    const database = databaseComponent({
+      schemas: {
+        reporting: databaseSchemaComponent({ schemaName: 'crm' }),
+      },
+    });
+
+    const next = database.withTable({ users: table('users') }, 'crm');
+
+    assert.deepStrictEqual(Object.keys(next.schemas), ['reporting']);
+    assert.deepStrictEqual(Object.keys(next.schemas.reporting?.tables ?? {}), [
+      'users',
+    ]);
+  });
+});
+
 describe('database.withSchema(schemas)', () => {
+  it('keeps a table extension contributing to the default schema when a schema is added', () => {
+    const eventStore = extensionComponent('event-store', {
+      tables: { events: table('events') },
+    });
+    const database = databaseComponent({
+      databaseName: 'app',
+      extensions: { eventStore },
+    });
+
+    const next = database.withSchema({
+      crm: databaseSchemaComponent({ schemaName: 'crm' }),
+    });
+
+    assert.deepStrictEqual(Object.keys(next.defaultSchema.tables), ['events']);
+    assert.deepStrictEqual(
+      next.migrations().map(({ name }) => name),
+      [...database.migrations().map(({ name }) => name), 'schema:crm:create'],
+    );
+  });
+
   it('returns a database containing its previous and added schemas', () => {
     const audit = databaseSchemaComponent({ schemaName: 'audit' });
     const crm = databaseSchemaComponent({ schemaName: 'crm' });

@@ -86,7 +86,7 @@ export const PongoDatabaseComponent = ({
     const tables =
       requestedSchemaName === undefined
         ? component.tables
-        : component.schemas[requestedSchemaName]?.tables;
+        : component.findSchema(requestedSchemaName)?.tables;
     const aliased = tables?.[collectionName];
     if (aliased !== undefined) {
       throw new Error(
