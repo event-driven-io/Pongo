@@ -41,7 +41,7 @@ export const sqliteSQLBuilder = (
   serializer: JSONSerializer,
 ): PongoCollectionSQLBuilder => {
   return {
-    createCollection: (): SQL => createTableSQL(collection, tableReference),
+    createCollection: (): SQL[] => [createTableSQL(collection, tableReference)],
     insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
       const serialized = JSONParam.document(document, serializer);
       const id = document._id;

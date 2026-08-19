@@ -470,4 +470,18 @@ describe('pongoClient', () => {
 
     assert.strictEqual(transactionActiveDuringCallback, true);
   });
+
+  it('resolves a database declared under an alias key to its declared name', () => {
+    const { driver } = testPongoDriver();
+    const client = pongoClient({
+      driver,
+      schema: {
+        definition: pongoSchema.client({
+          crm: pongoSchema.db('crm_prod', { collections: {} }),
+        }),
+      },
+    });
+
+    assert.strictEqual(client.db('crm').databaseName, 'crm_prod');
+  });
 });

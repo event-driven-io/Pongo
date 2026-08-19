@@ -82,4 +82,32 @@ describe('using logical database schemas in SQLite', () => {
       /SQLite index names containing \. are reserved/,
     );
   });
+
+  it('keeps two distinct logical placements from folding onto one physical name', () => {
+    assert.throws(
+      () =>
+        sqliteTableName({
+          databaseSchemaName: 'crm',
+          tableName: 'a.b',
+        }),
+      /SQLite table names containing \. are reserved/,
+    );
+    assert.throws(
+      () =>
+        sqliteTableName({
+          databaseSchemaName: 'crm.a',
+          tableName: 'b',
+        }),
+      /SQLite database schema names containing \. are reserved/,
+    );
+    assert.throws(
+      () =>
+        sqliteIndexName({
+          databaseSchemaName: 'crm',
+          tableName: 'users',
+          indexName: 'a.b',
+        }),
+      /SQLite index names containing \. are reserved/,
+    );
+  });
 });

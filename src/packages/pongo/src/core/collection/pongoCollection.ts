@@ -65,7 +65,7 @@ export type PongoCollectionOptions<
   pool: Dumbo<DatabaseDriverType>;
   component: PongoCollectionComponent;
   databaseSchemaName: string | SQLDefaultSchemaNameToken;
-  sqlBuilder: PongoCollectionSQLBuilder;
+  sqlBuilderFor: (tableName: string) => PongoCollectionSQLBuilder;
   schema?: {
     autoMigration?: MigrationStyle;
     versioning?: {
@@ -112,13 +112,13 @@ export const pongoCollection = <
   pool,
   component,
   databaseSchemaName,
-  sqlBuilder,
+  sqlBuilderFor,
   schema,
   errors,
   serializer,
   cache: cacheOptions,
 }: PongoCollectionOptions<T, DriverType, Payload>): PongoCollection<T> => {
-  const SqlFor = sqlBuilder;
+  let SqlFor = sqlBuilderFor(collectionName);
   const sqlExecutor = pool.execute;
 
   const cache = pongoCache(cacheOptions);
@@ -138,6 +138,14 @@ export const pongoCollection = <
       await transactionExecutorOrDefault(db, options, sqlExecutor)
     ).command<Result>(sql, columnMapping);
 
+  const batchCommand = async <Result extends QueryResultRow = QueryResultRow>(
+    sqls: SQL[],
+    options?: CollectionOperationOptions,
+  ) =>
+    (
+      await transactionExecutorOrDefault(db, options, sqlExecutor)
+    ).batchCommand<Result>(sqls, columnMapping);
+
   const query = async <T extends QueryResultRow>(
     sql: SQL,
     options?: CollectionOperationOptions,
@@ -152,8 +160,9 @@ export const pongoCollection = <
   const createCollection = (options?: CollectionOperationOptions) => {
     shouldMigrate = false;
 
-    if (options?.session) return command(SqlFor.createCollection(), options);
-    else return command(SqlFor.createCollection());
+    if (options?.session)
+      return batchCommand(SqlFor.createCollection(), options);
+    else return batchCommand(SqlFor.createCollection());
   };
 
   const ensureCollectionCreated = (options?: CollectionOperationOptions) => {
@@ -898,6 +907,7 @@ export const pongoCollection = <
       await ensureCollectionCreated(options);
       await command(SqlFor.rename(newName));
       collectionName = newName;
+      SqlFor = sqlBuilderFor(collectionName);
       return collection;
     },
     close: () => cache.close(),

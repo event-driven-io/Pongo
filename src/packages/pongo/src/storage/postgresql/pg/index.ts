@@ -93,7 +93,10 @@ const pgPongoDriver: PongoDriver<
       sqlBuilderFor: (collection, identifier) =>
         postgresSQLBuilder(
           collection,
-          postgreSQLTableReference(identifier),
+          {
+            tableReference: postgreSQLTableReference(identifier),
+            databaseSchemaName: identifier.databaseSchemaName,
+          },
           options.serializer,
         ),
       databaseName,

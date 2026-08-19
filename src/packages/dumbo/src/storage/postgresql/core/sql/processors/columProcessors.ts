@@ -46,7 +46,10 @@ const mapColumnType = (
       columnSQL = 'TEXT';
       break;
     case 'SQL_COLUMN_VARCHAR':
-      columnSQL = `VARCHAR ${Number.isNaN(token.length) ? '' : `(${token.length})`}`;
+      columnSQL =
+        typeof token.length === 'number'
+          ? `VARCHAR (${token.length})`
+          : 'VARCHAR';
       break;
     default: {
       const exhaustiveCheck: never = sqlTokenType;
