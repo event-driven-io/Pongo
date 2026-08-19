@@ -3,7 +3,6 @@ import {
   isSQL,
   JSONParam,
   SQL,
-  SQLTableReference,
   type JSONSerializer,
 } from '@event-driven-io/dumbo';
 import { SQLiteJSON } from '@event-driven-io/dumbo/sqlite';
@@ -318,13 +317,6 @@ export const sqliteSQLBuilder = (
         ? filter
         : constructFilterQuery(filter, serializer);
       return SQL`SELECT COUNT(1) as count FROM ${tableReference} ${where(filterQuery)};`;
-    },
-    rename: (newName: string): SQL => {
-      const renamedTableReference = SQLTableReference.from({
-        ...tableReference,
-        tableName: newName,
-      });
-      return SQL`ALTER TABLE ${tableReference} RENAME TO ${renamedTableReference};`;
     },
     drop: (): SQL => SQL`DROP TABLE IF EXISTS ${tableReference}`,
   };

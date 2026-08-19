@@ -1,4 +1,9 @@
-import { DefaultDatabaseSchemaName, SQLTableReference } from '../../sql';
+import {
+  DefaultDatabaseSchemaName,
+  SQL,
+  SQLRenameTable,
+  SQLTableReference,
+} from '../../sql';
 import {
   schemaComponent,
   schemaComponentMap,
@@ -31,8 +36,8 @@ const tableMigrationName = (
     'create',
   );
 
-export const tableRenameMigrationName = (
-  table: AnyTableComponent,
+const tableRenameMigrationName = (
+  table: Readonly<{ fullName: SQLTableReference; kind: string | undefined }>,
   newName: string,
 ): string =>
   migrationName(
@@ -40,7 +45,7 @@ export const tableRenameMigrationName = (
     table.kind,
     [
       ...schemaSegments(table.fullName.databaseSchemaName),
-      table.tableName,
+      table.fullName.tableName,
       newName,
     ],
     'rename',
@@ -89,6 +94,12 @@ export type TableComponent<
     withTableName: <const NewTableName extends string>(
       tableName: NewTableName,
     ) => TableComponent<Columns, NewTableName, Indexes, Relationships>;
+    rename: <const NewTableName extends string>(
+      tableName: NewTableName,
+    ) => Readonly<{
+      table: TableComponent<Columns, NewTableName, Indexes, Relationships>;
+      migration: SQLMigration;
+    }>;
   }>;
 
 export type AnyTableComponent = TableComponent<
@@ -189,6 +200,23 @@ export const tableComponent = <
         return {
           ...this,
           ...tableComponent({ ...options, databaseSchemaName }),
+        };
+      },
+      rename<const NewTableName extends string>(tableName: NewTableName) {
+        return {
+          table: this.withTableName(tableName),
+          migration: sqlMigration(
+            tableRenameMigrationName(
+              { fullName, kind: options.kind },
+              tableName,
+            ),
+            [
+              SQL`${SQLRenameTable.from({
+                table: fullName,
+                newTableName: tableName,
+              })}`,
+            ],
+          ),
         };
       },
       withTableName<const NewTableName extends string>(

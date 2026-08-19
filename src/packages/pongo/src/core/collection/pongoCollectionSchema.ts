@@ -43,6 +43,5 @@ export type PongoCollectionSQLBuilder = {
   findOne: <T>(filter: PongoFilter<T> | SQL) => SQL;
   find: <T>(filter: PongoFilter<T> | SQL, options?: FindOptions) => SQL;
   countDocuments: <T>(filter: PongoFilter<T> | SQL) => SQL;
-  rename: (newName: string) => SQL;
   drop: () => SQL;
 };

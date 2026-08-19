@@ -3,7 +3,7 @@ import { describe, it } from 'vitest';
 import { DefaultDatabaseSchemaName, SQL } from '../../sql';
 import { dumboSchema } from '../dumboSchema';
 import { indexComponent } from './indexComponent';
-import { tableComponent, tableRenameMigrationName } from './tableComponent';
+import { tableComponent } from './tableComponent';
 
 const columns = {
   email: dumboSchema.column('email', SQL.column.type.Text, { notNull: true }),
@@ -59,22 +59,19 @@ describe('declaring a table in a database schema', () => {
 
   it('names a rename migration after the table, its kind and its placement', () => {
     assert.strictEqual(
-      tableRenameMigrationName(usersTable(), 'archived_users'),
+      usersTable().rename('archived_users').migration.name,
       'table:users:archived_users:rename',
     );
     assert.strictEqual(
-      tableRenameMigrationName(usersTable('crm'), 'archived_users'),
+      usersTable('crm').rename('archived_users').migration.name,
       'table:crm:users:archived_users:rename',
     );
     assert.strictEqual(
-      tableRenameMigrationName(
-        tableComponent({
-          tableName: 'users',
-          kind: 'pongo_collection',
-          columns,
-        }),
-        'archived_users',
-      ),
+      tableComponent({
+        tableName: 'users',
+        kind: 'pongo_collection',
+        columns,
+      }).rename('archived_users').migration.name,
       'table:pongo_collection:users:archived_users:rename',
     );
   });

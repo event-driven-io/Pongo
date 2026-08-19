@@ -39,7 +39,6 @@ const stubSQLBuilder: PongoCollectionSQLBuilder = {
   findOne: emptySQL,
   find: emptySQL,
   countDocuments: emptySQL,
-  rename: emptySQL,
   drop: emptySQL,
 };
 

@@ -44,7 +44,7 @@ const databaseInSchemaWithIndexes = <
 ) => {
   const collection = pongoSchema.collection(collectionName, { ...options });
   const placedCollection =
-    schemaName == DefaultDatabaseSchemaName
+    schemaName === DefaultDatabaseSchemaName
       ? collection
       : collection.withDatabaseSchemaName(schemaName);
 
@@ -313,13 +313,6 @@ describe('sqliteSQLBuilder', () => {
         sql: (builder) => builder.countDocuments({}),
         defaultIncludes: 'FROM users',
         schemaIncludes: 'FROM "crm.users"',
-      },
-      {
-        name: 'rename',
-        sql: (builder) => builder.rename('archived_users'),
-        defaultIncludes: 'ALTER TABLE users RENAME TO archived_users',
-        schemaIncludes:
-          'ALTER TABLE "crm.users" RENAME TO "crm.archived_users"',
       },
       {
         name: 'drop',

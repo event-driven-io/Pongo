@@ -256,7 +256,10 @@ describe('declaring Pongo schemas and databases', () => {
 
     assert.strictEqual(database[schemaComponentType], databaseComponentType);
     assert.strictEqual(database.databaseName, 'app');
-    assert.ok(database.defaultSchema.schemaName, DefaultDatabaseSchemaName);
+    assert.strictEqual(
+      database.defaultSchema.schemaName,
+      DefaultDatabaseSchemaName,
+    );
     assert.strictEqual(database.tables.users?.tableName, 'users');
     assert.deepStrictEqual(Object.keys(database.schemas), [
       DefaultDatabaseSchemaName,
@@ -296,7 +299,10 @@ describe('declaring Pongo schemas and databases', () => {
     assert.deepStrictEqual(Object.keys(database.schemas), [
       DefaultDatabaseSchemaName,
     ]);
-    assert.ok(database.defaultSchema.schemaName, DefaultDatabaseSchemaName);
+    assert.strictEqual(
+      database.defaultSchema.schemaName,
+      DefaultDatabaseSchemaName,
+    );
     assert.deepStrictEqual(Object.keys(database.tables), []);
   });
 
@@ -309,7 +315,10 @@ describe('declaring Pongo schemas and databases', () => {
       },
     });
 
-    assert.ok(database.defaultSchema.schemaName, DefaultDatabaseSchemaName);
+    assert.strictEqual(
+      database.defaultSchema.schemaName,
+      DefaultDatabaseSchemaName,
+    );
     assert.deepStrictEqual(Object.keys(database.tables), []);
     assert.strictEqual(
       database.schemas.audit?.tables.entries?.tableName,

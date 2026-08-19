@@ -1,5 +1,5 @@
-export type DefaultDatabaseSchemaName = 'dmb:database:schema:default:name';
-export const DefaultDatabaseSchemaName = 'dmb:database:schema:default:name';
+export type DefaultDatabaseSchemaName = 'dmb_default_schema';
+export const DefaultDatabaseSchemaName = 'dmb_default_schema';
 
 export const isDefaultDatabaseSchema = (
   databaseSchemaName: string | undefined,
