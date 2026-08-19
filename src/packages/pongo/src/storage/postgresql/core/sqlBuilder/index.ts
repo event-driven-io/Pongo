@@ -42,7 +42,7 @@ export const postgresSQLBuilder = (
   collection: PongoCollectionComponent,
   serializer: JSONSerializer,
 ): PongoCollectionSQLBuilder => {
-  const tableReference = collection.tableReference;
+  const tableReference = collection.fullName;
   const { databaseSchemaName } = tableReference;
 
   return {

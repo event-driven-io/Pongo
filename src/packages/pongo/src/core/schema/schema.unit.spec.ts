@@ -157,14 +157,14 @@ describe('declaring Pongo collections', () => {
     const crm = dumboSchema.schema('crm', { accounts, users });
 
     assert.deepStrictEqual(
-      crm.tables.users.tableReference,
+      crm.tables.users.fullName,
       SQLTableReference.from({
         databaseSchemaName: 'crm',
         tableName: 'users',
       }),
     );
     assert.strictEqual(
-      users.tableReference.databaseSchemaName,
+      users.fullName.databaseSchemaName,
       DefaultDatabaseSchemaName,
     );
     assert.strictEqual(
@@ -190,21 +190,21 @@ describe('declaring Pongo collections', () => {
     const audit = pongoSchema.schema('audit', { users });
 
     assert.deepStrictEqual(
-      crm.tables.users.tableReference,
+      crm.tables.users.fullName,
       SQLTableReference.from({
         databaseSchemaName: 'crm',
         tableName: 'users',
       }),
     );
     assert.deepStrictEqual(
-      audit.tables.users.tableReference,
+      audit.tables.users.fullName,
       SQLTableReference.from({
         databaseSchemaName: 'audit',
         tableName: 'users',
       }),
     );
     assert.strictEqual(
-      users.tableReference.databaseSchemaName,
+      users.fullName.databaseSchemaName,
       DefaultDatabaseSchemaName,
     );
     assert.deepStrictEqual(
@@ -258,7 +258,10 @@ describe('declaring Pongo schemas and databases', () => {
     assert.strictEqual(database.databaseName, 'app');
     assert.ok(database.defaultSchema.schemaName, DefaultDatabaseSchemaName);
     assert.strictEqual(database.tables.users?.tableName, 'users');
-    assert.deepStrictEqual(Object.keys(database.schemas), ['audit']);
+    assert.deepStrictEqual(Object.keys(database.schemas), [
+      DefaultDatabaseSchemaName,
+      'audit',
+    ]);
     assert.strictEqual(database.schemas.audit?.schemaName, 'audit');
     assert.strictEqual(
       database.schemas.audit?.tables.entries?.tableName,
@@ -290,7 +293,9 @@ describe('declaring Pongo schemas and databases', () => {
   it('declares an empty database', () => {
     const database = pongoSchema.db('app', { collections: {} });
 
-    assert.deepStrictEqual(Object.keys(database.schemas), []);
+    assert.deepStrictEqual(Object.keys(database.schemas), [
+      DefaultDatabaseSchemaName,
+    ]);
     assert.ok(database.defaultSchema.schemaName, DefaultDatabaseSchemaName);
     assert.deepStrictEqual(Object.keys(database.tables), []);
   });

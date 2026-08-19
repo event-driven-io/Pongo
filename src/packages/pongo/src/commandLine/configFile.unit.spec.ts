@@ -1,3 +1,4 @@
+import { DefaultDatabaseSchemaName } from '@event-driven-io/dumbo';
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 import { pongoSchema, type PongoSchemaConfig } from '../core';
@@ -23,7 +24,9 @@ describe('Pongo CLI config database resolution', () => {
 
     assert.deepStrictEqual(parsed, {
       name: 'app',
-      collections: [{ name: 'users' }],
+      collections: [
+        { name: 'users', databaseSchemaName: DefaultDatabaseSchemaName },
+      ],
     });
   });
 
@@ -42,7 +45,9 @@ describe('Pongo CLI config database resolution', () => {
 
     assert.deepStrictEqual(parsed, {
       name: 'reporting',
-      collections: [{ name: 'reports' }],
+      collections: [
+        { name: 'reports', databaseSchemaName: DefaultDatabaseSchemaName },
+      ],
     });
   });
 
@@ -75,7 +80,9 @@ describe('Pongo CLI config database resolution', () => {
 
     assert.deepStrictEqual(parsed, {
       name: undefined,
-      collections: [{ name: 'users' }],
+      collections: [
+        { name: 'users', databaseSchemaName: DefaultDatabaseSchemaName },
+      ],
     });
   });
 

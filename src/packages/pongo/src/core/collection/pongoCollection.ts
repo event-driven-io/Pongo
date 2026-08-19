@@ -1,11 +1,11 @@
 import type { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import {
-  DefaultDatabaseSchemaName,
   mapColumnToBigint,
   mapColumnToJSON,
   runSQLMigrations,
   single,
   sqlMigration,
+  tableRenameMigrationName,
   type DatabaseDriverType,
   type DatabaseTransaction,
   type Dumbo,
@@ -56,32 +56,6 @@ import {
 } from '..';
 import { pongoCache, type CacheConfig, type PongoCache } from '../cache';
 import { DocumentCommandHandler } from './handle';
-
-const encodeMigrationNameSegment = (segment: string): string =>
-  encodeURIComponent(segment);
-
-const migrationSchemaSegments = (
-  databaseSchemaName: string | undefined,
-): ReadonlyArray<string> =>
-  databaseSchemaName === undefined ||
-  databaseSchemaName === DefaultDatabaseSchemaName
-    ? []
-    : [databaseSchemaName];
-
-const tableRenameMigrationName = (
-  databaseSchemaName: string | undefined,
-  tableName: string,
-  newName: string,
-): string =>
-  [
-    'table',
-    ...migrationSchemaSegments(databaseSchemaName),
-    tableName,
-    newName,
-    'rename',
-  ]
-    .map(encodeMigrationNameSegment)
-    .join(':');
 
 export type PongoCollectionOptions<
   T extends PongoDocument = PongoDocument,
@@ -237,13 +211,8 @@ export const pongoCollection = <
     return row ? { ...row.data, _id: row._id, _version: row._version } : null;
   };
 
-  const cacheKeySchemaName =
-    component.tableReference.databaseSchemaName === DefaultDatabaseSchemaName
-      ? ''
-      : component.tableReference.databaseSchemaName;
-
   const cacheKey = (id: string): PongoDocumentCacheKey =>
-    `${db.databaseName}:${cacheKeySchemaName}.${component.tableName}:${id}`;
+    `${db.databaseName}:${component.fullName.databaseSchemaName}.${component.tableName}:${id}`;
 
   const txCacheFor = (options: CollectionOperationOptions | undefined) =>
     options?.session?.transaction?.cache ?? null;
@@ -291,12 +260,7 @@ export const pongoCollection = <
         data: Payload;
         _id: string;
         _version: bigint;
-      }>(
-        SqlFor.find(
-          { _id: { $in: missIds } } as unknown as PongoFilter<T>,
-          options,
-        ),
-      );
+      }>(SqlFor.find({ _id: { $in: missIds } }, options));
       const dbDocs = dbResult.rows.map((row) => ({
         ...row.data,
         _id: row._id,
@@ -993,11 +957,7 @@ export const pongoCollection = <
     ): Promise<PongoCollection<T>> => {
       await ensureCollectionCreated(options);
       const renameMigration = sqlMigration(
-        tableRenameMigrationName(
-          component.tableReference.databaseSchemaName,
-          component.tableName,
-          newName,
-        ),
+        tableRenameMigrationName(component, newName),
         [SqlFor.rename(newName)],
       );
       await runSQLMigrations(pool, [renameMigration], { migrationTable });

@@ -31,9 +31,24 @@ const tableMigrationName = (
     'create',
   );
 
+export const tableRenameMigrationName = (
+  table: AnyTableComponent,
+  newName: string,
+): string =>
+  migrationName(
+    'table',
+    table.kind,
+    [
+      ...schemaSegments(table.fullName.databaseSchemaName),
+      table.tableName,
+      newName,
+    ],
+    'rename',
+  );
+
 const generatedTableMigrations = (
   table: Readonly<{
-    tableReference: SQLTableReference;
+    fullName: SQLTableReference;
     kind?: string | undefined;
     columns: TableColumns;
   }>,
@@ -41,10 +56,10 @@ const generatedTableMigrations = (
   if (Object.keys(table.columns).length === 0) return [];
 
   return [
-    sqlMigration(tableMigrationName(table.tableReference, table.kind), [
+    sqlMigration(tableMigrationName(table.fullName, table.kind), [
       createTableSQL({
         columns: table.columns,
-        tableReference: table.tableReference,
+        fullName: table.fullName,
       }),
     ]),
   ];
@@ -62,7 +77,8 @@ export type TableComponent<
 > = SchemaComponent<typeof tableComponentType> &
   Readonly<{
     tableName: TableName;
-    tableReference: SQLTableReference;
+    fullName: SQLTableReference;
+    kind: string | undefined;
     columns: Columns;
     primaryKey: ReadonlyArray<Extract<keyof Columns, string>>;
     relationships: Relationships;
@@ -114,8 +130,7 @@ export type TableComponentOptions<
   relationships?: Relationships | undefined;
   indexes?: Indexes | undefined;
   migrations?:
-    | ((tableReference: SQLTableReference) => ReadonlyArray<SQLMigration>)
-    | undefined;
+    ((fullName: SQLTableReference) => ReadonlyArray<SQLMigration>) | undefined;
 }>;
 
 export const tableComponent = <
@@ -128,14 +143,14 @@ export const tableComponent = <
   options: TableComponentOptions<Columns, TableName, Indexes, Relationships>,
 ): TableComponent<Columns, TableName, Indexes, Relationships> => {
   const columns = (options.columns ?? {}) as Columns;
-  const tableReference = SQLTableReference.from({
+  const fullName = SQLTableReference.from({
     databaseSchemaName: options.databaseSchemaName ?? DefaultDatabaseSchemaName,
     tableName: options.tableName,
   });
   const indexes = Object.fromEntries(
     Object.entries((options.indexes ?? {}) as Indexes).map(([key, index]) => [
       key,
-      index.withTableReference(tableReference),
+      index.withTableReference(fullName),
     ]),
   ) as Indexes;
   const children = Object.freeze([
@@ -144,9 +159,9 @@ export const tableComponent = <
   ]);
   const ownMigrations = () =>
     options.migrations !== undefined
-      ? options.migrations(tableReference)
+      ? options.migrations(fullName)
       : generatedTableMigrations({
-          tableReference,
+          fullName,
           kind: options.kind,
           columns,
         });
@@ -158,7 +173,8 @@ export const tableComponent = <
         migrations: ownMigrations,
       }),
       tableName: options.tableName,
-      tableReference,
+      fullName,
+      kind: options.kind,
       primaryKey: Object.freeze([...(options.primaryKey ?? [])]),
       relationships: Object.freeze({
         ...(options.relationships ?? {}),
@@ -168,8 +184,7 @@ export const tableComponent = <
       // spreading the receiver first keeps the properties outer factories
       // added to it, as Pongo does for its collection components
       withDatabaseSchemaName(databaseSchemaName: string) {
-        if (tableReference.databaseSchemaName === databaseSchemaName)
-          return this;
+        if (fullName.databaseSchemaName === databaseSchemaName) return this;
 
         return {
           ...this,

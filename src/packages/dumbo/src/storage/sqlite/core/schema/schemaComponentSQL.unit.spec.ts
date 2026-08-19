@@ -31,10 +31,10 @@ describe('using Dumbo components in logical SQLite schemas', () => {
       format(
         SQL`${SQLTableReference.from({
           ...identifier,
-          databaseSchemaName: 'main',
+          databaseSchemaName: 'reporting',
         })}`,
       ),
-      '"main.users"',
+      '"reporting.users"',
     );
     assert.strictEqual(
       format(

@@ -1,4 +1,4 @@
-import { DefaultDatabaseSchemaName } from '../../sql';
+import { DefaultDatabaseSchemaName, isDefaultDatabaseSchema } from '../../sql';
 import type { UnionToIntersection } from '../../typing';
 import type { AnyExtensionComponent } from '../extensionComponent';
 import {
@@ -82,7 +82,15 @@ export type DatabaseComponent<
     databaseName: DatabaseName;
     defaultSchema: DatabaseSchemaComponent<Tables, string, Extensions>;
     tables: WithExtensionTables<Tables, Extensions>;
-    schemas: WithExtensionSchemas<Schemas, Extensions>;
+    schemas: MergeRecords<
+      Readonly<
+        Record<
+          DefaultDatabaseSchemaName,
+          DatabaseSchemaComponent<Tables, string, Extensions>
+        >
+      >,
+      WithExtensionSchemas<Schemas, Extensions>
+    >;
     extensions: Extensions;
     findTable: (options: {
       tableName: string;
@@ -214,14 +222,20 @@ const buildDatabaseComponent = <
   });
 
   const allSchemas = mergeSchemaComponentMaps<
-    WithExtensionSchemas<Schemas, Extensions>
+    DatabaseComponent<DatabaseName, Tables, Schemas, Extensions>['schemas']
   >(
+    { [DefaultDatabaseSchemaName]: defaultSchema },
     ...Object.values(extensions).map((extension) => extension.schemas),
     schemas,
   );
 
+  const resolveSchemaName = (databaseSchemaName: string | undefined): string =>
+    isDefaultDatabaseSchema(databaseSchemaName)
+      ? defaultSchemaName
+      : databaseSchemaName;
+
   const schemasByName = Map.groupBy(
-    [defaultSchema, ...Object.values<AnyDatabaseSchemaComponent>(allSchemas)],
+    Object.values<AnyDatabaseSchemaComponent>(allSchemas),
     (schema) => schema.schemaName,
   );
 
@@ -253,11 +267,11 @@ const buildDatabaseComponent = <
     schemas: allSchemas,
     extensions: schemaComponentMap(extensions),
     findTable: ({ tableName, databaseSchemaName }) =>
-      (schemasByName.get(databaseSchemaName ?? defaultSchemaName) ?? [])
+      (schemasByName.get(resolveSchemaName(databaseSchemaName)) ?? [])
         .map((schema) => schema.findTable(tableName))
         .find((table) => table !== undefined),
     findSchema: (databaseSchemaName) =>
-      schemasByName.get(databaseSchemaName ?? defaultSchemaName)?.[0],
+      schemasByName.get(resolveSchemaName(databaseSchemaName))?.[0],
     withDefaultSchemaName: (nextDefaultSchemaName: string | undefined) =>
       nextDefaultSchemaName === defaultSchemaName
         ? component
@@ -273,7 +287,9 @@ const buildDatabaseComponent = <
         Extensions
       >({ ...options, schemas: { ...schemas, ...added } }),
     withTable: ((added: DatabaseTables, schemaName?: string) => {
-      if (schemaName === undefined)
+      const resolvedSchemaName = resolveSchemaName(schemaName);
+
+      if (resolvedSchemaName === defaultSchemaName)
         return buildDatabaseComponent({
           ...options,
           tables: { ...options.tables, ...added },
@@ -281,9 +297,9 @@ const buildDatabaseComponent = <
 
       const [schemaKey, schema] = Object.entries<AnyDatabaseSchemaComponent>(
         schemas,
-      ).find(([, declared]) => declared.schemaName === schemaName) ?? [
-        schemaName,
-        databaseSchemaComponent({ schemaName }),
+      ).find(([, declared]) => declared.schemaName === resolvedSchemaName) ?? [
+        resolvedSchemaName,
+        databaseSchemaComponent({ schemaName: resolvedSchemaName }),
       ];
 
       return component.withSchema({ [schemaKey]: schema.withTable(added) });

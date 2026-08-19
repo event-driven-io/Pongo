@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
-import { SQL } from '../../sql';
+import { DefaultDatabaseSchemaName, SQL } from '../../sql';
 import type { Equals, Expect } from '../../testing';
 import type { TableColumnNames, TableRowType } from '../components';
 import { relationship } from '../components';
@@ -81,7 +81,9 @@ describe('dumboSchema', () => {
 
     assert.strictEqual(db.databaseName, undefined);
     assert.deepStrictEqual(Object.keys(db.tables), ['users']);
-    assert.deepStrictEqual(Object.keys(db.schemas), []);
+    assert.deepStrictEqual(Object.keys(db.schemas), [
+      DefaultDatabaseSchemaName,
+    ]);
     assert.ok(db.tables.users.columns.id !== undefined);
     assert.deepStrictEqual(
       db.migrations().map(({ name }) => name),
@@ -118,7 +120,10 @@ describe('dumboSchema', () => {
     });
 
     assert.strictEqual(db.databaseName, undefined);
-    assert.deepStrictEqual(Object.keys(db.schemas), ['public']);
+    assert.deepStrictEqual(Object.keys(db.schemas), [
+      DefaultDatabaseSchemaName,
+      'public',
+    ]);
     assert.deepStrictEqual(Object.keys(db.tables), []);
   });
 
@@ -136,7 +141,10 @@ describe('dumboSchema', () => {
     });
 
     assert.strictEqual(db.databaseName, 'myapp');
-    assert.deepStrictEqual(Object.keys(db.schemas), ['public']);
+    assert.deepStrictEqual(Object.keys(db.schemas), [
+      DefaultDatabaseSchemaName,
+      'public',
+    ]);
     assert.ok(db.schemas.public !== undefined);
     assert.ok(db.schemas.public.tables.users !== undefined);
     assert.ok(db.schemas.public.tables.users.columns.id !== undefined);
@@ -162,7 +170,10 @@ describe('dumboSchema', () => {
     });
 
     assert.deepStrictEqual(Object.keys(db.tables), ['users']);
-    assert.deepStrictEqual(Object.keys(db.schemas), ['crm']);
+    assert.deepStrictEqual(Object.keys(db.schemas), [
+      DefaultDatabaseSchemaName,
+      'crm',
+    ]);
     assert.ok(db.tables.users.columns.id !== undefined);
     assert.ok(db.schemas.crm.tables.customers.columns.id !== undefined);
   });
@@ -172,7 +183,9 @@ describe('dumboSchema', () => {
 
     assert.strictEqual(db.databaseName, 'myapp');
     assert.deepStrictEqual(Object.keys(db.tables), []);
-    assert.deepStrictEqual(Object.keys(db.schemas), []);
+    assert.deepStrictEqual(Object.keys(db.schemas), [
+      DefaultDatabaseSchemaName,
+    ]);
     assert.deepStrictEqual(db.migrations(), []);
   });
 
@@ -216,7 +229,11 @@ describe('dumboSchema', () => {
   it('should create database from schema names', () => {
     const db = database.from('myapp', ['public', 'analytics']);
     assert.strictEqual(db.databaseName, 'myapp');
-    assert.deepStrictEqual(Object.keys(db.schemas), ['public', 'analytics']);
+    assert.deepStrictEqual(Object.keys(db.schemas), [
+      DefaultDatabaseSchemaName,
+      'public',
+      'analytics',
+    ]);
   });
 });
 

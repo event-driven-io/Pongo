@@ -9,7 +9,6 @@ import {
 export const postgreSQLMetadata: DatabaseMetadata<true, true, true> = {
   databaseType: 'PostgreSQL',
   defaultDatabaseName: defaultPostgreSqlDatabase,
-  defaultSchemaName: 'public',
   capabilities: {
     supportsSchemas: true,
     supportsFunctions: true,

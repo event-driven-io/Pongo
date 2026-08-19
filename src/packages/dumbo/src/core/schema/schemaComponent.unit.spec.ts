@@ -757,6 +757,7 @@ describe('grouping components in extensions', () => {
     });
 
     assert.deepStrictEqual(Object.keys(database.schemas), [
+      DefaultDatabaseSchemaName,
       'readmodels',
       'crm',
     ]);
@@ -839,7 +840,7 @@ describe('placing reusable declarations in the database hierarchy', () => {
     assert.strictEqual(contextualIndex.indexName, index.indexName);
     assert.deepStrictEqual(
       contextualIndex.tableReference,
-      schema.tables.users.tableReference,
+      schema.tables.users.fullName,
     );
     assert.deepStrictEqual(
       schema.migrations().map(({ name }) => name),
@@ -949,6 +950,9 @@ describe('validating a composed database', () => {
     ]);
     assert.strictEqual(database.extensions.audit.extensionName, 'audit');
     assert.strictEqual(database.extensions.audit.schemas.audit, auditSchema);
-    assert.deepStrictEqual(Object.keys(database.schemas), ['audit']);
+    assert.deepStrictEqual(Object.keys(database.schemas), [
+      DefaultDatabaseSchemaName,
+      'audit',
+    ]);
   });
 });

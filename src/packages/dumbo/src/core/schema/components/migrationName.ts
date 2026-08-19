@@ -1,14 +1,11 @@
-import { DefaultDatabaseSchemaName } from '../../sql';
+import { isDefaultDatabaseSchema } from '../../sql';
 
 const encodeSegment = (segment: string): string => encodeURIComponent(segment);
 
 export const schemaSegments = (
   databaseSchemaName: string | undefined,
 ): ReadonlyArray<string> =>
-  databaseSchemaName === undefined ||
-  databaseSchemaName === DefaultDatabaseSchemaName
-    ? []
-    : [databaseSchemaName];
+  isDefaultDatabaseSchema(databaseSchemaName) ? [] : [databaseSchemaName];
 
 export const migrationName = (
   type: string,

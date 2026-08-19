@@ -6,7 +6,11 @@ import type {
   DatabaseSchemas,
   DatabaseSchemaTables,
 } from '..';
-import type { AnyColumnTypeToken, ColumnTypeToken } from '../../../sql';
+import type {
+  AnyColumnTypeToken,
+  ColumnTypeToken,
+  DefaultDatabaseSchemaName,
+} from '../../../sql';
 import type {
   ALL,
   AND,
@@ -38,7 +42,6 @@ import type {
   AnyTableRelationshipDefinition,
   AnyTableRelationshipDefinitionWithColumns,
   ColumnPath,
-  DatabaseSchemaKey,
   DefaultSchemaKey,
   NormalizeColumnPath,
   QualifiedColumnName,
@@ -382,7 +385,7 @@ export type DatabaseSchemasWithSingle<
 > =
   Schema extends DatabaseSchemaComponent<infer _Tables, infer _SchemaName>
     ? {
-        [K in DatabaseSchemaKey<_SchemaName>]: Schema;
+        [K in _SchemaName]: Schema;
       }
     : never;
 
@@ -404,15 +407,15 @@ export type ValidateRelationship<
       CollectReferencesErrors<
         NormalizeColumnPath<
           Relationship['columns'],
-          DatabaseSchemaKey<Schema['schemaName']>,
+          Schema['schemaName'],
           CurrentTableName
         >,
         NormalizeColumnPath<
           Relationship['references'],
-          DatabaseSchemaKey<Schema['schemaName']>,
+          Schema['schemaName'],
           CurrentTableName
         >,
-        DatabaseSchemaKey<Schema['schemaName']>,
+        Schema['schemaName'],
         CurrentTableName,
         Schemas,
         [],
@@ -511,9 +514,9 @@ export type ValidateTable<
 type ScopeSchemaErrors<
   SchemaName extends string,
   Errors extends readonly unknown[],
-> = [Extract<SchemaName, string>] extends [never]
+> = [SchemaName] extends [DefaultDatabaseSchemaName]
   ? Errors
-  : { schema: Extract<SchemaName, string>; errors: Errors };
+  : { schema: SchemaName; errors: Errors };
 
 type FlattenSchemaErrors<Errors extends readonly unknown[]> =
   Errors extends readonly [

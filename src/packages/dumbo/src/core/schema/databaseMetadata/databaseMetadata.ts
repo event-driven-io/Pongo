@@ -21,10 +21,6 @@ export type DatabaseMetadata<
   SupportsFunctions extends boolean = boolean,
 > = {
   readonly databaseType: DatabaseType;
-  /**
-   * Native schema used by the database when an object reference is unqualified.
-   */
-  readonly defaultSchemaName: string;
   readonly defaultDatabaseName: string;
   readonly capabilities: DatabaseCapabilities<
     SupportsMultipleDatabases,

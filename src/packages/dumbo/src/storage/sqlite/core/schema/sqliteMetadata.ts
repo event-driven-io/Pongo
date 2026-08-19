@@ -4,7 +4,6 @@ import { tableExists } from './schema';
 export const sqliteMetadata = {
   databaseType: 'SQLite',
   defaultDatabaseName: 'main',
-  defaultSchemaName: 'main',
   capabilities: {
     supportsSchemas: false,
     supportsFunctions: false,

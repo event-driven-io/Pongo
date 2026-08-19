@@ -11,7 +11,6 @@ const stubMetadata = (
 ): DatabaseMetadata<false, false, false> => ({
   databaseType,
   defaultDatabaseName: 'default',
-  defaultSchemaName: 'default',
   capabilities: {
     supportsSchemas: false,
     supportsFunctions: false,

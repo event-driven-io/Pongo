@@ -8,6 +8,7 @@ import {
   databaseSchemaComponent,
   dumboSchema,
   indexComponent,
+  isDefaultDatabaseSchema,
   isSchemaComponent,
   isTableComponent,
   jsonDocumentIndexTarget,
@@ -407,50 +408,38 @@ pongoDatabase.from = (
     typeof collection === 'string' ? { name: collection } : collection,
   );
 
-  const unscoped = placed
-    .filter(({ databaseSchemaName }) => databaseSchemaName === undefined)
+  const collectionsIn = (databaseSchemaName: string) =>
+    pongoCollection.from(
+      placed
+        .filter(
+          (collection) => collection.databaseSchemaName === databaseSchemaName,
+        )
+        .map(({ name }) => name),
+    );
+
+  const inDefaultSchema = placed
+    .filter(({ databaseSchemaName }) =>
+      isDefaultDatabaseSchema(databaseSchemaName),
+    )
     .map(({ name }) => name);
 
   const databaseSchemaNames = [
     ...new Set(
       placed
         .map(({ databaseSchemaName }) => databaseSchemaName)
-        .filter((name): name is string => name !== undefined),
+        .filter((name): name is string => !isDefaultDatabaseSchema(name)),
     ),
   ];
 
-  const schemas = Object.fromEntries(
-    databaseSchemaNames.map((databaseSchemaName) => [
-      databaseSchemaName,
-      pongoDatabaseSchema(
-        databaseSchemaName,
-        pongoCollection.from(
-          placed
-            .filter(
-              (collection) =>
-                collection.databaseSchemaName === databaseSchemaName,
-            )
-            .map(({ name }) => name),
-        ),
-      ),
-    ]),
-  );
+  const definition = { collections: pongoCollection.from(inDefaultSchema) };
 
-  const declaresUnscoped =
-    unscoped.length > 0 || databaseSchemaNames.length === 0;
-
-  const definition = declaresUnscoped
-    ? { collections: pongoCollection.from(unscoped) }
-    : { schemas };
-
-  const database =
+  return databaseSchemaNames.reduce<AnyDatabaseComponent>(
+    (database, databaseSchemaName) =>
+      database.withTable(collectionsIn(databaseSchemaName), databaseSchemaName),
     databaseName === undefined
       ? pongoDatabase(definition)
-      : pongoDatabase(databaseName, definition);
-
-  return declaresUnscoped && databaseSchemaNames.length > 0
-    ? database.withSchema(schemas)
-    : database;
+      : pongoDatabase(databaseName, definition),
+  );
 };
 
 const pongoClientSchema = <
@@ -506,19 +495,14 @@ export const toDbSchemaMetadata = (
   schema: PongoDbSchema,
 ): PongoDbSchemaMetadata => ({
   name: schema.databaseName,
-  collections: [
-    ...Object.values(schema.defaultSchema.tables)
+  collections: Object.values(schema.schemas).flatMap((databaseSchema) =>
+    Object.values(databaseSchema.tables)
       .filter(isPongoCollectionComponent)
-      .map((collection) => ({ name: collection.tableName })),
-    ...Object.values(schema.schemas).flatMap((databaseSchema) =>
-      Object.values(databaseSchema.tables)
-        .filter(isPongoCollectionComponent)
-        .map((collection) => ({
-          name: collection.tableName,
-          databaseSchemaName: databaseSchema.schemaName,
-        })),
-    ),
-  ],
+      .map((collection) => ({
+        name: collection.tableName,
+        databaseSchemaName: databaseSchema.schemaName,
+      })),
+  ),
 });
 
 export const toClientSchemaMetadata = (

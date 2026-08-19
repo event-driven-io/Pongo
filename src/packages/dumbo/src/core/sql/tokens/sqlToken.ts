@@ -99,9 +99,6 @@ export const SQLIndexReference = SQLToken<SQLIndexReference>(
   'SQL_INDEX_REFERENCE',
 );
 
-export type DefaultDatabaseSchemaName = 'dmb:database:schema:default:name';
-export const DefaultDatabaseSchemaName = 'dmb:database:schema:default:name';
-
 export type SQLCreateSchema = SQLToken<
   'SQL_CREATE_SCHEMA',
   { databaseSchemaName: string }
