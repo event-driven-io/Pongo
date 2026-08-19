@@ -227,15 +227,17 @@ describe('declaring Pongo collections', () => {
 });
 
 describe('declaring Pongo schemas and databases', () => {
-  it('rejects an explicitly named schema stored under another key', () => {
-    assert.throws(
-      () =>
-        pongoSchema.db('app', {
-          schemas: {
-            audit: pongoSchema.schema('history', {}),
-          },
-        }),
-      /record key "audit" conflicts with its explicit name "history"/,
+  it('renders the SQL name of a schema stored under another key', () => {
+    const database = pongoSchema.db('app', {
+      schemas: {
+        audit: pongoSchema.schema('history', {}),
+      },
+    });
+
+    assert.strictEqual(database.schemas.audit.schemaName, 'history');
+    assert.deepStrictEqual(
+      database.migrations().map(({ name }) => name),
+      ['schema:history:create'],
     );
   });
 

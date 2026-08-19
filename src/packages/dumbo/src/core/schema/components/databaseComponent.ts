@@ -2,6 +2,7 @@ import { SQLDefaultSchemaNameToken } from '../../sql';
 import type { UnionToIntersection } from '../../typing';
 import type { AnyExtensionComponent } from '../extensionComponent';
 import {
+  mergeSchemaComponentMaps,
   schemaComponent,
   schemaComponentMap,
   type MergeRecords,
@@ -9,6 +10,7 @@ import {
 } from '../schemaComponent';
 import type { SQLMigration } from '../sqlMigration';
 import {
+  assertSchemaKeysAreNotEmpty,
   assertTableNamesAreUnique,
   databaseSchemaComponent,
   type AnyDatabaseSchemaComponent,
@@ -96,6 +98,9 @@ export type DatabaseComponent<
       tableName: string;
       databaseSchemaName?: string | undefined;
     }) => AnyTableComponent | undefined;
+    findSchema: (
+      databaseSchemaName?: string,
+    ) => AnyDatabaseSchemaComponent | undefined;
     withDefaultSchemaName: (
       defaultSchemaName: string | undefined,
     ) => DatabaseComponent<DatabaseName, Tables, Schemas, Extensions>;
@@ -198,31 +203,14 @@ const buildDatabaseComponent = <
     Extensions
   >,
 ): DatabaseComponent<DatabaseName, Tables, Schemas, Extensions> => {
+  const { databaseName, defaultSchemaName } = options;
   const schemas = (options.schemas ?? {}) as Schemas;
-  const databaseName = options.databaseName;
-  const defaultSchemaName = options.defaultSchemaName;
-  for (const [schemaName, schema] of Object.entries(schemas)) {
-    if (schemaName === '')
-      throw new Error('Database schema record key cannot be an empty string');
-
-    if (
-      typeof schema.schemaName === 'string' &&
-      schema.schemaName !== schemaName
-    ) {
-      throw new Error(
-        `Database schema record key "${schemaName}" conflicts with its explicit name "${schema.schemaName}"`,
-      );
-    }
-  }
   const extensions = (options.extensions ?? {}) as Extensions;
-  const defaultSchemaExtensions: Record<string, AnyExtensionComponent> = {};
-  const databaseExtensions: Record<string, AnyExtensionComponent> = {};
 
-  for (const [key, extension] of Object.entries(extensions)) {
-    if (Object.keys(extension.tables).length > 0)
-      defaultSchemaExtensions[key] = extension;
-    else databaseExtensions[key] = extension;
-  }
+  assertSchemaKeysAreNotEmpty(schemas);
+
+  const declaresTables = (extension: AnyExtensionComponent) =>
+    Object.keys(extension.tables).length > 0;
 
   const defaultSchema = databaseSchemaComponent<
     Tables,
@@ -231,45 +219,30 @@ const buildDatabaseComponent = <
   >({
     schemaName: defaultSchemaName ?? SQLDefaultSchemaNameToken.from(),
     tables: options.tables,
-    extensions: defaultSchemaExtensions as Extensions,
+    extensions: Object.fromEntries(
+      Object.entries(extensions).filter(([, extension]) =>
+        declaresTables(extension),
+      ),
+    ) as Extensions,
   });
 
-  const extensionSchemas = Object.assign(
-    {},
+  const allSchemas = mergeSchemaComponentMaps<
+    WithExtensionSchemas<Schemas, Extensions>
+  >(
     ...Object.values(extensions).map((extension) => extension.schemas),
-  ) as DatabaseSchemas;
-  const allSchemas = schemaComponentMap({
-    ...extensionSchemas,
-    ...schemas,
-  } as WithExtensionSchemas<Schemas, Extensions>);
+    schemas,
+  );
 
-  const schemasByName = new Map<
-    string | undefined,
-    AnyDatabaseSchemaComponent[]
-  >();
-  for (const schema of [
-    defaultSchema,
-    ...Object.values<AnyDatabaseSchemaComponent>(allSchemas),
-  ]) {
-    const resolvedSchemaName = resolveSchemaName(
-      schema.schemaName,
-      defaultSchemaName,
-    );
-    const named = schemasByName.get(resolvedSchemaName) ?? [];
-    named.push(schema);
-    schemasByName.set(resolvedSchemaName, named);
-  }
+  const schemasByName = Map.groupBy(
+    [defaultSchema, ...Object.values<AnyDatabaseSchemaComponent>(allSchemas)],
+    (schema) => resolveSchemaName(schema.schemaName, defaultSchemaName),
+  );
+
   for (const [resolvedSchemaName, named] of schemasByName)
     assertTableNamesAreUnique(
       resolvedSchemaName,
       named.flatMap((schema) => Object.values(schema.tables)),
     );
-
-  const children = Object.freeze([
-    defaultSchema,
-    ...Object.values(schemas),
-    ...Object.values(databaseExtensions),
-  ]);
 
   const component: DatabaseComponent<
     DatabaseName,
@@ -278,20 +251,26 @@ const buildDatabaseComponent = <
     Extensions
   > = {
     ...schemaComponent(databaseComponentType, {
-      components: children,
+      components: Object.freeze([
+        defaultSchema,
+        ...Object.values(schemas),
+        ...Object.values(extensions).filter(
+          (extension) => !declaresTables(extension),
+        ),
+      ]),
       migrations: options.migrations,
     }),
     databaseName: databaseName as DatabaseName,
     defaultSchema,
-    get tables() {
-      return defaultSchema.tables;
-    },
+    tables: defaultSchema.tables,
     schemas: allSchemas,
     extensions: schemaComponentMap(extensions),
     findTable: ({ tableName, databaseSchemaName }) =>
       (schemasByName.get(databaseSchemaName ?? defaultSchemaName) ?? [])
         .map((schema) => schema.findTable(tableName))
         .find((table) => table !== undefined),
+    findSchema: (databaseSchemaName) =>
+      schemasByName.get(databaseSchemaName ?? defaultSchemaName)?.[0],
     withDefaultSchemaName: (nextDefaultSchemaName: string | undefined) =>
       nextDefaultSchemaName === defaultSchemaName
         ? component
@@ -305,35 +284,23 @@ const buildDatabaseComponent = <
         Tables,
         MergeRecords<Schemas, Added>,
         Extensions
-      >({
-        databaseName,
-        defaultSchemaName,
-        tables: defaultSchema.tables,
-        schemas: { ...schemas, ...added },
-        extensions,
-        migrations: options.migrations,
-      }),
+      >({ ...options, schemas: { ...schemas, ...added } }),
     withTable: ((added: DatabaseTables, schemaName?: string) => {
-      if (schemaName === undefined) {
-        const nextDefaultSchema = defaultSchema.withTable(added);
-
+      if (schemaName === undefined)
         return buildDatabaseComponent({
-          databaseName,
-          defaultSchemaName,
-          tables: nextDefaultSchema.tables,
-          schemas,
-          extensions,
-          migrations: options.migrations,
+          ...options,
+          tables: { ...options.tables, ...added },
         });
-      }
 
-      const schema = Object.hasOwn(schemas, schemaName)
-        ? schemas[schemaName]!
-        : databaseSchemaComponent({ schemaName });
+      const [schemaKey, schema] = Object.entries<AnyDatabaseSchemaComponent>(
+        schemas,
+      ).find(
+        ([, declared]) =>
+          resolveSchemaName(declared.schemaName, defaultSchemaName) ===
+          schemaName,
+      ) ?? [schemaName, databaseSchemaComponent({ schemaName })];
 
-      const nextSchema = schema.withTable(added);
-
-      return component.withSchema({ [schemaName]: nextSchema });
+      return component.withSchema({ [schemaKey]: schema.withTable(added) });
     }) as DatabaseComponent<
       DatabaseName,
       Tables,

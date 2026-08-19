@@ -1,5 +1,8 @@
 import type { SQLDefaultSchemaNameToken } from '../sql';
-import type { AnyDatabaseSchemaComponent } from './components/databaseSchemaComponent';
+import {
+  assertSchemaKeysAreNotEmpty,
+  type AnyDatabaseSchemaComponent,
+} from './components/databaseSchemaComponent';
 import type { AnyTableComponent } from './components/tableComponent';
 import {
   schemaComponent,
@@ -76,19 +79,7 @@ export const extensionComponent = <
   const tables = (options.tables ?? {}) as Tables;
   const schemas = (options.schemas ?? {}) as Schemas;
 
-  for (const [schemaKey, schema] of Object.entries(schemas)) {
-    if (schemaKey === '')
-      throw new Error('Database schema record key cannot be an empty string');
-
-    if (
-      typeof schema.schemaName === 'string' &&
-      schema.schemaName !== schemaKey
-    ) {
-      throw new Error(
-        `Database schema record key "${schemaKey}" conflicts with its explicit name "${schema.schemaName}"`,
-      );
-    }
-  }
+  assertSchemaKeysAreNotEmpty(schemas);
 
   const children = Object.freeze([
     ...Object.values(tables),

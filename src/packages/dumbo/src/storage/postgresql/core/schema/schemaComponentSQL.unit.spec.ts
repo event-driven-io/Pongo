@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
 import {
   createIndexSQL,
+  databaseComponent,
   databaseSchemaComponent,
+  dumboSchema,
   indexComponent,
   JSONSerializer,
   jsonDocumentIndexTarget,
@@ -64,6 +66,34 @@ describe('using Dumbo components in PostgreSQL schemas', () => {
       'CREATE SCHEMA IF NOT EXISTS public',
     ]);
     assert.deepStrictEqual(schemaSQLs(SQLDefaultSchemaNameToken.from()), []);
+  });
+
+  it('renders the schema name of a schema declared under another record key', () => {
+    const database = databaseComponent({
+      schemas: {
+        reporting: databaseSchemaComponent({
+          schemaName: 'crm',
+          tables: {
+            customerDirectory: dumboSchema.table('users', {
+              columns: {
+                id: dumboSchema.column('id', SQL.column.type.Text),
+              },
+            }),
+          },
+        }),
+      },
+    });
+
+    assert.deepStrictEqual(
+      database
+        .migrations()
+        .flatMap((migration) => migration.sqls)
+        .map(format),
+      [
+        'CREATE SCHEMA IF NOT EXISTS crm',
+        'CREATE TABLE IF NOT EXISTS crm.users (id TEXT)',
+      ],
+    );
   });
 
   it('creates an index for ordinary columns', () => {

@@ -172,6 +172,47 @@ describe('composing a schema through the Dumbo declaration API', () => {
     }>();
   });
 
+  it('resolves cross schema references through the record key, not the schema name', () => {
+    const customers = dumboSchema.table('customers', {
+      columns: {
+        id: dumboSchema.column('id', SQL.column.type.Varchar(100)),
+      },
+    });
+    const orders = dumboSchema.table('orders', {
+      columns: {
+        id: dumboSchema.column('id', SQL.column.type.Varchar(100)),
+        customer_id: dumboSchema.column(
+          'customer_id',
+          SQL.column.type.Varchar(100),
+        ),
+      },
+      relationships: {
+        customer: {
+          columns: ['customer_id'],
+          references: ['reporting.customers.id'],
+          type: 'many-to-one',
+        },
+      },
+    });
+    const byRecordKey = dumboSchema.database('app', {
+      schemas: {
+        reporting: dumboSchema.schema('crm', { customers }),
+        sales: dumboSchema.schema('orders', { orders }),
+      },
+    });
+
+    expectTypeOf(byRecordKey).toExtend<DatabaseComponent>();
+
+    const bySchemaName = dumboSchema.database('app', {
+      schemas: {
+        crm: dumboSchema.schema('crm', { customers }),
+        sales: dumboSchema.schema('orders', { orders }),
+      },
+    });
+
+    expectTypeOf(bySchemaName).not.toExtend<DatabaseComponent>();
+  });
+
   it('carries no database name on a schema declaration', () => {
     expectTypeOf<
       Extract<keyof typeof publicSchema, 'databaseName'>
