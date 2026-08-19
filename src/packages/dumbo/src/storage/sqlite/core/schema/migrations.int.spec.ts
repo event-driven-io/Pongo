@@ -9,6 +9,7 @@ import {
   dumbo,
   single,
   SQL,
+  SQLCreateSchema,
   SQLDefaultSchemaNameToken,
   type Dumbo,
 } from '../../../..';
@@ -160,6 +161,21 @@ describe('Migration Integration Tests', () => {
           await tableExists(pool.execute, 'dmb_migrations'),
           false,
         );
+      });
+
+      it('hashes only the statements it actually runs', async () => {
+        const withDeadToken = sqlMigration('hash-filter:001', [
+          SQL`${SQLCreateSchema.from({ databaseSchemaName: 'crm' })}`,
+          SQL`CREATE TABLE hash_filter (id TEXT PRIMARY KEY);`,
+        ]);
+
+        await runSQLMigrations(pool, [withDeadToken]);
+
+        const withoutDeadToken = sqlMigration('hash-filter:001', [
+          SQL`CREATE TABLE hash_filter (id TEXT PRIMARY KEY);`,
+        ]);
+
+        await runSQLMigrations(pool, [withoutDeadToken]);
       });
 
       it('accepts a migration name of exactly 255 characters', async () => {

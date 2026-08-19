@@ -15,6 +15,7 @@ import {
   type PongoDatabaseFactoryOptions,
 } from '../core';
 import { loadConfigFile } from './configFile';
+import type { PongoCollectionSchemaMetadata } from '../core/schema';
 
 interface MigrateRunOptions {
   collection: string[];
@@ -88,7 +89,7 @@ migrateCommand
       options.databaseType ??
       parseConnectionString(connectionString).databaseType;
 
-    let collectionNames: string[];
+    let collectionNames: (string | PongoCollectionSchemaMetadata)[];
 
     if (!connectionString) {
       console.error(
@@ -101,7 +102,7 @@ migrateCommand
     if (options.config) {
       const config = await loadConfigFile(options.config);
 
-      collectionNames = config.collections.map((c) => c.name);
+      collectionNames = config.collections;
     } else if (collection) {
       collectionNames = collection;
     } else {
@@ -159,12 +160,12 @@ migrateCommand
   .action(async (options: MigrateSqlOptions) => {
     const { collection, databaseName, databaseType, databaseDriver } = options;
 
-    let collectionNames: string[];
+    let collectionNames: (string | PongoCollectionSchemaMetadata)[];
 
     if (options.config) {
       const config = await loadConfigFile(options.config);
 
-      collectionNames = config.collections.map((c) => c.name);
+      collectionNames = config.collections;
     } else if (collection) {
       collectionNames = collection;
     } else {
@@ -196,7 +197,7 @@ const getMigrations = ({
   driverType: DatabaseDriverType;
   connectionString: string | undefined;
   databaseName: string | undefined;
-  collectionNames: string[];
+  collectionNames: (string | PongoCollectionSchemaMetadata)[];
 }) => {
   const driver = pongoDriverRegistry.tryGet(driverType);
 

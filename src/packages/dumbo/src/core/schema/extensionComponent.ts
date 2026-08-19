@@ -73,6 +73,9 @@ export const extensionComponent = <
   const schemas = (options.schemas ?? {}) as Schemas;
 
   for (const [schemaKey, schema] of Object.entries(schemas)) {
+    if (schemaKey === '')
+      throw new Error('Database schema record key cannot be an empty string');
+
     if (
       typeof schema.schemaName === 'string' &&
       schema.schemaName !== schemaKey

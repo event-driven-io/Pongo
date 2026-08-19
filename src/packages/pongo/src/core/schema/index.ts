@@ -390,15 +390,54 @@ function pongoDatabase(
 
 pongoDatabase.from = (
   databaseName: string | undefined,
-  collectionNames: string[],
-): AnyDatabaseComponent =>
-  databaseName === undefined
-    ? pongoDatabase({
-        collections: pongoCollection.from(collectionNames),
-      })
-    : pongoDatabase(databaseName, {
-        collections: pongoCollection.from(collectionNames),
-      });
+  collections: ReadonlyArray<string | PongoCollectionSchemaMetadata>,
+): AnyDatabaseComponent => {
+  const placed = collections.map((collection) =>
+    typeof collection === 'string' ? { name: collection } : collection,
+  );
+
+  const unscoped = placed
+    .filter(({ databaseSchemaName }) => databaseSchemaName === undefined)
+    .map(({ name }) => name);
+
+  const databaseSchemaNames = [
+    ...new Set(
+      placed
+        .map(({ databaseSchemaName }) => databaseSchemaName)
+        .filter((name): name is string => name !== undefined),
+    ),
+  ];
+
+  const definition = {
+    ...(unscoped.length > 0
+      ? { collections: pongoCollection.from(unscoped) }
+      : {}),
+    ...(databaseSchemaNames.length > 0
+      ? {
+          schemas: Object.fromEntries(
+            databaseSchemaNames.map((databaseSchemaName) => [
+              databaseSchemaName,
+              pongoDatabaseSchema(
+                databaseSchemaName,
+                pongoCollection.from(
+                  placed
+                    .filter(
+                      (collection) =>
+                        collection.databaseSchemaName === databaseSchemaName,
+                    )
+                    .map(({ name }) => name),
+                ),
+              ),
+            ]),
+          ),
+        }
+      : {}),
+  };
+
+  return databaseName === undefined
+    ? pongoDatabase(definition as never)
+    : pongoDatabase(databaseName, definition as never);
+};
 
 const pongoClientSchema = <
   const Databases extends Readonly<Record<string, PongoDbSchema>>,
@@ -436,6 +475,7 @@ export const isPongoCollectionComponent = (
 
 export type PongoCollectionSchemaMetadata = {
   name: string;
+  databaseSchemaName?: string | undefined;
 };
 
 export type PongoDbSchemaMetadata = {
@@ -452,10 +492,19 @@ export const toDbSchemaMetadata = (
   schema: PongoDbSchema,
 ): PongoDbSchemaMetadata => ({
   name: schema.databaseName,
-  collections: [schema.defaultSchema, ...Object.values(schema.schemas)]
-    .flatMap((databaseSchema) => Object.values(databaseSchema.tables))
-    .filter(isPongoCollectionComponent)
-    .map((collection) => ({ name: collection.tableName })),
+  collections: [
+    ...Object.values(schema.defaultSchema.tables)
+      .filter(isPongoCollectionComponent)
+      .map((collection) => ({ name: collection.tableName })),
+    ...Object.values(schema.schemas).flatMap((databaseSchema) =>
+      Object.values(databaseSchema.tables)
+        .filter(isPongoCollectionComponent)
+        .map((collection) => ({
+          name: collection.tableName,
+          databaseSchemaName: databaseSchema.schemaName as string,
+        })),
+    ),
+  ],
 });
 
 export const toClientSchemaMetadata = (
