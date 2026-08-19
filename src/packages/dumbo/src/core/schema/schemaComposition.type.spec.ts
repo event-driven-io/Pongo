@@ -103,7 +103,7 @@ describe('composing a schema through the Dumbo declaration API', () => {
     }>();
   });
 
-  it('declares unscoped tables and named schemas side by side', () => {
+  it('adds named schemas next to unscoped tables', () => {
     expectTypeOf(flat.tables.users).toEqualTypeOf(users);
     expectTypeOf<
       Extract<keyof typeof flat.schemas, 'public'>
@@ -112,10 +112,9 @@ describe('composing a schema through the Dumbo declaration API', () => {
       Extract<keyof typeof app.tables, 'users'>
     >().toEqualTypeOf<never>();
 
-    const mixed = dumboSchema.database('mixed', {
-      tables: { users },
-      schemas: { public: publicSchema },
-    });
+    const mixed = dumboSchema
+      .database('mixed', { tables: { users } })
+      .withSchema({ public: publicSchema });
 
     expectTypeOf(mixed.tables.users).toEqualTypeOf(users);
     expectTypeOf(mixed.schemas.public.tables.users).toEqualTypeOf(users);
@@ -130,9 +129,9 @@ describe('composing a schema through the Dumbo declaration API', () => {
 
   it('holds unscoped tables in the nameless default schema', () => {
     expectTypeOf(flat.defaultSchema.tables.users).toEqualTypeOf(users);
-    expectTypeOf(
-      flat.defaultSchema.schemaName,
-    ).toEqualTypeOf<SQLDefaultSchemaNameToken>();
+    expectTypeOf(flat.defaultSchema.schemaName).toEqualTypeOf<
+      string | SQLDefaultSchemaNameToken
+    >();
   });
 
   it('validates relationships of directly declared tables without naming a scope', () => {
@@ -264,9 +263,9 @@ describe('composing a schema through the Dumbo declaration API', () => {
     ).toEqualTypeOf(readmodelUsers);
     expectTypeOf(database.schemas.direct).toEqualTypeOf(direct);
     expectTypeOf(database.extensions.eventStore).toEqualTypeOf(eventStore);
-    expectTypeOf<
-      Extract<keyof typeof database.schemas, 'readmodels'>
-    >().toEqualTypeOf<never>();
+    expectTypeOf(database.schemas.readmodels).toEqualTypeOf(
+      eventStore.schemas.readmodels,
+    );
   });
 
   it('declares an extension with tables or schemas, never with both', () => {

@@ -72,10 +72,12 @@ describe('running SQLite schema component SQL against a database', () => {
   });
 
   it('keeps the default schema and a named one on separate tables', async () => {
-    await migrate({
-      tables: { users: users() },
-      schemas: { crm: usersIn('crm') },
-    });
+    await runSQLMigrations(
+      pool,
+      databaseComponent({ tables: { users: users() } })
+        .withSchema({ crm: usersIn('crm') })
+        .migrations(),
+    );
 
     await pool.execute.command(
       SQL`INSERT INTO users (_id, email) VALUES ('1', 'default@test')`,

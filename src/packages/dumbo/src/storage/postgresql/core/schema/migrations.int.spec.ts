@@ -637,10 +637,15 @@ describe('Migration Integration Tests', () => {
     });
 
     it('keeps the default schema and a named one on separate tables', async () => {
-      await migrate({
-        tables: { users: usersTable() },
-        schemas: { crm: usersIn('crm') },
-      });
+      await runSQLMigrations(
+        pool,
+        databaseComponent({
+          databaseName: 'app',
+          tables: { users: usersTable() },
+        })
+          .withSchema({ crm: usersIn('crm') })
+          .migrations(),
+      );
       await pool.execute.command(
         SQL`INSERT INTO users (_id, email) VALUES ('1', 'default@test')`,
       );

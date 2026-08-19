@@ -47,10 +47,9 @@ const documents = dumboSchema.table('documents', {
 
 describe('creating a table from a Dumbo declaration in PostgreSQL', () => {
   it('creates PostgreSQL DDL with portable document column types and constraints', () => {
-    const result = pgFormatter.format(
-      createTableSQL(documents, SQL.identifier('documents')),
-      { serializer: JSONSerializer },
-    );
+    const result = pgFormatter.format(createTableSQL(documents), {
+      serializer: JSONSerializer,
+    });
 
     assert.strictEqual(
       result.query,
@@ -67,10 +66,9 @@ describe('creating a table from a Dumbo declaration in PostgreSQL', () => {
       },
     });
 
-    const result = pgFormatter.format(
-      createTableSQL(table, SQL.identifier('accounts')),
-      { serializer: JSONSerializer },
-    );
+    const result = pgFormatter.format(createTableSQL(table), {
+      serializer: JSONSerializer,
+    });
 
     assert.strictEqual(
       result.query,

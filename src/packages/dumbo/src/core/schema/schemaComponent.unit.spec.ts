@@ -177,10 +177,13 @@ describe('composing schema components', () => {
       tables: { entries, get, size, constructor },
     });
 
-    assert.strictEqual(schema.tables.entries, entries);
-    assert.strictEqual(schema.tables.get, get);
-    assert.strictEqual(schema.tables.size, size);
-    assert.strictEqual(schema.tables.constructor, constructor);
+    assert.strictEqual(schema.tables.entries.tableName, entries.tableName);
+    assert.strictEqual(schema.tables.get.tableName, get.tableName);
+    assert.strictEqual(schema.tables.size.tableName, size.tableName);
+    assert.strictEqual(
+      schema.tables.constructor.tableName,
+      constructor.tableName,
+    );
   });
 
   it('keeps a composed declaration read-only after construction', () => {
@@ -420,7 +423,7 @@ describe('grouping components in extensions', () => {
     assert.strictEqual('extensions' in eventStore, false);
   });
 
-  it('attaches an extension to a schema without exposing its internals as tables', () => {
+  it('attaches an extension to a schema and lists its tables among the schema tables', () => {
     const migration = sqlMigration('audit_log:001', [SQL`SELECT 1`]);
     const internalTable = tableComponent({
       tableName: 'audit_log',
@@ -434,15 +437,15 @@ describe('grouping components in extensions', () => {
       extensions: { audit },
     });
 
-    assert.deepStrictEqual(Object.keys(schema.tables), []);
+    assert.deepStrictEqual(Object.keys(schema.tables), ['internalTable']);
     assert.deepStrictEqual(migrationNames(schema.migrations()), [
       'schema:public:create',
       migration.name,
     ]);
     assert.strictEqual(schema.extensions.audit.extensionName, 'audit');
     assert.strictEqual(
-      schema.extensions.audit.tables.internalTable,
-      internalTable,
+      schema.extensions.audit.tables.internalTable.tableName,
+      internalTable.tableName,
     );
   });
 
@@ -740,7 +743,7 @@ describe('grouping components in extensions', () => {
     ]);
   });
 
-  it('keeps a schema contributed by an extension out of the database schema map', () => {
+  it('lists a schema contributed by an extension in the database schema map', () => {
     const readmodels = databaseSchemaComponent({ schemaName: 'readmodels' });
     const eventStore = extensionComponent('event-store', {
       schemas: { readmodels },
@@ -752,7 +755,11 @@ describe('grouping components in extensions', () => {
       extensions: { eventStore },
     });
 
-    assert.deepStrictEqual(Object.keys(database.schemas), ['crm']);
+    assert.deepStrictEqual(Object.keys(database.schemas), [
+      'readmodels',
+      'crm',
+    ]);
+    assert.strictEqual(database.schemas.readmodels, readmodels);
     assert.strictEqual(
       database.extensions.eventStore.schemas.readmodels,
       readmodels,
@@ -811,7 +818,7 @@ describe('placing reusable declarations in the database hierarchy', () => {
     assert.strictEqual(database.schemas.public.tables.users.tableName, 'users');
   });
 
-  it('keeps a declared index in its containing table without rebinding it', () => {
+  it('places a declared index in the table containing it', () => {
     const index = indexComponent({
       indexName: 'users_email_idx',
       columnNames: ['email'],
@@ -827,8 +834,11 @@ describe('placing reusable declarations in the database hierarchy', () => {
     });
     const contextualIndex = schema.tables.users.indexes.email;
 
-    assert.strictEqual(contextualIndex, index);
     assert.strictEqual(contextualIndex.indexName, index.indexName);
+    assert.deepStrictEqual(
+      contextualIndex.tableReference,
+      schema.tables.users.tableReference,
+    );
     assert.deepStrictEqual(
       schema.migrations().map(({ name }) => name),
       ['schema:crm:create', 'index:crm:users:users_email_idx:create'],
@@ -935,6 +945,6 @@ describe('validating a composed database', () => {
     ]);
     assert.strictEqual(database.extensions.audit.extensionName, 'audit');
     assert.strictEqual(database.extensions.audit.schemas.audit, auditSchema);
-    assert.deepStrictEqual(Object.keys(database.schemas), []);
+    assert.deepStrictEqual(Object.keys(database.schemas), ['audit']);
   });
 });

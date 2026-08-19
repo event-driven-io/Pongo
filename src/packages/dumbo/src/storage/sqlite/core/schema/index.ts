@@ -1,4 +1,3 @@
-export * from './schemaComponentSQL';
 export * from './migrations';
 export * from './schema';
 export * from './sqlitePhysicalNames';

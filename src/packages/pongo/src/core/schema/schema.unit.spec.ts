@@ -8,6 +8,7 @@ import {
   SQL,
   SQLDefaultSchemaNameToken,
   sqlMigration,
+  SQLTableReference,
   type TableRowType,
 } from '@event-driven-io/dumbo';
 import { describe, expectTypeOf, it } from 'vitest';
@@ -155,7 +156,17 @@ describe('declaring Pongo collections', () => {
     const accounts = dumboSchema.table('accounts');
     const crm = dumboSchema.schema('crm', { accounts, users });
 
-    assert.strictEqual(crm.tables.users, users);
+    assert.deepStrictEqual(
+      crm.tables.users.tableReference,
+      SQLTableReference.from({
+        databaseSchemaName: 'crm',
+        tableName: 'users',
+      }),
+    );
+    assert.strictEqual(
+      SQLDefaultSchemaNameToken.check(users.tableReference.databaseSchemaName),
+      true,
+    );
     assert.strictEqual(
       crm
         .migrations()
@@ -178,8 +189,24 @@ describe('declaring Pongo collections', () => {
     const crm = pongoSchema.schema('crm', { users });
     const audit = pongoSchema.schema('audit', { users });
 
-    assert.strictEqual(crm.tables.users, users);
-    assert.strictEqual(audit.tables.users, users);
+    assert.deepStrictEqual(
+      crm.tables.users.tableReference,
+      SQLTableReference.from({
+        databaseSchemaName: 'crm',
+        tableName: 'users',
+      }),
+    );
+    assert.deepStrictEqual(
+      audit.tables.users.tableReference,
+      SQLTableReference.from({
+        databaseSchemaName: 'audit',
+        tableName: 'users',
+      }),
+    );
+    assert.strictEqual(
+      SQLDefaultSchemaNameToken.check(users.tableReference.databaseSchemaName),
+      true,
+    );
     assert.deepStrictEqual(
       crm.migrations().map(({ name }) => name),
       ['schema:crm:create', 'table:pongo_collection:crm:users:create'],
@@ -396,6 +423,29 @@ describe('describing a database schema for the CLI', () => {
         }),
       },
     });
+
+    const metadata = toDbSchemaMetadata(definition);
+
+    const rebuilt = pongoSchema.db.from(metadata.name, metadata.collections);
+
+    assert.deepStrictEqual(
+      rebuilt.migrations().map(({ name }) => name),
+      definition.migrations().map(({ name }) => name),
+    );
+  });
+
+  it('keeps both unscoped and schema-placed collections', () => {
+    const definition = pongoSchema
+      .db({
+        collections: {
+          logs: pongoSchema.collection<{ message: string }>('logs'),
+        },
+      })
+      .withSchema({
+        crm: pongoSchema.schema('crm', {
+          users: pongoSchema.collection<{ name: string }>('users'),
+        }),
+      });
 
     const metadata = toDbSchemaMetadata(definition);
 

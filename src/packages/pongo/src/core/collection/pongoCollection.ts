@@ -4,11 +4,13 @@ import {
   mapColumnToJSON,
   runSQLMigrations,
   single,
+  sqlMigration,
   SQLDefaultSchemaNameToken,
   type DatabaseDriverType,
   type DatabaseTransaction,
   type Dumbo,
   type MigrationStyle,
+  type MigrationTableOptions,
   type QueryResult,
   type QueryResultRow,
   type SQLExecutor,
@@ -55,17 +57,43 @@ import {
 import { pongoCache, type CacheConfig, type PongoCache } from '../cache';
 import { DocumentCommandHandler } from './handle';
 
+const encodeMigrationNameSegment = (segment: string): string =>
+  encodeURIComponent(segment);
+
+const migrationSchemaSegments = (
+  databaseSchemaName: string | SQLDefaultSchemaNameToken | undefined,
+): ReadonlyArray<string> =>
+  databaseSchemaName === undefined ||
+  SQLDefaultSchemaNameToken.check(databaseSchemaName)
+    ? []
+    : [databaseSchemaName];
+
+const tableRenameMigrationName = (
+  databaseSchemaName: string | SQLDefaultSchemaNameToken | undefined,
+  tableName: string,
+  newName: string,
+): string =>
+  [
+    'table',
+    ...migrationSchemaSegments(databaseSchemaName),
+    tableName,
+    newName,
+    'rename',
+  ]
+    .map(encodeMigrationNameSegment)
+    .join(':');
+
 export type PongoCollectionOptions<
   T extends PongoDocument = PongoDocument,
   DriverType extends DatabaseDriverType = DatabaseDriverType,
   Payload extends PongoDocument = T,
 > = {
   db: PongoDb<DriverType>;
-  collectionName: string;
   pool: Dumbo<DatabaseDriverType>;
   component: PongoCollectionComponent;
-  databaseSchemaName: string | SQLDefaultSchemaNameToken;
-  sqlBuilderFor: (tableName: string) => PongoCollectionSQLBuilder;
+  sqlBuilderFor: (
+    collection: PongoCollectionComponent,
+  ) => PongoCollectionSQLBuilder;
   schema?: {
     autoMigration?: MigrationStyle;
     versioning?: {
@@ -75,6 +103,7 @@ export type PongoCollectionOptions<
   };
   errors?: { throwOnOperationFailures?: boolean };
   serializer: JSONSerializer;
+  migrationTable?: MigrationTableOptions | undefined;
   cache?: CacheConfig | 'disabled' | PongoCache | undefined;
 };
 
@@ -108,17 +137,17 @@ export const pongoCollection = <
   Payload extends PongoDocument = T,
 >({
   db,
-  collectionName,
   pool,
-  component,
-  databaseSchemaName,
+  component: initialComponent,
   sqlBuilderFor,
   schema,
   errors,
   serializer,
+  migrationTable,
   cache: cacheOptions,
 }: PongoCollectionOptions<T, DriverType, Payload>): PongoCollection<T> => {
-  let SqlFor = sqlBuilderFor(collectionName);
+  let component = initialComponent;
+  let SqlFor = sqlBuilderFor(component);
   const sqlExecutor = pool.execute;
 
   const cache = pongoCache(cacheOptions);
@@ -208,12 +237,14 @@ export const pongoCollection = <
     return row ? { ...row.data, _id: row._id, _version: row._version } : null;
   };
 
-  const cacheKeySchemaName = SQLDefaultSchemaNameToken.check(databaseSchemaName)
+  const cacheKeySchemaName = SQLDefaultSchemaNameToken.check(
+    component.tableReference.databaseSchemaName,
+  )
     ? ''
-    : databaseSchemaName;
+    : component.tableReference.databaseSchemaName;
 
   const cacheKey = (id: string): PongoDocumentCacheKey =>
-    `${db.databaseName}:${cacheKeySchemaName}.${collectionName}:${id}`;
+    `${db.databaseName}:${cacheKeySchemaName}.${component.tableName}:${id}`;
 
   const txCacheFor = (options: CollectionOperationOptions | undefined) =>
     options?.session?.transaction?.cache ?? null;
@@ -374,7 +405,7 @@ export const pongoCollection = <
       },
       {
         operationName: 'deleteManyByIds',
-        collectionName,
+        collectionName: component.tableName,
         serializer,
         errors,
       },
@@ -408,7 +439,9 @@ export const pongoCollection = <
 
   const collection: PongoCollection<T> = {
     dbName: db.databaseName,
-    collectionName,
+    get collectionName() {
+      return component.tableName;
+    },
     createCollection: async (options?: CollectionOperationOptions) => {
       await createCollection(options);
     },
@@ -438,7 +471,12 @@ export const pongoCollection = <
             insertedId: successful ? _id : null,
             nextExpectedVersion,
           },
-          { operationName: 'insertOne', collectionName, serializer, errors },
+          {
+            operationName: 'insertOne',
+            collectionName: component.tableName,
+            serializer,
+            errors,
+          },
         );
       }
 
@@ -461,7 +499,12 @@ export const pongoCollection = <
           insertedId: successful ? _id : null,
           nextExpectedVersion: _version,
         },
-        { operationName: 'insertOne', collectionName, serializer, errors },
+        {
+          operationName: 'insertOne',
+          collectionName: component.tableName,
+          serializer,
+          errors,
+        },
       );
     },
     insertMany: async (
@@ -493,7 +536,12 @@ export const pongoCollection = <
             insertedCount: writtenIds.length,
             insertedIds: writtenIds,
           },
-          { operationName: 'insertMany', collectionName, serializer, errors },
+          {
+            operationName: 'insertMany',
+            collectionName: component.tableName,
+            serializer,
+            errors,
+          },
         );
       }
 
@@ -518,7 +566,12 @@ export const pongoCollection = <
           insertedCount: result.rowCount ?? 0,
           insertedIds: result.rows.map((d) => d._id as string),
         },
-        { operationName: 'insertMany', collectionName, serializer, errors },
+        {
+          operationName: 'insertMany',
+          collectionName: component.tableName,
+          serializer,
+          errors,
+        },
       );
     },
     updateOne: async (
@@ -544,7 +597,12 @@ export const pongoCollection = <
           upsertedCount: 0,
           nextExpectedVersion: BigInt(result.rows[0]?.version ?? 0n),
         },
-        { operationName: 'updateOne', collectionName, serializer, errors },
+        {
+          operationName: 'updateOne',
+          collectionName: component.tableName,
+          serializer,
+          errors,
+        },
       );
 
       if (opResult.successful && !options?.skipCache) {
@@ -588,7 +646,12 @@ export const pongoCollection = <
             upsertedCount: inserted ? 1 : 0,
             nextExpectedVersion,
           },
-          { operationName: 'replaceOne', collectionName, serializer, errors },
+          {
+            operationName: 'replaceOne',
+            collectionName: component.tableName,
+            serializer,
+            errors,
+          },
         );
       }
 
@@ -612,7 +675,12 @@ export const pongoCollection = <
           upsertedCount: 0,
           nextExpectedVersion: BigInt(result.rows[0]?.version ?? 0n),
         },
-        { operationName: 'replaceOne', collectionName, serializer, errors },
+        {
+          operationName: 'replaceOne',
+          collectionName: component.tableName,
+          serializer,
+          errors,
+        },
       );
 
       if (opResult.successful && !options?.skipCache) {
@@ -647,7 +715,12 @@ export const pongoCollection = <
           modifiedCount: result.rowCount ?? 0,
           matchedCount: result.rowCount ?? 0,
         },
-        { operationName: 'updateMany', collectionName, serializer, errors },
+        {
+          operationName: 'updateMany',
+          collectionName: component.tableName,
+          serializer,
+          errors,
+        },
       );
     },
     deleteOne: async (
@@ -667,7 +740,12 @@ export const pongoCollection = <
           deletedCount: Number(result.rows[0]?.deleted ?? 0),
           matchedCount: Number(result.rows[0]?.matched ?? 0),
         },
-        { operationName: 'deleteOne', collectionName, serializer, errors },
+        {
+          operationName: 'deleteOne',
+          collectionName: component.tableName,
+          serializer,
+          errors,
+        },
       );
 
       if (opResult.successful && !options?.skipCache && filter) {
@@ -698,7 +776,12 @@ export const pongoCollection = <
           deletedCount: result.rowCount ?? 0,
           matchedCount: result.rowCount ?? 0,
         },
-        { operationName: 'deleteMany', collectionName, serializer, errors },
+        {
+          operationName: 'deleteMany',
+          collectionName: component.tableName,
+          serializer,
+          errors,
+        },
       );
     },
     findOne: async (
@@ -802,7 +885,7 @@ export const pongoCollection = <
             },
             {
               operationName: 'replaceMany',
-              collectionName,
+              collectionName: component.tableName,
               serializer,
               errors,
             },
@@ -846,11 +929,16 @@ export const pongoCollection = <
           conflictIds: [...conflictIds],
           nextExpectedVersions: versions,
         },
-        { operationName: 'replaceMany', collectionName, serializer, errors },
+        {
+          operationName: 'replaceMany',
+          collectionName: component.tableName,
+          serializer,
+          errors,
+        },
       );
     },
     handle: DocumentCommandHandler<T>({
-      collectionName,
+      collectionName: component.tableName,
       serializer,
       errors,
       storage: {
@@ -905,9 +993,17 @@ export const pongoCollection = <
       options?: CollectionOperationOptions,
     ): Promise<PongoCollection<T>> => {
       await ensureCollectionCreated(options);
-      await command(SqlFor.rename(newName));
-      collectionName = newName;
-      SqlFor = sqlBuilderFor(collectionName);
+      const renameMigration = sqlMigration(
+        tableRenameMigrationName(
+          component.tableReference.databaseSchemaName,
+          component.tableName,
+          newName,
+        ),
+        [SqlFor.rename(newName)],
+      );
+      await runSQLMigrations(pool, [renameMigration], { migrationTable });
+      component = component.withTableName(newName);
+      SqlFor = sqlBuilderFor(component);
       return collection;
     },
     close: () => cache.close(),
@@ -932,13 +1028,14 @@ export const pongoCollection = <
       },
     },
     schema: {
-      component,
+      get component() {
+        return component;
+      },
       migrate: (options?: PongoMigrationOptions) =>
-        runSQLMigrations(
-          pool,
-          component.migrations({ databaseSchemaName }),
-          options,
-        ),
+        runSQLMigrations(pool, component.migrations(), {
+          ...options,
+          migrationTable: options?.migrationTable ?? migrationTable,
+        }),
     },
   };
 

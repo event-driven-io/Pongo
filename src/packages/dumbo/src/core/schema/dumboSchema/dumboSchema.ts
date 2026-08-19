@@ -8,22 +8,21 @@ import {
   type DatabaseComponent,
   type DatabaseComponentOptions,
   type DatabaseExtensions,
-  type DatabaseSchemas,
-  type DatabaseTables,
   databaseSchemaComponent,
   type DatabaseSchemaComponent,
+  type DatabaseSchemas,
   type DatabaseSchemaTables,
+  type DatabaseTables,
   indexComponent,
   type IndexComponent,
   type SchemaExtensions,
   type TableColumns,
-  type TableIndexes,
-  type TableRelationships,
   tableComponent,
   type TableComponent,
+  type TableIndexes,
+  type TableRelationships,
 } from '../components';
 import { extensionComponent } from '../extensionComponent';
-import type { SchemaComponentContext } from '../schemaComponent';
 import type { SQLMigration } from '../sqlMigration';
 
 function dumboColumn<
@@ -87,9 +86,7 @@ const dumboTable = <
     primaryKey?: ReadonlyArray<Extract<keyof Columns, string>>;
     relationships?: Relationships;
     indexes?: Indexes;
-    migrations?: (
-      context: SchemaComponentContext,
-    ) => ReadonlyArray<SQLMigration>;
+    migrations?: () => ReadonlyArray<SQLMigration>;
   }> = {},
 ): TableComponent<Columns, TableName, Indexes, Relationships> =>
   tableComponent({
@@ -97,10 +94,12 @@ const dumboTable = <
     ...definition,
   });
 
+type EmptyComponentMap = Readonly<Record<never, never>>;
+
 const dumboDatabaseSchema = <
   const Tables extends DatabaseSchemaTables,
   const Name extends string,
-  const Extensions extends SchemaExtensions = SchemaExtensions,
+  const Extensions extends SchemaExtensions = EmptyComponentMap,
 >(
   name: Name,
   tables: Tables,
@@ -112,13 +111,6 @@ const dumboDatabaseSchema = <
     extensions,
   });
 
-type EmptyComponentMap = Readonly<Record<never, never>>;
-
-/**
- * The nameless default schema is looked up by a well-known key, so that
- * unscoped tables run through the same validation as the tables of a named
- * schema while contributing no segment to the references they render.
- */
 type DeclaredSchemas<
   Tables extends DatabaseTables,
   Schemas extends DatabaseSchemas,
@@ -129,6 +121,10 @@ type DeclaredSchemas<
   >
 > &
   Schemas;
+
+type WithoutDatabaseName<Options> = Options extends unknown
+  ? Omit<Options, 'databaseName'>
+  : never;
 
 type ValidatedDatabaseComponent<
   DatabaseName extends string | undefined,
@@ -148,9 +144,8 @@ function dumboDatabase<
   const Schemas extends DatabaseSchemas = EmptyComponentMap,
   const Extensions extends DatabaseExtensions = EmptyComponentMap,
 >(
-  options: Omit<
-    DatabaseComponentOptions<undefined, Tables, Schemas, Extensions>,
-    'databaseName'
+  options: WithoutDatabaseName<
+    DatabaseComponentOptions<undefined, Tables, Schemas, Extensions>
   >,
 ): ValidatedDatabaseComponent<undefined, Tables, Schemas, Extensions>;
 function dumboDatabase<
@@ -160,26 +155,26 @@ function dumboDatabase<
   const Extensions extends DatabaseExtensions = EmptyComponentMap,
 >(
   databaseName: Name,
-  options: Omit<
-    DatabaseComponentOptions<Name, Tables, Schemas, Extensions>,
-    'databaseName'
+  options: WithoutDatabaseName<
+    DatabaseComponentOptions<Name, Tables, Schemas, Extensions>
   >,
 ): ValidatedDatabaseComponent<Name, Tables, Schemas, Extensions>;
 function dumboDatabase(
-  databaseNameOrOptions:
-    string | Omit<DatabaseComponentOptions, 'databaseName'>,
-  maybeOptions?: Omit<DatabaseComponentOptions, 'databaseName'>,
+  databaseNameOrOptions: string | WithoutDatabaseName<DatabaseComponentOptions>,
+  maybeOptions?: WithoutDatabaseName<DatabaseComponentOptions>,
 ): unknown {
   const databaseName =
     typeof databaseNameOrOptions === 'string'
       ? databaseNameOrOptions
       : undefined;
-  const options =
-    typeof databaseNameOrOptions === 'string'
+  const { tables, schemas, ...shared } =
+    (typeof databaseNameOrOptions === 'string'
       ? maybeOptions
-      : databaseNameOrOptions;
+      : databaseNameOrOptions) ?? {};
 
-  return databaseComponent({ databaseName, ...options });
+  return schemas !== undefined
+    ? databaseComponent({ databaseName, ...shared, schemas })
+    : databaseComponent({ databaseName, ...shared, tables });
 }
 
 dumboDatabase.from = (

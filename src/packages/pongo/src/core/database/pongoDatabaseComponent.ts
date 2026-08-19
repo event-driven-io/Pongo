@@ -15,11 +15,6 @@ import type {
   PongoDocument,
 } from '../typing';
 
-export type PongoCollectionIdentifier = Readonly<{
-  databaseSchemaName: string | SQLDefaultSchemaNameToken;
-  tableName: string;
-}>;
-
 type PongoDatabaseComponentOptions = Readonly<{
   component?: AnyDatabaseComponent | undefined;
   defaultSchemaName: string | SQLDefaultSchemaNameToken;
@@ -28,7 +23,6 @@ type PongoDatabaseComponentOptions = Readonly<{
     Payload extends PongoDocument = Document,
   >(
     component: PongoCollectionComponent<Document>,
-    identifier: PongoCollectionIdentifier,
     options?: PongoDBCollectionOptions<Document, Payload>,
   ) => PongoCollection<Document>;
 }>;
@@ -45,13 +39,12 @@ export const PongoDatabaseComponent = ({
   defaultSchemaName,
   createCollection,
 }: PongoDatabaseComponentOptions) => {
-  let component = initialComponent ?? databaseComponent({});
   const configuredDefaultSchemaName =
     typeof defaultSchemaName === 'string' ? defaultSchemaName : undefined;
-  const defaults =
-    configuredDefaultSchemaName === undefined
-      ? undefined
-      : { schemaName: configuredDefaultSchemaName };
+  let component: AnyDatabaseComponent =
+    initialComponent === undefined
+      ? databaseComponent({ defaultSchemaName: configuredDefaultSchemaName })
+      : initialComponent.withDefaultSchemaName(configuredDefaultSchemaName);
 
   const collectionsBySchema = new Map<
     string | SQLDefaultSchemaNameToken,
@@ -76,10 +69,9 @@ export const PongoDatabaseComponent = ({
     requestedSchemaName?: string,
   ) => {
     const databaseSchemaName = requestedSchemaName ?? defaultSchemaName;
-    const identifier = { databaseSchemaName, tableName: collectionName };
-    const declared = component.findTable(collectionName, {
+    const declared = component.findTable({
+      tableName: collectionName,
       databaseSchemaName: requestedSchemaName,
-      defaultSchemaName: configuredDefaultSchemaName,
     });
 
     if (declared !== undefined) {
@@ -88,10 +80,7 @@ export const PongoDatabaseComponent = ({
           `Table "${collectionName}" in ${databaseSchemaLabel(databaseSchemaName)} is not a Pongo collection`,
         );
       }
-      return {
-        component: declared as PongoCollectionComponent<Document>,
-        identifier,
-      };
+      return declared as PongoCollectionComponent<Document>;
     }
 
     const tables =
@@ -114,7 +103,10 @@ export const PongoDatabaseComponent = ({
             requestedSchemaName,
           );
 
-    return { component: created, identifier };
+    return component.findTable({
+      tableName: collectionName,
+      databaseSchemaName: requestedSchemaName,
+    }) as PongoCollectionComponent<Document>;
   };
 
   const collection = <
@@ -132,17 +124,19 @@ export const PongoDatabaseComponent = ({
     const existing = schemaCollections.get(collectionName) as
       PongoCollection<Document> | undefined;
 
-    if (!hasRuntimeOptions && existing !== undefined) return existing;
+    if (existing !== undefined && existing.collectionName !== collectionName) {
+      schemaCollections.delete(collectionName);
+      schemaCollections.set(
+        existing.collectionName,
+        existing as PongoCollection<PongoDocument>,
+      );
+    } else if (!hasRuntimeOptions && existing !== undefined) return existing;
 
     const resolved = collectionComponent<Document>(
       collectionName,
       options?.databaseSchemaName,
     );
-    const created = createCollection<Document, Payload>(
-      resolved.component,
-      resolved.identifier,
-      options,
-    );
+    const created = createCollection<Document, Payload>(resolved, options);
 
     if (!hasRuntimeOptions) {
       schemaCollections.set(
@@ -193,9 +187,7 @@ export const PongoDatabaseComponent = ({
       return component;
     },
     get migrations() {
-      return component.migrations(
-        defaults === undefined ? undefined : { defaults },
-      );
+      return component.migrations();
     },
     collection,
     collections,

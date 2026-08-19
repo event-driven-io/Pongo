@@ -142,7 +142,7 @@ describe('dumboSchema', () => {
     assert.ok(db.schemas.public.tables.users.columns.id !== undefined);
   });
 
-  it('should create a database declaring tables and schemas together', () => {
+  it('should add a schema to a database declaring tables', () => {
     const db = database('myapp', {
       tables: {
         users: table('users', {
@@ -151,15 +151,14 @@ describe('dumboSchema', () => {
           },
         }),
       },
-      schemas: {
-        crm: schema('crm', {
-          customers: table('customers', {
-            columns: {
-              id: column('id', Varchar('max')),
-            },
-          }),
+    }).withSchema({
+      crm: schema('crm', {
+        customers: table('customers', {
+          columns: {
+            id: column('id', Varchar('max')),
+          },
         }),
-      },
+      }),
     });
 
     assert.deepStrictEqual(Object.keys(db.tables), ['users']);

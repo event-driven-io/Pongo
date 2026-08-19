@@ -8,9 +8,9 @@ import {
   jsonPathIndexTarget,
   SQL,
   SQLDefaultSchemaNameToken,
+  SQLTableReference,
 } from '../../../../core';
 import { sqliteFormatter } from '../sql';
-import { sqliteTableReference } from './schemaComponentSQL';
 
 const format = (sql: SQL): string =>
   sqliteFormatter.format(sql, { serializer: JSONSerializer }).query;
@@ -23,22 +23,25 @@ const identifier = {
 
 describe('using Dumbo components in logical SQLite schemas', () => {
   it('resolves mapped table references from their full logical identifier', () => {
-    assert.strictEqual(format(sqliteTableReference(identifier)), '"crm.users"');
+    assert.strictEqual(
+      format(SQL`${SQLTableReference.from(identifier)}`),
+      '"crm.users"',
+    );
     assert.strictEqual(
       format(
-        sqliteTableReference({
+        SQL`${SQLTableReference.from({
           ...identifier,
           databaseSchemaName: 'main',
-        }),
+        })}`,
       ),
       '"main.users"',
     );
     assert.strictEqual(
       format(
-        sqliteTableReference({
+        SQL`${SQLTableReference.from({
           ...identifier,
           databaseSchemaName: SQLDefaultSchemaNameToken.from(),
-        }),
+        })}`,
       ),
       'users',
     );

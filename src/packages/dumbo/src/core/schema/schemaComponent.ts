@@ -1,4 +1,3 @@
-import type { SQLDefaultSchemaNameToken } from '../sql';
 import { haveSameSQL, type SQLMigration } from './sqlMigration';
 
 export const schemaComponentType: unique symbol = Symbol(
@@ -7,17 +6,11 @@ export const schemaComponentType: unique symbol = Symbol(
 
 export type SchemaComponentKind = symbol;
 
-export type SchemaComponentContext = Readonly<{
-  defaults?: Readonly<{ schemaName?: string | undefined }> | undefined;
-  databaseSchemaName?: string | SQLDefaultSchemaNameToken | undefined;
-  tableName?: string | undefined;
-}>;
-
 export type SchemaComponent<
   Kind extends SchemaComponentKind = SchemaComponentKind,
 > = Readonly<{
   [schemaComponentType]: Kind;
-  migrations: (context?: SchemaComponentContext) => ReadonlyArray<SQLMigration>;
+  migrations: () => ReadonlyArray<SQLMigration>;
 }>;
 
 export type AnySchemaComponent = SchemaComponent<SchemaComponentKind>;
@@ -29,11 +22,7 @@ export type SchemaComponentMap<
 export type MergeRecords<Current, Added> = Omit<Current, keyof Added> & Added;
 
 export type SchemaComponentOptions = Readonly<{
-  migrations?:
-    | ((context: SchemaComponentContext) => ReadonlyArray<SQLMigration>)
-    | undefined;
-  context?:
-    ((parent: SchemaComponentContext) => SchemaComponentContext) | undefined;
+  migrations?: (() => ReadonlyArray<SQLMigration>) | undefined;
   components?: ReadonlyArray<AnySchemaComponent> | undefined;
 }>;
 
@@ -75,15 +64,11 @@ export const schemaComponent = <const Kind extends SchemaComponentKind>(
 
   const component: SchemaComponent<Kind> = {
     [schemaComponentType]: kind,
-    migrations: (context: SchemaComponentContext = {}) => {
-      const scoped = options.context?.(context) ?? context;
-      const ownMigrations = options.migrations?.(scoped) ?? [];
-
-      return dedupeMigrations([
-        ...ownMigrations,
-        ...children.flatMap((child) => child.migrations(scoped)),
-      ]);
-    },
+    migrations: () =>
+      dedupeMigrations([
+        ...(options.migrations?.() ?? []),
+        ...children.flatMap((child) => child.migrations()),
+      ]),
   };
 
   return component;

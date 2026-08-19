@@ -2,12 +2,8 @@ import {
   JSONSerializer,
   SQL,
   SQLDefaultSchemaNameToken,
-  type SQLTableReference,
 } from '@event-driven-io/dumbo';
-import {
-  sqliteFormatter,
-  sqliteTableReference,
-} from '@event-driven-io/dumbo/sqlite';
+import { sqliteFormatter } from '@event-driven-io/dumbo/sqlite';
 import { randomUUID } from 'crypto';
 import assert from 'node:assert/strict';
 import { describe, it } from 'vitest';
@@ -23,17 +19,7 @@ import { sqliteSQLBuilder } from './index';
 const formatSQL = (sql: SQL, formatter = sqliteFormatter) =>
   formatter.format(sql, { serializer: JSONSerializer });
 
-type TableContext = Omit<SQLTableReference, 'sqlTokenType'>;
-
 const defaultSchema = SQLDefaultSchemaNameToken.from();
-
-const tableContext = (
-  databaseSchemaName: string | SQLDefaultSchemaNameToken,
-  tableName: string,
-): TableContext => ({
-  databaseSchemaName,
-  tableName,
-});
 
 const collectionInSchema = (
   schemaName: string | SQLDefaultSchemaNameToken,
@@ -49,7 +35,6 @@ const collectionInSchemaWithIndexes = <
 ) => ({
   collection: databaseInSchemaWithIndexes(schemaName, collectionName, options)
     .collection,
-  identifier: tableContext(schemaName, collectionName),
 });
 
 const databaseInSchemaWithIndexes = <
@@ -60,9 +45,12 @@ const databaseInSchemaWithIndexes = <
   options: { indexes: Indexes },
 ) => {
   const collection = pongoSchema.collection(collectionName, { ...options });
+  const placedCollection = SQLDefaultSchemaNameToken.check(schemaName)
+    ? collection
+    : collection.withDatabaseSchemaName(schemaName);
 
   return {
-    collection,
+    collection: placedCollection,
     database: SQLDefaultSchemaNameToken.check(schemaName)
       ? pongoSchema.db({ collections: { collection } })
       : pongoSchema.db({
@@ -76,15 +64,9 @@ const databaseInSchemaWithIndexes = <
 const builderFor = (
   fixture: Readonly<{
     collection: PongoCollectionComponent;
-    identifier: TableContext;
   }>,
 ): PongoCollectionSQLBuilder =>
-  sqliteSQLBuilder(
-    fixture.collection,
-    sqliteTableReference(fixture.identifier),
-    (tableName) => sqliteTableReference({ ...fixture.identifier, tableName }),
-    JSONSerializer,
-  );
+  sqliteSQLBuilder(fixture.collection, JSONSerializer);
 
 const rendersSQL = (migration: { sqls: SQL[] }): boolean =>
   migration.sqls.some(

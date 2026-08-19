@@ -1,17 +1,13 @@
 import {
+  haveSameTableReference,
   SQL,
-  SQLDefaultSchemaNameToken,
   SQLIndexReference,
   SQLJSONDocumentIndexTarget,
   SQLJSONPathTarget,
   SQLTableReference,
-  type SQL as SQLStatement,
+  type SQLDefaultSchemaNameToken,
 } from '../../sql';
-import {
-  schemaComponent,
-  type SchemaComponent,
-  type SchemaComponentContext,
-} from '../schemaComponent';
+import { schemaComponent, type SchemaComponent } from '../schemaComponent';
 import { sqlMigration, type SQLMigration } from '../sqlMigration';
 import type { IndexTarget } from './indexTarget';
 import { migrationName, schemaSegments } from './migrationName';
@@ -58,6 +54,10 @@ export type IndexComponent<
     isUnique: boolean;
     target?: IndexTarget | undefined;
     sql?: ((context: IndexSQLContext) => SQL) | undefined;
+    tableReference: SQLTableReference | undefined;
+    withTableReference: (
+      tableReference: SQLTableReference,
+    ) => IndexComponent<IndexName, ColumnNames>;
   }>;
 
 export type AnyIndexComponent = IndexComponent<string, readonly string[]>;
@@ -73,8 +73,9 @@ export type IndexComponentOptions<
   isUnique: boolean;
   target?: IndexTarget | undefined;
   sql?: ((context: IndexSQLContext) => SQL) | undefined;
+  tableReference?: SQLTableReference | undefined;
   migrations?:
-    | ((context: SchemaComponentContext) => ReadonlyArray<SQLMigration>)
+    | ((indexReference: SQLIndexReference) => ReadonlyArray<SQLMigration>)
     | undefined;
 }>;
 
@@ -86,7 +87,7 @@ const indexTargetSQL = (
     isUnique: boolean;
     target?: IndexTarget | undefined;
   }>,
-): SQLStatement => {
+): SQL => {
   const target = index.target;
 
   if (target?.targetType === 'jsonDocument')
@@ -116,7 +117,7 @@ export const createIndexSQL = (
     sql?: ((context: IndexSQLContext) => SQL) | undefined;
   }>,
   identifier: IndexIdentifier,
-): SQLStatement => {
+): SQL => {
   const tableReference = SQL`${SQLTableReference.from(identifier)}`;
   const indexReference = SQL`${SQLIndexReference.from(identifier)}`;
 
@@ -151,24 +152,23 @@ export const indexComponent = <
 >(
   options: IndexComponentOptions<IndexName, ColumnNames>,
 ): IndexComponent<IndexName, ColumnNames> => {
-  const ownMigrations = (context: SchemaComponentContext) => {
-    const tableName = context.tableName;
-    if (tableName === undefined)
+  const ownMigrations = () => {
+    const tableReference = options.tableReference;
+    if (tableReference === undefined)
       throw new Error(
         `Index "${options.indexName}" cannot be created outside a table. Declare it in the indexes of the table it belongs to`,
       );
 
-    if (options.migrations !== undefined) return options.migrations(context);
+    const identifier = {
+      databaseSchemaName: tableReference.databaseSchemaName,
+      tableName: tableReference.tableName,
+      indexName: options.indexName,
+    };
 
-    return generatedIndexMigrations(
-      {
-        databaseSchemaName:
-          context.databaseSchemaName ?? SQLDefaultSchemaNameToken.from(),
-        tableName,
-        indexName: options.indexName,
-      },
-      options,
-    );
+    if (options.migrations !== undefined)
+      return options.migrations(SQLIndexReference.from(identifier));
+
+    return generatedIndexMigrations(identifier, options);
   };
 
   const component: IndexComponent<IndexName, ColumnNames> = {
@@ -183,6 +183,16 @@ export const indexComponent = <
     isUnique: options.isUnique,
     target: options.target,
     sql: options.sql,
+    tableReference: options.tableReference,
+    withTableReference(tableReference: SQLTableReference) {
+      if (
+        options.tableReference !== undefined &&
+        haveSameTableReference(options.tableReference, tableReference)
+      )
+        return this;
+
+      return indexComponent({ ...options, tableReference });
+    },
   };
 
   return component;

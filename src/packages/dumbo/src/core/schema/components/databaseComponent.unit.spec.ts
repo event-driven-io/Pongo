@@ -37,17 +37,33 @@ describe('placing tables and schemas in a database', () => {
     assert.strictEqual(database.schemas.crm, crm);
   });
 
-  it('declares unscoped tables and named schemas together', () => {
+  it('adds named schemas to a database declaring unscoped tables', () => {
     const users = table('users');
     const crm = databaseSchemaComponent({
       schemaName: 'crm',
       tables: { roles: table('roles') },
     });
-    const database = databaseComponent({ tables: { users }, schemas: { crm } });
+    const database = databaseComponent({ tables: { users } }).withSchema({
+      crm,
+    });
 
     assert.strictEqual(database.tables.users, users);
     assert.strictEqual(database.schemas.crm, crm);
     assert.deepStrictEqual(Object.keys(database.schemas), ['crm']);
+  });
+
+  it('rejects a database declaring unscoped tables and named schemas at once', () => {
+    assert.throws(
+      () =>
+        // @ts-expect-error tables and schemas are mutually exclusive
+        databaseComponent({
+          tables: { users: table('users') },
+          schemas: {
+            crm: databaseSchemaComponent({ schemaName: 'crm' }),
+          },
+        }),
+      /A database declaration can contain either tables or schemas, not both/,
+    );
   });
 
   it('leaves the placement of unscoped tables to the dialect', () => {
@@ -60,12 +76,13 @@ describe('placing tables and schemas in a database', () => {
   });
 
   it('binds unscoped tables to the configured default schema name', () => {
-    const database = databaseComponent({ tables: { users: table('users') } });
+    const database = databaseComponent({
+      defaultSchemaName: 'pongo',
+      tables: { users: table('users') },
+    });
 
     assert.deepStrictEqual(
-      database
-        .migrations({ defaults: { schemaName: 'pongo' } })
-        .map(({ name }) => name),
+      database.migrations().map(({ name }) => name),
       ['schema:pongo:create', 'table:pongo:users:create'],
     );
   });
@@ -76,8 +93,8 @@ describe('placing tables and schemas in a database', () => {
     assert.deepStrictEqual(Object.keys(database.tables), []);
     assert.deepStrictEqual(database.migrations(), []);
     assert.deepStrictEqual(
-      database
-        .migrations({ defaults: { schemaName: 'pongo' } })
+      databaseComponent({ defaultSchemaName: 'pongo' })
+        .migrations()
         .map(({ name }) => name),
       ['schema:pongo:create'],
     );
@@ -85,19 +102,17 @@ describe('placing tables and schemas in a database', () => {
 
   it('migrates the default schema before named schemas', () => {
     const database = databaseComponent({
+      defaultSchemaName: 'pongo',
       tables: { users: table('users') },
-      schemas: {
-        crm: databaseSchemaComponent({
-          schemaName: 'crm',
-          tables: { roles: table('roles') },
-        }),
-      },
+    }).withSchema({
+      crm: databaseSchemaComponent({
+        schemaName: 'crm',
+        tables: { roles: table('roles') },
+      }),
     });
 
     assert.deepStrictEqual(
-      database
-        .migrations({ defaults: { schemaName: 'pongo' } })
-        .map(({ name }) => name),
+      database.migrations().map(({ name }) => name),
       [
         'schema:pongo:create',
         'table:pongo:users:create',
@@ -112,19 +127,18 @@ describe('placing tables and schemas in a database', () => {
       tables: { events: table('events') },
     });
     const database = databaseComponent({
+      defaultSchemaName: 'pongo',
       schemas: { crm: databaseSchemaComponent({ schemaName: 'crm' }) },
       extensions: { eventStore },
     });
 
     assert.strictEqual(database.extensions.eventStore, eventStore);
     assert.strictEqual(
-      database.defaultSchema.extensions.eventStore,
-      eventStore,
+      database.defaultSchema.extensions.eventStore?.extensionName,
+      eventStore.extensionName,
     );
     assert.deepStrictEqual(
-      database
-        .migrations({ defaults: { schemaName: 'pongo' } })
-        .map(({ name }) => name),
+      database.migrations().map(({ name }) => name),
       ['schema:pongo:create', 'table:pongo:events:create', 'schema:crm:create'],
     );
   });
@@ -186,19 +200,34 @@ describe('placing tables and schemas in a database', () => {
 
     assert.strictEqual(calls, 1);
   });
+
+  it('reports conflicting users declarations from the application and its table extension', () => {
+    const eventStore = extensionComponent('event-store', {
+      tables: { users: table('users') },
+    });
+
+    assert.throws(
+      () =>
+        databaseComponent({
+          tables: { users: table('users') },
+          extensions: { eventStore },
+        }),
+      /Table "users" is declared more than once in database schema "the default schema"/,
+    );
+  });
 });
 
-describe('database.findTable(tableName, options)', () => {
-  it("database.findTable('users') finds a default-schema table", () => {
+describe('database.findTable', () => {
+  it('finds a default-schema table', () => {
     const users = table('users');
     const database = databaseComponent({
       tables: { customerDirectory: users },
     });
 
-    assert.strictEqual(database.findTable('users'), users);
+    assert.strictEqual(database.findTable({ tableName: 'users' }), users);
   });
 
-  it("database.findTable('users', { databaseSchemaName: 'crm' }) finds a named-schema table", () => {
+  it('finds a named-schema table', () => {
     const users = table('users');
     const database = databaseComponent({
       schemas: {
@@ -210,14 +239,18 @@ describe('database.findTable(tableName, options)', () => {
     });
 
     assert.strictEqual(
-      database.findTable('users', { databaseSchemaName: 'crm' }),
-      users,
+      database.findTable({
+        tableName: 'users',
+        databaseSchemaName: 'crm',
+      })?.tableName,
+      users.tableName,
     );
   });
 
-  it("database.findTable('users') finds a table in the configured default schema", () => {
+  it('finds a table in the configured default schema', () => {
     const users = table('users');
     const database = databaseComponent({
+      defaultSchemaName: 'crm',
       schemas: {
         crm: databaseSchemaComponent({
           schemaName: 'crm',
@@ -227,12 +260,12 @@ describe('database.findTable(tableName, options)', () => {
     });
 
     assert.strictEqual(
-      database.findTable('users', { defaultSchemaName: 'crm' }),
-      users,
+      database.findTable({ tableName: 'users' })?.tableName,
+      users.tableName,
     );
   });
 
-  it("database.findTable('users', { databaseSchemaName: 'readmodels' }) finds a table contributed by a database extension", () => {
+  it('finds a table contributed by a database extension', () => {
     const users = table('users');
     const eventStore = extensionComponent('event-store', {
       schemas: {
@@ -245,40 +278,41 @@ describe('database.findTable(tableName, options)', () => {
     const database = databaseComponent({ extensions: { eventStore } });
 
     assert.strictEqual(
-      database.findTable('users', { databaseSchemaName: 'readmodels' }),
-      users,
+      database.findTable({
+        tableName: 'users',
+        databaseSchemaName: 'readmodels',
+      })?.tableName,
+      users.tableName,
     );
   });
 
-  it("database.findTable('users', { defaultSchemaName: 'crm' }) reports conflicting users declarations across the default and crm schemas", () => {
-    const database = databaseComponent({
-      tables: { users: table('users') },
+  it('database.tables lists a table contributed by a default schema extension', () => {
+    const users = table('users');
+    const eventStore = extensionComponent('event-store', {
+      tables: { users },
+    });
+    const database = databaseComponent({ extensions: { eventStore } });
+
+    assert.strictEqual(
+      database.tables.users,
+      database.defaultSchema.extensions.eventStore?.tables.users,
+    );
+  });
+
+  it('database.schemas lists a schema contributed by a database extension', () => {
+    const eventStore = extensionComponent('event-store', {
       schemas: {
-        crm: databaseSchemaComponent({
-          schemaName: 'crm',
+        readmodels: databaseSchemaComponent({
+          schemaName: 'readmodels',
           tables: { users: table('users') },
         }),
       },
     });
+    const database = databaseComponent({ extensions: { eventStore } });
 
-    assert.throws(
-      () => database.findTable('users', { defaultSchemaName: 'crm' }),
-      /Table "users" is declared more than once in database schema "crm"/,
-    );
-  });
-
-  it("database.findTable('users') reports conflicting users declarations from the application and its table extension", () => {
-    const eventStore = extensionComponent('event-store', {
-      tables: { users: table('users') },
-    });
-    const database = databaseComponent({
-      tables: { users: table('users') },
-      extensions: { eventStore },
-    });
-
-    assert.throws(
-      () => database.findTable('users'),
-      /Table "users" is declared more than once in the default database schema/,
+    assert.strictEqual(
+      database.schemas.readmodels,
+      database.extensions.eventStore.schemas.readmodels,
     );
   });
 });
@@ -379,8 +413,14 @@ describe('database.withTable(tables, schemaName)', () => {
 
     const next = database.withTable({ users }, 'crm');
 
-    assert.strictEqual(next.schemas.crm.tables.roles, roles);
-    assert.strictEqual(next.schemas.crm.tables.users, users);
+    assert.strictEqual(
+      next.schemas.crm.tables.roles.tableName,
+      roles.tableName,
+    );
+    assert.strictEqual(
+      next.schemas.crm.tables.users.tableName,
+      users.tableName,
+    );
     assert.strictEqual(database.schemas.crm, crm);
     assert.deepStrictEqual(Object.keys(crm.tables), ['roles']);
   });
@@ -391,7 +431,10 @@ describe('database.withTable(tables, schemaName)', () => {
     const next = databaseComponent({}).withTable({ users }, 'crm');
 
     assert.strictEqual(next.schemas.crm.schemaName, 'crm');
-    assert.strictEqual(next.schemas.crm.tables.users, users);
+    assert.strictEqual(
+      next.schemas.crm.tables.users.tableName,
+      users.tableName,
+    );
     assert.deepStrictEqual(
       next.migrations().map(({ name }) => name),
       ['schema:crm:create', 'table:crm:users:create'],
@@ -421,6 +464,9 @@ describe('database.withTable(tables, schemaName)', () => {
     const next = databaseComponent({}).withTable({ users }, 'toString');
 
     assert.strictEqual(next.schemas.toString.schemaName, 'toString');
-    assert.strictEqual(next.schemas.toString.tables.users, users);
+    assert.strictEqual(
+      next.schemas.toString.tables.users.tableName,
+      users.tableName,
+    );
   });
 });

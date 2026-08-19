@@ -292,7 +292,10 @@ describe('Migration Integration Tests', () => {
       });
       expectTypeOf(usersCollection).toEqualTypeOf<PongoCollection<User>>();
 
-      assert.strictEqual(usersCollection.schema.component, users);
+      assert.strictEqual(
+        usersCollection.schema.component,
+        eventStoreReadModels.schemas.readmodels.tables.users,
+      );
       assert.deepStrictEqual(
         db.schema.migrations.map(({ name }) => name),
         [

@@ -1,9 +1,5 @@
 import type { AnyColumnTypeToken, SQLColumnToken } from '../../sql';
-import {
-  schemaComponent,
-  type SchemaComponent,
-  type SchemaComponentContext,
-} from '../schemaComponent';
+import { schemaComponent, type SchemaComponent } from '../schemaComponent';
 import type { SQLMigration } from '../sqlMigration';
 
 export const columnComponentType: unique symbol = Symbol(
@@ -26,9 +22,7 @@ export type ColumnSchemaComponentOptions<
   ColumnType extends AnyColumnTypeToken | string = AnyColumnTypeToken | string,
 > = Omit<SQLColumnToken<ColumnType>, 'name' | 'sqlTokenType'> &
   Readonly<{
-    migrations?:
-      | ((context: SchemaComponentContext) => ReadonlyArray<SQLMigration>)
-      | undefined;
+    migrations?: (() => ReadonlyArray<SQLMigration>) | undefined;
   }>;
 
 export function columnSchemaComponent<

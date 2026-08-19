@@ -54,11 +54,19 @@ ${collections}
 const missingDefaultExport = `Error: Config should contain default export, e.g.\n\n${sampleConfig()}`;
 const missingSchema = `Error: Config should contain schema property, e.g.\n\n${sampleConfig()}`;
 const missingDbs = `Error: Config should have at least a single database defined, e.g.\n\n${sampleConfig()}`;
-const missingDefaultDb = `Error: Config should have a default database defined (without name or or with default database name), e.g.\n\n${sampleConfig()}`;
 const missingCollections = `Error: Database should have defined at least one collection, e.g.\n\n${sampleConfig()}`;
+
+const formatDatabaseNames = (
+  databases: ReadonlyArray<PongoDbSchemaMetadata>,
+): string =>
+  databases
+    .map((database) => database.name ?? '<unnamed>')
+    .sort()
+    .join(', ');
 
 export const loadConfigFile = async (
   configPath: string,
+  databaseName?: string,
 ): Promise<PongoDbSchemaMetadata> => {
   const configUrl = new URL(configPath, `file://${process.cwd()}/`);
   try {
@@ -67,7 +75,7 @@ export const loadConfigFile = async (
       configUrl.href
     );
 
-    const parsed = parseDefaultDbSchema(imported);
+    const parsed = parseDbSchemaFromConfig(imported, databaseName);
 
     if (typeof parsed === 'string') {
       console.error(parsed);
@@ -95,8 +103,9 @@ export const generateConfigFile = (
   }
 };
 
-export const parseDefaultDbSchema = (
+export const parseDbSchemaFromConfig = (
   imported: Partial<{ default: PongoSchemaConfig }>,
+  databaseName?: string,
 ): PongoDbSchemaMetadata | string => {
   if (!imported.default) {
     return missingDefaultExport;
@@ -110,21 +119,36 @@ export const parseDefaultDbSchema = (
     return missingDbs;
   }
 
-  const dbs = objectEntries(imported.default.schema.dbs).map((db) => db[1]);
+  const dbs = objectEntries(imported.default.schema.dbs)
+    .map((db) => db[1])
+    .map(toDbSchemaMetadata);
 
-  const defaultDb = dbs.find((db) => db.databaseName === undefined);
-
-  if (!defaultDb) {
-    return missingDefaultDb;
+  if (dbs.length === 0) {
+    return missingDbs;
   }
 
-  const metadata = toDbSchemaMetadata(defaultDb);
-  if (metadata.collections.length === 0) {
+  const selected =
+    databaseName !== undefined
+      ? dbs.find((db) => db.name === databaseName)
+      : dbs.length === 1
+        ? dbs[0]
+        : undefined;
+
+  if (!selected) {
+    const names = formatDatabaseNames(dbs);
+    return databaseName !== undefined
+      ? `Error: Config does not define database "${databaseName}". Found: ${names}`
+      : `Error: Config defines multiple databases. Select one with --database-name. Found: ${names}`;
+  }
+
+  if (selected.collections.length === 0) {
     return missingCollections;
   }
 
-  return metadata;
+  return selected;
 };
+
+export const parseDefaultDbSchema = parseDbSchemaFromConfig;
 
 type SampleConfigOptions =
   | {

@@ -2,10 +2,8 @@ import {
   JSONSerializer,
   SQL,
   SQLDefaultSchemaNameToken,
-  type SQLTableReference,
 } from '@event-driven-io/dumbo';
 import { pgFormatter } from '@event-driven-io/dumbo/pg';
-import { postgreSQLTableReference } from '@event-driven-io/dumbo/postgresql';
 import assert from 'assert';
 import { describe, it } from 'vitest';
 import { postgresSQLBuilder } from '.';
@@ -20,17 +18,7 @@ import {
 const formatSQL = (sql: SQL, formatter = pgFormatter) =>
   formatter.format(sql, { serializer: JSONSerializer });
 
-type TableContext = Omit<SQLTableReference, 'sqlTokenType'>;
-
 const defaultSchema = SQLDefaultSchemaNameToken.from();
-
-const tableContext = (
-  schemaName: string | SQLDefaultSchemaNameToken,
-  tableName: string,
-): TableContext => ({
-  databaseSchemaName: schemaName,
-  tableName,
-});
 
 const databaseWithCollection = <const Indexes extends PongoCollectionIndexes>(
   schemaName: string | SQLDefaultSchemaNameToken,
@@ -38,9 +26,12 @@ const databaseWithCollection = <const Indexes extends PongoCollectionIndexes>(
   indexes: Indexes,
 ) => {
   const collection = pongoSchema.collection(collectionName, { indexes });
+  const placedCollection = SQLDefaultSchemaNameToken.check(schemaName)
+    ? collection
+    : collection.withDatabaseSchemaName(schemaName);
 
   return {
-    collection,
+    collection: placedCollection,
     database: SQLDefaultSchemaNameToken.check(schemaName)
       ? pongoSchema.db({ collections: { collection } })
       : pongoSchema.db({
@@ -63,7 +54,6 @@ const collectionInSchemaWithIndexes = <
     collectionName,
     options.indexes,
   ).collection,
-  identifier: tableContext(schemaName, collectionName),
 });
 
 const collectionInSchema = (
@@ -74,17 +64,9 @@ const collectionInSchema = (
 const builderFor = (
   fixture: Readonly<{
     collection: PongoCollectionComponent;
-    identifier: TableContext;
   }>,
 ): PongoCollectionSQLBuilder =>
-  postgresSQLBuilder(
-    fixture.collection,
-    {
-      tableReference: postgreSQLTableReference(fixture.identifier),
-      databaseSchemaName: fixture.identifier.databaseSchemaName,
-    },
-    JSONSerializer,
-  );
+  postgresSQLBuilder(fixture.collection, JSONSerializer);
 
 const rendersSQL = (migration: { sqls: SQL[] }): boolean =>
   migration.sqls.some(
@@ -291,10 +273,7 @@ describe('postgres collection schema migrations', () => {
     assert.ok(tableMigration);
     const createSchema = formatSQL(schemaMigration.sqls[0]!, pgFormatter);
     const createTable = formatSQL(tableMigration.sqls[0]!, pgFormatter);
-    const builder = builderFor({
-      collection,
-      identifier: tableContext('crm', 'users'),
-    });
+    const builder = builderFor({ collection });
     const insert = formatSQL(
       builder.insertOne({ _id: '1', name: 'Oskar' }),
       pgFormatter,
