@@ -7,7 +7,7 @@ import {
   NoDatabaseLock,
 } from '../../locks';
 import { singleOrNull } from '../../query';
-import type { SQLFormatter } from '../../sql';
+import type { SQLFormatter, SQLTableReference } from '../../sql';
 import { SQL, getFormatter } from '../../sql';
 import { tracer } from '../../tracing';
 import type { SQLMigration } from '../sqlMigration';
@@ -113,33 +113,27 @@ export const runSQLMigrations = (
     const migrationTableOptions = options.migrationTable;
     const schemaName = migrationTableOptions?.schemaName;
 
-    if (
-      databaseType === 'SQLite' &&
-      schemaName !== undefined &&
-      schemaName !== 'main'
-    ) {
-      throw new Error(
-        'SQLite does not support schema-qualified migration tables',
-      );
-    }
-
     const tableName = migrationTableOptions?.tableName ?? 'dmb_migrations';
-    const migrationTableReference =
-      databaseType === 'PostgreSQL' && schemaName
-        ? SQL`${SQL.identifier(schemaName)}.${SQL.identifier(tableName)}`
-        : SQL`${SQL.identifier(tableName)}`;
-    const coreMigrations = migrationTableComponentFor({
-      schemaName: databaseType === 'PostgreSQL' ? schemaName : undefined,
+    const migrationTable = migrationTableComponentFor({
+      schemaName,
       tableName,
-    }).migrations();
+    });
+    const migrationTableReference = migrationTable.fullName;
+    const coreMigrations = migrationTable.migrations();
 
     const result: RunSQLMigrationsResult = { applied: [], skipped: [] };
 
     await databaseLock.withAcquire(
       execute,
       async () => {
+        const formatter = getFormatter(databaseType);
         for (const migration of coreMigrations) {
-          await execute.batchCommand(migration.sqls, {
+          const sqls = migration.sqls.filter(
+            (sql) => !rendersNothing(sql, formatter),
+          );
+          if (sqls.length === 0) continue;
+
+          await execute.batchCommand(sqls, {
             timeoutMs: options.migrationTimeoutMs,
           });
         }
@@ -177,7 +171,7 @@ const runSQLMigration = async (
   databaseType: DatabaseType,
   execute: SQLExecutor,
   migration: SQLMigration,
-  migrationTableReference: SQL,
+  migrationTableReference: SQLTableReference,
   options?: {
     ignoreMigrationHashMismatch?: boolean;
     migrationTimeoutMs?: number | undefined;
@@ -275,7 +269,7 @@ type EnsureMigrationResult =
 const ensureMigrationWasNotAppliedYet = async (
   execute: SQLExecutor,
   migration: { name: string; sqlHash: string },
-  migrationTableReference: SQL,
+  migrationTableReference: SQLTableReference,
 ): Promise<EnsureMigrationResult> => {
   const result = await singleOrNull(
     execute.query<{ sqlHash: string }>(
@@ -297,7 +291,7 @@ const ensureMigrationWasNotAppliedYet = async (
 const recordMigration = async (
   execute: SQLExecutor,
   migration: { name: string; sqlHash: string },
-  migrationTableReference: SQL,
+  migrationTableReference: SQLTableReference,
 ): Promise<void> => {
   await execute.command(
     SQL`
@@ -309,7 +303,7 @@ const recordMigration = async (
 const updateMigrationHash = async (
   execute: SQLExecutor,
   migration: { name: string; sqlHash: string },
-  migrationTableReference: SQL,
+  migrationTableReference: SQLTableReference,
 ): Promise<void> => {
   await execute.command(
     SQL`

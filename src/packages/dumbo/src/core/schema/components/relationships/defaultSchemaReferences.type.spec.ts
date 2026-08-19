@@ -21,7 +21,7 @@ const { column, table, schema } = dumboSchema;
 const { Integer, BigInteger } = SQL.column.type;
 
 describe('DefaultSchemaKey', () => {
-  it('is the default schema name token type', () => {
+  it('is the default database schema name', () => {
     type _Then = Expect<Equals<DefaultSchemaKey, DefaultDatabaseSchemaName>>;
   });
 });

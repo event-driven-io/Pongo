@@ -11,7 +11,7 @@ import type {
   Writable,
 } from '..';
 import type { ColumnTypeToken } from '../../../sql/tokens/columnTokens';
-import type { DefaultDatabaseSchemaName } from '../../../sql/tokens/sqlToken';
+import type { DefaultDatabaseSchemaName } from '../../../sql/defaultDatabaseSchemaName';
 import type { NotEmptyTuple } from '../../../typing';
 
 export type ExtractSchemaNames<DB> =
@@ -119,17 +119,11 @@ export type AllColumnReferencesInSchema<
     : never;
 
 /**
- * Key under which the nameless default schema is registered. The default schema
- * has no name to qualify references with, so it is looked up by a well-known key
- * instead.
+ * Key under which the default schema is registered. Its name is never rendered
+ * into SQL, so references to its tables carry no schema segment to qualify them
+ * and are looked up by this well-known key instead.
  */
 export type DefaultSchemaKey = DefaultDatabaseSchemaName;
-
-export type DatabaseSchemaKey<SchemaName extends string> = [
-  Extract<SchemaName, string>,
-] extends [never]
-  ? DefaultSchemaKey
-  : Extract<SchemaName, string>;
 
 type QualifyColumnName<
   SchemaKey extends string,

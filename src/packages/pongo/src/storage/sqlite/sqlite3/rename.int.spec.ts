@@ -100,7 +100,7 @@ describe('renaming a Pongo collection', () => {
     );
     assert.deepStrictEqual(
       migrations.map(({ name }) => name),
-      ['table:users:archived_users:rename'],
+      ['table:pongo_collection:users:archived_users:rename'],
     );
   });
 

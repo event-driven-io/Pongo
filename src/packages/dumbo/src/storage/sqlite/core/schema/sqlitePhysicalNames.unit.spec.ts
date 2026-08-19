@@ -8,9 +8,9 @@ import {
 import { sqliteIndexName, sqliteTableName } from './sqlitePhysicalNames';
 
 describe('using logical database schemas in SQLite', () => {
-  it('keeps table and index names unchanged only for the default schema token', () => {
+  it('keeps table and index names unchanged only for the default schema', () => {
     const table = {
-      databaseSchemaName: 'main',
+      databaseSchemaName: 'reporting',
       tableName: 'users',
     } satisfies Omit<SQLTableReference, 'sqlTokenType'>;
     const index = {
@@ -32,8 +32,8 @@ describe('using logical database schemas in SQLite', () => {
       }),
       'users_email_idx',
     );
-    assert.strictEqual(sqliteTableName(table), 'main.users');
-    assert.strictEqual(sqliteIndexName(index), 'main.users_email_idx');
+    assert.strictEqual(sqliteTableName(table), 'reporting.users');
+    assert.strictEqual(sqliteIndexName(index), 'reporting.users_email_idx');
   });
 
   it('maps tables and indexes from logical schemas to SQLite object names', () => {

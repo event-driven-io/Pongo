@@ -29,7 +29,7 @@ describe('declaring a schema with tables', () => {
 
     assert.strictEqual(schema.tables.users.tableName, users.tableName);
     assert.strictEqual(
-      schema.tables.users.tableReference.databaseSchemaName,
+      schema.tables.users.fullName.databaseSchemaName,
       'reporting',
     );
   });
@@ -46,15 +46,12 @@ describe('declaring a schema with tables', () => {
     });
 
     assert.strictEqual(
-      reporting.tables.users.tableReference.databaseSchemaName,
+      reporting.tables.users.fullName.databaseSchemaName,
       'reporting',
     );
+    assert.strictEqual(audit.tables.users.fullName.databaseSchemaName, 'audit');
     assert.strictEqual(
-      audit.tables.users.tableReference.databaseSchemaName,
-      'audit',
-    );
-    assert.strictEqual(
-      users.tableReference.databaseSchemaName,
+      users.fullName.databaseSchemaName,
       DefaultDatabaseSchemaName,
     );
   });

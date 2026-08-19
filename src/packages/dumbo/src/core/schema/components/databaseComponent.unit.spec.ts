@@ -26,7 +26,64 @@ describe('placing tables and schemas in a database', () => {
     assert.strictEqual(database.defaultSchema.tables.users, users);
     assert.strictEqual(database.tables, database.defaultSchema.tables);
     assert.strictEqual(database.tables.users, users);
-    assert.deepStrictEqual(Object.keys(database.schemas), []);
+    assert.deepStrictEqual(Object.keys(database.schemas), [
+      DefaultDatabaseSchemaName,
+    ]);
+  });
+
+  it('resolves the default database schema name to the default schema', () => {
+    const users = table('users');
+    const database = databaseComponent({
+      tables: { users },
+      defaultSchemaName: 'public',
+    });
+
+    assert.strictEqual(database.findSchema(), database.defaultSchema);
+    assert.strictEqual(database.findSchema('public'), database.defaultSchema);
+    assert.strictEqual(
+      database.findSchema(DefaultDatabaseSchemaName),
+      database.defaultSchema,
+    );
+
+    for (const databaseSchemaName of [
+      undefined,
+      'public',
+      DefaultDatabaseSchemaName,
+    ])
+      assert.strictEqual(
+        database.findTable({ tableName: 'users', databaseSchemaName }),
+        database.tables.users,
+      );
+  });
+
+  it('adds a table named after the default schema to the default schema', () => {
+    const database = databaseComponent({
+      defaultSchemaName: 'public',
+    }).withTable({ users: table('users') }, 'public');
+
+    assert.strictEqual(
+      database.findTable({ tableName: 'users' })?.fullName.databaseSchemaName,
+      'public',
+    );
+    assert.deepStrictEqual(Object.keys(database.schemas), [
+      DefaultDatabaseSchemaName,
+    ]);
+  });
+
+  it('creates a schema for a table added to one that is not declared', () => {
+    const database = databaseComponent({
+      defaultSchemaName: 'public',
+    }).withTable({ roles: table('roles') }, 'crm');
+
+    assert.strictEqual(database.schemas.crm.tables.roles.tableName, 'roles');
+    assert.strictEqual(
+      database.schemas.crm.tables.roles.fullName.databaseSchemaName,
+      'crm',
+    );
+    assert.deepStrictEqual(Object.keys(database.schemas), [
+      DefaultDatabaseSchemaName,
+      'crm',
+    ]);
   });
 
   it('keeps a default schema for a database declaring only named schemas', () => {
@@ -50,7 +107,10 @@ describe('placing tables and schemas in a database', () => {
 
     assert.strictEqual(database.tables.users, users);
     assert.strictEqual(database.schemas.crm, crm);
-    assert.deepStrictEqual(Object.keys(database.schemas), ['crm']);
+    assert.deepStrictEqual(Object.keys(database.schemas), [
+      DefaultDatabaseSchemaName,
+      'crm',
+    ]);
   });
 
   it('rejects a database declaring unscoped tables and named schemas at once', () => {
@@ -346,7 +406,10 @@ describe('database.withTable(tables, schemaName)', () => {
 
     const next = database.withTable({ users: table('users') }, 'crm');
 
-    assert.deepStrictEqual(Object.keys(next.schemas), ['reporting']);
+    assert.deepStrictEqual(Object.keys(next.schemas), [
+      DefaultDatabaseSchemaName,
+      'reporting',
+    ]);
     assert.deepStrictEqual(Object.keys(next.schemas.reporting?.tables ?? {}), [
       'users',
     ]);
@@ -383,7 +446,10 @@ describe('database.withSchema(schemas)', () => {
 
     assert.strictEqual(next.schemas.audit, audit);
     assert.strictEqual(next.schemas.crm, crm);
-    assert.deepStrictEqual(Object.keys(database.schemas), ['audit']);
+    assert.deepStrictEqual(Object.keys(database.schemas), [
+      DefaultDatabaseSchemaName,
+      'audit',
+    ]);
   });
 
   it('replaces one schema without changing unrelated schemas', () => {

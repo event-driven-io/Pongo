@@ -15,7 +15,6 @@ describe('dumboDatabaseMetadataRegistry - automatic registrations', () => {
       assert.ok(metadata, 'PostgreSQL metadata should be registered');
       assert.strictEqual(metadata.databaseType, 'PostgreSQL');
       assert.strictEqual(metadata.defaultDatabaseName, 'postgres');
-      assert.strictEqual(metadata.defaultSchemaName, 'public');
     });
 
     it('has correct capabilities', () => {
@@ -72,7 +71,6 @@ describe('dumboDatabaseMetadataRegistry - automatic registrations', () => {
       assert.ok(metadata, 'SQLite metadata should be registered');
       assert.strictEqual(metadata.databaseType, 'SQLite');
       assert.strictEqual(metadata.defaultDatabaseName, 'main');
-      assert.strictEqual(metadata.defaultSchemaName, 'main');
     });
 
     it('has correct capabilities', () => {

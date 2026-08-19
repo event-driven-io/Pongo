@@ -1,4 +1,4 @@
-import { SQL, SQLCreateSchema } from '../../sql';
+import { isDefaultDatabaseSchema, SQL, SQLCreateSchema } from '../../sql';
 import type { UnionToIntersection } from '../../typing';
 import type { AnyExtensionComponent } from '../extensionComponent';
 import {
@@ -25,7 +25,7 @@ const generatedDatabaseSchemaMigrations = (
   databaseSchemaName: string,
   kind: string | undefined,
 ): ReadonlyArray<SQLMigration> => {
-  if (typeof databaseSchemaName !== 'string') return [];
+  if (isDefaultDatabaseSchema(databaseSchemaName)) return [];
 
   return [
     sqlMigration(databaseSchemaMigrationName(databaseSchemaName, kind), [
@@ -37,9 +37,9 @@ const generatedDatabaseSchemaMigrations = (
 export const databaseSchemaLabel = (
   databaseSchemaName: string | undefined,
 ): string =>
-  typeof databaseSchemaName === 'string'
-    ? databaseSchemaName
-    : 'the default schema';
+  isDefaultDatabaseSchema(databaseSchemaName)
+    ? 'the default schema'
+    : databaseSchemaName;
 
 export const assertTableNamesAreUnique = (
   databaseSchemaName: string | undefined,
@@ -146,7 +146,7 @@ export const databaseSchemaComponent = <
 
   if (schemaName === '')
     throw new Error(
-      'A database schema name cannot be empty. Use the default schema token to leave it to the dialect',
+      'A database schema name cannot be empty. Use the default database schema name to leave it to the dialect',
     );
 
   const tables = placeIn(schemaName, (options.tables ?? {}) as Tables);
@@ -160,11 +160,9 @@ export const databaseSchemaComponent = <
   );
   if (contribution !== undefined)
     throw new Error(
-      `Extension "${contribution.extension.extensionName}" contributes database schema ${
-        typeof contribution.schema.schemaName === 'string'
-          ? `"${contribution.schema.schemaName}"`
-          : 'the default schema'
-      } and cannot be attached to database schema "${databaseSchemaLabel(schemaName)}"`,
+      `Extension "${contribution.extension.extensionName}" contributes database schema "${databaseSchemaLabel(
+        contribution.schema.schemaName,
+      )}" and cannot be attached to database schema "${databaseSchemaLabel(schemaName)}"`,
     );
 
   const extensionTables = Object.values(extensions).map(

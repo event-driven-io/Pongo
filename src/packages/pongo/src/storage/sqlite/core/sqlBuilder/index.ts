@@ -39,7 +39,7 @@ export const sqliteSQLBuilder = (
   collection: PongoCollectionComponent,
   serializer: JSONSerializer,
 ): PongoCollectionSQLBuilder => {
-  const tableReference = collection.tableReference;
+  const tableReference = collection.fullName;
 
   return {
     createCollection: (): SQL[] => [createTableSQL(collection)],

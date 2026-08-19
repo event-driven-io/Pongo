@@ -1,6 +1,6 @@
 import {
   databaseComponent,
-  DefaultDatabaseSchemaName,
+  isDefaultDatabaseSchema,
   type AnyDatabaseComponent,
 } from '@event-driven-io/dumbo';
 import {
@@ -28,7 +28,7 @@ type PongoDatabaseComponentOptions = Readonly<{
 }>;
 
 const databaseSchemaLabel = (databaseSchemaName: string): string =>
-  databaseSchemaName === DefaultDatabaseSchemaName
+  isDefaultDatabaseSchema(databaseSchemaName)
     ? 'the default database schema'
     : `database schema "${databaseSchemaName}"`;
 
@@ -37,19 +37,16 @@ export const PongoDatabaseComponent = ({
   defaultSchemaName,
   createCollection,
 }: PongoDatabaseComponentOptions) => {
-  const configuredDefaultSchemaName =
-    typeof defaultSchemaName === 'string' ? defaultSchemaName : undefined;
   let component: AnyDatabaseComponent =
     initialComponent === undefined
-      ? databaseComponent({ defaultSchemaName: configuredDefaultSchemaName })
-      : initialComponent.withDefaultSchemaName(configuredDefaultSchemaName);
+      ? databaseComponent({ defaultSchemaName })
+      : initialComponent.withDefaultSchemaName(defaultSchemaName);
 
   const collectionsBySchema = new Map<
     string,
     Map<string, PongoCollection<PongoDocument>>
   >([[defaultSchemaName, new Map()]]);
-  const collectionsIn = (requestedSchemaName?: string) => {
-    const databaseSchemaName = requestedSchemaName ?? defaultSchemaName;
+  const collectionsIn = (databaseSchemaName: string) => {
     let collections = collectionsBySchema.get(databaseSchemaName);
     if (collections === undefined) {
       collections = new Map();
@@ -69,7 +66,7 @@ export const PongoDatabaseComponent = ({
     const databaseSchemaName = requestedSchemaName ?? defaultSchemaName;
     const declared = component.findTable({
       tableName: collectionName,
-      databaseSchemaName: requestedSchemaName,
+      databaseSchemaName,
     });
 
     if (declared !== undefined) {
@@ -81,11 +78,8 @@ export const PongoDatabaseComponent = ({
       return declared as PongoCollectionComponent<Document>;
     }
 
-    const tables =
-      requestedSchemaName === undefined
-        ? component.tables
-        : component.findSchema(requestedSchemaName)?.tables;
-    const aliased = tables?.[collectionName];
+    const aliased =
+      component.findSchema(databaseSchemaName)?.tables[collectionName];
     if (aliased !== undefined) {
       throw new Error(
         `Cannot add collection "${collectionName}" to ${databaseSchemaLabel(databaseSchemaName)} because that alias already refers to table "${aliased.tableName}"`,
@@ -93,17 +87,14 @@ export const PongoDatabaseComponent = ({
     }
 
     const created = pongoSchema.collection<Document>(collectionName);
-    component =
-      requestedSchemaName === undefined
-        ? component.withTable({ [collectionName]: created })
-        : component.withTable(
-            { [collectionName]: created },
-            requestedSchemaName,
-          );
+    component = component.withTable(
+      { [collectionName]: created },
+      databaseSchemaName,
+    );
 
     return component.findTable({
       tableName: collectionName,
-      databaseSchemaName: requestedSchemaName,
+      databaseSchemaName,
     }) as PongoCollectionComponent<Document>;
   };
 
@@ -114,7 +105,13 @@ export const PongoDatabaseComponent = ({
     collectionName: string,
     options?: PongoDBCollectionOptions<Document, Payload>,
   ): PongoCollection<Document> => {
-    const schemaCollections = collectionsIn(options?.databaseSchemaName);
+    const resolved = collectionComponent<Document>(
+      collectionName,
+      options?.databaseSchemaName,
+    );
+    const schemaCollections = collectionsIn(
+      resolved.fullName.databaseSchemaName,
+    );
     const hasRuntimeOptions =
       options?.cache !== undefined ||
       options?.errors !== undefined ||
@@ -130,10 +127,6 @@ export const PongoDatabaseComponent = ({
       );
     } else if (!hasRuntimeOptions && existing !== undefined) return existing;
 
-    const resolved = collectionComponent<Document>(
-      collectionName,
-      options?.databaseSchemaName,
-    );
     const created = createCollection<Document, Payload>(resolved, options);
 
     if (!hasRuntimeOptions) {
@@ -168,10 +161,7 @@ export const PongoDatabaseComponent = ({
           if (!isPongoCollectionComponent(table)) return undefined;
 
           return collection(table.tableName, {
-            databaseSchemaName:
-              typeof schema.schemaName === 'string'
-                ? schema.schemaName
-                : undefined,
+            databaseSchemaName: schema.schemaName,
           });
         },
       },

@@ -117,7 +117,7 @@ describe('Pongo D1 connections', () => {
         definition: pongoSchema.client({
           database: pongoSchema.db({
             schemas: {
-              main: pongoSchema.schema('main', {
+              reporting: pongoSchema.schema('reporting', {
                 users: pongoSchema.collection(collectionName),
               }),
               crm: pongoSchema.schema('crm', {

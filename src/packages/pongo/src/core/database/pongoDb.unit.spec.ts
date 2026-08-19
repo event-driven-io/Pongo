@@ -181,7 +181,9 @@ describe('using a Pongo database', () => {
       'schema:audit:create',
       'table:pongo_collection:audit:entries:create',
     ]);
-    assert.deepStrictEqual(Object.keys(definition.schemas), []);
+    assert.deepStrictEqual(Object.keys(definition.schemas), [
+      DefaultDatabaseSchemaName,
+    ]);
     assert.deepStrictEqual(Object.keys(definition.tables), []);
   });
 
@@ -291,7 +293,7 @@ describe('using a Pongo database', () => {
     );
     assert.strictEqual(db.schema.component.tables.orders?.tableName, 'orders');
     assert.deepStrictEqual(
-      declared?.tableReference,
+      declared?.fullName,
       SQLTableReference.from({
         databaseSchemaName: 'crm',
         tableName: 'users',
@@ -316,6 +318,18 @@ describe('using a Pongo database', () => {
     const explicit = db.collection('users', { databaseSchemaName: 'crm' });
 
     assert.strictEqual(implicit, explicit);
+    assert.deepStrictEqual(db.collections(), [implicit]);
+  });
+
+  it('resolves the default database schema name to the default schema', () => {
+    const { db } = createTestDb({ defaultSchemaName: 'crm' });
+
+    const implicit = db.collection('users');
+    const spelledOut = db.collection('users', {
+      databaseSchemaName: DefaultDatabaseSchemaName,
+    });
+
+    assert.strictEqual(spelledOut, implicit);
     assert.deepStrictEqual(db.collections(), [implicit]);
   });
 

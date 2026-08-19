@@ -29,7 +29,6 @@ describe('declaring a table and running it on SQLite', () => {
 
   it('treats a spelled-out default schema name as a named schema', () => {
     assert.strictEqual(format(tableIn('public')), '"public.users"');
-    assert.strictEqual(format(tableIn('main')), '"main.users"');
   });
 
   it('keeps schemas that differ only by underscores on separate tables', () => {

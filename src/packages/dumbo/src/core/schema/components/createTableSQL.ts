@@ -3,7 +3,7 @@ import type { AnyColumnSchemaComponent } from './columnSchemaComponent';
 
 export const createTableSQL = (
   table: Readonly<{
-    tableReference: SQLTableReference;
+    fullName: SQLTableReference;
     columns: Readonly<Record<string, AnyColumnSchemaComponent>>;
   }>,
 ): SQL => {
@@ -12,5 +12,5 @@ export const createTableSQL = (
     ', ',
   );
 
-  return SQL`CREATE TABLE IF NOT EXISTS ${table.tableReference} (${columns})`;
+  return SQL`CREATE TABLE IF NOT EXISTS ${table.fullName} (${columns})`;
 };

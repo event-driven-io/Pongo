@@ -1,4 +1,4 @@
-import { SQL } from '../../sql';
+import { SQL, type SQLTableReference } from '../../sql';
 import {
   columnSchemaComponent,
   databaseSchemaComponent,
@@ -14,9 +14,10 @@ export const migrationTableComponentFor = ({
 }: {
   schemaName?: string | undefined;
   tableName?: string | undefined;
-} = {}): SchemaComponent => {
+} = {}): SchemaComponent & { fullName: SQLTableReference } => {
   const migrationTable = tableComponent({
     tableName,
+    databaseSchemaName: schemaName,
     columns: {
       id: columnSchemaComponent({
         columnName: 'id',
@@ -48,10 +49,12 @@ export const migrationTableComponentFor = ({
     },
   });
 
-  return schemaName !== undefined
-    ? databaseSchemaComponent({
-        schemaName,
-        tables: { [tableName]: migrationTable },
-      })
-    : migrationTable;
+  if (schemaName === undefined) return migrationTable;
+
+  const schema = databaseSchemaComponent({
+    schemaName,
+    tables: { [tableName]: migrationTable },
+  });
+
+  return { ...schema, fullName: migrationTable.fullName };
 };

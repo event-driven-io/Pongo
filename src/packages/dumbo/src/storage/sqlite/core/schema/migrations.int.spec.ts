@@ -130,15 +130,22 @@ describe('Migration Integration Tests', () => {
         );
       });
 
-      it('rejects a schema-qualified migration table', async () => {
-        await assert.rejects(
-          runSQLMigrations(pool, [], {
-            migrationTable: {
-              schemaName: 'audit',
-              tableName: 'app_migrations',
-            },
-          }),
-          /does not support schema-qualified migration tables/,
+      it('folds a schema-qualified migration table into its name', async () => {
+        const migration = sqlMigration('audit:001', [
+          SQL`CREATE TABLE IF NOT EXISTS folded (id INTEGER PRIMARY KEY)`,
+        ]);
+
+        await runSQLMigrations(pool, [migration], {
+          migrationTable: { schemaName: 'audit', tableName: 'app_migrations' },
+        });
+
+        assert.strictEqual(
+          await tableExists(pool.execute, 'audit.app_migrations'),
+          true,
+        );
+        assert.strictEqual(
+          await tableExists(pool.execute, 'app_migrations'),
+          false,
         );
       });
 
@@ -295,8 +302,8 @@ describe('Migration Integration Tests', () => {
         const component = databaseComponent({
           databaseName: 'app',
           schemas: {
-            main: databaseSchemaComponent({
-              schemaName: 'main',
+            crm: databaseSchemaComponent({
+              schemaName: 'crm',
               tables: { users },
               extensions: { audit },
             }),

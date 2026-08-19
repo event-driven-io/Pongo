@@ -1,3 +1,4 @@
+export * from './defaultDatabaseSchemaName';
 export * from './formatters';
 export * from './parametrizedSQL';
 export * from './parameters';
