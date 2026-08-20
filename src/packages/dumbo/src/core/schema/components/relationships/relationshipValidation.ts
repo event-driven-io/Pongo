@@ -36,7 +36,7 @@ import type {
   InferTableComponentData,
   TableColumns,
   TableComponent,
-} from '../tableComponent';
+} from '../table';
 import type { FormatValidationErrors } from './formatRelationshipErrors';
 import type {
   AnyTableRelationshipDefinition,

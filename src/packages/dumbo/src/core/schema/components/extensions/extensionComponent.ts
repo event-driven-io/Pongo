@@ -1,14 +1,11 @@
+import type { SchemaComponent } from '../../schemaComponent';
+import { schemaComponent, schemaComponentMap } from '../../schemaComponent';
+import type { SQLMigration } from '../../sqlMigration';
 import {
-  assertSchemaKeysAreNotEmpty,
   type AnyDatabaseSchemaComponent,
-} from './components/databaseSchemaComponent';
-import type { AnyTableComponent } from './components/tableComponent';
-import {
-  schemaComponent,
-  schemaComponentMap,
-  type SchemaComponent,
-} from './schemaComponent';
-import type { SQLMigration } from './sqlMigration';
+  assertSchemaKeysAreNotEmpty,
+} from '../databaseSchema';
+import type { AnyTableComponent } from '../table';
 
 export const extensionComponentType: unique symbol = Symbol(
   'dumbo.schemaComponent.extension',

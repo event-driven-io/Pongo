@@ -1,8 +1,8 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
-import { DefaultDatabaseSchemaName, SQL } from '../../sql';
-import { dumboSchema } from '../dumboSchema';
-import { indexComponent } from './indexComponent';
+import { DefaultDatabaseSchemaName, SQL } from '../../../sql';
+import { dumboSchema } from '../../dumboSchema';
+import { indexComponent } from '../tableIndex';
 import { tableComponent, type AnyTableComponent } from './tableComponent';
 
 const columns = {

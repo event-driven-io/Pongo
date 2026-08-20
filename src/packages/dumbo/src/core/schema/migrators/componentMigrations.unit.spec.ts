@@ -6,14 +6,16 @@ import {
   SQLIndexReference,
   SQLTableReference,
 } from '../../sql';
+import {
+  databaseComponent,
+  databaseSchemaComponent,
+  extensionComponent,
+  indexComponent,
+  tableComponent,
+} from '../components';
 import { dumboSchema } from '../dumboSchema';
-import { extensionComponent } from '../extensionComponent';
 import { dedupeMigrations } from '../schemaComponent';
 import { sqlMigration } from '../sqlMigration';
-import { databaseComponent } from './databaseComponent';
-import { databaseSchemaComponent } from './databaseSchemaComponent';
-import { indexComponent } from './indexComponent';
-import { tableComponent } from './tableComponent';
 
 const columns = {
   email: dumboSchema.column('email', SQL.column.type.Text, { notNull: true }),

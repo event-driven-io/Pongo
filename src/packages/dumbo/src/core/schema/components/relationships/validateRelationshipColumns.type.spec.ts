@@ -1,7 +1,7 @@
 import { describe, it } from 'vitest';
 import type { Equals, Expect, IsError, IsOK } from '../../../testing';
 import type { TypeValidationResult } from '../../../typing';
-import type { AnyColumnSchemaComponent } from '../columnSchemaComponent';
+import type { AnyColumnSchemaComponent } from '../columns/columnSchemaComponent';
 import type { ValidateRelationshipColumns } from './relationshipValidation';
 
 describe('ValidateRelationshipColumns', () => {

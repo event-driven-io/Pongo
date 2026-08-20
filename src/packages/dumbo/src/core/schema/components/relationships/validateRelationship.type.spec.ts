@@ -3,7 +3,7 @@ import { SQL } from '../../../sql';
 import type { Equals, Expect, IsError } from '../../../testing';
 import type { TypeValidationResult } from '../../../typing';
 import { dumboSchema } from '../../dumboSchema';
-import type { InferTableComponentColumns } from '../tableComponent';
+import type { InferTableComponentColumns } from '../table';
 import type { ValidateRelationship } from './relationshipValidation';
 
 const { schema, table, column } = dumboSchema;

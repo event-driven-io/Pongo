@@ -1,6 +1,6 @@
-import type { AnyColumnTypeToken, SQLColumnToken } from '../../sql';
-import { schemaComponent, type SchemaComponent } from '../schemaComponent';
-import type { SQLMigration } from '../sqlMigration';
+import type { AnyColumnTypeToken, SQLColumnToken } from '../../../sql';
+import { schemaComponent, type SchemaComponent } from '../../schemaComponent';
+import type { SQLMigration } from '../../sqlMigration';
 
 export const columnComponentType: unique symbol = Symbol(
   'dumbo.schemaComponent.column',

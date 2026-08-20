@@ -1,4 +1,4 @@
-import { SQL } from '../../sql';
+import { SQL } from '../../../sql';
 import type {
   BigIntegerToken,
   BigSerialToken,
@@ -8,9 +8,9 @@ import type {
   TimestampToken,
   TimestamptzToken,
   VarcharToken,
-} from '../../sql/tokens/columnTokens';
-import type { Equals, Expect } from '../../testing';
-import { dumboSchema } from '../dumboSchema';
+} from '../../../sql/tokens/columnTokens';
+import type { Equals, Expect } from '../../../testing';
+import { dumboSchema } from '../../dumboSchema';
 import type {
   InferColumnType,
   InferTableRow,

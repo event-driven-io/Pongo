@@ -1,5 +1,5 @@
-import { SQL, type SQLTableReference } from '../../sql';
-import type { AnyColumnSchemaComponent } from './columnSchemaComponent';
+import { SQL, type SQLTableReference } from '../../../sql';
+import type { AnyColumnSchemaComponent } from '../columns/columnSchemaComponent';
 
 export const createTableSQL = (
   table: Readonly<{
