@@ -142,6 +142,10 @@ export interface PongoDatabaseSchema {
   readonly component: AnyDatabaseComponent;
   readonly migrations: ReturnType<DatabaseComponent['migrations']>;
   migrate(options?: PongoMigrationOptions): Promise<RunSQLMigrationsResult>;
+  renameCollection<Document extends PongoDocument>(
+    collection: PongoCollectionComponent<Document>,
+    newCollectionName: string,
+  ): PongoCollectionComponent<Document>;
 }
 
 export interface PongoDb<
@@ -172,6 +176,7 @@ export interface PongoDb<
 export type AnyPongoDb = PongoDb<DatabaseDriverType>;
 
 export type PongoMigrationOptions = {
+  session?: PongoSession | undefined;
   dryRun?: boolean | undefined;
   ignoreMigrationHashMismatch?: boolean | undefined;
   migrationTimeoutMs?: number | undefined;

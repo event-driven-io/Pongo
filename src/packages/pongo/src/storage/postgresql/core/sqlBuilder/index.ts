@@ -1,10 +1,8 @@
 import {
   createTableSQL,
-  DefaultDatabaseSchemaName,
   isSQL,
   JSONParam,
   SQL,
-  SQLCreateSchema,
   type JSONSerializer,
   type SQLTableReference,
 } from '@event-driven-io/dumbo';
@@ -43,16 +41,9 @@ export const postgresSQLBuilder = (
   serializer: JSONSerializer,
 ): PongoCollectionSQLBuilder => {
   const tableReference = collection.fullName;
-  const { databaseSchemaName } = tableReference;
 
   return {
-    createCollection: (): SQL[] =>
-      databaseSchemaName === DefaultDatabaseSchemaName
-        ? [createTableSQL(collection)]
-        : [
-            SQL`${SQLCreateSchema.from({ databaseSchemaName })}`,
-            createTableSQL(collection),
-          ],
+    createCollection: (): SQL[] => [createTableSQL(collection)],
     insertOne: <T>(document: OptionalUnlessRequiredIdAndVersion<T>): SQL => {
       const serialized = JSONParam.document(document, serializer);
       const id = document._id;

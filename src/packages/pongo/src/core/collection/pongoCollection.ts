@@ -2,13 +2,11 @@ import type { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import {
   mapColumnToBigint,
   mapColumnToJSON,
-  runSQLMigrations,
   single,
   type DatabaseDriverType,
   type DatabaseTransaction,
   type Dumbo,
   type MigrationStyle,
-  type MigrationTableOptions,
   type QueryResult,
   type QueryResultRow,
   type SQLExecutor,
@@ -42,6 +40,7 @@ import {
   type PongoInsertOneResult,
   type PongoMigrationOptions,
   type PongoReplaceManyResult,
+  type PongoSession,
   type PongoUpdate,
   type PongoUpdateManyResult,
   type PongoUpdateResult,
@@ -75,15 +74,16 @@ export type PongoCollectionOptions<
   };
   errors?: { throwOnOperationFailures?: boolean };
   serializer: JSONSerializer;
-  migrationTable?: MigrationTableOptions | undefined;
   cache?: CacheConfig | 'disabled' | PongoCache | undefined;
 };
+
+type SessionOptions = { session?: PongoSession | undefined };
 
 const enlistIntoTransactionIfActive = async <
   DriverType extends DatabaseDriverType = DatabaseDriverType,
 >(
   db: PongoDb<DriverType>,
-  options: CollectionOperationOptions | undefined,
+  options: SessionOptions | undefined,
 ): Promise<DatabaseTransaction | null> => {
   const transaction = options?.session?.transaction;
 
@@ -96,7 +96,7 @@ export const transactionExecutorOrDefault = async <
   DriverType extends DatabaseDriverType = DatabaseDriverType,
 >(
   db: PongoDb<DriverType>,
-  options: CollectionOperationOptions | undefined,
+  options: SessionOptions | undefined,
   defaultSqlExecutor: SQLExecutor,
 ): Promise<SQLExecutor> => {
   const existingTransaction = await enlistIntoTransactionIfActive(db, options);
@@ -115,7 +115,6 @@ export const pongoCollection = <
   schema,
   errors,
   serializer,
-  migrationTable,
   cache: cacheOptions,
 }: PongoCollectionOptions<T, DriverType, Payload>): PongoCollection<T> => {
   let component = initialComponent;
@@ -139,14 +138,6 @@ export const pongoCollection = <
       await transactionExecutorOrDefault(db, options, sqlExecutor)
     ).command<Result>(sql, columnMapping);
 
-  const batchCommand = async <Result extends QueryResultRow = QueryResultRow>(
-    sqls: SQL[],
-    options?: CollectionOperationOptions,
-  ) =>
-    (
-      await transactionExecutorOrDefault(db, options, sqlExecutor)
-    ).batchCommand<Result>(sqls, columnMapping);
-
   const query = async <T extends QueryResultRow>(
     sql: SQL,
     options?: CollectionOperationOptions,
@@ -156,22 +147,15 @@ export const pongoCollection = <
       columnMapping,
     );
 
-  let shouldMigrate = schema?.autoMigration !== 'None';
+  const autoMigrates = schema?.autoMigration !== 'None';
+  let migrated = false;
 
-  const createCollection = (options?: CollectionOperationOptions) => {
-    shouldMigrate = false;
+  const ensureMigrated = async (options?: CollectionOperationOptions) => {
+    if (!autoMigrates || migrated) return;
 
-    if (options?.session)
-      return batchCommand(SqlFor.createCollection(), options);
-    else return batchCommand(SqlFor.createCollection());
-  };
+    await db.schema.migrate({ session: options?.session });
 
-  const ensureCollectionCreated = (options?: CollectionOperationOptions) => {
-    if (!shouldMigrate) {
-      return Promise.resolve();
-    }
-
-    return createCollection(options);
+    migrated = true;
   };
 
   const upcast =
@@ -342,7 +326,7 @@ export const pongoCollection = <
     ids: Array<{ _id: string; _version?: bigint }>,
     options?: CollectionOperationOptions,
   ): Promise<PongoDeleteResult & { deletedIds: Set<string> }> => {
-    await ensureCollectionCreated(options);
+    await ensureMigrated(options);
 
     const result = await command<{ _id: string; deleted?: number }>(
       SqlFor.deleteManyByIds(ids),
@@ -404,13 +388,14 @@ export const pongoCollection = <
       return component.tableName;
     },
     createCollection: async (options?: CollectionOperationOptions) => {
-      await createCollection(options);
+      await db.schema.migrate({ session: options?.session });
+      migrated = true;
     },
     insertOne: async (
       document: OptionalUnlessRequiredIdAndVersion<T>,
       options?: InsertOneOptions,
     ): Promise<PongoInsertOneResult> => {
-      await ensureCollectionCreated(options);
+      await ensureMigrated(options);
 
       const _id = (document._id as string | undefined | null) ?? uuid();
       const _version = document._version ?? 1n;
@@ -472,7 +457,7 @@ export const pongoCollection = <
       documents: OptionalUnlessRequiredIdAndVersion<T>[],
       options?: InsertManyOptions,
     ): Promise<PongoInsertManyResult> => {
-      await ensureCollectionCreated(options);
+      await ensureMigrated(options);
 
       const documentsWithMetadata = documents.map((doc) =>
         doc._id && doc._version
@@ -540,7 +525,7 @@ export const pongoCollection = <
       update: PongoUpdate<T>,
       options?: UpdateOneOptions,
     ): Promise<PongoUpdateResult> => {
-      await ensureCollectionCreated(options);
+      await ensureMigrated(options);
 
       const result = await command<UpdateSqlResult>(
         SqlFor.updateOne(filter, update, options),
@@ -578,7 +563,7 @@ export const pongoCollection = <
       document: WithoutId<T>,
       options?: ReplaceOneOptions,
     ): Promise<PongoUpdateResult> => {
-      await ensureCollectionCreated(options);
+      await ensureMigrated(options);
 
       const noConcurrencyCheck =
         options?.expectedVersion === undefined ||
@@ -665,7 +650,7 @@ export const pongoCollection = <
       update: PongoUpdate<T>,
       options?: UpdateManyOptions,
     ): Promise<PongoUpdateManyResult> => {
-      await ensureCollectionCreated(options);
+      await ensureMigrated(options);
 
       // TODO: add a similar filter checking if filter is not ids only
       const result = await command(SqlFor.updateMany(filter, update), options);
@@ -688,7 +673,7 @@ export const pongoCollection = <
       filter?: PongoFilter<T>,
       options?: DeleteOneOptions,
     ): Promise<PongoDeleteResult> => {
-      await ensureCollectionCreated(options);
+      await ensureMigrated(options);
 
       const result = await command<DeleteSqlResult>(
         SqlFor.deleteOne(filter ?? {}, options),
@@ -727,7 +712,7 @@ export const pongoCollection = <
           options,
         );
 
-      await ensureCollectionCreated(options);
+      await ensureMigrated(options);
 
       const result = await command(SqlFor.deleteMany(filter ?? {}), options);
 
@@ -749,7 +734,7 @@ export const pongoCollection = <
       filter?: PongoFilter<T>,
       options?: CollectionOperationOptions,
     ): Promise<WithIdAndVersion<T> | null> => {
-      await ensureCollectionCreated(options);
+      await ensureMigrated(options);
 
       const id = filter && !options?.skipCache ? idFromFilter(filter) : null;
 
@@ -771,7 +756,7 @@ export const pongoCollection = <
       filter: PongoFilter<T>,
       options?: DeleteOneOptions,
     ): Promise<WithIdAndVersion<T> | null> => {
-      await ensureCollectionCreated(options);
+      await ensureMigrated(options);
 
       const existingDoc = await collection.findOne(filter, options);
 
@@ -785,7 +770,7 @@ export const pongoCollection = <
       replacement: WithoutId<T>,
       options?: ReplaceOneOptions,
     ): Promise<WithIdAndVersion<T> | null> => {
-      await ensureCollectionCreated(options);
+      await ensureMigrated(options);
 
       const existingDoc = await collection.findOne(filter, options);
 
@@ -799,7 +784,7 @@ export const pongoCollection = <
       update: PongoUpdate<T>,
       options?: UpdateOneOptions,
     ): Promise<WithIdAndVersion<T> | null> => {
-      await ensureCollectionCreated(options);
+      await ensureMigrated(options);
 
       const existingDoc = await collection.findOne(filter, options);
 
@@ -812,7 +797,7 @@ export const pongoCollection = <
       documents: Array<WithIdAndVersion<T>> | Array<WithId<T>>,
       options?: ReplaceManyOptions,
     ): Promise<PongoReplaceManyResult> => {
-      await ensureCollectionCreated(options);
+      await ensureMigrated(options);
 
       const rows: (WithIdAndVersion<Payload> | WithId<Payload>)[] =
         documents.map((d) => toStored(d as WithIdAndVersion<T>));
@@ -903,7 +888,7 @@ export const pongoCollection = <
       serializer,
       errors,
       storage: {
-        ensureCollectionCreated,
+        ensureCollectionCreated: ensureMigrated,
         fetchByIds: (ids, options) =>
           fetchByIds(ids, options).then((rows) =>
             rows.map((stored) => (stored ? fromStored(stored) : null)),
@@ -917,7 +902,7 @@ export const pongoCollection = <
       filter?: PongoFilter<T>,
       options?: FindOptions,
     ): Promise<WithIdAndVersion<T>[]> => {
-      await ensureCollectionCreated(options);
+      await ensureMigrated(options);
 
       if (!options?.skipCache && filter) {
         const ids = getIdsFromIdOnlyFilter(filter);
@@ -937,7 +922,7 @@ export const pongoCollection = <
       filter?: PongoFilter<T>,
       options?: CollectionOperationOptions,
     ): Promise<number> => {
-      await ensureCollectionCreated(options);
+      await ensureMigrated(options);
 
       const { count } = await single(
         query<{ count: number }>(SqlFor.countDocuments(filter ?? {})),
@@ -945,7 +930,7 @@ export const pongoCollection = <
       return count;
     },
     drop: async (options?: CollectionOperationOptions): Promise<boolean> => {
-      await ensureCollectionCreated(options);
+      await ensureMigrated(options);
       const result = await command(SqlFor.drop());
       return (result?.rowCount ?? 0) > 0;
     },
@@ -953,11 +938,12 @@ export const pongoCollection = <
       newName: string,
       options?: CollectionOperationOptions,
     ): Promise<PongoCollection<T>> => {
-      await ensureCollectionCreated(options);
-      const renamed = component.rename(newName);
-      await runSQLMigrations(pool, [renamed.migration], { migrationTable });
-      component = renamed.table;
+      component = db.schema.renameCollection(component, newName);
       SqlFor = sqlBuilderFor(component);
+      migrated = false;
+
+      await ensureMigrated(options);
+
       return collection;
     },
     close: () => cache.close(),
@@ -967,7 +953,7 @@ export const pongoCollection = <
         sql: SQL,
         options?: CollectionOperationOptions,
       ): Promise<Result[]> {
-        await ensureCollectionCreated(options);
+        await ensureMigrated(options);
 
         const result = await query<Result>(sql, options);
         return result.rows;
@@ -976,7 +962,7 @@ export const pongoCollection = <
         sql: SQL,
         options?: CollectionOperationOptions,
       ): Promise<QueryResult<Result>> {
-        await ensureCollectionCreated(options);
+        await ensureMigrated(options);
 
         return command(sql, options);
       },
@@ -985,11 +971,11 @@ export const pongoCollection = <
       get component() {
         return component;
       },
-      migrate: (options?: PongoMigrationOptions) =>
-        runSQLMigrations(pool, component.migrations(), {
-          ...options,
-          migrationTable: options?.migrationTable ?? migrationTable,
-        }),
+      migrate: async (options?: PongoMigrationOptions) => {
+        const result = await db.schema.migrate(options);
+        migrated = true;
+        return result;
+      },
     },
   };
 

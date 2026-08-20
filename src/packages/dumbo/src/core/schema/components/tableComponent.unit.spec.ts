@@ -3,7 +3,7 @@ import { describe, it } from 'vitest';
 import { DefaultDatabaseSchemaName, SQL } from '../../sql';
 import { dumboSchema } from '../dumboSchema';
 import { indexComponent } from './indexComponent';
-import { tableComponent } from './tableComponent';
+import { tableComponent, type AnyTableComponent } from './tableComponent';
 
 const columns = {
   email: dumboSchema.column('email', SQL.column.type.Text, { notNull: true }),
@@ -58,21 +58,39 @@ describe('declaring a table in a database schema', () => {
   });
 
   it('names a rename migration after the table, its kind and its placement', () => {
+    const renameMigrationName = (table: AnyTableComponent) =>
+      table.migrations()[0]!.name;
+
     assert.strictEqual(
-      usersTable().rename('archived_users').migration.name,
+      renameMigrationName(usersTable().rename('archived_users')),
       'table:users:archived_users:rename',
     );
     assert.strictEqual(
-      usersTable('crm').rename('archived_users').migration.name,
+      renameMigrationName(usersTable('crm').rename('archived_users')),
       'table:crm:users:archived_users:rename',
     );
     assert.strictEqual(
-      tableComponent({
-        tableName: 'users',
-        kind: 'pongo_collection',
-        columns,
-      }).rename('archived_users').migration.name,
+      renameMigrationName(
+        tableComponent({
+          tableName: 'users',
+          kind: 'pongo_collection',
+          columns,
+        }).rename('archived_users'),
+      ),
       'table:pongo_collection:users:archived_users:rename',
+    );
+  });
+
+  it('migrates a renamed table with the rename instead of another create', () => {
+    assert.deepStrictEqual(
+      usersTable('crm')
+        .rename('archived_users')
+        .migrations()
+        .map(({ name }) => name),
+      [
+        'table:crm:users:archived_users:rename',
+        'index:crm:archived_users:users_email_idx:create',
+      ],
     );
   });
 

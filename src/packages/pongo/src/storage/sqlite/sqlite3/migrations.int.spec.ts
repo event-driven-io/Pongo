@@ -8,7 +8,12 @@ import fs from 'fs';
 import path from 'path';
 import { randomUUID } from 'node:crypto';
 import { afterEach, describe, expectTypeOf, it } from 'vitest';
-import { pongoClient, pongoSchema, type PongoCollection } from '../../../core';
+import {
+  pongoClient,
+  pongoSchema,
+  type PongoClient,
+  type PongoCollection,
+} from '../../../core';
 import { sqlite3Driver } from '.';
 
 type User = {
@@ -29,6 +34,87 @@ describe('SQLite3 migration integration', () => {
       } catch {
         // ignore missing files
       }
+    }
+  });
+
+  const twoSchemaDefinition = () =>
+    pongoSchema.client({
+      database: pongoSchema.db({
+        schemas: {
+          crm: pongoSchema.schema('crm', {
+            users: pongoSchema.collection<User>('users'),
+          }),
+          hr: pongoSchema.schema('hr', {
+            roles: pongoSchema.collection<User>('roles'),
+          }),
+        },
+      }),
+    });
+
+  const declaredTables = (pool: ReturnType<typeof sqlite3Pool>) =>
+    pool.execute
+      .query<{ name: string }>(
+        SQL`
+          SELECT name
+          FROM sqlite_master
+          WHERE type = 'table' AND name IN ('crm.users', 'hr.roles')
+          ORDER BY name`,
+      )
+      .then((tables) => tables.rows.map(({ name }) => name));
+
+  it('migrates the whole database through a collection schema', async () => {
+    const client = pongoClient({
+      driver: sqlite3Driver,
+      connectionString,
+      schema: { definition: twoSchemaDefinition() },
+    });
+    const pool = sqlite3Pool({ fileName });
+
+    try {
+      const db = client.db('database');
+
+      await db
+        .collection<User>('users', { databaseSchemaName: 'crm' })
+        .schema.migrate();
+
+      assert.deepStrictEqual(await declaredTables(pool), [
+        'crm.users',
+        'hr.roles',
+      ]);
+    } finally {
+      await client.close();
+      await pool.close();
+    }
+  });
+
+  it('rolls back a collection schema migrate with the active session', async () => {
+    const client: PongoClient = pongoClient({
+      driver: sqlite3Driver,
+      connectionString,
+      schema: { definition: twoSchemaDefinition() },
+    });
+    const pool = sqlite3Pool({ fileName });
+
+    try {
+      const db = client.db('database');
+      const users = db.collection<User>('users', {
+        databaseSchemaName: 'crm',
+      });
+
+      await assert.rejects(
+        client.withSession(async (session) => {
+          await session.withTransaction(async (session) => {
+            await users.schema.migrate({ session });
+            throw new Error('rollback');
+          });
+        }),
+        /rollback/,
+      );
+
+      assert.deepStrictEqual(await declaredTables(pool), []);
+    } finally {
+      await client.close();
+      await pool.close();
     }
   });
 

@@ -56,8 +56,25 @@ const generatedTableMigrations = (
     fullName: SQLTableReference;
     kind?: string | undefined;
     columns: TableColumns;
+    renamedFrom?: SQLTableReference | undefined;
   }>,
 ): ReadonlyArray<SQLMigration> => {
+  if (table.renamedFrom !== undefined)
+    return [
+      sqlMigration(
+        tableRenameMigrationName(
+          { fullName: table.renamedFrom, kind: table.kind },
+          table.fullName.tableName,
+        ),
+        [
+          SQL`${SQLRenameTable.from({
+            table: table.renamedFrom,
+            newTableName: table.fullName.tableName,
+          })}`,
+        ],
+      ),
+    ];
+
   if (Object.keys(table.columns).length === 0) return [];
 
   return [
@@ -96,10 +113,7 @@ export type TableComponent<
     ) => TableComponent<Columns, NewTableName, Indexes, Relationships>;
     rename: <const NewTableName extends string>(
       tableName: NewTableName,
-    ) => Readonly<{
-      table: TableComponent<Columns, NewTableName, Indexes, Relationships>;
-      migration: SQLMigration;
-    }>;
+    ) => TableComponent<Columns, NewTableName, Indexes, Relationships>;
   }>;
 
 export type AnyTableComponent = TableComponent<
@@ -142,6 +156,7 @@ export type TableComponentOptions<
   indexes?: Indexes | undefined;
   migrations?:
     ((fullName: SQLTableReference) => ReadonlyArray<SQLMigration>) | undefined;
+  renamedFrom?: SQLTableReference | undefined;
 }>;
 
 export const tableComponent = <
@@ -175,6 +190,7 @@ export const tableComponent = <
           fullName,
           kind: options.kind,
           columns,
+          renamedFrom: options.renamedFrom,
         });
 
   const component: TableComponent<Columns, TableName, Indexes, Relationships> =
@@ -204,19 +220,12 @@ export const tableComponent = <
       },
       rename<const NewTableName extends string>(tableName: NewTableName) {
         return {
-          table: this.withTableName(tableName),
-          migration: sqlMigration(
-            tableRenameMigrationName(
-              { fullName, kind: options.kind },
-              tableName,
-            ),
-            [
-              SQL`${SQLRenameTable.from({
-                table: fullName,
-                newTableName: tableName,
-              })}`,
-            ],
-          ),
+          ...this,
+          ...tableComponent<Columns, NewTableName, Indexes, Relationships>({
+            ...options,
+            tableName,
+            renamedFrom: fullName,
+          }),
         };
       },
       withTableName<const NewTableName extends string>(

@@ -135,7 +135,6 @@ export const PongoDatabase = <
         sqlBuilderFor: options.sqlBuilderFor,
         schema: { ...options.schema, ...collectionRuntimeSchema },
         serializer,
-        migrationTable: options.migrationTable,
         errors: { ...options.errors, ...collectionOptions?.errors },
         cache:
           collectionOptions?.cache !== undefined
@@ -145,11 +144,16 @@ export const PongoDatabase = <
     },
   });
 
-  const migrate = (migrationOptions?: PongoMigrationOptions) =>
+  const migrate = async (migrationOptions?: PongoMigrationOptions) =>
     runSQLMigrations(pool, databaseComponent.migrations, {
       ...migrationOptions,
       migrationTable:
         migrationOptions?.migrationTable ?? options.migrationTable,
+      execute: await transactionExecutorOrDefault(
+        db,
+        migrationOptions,
+        pool.execute,
+      ),
     });
 
   const core: PongoDb<Database['driverType']> = {
@@ -192,6 +196,7 @@ export const PongoDatabase = <
         return databaseComponent.migrations;
       },
       migrate,
+      renameCollection: databaseComponent.renameCollection,
     },
     sql: {
       async query<Result extends QueryResultRow = QueryResultRow>(
