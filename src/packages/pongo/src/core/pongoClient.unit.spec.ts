@@ -1,7 +1,14 @@
 import assert from 'node:assert';
-import type { DatabaseDriverType } from '@event-driven-io/dumbo';
+import type {
+  AnyDumboDatabaseDriver,
+  DatabaseDriverType,
+} from '@event-driven-io/dumbo';
 import { describe, expectTypeOf, it } from 'vitest';
-import type { PongoDatabaseFactoryOptions, PongoDriver } from './drivers';
+import type {
+  PongoDatabaseFactoryOptions,
+  PongoDriver,
+  PongoDriverOptions,
+} from './drivers';
 import { pongoClient } from './pongoClient';
 import { pongoSchema } from './schema';
 import type { PongoCollection, PongoDb, PongoDocument } from './typing';
@@ -47,15 +54,8 @@ const testPongoDb = (options: {
   };
 };
 
-type TestPongoDriverOptions = {
+type TestPongoDriverOptions = PongoDriverOptions<AnyDumboDatabaseDriver> & {
   connectionString?: string;
-  connectionOptions?: {
-    connection?: { id: string };
-    transactionOptions?: {
-      allowNestedTransactions?: boolean;
-      useSavepoints?: boolean;
-    };
-  };
 };
 
 const testPongoDriver = ({
@@ -99,7 +99,11 @@ const testPongoDriver = ({
         onClose: (databaseName) => closed.push(databaseName),
       });
     },
-  } satisfies PongoDriver<PongoDb<TestDriverType>, TestPongoDriverOptions>;
+  } satisfies PongoDriver<
+    PongoDb<TestDriverType>,
+    AnyDumboDatabaseDriver,
+    TestPongoDriverOptions
+  >;
 
   return {
     driver,

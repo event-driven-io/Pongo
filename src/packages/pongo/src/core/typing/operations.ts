@@ -21,7 +21,11 @@ import { v7 as uuid } from 'uuid';
 import type { MaybePromise } from '.';
 import type { CacheConfig, PongoCache, PongoTransactionCache } from '../cache';
 import type { DocumentCommandHandlerInput } from '../collection';
-import type { AnyPongoDriver, ExtractPongoDriverOptions } from '../drivers';
+import type {
+  AnyPongoDriver,
+  DistributiveOmit,
+  ExtractPongoDriverOptions,
+} from '../drivers';
 import { ConcurrencyError } from '../errors';
 import type {
   PongoClientSchema,
@@ -69,7 +73,7 @@ export type PongoClientOptions<
           defaultSchemaName?: string | undefined;
           migrationTable?: MigrationTableOptions | undefined;
         } & JSONSerializationOptions &
-          Omit<Options, 'driver'>
+          DistributiveOmit<Options, 'driver'>
       : never
     : never;
 

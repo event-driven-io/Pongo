@@ -1,4 +1,5 @@
-import type { Connection } from '../../../../core';
+import type { D1Database } from '@cloudflare/workers-types';
+import type { Connection, JSONSerializer } from '../../../../core';
 import {
   sqliteAmbientClientConnection,
   type SQLiteConnectionOptions,
@@ -29,18 +30,30 @@ export type D1Connection = Connection<
   ) => Promise<Result>;
 };
 
-export type D1ConnectionOptions = SQLiteConnectionOptions<D1Connection> & {
-  client?: D1Client;
-  connection?: D1Connection;
-  transaction?: D1Transaction;
-} & D1ClientOptions;
+export type D1ConnectionOptions =
+  | (SQLiteConnectionOptions<D1Connection> & {
+      connection: D1Connection;
+      client?: never;
+      database?: D1Database;
+      serializer: JSONSerializer;
+      transaction?: D1Transaction;
+    })
+  | (SQLiteConnectionOptions<D1Connection> &
+      D1ClientOptions & {
+        client?: D1Client;
+        connection?: never;
+        transaction?: D1Transaction;
+      });
 
 export const d1Connection = (options: D1ConnectionOptions) => {
   const connection = options.connection ??
     options.transaction?.connection ?? {
       ...sqliteAmbientClientConnection<D1Connection>({
         driverType: D1DriverType,
-        client: options.client ?? d1Client(options),
+        client:
+          'client' in options && options.client
+            ? options.client
+            : d1Client(options),
         initTransaction: (connection) =>
           d1Transaction(
             connection,
@@ -59,10 +72,16 @@ export const d1Connection = (options: D1ConnectionOptions) => {
 
     const sessionClient = await client.withSession(constraintOrBookmark);
 
-    return d1Connection({
-      ...options,
-      client: sessionClient,
-    });
+    if ('connection' in options) {
+      const { connection: _connection, ...clientOptions } = options;
+      return d1Connection({
+        ...clientOptions,
+        database: sessionClient.database,
+        client: sessionClient,
+      });
+    }
+
+    return d1Connection({ ...options, client: sessionClient });
   };
 
   connection.withD1Session = async <Result = never>(

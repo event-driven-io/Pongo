@@ -47,9 +47,7 @@ describe('Pongo PostgreSQL connections', () => {
       connectionString,
       connectionOptions: isPgNativePool(poolOrClient)
         ? undefined
-        : {
-            client: poolOrClient,
-          },
+        : { client: poolOrClient },
     });
 
     try {
@@ -148,17 +146,19 @@ describe('Pongo PostgreSQL connections', () => {
     const pool = dumbo({ connectionString });
 
     try {
-      await pool.withTransaction(async ({ connection }) => {
-        const pongo = pongoClient({
-          driver: pongoDriver,
-          connectionString,
-          connectionOptions: { connection: connection as PgConnection },
-        });
+      await pool.withTransaction(
+        async ({ connection }: { connection: PgConnection }) => {
+          const pongo = pongoClient({
+            driver: pongoDriver,
+            connectionString,
+            connectionOptions: { connection },
+          });
 
-        const users = pongo.db().collection<User>('connections');
-        await users.insertOne({ name: randomUUID() });
-        await users.insertOne({ name: randomUUID() });
-      });
+          const users = pongo.db().collection<User>('connections');
+          await users.insertOne({ name: randomUUID() });
+          await users.insertOne({ name: randomUUID() });
+        },
+      );
     } finally {
       await pool.close();
     }

@@ -8,6 +8,7 @@ import {
 } from '../../../core';
 import {
   DefaultSQLiteMigratorOptions,
+  InMemorySQLiteDatabase,
   isInMemoryDatabase,
   SQLiteConnectionString,
   sqliteFormatter,
@@ -26,15 +27,50 @@ import {
 import { sqliteDualConnectionPool } from './pool/dualPool';
 import { sqlite3SingletonPool } from './pool/singletonPool';
 
-export type SQLite3DumboOptions = Omit<
+type SQLite3DumboPoolOptions = Omit<
   SQLitePoolOptions<SQLite3Connection, SQLite3ConnectionOptions>,
   'driverType'
-> &
-  SQLite3ConnectionOptions & { serializer?: JSONSerializer };
+>;
+
+type SQLite3ConnectionOptionFields = Omit<
+  SQLite3ConnectionOptions,
+  'fileName' | 'connectionString'
+> & {
+  fileName?: string | SQLiteConnectionString;
+  connectionString?: string | SQLiteConnectionString;
+};
+
+export type SQLite3DumboOptions = SQLite3DumboPoolOptions &
+  SQLite3ConnectionOptionFields & { serializer?: JSONSerializer };
 
 export type SQLite3PoolOptions = SQLite3DumboOptions;
 
 export type Sqlite3Pool = SQLitePool<SQLite3Connection>;
+
+const toSQLite3ConnectionOptions = (
+  options: SQLite3DumboOptions,
+): SQLite3ConnectionOptions => {
+  const { fileName, connectionString, client, ...connectionOptions } = options;
+
+  if (client) {
+    return {
+      ...connectionOptions,
+      client,
+    };
+  }
+
+  if (fileName !== undefined) {
+    return {
+      ...connectionOptions,
+      fileName,
+    };
+  }
+
+  return {
+    ...connectionOptions,
+    connectionString: connectionString ?? InMemorySQLiteDatabase,
+  };
+};
 
 export const sqlite3Pool = (
   options: SQLite3DumboOptions,
@@ -48,6 +84,8 @@ export const sqlite3Pool = (
       }),
     );
   }
+
+  const connectionOptions = toSQLite3ConnectionOptions(options);
 
   const sqliteConnectionFactory = (opts: SQLite3ConnectionOptions) =>
     sqlite3Connection({
@@ -68,7 +106,7 @@ export const sqlite3Pool = (
   if (isSingleton) {
     return sqlite3SingletonPool<SQLite3Connection>({
       driverType: SQLite3DriverType,
-      getConnection: () => sqliteConnectionFactory(options),
+      getConnection: () => sqliteConnectionFactory(connectionOptions),
       ...lifecycleOptions,
     });
   }
@@ -80,7 +118,7 @@ export const sqlite3Pool = (
   return sqliteDualConnectionPool({
     driverType: SQLite3DriverType,
     sqliteConnectionFactory,
-    connectionOptions: options,
+    connectionOptions,
     ...(readerPoolSize !== undefined ? { readerPoolSize } : {}),
     ...lifecycleOptions,
   });
@@ -109,7 +147,7 @@ const tryParseConnectionString = (connectionString: string) => {
 
 export const sqlite3DumboDriver = {
   driverType: SQLite3DriverType,
-  createPool: (options) => sqlite3Pool(options as SQLite3DumboOptions),
+  createPool: (options) => sqlite3Pool(options),
   sqlFormatter: sqliteFormatter,
   defaultMigratorOptions: DefaultSQLiteMigratorOptions,
   canHandle: canHandleDriverWithConnectionString(

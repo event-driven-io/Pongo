@@ -5,6 +5,7 @@ import {
   JSONSerializer,
   tracer,
   type ConnectionPool,
+  type AnyConnection,
   type JSONSerializationOptions,
 } from '../../../../core';
 import { defaultPostgreSqlDatabase, parseDatabaseName } from '../../core';
@@ -14,6 +15,7 @@ import {
   PgDriverType,
   type PgClientConnection,
   type PgPoolClientConnection,
+  type PgConnection,
 } from './connection';
 import type { PgTransactionOptions } from './transaction';
 
@@ -24,6 +26,10 @@ export type PgAmbientClientPool = ConnectionPool<PgClientConnection>;
 export type PgAmbientConnectionPool = ConnectionPool<
   PgPoolClientConnection | PgClientConnection
 >;
+
+const isPgConnection = (
+  connection: AnyConnection,
+): connection is PgConnection => connection.driverType === PgDriverType;
 
 export type PgPool =
   PgNativePool | PgAmbientClientPool | PgAmbientConnectionPool;
@@ -161,6 +167,33 @@ export const pgAmbientClientPool = (options: {
   });
 };
 
+export const pgAmbientPoolClientPool = (options: {
+  client: pg.PoolClient;
+  serializer: JSONSerializer;
+  transactionOptions?: PgTransactionOptions | undefined;
+}): PgNativePool => {
+  const { client, transactionOptions } = options;
+
+  const getConnection = () =>
+    pgConnection({
+      type: 'PoolClient',
+      connect: () => Promise.resolve(client),
+      close: () => Promise.resolve(),
+      serializer: options.serializer,
+      ...(transactionOptions ? { transactionOptions } : {}),
+    });
+
+  const open = () => Promise.resolve(getConnection());
+  const close = () => Promise.resolve();
+
+  return createConnectionPool({
+    driverType: PgDriverType,
+    connection: open,
+    close,
+    getConnection,
+  });
+};
+
 export type PgPoolPooledOptions =
   | {
       connectionString: string;
@@ -188,12 +221,12 @@ export type PgPoolNotPooledOptions =
       connectionString: string;
       database?: string;
       pooled: false;
-      client: pg.Client;
+      client: pg.Client | pg.PoolClient;
     }
   | {
       connectionString: string;
       database?: string;
-      client: pg.Client;
+      client: pg.Client | pg.PoolClient;
     }
   | {
       connectionString: string;
@@ -203,7 +236,7 @@ export type PgPoolNotPooledOptions =
   | {
       connectionString: string;
       database?: string;
-      connection: PgPoolClientConnection | PgClientConnection;
+      connection: AnyConnection;
       pooled?: false;
     };
 
@@ -219,7 +252,7 @@ export function pgPool(
   options: PgPoolNotPooledOptions & {
     transactionOptions?: PgTransactionOptions;
   },
-): PgAmbientClientPool;
+): PgAmbientClientPool | PgNativePool;
 export function pgPool(
   options: PgPoolOptions,
 ): PgNativePool | PgAmbientClientPool | PgAmbientConnectionPool {
@@ -229,17 +262,27 @@ export function pgPool(
 
   const txOpts = transactionOptions ? { transactionOptions } : {};
 
-  if ('client' in options && options.client)
+  if ('client' in options && options.client) {
+    if ('release' in options.client)
+      return pgAmbientPoolClientPool({
+        client: options.client,
+        serializer,
+        ...txOpts,
+      });
+
     return pgAmbientClientPool({
       client: options.client,
       serializer,
       ...txOpts,
     });
+  }
 
   if ('connection' in options && options.connection)
-    return pgAmbientConnectionPool({
-      connection: options.connection,
-    });
+    if (isPgConnection(options.connection))
+      return pgAmbientConnectionPool({
+        connection: options.connection,
+      });
+    else throw new Error(`Connection is not a PostgreSQL connection`);
 
   if ('pooled' in options && options.pooled === false)
     return pgClientPool({ connectionString, database, serializer, ...txOpts });

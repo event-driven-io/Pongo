@@ -4,7 +4,11 @@ import type {
   JSONSerializationOptions,
   MigrationStyle,
 } from '@event-driven-io/dumbo';
-import type { PongoDatabaseFactoryOptions, PongoDriver } from '../drivers';
+import type {
+  DistributiveOmit,
+  PongoDatabaseFactoryOptions,
+  PongoDriver,
+} from '../drivers';
 import type { PongoClientSchema, PongoDbSchema } from '../schema';
 import type { PongoDb } from '../typing';
 
@@ -55,7 +59,7 @@ export const PongoDatabaseCache = <
 
   return {
     getOrCreate: (
-      createOptions: Omit<
+      createOptions: DistributiveOmit<
         PongoDatabaseFactoryOptions,
         'databaseName' | 'defaultSchemaName' | 'schema'
       > & {
