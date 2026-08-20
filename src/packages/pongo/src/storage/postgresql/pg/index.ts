@@ -1,11 +1,11 @@
-import { dumbo } from '@event-driven-io/dumbo';
+import { dumbo, type DumboConnectionOptions } from '@event-driven-io/dumbo';
 import {
   pgDumboDriver as dumboDriver,
+  isPgClient,
+  isPgNativePool,
   PgDriverType,
-  type PgConnection,
   type PgTransactionOptions,
 } from '@event-driven-io/dumbo/pg';
-import type pg from 'pg';
 import {
   PongoDatabase,
   pongoDriverRegistry,
@@ -16,45 +16,14 @@ import {
 } from '../../../core';
 import { postgresSQLBuilder } from '../core';
 
-export type PgPongoClientOptions =
-  PooledPongoClientOptions | NotPooledPongoOptions;
-
-export type PooledPongoClientOptions =
-  | {
-      pool: pg.Pool;
-    }
-  | {
-      pooled: true;
-    }
-  | {
-      pool: pg.Pool;
-      pooled: true;
-    }
-  | object;
-
-export type NotPooledPongoOptions =
-  | {
-      client: pg.Client;
-    }
-  | {
-      pooled: false;
-    }
-  | {
-      client: pg.Client;
-      pooled: false;
-    }
-  | {
-      connection: PgConnection;
-      pooled?: false;
-    };
-
-type PgDatabaseDriverOptions = PongoDriverOptions<PgPongoClientOptions> & {
+export type PgDatabaseDriverOptions = PongoDriverOptions<typeof dumboDriver> & {
   databaseName?: string | undefined;
   connectionString: string;
 };
 
 const pgPongoDriver: PongoDriver<
   PongoDb<PgDriverType>,
+  typeof dumboDriver,
   PgDatabaseDriverOptions
 > = {
   driverType: PgDriverType,
@@ -62,16 +31,23 @@ const pgPongoDriver: PongoDriver<
   databaseFactory: (options) => {
     const { databaseName, defaultSchemaName } = options;
     const connectionOptions = withPongoTransactionOptions<
-      PgPongoClientOptions,
+      DumboConnectionOptions<typeof dumboDriver>,
       PgTransactionOptions
     >(options.connectionOptions);
-    const ambientOptions = options.connectionOptions;
-    const ambientDatabase =
-      ambientOptions && 'pool' in ambientOptions && ambientOptions.pool
-        ? ambientOptions.pool.options.database
-        : ambientOptions && 'client' in ambientOptions && ambientOptions.client
-          ? ambientOptions.client.database
-          : undefined;
+
+    const ambientClient =
+      options.connectionOptions && 'client' in options.connectionOptions
+        ? options.connectionOptions.client
+        : undefined;
+    const ambientPool =
+      options.connectionOptions && 'pool' in options.connectionOptions
+        ? options.connectionOptions.pool
+        : undefined;
+    const ambientDatabase = isPgNativePool(ambientPool)
+      ? ambientPool.options.database
+      : isPgClient(ambientClient)
+        ? ambientClient.database
+        : undefined;
 
     if (ambientDatabase && ambientDatabase !== databaseName) {
       throw new Error(
@@ -82,13 +58,15 @@ const pgPongoDriver: PongoDriver<
     return PongoDatabase({
       ...options,
       transactionOptions: connectionOptions.transactionOptions,
-      pool: dumbo({
-        connectionString: options.connectionString,
-        driver: dumboDriver,
-        database: databaseName,
-        ...connectionOptions,
-        serialization: { serializer: options.serializer },
-      }),
+      pool: options.pool
+        ? options.pool
+        : dumbo({
+            connectionString: options.connectionString,
+            driver: dumboDriver,
+            database: databaseName,
+            ...connectionOptions,
+            serialization: { serializer: options.serializer },
+          }),
       sqlBuilderFor: (collection) =>
         postgresSQLBuilder(collection, options.serializer),
       databaseName,

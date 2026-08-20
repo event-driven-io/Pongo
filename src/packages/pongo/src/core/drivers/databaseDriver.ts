@@ -1,6 +1,8 @@
 import type {
   AnyDumboDatabaseDriver,
   DatabaseDriverType,
+  DumboConnectionOptions,
+  ExtractDumboTypeFromDriver,
   JSONSerializationOptions,
   JSONSerializer,
   MigrationTableOptions,
@@ -10,12 +12,24 @@ import type { CacheConfig, PongoCache } from '../cache';
 import type { PongoDbSchema } from '../schema';
 import type { AnyPongoDb, PongoDb } from '../typing';
 
-export type PongoDriverOptions<ConnectionOptions = unknown> = {
-  connectionOptions?: ConnectionOptions | undefined;
+export type PongoDriverOptions<
+  DumboDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
+> = {
+  connectionOptions?:
+    | DistributiveOmit<
+        DumboConnectionOptions<DumboDriver>,
+        'driver' | 'driverType'
+      >
+    | undefined;
+  pool?: ExtractDumboTypeFromDriver<DumboDriver> | undefined;
 } & JSONSerializationOptions;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyPongoDriverOptions = PongoDriverOptions<any>;
+export type DistributiveOmit<
+  Value,
+  Keys extends PropertyKey,
+> = Value extends unknown ? Omit<Value, Keys> : never;
+
+export type AnyPongoDriverOptions = PongoDriverOptions<AnyDumboDatabaseDriver>;
 
 export type PongoDatabaseFactoryOptions<
   Definition extends PongoDbSchema = PongoDbSchema,
@@ -37,24 +51,44 @@ export type PongoDatabaseFactoryOptions<
 
 export interface PongoDriver<
   Database extends AnyPongoDb = AnyPongoDb,
-  DriverOptions extends AnyPongoDriverOptions = AnyPongoDriverOptions,
+  DumboDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
+  DriverOptions extends PongoDriverOptions<DumboDriver> =
+    PongoDriverOptions<DumboDriver>,
 > {
   driverType: Database['driverType'];
-  readonly dumboDriver: AnyDumboDatabaseDriver;
+  readonly dumboDriver: DumboDriver;
   databaseFactory<Definition extends PongoDbSchema = PongoDbSchema>(
     options: PongoDatabaseFactoryOptions<Definition, DriverOptions>,
   ): Database & PongoDb<Database['driverType']>;
 }
 
-export type AnyPongoDriver = PongoDriver<AnyPongoDb, AnyPongoDriverOptions>;
+export type AnyPongoDriver = PongoDriver<
+  AnyPongoDb,
+  AnyDumboDatabaseDriver,
+  AnyPongoDriverOptions
+>;
 
 export type ExtractPongoDriverOptions<DatabaseDriver> =
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  DatabaseDriver extends PongoDriver<any, infer O> ? O : never;
+  DatabaseDriver extends PongoDriver<
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any,
+    infer O
+  >
+    ? O
+    : never;
 
 export type ExtractPongoDatabaseTypeFromDriver<DatabaseDriver> =
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  DatabaseDriver extends PongoDriver<infer D, any> ? D : never;
+  DatabaseDriver extends PongoDriver<
+    infer D,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    any
+  >
+    ? D
+    : never;
 
 export const PongoDriverRegistry = () => {
   const drivers = new Map<

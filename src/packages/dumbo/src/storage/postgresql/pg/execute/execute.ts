@@ -16,14 +16,13 @@ import { mapPostgresError } from '../../core/errors/errorMapper';
 import { PgDriverType, type PgClientOrPoolClient } from '../connections';
 
 export const isPgNativePool = (
-  poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
+  poolOrClient: unknown,
 ): poolOrClient is pg.Pool => {
   return poolOrClient instanceof pg.Pool;
 };
 
-export const isPgClient = (
-  poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
-): poolOrClient is pg.Client => poolOrClient instanceof pg.Client;
+export const isPgClient = (poolOrClient: unknown): poolOrClient is pg.Client =>
+  poolOrClient instanceof pg.Client;
 
 export const isPgPoolClient = (
   poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
