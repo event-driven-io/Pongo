@@ -3,20 +3,20 @@ import {
   SQL,
   SQLRenameTable,
   SQLTableReference,
-} from '../../sql';
+} from '../../../sql';
+import { migrationName, schemaSegments } from '../../migrators/migrationName';
 import {
   schemaComponent,
   schemaComponentMap,
   schemaComponentType,
   type AnySchemaComponent,
   type SchemaComponent,
-} from '../schemaComponent';
-import { sqlMigration, type SQLMigration } from '../sqlMigration';
-import type { AnyColumnSchemaComponent } from './columnSchemaComponent';
+} from '../../schemaComponent';
+import { sqlMigration, type SQLMigration } from '../../sqlMigration';
+import type { AnyColumnSchemaComponent } from '../columns';
+import type { TableRelationships } from '../relationships/relationshipTypes';
+import type { AnyIndexComponent } from '../tableIndex';
 import { createTableSQL } from './createTableSQL';
-import type { AnyIndexComponent } from './indexComponent';
-import { migrationName, schemaSegments } from './migrationName';
-import type { TableRelationships } from './relationships/relationshipTypes';
 
 export const tableComponentType: unique symbol = Symbol(
   'dumbo.schemaComponent.table',

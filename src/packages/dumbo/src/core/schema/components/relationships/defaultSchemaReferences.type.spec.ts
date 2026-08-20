@@ -3,8 +3,8 @@ import { DefaultDatabaseSchemaName, SQL } from '../../../sql';
 import type { Equals, Expect, IsError } from '../../../testing';
 import type { TypeValidationResult } from '../../../typing';
 import { dumboSchema } from '../../dumboSchema';
-import { databaseSchemaComponent } from '../databaseSchemaComponent';
-import type { InferTableComponentColumns } from '../tableComponent';
+import { databaseSchemaComponent } from '../databaseSchema';
+import type { InferTableComponentColumns } from '../table';
 import type { FormatSingleError } from './formatRelationshipErrors';
 import type {
   DefaultSchemaKey,

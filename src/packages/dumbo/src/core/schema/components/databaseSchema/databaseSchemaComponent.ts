@@ -1,16 +1,16 @@
-import { isDefaultDatabaseSchema, SQL, SQLCreateSchema } from '../../sql';
-import type { UnionToIntersection } from '../../typing';
-import type { AnyExtensionComponent } from '../extensionComponent';
+import { isDefaultDatabaseSchema, SQL, SQLCreateSchema } from '../../../sql';
+import type { UnionToIntersection } from '../../../typing';
+import { migrationName } from '../../migrators/migrationName';
 import {
   mergeSchemaComponentMaps,
   schemaComponent,
   schemaComponentMap,
   type MergeRecords,
   type SchemaComponent,
-} from '../schemaComponent';
-import { sqlMigration, type SQLMigration } from '../sqlMigration';
-import { migrationName } from './migrationName';
-import type { AnyTableComponent } from './tableComponent';
+} from '../../schemaComponent';
+import { sqlMigration, type SQLMigration } from '../../sqlMigration';
+import type { AnyExtensionComponent } from '../extensions';
+import type { AnyTableComponent } from '../table';
 
 export const databaseSchemaComponentType: unique symbol = Symbol(
   'dumbo.schemaComponent.databaseSchema',

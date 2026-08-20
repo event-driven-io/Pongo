@@ -1,5 +1,4 @@
 import type { AnyColumnTypeToken, DefaultDatabaseSchemaName } from '../../sql';
-import type { DefaultSchemaKey, ValidateDatabaseSchemas } from '../components';
 import {
   columnSchemaComponent,
   type ColumnSchemaComponent,
@@ -13,6 +12,8 @@ import {
   type DatabaseSchemas,
   type DatabaseSchemaTables,
   type DatabaseTables,
+  type DefaultSchemaKey,
+  extensionComponent,
   indexComponent,
   type IndexComponent,
   type SchemaExtensions,
@@ -21,8 +22,8 @@ import {
   type TableComponent,
   type TableIndexes,
   type TableRelationships,
+  type ValidateDatabaseSchemas,
 } from '../components';
-import { extensionComponent } from '../extensionComponent';
 import type { SQLMigration } from '../sqlMigration';
 
 function dumboColumn<

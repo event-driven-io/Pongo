@@ -1,14 +1,16 @@
-import { DefaultDatabaseSchemaName, isDefaultDatabaseSchema } from '../../sql';
-import type { UnionToIntersection } from '../../typing';
-import type { AnyExtensionComponent } from '../extensionComponent';
+import {
+  DefaultDatabaseSchemaName,
+  isDefaultDatabaseSchema,
+} from '../../../sql';
+import type { UnionToIntersection } from '../../../typing';
 import {
   mergeSchemaComponentMaps,
   schemaComponent,
   schemaComponentMap,
   type MergeRecords,
   type SchemaComponent,
-} from '../schemaComponent';
-import type { SQLMigration } from '../sqlMigration';
+} from '../../schemaComponent';
+import type { SQLMigration } from '../../sqlMigration';
 import {
   assertSchemaKeysAreNotEmpty,
   assertTableNamesAreUnique,
@@ -16,8 +18,9 @@ import {
   type AnyDatabaseSchemaComponent,
   type DatabaseSchemaComponent,
   type WithExtensionTables,
-} from './databaseSchemaComponent';
-import type { AnyTableComponent } from './tableComponent';
+} from '../databaseSchema/databaseSchemaComponent';
+import type { AnyExtensionComponent } from '../extensions';
+import type { AnyTableComponent } from '../table';
 
 export const databaseComponentType: unique symbol = Symbol(
   'dumbo.schemaComponent.database',

@@ -1,6 +1,6 @@
 import { describe, expectTypeOf, it } from 'vitest';
-import { SQL } from '../../sql';
-import { dumboSchema } from '../dumboSchema';
+import { SQL } from '../../../sql';
+import { dumboSchema } from '../../dumboSchema';
 import type { TableRowType } from './tableTypesInference';
 
 type User = {

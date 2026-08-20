@@ -1,16 +1,16 @@
-import type { ColumnTypeToken } from '../../sql/tokens/columnTokens';
+import type { ColumnTypeToken } from '../../../sql/tokens/columnTokens';
 import type {
   AnyColumnSchemaComponent,
   ColumnSchemaComponent,
-} from './columnSchemaComponent';
+} from '../columns/columnSchemaComponent';
 import type {
   AnyDatabaseComponent,
   DatabaseComponent,
-} from './databaseComponent';
+} from '../database/databaseComponent';
 import type {
   AnyDatabaseSchemaComponent,
   DatabaseSchemaComponent,
-} from './databaseSchemaComponent';
+} from '../databaseSchema/databaseSchemaComponent';
 import type {
   AnyTableComponent,
   TableColumns,

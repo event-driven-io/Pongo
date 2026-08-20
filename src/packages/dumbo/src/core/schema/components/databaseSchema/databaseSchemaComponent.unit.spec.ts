@@ -1,11 +1,11 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
-import { DefaultDatabaseSchemaName, SQL } from '../../sql';
-import { extensionComponent } from '../extensionComponent';
-import { sqlMigration } from '../sqlMigration';
+import { DefaultDatabaseSchemaName, SQL } from '../../../sql';
+import { sqlMigration } from '../../sqlMigration';
+import { extensionComponent } from '../extensions';
+import { tableComponent } from '../table';
+import { indexComponent } from '../tableIndex';
 import { databaseSchemaComponent } from './databaseSchemaComponent';
-import { indexComponent } from './indexComponent';
-import { tableComponent } from './tableComponent';
 
 const usersTable = () =>
   tableComponent({

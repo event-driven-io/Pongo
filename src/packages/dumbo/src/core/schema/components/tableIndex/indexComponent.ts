@@ -5,11 +5,11 @@ import {
   SQLJSONDocumentIndexTarget,
   SQLJSONPathTarget,
   SQLTableReference,
-} from '../../sql';
-import { schemaComponent, type SchemaComponent } from '../schemaComponent';
-import { sqlMigration, type SQLMigration } from '../sqlMigration';
+} from '../../../sql';
+import { migrationName, schemaSegments } from '../../migrators/migrationName';
+import { schemaComponent, type SchemaComponent } from '../../schemaComponent';
+import { sqlMigration, type SQLMigration } from '../../sqlMigration';
 import type { IndexTarget } from './indexTarget';
-import { migrationName, schemaSegments } from './migrationName';
 
 export const indexComponentType: unique symbol = Symbol(
   'dumbo.schemaComponent.index',

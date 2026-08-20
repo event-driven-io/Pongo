@@ -1,12 +1,12 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
-import { DefaultDatabaseSchemaName, SQL } from '../../sql';
-import { dumboSchema } from '../dumboSchema';
-import { extensionComponent } from '../extensionComponent';
-import { sqlMigration } from '../sqlMigration';
+import { DefaultDatabaseSchemaName, SQL } from '../../../sql';
+import { dumboSchema } from '../../dumboSchema';
+import { sqlMigration } from '../../sqlMigration';
+import { databaseSchemaComponent } from '../databaseSchema';
+import { extensionComponent } from '../extensions';
+import { tableComponent } from '../table';
 import { databaseComponent } from './databaseComponent';
-import { databaseSchemaComponent } from './databaseSchemaComponent';
-import { tableComponent } from './tableComponent';
 
 const columns = {
   email: dumboSchema.column('email', SQL.column.type.Text, { notNull: true }),
