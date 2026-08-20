@@ -98,6 +98,23 @@ export const PongoDatabaseComponent = ({
     }) as PongoCollectionComponent<Document>;
   };
 
+  const renameCollection = <Document extends PongoDocument>(
+    collection: PongoCollectionComponent<Document>,
+    newCollectionName: string,
+  ): PongoCollectionComponent<Document> => {
+    const { databaseSchemaName } = collection.fullName;
+
+    component = component.withTable(
+      { [newCollectionName]: collection.rename(newCollectionName) },
+      databaseSchemaName,
+    );
+
+    return component.findTable({
+      tableName: newCollectionName,
+      databaseSchemaName,
+    }) as PongoCollectionComponent<Document>;
+  };
+
   const collection = <
     Document extends PongoDocument,
     Payload extends PongoDocument = Document,
@@ -179,6 +196,7 @@ export const PongoDatabaseComponent = ({
     },
     collection,
     collections,
+    renameCollection,
     expose: <Database extends AnyPongoDb>(database: Database): Database =>
       new Proxy(database, {
         get: (target, property) => {

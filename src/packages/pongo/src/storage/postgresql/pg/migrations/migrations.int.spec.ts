@@ -105,6 +105,50 @@ describe('Migration Integration Tests', () => {
     );
   });
 
+  it('migrates the whole database through a collection schema', async () => {
+    const db = client.db('database');
+
+    await db
+      .collection<User>('users', { databaseSchemaName: 'crm' })
+      .schema.migrate();
+
+    const crmUsersTableExists = await pool.execute.query<{ exists: boolean }>(
+      SQL`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables
+          WHERE table_schema = 'crm' AND table_name = 'users'
+        )`,
+    );
+
+    assert.strictEqual(crmUsersTableExists.rows[0]?.exists, true);
+    assert.strictEqual(await tableExists(pool.execute, 'roles'), true);
+  });
+
+  it('rolls back a collection schema migrate with the active session', async () => {
+    const db = client.db('database');
+    const users = db.collection<User>('users', { databaseSchemaName: 'crm' });
+
+    await assert.rejects(
+      client.withSession(async (session) => {
+        await session.withTransaction(async (session) => {
+          await users.schema.migrate({ session });
+          throw new Error('rollback');
+        });
+      }),
+      /rollback/,
+    );
+
+    const crmSchemaExists = await pool.execute.query<{ exists: boolean }>(
+      SQL`
+        SELECT EXISTS (
+          SELECT FROM information_schema.schemata WHERE schema_name = 'crm'
+        )`,
+    );
+
+    assert.strictEqual(crmSchemaExists.rows[0]?.exists, false);
+    assert.strictEqual(await tableExists(pool.execute, 'roles'), false);
+  });
+
   it('creates declared tables and indexes in default and named schemas', async () => {
     const db = client.db('database');
     await db.schema.migrate();

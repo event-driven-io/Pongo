@@ -49,6 +49,7 @@ export type MigrationTableOptions = {
 
 export type MigratorOptions = {
   migrationTable?: MigrationTableOptions | undefined;
+  execute?: SQLExecutor | undefined;
   lock?: {
     databaseLock?: DatabaseLock;
     options?: Omit<DatabaseLockOptions, 'lockId'> &
@@ -68,100 +69,120 @@ export const runSQLMigrations = (
   pool: Dumbo,
   migrations: ReadonlyArray<SQLMigration>,
   partialOptions?: Partial<MigratorOptions>,
-): Promise<RunSQLMigrationsResult> =>
-  pool.withTransaction(async ({ execute }) => {
-    for (const migration of migrations) {
-      if (migration.name.length > maxMigrationNameLength)
-        throw new Error(
-          `Migration name "${migration.name}" is ${migration.name.length} characters long, exceeding the maximum of ${maxMigrationNameLength} characters.`,
-        );
-    }
+): Promise<RunSQLMigrationsResult> => {
+  const providedExecutor = partialOptions?.execute;
 
-    const databaseType = fromDatabaseDriverType(pool.driverType).databaseType;
-    const defaultOptions = getDefaultMigratorOptionsFromRegistry(databaseType);
-    partialOptions ??= {};
+  return providedExecutor !== undefined
+    ? applySQLMigrations(pool, providedExecutor, migrations, partialOptions)
+    : pool.withTransaction(async ({ execute }) => ({
+        success: partialOptions?.dryRun ? false : true,
+        result: await applySQLMigrations(
+          pool,
+          execute,
+          migrations,
+          partialOptions,
+        ),
+      }));
+};
 
-    const options: MigratorOptions = {
-      ...defaultOptions,
-      ...partialOptions,
-      migrationTable:
-        partialOptions?.migrationTable ?? defaultOptions.migrationTable,
-      lock: {
-        ...defaultOptions.lock,
-        ...partialOptions?.lock,
-        options: {
-          lockId: MIGRATIONS_LOCK_ID,
-          ...defaultOptions.lock?.options,
-          ...partialOptions?.lock?.options,
-        },
+const applySQLMigrations = async (
+  pool: Dumbo,
+  execute: SQLExecutor,
+  migrations: ReadonlyArray<SQLMigration>,
+  partialOptions?: Partial<MigratorOptions>,
+): Promise<RunSQLMigrationsResult> => {
+  for (const migration of migrations) {
+    if (migration.name.length > maxMigrationNameLength)
+      throw new Error(
+        `Migration name "${migration.name}" is ${migration.name.length} characters long, exceeding the maximum of ${maxMigrationNameLength} characters.`,
+      );
+  }
+
+  const databaseType = fromDatabaseDriverType(pool.driverType).databaseType;
+  const defaultOptions = getDefaultMigratorOptionsFromRegistry(databaseType);
+  partialOptions ??= {};
+
+  const options: MigratorOptions = {
+    ...defaultOptions,
+    ...partialOptions,
+    migrationTable:
+      partialOptions?.migrationTable ?? defaultOptions.migrationTable,
+    lock: {
+      ...defaultOptions.lock,
+      ...partialOptions?.lock,
+      options: {
+        lockId: MIGRATIONS_LOCK_ID,
+        ...defaultOptions.lock?.options,
+        ...partialOptions?.lock?.options,
       },
-      dryRun: partialOptions?.dryRun ?? defaultOptions.dryRun,
-      ignoreMigrationHashMismatch:
-        partialOptions?.ignoreMigrationHashMismatch ??
-        defaultOptions.ignoreMigrationHashMismatch,
-      migrationTimeoutMs:
-        partialOptions?.migrationTimeoutMs ?? defaultOptions.migrationTimeoutMs,
-    };
+    },
+    dryRun: partialOptions?.dryRun ?? defaultOptions.dryRun,
+    ignoreMigrationHashMismatch:
+      partialOptions?.ignoreMigrationHashMismatch ??
+      defaultOptions.ignoreMigrationHashMismatch,
+    migrationTimeoutMs:
+      partialOptions?.migrationTimeoutMs ?? defaultOptions.migrationTimeoutMs,
+  };
 
-    const databaseLock = options.lock?.databaseLock ?? NoDatabaseLock;
+  const databaseLock = options.lock?.databaseLock ?? NoDatabaseLock;
 
-    const lockOptions: DatabaseLockOptions = {
-      lockId: MIGRATIONS_LOCK_ID,
-      ...options.lock?.options,
-    };
+  const lockOptions: DatabaseLockOptions = {
+    lockId: MIGRATIONS_LOCK_ID,
+    ...options.lock?.options,
+  };
 
-    const migrationTableOptions = options.migrationTable;
-    const schemaName = migrationTableOptions?.schemaName;
+  const migrationTableOptions = options.migrationTable;
+  const schemaName = migrationTableOptions?.schemaName;
 
-    const tableName = migrationTableOptions?.tableName ?? 'dmb_migrations';
-    const migrationTable = migrationTableComponentFor({
-      schemaName,
-      tableName,
-    });
-    const migrationTableReference = migrationTable.fullName;
-    const coreMigrations = migrationTable.migrations();
-
-    const result: RunSQLMigrationsResult = { applied: [], skipped: [] };
-
-    await databaseLock.withAcquire(
-      execute,
-      async () => {
-        const formatter = getFormatter(databaseType);
-        for (const migration of coreMigrations) {
-          const sqls = migration.sqls.filter(
-            (sql) => !rendersNothing(sql, formatter),
-          );
-          if (sqls.length === 0) continue;
-
-          await execute.batchCommand(sqls, {
-            timeoutMs: options.migrationTimeoutMs,
-          });
-        }
-
-        for (const migration of migrations) {
-          const wasApplied = await runSQLMigration(
-            databaseType,
-            execute,
-            migration,
-            migrationTableReference,
-            {
-              ignoreMigrationHashMismatch:
-                options.ignoreMigrationHashMismatch ?? false,
-              migrationTimeoutMs: options.migrationTimeoutMs,
-            },
-          );
-          if (wasApplied) {
-            result.applied.push(migration);
-          } else {
-            result.skipped.push(migration);
-          }
-        }
-      },
-      lockOptions,
-    );
-
-    return { success: options.dryRun ? false : true, result };
+  const tableName = migrationTableOptions?.tableName ?? 'dmb_migrations';
+  const migrationTable = migrationTableComponentFor({
+    schemaName,
+    tableName,
   });
+  const migrationTableReference = migrationTable.fullName;
+  const coreMigrations = migrationTable.migrations();
+
+  const result: RunSQLMigrationsResult = { applied: [], skipped: [] };
+
+  await databaseLock.withAcquire(
+    execute,
+    async () => {
+      const formatter = getFormatter(databaseType);
+      for (const migration of coreMigrations) {
+        const sqls = migration.sqls.filter(
+          (sql) => !rendersNothing(sql, formatter),
+        );
+        if (sqls.length === 0) continue;
+
+        await execute.batchCommand(sqls, {
+          timeoutMs: options.migrationTimeoutMs,
+        });
+      }
+
+      for (const migration of migrations) {
+        const wasApplied = await runSQLMigration(
+          databaseType,
+          execute,
+          migration,
+          migrationTableReference,
+          {
+            ignoreMigrationHashMismatch:
+              options.ignoreMigrationHashMismatch ?? false,
+            migrationTimeoutMs: options.migrationTimeoutMs,
+          },
+        );
+        if (wasApplied) {
+          result.applied.push(migration);
+        } else {
+          result.skipped.push(migration);
+        }
+      }
+    },
+    lockOptions,
+  );
+
+  return result;
+};
 
 const rendersNothing = (sql: SQL, formatter: SQLFormatter): boolean =>
   formatter.format(sql, { serializer: JSONSerializer }).query.trim().length ===

@@ -18,6 +18,7 @@ const testPongoDb = (options: {
     component: pongoSchema.db({ collections: {} }),
     migrations: [],
     migrate: () => Promise.resolve({ applied: [], skipped: [] }),
+    renameCollection: (collection: never) => collection,
   };
 
   return {

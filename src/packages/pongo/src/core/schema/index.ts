@@ -24,7 +24,6 @@ import {
   type IndexComponent,
   type IndexSQLContext,
   type SchemaExtensions,
-  type SQLMigration,
   type SQL as SQLStatement,
   type TableComponent,
   type TableRowType,
@@ -135,10 +134,7 @@ export type PongoCollectionComponent<
     ) => PongoCollectionComponent<Document, NewTableName, Indexes>;
     rename: <const NewTableName extends string>(
       tableName: NewTableName,
-    ) => Readonly<{
-      table: PongoCollectionComponent<Document, NewTableName, Indexes>;
-      migration: SQLMigration;
-    }>;
+    ) => PongoCollectionComponent<Document, NewTableName, Indexes>;
   }>;
 
 export type PongoSchemaComponent<
