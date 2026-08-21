@@ -100,7 +100,7 @@ describe('Pongo PostgreSQL connections', () => {
           driver: pongoDriver,
           connectionString,
           connectionOptions: {
-            connection,
+            connection: connection as PgConnection,
             pooled: false,
           },
         });
@@ -125,7 +125,7 @@ describe('Pongo PostgreSQL connections', () => {
           driver: pongoDriver,
           connectionString,
           connectionOptions: {
-            connection,
+            connection: connection as PgConnection,
             pooled: false,
           },
         });
@@ -173,7 +173,7 @@ describe('Pongo PostgreSQL connections', () => {
           driver: pongoDriver,
           connectionString,
           connectionOptions: {
-            connection,
+            connection: connection as PgConnection,
             pooled: false,
           },
         });
@@ -198,7 +198,7 @@ describe('Pongo PostgreSQL connections', () => {
           driver: pongoDriver,
           connectionString,
           connectionOptions: {
-            connection,
+            connection: connection as PgConnection,
             pooled: false,
             transactionOptions: { allowNestedTransactions: false },
           },
@@ -235,7 +235,7 @@ describe('Pongo PostgreSQL connections', () => {
           driver: pongoDriver,
           connectionString,
           connectionOptions: {
-            connection,
+            connection: connection as PgConnection,
             pooled: false,
             transactionOptions: { useSavepoints: true },
           },
