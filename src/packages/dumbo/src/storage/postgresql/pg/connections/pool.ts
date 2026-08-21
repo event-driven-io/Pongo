@@ -5,7 +5,6 @@ import {
   JSONSerializer,
   tracer,
   type ConnectionPool,
-  type AnyConnection,
   type JSONSerializationOptions,
 } from '../../../../core';
 import { defaultPostgreSqlDatabase, parseDatabaseName } from '../../core';
@@ -23,13 +22,7 @@ export type PgNativePool = ConnectionPool<PgPoolClientConnection>;
 
 export type PgAmbientClientPool = ConnectionPool<PgClientConnection>;
 
-export type PgAmbientConnectionPool = ConnectionPool<
-  PgPoolClientConnection | PgClientConnection
->;
-
-const isPgConnection = (
-  connection: AnyConnection,
-): connection is PgConnection => connection.driverType === PgDriverType;
+export type PgAmbientConnectionPool = ConnectionPool<PgConnection>;
 
 export type PgPool =
   PgNativePool | PgAmbientClientPool | PgAmbientConnectionPool;
@@ -236,7 +229,7 @@ export type PgPoolNotPooledOptions =
   | {
       connectionString: string;
       database?: string;
-      connection: AnyConnection;
+      connection: PgConnection;
       pooled?: false;
     };
 
@@ -278,11 +271,9 @@ export function pgPool(
   }
 
   if ('connection' in options && options.connection)
-    if (isPgConnection(options.connection))
-      return pgAmbientConnectionPool({
-        connection: options.connection,
-      });
-    else throw new Error(`Connection is not a PostgreSQL connection`);
+    return pgAmbientConnectionPool({
+      connection: options.connection,
+    });
 
   if ('pooled' in options && options.pooled === false)
     return pgClientPool({ connectionString, database, serializer, ...txOpts });
