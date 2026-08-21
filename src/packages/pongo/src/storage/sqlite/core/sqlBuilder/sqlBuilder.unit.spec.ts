@@ -1,5 +1,6 @@
 import {
   DefaultDatabaseSchemaName,
+  DumboError,
   JSONSerializer,
   SQL,
 } from '@event-driven-io/dumbo';
@@ -15,6 +16,22 @@ import {
   type PongoCollectionSQLBuilder,
 } from '../../../../core';
 import { sqliteSQLBuilder } from './index';
+
+const assertNotImplementedError = (call: () => unknown) => {
+  try {
+    call();
+  } catch (error) {
+    if (!DumboError.isInstanceOf(error)) {
+      assert.fail(`Expected a DumboError, got: ${String(error)}`);
+    }
+
+    assert.equal(error.errorType, 'NotImplementedError');
+    assert.equal(error.errorCode, 501);
+    return;
+  }
+
+  assert.fail('Expected the call to throw');
+};
 
 const formatSQL = (sql: SQL, formatter = sqliteFormatter) =>
   formatter.format(sql, { serializer: JSONSerializer });
@@ -447,7 +464,8 @@ describe('sqliteSQLBuilder', () => {
 
     it('keeps custom index SQL hooks on the collection table', () => {
       let resolvedReferences:
-        { tableReference: string; indexReference: string } | undefined;
+        | { tableReference: string; indexReference: string }
+        | undefined;
       const indexes = {
         custom: pongoSchema.index.custom(
           'users_custom_data_idx',
@@ -909,6 +927,31 @@ describe('sqliteSQLBuilder', () => {
         () => builder.find(unsupportedFilter),
         /Unsupported root operator: \$text/,
       );
+      assertNotImplementedError(() => builder.find(unsupportedFilter));
+    });
+
+    it('throws for unsupported field operators', () => {
+      const unsupportedFilter = {
+        status: { $unsupported: 'active' },
+      } as unknown as Parameters<typeof builder.find>[0];
+
+      assert.throws(
+        () => builder.find(unsupportedFilter),
+        /Unsupported operator: \$unsupported/,
+      );
+      assertNotImplementedError(() => builder.find(unsupportedFilter));
+    });
+
+    it('throws for unsupported metadata operators', () => {
+      const unsupportedFilter = {
+        _id: { $unsupported: 'active' },
+      } as unknown as Parameters<typeof builder.find>[0];
+
+      assert.throws(
+        () => builder.find(unsupportedFilter),
+        /Unsupported operator: \$unsupported/,
+      );
+      assertNotImplementedError(() => builder.find(unsupportedFilter));
     });
   });
 });

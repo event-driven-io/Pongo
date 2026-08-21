@@ -9,6 +9,7 @@ import {
 } from '@event-driven-io/dumbo/pg';
 import {
   PongoDatabase,
+  PongoError,
   pongoDriverRegistry,
   type DistributiveOmit,
   type PongoDb,
@@ -47,7 +48,8 @@ type PgPoolDriverOptions = Omit<
 };
 
 export type PgDatabaseDriverOptions =
-  PgConnectionStringDriverOptions | PgPoolDriverOptions;
+  | PgConnectionStringDriverOptions
+  | PgPoolDriverOptions;
 
 const pgPongoDriver: PongoDriver<
   PongoDb<PgDriverType>,
@@ -78,7 +80,7 @@ const pgPongoDriver: PongoDriver<
         : undefined;
 
     if (ambientDatabase && ambientDatabase !== databaseName) {
-      throw new Error(
+      throw new PongoError(
         `The ambient PostgreSQL connection is connected to database ${ambientDatabase} and cannot be used for ${databaseName}`,
       );
     }
@@ -106,7 +108,7 @@ const pgPongoDriver: PongoDriver<
 
     const pool = options.pool;
     if (pool === undefined) {
-      throw new Error('PostgreSQL connection string or pool is required');
+      throw new PongoError('PostgreSQL connection string or pool is required');
     }
 
     return PongoDatabase({

@@ -1,6 +1,7 @@
 import {
   databaseComponentType,
   DefaultDatabaseSchemaName,
+  DumboError,
   dumboSchema,
   indexComponentType,
   isTableComponent,
@@ -22,6 +23,19 @@ import {
 
 type User = {
   email: string;
+};
+
+const assertThrowsPongoError = (
+  operation: () => unknown,
+  message: string,
+): void => {
+  assert.throws(operation, (error: unknown) => {
+    assert.ok(DumboError.isInstanceOf(error));
+    assert.strictEqual(error.errorType, 'PongoError');
+    assert.strictEqual(error.errorCode, 500);
+    assert.strictEqual(error.message, message);
+    return true;
+  });
 };
 
 describe('declaring Pongo indexes', () => {
@@ -323,6 +337,24 @@ describe('declaring Pongo schemas and databases', () => {
     assert.strictEqual(
       database.schemas.audit?.tables.entries?.tableName,
       'entries',
+    );
+  });
+
+  it('rejects a missing database declaration', () => {
+    assertThrowsPongoError(
+      () => pongoSchema.db('app', undefined as never),
+      'You need to provide a database declaration',
+    );
+  });
+
+  it('rejects database declarations without exactly one model shape', () => {
+    assertThrowsPongoError(
+      () =>
+        pongoSchema.db('app', {
+          collections: {},
+          schemas: {},
+        } as never),
+      'A Pongo database declaration must contain exactly one of collections or schemas',
     );
   });
 

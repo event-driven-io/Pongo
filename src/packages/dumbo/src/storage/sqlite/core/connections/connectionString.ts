@@ -1,3 +1,4 @@
+import { InvalidOperationError } from '../../../../core';
 import type { DatabaseConnectionString } from '../../../all';
 
 export type SQLitePragmaOptions = {
@@ -24,7 +25,7 @@ export const SQLiteConnectionString = (
     !connectionString.startsWith('/') &&
     !connectionString.startsWith('./')
   ) {
-    throw new Error(
+    throw new InvalidOperationError(
       `Invalid SQLite connection string: ${connectionString}. It should start with "file:", ":memory:", "/", or "./".`,
     );
   }
@@ -47,7 +48,12 @@ export const parsePragmasFromConnectionString = (
   const journalMode = params.get('journal_mode');
   if (journalMode !== null) {
     pragmas.journal_mode = journalMode as
-      'DELETE' | 'TRUNCATE' | 'PERSIST' | 'MEMORY' | 'WAL' | 'OFF';
+      | 'DELETE'
+      | 'TRUNCATE'
+      | 'PERSIST'
+      | 'MEMORY'
+      | 'WAL'
+      | 'OFF';
   }
 
   const synchronous = params.get('synchronous');
@@ -69,7 +75,9 @@ export const parsePragmasFromConnectionString = (
   const tempStore = params.get('temp_store');
   if (tempStore !== null) {
     pragmas.temp_store = tempStore.toUpperCase() as
-      'DEFAULT' | 'FILE' | 'MEMORY';
+      | 'DEFAULT'
+      | 'FILE'
+      | 'MEMORY';
   }
 
   const busyTimeout = params.get('busy_timeout');

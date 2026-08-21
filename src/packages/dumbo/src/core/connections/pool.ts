@@ -1,3 +1,4 @@
+import { InvalidOperationError } from '../errors';
 import {
   executeInAmbientConnection,
   executeInNewConnection,
@@ -106,7 +107,7 @@ export const createSingletonConnectionPool = <
   const operationGuard = guardConcurrentAccess();
 
   const closedError = () =>
-    new Error('Singleton connection pool has been closed');
+    new InvalidOperationError('Singleton connection pool has been closed');
 
   const executeIfOpen = async <Result>(
     operation: (context: AbortContext) => Promise<Result>,
@@ -228,7 +229,7 @@ export const createBoundedConnectionPool = <
   let closed = false;
 
   const closedError = () =>
-    new Error('Bounded connection pool has been closed');
+    new InvalidOperationError('Bounded connection pool has been closed');
 
   const ensureOpen = () => {
     if (closed) throw closedError();

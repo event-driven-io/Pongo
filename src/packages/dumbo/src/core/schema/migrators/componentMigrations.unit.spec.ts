@@ -325,10 +325,11 @@ describe('components emitting their own migrations', () => {
       isUnique: false,
     });
 
-    assert.throws(
-      () => index.migrations(),
-      /Index "users_email_idx" cannot be created outside a table/,
-    );
+    assert.throws(() => index.migrations(), {
+      errorType: 'InvalidOperationError',
+      errorCode: 400,
+      message: /Index "users_email_idx" cannot be created outside a table/,
+    });
   });
 
   it('places a default schema in the database default schema name', () => {
@@ -584,10 +585,11 @@ describe('components emitting their own migrations', () => {
       },
     });
 
-    assert.throws(
-      () => database.migrations(),
-      /Duplicate migration name "shared:001"/,
-    );
+    assert.throws(() => database.migrations(), {
+      errorType: 'InvalidOperationError',
+      errorCode: 400,
+      message: /Duplicate migration name "shared:001"/,
+    });
   });
 
   it('applies one migration when two components declare the same one', () => {

@@ -1,4 +1,4 @@
-import { dumbo, JSONSerializer } from '@event-driven-io/dumbo';
+import { DumboError, dumbo, JSONSerializer } from '@event-driven-io/dumbo';
 import { pgDumboDriver } from '@event-driven-io/dumbo/pg';
 import assert from 'node:assert';
 import pg from 'pg';
@@ -6,13 +6,28 @@ import { describe, it } from 'vitest';
 import { pgDriver } from './index';
 
 const connectionString = 'postgresql://localhost/connected';
+const ambientDatabaseMismatchMessage =
+  'The ambient PostgreSQL connection is connected to database connected and cannot be used for requested';
+
+const assertThrowsPongoError = (
+  operation: () => unknown,
+  message: string,
+): void => {
+  assert.throws(operation, (error: unknown) => {
+    assert.ok(DumboError.isInstanceOf(error));
+    assert.strictEqual(error.errorType, 'PongoError');
+    assert.strictEqual(error.errorCode, 500);
+    assert.strictEqual(error.message, message);
+    return true;
+  });
+};
 
 describe('PostgreSQL Pongo driver resolution', () => {
   it('rejects an ambient pool connected to another database', () => {
     const pool = new pg.Pool({ connectionString, database: 'connected' });
 
     try {
-      assert.throws(
+      assertThrowsPongoError(
         () =>
           pgDriver.databaseFactory({
             connectionString,
@@ -21,7 +36,7 @@ describe('PostgreSQL Pongo driver resolution', () => {
             defaultSchemaName: 'public',
             serializer: JSONSerializer,
           }),
-        /ambient PostgreSQL connection is connected to database connected and cannot be used for requested/,
+        ambientDatabaseMismatchMessage,
       );
     } finally {
       void pool.end();
@@ -29,7 +44,7 @@ describe('PostgreSQL Pongo driver resolution', () => {
   });
 
   it('rejects an ambient client connected to another database', () => {
-    assert.throws(
+    assertThrowsPongoError(
       () =>
         pgDriver.databaseFactory({
           connectionString,
@@ -38,7 +53,7 @@ describe('PostgreSQL Pongo driver resolution', () => {
           defaultSchemaName: 'public',
           serializer: JSONSerializer,
         }),
-      /ambient PostgreSQL connection is connected to database connected and cannot be used for requested/,
+      ambientDatabaseMismatchMessage,
     );
   });
 
@@ -71,7 +86,7 @@ describe('PostgreSQL Pongo driver resolution', () => {
     const client = new pg.Client({ connectionString });
 
     try {
-      assert.throws(
+      assertThrowsPongoError(
         () =>
           pgDriver.databaseFactory({
             connectionString,
@@ -84,10 +99,22 @@ describe('PostgreSQL Pongo driver resolution', () => {
             defaultSchemaName: 'public',
             serializer: JSONSerializer,
           }),
-        /ambient PostgreSQL connection is connected to database connected and cannot be used for requested/,
+        ambientDatabaseMismatchMessage,
       );
     } finally {
       await pool.close();
     }
+  });
+
+  it('rejects missing connection string and pool options', () => {
+    assertThrowsPongoError(
+      () =>
+        pgDriver.databaseFactory({
+          databaseName: 'requested',
+          defaultSchemaName: 'public',
+          serializer: JSONSerializer,
+        } as unknown as Parameters<typeof pgDriver.databaseFactory>[0]),
+      'PostgreSQL connection string or pool is required',
+    );
   });
 });

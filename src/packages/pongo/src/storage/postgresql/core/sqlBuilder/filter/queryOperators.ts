@@ -1,7 +1,7 @@
 import type { JSONSerializer } from '@event-driven-io/dumbo';
 import { JSONParam, SQL } from '@event-driven-io/dumbo';
 import { PostgreSQLJSON } from '@event-driven-io/dumbo/postgresql';
-import { OperatorMap } from '../../../../../core';
+import { NotImplementedError, OperatorMap } from '../../../../../core';
 
 export const handleOperator = (
   path: string,
@@ -58,7 +58,7 @@ export const handleOperator = (
       return SQL`jsonb_array_length(${PostgreSQLJSON.field(SQL`data`, path)}) = ${value}`;
     }
     default:
-      throw new Error(`Unsupported operator: ${operator}`);
+      throw new NotImplementedError(`Unsupported operator: ${operator}`);
   }
 };
 
@@ -81,6 +81,6 @@ const handleMetadataOperator = (
     case '$nin':
       return SQL`${SQL.plain(fieldName)} != ALL (${value})`;
     default:
-      throw new Error(`Unsupported operator: ${operator}`);
+      throw new NotImplementedError(`Unsupported operator: ${operator}`);
   }
 };

@@ -1,3 +1,4 @@
+import { DataError } from '../../errors';
 import type { JSONSerializer } from '../../serializer';
 import { SQL } from '../sql';
 import { ansiSqlReservedMap as ansiSqlReservedWordsMap } from './reservedSqlWords';
@@ -47,7 +48,7 @@ export const mapSQLIdentifier = (
   },
 ): string => {
   if (value === undefined || value === null) {
-    throw new Error('SQL identifier cannot be null or undefined');
+    throw new DataError('SQL identifier cannot be null or undefined');
   }
 
   const ident = value.toString().slice(0); // create copy

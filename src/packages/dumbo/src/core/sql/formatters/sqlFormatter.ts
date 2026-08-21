@@ -1,3 +1,4 @@
+import { InvalidOperationError, NotRegisteredError } from '../../errors';
 import { JSONSerializer } from '../../serializer';
 import {
   ParametrizedSQLBuilder,
@@ -95,7 +96,9 @@ export const registerFormatter = (
 export const getFormatter = (dialect: string): SQLFormatter => {
   const formatterKey = dialect;
   if (!dumboSQLFormatters[formatterKey]) {
-    throw new Error(`No SQL formatter registered for dialect: ${dialect}`);
+    throw new NotRegisteredError(
+      `No SQL formatter registered for dialect: ${dialect}`,
+    );
   }
   return dumboSQLFormatters[formatterKey];
 };
@@ -121,7 +124,9 @@ export function formatSQL(
     : sql) as unknown as TokenizedSQL;
 
   if (!isTokenizedSQL(merged)) {
-    throw new Error('Expected TokenizedSQL, got string-based SQL');
+    throw new InvalidOperationError(
+      'Expected TokenizedSQL, got string-based SQL',
+    );
   }
 
   const builder = ParametrizedSQLBuilder({
@@ -143,7 +148,7 @@ export function formatSQL(
     const processor = processorsRegistry.get(token.sqlTokenType);
 
     if (!processor) {
-      throw new Error(
+      throw new NotRegisteredError(
         `No SQL processor registered for token type: ${token.sqlTokenType}`,
       );
     }

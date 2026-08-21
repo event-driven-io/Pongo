@@ -1,5 +1,6 @@
 import {
   DefaultDatabaseSchemaName,
+  InvalidOperationError,
   type SQLIndexReference,
   type SQLTableReference,
 } from '../../../../core';
@@ -9,7 +10,7 @@ const assertNativeName = (
   name: string,
 ): void => {
   if (name.includes('.')) {
-    throw new Error(
+    throw new InvalidOperationError(
       `SQLite ${kind} names containing . are reserved for logical schema mapping`,
     );
   }

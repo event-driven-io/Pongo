@@ -1,3 +1,5 @@
+import { PongoError } from '../core';
+
 export class FindCursor<T> {
   private findDocumentsPromise: Promise<T[]>;
   private documents: T[] | null = null;
@@ -21,7 +23,8 @@ export class FindCursor<T> {
   }
 
   hasNext(): boolean {
-    if (this.documents === null) throw Error('Error while fetching documents');
+    if (this.documents === null)
+      throw new PongoError('Error while fetching documents');
     return this.index < this.documents.length;
   }
 

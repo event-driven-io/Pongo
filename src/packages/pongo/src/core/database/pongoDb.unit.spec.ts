@@ -1,6 +1,7 @@
 import {
   databaseSchemaComponent,
   DefaultDatabaseSchemaName,
+  DumboError,
   dumboSchema,
   JSONSerializer,
   SQL,
@@ -103,6 +104,19 @@ const createTestDb = <
     transactionOptions: () => transactionOptions,
     withTransactionOptions: () => withTransactionOptions,
   };
+};
+
+const assertThrowsPongoError = (
+  operation: () => unknown,
+  message: string,
+): void => {
+  assert.throws(operation, (error: unknown) => {
+    assert.ok(DumboError.isInstanceOf(error));
+    assert.strictEqual(error.errorType, 'PongoError');
+    assert.strictEqual(error.errorCode, 500);
+    assert.strictEqual(error.message, message);
+    return true;
+  });
 };
 
 describe('using a Pongo database', () => {
@@ -550,11 +564,7 @@ describe('using a Pongo database', () => {
         },
       }),
     });
-    const projected = db as typeof db & {
-      crm: {
-        customerDirectory: ReturnType<typeof db.collection>;
-      };
-    };
+    const projected = db;
     const direct = db.collection('users', {
       databaseSchemaName: 'crm',
     });
@@ -578,9 +588,9 @@ describe('using a Pongo database', () => {
       }),
     });
 
-    assert.throws(
+    assertThrowsPongoError(
       () => db.collection('customerDirectory', { databaseSchemaName: 'crm' }),
-      /alias already refers to table "users"/,
+      'Cannot add collection "customerDirectory" to database schema "crm" because that alias already refers to table "users"',
     );
   });
 
@@ -703,9 +713,9 @@ describe('using a Pongo database', () => {
       }),
     });
 
-    assert.throws(
+    assertThrowsPongoError(
       () => db.collection('users', { databaseSchemaName: 'crm' }),
-      /Table "users" in database schema "crm" is not a Pongo collection/,
+      'Table "users" in database schema "crm" is not a Pongo collection',
     );
   });
 

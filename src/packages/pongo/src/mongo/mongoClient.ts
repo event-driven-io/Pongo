@@ -7,6 +7,7 @@ import type { ClientSession, WithSessionCallback } from 'mongodb';
 import {
   pongoClient,
   pongoSession,
+  PongoError,
   type AnyPongoDriver,
   type PongoClient,
   type PongoClientOptions,
@@ -34,7 +35,8 @@ export class MongoClient<
   );
   constructor(
     connectionStringOrOptions:
-      string | PongoClientOptions<DatabaseDriverType, TypedClientSchema>,
+      | string
+      | PongoClientOptions<DatabaseDriverType, TypedClientSchema>,
     options?: Omit<
       PongoClientOptions<DatabaseDriverType, TypedClientSchema>,
       'connectionString'
@@ -58,7 +60,7 @@ export class MongoClient<
       );
 
     if (driver === null) {
-      throw new Error(
+      throw new PongoError(
         `No database driver registered for ${databaseType} with name ${driverName}`,
       );
     }

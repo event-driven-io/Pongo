@@ -1,6 +1,7 @@
 import type { JSONSerializer } from '../../../../core';
 import {
   executeInNestedTransaction,
+  InvalidOperationError,
   sqlExecutor,
   transactionNestingCounter,
   type DatabaseTransaction,
@@ -120,7 +121,7 @@ export const d1Transaction =
       execute: sqlExecutor(d1SQLExecutor(), {
         connect: () => {
           if (!sessionClient) {
-            throw new Error(
+            throw new InvalidOperationError(
               'Transaction has not been started. Call begin() first.',
             );
           }

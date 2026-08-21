@@ -30,7 +30,12 @@ export type BatchSQLiteCommandOptions = SQLiteCommandOptions &
   BatchSQLCommandOptions;
 
 export type SQLiteParameters =
-  object | string | bigint | number | boolean | null;
+  | object
+  | string
+  | bigint
+  | number
+  | boolean
+  | null;
 
 export type SQLiteClient = {
   connect: () => Promise<void>;
@@ -78,7 +83,8 @@ export type SQLiteConnection<
   Self extends AnyConnection = AnyConnection,
   DriverType extends SQLiteDriverType = SQLiteDriverType,
   SQLiteClientType extends SQLiteClientOrPoolClient =
-    SQLiteClient | SQLitePoolClient,
+    | SQLiteClient
+    | SQLitePoolClient,
   TransactionType extends DatabaseTransaction<Self> = DatabaseTransaction<Self>,
 > =
   | (SQLiteClientType extends SQLiteClient

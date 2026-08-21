@@ -1,4 +1,5 @@
 import {
+  InvalidOperationError,
   mapDefaultSQLColumnProcessors,
   type DefaultSQLColumnProcessors,
   type DefaultSQLColumnToken,
@@ -53,8 +54,10 @@ const mapColumnType = (
       break;
     default: {
       const exhaustiveCheck: never = sqlTokenType;
-      // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-      throw new Error(`Unknown column type: ${exhaustiveCheck}`);
+      throw new InvalidOperationError(
+        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
+        `Unknown column type: ${exhaustiveCheck}`,
+      );
     }
   }
   builder.addSQL(columnSQL);

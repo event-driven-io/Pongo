@@ -57,7 +57,7 @@ export const transactionNestingCounter = (): TransactionNestingCounter => {
       transactionLevel--;
 
       if (transactionLevel < 0) {
-        throw new Error('Transaction level is out of bounds');
+        throw new InvalidOperationError('Transaction level is out of bounds');
       }
     },
     get level() {
@@ -261,7 +261,8 @@ export const transactionFactoryWithDbClient = <
   ) => InferTransactionFromConnection<ConnectionType>,
 ): WithDatabaseTransactionFactory<ConnectionType> => {
   let currentTransaction:
-    InferTransactionFromConnection<ConnectionType> | undefined = undefined;
+    | InferTransactionFromConnection<ConnectionType>
+    | undefined = undefined;
 
   const getOrInitCurrentTransaction = (
     options?: InferTransactionOptionsFromConnection<ConnectionType>,
@@ -410,7 +411,9 @@ export const transactionFactoryWithAsyncAmbientConnection = <
         driverType,
         get connection() {
           if (!conn) {
-            throw new Error('Transaction not started - call begin() first');
+            throw new InvalidOperationError(
+              'Transaction not started - call begin() first',
+            );
           }
           return conn;
         },
@@ -438,7 +441,7 @@ export const transactionFactoryWithAsyncAmbientConnection = <
         },
         commit: async () => {
           if (!innerTx) {
-            throw new Error('Transaction not started');
+            throw new InvalidOperationError('Transaction not started');
           }
           try {
             return await innerTx.commit();

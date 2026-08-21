@@ -1,6 +1,7 @@
 import type { D1Database } from '@cloudflare/workers-types';
 import {
   createSingletonConnectionPool,
+  InvalidOperationError,
   JSONSerializer,
   type ConnectionPool,
   type JSONSerializationOptions,
@@ -38,7 +39,9 @@ export const d1Pool = (options: D1PoolOptions): D1ConnectionPool =>
       }
 
       if (!options.database) {
-        throw new Error('D1 database or connection is required');
+        throw new InvalidOperationError(
+          'D1 database or connection is required',
+        );
       }
 
       const { connection: _connection, ...clientOptions } = options;

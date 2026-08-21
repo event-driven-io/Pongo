@@ -1,3 +1,4 @@
+import { NotRegisteredError } from '../../errors';
 import type { JSONSerializer } from '../../serializer';
 import type { ParametrizedSQLBuilder } from '../parametrizedSQL';
 import type { AnySQLToken } from '../tokens';
@@ -34,7 +35,9 @@ export const processSQLToken = (
 ): void => {
   const processor = context.processorsRegistry.get(token.sqlTokenType);
   if (processor === null)
-    throw new Error(`No SQL processor registered for ${token.sqlTokenType}`);
+    throw new NotRegisteredError(
+      `No SQL processor registered for ${token.sqlTokenType}`,
+    );
 
   processor.handle(token, context);
 };

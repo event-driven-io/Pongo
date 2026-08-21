@@ -1,7 +1,11 @@
 import type { JSONSerializer } from '@event-driven-io/dumbo';
 import { JSONParam, SQL } from '@event-driven-io/dumbo';
 import { SQLiteJSON } from '@event-driven-io/dumbo/sqlite';
-import { objectEntries, OperatorMap } from '../../../../../core';
+import {
+  NotImplementedError,
+  objectEntries,
+  OperatorMap,
+} from '../../../../../core';
 
 export const handleOperator = (
   path: string,
@@ -78,7 +82,7 @@ export const handleOperator = (
       return SQL`json_array_length(json_extract(data, ${jsonPath})) = ${value}`;
     }
     default:
-      throw new Error(`Unsupported operator: ${operator}`);
+      throw new NotImplementedError(`Unsupported operator: ${operator}`);
   }
 };
 
@@ -113,6 +117,6 @@ const handleMetadataOperator = (
       return SQL`${SQL.plain(fieldName)} NOT IN (${inClause})`;
     }
     default:
-      throw new Error(`Unsupported operator: ${operator}`);
+      throw new NotImplementedError(`Unsupported operator: ${operator}`);
   }
 };

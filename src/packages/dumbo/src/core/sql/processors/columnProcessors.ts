@@ -1,3 +1,4 @@
+import { InvalidOperationError, NotRegisteredError } from '../../errors';
 import type {
   AutoIncrementSQLColumnToken,
   DefaultSQLColumnToken,
@@ -20,7 +21,7 @@ const inlineDefault = (
     return;
   }
   if (SQLToken.check(value)) {
-    throw new Error(
+    throw new InvalidOperationError(
       `Unsupported SQL token "${value.sqlTokenType}" as a column default`,
     );
   }
@@ -66,7 +67,7 @@ export const mapDefaultSQLColumnProcessors = (
       } else {
         const processor = processorsRegistry.get(token.type.sqlTokenType);
         if (processor === null) {
-          throw new Error(
+          throw new NotRegisteredError(
             `No SQL processor registered for column type: ${token.type.sqlTokenType}`,
           );
         }

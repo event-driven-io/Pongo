@@ -1,5 +1,6 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
+import { assertThrowsDumboError } from '../../../errors/errorAssertions';
 import { DefaultDatabaseSchemaName, SQL } from '../../../sql';
 import { sqlMigration } from '../../sqlMigration';
 import { extensionComponent } from '../extensions';
@@ -90,7 +91,12 @@ describe('declaring a schema with tables', () => {
             customerDirectory: tableComponent({ tableName: 'users' }),
           },
         }),
-      /Table "users" is declared more than once in database schema "reporting"/,
+      {
+        errorType: 'InvalidOperationError',
+        errorCode: 400,
+        message:
+          /Table "users" is declared more than once in database schema "reporting"/,
+      },
     );
   });
 
@@ -104,7 +110,12 @@ describe('declaring a schema with tables', () => {
             customerDirectory: tableComponent({ tableName: 'users' }),
           },
         }),
-      /Table "users" is declared more than once in database schema "the default schema"/,
+      {
+        errorType: 'InvalidOperationError',
+        errorCode: 400,
+        message:
+          /Table "users" is declared more than once in database schema "the default schema"/,
+      },
     );
   });
 
@@ -120,7 +131,28 @@ describe('declaring a schema with tables', () => {
           tables: { users: usersTable() },
           extensions: { crm },
         }),
-      /Table "users" is declared more than once in database schema "reporting"/,
+      {
+        errorType: 'InvalidOperationError',
+        errorCode: 400,
+        message:
+          /Table "users" is declared more than once in database schema "reporting"/,
+      },
+    );
+  });
+
+  it('refuses an empty schema name instead of guessing the dialect default', () => {
+    assertThrowsDumboError(
+      () =>
+        databaseSchemaComponent({
+          schemaName: '',
+          tables: { users: usersTable() },
+        }),
+      {
+        errorType: 'InvalidOperationError',
+        errorCode: 400,
+        message:
+          'A database schema name cannot be empty. Use the default database schema name to leave it to the dialect',
+      },
     );
   });
 });
@@ -257,7 +289,12 @@ describe('schema.withTable(tables)', () => {
         schema.withTable({
           customerDirectory: tableComponent({ tableName: 'users' }),
         }),
-      /Table "users" is declared more than once in database schema "reporting"/,
+      {
+        errorType: 'InvalidOperationError',
+        errorCode: 400,
+        message:
+          /Table "users" is declared more than once in database schema "reporting"/,
+      },
     );
   });
 });

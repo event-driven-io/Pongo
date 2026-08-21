@@ -1,4 +1,5 @@
 import { v7 as uuid } from 'uuid';
+import { InvalidOperationError } from '../errors';
 import type { AbortContext, AbortOptions } from './abort';
 import {
   taskProcessor,
@@ -152,7 +153,7 @@ export const guardBoundedAccess = <Resource>(
   const getActiveResourceContext = (resource: Resource) => {
     const activeResourceContext = activeResourceContexts.get(resource);
     if (!activeResourceContext) {
-      throw new Error('Acquired resource is not active');
+      throw new InvalidOperationError('Acquired resource is not active');
     }
 
     return activeResourceContext;

@@ -1,3 +1,4 @@
+import { InvalidOperationError } from '../../../errors';
 import { isDefaultDatabaseSchema, SQL, SQLCreateSchema } from '../../../sql';
 import type { UnionToIntersection } from '../../../typing';
 import { migrationName } from '../../migrators/migrationName';
@@ -49,7 +50,7 @@ export const assertTableNamesAreUnique = (
 
   for (const table of tables) {
     if (tableNames.has(table.tableName))
-      throw new Error(
+      throw new InvalidOperationError(
         `Table "${table.tableName}" is declared more than once in database schema "${databaseSchemaLabel(databaseSchemaName)}"`,
       );
 
@@ -61,7 +62,9 @@ export const assertSchemaKeysAreNotEmpty = (
   schemas: Readonly<Record<string, AnyDatabaseSchemaComponent>>,
 ): void => {
   if (Object.keys(schemas).includes(''))
-    throw new Error('Database schema record key cannot be an empty string');
+    throw new InvalidOperationError(
+      'Database schema record key cannot be an empty string',
+    );
 };
 
 const placeIn = <
@@ -132,7 +135,8 @@ export type DatabaseSchemaComponentOptions<
   tables?: Tables | undefined;
   extensions?: Extensions | undefined;
   migrations?:
-    ((databaseSchemaName: string) => ReadonlyArray<SQLMigration>) | undefined;
+    | ((databaseSchemaName: string) => ReadonlyArray<SQLMigration>)
+    | undefined;
 }>;
 
 export const databaseSchemaComponent = <
@@ -145,7 +149,7 @@ export const databaseSchemaComponent = <
   const { schemaName, kind } = options;
 
   if (schemaName === '')
-    throw new Error(
+    throw new InvalidOperationError(
       'A database schema name cannot be empty. Use the default database schema name to leave it to the dialect',
     );
 
@@ -159,7 +163,7 @@ export const databaseSchemaComponent = <
     Object.values(extension.schemas).map((schema) => ({ extension, schema })),
   );
   if (contribution !== undefined)
-    throw new Error(
+    throw new InvalidOperationError(
       `Extension "${contribution.extension.extensionName}" contributes database schema "${databaseSchemaLabel(
         contribution.schema.schemaName,
       )}" and cannot be attached to database schema "${databaseSchemaLabel(schemaName)}"`,

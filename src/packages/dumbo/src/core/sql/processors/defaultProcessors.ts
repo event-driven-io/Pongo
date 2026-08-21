@@ -1,3 +1,4 @@
+import { DataError, NotRegisteredError } from '../../errors';
 import type { SQLIdentifier, SQLIn, SQLLiteral } from '../tokens';
 import { SQLArray } from '../tokens';
 import { SQLProcessor, type SQLProcessorContext } from './sqlProcessor';
@@ -9,7 +10,7 @@ export const ExpandArrayProcessor: SQLProcessor<SQLArray> = SQLProcessor({
     { builder, serializer, mapper }: SQLProcessorContext,
   ) => {
     if (token.value.length === 0) {
-      throw new Error(
+      throw new DataError(
         "Empty arrays are not supported. If you're using it with SELECT IN statement Use SQL.in(column, array) helper instead.",
       );
     }
@@ -34,7 +35,7 @@ export const ExpandSQLInProcessor: SQLProcessor<SQLIn> = SQLProcessor({
     const arrayProcessor = processorsRegistry.get(SQLArray.type);
 
     if (!arrayProcessor) {
-      throw new Error(
+      throw new NotRegisteredError(
         'No sql processor registered for an array. Cannot expand IN statement',
       );
     }

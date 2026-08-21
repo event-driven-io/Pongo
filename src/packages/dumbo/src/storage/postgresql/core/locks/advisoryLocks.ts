@@ -9,7 +9,11 @@ import {
   type ReleaseDatabaseLockOptions,
   type SQLExecutor,
 } from '../../../../core';
-import { DumboError, QueryCanceledError } from '../../../../core/errors';
+import {
+  DumboError,
+  LockNotAvailableError,
+  QueryCanceledError,
+} from '../../../../core/errors';
 
 export const tryAcquireAdvisoryLock = async (
   execute: SQLExecutor,
@@ -74,7 +78,7 @@ export const acquireAdvisoryLock = async (
 ) => {
   const lockAcquired = await tryAcquireAdvisoryLock(execute, options);
   if (!lockAcquired) {
-    throw new Error(
+    throw new LockNotAvailableError(
       'Failed to acquire advisory lock within the specified timeout. Migration aborted.',
     );
   }

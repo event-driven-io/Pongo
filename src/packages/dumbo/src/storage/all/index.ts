@@ -1,5 +1,6 @@
 import {
   dumboDatabaseDriverRegistry,
+  NotRegisteredError,
   type AnyDumboDatabaseDriver,
   type DumboConnectionOptions,
   type ExtractDumboDatabaseDriverOptions,
@@ -35,7 +36,9 @@ export function dumbo<
     dumboDatabaseDriverRegistry.tryGet<DatabaseDriver>(options);
 
   if (driver === null) {
-    throw new Error(`No plugin found for driver type: ${driverType}`);
+    throw new NotRegisteredError(
+      `No plugin found for driver type: ${driverType}`,
+    );
   }
 
   return driver.createPool({

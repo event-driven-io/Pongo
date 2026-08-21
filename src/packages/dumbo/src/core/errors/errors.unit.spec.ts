@@ -16,6 +16,7 @@ import {
   InvalidOperationError,
   LockNotAvailableError,
   NotNullViolationError,
+  NotRegisteredError,
   QueryCanceledError,
   SerializationError,
   SystemError,
@@ -109,6 +110,11 @@ const errorCases: {
     errorType: 'InvalidOperationError',
     errorCode: 400,
     create: () => new InvalidOperationError(),
+  },
+  {
+    errorType: 'NotRegisteredError',
+    errorCode: 500,
+    create: () => new NotRegisteredError(),
   },
   {
     errorType: 'BatchCommandNoChangesError',

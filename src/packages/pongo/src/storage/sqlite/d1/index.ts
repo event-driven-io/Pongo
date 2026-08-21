@@ -7,6 +7,7 @@ import {
 } from '@event-driven-io/dumbo/cloudflare';
 import {
   PongoDatabase,
+  PongoError,
   pongoDriverRegistry,
   withPongoTransactionOptions,
   type PongoDb,
@@ -57,7 +58,7 @@ const d1PongoDriver: PongoDriver<
         : undefined);
 
     if (!database) {
-      throw new Error('D1 database or connection is required');
+      throw new PongoError('D1 database or connection is required');
     }
 
     const pongoConnectionOptions = withPongoTransactionOptions({

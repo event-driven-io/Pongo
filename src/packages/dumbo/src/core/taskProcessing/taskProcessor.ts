@@ -1,4 +1,8 @@
-import { DumboError, TransientDatabaseError } from '../errors';
+import {
+  DumboError,
+  QueryCanceledError,
+  TransientDatabaseError,
+} from '../errors';
 import { Abort } from './abort';
 import type { AbortOptions } from './abort';
 import { Clock, type TimerHandle } from './clock';
@@ -357,5 +361,7 @@ const waitForProcessingOrDeadline = async (
   }
 };
 
-const createTaskIdleTimeoutError = (): Error =>
-  new Error('Task was not started within the maximum waiting time');
+const createTaskIdleTimeoutError = (): DumboError =>
+  new QueryCanceledError(
+    'Task was not started within the maximum waiting time',
+  );

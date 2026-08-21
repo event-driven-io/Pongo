@@ -1,3 +1,4 @@
+import { InvalidOperationError } from '../../../errors';
 import {
   DefaultDatabaseSchemaName,
   isDefaultDatabaseSchema,
@@ -182,7 +183,7 @@ export const databaseComponent = <
   options: DatabaseComponentOptions<DatabaseName, Tables, Schemas, Extensions>,
 ): DatabaseComponent<DatabaseName, Tables, Schemas, Extensions> => {
   if (options.tables !== undefined && options.schemas !== undefined)
-    throw new Error(
+    throw new InvalidOperationError(
       'A database declaration can contain either tables or schemas, not both',
     );
 

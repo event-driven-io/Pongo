@@ -1,3 +1,4 @@
+import { DataError } from '../errors';
 import type { QueryResult, QueryResultRow } from './query';
 
 export const firstOrNull = async <
@@ -16,7 +17,7 @@ export const first = async <Result extends QueryResultRow = QueryResultRow>(
   const result = await getResult;
 
   if (result.rows.length === 0)
-    throw new Error("Query didn't return any result");
+    throw new DataError("Query didn't return any result");
 
   return result.rows[0]!;
 };
@@ -28,7 +29,8 @@ export const singleOrNull = async <
 ): Promise<Result | null> => {
   const result = await getResult;
 
-  if (result.rows.length > 1) throw new Error('Query had more than one result');
+  if (result.rows.length > 1)
+    throw new DataError('Query had more than one result');
 
   return result.rows.length > 0 ? (result.rows[0] ?? null) : null;
 };
@@ -39,9 +41,10 @@ export const single = async <Result extends QueryResultRow = QueryResultRow>(
   const result = await getResult;
 
   if (result.rows.length === 0)
-    throw new Error("Query didn't return any result");
+    throw new DataError("Query didn't return any result");
 
-  if (result.rows.length > 1) throw new Error('Query had more than one result');
+  if (result.rows.length > 1)
+    throw new DataError('Query had more than one result');
 
   return result.rows[0]!;
 };
