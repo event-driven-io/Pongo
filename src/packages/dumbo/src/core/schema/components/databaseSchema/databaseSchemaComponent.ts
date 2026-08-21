@@ -135,8 +135,7 @@ export type DatabaseSchemaComponentOptions<
   tables?: Tables | undefined;
   extensions?: Extensions | undefined;
   migrations?:
-    | ((databaseSchemaName: string) => ReadonlyArray<SQLMigration>)
-    | undefined;
+    ((databaseSchemaName: string) => ReadonlyArray<SQLMigration>) | undefined;
 }>;
 
 export const databaseSchemaComponent = <
