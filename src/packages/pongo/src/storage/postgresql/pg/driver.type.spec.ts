@@ -17,7 +17,10 @@ describe('typing the PostgreSQL Pongo driver options', () => {
   it('takes the adopted pool type from the Dumbo driver', () => {
     expectTypeOf<
       NonNullable<PgPongoDriverOptions['pool']>
-    >().toEqualTypeOf<PgPool>();
+    >().toExtend<PgPool>();
+    expectTypeOf<PgPool>().toExtend<
+      NonNullable<PgPongoDriverOptions['pool']>
+    >();
   });
 
   it('takes the connection options from the Dumbo driver', () => {

@@ -33,6 +33,6 @@ export type DumboConnectionOptions<
       ? {
           driver?: DatabaseDriver;
           driverType?: DatabaseDriver['driverType'];
-        } & Omit<Options, 'driver' | 'driverType' | 'connectionString'>
+        } & Omit<Options, 'driver' | 'driverType'>
       : never
     : never;

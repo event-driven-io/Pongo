@@ -31,7 +31,7 @@ export const pgDumboDriver: DumboDatabaseDriver<
   PgPool
 > = {
   driverType: PgDriverType,
-  createPool: (options) => pgPool(options as PgPoolOptions),
+  createPool: (options) => pgPool(options),
   sqlFormatter: pgFormatter,
   defaultMigratorOptions: DefaultPostgreSQLMigratorOptions,
   canHandle: canHandleDriverWithConnectionString(
@@ -40,6 +40,16 @@ export const pgDumboDriver: DumboDatabaseDriver<
   ),
   databaseMetadata: postgreSQLMetadata,
 };
+
+declare module '@event-driven-io/dumbo' {
+  export function dumbo(
+    options: Omit<PgPoolOptions, 'connectionString'> & {
+      connectionString: PostgreSQLConnectionString;
+      driver?: never;
+      driverType?: never;
+    },
+  ): PgPool;
+}
 
 export const usePgDumboDriver = () => {
   dumboDatabaseDriverRegistry.register(PgDriverType, pgDumboDriver);

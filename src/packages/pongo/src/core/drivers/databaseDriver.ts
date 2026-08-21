@@ -18,7 +18,7 @@ export type PongoDriverOptions<
   connectionOptions?:
     | DistributiveOmit<
         DumboConnectionOptions<DumboDriver>,
-        'driver' | 'driverType'
+        'driver' | 'driverType' | 'connectionString'
       >
     | undefined;
   pool?: ExtractDumboTypeFromDriver<DumboDriver> | undefined;
