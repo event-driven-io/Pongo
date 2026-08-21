@@ -5,6 +5,7 @@ import {
   type SQLIndexReference,
   type SQLTableReference,
 } from '../../../../core';
+import { assertThrowsDumboError } from '../../../../core/errors/errorAssertions';
 import { sqliteIndexName, sqliteTableName } from './sqlitePhysicalNames';
 
 describe('using logical database schemas in SQLite', () => {
@@ -108,6 +109,49 @@ describe('using logical database schemas in SQLite', () => {
           indexName: 'a.b',
         }),
       /SQLite index names containing \. are reserved/,
+    );
+  });
+
+  it('reports reserved dotted names as InvalidOperationError', () => {
+    assertThrowsDumboError(
+      () =>
+        sqliteTableName({
+          databaseSchemaName: DefaultDatabaseSchemaName,
+          tableName: 'crm.users',
+        }),
+      {
+        errorType: 'InvalidOperationError',
+        errorCode: 400,
+        message:
+          'SQLite table names containing . are reserved for logical schema mapping',
+      },
+    );
+    assertThrowsDumboError(
+      () =>
+        sqliteIndexName({
+          databaseSchemaName: DefaultDatabaseSchemaName,
+          tableName: 'users',
+          indexName: 'users.email_idx',
+        }),
+      {
+        errorType: 'InvalidOperationError',
+        errorCode: 400,
+        message:
+          'SQLite index names containing . are reserved for logical schema mapping',
+      },
+    );
+    assertThrowsDumboError(
+      () =>
+        sqliteTableName({
+          databaseSchemaName: 'crm.a',
+          tableName: 'b',
+        }),
+      {
+        errorType: 'InvalidOperationError',
+        errorCode: 400,
+        message:
+          'SQLite database schema names containing . are reserved for logical schema mapping',
+      },
     );
   });
 });

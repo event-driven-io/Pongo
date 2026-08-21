@@ -1,3 +1,4 @@
+import { InvalidOperationError } from '../../../errors';
 import {
   haveSameTableReference,
   SQL,
@@ -154,7 +155,7 @@ export const indexComponent = <
   const ownMigrations = () => {
     const tableReference = options.tableReference;
     if (tableReference === undefined)
-      throw new Error(
+      throw new InvalidOperationError(
         `Index "${options.indexName}" cannot be created outside a table. Declare it in the indexes of the table it belongs to`,
       );
 

@@ -1,4 +1,5 @@
 import type { CacheConfig, PongoCache } from './cache';
+import { PongoError } from './errors';
 import { pongoTransaction } from './pongoTransaction';
 import type {
   PongoDbTransaction,
@@ -19,14 +20,15 @@ const isActive = (
 function assertInActiveTransaction(
   transaction: PongoDbTransaction | null,
 ): asserts transaction is PongoDbTransaction {
-  if (!isActive(transaction)) throw new Error('No active transaction exists!');
+  if (!isActive(transaction))
+    throw new PongoError('No active transaction exists!');
 }
 
 function assertNotInActiveTransaction(
   transaction: PongoDbTransaction | null,
 ): asserts transaction is null {
   if (isActive(transaction))
-    throw new Error('Active transaction already exists!');
+    throw new PongoError('Active transaction already exists!');
 }
 
 export const pongoSession = (options?: PongoSessionOptions): PongoSession => {

@@ -349,3 +349,21 @@ export class InvalidOperationError extends DumboError {
     Object.setPrototypeOf(this, InvalidOperationError.prototype);
   }
 }
+
+export class NotRegisteredError extends DumboError {
+  static readonly ErrorCode: number = 500;
+  static readonly ErrorType: string = 'NotRegisteredError';
+
+  constructor(message?: string, innerError?: Error) {
+    super({
+      errorCode: NotRegisteredError.ErrorCode,
+      errorType: NotRegisteredError.ErrorType,
+      message:
+        message ??
+        `No implementation registered (e.g. missing formatter, plugin or driver import).`,
+      innerError,
+    });
+
+    Object.setPrototypeOf(this, NotRegisteredError.prototype);
+  }
+}

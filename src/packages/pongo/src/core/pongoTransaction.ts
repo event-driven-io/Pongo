@@ -1,5 +1,6 @@
 import type { DatabaseTransaction } from '@event-driven-io/dumbo';
 import { pongoTransactionCache } from './cache';
+import { PongoError } from './errors';
 import type {
   PongoDb,
   PongoDbTransaction,
@@ -55,7 +56,7 @@ export const pongoTransaction = (
     cache,
     enlistDatabase: async (db: PongoDb): Promise<DatabaseTransaction> => {
       if (transaction && databaseName !== db.databaseName)
-        throw new Error(
+        throw new PongoError(
           "There's already other database assigned to transaction",
         );
 
@@ -69,7 +70,7 @@ export const pongoTransaction = (
     },
     commit: async () => {
       if (isCommitted) return;
-      if (isRolledBack) throw new Error('Transaction is not active!');
+      if (isRolledBack) throw new PongoError('Transaction is not active!');
 
       isCommitted = true;
 
@@ -80,7 +81,8 @@ export const pongoTransaction = (
       await cache.commit();
     },
     rollback: async (error?: unknown) => {
-      if (isCommitted) throw new Error('Cannot rollback commited transaction!');
+      if (isCommitted)
+        throw new PongoError('Cannot rollback commited transaction!');
       if (isRolledBack) return;
 
       isRolledBack = true;
@@ -99,7 +101,7 @@ export const pongoTransaction = (
     },
     get sqlExecutor() {
       if (transaction === null)
-        throw new Error('No database transaction was started');
+        throw new PongoError('No database transaction was started');
 
       return transaction.execute;
     },

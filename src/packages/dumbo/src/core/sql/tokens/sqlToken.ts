@@ -1,7 +1,10 @@
+import { DataError } from '../../errors';
+
 export type SQLToken<
   TSymbol extends string = string,
   TProps extends Omit<Record<string, unknown>, 'sqlTokenType'> | undefined =
-    Omit<Record<string, unknown>, 'sqlTokenType'> | undefined,
+    | Omit<Record<string, unknown>, 'sqlTokenType'>
+    | undefined,
 > = {
   sqlTokenType: TSymbol;
 } & (TProps extends undefined ? void : Omit<TProps, 'sqlTokenType'>);
@@ -37,7 +40,7 @@ export const SQLToken = <
       // If input is already an object (but not array), spread it
       props = input as Omit<SQLTokenType, 'sqlTokenType'>;
     } else {
-      throw new Error(
+      throw new DataError(
         // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
         `Cannot create SQLToken of type ${sqlTokenType} with input: ${input}`,
       );

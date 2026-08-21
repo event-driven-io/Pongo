@@ -1,5 +1,6 @@
 import assert from 'assert';
 import { beforeEach, describe, it } from 'vitest';
+import { assertRejectsDumboError } from '../errors/errorAssertions';
 import { Clock } from './clock';
 import { taskProcessor, type TaskProcessor, type Task } from './taskProcessor';
 
@@ -546,6 +547,12 @@ describe('TaskProcessor', () => {
       queuedTask,
       /Task was not started within the maximum waiting time/,
     );
+
+    await assertRejectsDumboError(() => queuedTask, {
+      errorType: 'QueryCanceledError',
+      errorCode: 503,
+      message: 'Task was not started within the maximum waiting time',
+    });
 
     releaseActiveTask();
     await activeTask;

@@ -1,5 +1,6 @@
 import { type Dumbo, JSONSerializer } from '../..';
 import { type DatabaseType, fromDatabaseDriverType } from '../../drivers';
+import { InvalidOperationError, NotRegisteredError } from '../../errors';
 import type { SQLExecutor } from '../../execute';
 import {
   type DatabaseLock,
@@ -35,7 +36,7 @@ export const getDefaultMigratorOptionsFromRegistry = (
   databaseType: DatabaseType,
 ): MigratorOptions => {
   if (!defaultMigratorOptions[databaseType]) {
-    throw new Error(
+    throw new NotRegisteredError(
       `No default migrator options registered for database type: ${databaseType}`,
     );
   }
@@ -93,7 +94,7 @@ const applySQLMigrations = async (
 ): Promise<RunSQLMigrationsResult> => {
   for (const migration of migrations) {
     if (migration.name.length > maxMigrationNameLength)
-      throw new Error(
+      throw new InvalidOperationError(
         `Migration name "${migration.name}" is ${migration.name.length} characters long, exceeding the maximum of ${maxMigrationNameLength} characters.`,
       );
   }
@@ -230,7 +231,7 @@ const runSQLMigration = async (
         migration.ignoreHashMismatch !== true &&
         options?.ignoreMigrationHashMismatch !== true
       )
-        throw new Error(
+        throw new InvalidOperationError(
           `Migration hash mismatch for "${migration.name}". Aborting migration.`,
         );
 

@@ -9,6 +9,7 @@ import type {
   PongoDatabaseFactoryOptions,
   PongoDriver,
 } from '../drivers';
+import { PongoError } from '../errors';
 import type { PongoClientSchema, PongoDbSchema } from '../schema';
 import type { PongoDb } from '../typing';
 
@@ -93,7 +94,7 @@ export const PongoDatabaseCache = <
 
       if (!metadata.capabilities.supportsMultipleDatabases) {
         if (fixedDatabaseName !== undefined && fixedDatabaseName !== dbName) {
-          throw new Error(
+          throw new PongoError(
             `The ${metadata.databaseType} driver is already bound to database ${fixedDatabaseName} and cannot switch to ${dbName}`,
           );
         }
@@ -104,7 +105,7 @@ export const PongoDatabaseCache = <
       const existing = dbClients.get(dbName);
       if (existing !== undefined) {
         if (createOptions.hasExplicitDatabaseOptions === true) {
-          throw new Error(
+          throw new PongoError(
             `Database "${dbName}" is already set up. Call db("${dbName}") without options to reuse it`,
           );
         }

@@ -1,3 +1,4 @@
+import { InvalidOperationError } from '../../../core';
 import type { DatabaseDriverTypeParts, DatabaseType } from '../../../core';
 
 export type DatabaseConnectionString<
@@ -39,7 +40,7 @@ export const parseConnectionString = (
     };
   }
 
-  throw new Error(
+  throw new InvalidOperationError(
     `Unsupported database connection string: ${connectionString}`,
   );
 };

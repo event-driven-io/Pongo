@@ -60,17 +60,18 @@ import type {
   WriteConcern,
 } from 'mongodb';
 import type { Key } from 'readline';
-import type {
-  CollectionOperationOptions,
-  DocumentHandler,
-  HandleOptions,
-  PongoCollection,
-  PongoFilter,
-  FindOptions as PongoFindOptions,
-  PongoHandleResult,
-  OptionalUnlessRequiredId as PongoOptionalUnlessRequiredId,
-  PongoSession,
-  PongoUpdate,
+import {
+  NotImplementedError,
+  type CollectionOperationOptions,
+  type DocumentHandler,
+  type HandleOptions,
+  type PongoCollection,
+  type PongoFilter,
+  type FindOptions as PongoFindOptions,
+  type PongoHandleResult,
+  type OptionalUnlessRequiredId as PongoOptionalUnlessRequiredId,
+  type PongoSession,
+  type PongoUpdate,
 } from '../core';
 import type { Db as ShimDb } from '../shim';
 import { FindCursor } from './findCursor';
@@ -151,7 +152,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     return undefined;
   }
   set hint(v: Hint | undefined) {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
   async insertOne(
     doc: OptionalUnlessRequiredId<T>,
@@ -184,7 +185,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     _operations: AnyBulkWriteOperation<T>[],
     _options?: BulkWriteOptions,
   ): Promise<BulkWriteResult> {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
   async updateOne(
     filter: Filter<T>,
@@ -321,40 +322,40 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     ) as unknown as MongoFindCursor<T>;
   }
   options(_options?: OperationOptions): Promise<Document> {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
   isCapped(_options?: OperationOptions): Promise<boolean> {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
   createIndex(
     _indexSpec: IndexSpecification,
     _options?: CreateIndexesOptions,
   ): Promise<string> {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
   createIndexes(
     _indexSpecs: IndexDescription[],
     _options?: CreateIndexesOptions,
   ): Promise<string[]> {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
   dropIndex(
     _indexName: string,
     _options?: CommandOperationOptions,
   ): Promise<Document> {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
   dropIndexes(_options?: CommandOperationOptions): Promise<boolean> {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
   listIndexes(_options?: AbstractCursorOptions): ListIndexesCursor {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
   indexExists(
     _indexes: string | string[],
     _options?: AbstractCursorOptions,
   ): Promise<boolean> {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
   indexInformation(
     options: IndexInformationOptions & { full: true },
@@ -372,7 +373,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     | Promise<IndexDescriptionInfo[]>
     | Promise<IndexDescriptionCompact>
     | Promise<IndexDescriptionCompact | IndexDescriptionInfo[]> {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
   estimatedDocumentCount(
     options?: EstimatedDocumentCountOptions,
@@ -416,10 +417,9 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     _key: unknown,
     _filter?: unknown,
     _options?: unknown,
-  ):
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/consistent-type-imports
+  ): // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/consistent-type-imports
     Promise<any[]> | Promise<import('mongodb').Flatten<WithId<T>[Key]>[]> {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
   indexes(
     options: IndexInformationOptions & { full?: true | undefined },
@@ -437,7 +437,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     | Promise<IndexDescriptionInfo[]>
     | Promise<IndexDescriptionCompact>
     | Promise<IndexDescriptionCompact | IndexDescriptionInfo[]> {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
   findOneAndDelete(
     filter: Filter<T>,
@@ -525,7 +525,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     _pipeline?: Document[],
     _options?: AggregateOptions,
   ): AggregationCursor<T> {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
   watch<
     TLocal extends Document = T,
@@ -534,15 +534,15 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     _pipeline?: Document[],
     _options?: ChangeStreamOptions,
   ): ChangeStream<TLocal, TChange> {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
   initializeUnorderedBulkOp(
     _options?: BulkWriteOptions,
   ): UnorderedBulkOperation {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
   initializeOrderedBulkOp(_options?: BulkWriteOptions): OrderedBulkOperation {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
   count(filter?: Filter<T>, options?: CountOptions): Promise<number> {
     return this.collection.countDocuments(
@@ -561,21 +561,21 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     _name?: unknown,
     _options?: unknown,
   ): ListSearchIndexesCursor {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
   createSearchIndex(_description: SearchIndexDescription): Promise<string> {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
   createSearchIndexes(
     _descriptions: SearchIndexDescription[],
   ): Promise<string[]> {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
   dropSearchIndex(_name: string): Promise<void> {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
   updateSearchIndex(_name: string, _definition: Document): Promise<void> {
-    throw new Error('Method not implemented.');
+    throw new NotImplementedError();
   }
 
   async createCollection(): Promise<void> {

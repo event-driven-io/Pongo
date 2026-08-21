@@ -24,6 +24,7 @@ import {
   idFromFilter,
   NO_CONCURRENCY_CHECK,
   operationResult,
+  PongoError,
   type CollectionOperationOptions,
   type DeleteManyOptions,
   type DeleteOneOptions,
@@ -810,7 +811,7 @@ export const pongoCollection = <
         const allVersioned = versioned.every((v) => v);
 
         if (hasVersions && !allVersioned)
-          throw new Error(
+          throw new PongoError(
             'replaceMany with upsert cannot mix documents with and without _version in a single batch',
           );
 

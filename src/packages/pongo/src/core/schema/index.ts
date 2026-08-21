@@ -35,6 +35,7 @@ import {
   type PongoDb,
   type PongoDocument,
 } from '../typing';
+import { PongoError } from '../errors';
 
 export const pongoCollectionComponentType: unique symbol = Symbol(
   'pongo.collectionComponent',
@@ -195,11 +196,9 @@ export type CollectionsMap<
   Tables extends DatabaseTables,
   Excluded extends PropertyKey = never,
 > = {
-  [
-    Key in keyof Tables as Tables[Key] extends PongoCollectionComponent
-      ? Exclude<Key, Excluded>
-      : never
-  ]: Tables[Key] extends PongoCollectionComponent
+  [Key in keyof Tables as Tables[Key] extends PongoCollectionComponent
+    ? Exclude<Key, Excluded>
+    : never]: Tables[Key] extends PongoCollectionComponent
     ? PongoCollection<DocumentOf<Tables[Key]>>
     : never;
 };
@@ -213,13 +212,11 @@ type HasPongoCollections<Tables extends DatabaseTables> = [
 export type PongoSchemaCollectionsMap<
   Schemas extends AnyDatabaseComponent['schemas'],
 > = {
-  [
-    Key in keyof Schemas as HasPongoCollections<
-      Schemas[Key]['tables']
-    > extends true
-      ? Exclude<Key, keyof PongoDb>
-      : never
-  ]: CollectionsMap<Schemas[Key]['tables']>;
+  [Key in keyof Schemas as HasPongoCollections<
+    Schemas[Key]['tables']
+  > extends true
+    ? Exclude<Key, keyof PongoDb>
+    : never]: CollectionsMap<Schemas[Key]['tables']>;
 };
 
 export type PongoDbWithSchema<
@@ -379,13 +376,13 @@ function pongoDatabase(
       : (definitionOrExtensions as DatabaseExtensions | undefined);
 
   if (definition === undefined) {
-    throw new Error('You need to provide a database declaration');
+    throw new PongoError('You need to provide a database declaration');
   }
 
   const hasCollections = definition.collections !== undefined;
   const hasSchemas = definition.schemas !== undefined;
   if (hasCollections === hasSchemas) {
-    throw new Error(
+    throw new PongoError(
       'A Pongo database declaration must contain exactly one of collections or schemas',
     );
   }

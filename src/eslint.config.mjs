@@ -192,11 +192,29 @@ export default [
     },
   },
   {
+    files: ['packages/dumbo/src/**/*.ts'],
+    ignores: ['packages/**/*.spec.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "ThrowStatement > NewExpression[callee.name='Error']",
+          message: 'Throw a DumboError or PongoError subclass, not a raw Error.',
+        },
+        {
+          selector: "ThrowStatement > CallExpression[callee.name='Error']",
+          message: 'Throw a DumboError or PongoError subclass, not a raw Error.',
+        },
+      ],
+    },
+  },
+  {
     files: ['packages/pongo/src/**/*.ts'],
     ignores: [
       'packages/pongo/src/cli.ts',
       'packages/pongo/src/bin.ts',
       'packages/pongo/src/commandLine/**/*.ts',
+      'packages/**/*.spec.ts',
     ],
     rules: {
       'no-restricted-syntax': [
@@ -206,6 +224,35 @@ export default [
             ':matches(ImportDeclaration, ExportNamedDeclaration, ExportAllDeclaration, ImportExpression)[source.value=/(^|\\/)(cli|bin|commandLine)(\\/|$)/]',
           message:
             'Pongo library code cannot import CLI implementation. Keep CLI code behind the CLI entry point.',
+        },
+        {
+          selector: "ThrowStatement > NewExpression[callee.name='Error']",
+          message: 'Throw a DumboError or PongoError subclass, not a raw Error.',
+        },
+        {
+          selector: "ThrowStatement > CallExpression[callee.name='Error']",
+          message: 'Throw a DumboError or PongoError subclass, not a raw Error.',
+        },
+      ],
+    },
+  },
+  {
+    files: [
+      'packages/pongo/src/cli.ts',
+      'packages/pongo/src/bin.ts',
+      'packages/pongo/src/commandLine/**/*.ts',
+    ],
+    ignores: ['packages/**/*.spec.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "ThrowStatement > NewExpression[callee.name='Error']",
+          message: 'Throw a DumboError or PongoError subclass, not a raw Error.',
+        },
+        {
+          selector: "ThrowStatement > CallExpression[callee.name='Error']",
+          message: 'Throw a DumboError or PongoError subclass, not a raw Error.',
         },
       ],
     },

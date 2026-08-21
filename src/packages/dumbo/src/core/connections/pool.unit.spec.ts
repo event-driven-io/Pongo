@@ -1,5 +1,9 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
+import {
+  assertRejectsDumboError,
+  assertThrowsDumboError,
+} from '../errors/errorAssertions';
 import { Abort } from '../taskProcessing';
 import type { AnyConnection } from './connection';
 import type { DatabaseTransactionOptions } from './transaction';
@@ -616,5 +620,42 @@ describe('createSingletonConnectionPool', () => {
 
     assert.strictEqual(peak, 5);
     await pool.close();
+  });
+});
+
+describe('closed connection pools', () => {
+  it('reports using a closed singleton pool as an InvalidOperationError', async () => {
+    const pool = createSingletonConnectionPool<AnyConnection>({
+      driverType: fakeDriverType,
+      getConnection: () => makeFakeConnection(1),
+    });
+    await pool.close();
+
+    await assertRejectsDumboError(() => pool.connection(), {
+      errorType: 'InvalidOperationError',
+      errorCode: 400,
+      message: 'Singleton connection pool has been closed',
+    });
+
+    assertThrowsDumboError(() => pool.transaction(), {
+      errorType: 'InvalidOperationError',
+      errorCode: 400,
+      message: 'Singleton connection pool has been closed',
+    });
+  });
+
+  it('reports using a closed bounded pool as an InvalidOperationError', async () => {
+    const pool = createBoundedConnectionPool<AnyConnection>({
+      driverType: fakeDriverType,
+      getConnection: () => makeFakeConnection(1),
+      maxConnections: 1,
+    });
+    await pool.close();
+
+    await assertRejectsDumboError(() => pool.connection(), {
+      errorType: 'InvalidOperationError',
+      errorCode: 400,
+      message: 'Bounded connection pool has been closed',
+    });
   });
 });

@@ -1,5 +1,7 @@
 import type { SQLIn } from '../../../../../core';
 import {
+  DataError,
+  NotRegisteredError,
   SQLArray,
   SQLProcessor,
   type SQLProcessorContext,
@@ -12,7 +14,7 @@ export const PostgreSQLArrayProcessor: SQLProcessor<SQLArray> = SQLProcessor({
     { builder, mapper, serializer }: SQLProcessorContext,
   ) => {
     if (token.value.length === 0) {
-      throw new Error(
+      throw new DataError(
         "Empty arrays are not supported. If you're using it with SELECT IN statement Use SQL.in(column, array) helper instead.",
       );
     }
@@ -44,7 +46,7 @@ export const PostgreSQLExpandSQLInProcessor: SQLProcessor<SQLIn> = SQLProcessor(
       const arrayProcessor = processorsRegistry.get(SQLArray.type);
 
       if (!arrayProcessor) {
-        throw new Error(
+        throw new NotRegisteredError(
           'No sql processor registered for an array. Cannot expand IN statement',
         );
       }

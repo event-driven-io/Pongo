@@ -8,6 +8,7 @@ import {
   pongoSchema,
   type PongoCollectionComponent,
 } from '../schema';
+import { PongoError } from '../errors';
 import type {
   AnyPongoDb,
   PongoCollection,
@@ -71,7 +72,7 @@ export const PongoDatabaseComponent = ({
 
     if (declared !== undefined) {
       if (!isPongoCollectionComponent(declared)) {
-        throw new Error(
+        throw new PongoError(
           `Table "${collectionName}" in ${databaseSchemaLabel(databaseSchemaName)} is not a Pongo collection`,
         );
       }
@@ -81,7 +82,7 @@ export const PongoDatabaseComponent = ({
     const aliased =
       component.findSchema(databaseSchemaName)?.tables[collectionName];
     if (aliased !== undefined) {
-      throw new Error(
+      throw new PongoError(
         `Cannot add collection "${collectionName}" to ${databaseSchemaLabel(databaseSchemaName)} because that alias already refers to table "${aliased.tableName}"`,
       );
     }
@@ -134,7 +135,8 @@ export const PongoDatabaseComponent = ({
       options?.errors !== undefined ||
       options?.schema !== undefined;
     const existing = schemaCollections.get(collectionName) as
-      PongoCollection<Document> | undefined;
+      | PongoCollection<Document>
+      | undefined;
 
     if (existing !== undefined && existing.collectionName !== collectionName) {
       schemaCollections.delete(collectionName);

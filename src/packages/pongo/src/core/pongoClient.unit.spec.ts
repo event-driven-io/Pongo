@@ -1,7 +1,8 @@
 import assert from 'node:assert';
-import type {
-  AnyDumboDatabaseDriver,
-  DatabaseDriverType,
+import {
+  DumboError,
+  type AnyDumboDatabaseDriver,
+  type DatabaseDriverType,
 } from '@event-driven-io/dumbo';
 import { describe, expectTypeOf, it } from 'vitest';
 import type {
@@ -15,6 +16,19 @@ import type { PongoCollection, PongoDb, PongoDocument } from './typing';
 
 type TestDriverType = DatabaseDriverType<'Test'>;
 const TestDriverType: TestDriverType = 'Test:fake';
+
+const assertThrowsPongoError = (
+  operation: () => unknown,
+  message: string,
+): void => {
+  assert.throws(operation, (error: unknown) => {
+    assert.ok(DumboError.isInstanceOf(error));
+    assert.strictEqual(error.errorType, 'PongoError');
+    assert.strictEqual(error.errorCode, 500);
+    assert.strictEqual(error.message, message);
+    return true;
+  });
+};
 
 const testPongoDb = (options: {
   databaseName: string;
@@ -423,9 +437,9 @@ describe('pongoClient', () => {
 
     client.db('same-db', { defaultSchemaName: 'crm' });
 
-    assert.throws(
+    assertThrowsPongoError(
       () => client.db('same-db', {}),
-      /Database "same-db" is already set up.*without options/,
+      'Database "same-db" is already set up. Call db("same-db") without options to reuse it',
     );
   });
 
@@ -437,9 +451,9 @@ describe('pongoClient', () => {
 
     client.db('first-db');
 
-    assert.throws(
+    assertThrowsPongoError(
       () => client.db('second-db'),
-      /already bound to database first-db and cannot switch to second-db/,
+      'The Test driver is already bound to database first-db and cannot switch to second-db',
     );
   });
 

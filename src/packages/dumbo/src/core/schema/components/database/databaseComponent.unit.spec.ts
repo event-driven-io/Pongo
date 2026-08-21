@@ -123,7 +123,12 @@ describe('placing tables and schemas in a database', () => {
             crm: databaseSchemaComponent({ schemaName: 'crm' }),
           },
         }),
-      /A database declaration can contain either tables or schemas, not both/,
+      {
+        errorType: 'InvalidOperationError',
+        errorCode: 400,
+        message:
+          /A database declaration can contain either tables or schemas, not both/,
+      },
     );
   });
 
@@ -273,7 +278,12 @@ describe('placing tables and schemas in a database', () => {
           tables: { users: table('users') },
           extensions: { eventStore },
         }),
-      /Table "users" is declared more than once in database schema "the default schema"/,
+      {
+        errorType: 'InvalidOperationError',
+        errorCode: 400,
+        message:
+          /Table "users" is declared more than once in database schema "the default schema"/,
+      },
     );
   });
 });
@@ -579,7 +589,11 @@ describe('database.withTable(tables, schemaName)', () => {
             }),
           },
         }),
-      /empty/i,
+      {
+        errorType: 'InvalidOperationError',
+        errorCode: 400,
+        message: /empty/i,
+      },
     );
   });
 

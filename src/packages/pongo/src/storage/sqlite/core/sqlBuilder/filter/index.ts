@@ -2,6 +2,7 @@ import type { JSONSerializer } from '@event-driven-io/dumbo';
 import { SQL } from '@event-driven-io/dumbo';
 import {
   hasOperators,
+  NotImplementedError,
   objectEntries,
   QueryOperators,
   type PongoFilter,
@@ -140,7 +141,7 @@ const wrapFilterQuery = (filterQuery: SQL): SQL => SQL`(${filterQuery})`;
 const ensureSupportedRootOperators = (filter: object): void => {
   for (const operator of unsupportedRootOperators) {
     if (operator in filter) {
-      throw new Error(`Unsupported root operator: ${operator}`);
+      throw new NotImplementedError(`Unsupported root operator: ${operator}`);
     }
   }
 };

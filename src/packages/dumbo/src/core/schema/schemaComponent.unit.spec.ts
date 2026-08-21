@@ -80,7 +80,11 @@ describe('collapsing repeated migrations', () => {
           sqlMigration('duplicate:001', [SQL`SELECT 1`]),
           sqlMigration('duplicate:001', [SQL`SELECT 2`]),
         ]),
-      /Duplicate migration name "duplicate:001"/,
+      {
+        errorType: 'InvalidOperationError',
+        errorCode: 400,
+        message: /Duplicate migration name "duplicate:001"/,
+      },
     );
   });
 
@@ -694,7 +698,11 @@ describe('grouping components in extensions', () => {
           schemaName: 'public',
           extensions: { audit },
         }),
-      /Extension "audit".*schema "audit".*schema "public"/,
+      {
+        errorType: 'InvalidOperationError',
+        errorCode: 400,
+        message: /Extension "audit".*schema "audit".*schema "public"/,
+      },
     );
     assert.throws(
       () =>
@@ -702,7 +710,11 @@ describe('grouping components in extensions', () => {
           schemaName: 'public',
           extensions: { publicAudit },
         }),
-      /Extension "public-audit".*schema "public".*schema "public"/,
+      {
+        errorType: 'InvalidOperationError',
+        errorCode: 400,
+        message: /Extension "public-audit".*schema "public".*schema "public"/,
+      },
     );
   });
 

@@ -1,3 +1,4 @@
+import { InvalidOperationError } from '../../../../core';
 import type { DatabaseConnectionString } from '../../../all';
 
 export const defaultPostgreSQLConnectionString: PostgreSQLConnectionString =
@@ -15,7 +16,7 @@ export const PostgreSQLConnectionString = (
     !connectionString.startsWith('postgresql://') &&
     !connectionString.startsWith('postgres://')
   ) {
-    throw new Error(
+    throw new InvalidOperationError(
       `Invalid PostgreSQL connection string: ${connectionString}. It should start with "postgresql://".`,
     );
   }

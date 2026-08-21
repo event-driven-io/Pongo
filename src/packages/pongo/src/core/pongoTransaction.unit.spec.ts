@@ -1,46 +1,65 @@
+import { DumboError } from '@event-driven-io/dumbo';
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
-import { withPongoTransactionOptions } from './pongoTransaction';
+import { pongoTransaction } from './pongoTransaction';
 
-describe('withPongoTransactionOptions', () => {
-  it('enables nested transactions by default', () => {
-    const options = withPongoTransactionOptions();
+const assertPongoError = (error: unknown, message: string): void => {
+  assert.ok(DumboError.isInstanceOf(error));
+  assert.strictEqual(error.errorType, 'PongoError');
+  assert.strictEqual(error.errorCode, 500);
+  assert.strictEqual(error.message, message);
+};
 
-    assert.deepStrictEqual(options.transactionOptions, {
-      allowNestedTransactions: true,
+describe('pongoTransaction', () => {
+  it('rejects committing after rollback', async () => {
+    const transaction = pongoTransaction({
+      get snapshotEnabled() {
+        return false;
+      },
     });
+
+    await transaction.rollback();
+
+    await assert.rejects(
+      () => transaction.commit(),
+      (error: unknown) => {
+        assertPongoError(error, 'Transaction is not active!');
+        return true;
+      },
+    );
   });
 
-  it('preserves existing transaction options, including savepoints', () => {
-    const options = withPongoTransactionOptions({
-      pooled: true,
-      transactionOptions: {
-        useSavepoints: true,
-        isolationLevel: 'SERIALIZABLE',
+  it('rejects rolling back after commit', async () => {
+    const transaction = pongoTransaction({
+      get snapshotEnabled() {
+        return false;
       },
     });
 
-    assert.deepStrictEqual(options, {
-      pooled: true,
-      transactionOptions: {
-        allowNestedTransactions: true,
-        useSavepoints: true,
-        isolationLevel: 'SERIALIZABLE',
+    await transaction.commit();
+
+    await assert.rejects(
+      () => transaction.rollback(),
+      (error: unknown) => {
+        assertPongoError(error, 'Cannot rollback commited transaction!');
+        return true;
       },
-    });
+    );
   });
 
-  it('respects explicitly disabled nested transactions', () => {
-    const options = withPongoTransactionOptions({
-      transactionOptions: {
-        allowNestedTransactions: false,
-        useSavepoints: true,
+  it('rejects using a SQL executor before a database transaction starts', () => {
+    const transaction = pongoTransaction({
+      get snapshotEnabled() {
+        return false;
       },
     });
 
-    assert.deepStrictEqual(options.transactionOptions, {
-      allowNestedTransactions: false,
-      useSavepoints: true,
-    });
+    assert.throws(
+      () => transaction.sqlExecutor,
+      (error: unknown) => {
+        assertPongoError(error, 'No database transaction was started');
+        return true;
+      },
+    );
   });
 });

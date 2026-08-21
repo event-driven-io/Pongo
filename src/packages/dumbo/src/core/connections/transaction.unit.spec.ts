@@ -2,6 +2,10 @@ import assert from 'node:assert';
 import { describe, it } from 'vitest';
 import type { AnyConnection } from './connection';
 import { InvalidOperationError } from '../errors';
+import {
+  assertRejectsDumboError,
+  assertThrowsDumboError,
+} from '../errors/errorAssertions';
 import { Abort, type AbortContext } from '../taskProcessing';
 import {
   type AnyDatabaseTransaction,
@@ -94,6 +98,16 @@ describe('transactionNestingCounter', () => {
   it('throws when decremented below zero', () => {
     const counter = transactionNestingCounter();
     assert.throws(() => counter.decrement(), /out of bounds/i);
+  });
+
+  it('throws an InvalidOperationError when decremented below zero', () => {
+    const counter = transactionNestingCounter();
+
+    assertThrowsDumboError(() => counter.decrement(), {
+      errorType: 'InvalidOperationError',
+      errorCode: 400,
+      message: 'Transaction level is out of bounds',
+    });
   });
 });
 
@@ -412,5 +426,33 @@ describe('executeInNestedTransaction', () => {
         ),
       /transaction aborted/,
     );
+  });
+});
+
+describe('transactionFactoryWithAsyncAmbientConnection', () => {
+  const factory = () =>
+    transactionFactoryWithAsyncAmbientConnection<AnyConnection>(
+      fakeDriverType,
+      () => Promise.resolve(makeConnection()),
+    );
+
+  it('reports reading the connection before begin() as an InvalidOperationError', () => {
+    const tx = factory().transaction();
+
+    assertThrowsDumboError(() => tx.connection, {
+      errorType: 'InvalidOperationError',
+      errorCode: 400,
+      message: 'Transaction not started - call begin() first',
+    });
+  });
+
+  it('reports committing before begin() as an InvalidOperationError', async () => {
+    const tx = factory().transaction();
+
+    await assertRejectsDumboError(() => tx.commit(), {
+      errorType: 'InvalidOperationError',
+      errorCode: 400,
+      message: 'Transaction not started',
+    });
   });
 });

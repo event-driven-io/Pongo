@@ -155,7 +155,8 @@ export type TableComponentOptions<
   relationships?: Relationships | undefined;
   indexes?: Indexes | undefined;
   migrations?:
-    ((fullName: SQLTableReference) => ReadonlyArray<SQLMigration>) | undefined;
+    | ((fullName: SQLTableReference) => ReadonlyArray<SQLMigration>)
+    | undefined;
   renamedFrom?: SQLTableReference | undefined;
 }>;
 

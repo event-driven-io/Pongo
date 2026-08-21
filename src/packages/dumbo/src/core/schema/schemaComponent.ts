@@ -1,3 +1,4 @@
+import { InvalidOperationError } from '../errors';
 import { haveSameSQL, type SQLMigration } from './sqlMigration';
 
 export const schemaComponentType: unique symbol = Symbol(
@@ -54,7 +55,7 @@ export const dedupeMigrations = (
       migrationsByName.set(migration.name, migration);
       result.push(migration);
     } else if (!haveSameSQL(previous, migration)) {
-      throw new Error(
+      throw new InvalidOperationError(
         `Duplicate migration name "${migration.name}" in schema component tree`,
       );
     }

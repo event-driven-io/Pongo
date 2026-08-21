@@ -2,6 +2,7 @@ import sqlite3 from 'sqlite3';
 import type { JSONSerializer } from '../../../../core';
 import {
   BatchCommandNoChangesError,
+  DumboError,
   SQL,
   type Connection,
   type QueryResult,
@@ -47,6 +48,13 @@ export type ConnectionCheckResult =
     };
 
 const hasReturningClause = (sql: string): boolean => /\bRETURNING\b/i.test(sql);
+
+// Real Error instances pass through untouched: `isSQLiteError` and
+// `checkConnection` duck-type on the driver's `code` property, which a
+// DumboError does not carry forward. A non-Error value never had a `code`,
+// so wrapping it loses nothing.
+const asRejectionError = (error: unknown): Error =>
+  error instanceof Error ? error : new DumboError(String(error));
 
 export type SQLite3ClientOptions = SQLiteClientOptions &
   SQLiteFileNameOrConnectionString;
@@ -169,7 +177,7 @@ export const sqlite3Client = (
 
             // Apply connection-level pragmas first (busy_timeout is first)
           } catch (error) {
-            reject(error instanceof Error ? error : new Error(String(error)));
+            reject(asRejectionError(error));
           }
         });
 
@@ -188,7 +196,7 @@ export const sqlite3Client = (
           resolve(result);
         });
       } catch (error) {
-        reject(error instanceof Error ? error : new Error(String(error)));
+        reject(asRejectionError(error));
       }
     });
 
@@ -261,7 +269,7 @@ export const sqlite3Client = (
           );
         });
       } catch (error) {
-        reject(error instanceof Error ? error : new Error(String(error)));
+        reject(asRejectionError(error));
       }
     });
 

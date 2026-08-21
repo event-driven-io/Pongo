@@ -25,7 +25,9 @@ export type PgAmbientClientPool = ConnectionPool<PgClientConnection>;
 export type PgAmbientConnectionPool = ConnectionPool<PgConnection>;
 
 export type PgPool =
-  PgNativePool | PgAmbientClientPool | PgAmbientConnectionPool;
+  | PgNativePool
+  | PgAmbientClientPool
+  | PgAmbientConnectionPool;
 
 export const pgNativePool = (options: {
   connectionString: string;
