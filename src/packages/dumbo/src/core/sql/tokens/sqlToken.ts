@@ -3,8 +3,7 @@ import { DataError } from '../../errors';
 export type SQLToken<
   TSymbol extends string = string,
   TProps extends Omit<Record<string, unknown>, 'sqlTokenType'> | undefined =
-    | Omit<Record<string, unknown>, 'sqlTokenType'>
-    | undefined,
+    Omit<Record<string, unknown>, 'sqlTokenType'> | undefined,
 > = {
   sqlTokenType: TSymbol;
 } & (TProps extends undefined ? void : Omit<TProps, 'sqlTokenType'>);

@@ -20,10 +20,7 @@ export type PgTransaction = DatabaseTransaction<
 >;
 
 export type PgIsolationLevel =
-  | 'READ UNCOMMITTED'
-  | 'READ COMMITTED'
-  | 'REPEATABLE READ'
-  | 'SERIALIZABLE';
+  'READ UNCOMMITTED' | 'READ COMMITTED' | 'REPEATABLE READ' | 'SERIALIZABLE';
 
 export type PgTransactionOptions = DatabaseTransactionOptions & {
   isolationLevel?: PgIsolationLevel;

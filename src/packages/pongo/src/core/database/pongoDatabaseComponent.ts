@@ -135,8 +135,7 @@ export const PongoDatabaseComponent = ({
       options?.errors !== undefined ||
       options?.schema !== undefined;
     const existing = schemaCollections.get(collectionName) as
-      | PongoCollection<Document>
-      | undefined;
+      PongoCollection<Document> | undefined;
 
     if (existing !== undefined && existing.collectionName !== collectionName) {
       schemaCollections.delete(collectionName);

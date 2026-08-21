@@ -48,8 +48,7 @@ type PgPoolDriverOptions = Omit<
 };
 
 export type PgDatabaseDriverOptions =
-  | PgConnectionStringDriverOptions
-  | PgPoolDriverOptions;
+  PgConnectionStringDriverOptions | PgPoolDriverOptions;
 
 const pgPongoDriver: PongoDriver<
   PongoDb<PgDriverType>,

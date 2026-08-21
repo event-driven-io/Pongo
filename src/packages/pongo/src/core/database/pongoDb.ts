@@ -107,11 +107,9 @@ export const PongoDatabase = <
     transactionOptions?: PongoTransactionOptionsFor<DumboType>,
   ): PongoTransactionOptionsFor<DumboType> => {
     const nestedTransactionOptions = transactionOptions as
-      | PongoNestedTransactionOptions
-      | undefined;
+      PongoNestedTransactionOptions | undefined;
     const nestedDefaultTransactionOptions = defaultTransactionOptions as
-      | PongoNestedTransactionOptions
-      | undefined;
+      PongoNestedTransactionOptions | undefined;
     const allowNestedTransactions: boolean =
       nestedTransactionOptions?.allowNestedTransactions ??
       nestedDefaultTransactionOptions?.allowNestedTransactions ??
@@ -178,8 +176,7 @@ export const PongoDatabase = <
       pool.transaction(
         pongoTransactionOptions(
           transactionOptions as
-            | PongoTransactionOptionsFor<DumboType>
-            | undefined,
+            PongoTransactionOptionsFor<DumboType> | undefined,
         ),
       ),
     withTransaction: (handle, transactionOptions) =>
@@ -187,8 +184,7 @@ export const PongoDatabase = <
         handle,
         pongoTransactionOptions(
           transactionOptions as
-            | PongoTransactionOptionsFor<DumboType>
-            | undefined,
+            PongoTransactionOptionsFor<DumboType> | undefined,
         ),
       ),
 

@@ -464,8 +464,7 @@ describe('sqliteSQLBuilder', () => {
 
     it('keeps custom index SQL hooks on the collection table', () => {
       let resolvedReferences:
-        | { tableReference: string; indexReference: string }
-        | undefined;
+        { tableReference: string; indexReference: string } | undefined;
       const indexes = {
         custom: pongoSchema.index.custom(
           'users_custom_data_idx',

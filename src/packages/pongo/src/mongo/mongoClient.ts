@@ -35,8 +35,7 @@ export class MongoClient<
   );
   constructor(
     connectionStringOrOptions:
-      | string
-      | PongoClientOptions<DatabaseDriverType, TypedClientSchema>,
+      string | PongoClientOptions<DatabaseDriverType, TypedClientSchema>,
     options?: Omit<
       PongoClientOptions<DatabaseDriverType, TypedClientSchema>,
       'connectionString'
