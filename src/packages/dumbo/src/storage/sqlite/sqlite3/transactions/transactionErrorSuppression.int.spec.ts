@@ -26,7 +26,7 @@ describe('withTransaction error preservation', () => {
         assert.fail('should have thrown');
       } catch (err) {
         assert.strictEqual(
-          (err instanceof Error ? err.message : String(err)),
+          err instanceof Error ? err.message : String(err),
           'original callback error',
         );
       }
