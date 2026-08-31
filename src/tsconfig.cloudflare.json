@@ -1,0 +1,23 @@
+{
+  "extends": "./tsconfig.shared.json",
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "types": [
+      "node",
+      "@cloudflare/vitest-plugin/types",
+      "./packages/dumbo/worker-configuration.d.ts"
+    ],
+    "noEmit": true
+  },
+  "include": [
+    "packages/dumbo/worker-configuration.d.ts",
+    "packages/dumbo/src/storage/sqlite/durableObject/**/*.int.spec.ts",
+    "packages/dumbo/src/storage/sqlite/durableObject/**/*.e2e.spec.ts",
+    "packages/dumbo/src/storage/sqlite/durableObject/testing/durableObjectSQLiteTestWorker.ts",
+    "packages/pongo/src/storage/sqlite/durableObject/**/*.int.spec.ts",
+    "packages/pongo/src/storage/sqlite/durableObject/**/*.e2e.spec.ts",
+    "packages/pongo/src/e2e/sqlite/durableObject/**/*.int.spec.ts",
+    "packages/pongo/src/e2e/sqlite/durableObject/**/*.e2e.spec.ts"
+  ],
+  "exclude": []
+}

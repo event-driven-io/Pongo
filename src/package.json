@@ -10,9 +10,9 @@
   "scripts": {
     "setup": "cat .nvmrc | nvm install; nvm use",
     "build": "run-s build:ts build:dumbo build:pongo",
-    "build:ts": "tsc -b",
+    "build:ts": "tsc -b tsconfig.json tsconfig.cloudflare.json",
     "build:ts:clean": "tsc --build --clean",
-    "build:ts:watch": "tsc -b --watch",
+    "build:ts:watch": "tsc -b tsconfig.json tsconfig.cloudflare.json --watch",
     "build:dumbo": "npm run build -w packages/dumbo",
     "build:pongo": "npm run build -w packages/pongo",
     "lint": "npm run lint:eslint && npm run lint:prettier",
@@ -28,6 +28,9 @@
     "test:unit:postgresql": "vitest run postgresql \".unit.spec\"",
     "test:unit:sqlite": "vitest run sqlite \".unit.spec\"",
     "test:int": "vitest run \".int.spec\"",
+    "test:int:cloudflare": "vitest run --config vitest.cloudflare.config.ts",
+    "types:cloudflare": "wrangler types packages/dumbo/worker-configuration.d.ts --config packages/dumbo/wrangler.durable-object-sqlite.jsonc",
+    "types:cloudflare:check": "wrangler types packages/dumbo/worker-configuration.d.ts --config packages/dumbo/wrangler.durable-object-sqlite.jsonc --check",
     "test:int:postgresql": "vitest run postgresql \".int.spec\"",
     "test:int:sqlite": "vitest run sqlite \".int.spec\"",
     "test:e2e": "vitest run \".e2e.spec\"",
@@ -78,7 +81,8 @@
     "dist"
   ],
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260421.1",
+    "@cloudflare/vitest-plugin": "1.1.3",
+    "@cloudflare/workers-types": "5.20260831.1",
     "@eslint/js": "^10.0.1",
     "@faker-js/faker": "^10.4.0",
     "@testcontainers/mongodb": "^11.14.0",
@@ -107,7 +111,8 @@
     "typescript": "^6.0.3",
     "uuid": "^14.0.0",
     "vitepress": "^1.6.4",
-    "vitest": "^4.1.4"
+    "vitest": "^4.1.4",
+    "wrangler": "4.128.0"
   },
   "peerDependencies": {
     "ansis": "^4.2.0",
@@ -124,9 +129,6 @@
       "optional": true
     },
     "sqlite3": {
-      "optional": true
-    },
-    "@cloudflare/workers-types": {
       "optional": true
     }
   },

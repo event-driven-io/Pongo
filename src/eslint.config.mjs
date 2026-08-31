@@ -7,6 +7,7 @@ export default [
   {
     ignores: [
       'vitest.config.ts',
+      'vitest.cloudflare.config.ts',
       '**/dist/',
       '**/lib/',
       '**/cache/',
@@ -66,6 +67,22 @@ export default [
 
       '@typescript-eslint/no-misused-promises': ['off'],
       '@typescript-eslint/prefer-namespace-keyword': 'off',
+    },
+  },
+  {
+    files: [
+      'packages/dumbo/src/storage/sqlite/durableObject/**/*.int.spec.ts',
+      'packages/dumbo/src/storage/sqlite/durableObject/**/*.e2e.spec.ts',
+      'packages/dumbo/src/storage/sqlite/durableObject/testing/durableObjectSQLiteTestWorker.ts',
+      'packages/pongo/src/storage/sqlite/durableObject/**/*.int.spec.ts',
+      'packages/pongo/src/storage/sqlite/durableObject/**/*.e2e.spec.ts',
+      'packages/pongo/src/e2e/sqlite/durableObject/**/*.int.spec.ts',
+      'packages/pongo/src/e2e/sqlite/durableObject/**/*.e2e.spec.ts',
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: './tsconfig.cloudflare.json',
+      },
     },
   },
   {

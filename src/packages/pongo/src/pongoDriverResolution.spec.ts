@@ -33,6 +33,18 @@ describe('Pongo Driver Registry', () => {
         "Get shouldn't resolve SQLite:d1 driver before it was resolved",
       );
     });
+
+    it('fails to get Cloudflare Durable Object SQLite', () => {
+      const resolved = pongoDriverRegistry.tryGet(
+        'SQLite:cloudflareDurableObjectSQLite',
+      );
+
+      assert.equal(
+        resolved,
+        null,
+        "Get shouldn't resolve SQLite:cloudflareDurableObjectSQLite driver before it was resolved",
+      );
+    });
   });
 
   describe('Resolves existing drivers', () => {
@@ -53,6 +65,18 @@ describe('Pongo Driver Registry', () => {
 
       assert.ok(resolved, 'Failed to resolve SQLite:d1 driver');
     });
+
+    it('resolves Cloudflare Durable Object SQLite', async () => {
+      const resolved = await pongoDriverRegistry.tryResolve(
+        'SQLite:cloudflareDurableObjectSQLite',
+      );
+
+      assert.ok(
+        resolved,
+        'Failed to resolve SQLite:cloudflareDurableObjectSQLite driver',
+      );
+      assert.equal(resolved.driverType, 'SQLite:cloudflareDurableObjectSQLite');
+    });
   });
 
   describe('Gets existing drivers when they were resolved already', () => {
@@ -72,6 +96,17 @@ describe('Pongo Driver Registry', () => {
       const resolved = pongoDriverRegistry.tryGet('SQLite:d1');
 
       assert.ok(resolved, 'Failed to get SQLite:d1 driver');
+    });
+
+    it('gets Cloudflare Durable Object SQLite', () => {
+      const resolved = pongoDriverRegistry.tryGet(
+        'SQLite:cloudflareDurableObjectSQLite',
+      );
+
+      assert.ok(
+        resolved,
+        'Failed to get SQLite:cloudflareDurableObjectSQLite driver',
+      );
     });
   });
 });
