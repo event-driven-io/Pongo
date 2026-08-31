@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     projects: [
       'packages/dumbo',
+      'vitest.cloudflare.config.ts',
       'packages/pongo',
       {
         test: {

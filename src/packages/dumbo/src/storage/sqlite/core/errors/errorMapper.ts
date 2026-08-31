@@ -15,13 +15,6 @@ import {
   UniqueConstraintError,
 } from '../../../../core/errors';
 
-/**
- * Extracts the SQLite error code string from a `sqlite3` driver error.
- *
- * The `sqlite3` (node-sqlite3) driver sets `error.code` to a string like
- * `'SQLITE_CONSTRAINT'` and `error.errno` to the numeric result code.
- * See: https://github.com/TryGhost/node-sqlite3
- */
 const getSqliteErrorCode = (error: unknown): string | undefined => {
   if (
     error instanceof Error &&
@@ -30,7 +23,9 @@ const getSqliteErrorCode = (error: unknown): string | undefined => {
   ) {
     return (error as Record<string, unknown>).code as string;
   }
-  return undefined;
+  if (!(error instanceof Error)) return undefined;
+
+  return /\bSQLITE_[A-Z]+\b/.exec(error.message)?.[0];
 };
 
 const getErrorMessage = (error: unknown): string | undefined =>
@@ -77,8 +72,9 @@ const mapConstraintError = (
 };
 
 /**
- * Maps a SQLite error (from the `sqlite3` / node-sqlite3 driver) to a typed
- * DumboError based on the SQLite result code.
+ * Maps an SQLite error to a typed DumboError based on its result code.
+ * node-sqlite3 exposes the code as `error.code`; workerd appends it to the
+ * message returned by Durable Object SqlStorage.
  *
  * Result code reference: https://www.sqlite.org/rescode.html
  *

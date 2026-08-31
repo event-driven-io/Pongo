@@ -128,3 +128,4 @@ src/e2e/esmCompatibility/.output
 **/0x
 
 **/*.db
+**/*.db-journal

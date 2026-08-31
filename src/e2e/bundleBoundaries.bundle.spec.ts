@@ -14,7 +14,8 @@ const bundleDefinitions = {
     pg: /^(?:core\/|storage\/postgresql\/|pg\.ts$)/,
     sqlite: /^(?:core\/|storage\/sqlite\/core\/|sqlite\.ts$)/,
     sqlite3: /^(?:core\/|storage\/sqlite\/(?:core|sqlite3)\/|sqlite3\.ts$)/,
-    cloudflare: /^(?:core\/|storage\/sqlite\/(?:core|d1)\/|cloudflare\.ts$)/,
+    cloudflare:
+      /^(?:core\/|storage\/sqlite\/(?:core|d1|durableObject)\/|cloudflare\.ts$)/,
   },
   pongo: {
     index: /^(?:core\/|storage\/|(?:index|pg|sqlite3|cloudflare)\.ts$)/,
@@ -22,7 +23,8 @@ const bundleDefinitions = {
     cli: /^(?:core\/|commandLine\/|cli\.ts$)/,
     pg: /^(?:core\/|storage\/postgresql\/|pg\.ts$)/,
     sqlite3: /^(?:core\/|storage\/sqlite\/(?:core|sqlite3)\/|sqlite3\.ts$)/,
-    cloudflare: /^(?:core\/|storage\/sqlite\/(?:core|d1)\/|cloudflare\.ts$)/,
+    cloudflare:
+      /^(?:core\/|storage\/sqlite\/(?:core|d1|durableObject)\/|cloudflare\.ts$)/,
   },
 } as const;
 
@@ -216,99 +218,113 @@ describe.each(Object.entries(bundleDefinitions))(
 );
 
 describe('pongo package types', () => {
-  it('keeps root and driver subpath declarations type-compatible', () => {
-    const tempDirectory = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'pongo-types-'),
-    );
-    const sourceFile = path.join(tempDirectory, 'consumer.ts');
-    const pongoDist = path
-      .relative(tempDirectory, path.resolve('packages/pongo/dist'))
-      .replaceAll(path.sep, '/');
-    const pongoImport = pongoDist.startsWith('.')
-      ? pongoDist
-      : `./${pongoDist}`;
+  it.each<ModuleFormat>(['cjs', 'js'])(
+    'keeps root and driver subpath %s declarations type-compatible',
+    (format) => {
+      const tempDirectory = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'pongo-types-'),
+      );
+      const sourceFile = path.join(tempDirectory, 'consumer.ts');
+      const pongoDist = path
+        .relative(tempDirectory, path.resolve('packages/pongo/dist'))
+        .replaceAll(path.sep, '/');
+      const pongoImport = pongoDist.startsWith('.')
+        ? pongoDist
+        : `./${pongoDist}`;
 
-    fs.writeFileSync(
-      sourceFile,
-      `
-        import type { AnyPongoDriver } from '${pongoImport}/index.js';
-        import { pongoDriver as pgDriver } from '${pongoImport}/pg.js';
-        import { pongoDriver as sqlite3Driver } from '${pongoImport}/sqlite3.js';
-        import { pongoDriver as d1Driver } from '${pongoImport}/cloudflare.js';
+      fs.writeFileSync(
+        sourceFile,
+        `
+        import type { AnyPongoDriver } from '${pongoImport}/index.${format}';
+        import { pongoDriver as pgDriver } from '${pongoImport}/pg.${format}';
+        import { pongoDriver as sqlite3Driver } from '${pongoImport}/sqlite3.${format}';
+        import {
+          cloudflareDurableObjectSQLiteDriver,
+          pongoDriver as d1Driver,
+        } from '${pongoImport}/cloudflare.${format}';
 
         const drivers: AnyPongoDriver[] = [
           pgDriver,
           sqlite3Driver,
           d1Driver,
+          cloudflareDurableObjectSQLiteDriver,
         ];
 
         void drivers;
       `,
-    );
+      );
 
-    const program = ts.createProgram([sourceFile], {
-      module: ts.ModuleKind.ESNext,
-      moduleResolution: ts.ModuleResolutionKind.Bundler,
-      noEmit: true,
-      skipLibCheck: true,
-      strict: true,
-      target: ts.ScriptTarget.ESNext,
-    });
-    const diagnostics = ts.getPreEmitDiagnostics(program);
+      const program = ts.createProgram([sourceFile], {
+        module: ts.ModuleKind.ESNext,
+        moduleResolution: ts.ModuleResolutionKind.Bundler,
+        noEmit: true,
+        skipLibCheck: true,
+        strict: true,
+        target: ts.ScriptTarget.ESNext,
+      });
+      const diagnostics = ts.getPreEmitDiagnostics(program);
 
-    expect(
-      diagnostics.map((diagnostic) =>
-        ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'),
-      ),
-    ).toEqual([]);
-  });
+      expect(
+        diagnostics.map((diagnostic) =>
+          ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'),
+        ),
+      ).toEqual([]);
+    },
+  );
 });
 
 describe('dumbo package types', () => {
-  it('keeps root and driver subpath declarations type-compatible', () => {
-    const tempDirectory = fs.mkdtempSync(
-      path.join(os.tmpdir(), 'dumbo-types-'),
-    );
-    const sourceFile = path.join(tempDirectory, 'consumer.ts');
-    const dumboDist = path
-      .relative(tempDirectory, path.resolve('packages/dumbo/dist'))
-      .replaceAll(path.sep, '/');
-    const dumboImport = dumboDist.startsWith('.')
-      ? dumboDist
-      : `./${dumboDist}`;
+  it.each<ModuleFormat>(['cjs', 'js'])(
+    'keeps root and driver subpath %s declarations type-compatible',
+    (format) => {
+      const tempDirectory = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'dumbo-types-'),
+      );
+      const sourceFile = path.join(tempDirectory, 'consumer.ts');
+      const dumboDist = path
+        .relative(tempDirectory, path.resolve('packages/dumbo/dist'))
+        .replaceAll(path.sep, '/');
+      const dumboImport = dumboDist.startsWith('.')
+        ? dumboDist
+        : `./${dumboDist}`;
 
-    fs.writeFileSync(
-      sourceFile,
-      `
-        import type { AnyDumboDatabaseDriver } from '${dumboImport}/index.js';
-        import { pgDumboDriver } from '${dumboImport}/pg.js';
-        import { sqlite3DumboDriver } from '${dumboImport}/sqlite3.js';
-        import { d1DumboDriver } from '${dumboImport}/cloudflare.js';
+      fs.writeFileSync(
+        sourceFile,
+        `
+        import type { AnyDumboDatabaseDriver } from '${dumboImport}/index.${format}';
+        import { pgDumboDriver } from '${dumboImport}/pg.${format}';
+        import { sqlite3DumboDriver } from '${dumboImport}/sqlite3.${format}';
+        import {
+          cloudflareDurableObjectSQLiteDumboDriver,
+          d1DumboDriver,
+        } from '${dumboImport}/cloudflare.${format}';
 
         const drivers: AnyDumboDatabaseDriver[] = [
           pgDumboDriver,
           sqlite3DumboDriver,
           d1DumboDriver,
+          cloudflareDurableObjectSQLiteDumboDriver,
         ];
 
         void drivers;
       `,
-    );
+      );
 
-    const program = ts.createProgram([sourceFile], {
-      module: ts.ModuleKind.ESNext,
-      moduleResolution: ts.ModuleResolutionKind.Bundler,
-      noEmit: true,
-      skipLibCheck: true,
-      strict: true,
-      target: ts.ScriptTarget.ESNext,
-    });
-    const diagnostics = ts.getPreEmitDiagnostics(program);
+      const program = ts.createProgram([sourceFile], {
+        module: ts.ModuleKind.ESNext,
+        moduleResolution: ts.ModuleResolutionKind.Bundler,
+        noEmit: true,
+        skipLibCheck: true,
+        strict: true,
+        target: ts.ScriptTarget.ESNext,
+      });
+      const diagnostics = ts.getPreEmitDiagnostics(program);
 
-    expect(
-      diagnostics.map((diagnostic) =>
-        ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'),
-      ),
-    ).toEqual([]);
-  });
+      expect(
+        diagnostics.map((diagnostic) =>
+          ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'),
+        ),
+      ).toEqual([]);
+    },
+  );
 });

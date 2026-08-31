@@ -75,6 +75,17 @@ describe('mapSqliteError', () => {
   });
 
   describe('constraint violations (SQLITE_CONSTRAINT)', () => {
+    it('maps a workerd constraint code embedded in the error message', () => {
+      const result = mapSqliteError(
+        new Error(
+          'UNIQUE constraint failed: users.email: SQLITE_CONSTRAINT (extended: SQLITE_CONSTRAINT_UNIQUE)',
+        ),
+      );
+
+      assert.ok(result instanceof UniqueConstraintError);
+      assert.ok(result.innerError instanceof Error);
+    });
+
     it('maps UNIQUE constraint to UniqueConstraintError', () => {
       const result = mapSqliteError(
         sqliteError(

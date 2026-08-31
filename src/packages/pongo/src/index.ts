@@ -9,26 +9,35 @@ pongoDriverRegistry.register(`SQLite:sqlite3`, () =>
   loadPongoClient('sqlite3'),
 );
 pongoDriverRegistry.register(`SQLite:d1`, () => loadPongoClient('d1'));
+pongoDriverRegistry.register(`SQLite:cloudflareDurableObjectSQLite`, () =>
+  loadPongoClient('cloudflareDurableObjectSQLite'),
+);
 
 export const loadPongoClient = async (
-  path: 'pg' | 'sqlite3' | 'd1',
+  path: 'pg' | 'sqlite3' | 'd1' | 'cloudflareDurableObjectSQLite',
 ): Promise<PongoDriverForLoader> => {
-  let module;
+  let pongoDriver: PongoDriverForLoader | undefined;
 
   if (path === 'pg') {
-    module = await import('./pg');
+    const module = await import('./pg');
+    pongoDriver = module.pongoDriver;
   } else if (path === 'sqlite3') {
-    module = await import('./sqlite3');
+    const module = await import('./sqlite3');
+    pongoDriver = module.pongoDriver;
   } else if (path === 'd1') {
-    module = await import('./cloudflare');
+    const module = await import('./cloudflare');
+    pongoDriver = module.d1Driver;
+  } else if (path === 'cloudflareDurableObjectSQLite') {
+    const module = await import('./cloudflare');
+    pongoDriver = module.cloudflareDurableObjectSQLiteDriver;
   } else {
     // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
     throw new PongoError(`Unknown path: ${path}`);
   }
 
-  if (!module.pongoDriver) {
+  if (!pongoDriver) {
     throw new PongoError(`Failed to load Pongo client for ${path}`);
   }
 
-  return module.pongoDriver;
+  return pongoDriver;
 };

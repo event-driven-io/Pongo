@@ -1,0 +1,19 @@
+{
+  "name": "dumbo-durable-object-sqlite-tests",
+  "main": "src/storage/sqlite/durableObject/testing/durableObjectSQLiteTestWorker.ts",
+  "compatibility_date": "2026-08-31",
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "TEST_OBJECT",
+        "class_name": "DumboDurableObjectSQLiteTestObject"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["DumboDurableObjectSQLiteTestObject"]
+    }
+  ]
+}

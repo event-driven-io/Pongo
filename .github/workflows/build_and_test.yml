@@ -48,6 +48,9 @@ jobs:
       #   working-directory: ./src/e2e/browser
       #   run: npx playwright install chromium
 
+      - name: Verify generated Cloudflare types
+        run: npm run types:cloudflare:check
+
       - name: Build TS
         run: npm run build:ts
 

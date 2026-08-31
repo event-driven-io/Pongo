@@ -7,7 +7,18 @@
     "./docs/.vitepress/**/*.mts",
     "./tsup.config.ts"
   ],
-  "exclude": ["node_modules", "tmp"],
+  "exclude": [
+    "node_modules",
+    "tmp",
+    "./packages/dumbo/worker-configuration.d.ts",
+    "./packages/dumbo/src/storage/sqlite/durableObject/**/*.int.spec.ts",
+    "./packages/dumbo/src/storage/sqlite/durableObject/**/*.e2e.spec.ts",
+    "./packages/dumbo/src/storage/sqlite/durableObject/testing/durableObjectSQLiteTestWorker.ts",
+    "./packages/pongo/src/storage/sqlite/durableObject/**/*.int.spec.ts",
+    "./packages/pongo/src/storage/sqlite/durableObject/**/*.e2e.spec.ts",
+    "./packages/pongo/src/e2e/sqlite/durableObject/**/*.int.spec.ts",
+    "./packages/pongo/src/e2e/sqlite/durableObject/**/*.e2e.spec.ts"
+  ],
   "files": [],
   "compilerOptions": {
     "noEmit": true /* Do not emit outputs. */

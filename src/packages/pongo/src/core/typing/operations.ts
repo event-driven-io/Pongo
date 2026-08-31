@@ -106,7 +106,7 @@ export interface PongoSession<
   hasEnded: boolean;
   explicit: boolean;
   defaultTransactionOptions: PongoTransactionOptions;
-  transaction: PongoDbTransaction<DriverType> | null;
+  transaction: PongoDbTransaction | null;
   get snapshotEnabled(): boolean;
 
   endSession(): Promise<void>;
