@@ -41,11 +41,14 @@
 - [x] Complete the file-by-file Dumbo/Pongo integration parity audit and document every currently identified addition and exclusion in Prompt 8.
 - [x] Run Prompt 8 build/test verification (historical baseline from 2026-09-07).
 - [x] Update `plan.md` and `todo.md` with the agreed conventional runtime-spec names, path-based ownership, lifecycle distinction, and reopened final gate.
-- [ ] Prompt 9: finish the agreed filename/routing cleanup, SQL `null` binding coverage, final consistency review, and user-run verification.
+- [ ] Prompt 9: complete the user-run verification, fix any reported failures, and record the final results.
 - [x] Rename all 17 Durable Object runtime specs to conventional `*.int.spec.ts`/`*.e2e.spec.ts` names without a runtime-specific Cloudflare filename segment, and move the Dumbo driver registration spec to `durableObject/driver.int.spec.ts`.
 - [x] Configure Cloudflare Vitest, TypeScript, and ESLint ownership by the Dumbo/Pongo `durableObject` paths rather than runtime-specific filename suffixes; keep production, unit, and type specs in their normal projects.
 - [x] Add real-workerd behavioral coverage for a parameterized SQL `null` binding and assert SQLite `NULL` round-tripping.
 - [x] Add D1/sqlite3-parity real-workerd coverage proving mapped Durable Object errors preserve the original workerd error as `innerError` and `cause`.
+- [x] Simplify the Durable Object transaction adapter into flat module factories for storage-depth coordination, deferred idle/active/completed lifecycle state, and public transaction wiring; keep only stateful closures and the bridge required by Cloudflare's callback transaction API.
+- [x] Review the transaction refactor for forbidden transaction APIs, error precedence, cleanup, impossible lifecycle states, executor mutation, and duplicated depth management.
+- [x] Reuse helpers from the existing core transaction module and select the Durable Object transaction strategy through the shared connection-construction contract, removing its fabricated close callback and post-construction method replacement.
 - [ ] After implementation, have the user run and report the Prompt 9 formatting, lint, typecheck, build, Cloudflare, unit, integration, and e2e gates; do not mark Prompt 9 complete before those results are available.
 
 ## Notes

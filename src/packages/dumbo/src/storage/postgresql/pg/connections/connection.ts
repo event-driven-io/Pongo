@@ -2,6 +2,7 @@ import pg from 'pg';
 import type { JSONSerializer } from '../../../../core';
 import {
   createConnection,
+  transactionFactoryWithDbClient,
   type Connection,
   type DatabaseTransaction,
 } from '../../../../core';
@@ -66,13 +67,14 @@ export const pgClientConnection = (
     driverType: PgDriverType,
     connect,
     close,
-    initTransaction: (connection) => {
+    transactionFactory: (connect, connection) => {
       const txFactory = pgTransaction(connection, options.serializer);
-      return (client, perCallOptions) =>
+      return transactionFactoryWithDbClient(connect, (client, perCallOptions) =>
         txFactory(client, {
           ...(transactionOptions ?? {}),
           ...(perCallOptions ?? ({} as Parameters<typeof txFactory>[1])),
-        } as Parameters<typeof txFactory>[1]);
+        } as Parameters<typeof txFactory>[1]),
+      );
     },
     executor: pgSQLExecutor,
     serializer: options.serializer,
@@ -88,13 +90,14 @@ export const pgPoolClientConnection = (
     driverType: PgDriverType,
     connect,
     close,
-    initTransaction: (connection) => {
+    transactionFactory: (connect, connection) => {
       const txFactory = pgTransaction(connection, options.serializer);
-      return (client, perCallOptions) =>
+      return transactionFactoryWithDbClient(connect, (client, perCallOptions) =>
         txFactory(client, {
           ...(transactionOptions ?? {}),
           ...(perCallOptions ?? ({} as Parameters<typeof txFactory>[1])),
-        } as Parameters<typeof txFactory>[1]);
+        } as Parameters<typeof txFactory>[1]),
+      );
     },
     executor: pgSQLExecutor,
     serializer: options.serializer,

@@ -1,5 +1,9 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import type { Connection, JSONSerializer } from '../../../../core';
+import {
+  transactionFactoryWithDbClient,
+  type Connection,
+  type JSONSerializer,
+} from '../../../../core';
 import {
   sqliteAmbientClientConnection,
   type SQLiteConnectionOptions,
@@ -54,11 +58,14 @@ export const d1Connection = (options: D1ConnectionOptions) => {
           'client' in options && options.client
             ? options.client
             : d1Client(options),
-        initTransaction: (connection) =>
-          d1Transaction(
-            connection,
-            options.serializer,
-            options.transactionOptions,
+        transactionFactory: (connect, connection) =>
+          transactionFactoryWithDbClient(
+            connect,
+            d1Transaction(
+              connection,
+              options.serializer,
+              options.transactionOptions,
+            ),
           ),
         serializer: options.serializer,
         errorMapper: mapD1Error,

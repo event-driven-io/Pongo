@@ -10,7 +10,7 @@ import {
 } from '../../core';
 import { mapSqliteError } from '../../core/errors';
 import {
-  cloudflareDurableObjectSQLiteTransaction,
+  cloudflareDurableObjectSQLiteTransactionFactory,
   type CloudflareDurableObjectSQLiteTransaction,
 } from '../transactions';
 import {
@@ -50,12 +50,6 @@ export type CloudflareDurableObjectSQLiteConnectionOptions =
 export const cloudflareDurableObjectSQLiteConnection = (
   options: CloudflareDurableObjectSQLiteConnectionOptions,
 ): CloudflareDurableObjectSQLiteConnection => {
-  const initTransaction = cloudflareDurableObjectSQLiteTransaction(
-    () => connection,
-    options.serializer,
-    options.transactionOptions,
-  );
-
   const connection =
     sqliteAmbientClientConnection<CloudflareDurableObjectSQLiteConnection>({
       driverType: CloudflareDurableObjectSQLiteDriverType,
@@ -63,20 +57,13 @@ export const cloudflareDurableObjectSQLiteConnection = (
         'client' in options && options.client
           ? options.client
           : cloudflareDurableObjectSQLiteClient(options),
-      initTransaction: () => initTransaction,
+      transactionFactory: cloudflareDurableObjectSQLiteTransactionFactory(
+        options.serializer,
+        options.transactionOptions,
+      ),
       serializer: options.serializer,
       errorMapper: mapSqliteError,
     });
-
-  connection.transaction = (transactionOptions) =>
-    initTransaction(connection.open(), {
-      ...transactionOptions,
-      close: () => Promise.resolve(),
-    });
-  connection.withTransaction = (handle, transactionOptions) =>
-    connection
-      .transaction(transactionOptions)
-      .withTransaction(handle, transactionOptions);
 
   return connection;
 };
