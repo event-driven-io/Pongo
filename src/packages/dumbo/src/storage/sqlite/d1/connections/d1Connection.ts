@@ -59,14 +59,11 @@ export const d1Connection = (options: D1ConnectionOptions) => {
             ? options.client
             : d1Client(options),
         transactionFactory: (connect, connection) =>
-          transactionFactoryWithDbClient(
+          transactionFactoryWithDbClient({
             connect,
-            d1Transaction(
-              connection,
-              options.serializer,
-              options.transactionOptions,
-            ),
-          ),
+            defaultOptions: options.transactionOptions,
+            initTransaction: d1Transaction(connection),
+          }),
         serializer: options.serializer,
         errorMapper: mapD1Error,
       }),

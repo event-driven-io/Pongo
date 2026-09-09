@@ -5,6 +5,7 @@ import {
   type AnyConnection,
   type DatabaseTransaction,
   type DatabaseTransactionOptions,
+  type DbClientTransactionContext,
   type JSONSerializer,
 } from '../../../../core';
 import { pgSQLExecutor } from '../execute';
@@ -33,43 +34,32 @@ export const pgTransaction =
     serializer: JSONSerializer,
   ) =>
   <DbClient extends PgPoolOrClient = PgPoolOrClient>(
-    getClient: Promise<DbClient>,
-    options?: {
-      close: (client: DbClient, error?: unknown) => Promise<void>;
-    } & PgTransactionOptions,
+    context: DbClientTransactionContext<DbClient, PgTransactionOptions>,
   ): DatabaseTransaction<ConnectionType> => {
-    const allowNestedTransactions = options?.allowNestedTransactions ?? false;
-    const useSavepoints = options?.useSavepoints ?? false;
+    const { client: getClient, onTransactionFinished, options } = context;
+    const allowNestedTransactions = options.allowNestedTransactions ?? false;
+    const useSavepoints = options.useSavepoints ?? false;
 
     const tx = databaseTransaction(
       {
         begin: async () => {
           const client = await getClient;
           const parts = ['BEGIN'];
-          if (options?.isolationLevel) {
+          if (options.isolationLevel) {
             parts.push(`ISOLATION LEVEL ${options.isolationLevel}`);
           }
-          if (options?.readonly) {
+          if (options.readonly) {
             parts.push('READ ONLY');
           }
           await client.query(parts.join(' '));
         },
         commit: async () => {
           const client = await getClient;
-
-          try {
-            await client.query('COMMIT');
-          } finally {
-            if (options?.close) await options.close(client);
-          }
+          await client.query('COMMIT');
         },
-        rollback: async (error?: unknown) => {
+        rollback: async () => {
           const client = await getClient;
-          try {
-            await client.query('ROLLBACK');
-          } finally {
-            if (options?.close) await options.close(client, error);
-          }
+          await client.query('ROLLBACK');
         },
         savepoint: async (level) => {
           const client = await getClient;
@@ -84,7 +74,12 @@ export const pgTransaction =
           await client.query(`ROLLBACK TO SAVEPOINT pg_savepoint_${level}`);
         },
       },
-      { allowNestedTransactions, useSavepoints },
+      {
+        abort: options.abort,
+        allowNestedTransactions,
+        onTransactionFinished,
+        useSavepoints,
+      },
     );
 
     const transaction: DatabaseTransaction<ConnectionType> = {
@@ -99,7 +94,7 @@ export const pgTransaction =
       withTransaction: (handle, options) =>
         executeInNestedTransaction(transaction, handle, options),
       _transactionOptions: {
-        ...(options ?? {}),
+        ...options,
         allowNestedTransactions,
       },
     };

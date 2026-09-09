@@ -9,6 +9,7 @@ import {
   sqlExecutor,
   type DatabaseTransaction,
   type DatabaseTransactionOptions,
+  type DbClientTransactionContext,
   type InferDbClientFromConnection,
 } from '../../../../core';
 import { sqliteSQLExecutor } from '../../core/execute';
@@ -34,63 +35,32 @@ export const sqliteTransaction =
   <ConnectionType extends AnySQLiteConnection = AnySQLiteConnection>(
     driverType: ConnectionType['driverType'],
     connection: () => ConnectionType,
-    defaultOptions: boolean | SQLiteTransactionOptions,
     serializer: JSONSerializer,
-    defaultTransactionMode?: 'IMMEDIATE' | 'DEFERRED' | 'EXCLUSIVE',
   ) =>
   (
-    getClient: Promise<InferDbClientFromConnection<ConnectionType>>,
-    options?: {
-      close: (
-        client: InferDbClientFromConnection<ConnectionType>,
-        error?: unknown,
-      ) => Promise<void>;
-    } & SQLiteTransactionOptions,
+    context: DbClientTransactionContext<
+      InferDbClientFromConnection<ConnectionType>,
+      SQLiteTransactionOptions
+    >,
   ): InferTransactionFromConnection<ConnectionType> => {
-    const defaultTransactionOptions =
-      typeof defaultOptions === 'boolean'
-        ? { allowNestedTransactions: defaultOptions }
-        : defaultOptions;
-    const allowNestedTransactions =
-      options?.allowNestedTransactions ??
-      defaultTransactionOptions.allowNestedTransactions ??
-      false;
-    const useSavepoints =
-      options?.useSavepoints ??
-      defaultTransactionOptions.useSavepoints ??
-      false;
+    const { client: getClient, onTransactionFinished, options } = context;
+    const allowNestedTransactions = options.allowNestedTransactions ?? false;
+    const useSavepoints = options.useSavepoints ?? false;
 
     const tx = databaseTransaction(
       {
         begin: async () => {
           const client = (await getClient) as SQLiteClientOrPoolClient;
-          const mode = options?.mode ?? defaultTransactionMode ?? 'IMMEDIATE';
+          const mode = options.mode ?? 'IMMEDIATE';
           await client.command(SQL`BEGIN ${SQL.plain(mode)} TRANSACTION`);
         },
         commit: async () => {
           const client = (await getClient) as SQLiteClientOrPoolClient;
-          try {
-            await client.command(SQL`COMMIT`);
-          } finally {
-            if (options?.close) {
-              await options.close(
-                client as InferDbClientFromConnection<ConnectionType>,
-              );
-            }
-          }
+          await client.command(SQL`COMMIT`);
         },
-        rollback: async (error?: unknown) => {
+        rollback: async () => {
           const client = (await getClient) as SQLiteClientOrPoolClient;
-          try {
-            await client.command(SQL`ROLLBACK`);
-          } finally {
-            if (options?.close) {
-              await options.close(
-                client as InferDbClientFromConnection<ConnectionType>,
-                error,
-              );
-            }
-          }
+          await client.command(SQL`ROLLBACK`);
         },
         savepoint: async (level) => {
           const client = (await getClient) as SQLiteClientOrPoolClient;
@@ -111,7 +81,12 @@ export const sqliteTransaction =
           );
         },
       },
-      { allowNestedTransactions, useSavepoints },
+      {
+        abort: options.abort,
+        allowNestedTransactions,
+        onTransactionFinished,
+        useSavepoints,
+      },
     );
 
     const transaction: DatabaseTransaction<ConnectionType> = {

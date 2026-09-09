@@ -1,11 +1,11 @@
-import type { JSONSerializer } from '../../../../core';
 import {
+  databaseTransaction,
   executeInNestedTransaction,
   InvalidOperationError,
   sqlExecutor,
-  transactionNestingCounter,
   type DatabaseTransaction,
   type DatabaseTransactionOptions,
+  type DbClientTransactionContext,
 } from '../../../../core';
 import {
   D1DriverType,
@@ -39,24 +39,13 @@ export class D1TransactionNotSupportedError extends Error {
 }
 
 export const d1Transaction =
+  (connection: () => D1Connection) =>
   (
-    connection: () => D1Connection,
-    serializer: JSONSerializer,
-    defaultOptions?: D1TransactionOptions,
-  ) =>
-  (
-    getClient: Promise<D1Client>,
-    options?: {
-      close: (client: D1Client, error?: unknown) => Promise<void>;
-    } & D1TransactionOptions,
+    context: DbClientTransactionContext<D1Client, D1TransactionOptions>,
   ): D1Transaction => {
-    const transactionCounter = transactionNestingCounter();
-
-    const allowNestedTransactions =
-      options?.allowNestedTransactions ??
-      defaultOptions?.allowNestedTransactions;
-
-    const mode = options?.mode ?? defaultOptions?.mode;
+    const { client: getClient, onTransactionFinished, options } = context;
+    const allowNestedTransactions = options.allowNestedTransactions;
+    const mode = options.mode;
 
     let client: D1Client | null = null;
     let sessionClient: D1Client | null = null;
@@ -68,56 +57,38 @@ export const d1Transaction =
       return client;
     };
 
+    const transactionLifecycle = databaseTransaction(
+      {
+        begin: async () => {
+          if (mode !== 'session_based') {
+            throw new D1TransactionNotSupportedError();
+          }
+
+          const client = await getDatabaseClient();
+          sessionClient = await client.withSession(options.d1Session);
+        },
+        commit: async () => {
+          await getDatabaseClient();
+          sessionClient = null;
+        },
+        rollback: async () => {
+          await getDatabaseClient();
+          sessionClient = null;
+        },
+      },
+      {
+        abort: options.abort,
+        allowNestedTransactions,
+        onTransactionFinished,
+      },
+    );
+
     const transaction: D1Transaction = {
       connection: connection(),
       driverType: D1DriverType,
-      begin: async function () {
-        if (mode !== 'session_based') {
-          throw new D1TransactionNotSupportedError();
-        }
-
-        const client = await getDatabaseClient();
-
-        if (allowNestedTransactions) {
-          if (transactionCounter.level >= 1) {
-            transactionCounter.increment();
-            return;
-          }
-
-          transactionCounter.increment();
-        }
-
-        sessionClient = await client.withSession(options?.d1Session);
-      },
-      commit: async function () {
-        const client = await getDatabaseClient();
-
-        if (allowNestedTransactions && transactionCounter.level > 1) {
-          transactionCounter.decrement();
-          return;
-        }
-
-        try {
-          if (allowNestedTransactions) transactionCounter.reset();
-          sessionClient = null;
-        } finally {
-          if (options?.close) await options?.close(client);
-        }
-      },
-      rollback: async function (error?: unknown) {
-        const client = await getDatabaseClient();
-
-        if (allowNestedTransactions && transactionCounter.level > 1) {
-          transactionCounter.decrement();
-          return;
-        }
-
-        try {
-          sessionClient = null;
-        } finally {
-          if (options?.close) await options?.close(client, error);
-        }
-      },
+      begin: transactionLifecycle.begin,
+      commit: transactionLifecycle.commit,
+      rollback: transactionLifecycle.rollback,
       execute: sqlExecutor(d1SQLExecutor(), {
         connect: () => {
           if (!sessionClient) {
@@ -130,7 +101,7 @@ export const d1Transaction =
       }),
       withTransaction: (handle, options) =>
         executeInNestedTransaction(transaction, handle, options),
-      _transactionOptions: options ?? {},
+      _transactionOptions: options,
     };
 
     return transaction;

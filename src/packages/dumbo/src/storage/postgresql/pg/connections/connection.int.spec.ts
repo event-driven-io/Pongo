@@ -337,6 +337,98 @@ describe('pg', () => {
       }
     });
 
+    it('honors an already-aborted default transaction option', async () => {
+      const controller = new AbortController();
+      const abortReason = new Error('default PostgreSQL transaction aborted');
+      controller.abort(abortReason);
+      const pool = pgPool({
+        connectionString,
+        transactionOptions: { abort: { signal: controller.signal } },
+      });
+      const connection = await pool.connection();
+      let callbackCalled = false;
+
+      try {
+        await assert.rejects(
+          () =>
+            connection.withTransaction(() => {
+              callbackCalled = true;
+              return Promise.resolve();
+            }),
+          (error) => error === abortReason,
+        );
+        assert.strictEqual(callbackCalled, false);
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+    });
+
+    it('rejects begin when aborted after creating an explicit transaction', async () => {
+      const controller = new AbortController();
+      const abortReason = new Error(
+        'PostgreSQL transaction aborted before begin',
+      );
+      const pool = pgPool({ connectionString });
+      const connection = await pool.connection();
+
+      try {
+        const transaction = connection.transaction({
+          abort: { signal: controller.signal },
+        });
+        controller.abort(abortReason);
+
+        await assert.rejects(
+          () => transaction.begin(),
+          (error) => error === abortReason,
+        );
+
+        await connection.withTransaction(async (nextTransaction) => {
+          await nextTransaction.execute.query(SQL`SELECT 1`);
+        });
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+    });
+
+    it('rolls back when aborted during a callback that ignores its context', async () => {
+      const controller = new AbortController();
+      const abortReason = new Error(
+        'PostgreSQL transaction aborted during callback',
+      );
+      const pool = pgPool({ connectionString });
+      const connection = await pool.connection();
+
+      try {
+        await connection.execute.command(
+          SQL`CREATE TEMP TABLE abort_context_test (id INTEGER PRIMARY KEY)`,
+        );
+
+        await assert.rejects(
+          () =>
+            connection.withTransaction(
+              async (transaction) => {
+                await transaction.execute.command(
+                  SQL`INSERT INTO abort_context_test (id) VALUES (1)`,
+                );
+                controller.abort(abortReason);
+              },
+              { abort: { signal: controller.signal } },
+            ),
+          (error) => error === abortReason,
+        );
+
+        const result = await connection.execute.query<{ count: number }>(
+          SQL`SELECT COUNT(*)::int AS count FROM abort_context_test`,
+        );
+        assert.strictEqual(result.rows[0]?.count, 0);
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+    });
+
     it('accepts readonly in transaction options', async () => {
       const pool = pgPool({ connectionString });
       try {

@@ -73,7 +73,9 @@ export const databaseTransaction = (
     rollbackToSavepoint?: ((level: number) => Promise<void>) | undefined;
   },
   options?: {
+    abort?: AbortOptions['abort'];
     allowNestedTransactions?: boolean | undefined;
+    onTransactionFinished?: (() => void) | undefined;
     useSavepoints?: boolean | undefined;
   },
 ): Pick<DatabaseTransaction, 'begin' | 'commit' | 'rollback'> => {
@@ -82,52 +84,83 @@ export const databaseTransaction = (
   const counter = transactionNestingCounter();
   let hasBegun = false;
 
-  return {
-    begin: async () => {
-      if (!allowNestedTransactions && hasBegun) {
-        throw nestedTransactionNotAllowed();
-      }
-      if (allowNestedTransactions) {
-        if (counter.level >= 1) {
-          counter.increment();
-          if (useSavepoints && backend.savepoint) {
-            await backend.savepoint(counter.level);
-          }
-          return;
-        }
+  const begin = async () => {
+    if (!allowNestedTransactions && hasBegun) {
+      throw nestedTransactionNotAllowed();
+    }
+    if (allowNestedTransactions) {
+      if (counter.level >= 1) {
         counter.increment();
+        if (useSavepoints && backend.savepoint) {
+          await backend.savepoint(counter.level);
+        }
+        return;
       }
+    }
 
+    try {
+      Abort.throwIfAborted(options);
+      if (allowNestedTransactions) counter.increment();
       hasBegun = true;
       await backend.begin();
-    },
-    commit: async () => {
-      if (allowNestedTransactions && counter.level > 1) {
-        if (useSavepoints && backend.releaseSavepoint) {
-          await backend.releaseSavepoint(counter.level);
-        }
-        counter.decrement();
-        return;
-      }
-
+    } catch (error) {
       if (allowNestedTransactions) counter.reset();
       hasBegun = false;
-      await backend.commit();
-    },
-    rollback: async (error?: unknown) => {
-      if (allowNestedTransactions && counter.level > 1) {
-        if (useSavepoints && backend.rollbackToSavepoint) {
-          await backend.rollbackToSavepoint(counter.level);
-        }
-        counter.decrement();
-        return;
-      }
-
-      if (allowNestedTransactions) counter.reset();
-      hasBegun = false;
-      await backend.rollback(error);
-    },
+      options?.onTransactionFinished?.();
+      throw error;
+    }
   };
+
+  const rollback = async (error?: unknown) => {
+    if (allowNestedTransactions && counter.level > 1) {
+      if (useSavepoints && backend.rollbackToSavepoint) {
+        await backend.rollbackToSavepoint(counter.level);
+      }
+      counter.decrement();
+      return;
+    }
+
+    if (allowNestedTransactions) counter.reset();
+    hasBegun = false;
+    try {
+      await backend.rollback(error);
+    } finally {
+      options?.onTransactionFinished?.();
+    }
+  };
+
+  const commit = async () => {
+    if (hasBegun) {
+      try {
+        Abort.throwIfAborted(options);
+      } catch (error) {
+        try {
+          await rollback(error);
+        } catch {
+          throw error;
+        }
+        throw error;
+      }
+    }
+
+    if (allowNestedTransactions && counter.level > 1) {
+      if (useSavepoints && backend.releaseSavepoint) {
+        await backend.releaseSavepoint(counter.level);
+      }
+      counter.decrement();
+      return;
+    }
+
+    if (allowNestedTransactions) counter.reset();
+    hasBegun = false;
+    try {
+      await backend.commit();
+    } finally {
+      options?.onTransactionFinished?.();
+    }
+  };
+
+  return { begin, commit, rollback };
 };
 
 export type InferTransactionOptionsFromTransaction<
@@ -195,23 +228,23 @@ export const executeInTransaction = async <
 ): Promise<Result> => {
   await transaction.begin();
 
+  let transactionResult: TransactionResult<Result>;
   try {
-    const { success, result } = toTransactionResult(
-      await handle(transaction, context),
-    );
-
-    if (success) await transaction.commit();
-    else await transaction.rollback();
-
-    return result;
+    transactionResult = toTransactionResult(await handle(transaction, context));
+    Abort.throwIfAborted(context);
   } catch (e) {
     try {
-      await transaction.rollback();
+      await transaction.rollback(e);
     } catch {
-      // rollback failed — preserve the original error
+      throw e;
     }
     throw e;
   }
+
+  if (transactionResult.success) await transaction.commit();
+  else await transaction.rollback();
+
+  return transactionResult.result;
 };
 
 export const executeInNestedTransaction = async <
@@ -230,68 +263,94 @@ export const executeInNestedTransaction = async <
   options?: TransactionOptionsType,
   context?: AbortContext,
 ): Promise<Result> => {
-  Abort.throwIfAborted(options);
+  const resolvedOptions = Object.assign(
+    {},
+    transaction._transactionOptions,
+    options,
+  );
+  Abort.throwIfAborted(resolvedOptions);
 
   const allowNestedTransactions =
-    options?.allowNestedTransactions ??
-    transaction._transactionOptions.allowNestedTransactions ??
-    false;
+    resolvedOptions.allowNestedTransactions ?? false;
 
   if (!allowNestedTransactions) {
     throw nestedTransactionNotAllowed();
   }
 
-  return executeInTransaction(transaction, handle, context);
+  return executeInTransaction(
+    transaction,
+    handle,
+    context ?? { abort: Abort.from(resolvedOptions) },
+  );
+};
+
+export type DbClientTransactionContext<
+  DbClient,
+  TransactionOptionsType extends DatabaseTransactionOptions,
+> = {
+  client: Promise<DbClient>;
+  options: TransactionOptionsType;
+  onTransactionFinished: () => void;
 };
 
 export const transactionFactoryWithDbClient = <
   ConnectionType extends AnyConnection = AnyConnection,
->(
+  TransactionOptionsType extends DatabaseTransactionOptions =
+    InferTransactionOptionsFromConnection<ConnectionType>,
+>({
+  connect,
+  defaultOptions,
+  initTransaction,
+}: {
   connect: (
     context: AbortContext,
-  ) => Promise<InferDbClientFromConnection<ConnectionType>>,
+  ) => Promise<InferDbClientFromConnection<ConnectionType>>;
+  defaultOptions?: TransactionOptionsType | undefined;
   initTransaction: (
-    client: Promise<InferDbClientFromConnection<ConnectionType>>,
-    options?: InferTransactionOptionsFromConnection<ConnectionType> & {
-      close: (
-        client: InferDbClientFromConnection<ConnectionType>,
-        error?: unknown,
-      ) => Promise<void>;
-    },
-  ) => InferTransactionFromConnection<ConnectionType>,
-): WithDatabaseTransactionFactory<ConnectionType> => {
-  let currentTransaction:
+    context: DbClientTransactionContext<
+      InferDbClientFromConnection<ConnectionType>,
+      TransactionOptionsType
+    >,
+  ) => InferTransactionFromConnection<ConnectionType>;
+}): WithDatabaseTransactionFactory<ConnectionType> => {
+  let activeTransaction:
     InferTransactionFromConnection<ConnectionType> | undefined = undefined;
 
-  const getOrInitCurrentTransaction = (
-    options?: InferTransactionOptionsFromConnection<ConnectionType>,
+  const resolveOptions = (
+    perCallOptions?: InferTransactionOptionsFromConnection<ConnectionType>,
+  ): TransactionOptionsType =>
+    Object.assign({}, defaultOptions, perCallOptions);
+
+  const clearActiveTransaction = (
+    transaction: InferTransactionFromConnection<ConnectionType>,
   ) => {
+    if (activeTransaction === transaction) activeTransaction = undefined;
+  };
+
+  const getOrCreateActiveTransaction = (options: TransactionOptionsType) => {
     Abort.throwIfAborted(options);
 
-    if (currentTransaction) return currentTransaction;
+    if (activeTransaction) return activeTransaction;
 
-    currentTransaction = initTransaction(
-      connect({ abort: Abort.from(options) }),
-      {
-        close: () => {
-          currentTransaction = undefined;
-          return Promise.resolve();
-        },
-        ...(options ??
-          ({} as InferTransactionOptionsFromConnection<ConnectionType>)),
-      },
-    );
-    return currentTransaction;
+    const transaction = initTransaction({
+      client: connect({ abort: Abort.from(options) }),
+      options,
+      onTransactionFinished: () => clearActiveTransaction(transaction),
+    });
+    activeTransaction = transaction;
+    return transaction;
   };
 
   return {
-    transaction: getOrInitCurrentTransaction,
-    withTransaction: (handle, options) => {
+    transaction: (options) =>
+      getOrCreateActiveTransaction(resolveOptions(options)),
+    withTransaction: (handle, perCallOptions) => {
+      const options = resolveOptions(perCallOptions);
       const abortRejection = Abort.rejectIfAborted(options);
       if (abortRejection) return abortRejection;
 
       return executeInTransaction(
-        getOrInitCurrentTransaction(options),
+        getOrCreateActiveTransaction(options),
         handle,
         {
           abort: Abort.from(options),

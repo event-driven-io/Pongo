@@ -548,18 +548,18 @@ Dropped or adapted pool/PRAGMA cases:
 
 Durable Object SQLite test files should mimic the existing driver layout. Do not add top-level catch-all specs such as `durableObjectSQLiteSkeleton.unit.spec.ts` or `durableObjectSQLiteHarness.int.spec.ts`; those do not match the repo structure. Put tests next to the behavior they cover:
 
-| Durable Object SQLite test file                                                                                | Primary reference                                                                                         | Why                                                                                                                                                                                    |
-| -------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `durableObject/connections/connection.int.spec.ts`                                                             | `d1/connections/connection.int.spec.ts`; `sqlite3/connections/connection.int.spec.ts`                     | Connection/pool usage is closest to D1 because both are Cloudflare/runtime-provided handles, but sqlite3 has broader ambient connection cases.                                         |
-| `durableObject/connections/connection.generic.int.spec.ts`                                                     | `d1/connections/connection.int.generic.spec.ts`; `sqlite3/connections/connection.int.generic.spec.ts`     | Generic `dumbo({ driverType })` behavior once the driver is registered.                                                                                                                |
-| `durableObject/execute/batchCommand.int.spec.ts`                                                               | `d1/execute/batchCommand.int.spec.ts`; `sqlite3/execute/batchCommand.int.spec.ts`                         | Batch command and `assertChanges` behavior must match both D1 error shape and sqlite3 stop-after-conflict coverage.                                                                    |
-| `durableObject/execute/changesCount.int.spec.ts`                                                               | `sqlite3/execute/changesCount.int.spec.ts`                                                                | D1 does not cover enough affected-row cases. Verify INSERT, multi-row INSERT, UPDATE, DELETE, no-op, RETURNING, and indexed writes using synchronous SQLite `changes()`, not billing-oriented `rowsWritten`. |
-| `durableObject/formatter/sqlFormatter.int.spec.ts`                                                             | `d1/formatter/sqlFormatter.int.spec.ts`; `sqlite3/formatter/sqlFormatter.int.spec.ts`                     | Formatter behavior should match shared SQLite formatting through a real runtime database.                                                                                              |
-| `durableObject/transactions/transactions.int.spec.ts`                                                          | `sqlite3/transactions/transactions.int.spec.ts`; D1 transaction tests only for Cloudflare option contrast | sqlite3 is the baseline for actual commit/rollback behavior. Durable Object SQLite should rollback on thrown async callbacks, unlike D1.                                               |
-| `durableObject/transactions/transactionErrorSuppression.int.spec.ts`                                           | `sqlite3/transactions/transactionErrorSuppression.int.spec.ts`                                            | Preserve original callback errors; adapt only if Cloudflare runtime does not expose a reliable rollback-failure trigger.                                                               |
-| `durableObject/pool/cloudflareDurableObjectSQLitePool.unit.spec.ts`                                            | D1/sqlite3 pool option validation                                                                         | Unit coverage for a missing storage/client/connection configuration; keep this behavior in the pool folder.                                                                            |
-| `durableObject/transactions/transactions.int.spec.ts`                                                          | sqlite3 transaction state/error behavior                                                                  | Cover transaction-before-active and storage-required errors through the real runtime pool; do not construct casted fake clients or connections.                                        |
-| `durableObject/errors/errorMapper.unit.spec.ts` and `durableObject/execute/errorMapper.int.spec.ts`            | D1 error mapper specs and sqlite3 error mapper specs                                                      | Add if Cloudflare Durable Object errors need distinct mapping; otherwise document reuse of shared SQLite mapping and skip dedicated files.                                             |
+| Durable Object SQLite test file                                                                     | Primary reference                                                                                         | Why                                                                                                                                                                                                          |
+| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `durableObject/connections/connection.int.spec.ts`                                                  | `d1/connections/connection.int.spec.ts`; `sqlite3/connections/connection.int.spec.ts`                     | Connection/pool usage is closest to D1 because both are Cloudflare/runtime-provided handles, but sqlite3 has broader ambient connection cases.                                                               |
+| `durableObject/connections/connection.generic.int.spec.ts`                                          | `d1/connections/connection.int.generic.spec.ts`; `sqlite3/connections/connection.int.generic.spec.ts`     | Generic `dumbo({ driverType })` behavior once the driver is registered.                                                                                                                                      |
+| `durableObject/execute/batchCommand.int.spec.ts`                                                    | `d1/execute/batchCommand.int.spec.ts`; `sqlite3/execute/batchCommand.int.spec.ts`                         | Batch command and `assertChanges` behavior must match both D1 error shape and sqlite3 stop-after-conflict coverage.                                                                                          |
+| `durableObject/execute/changesCount.int.spec.ts`                                                    | `sqlite3/execute/changesCount.int.spec.ts`                                                                | D1 does not cover enough affected-row cases. Verify INSERT, multi-row INSERT, UPDATE, DELETE, no-op, RETURNING, and indexed writes using synchronous SQLite `changes()`, not billing-oriented `rowsWritten`. |
+| `durableObject/formatter/sqlFormatter.int.spec.ts`                                                  | `d1/formatter/sqlFormatter.int.spec.ts`; `sqlite3/formatter/sqlFormatter.int.spec.ts`                     | Formatter behavior should match shared SQLite formatting through a real runtime database.                                                                                                                    |
+| `durableObject/transactions/transactions.int.spec.ts`                                               | `sqlite3/transactions/transactions.int.spec.ts`; D1 transaction tests only for Cloudflare option contrast | sqlite3 is the baseline for actual commit/rollback behavior. Durable Object SQLite should rollback on thrown async callbacks, unlike D1.                                                                     |
+| `durableObject/transactions/transactionErrorSuppression.int.spec.ts`                                | `sqlite3/transactions/transactionErrorSuppression.int.spec.ts`                                            | Preserve original callback errors; adapt only if Cloudflare runtime does not expose a reliable rollback-failure trigger.                                                                                     |
+| `durableObject/pool/cloudflareDurableObjectSQLitePool.unit.spec.ts`                                 | D1/sqlite3 pool option validation                                                                         | Unit coverage for a missing storage/client/connection configuration; keep this behavior in the pool folder.                                                                                                  |
+| `durableObject/transactions/transactions.int.spec.ts`                                               | sqlite3 transaction state/error behavior                                                                  | Cover transaction-before-active and storage-required errors through the real runtime pool; do not construct casted fake clients or connections.                                                              |
+| `durableObject/errors/errorMapper.unit.spec.ts` and `durableObject/execute/errorMapper.int.spec.ts` | D1 error mapper specs and sqlite3 error mapper specs                                                      | Add if Cloudflare Durable Object errors need distinct mapping; otherwise document reuse of shared SQLite mapping and skip dedicated files.                                                                   |
 
 Durable Object specifics that every relevant test file must account for:
 
@@ -1055,6 +1055,127 @@ Prompt 9 transaction-refactor record (2026-09-08, reviewed 2026-09-09): the fina
 
 Prompt 9 ownership-test record (2026-09-09): the direct and generic connection suites for Durable Object SQLite, D1, sqlite3, and PostgreSQL now verify the same caller-ownership contract behaviorally: after the wrapper connection and pool close, a real caller-supplied client can still execute a query. The generic suites also prove a supplied connection remains usable, matching existing direct-driver coverage, and PostgreSQL additionally proves a supplied native pool remains usable. This closes the previous gap where tests immediately closed supplied resources and therefore could not detect accidental ownership transfer. The PostgreSQL generic suite now consistently constructs every tested wrapper through `dumbo`/`pgDumboDriver` rather than accidentally testing `pgPool` directly. The tests use real backend clients/storage and contain no mocks, spies, compiler suppressions, or implementation-detail assertions.
 
+### Planned Follow-up: Active Transaction Lifecycle And Abort Consistency
+
+Status: implemented on 2026-09-09; runtime verification remains open.
+
+#### Intent And Naming
+
+- Replace the misleading internal transaction `close` callback. In Dumbo, `close` remains reserved for clients, connections, and pools that actually release or destroy resources.
+- Name the connection-scoped state `activeTransaction` and keep it local to `transactionFactoryWithDbClient`.
+- Use local functions named `getOrCreateActiveTransaction` and `clearActiveTransaction`. Do not introduce `activeTransactionSlot`, `TransactionLifecycle`, or another one-use state-holder abstraction.
+- Pass one named `onTransactionFinished` notification to the transaction initializer. It means that the root transaction attempt no longer occupies the connection's active-transaction reference; it does not close a database client or imply a successful commit.
+- Keep the identity guard visible: finishing an older transaction must not clear a newer `activeTransaction`.
+
+#### Required Contract
+
+Refactor `transactionFactoryWithDbClient` to accept a named configuration rather than merging internal callbacks into user transaction options. The intended shape is:
+
+```ts
+type DbClientTransactionContext<ConnectionType extends AnyConnection> = {
+  client: Promise<InferDbClientFromConnection<ConnectionType>>;
+  options: InferTransactionOptionsFromConnection<ConnectionType>;
+  onTransactionFinished: () => void;
+};
+
+transactionFactoryWithDbClient({
+  connect,
+  defaultOptions,
+  initTransaction,
+});
+```
+
+The exact generic spelling may be simplified during implementation, but these boundaries are mandatory:
+
+- `defaultOptions` and per-call options are resolved before abort validation or client acquisition.
+- `onTransactionFinished` is a separate internal field and never appears in public `DatabaseTransactionOptions` or driver-specific transaction options.
+- `onTransactionFinished` is synchronous and cannot replace a database error with a cleanup error.
+- The factory continues to return the active transaction for nested/re-entrant connection transaction calls.
+- No transaction method is wrapped, replaced, or monkey-patched after construction.
+
+#### Root Transaction Rules
+
+Centralize root lifecycle completion in `databaseTransaction`:
+
+1. Before a root begin, recheck the resolved abort signal.
+2. If root begin fails, reset internal begun/nesting state, call `onTransactionFinished`, and rethrow the original error.
+3. After root commit, call `onTransactionFinished` in `finally`, whether commit succeeds or fails.
+4. After root rollback, call `onTransactionFinished` in `finally`, whether rollback succeeds or fails.
+5. Do not call `onTransactionFinished` for nested commit/rollback, savepoint release/rollback, a rejected nested begin, or an ordinary SQL error while the root transaction remains active.
+6. Do not issue an unconditional rollback when root begin itself failed.
+
+#### Abort Consistency
+
+The current audit found that per-call abort options are checked by the generic factory, but PostgreSQL, sqlite3, and D1 merge default transaction options only inside their transaction initializer. Consequently, a default aborted signal is not consistently checked before client acquisition. Those drivers also do not consistently recheck a signal that is aborted after `transaction()` creates an explicit transaction but before `begin()` runs. Durable Object SQLite already checks merged options before callback storage work and before explicit begin.
+
+The refactor must establish one rule for PostgreSQL, sqlite3, D1, and Durable Object SQLite:
+
+1. Merge default and per-call transaction options once, with per-call values taking precedence.
+2. Reject an already-aborted effective signal before creating a transaction or acquiring a client.
+3. Pass the same effective abort signal to connection/client acquisition.
+4. Recheck that signal when explicit `begin()` starts, covering abortion between `transaction()` and `begin()`.
+5. Pass the same signal to the callback's `AbortContext`.
+6. If abort causes root begin to fail, clear `activeTransaction` through `onTransactionFinished`.
+7. Preserve the exact abort reason object.
+8. Do not claim that abort cancels a backend operation that PostgreSQL, sqlite3, D1, or workerd has already started; this contract prevents or reports Dumbo work and provides the callback context.
+
+#### Test-first Implementation Steps
+
+1. Add core behavioral tests showing that default and per-call options are resolved before `connect`, an already-aborted effective signal prevents `connect` and transaction initialization, and the exact signal reaches both acquisition and callback context.
+2. Add a core behavioral test where an explicit transaction is created, its signal is aborted, and `begin()` rejects with the exact reason before backend begin.
+3. Add a core behavioral test where root begin fails and the next transaction call creates a fresh transaction with its own options.
+4. Add core behavioral tests proving root commit failure and root rollback failure both clear `activeTransaction` while preserving the original database error.
+5. Add core behavioral tests proving rejected nested begin and nested commit/rollback do not clear the active root transaction.
+6. Add a regression test proving a late finish notification from an older transaction cannot clear a newer active transaction.
+7. Refactor `transactionFactoryWithDbClient` using the local `activeTransaction`, `getOrCreateActiveTransaction`, and identity-safe `clearActiveTransaction` names. Remove the internal `close` callback from transaction options.
+8. Move root begin/commit/rollback finish notification into `databaseTransaction`, including root state reset after failed begin.
+9. Update PostgreSQL and sqlite3 transaction initializers to consume the named context and remove their duplicated transaction-cache cleanup `finally` blocks. Keep actual connection and pool client release behavior unchanged.
+10. Update D1 to use the same root lifecycle notification while preserving strict-mode rejection and session-based semantics. Do not represent D1 sessions as SQL `BEGIN`/`COMMIT`/`ROLLBACK` transactions.
+11. Keep Durable Object SQLite on its dedicated async `storage.transaction()` and deferred explicit-lifecycle implementation. Align only the shared abort contract; do not route it through `transactionFactoryWithDbClient` and do not introduce `transactionSync`.
+12. Add real-driver integration regressions: D1 strict begin failure followed by a successful session-based transaction; sqlite3 failed/busy begin followed by a successful transaction after releasing the lock; default and create-then-abort behavior for each applicable driver; and matching Durable Object runtime assertions against real workerd storage.
+13. Compare PostgreSQL, sqlite3, D1, and Durable Object transaction tests for matching public cases and document only genuine backend-specific exclusions. Do not use fake storage or fake integration clients.
+
+#### Mandatory Review
+
+Before considering this follow-up complete, verify:
+
+- `close` is used only for actual client/connection/pool resource ownership, not transaction-cache bookkeeping.
+- No `activeTransactionSlot`, standalone one-method lifecycle type, method replacement, proxy, monkey patch, unsafe cast, compiler suppression, or unconditional rollback after failed begin was introduced.
+- Default and per-call transaction options are resolved in one place before abort checks and acquisition.
+- Abort reason identity and original database errors are preserved.
+- Nested operations cannot clear an active root transaction.
+- PostgreSQL acquired pool clients are still released, while caller-supplied clients, connections, and pools remain caller-owned.
+- Durable Object tests use real `runInDurableObject()` storage and no `transactionSync` or transaction-control SQL.
+
+Run from `src` after implementation:
+
+- `npm run fix`
+- `npm run lint`
+- `npm run build:ts`
+- targeted core transaction unit tests
+- targeted PostgreSQL, sqlite3, D1, and Durable Object transaction integration tests
+- `npm run test:unit`
+- `npm run test:int`
+- `npm run test:e2e`
+- `npm test`
+
+Do not mark this follow-up complete until all applicable checks pass and the mandatory review is recorded in `todo.md`.
+
+#### Implementation Record (2026-09-09)
+
+- `transactionFactoryWithDbClient` now resolves default and per-call options before abort validation and acquisition, keeps a local identity-guarded `activeTransaction`, and passes the typed `{ client, options, onTransactionFinished }` context to driver initializers.
+- `databaseTransaction` rechecks the effective abort before root begin, resets root state and reports completion after begin failure, and reports completion in `finally` after root commit or rollback. Nested begin rejection, nested commit/rollback, and savepoint operations do not finish the root transaction.
+- `executeInTransaction` rolls back only callback failures. A commit failure is no longer followed by rollback on an already-finished transaction, and an explicit rollback-result failure is not retried. Callback errors retain precedence if rollback also fails.
+- PostgreSQL, sqlite3, and D1 no longer receive transaction-cache cleanup through an option named `close`. PostgreSQL and sqlite3 use the shared root lifecycle directly. D1 uses the same lifecycle around session creation/reset without issuing transaction-control SQL.
+- Durable Object SQLite remains on its dedicated asynchronous `storage.transaction()` implementation. Its factory now resolves root default/per-call options once before abort validation and storage acquisition; explicit begin still rechecks abort without `transactionSync`.
+- Shared nested execution now resolves root/per-call options once and supplies the same effective abort signal to policy checks and callback `AbortContext`.
+- Callback transaction correctness no longer depends on the callback observing `AbortContext`: the shared executor and the Durable Object storage callback recheck abort after user work settles and before commit. An abort therefore triggers rollback and rejects with the exact reason even when the callback ignores its context.
+- Explicit root `commit()` rechecks abort after `begin()` and rolls back instead of committing when cancellation occurred. Rollback is performed only at this ordered lifecycle boundary, never from an abort listener while SQL may still be running. `AbortContext` remains available only for callers that want their own work to stop earlier.
+- Core unit coverage was added for option precedence, acquisition/callback signal identity, default abort before acquisition, create-then-abort, failed begin recovery with fresh options, commit/rollback failure recovery, nested root retention, stale completion identity, commit-error handling, rollback-error precedence, and nested callback abort context.
+- Real-driver integration coverage was added for default abort, create-then-abort, and callbacks that ignore abort context in PostgreSQL, sqlite3, D1, and Durable Object SQLite; D1 strict-begin recovery into session mode; sqlite3 recovery after a real lock-induced `BEGIN IMMEDIATE` failure; and real-workerd rollback when a Durable Object explicit transaction is aborted before commit. PostgreSQL, sqlite3, and Durable Object tests assert actual rollback; D1 asserts rejection and recovery because session mode does not provide SQL rollback semantics. Durable Object coverage continues to use real `runInDurableObject()` storage.
+- Mandatory source review found no transaction-cache `close`, `activeTransactionSlot`, one-method lifecycle holder, method replacement, proxy, monkey patch, new unsafe cast, compiler suppression, unconditional rollback after failed begin, fake integration storage/client, Durable Object `transactionSync`, or transaction-control SQL.
+- The new core abort tests were first run against the previous behavior and failed because callback aborts committed and explicit post-begin aborts committed. After implementation, the focused core transaction suite passed all 38 tests. `npm run fix`, `npm run lint`, and the unified `npm run build:ts` also passed on 2026-09-09. Driver integration/runtime tests were intentionally not run by the implementation agent at the user's request; the targeted and aggregate integration/e2e gates above remain pending user results.
+
 ## Known Risks And Decisions To Revisit
 
 - Durable Object SQLite storage is obtained only inside the test Durable Object through `runInDurableObject()`; there is no D1-style `getD1Database()` handle for this adapter.
@@ -1063,4 +1184,4 @@ Prompt 9 ownership-test record (2026-09-09): the direct and generic connection s
 - `rowsWritten` is Cloudflare billing/write-count oriented and includes index writes. Dumbo command row counts use synchronous `total_changes()` before/after execution to detect whether rows changed, then `changes()` for the logical top-level count. Indexed DML and DML-followed-by-DDL tests protect both sides of this behavior.
 - Raw `SqlStorage` is intentionally unsupported because every constructed driver must provide the unified async transaction API through full `DurableObjectStorage`.
 - Pongo optimistic concurrency may rely on precise affected-row counts. Include specific tests before considering full support complete.
-- The generic `transactionFactoryWithDbClient` resets its cached transaction through a callback invoked by driver commit/rollback. Its outer `begin()` runs before `executeInTransaction` enters its `try` block, so a failed begin never reaches commit, rollback, or the reset callback and leaves the failed transaction cached. PostgreSQL, sqlite3, and D1 all use this factory. Fix this through an explicit, typed transaction lifecycle-completion contract with failed-root-begin coverage; do not wrap or replace transaction methods after construction, and do not issue an unconditional rollback when the backend reports that begin itself failed.
+- The generic `transactionFactoryWithDbClient` resets `activeTransaction` through a misleading `close` callback invoked by driver commit/rollback. Its outer `begin()` runs before `executeInTransaction` enters its `try` block, so a failed begin never reaches commit, rollback, or that callback and leaves the failed transaction active. PostgreSQL, sqlite3, and D1 all use this factory. Follow the planned active-transaction lifecycle and abort-consistency section above: use local intention-revealing active-transaction names and a separate `onTransactionFinished` notification, not a one-use state abstraction; do not wrap or replace transaction methods, and do not issue an unconditional rollback when begin itself failed.

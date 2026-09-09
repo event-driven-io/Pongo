@@ -87,6 +87,128 @@ describe('D1 Transactions', () => {
       }
     });
 
+    it('starts a session transaction after a strict transaction fails to begin', async () => {
+      const pool = d1Pool({
+        database,
+        transactionOptions: { mode: 'strict' },
+      });
+      const connection = await pool.connection();
+
+      try {
+        await connection.execute.command(
+          SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
+        );
+
+        await assert.rejects(
+          () => connection.withTransaction(() => Promise.resolve()),
+          { name: 'D1TransactionNotSupportedError' },
+        );
+
+        await connection.withTransaction(
+          async (transaction) => {
+            await transaction.execute.command(
+              SQL`INSERT INTO test_table (id, value) VALUES (1, 'recovered')`,
+            );
+          },
+          { mode: 'session_based' },
+        );
+
+        const result = await connection.execute.query<{ count: number }>(
+          SQL`SELECT COUNT(*) AS count FROM test_table`,
+        );
+        assert.strictEqual(result.rows[0]?.count, 1);
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+    });
+
+    it('honors an already-aborted default transaction option', async () => {
+      const controller = new AbortController();
+      const abortReason = new Error('default D1 transaction aborted');
+      controller.abort(abortReason);
+      const pool = d1Pool({
+        database,
+        transactionOptions: {
+          abort: { signal: controller.signal },
+          mode: 'session_based',
+        },
+      });
+      const connection = await pool.connection();
+      let callbackCalled = false;
+
+      try {
+        await assert.rejects(
+          () =>
+            connection.withTransaction(() => {
+              callbackCalled = true;
+              return Promise.resolve();
+            }),
+          (error) => error === abortReason,
+        );
+        assert.strictEqual(callbackCalled, false);
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+    });
+
+    it('rejects begin when aborted after creating an explicit transaction', async () => {
+      const controller = new AbortController();
+      const abortReason = new Error('D1 transaction aborted before begin');
+      const pool = d1Pool({ database });
+      const connection = await pool.connection();
+
+      try {
+        const transaction = connection.transaction({
+          abort: { signal: controller.signal },
+          mode: 'session_based',
+        });
+        controller.abort(abortReason);
+
+        await assert.rejects(
+          () => transaction.begin(),
+          (error) => error === abortReason,
+        );
+
+        await connection.withTransaction(() => Promise.resolve(), {
+          mode: 'session_based',
+        });
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+    });
+
+    it('rejects when aborted during a callback that ignores its context', async () => {
+      const controller = new AbortController();
+      const abortReason = new Error('D1 transaction aborted during callback');
+      const pool = d1Pool({
+        database,
+        transactionOptions: { mode: 'session_based' },
+      });
+      const connection = await pool.connection();
+
+      try {
+        await assert.rejects(
+          () =>
+            connection.withTransaction(
+              () => {
+                controller.abort(abortReason);
+                return Promise.resolve();
+              },
+              { abort: { signal: controller.signal } },
+            ),
+          (error) => error === abortReason,
+        );
+
+        await connection.withTransaction(() => Promise.resolve());
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+    });
+
     it('allows transaction when mode is session_based', async () => {
       const pool = d1Pool({
         database,

@@ -578,6 +578,29 @@ describe('Cloudflare Durable Object SQLite transactions', () => {
     assert.strictEqual(await countItems(pool), 0);
   });
 
+  it('rolls back when aborted during a callback that ignores its context', async () => {
+    const controller = new AbortController();
+    const abortReason = new InvalidOperationError(
+      'transaction aborted during callback',
+    );
+
+    await assert.rejects(
+      () =>
+        pool.withTransaction(
+          async (transaction) => {
+            await transaction.execute.command(
+              SQL`INSERT INTO tx_items (id, value) VALUES (1, 'aborted')`,
+            );
+            controller.abort(abortReason);
+          },
+          { abort: { signal: controller.signal } },
+        ),
+      (error) => error === abortReason,
+    );
+
+    assert.strictEqual(await countItems(pool), 0);
+  });
+
   it('honors an already-aborted default transaction option', async () => {
     const controller = new AbortController();
     const abortReason = new InvalidOperationError(
@@ -625,6 +648,28 @@ describe('Cloudflare Durable Object SQLite transactions', () => {
       () => transaction.execute.query(SQL`SELECT 1`),
       /Transaction has already completed/,
     );
+  });
+
+  it('rolls back an explicit transaction aborted before commit', async () => {
+    const controller = new AbortController();
+    const abortReason = new InvalidOperationError(
+      'transaction aborted before commit',
+    );
+    const transaction = pool.transaction({
+      abort: { signal: controller.signal },
+    });
+
+    await transaction.begin();
+    await transaction.execute.command(
+      SQL`INSERT INTO tx_items (id, value) VALUES (1, 'aborted')`,
+    );
+    controller.abort(abortReason);
+
+    await assert.rejects(
+      () => transaction.commit(),
+      (error) => error === abortReason,
+    );
+    assert.strictEqual(await countItems(pool), 0);
   });
 
   it('commits a root-pool operation in the same lifecycle transaction flow', async () => {
@@ -807,17 +852,16 @@ describe('Cloudflare Durable Object SQLite transactions', () => {
     );
   });
 
-  it('rejects an aborted lifecycle before starting storage work', async () => {
+  it('rejects begin when aborted after creating an explicit transaction', async () => {
     const controller = new AbortController();
     const abortReason = new InvalidOperationError('lifecycle aborted');
-    controller.abort(abortReason);
-    const pool = cloudflareDurableObjectSQLitePool({
-      storage,
-      transactionOptions: { abort: { signal: controller.signal } },
-    });
+    const pool = cloudflareDurableObjectSQLitePool({ storage });
 
     try {
-      const transaction = pool.transaction();
+      const transaction = pool.transaction({
+        abort: { signal: controller.signal },
+      });
+      controller.abort(abortReason);
 
       await assert.rejects(
         () => transaction.begin(),
@@ -826,6 +870,10 @@ describe('Cloudflare Durable Object SQLite transactions', () => {
           return true;
         },
       );
+
+      const nextTransaction = pool.transaction();
+      await nextTransaction.begin();
+      await nextTransaction.rollback();
       assert.strictEqual(await countItems(pool), 0);
     } finally {
       await pool.close();

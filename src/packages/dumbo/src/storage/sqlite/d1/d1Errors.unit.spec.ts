@@ -1,5 +1,4 @@
 import { describe, it } from 'vitest';
-import { JSONSerializer } from '../../../core';
 import { assertRejectsDumboError } from '../../../core/errors/errorAssertions';
 import type { D1Client, D1Connection } from './connections';
 import { d1Pool } from './pool';
@@ -21,12 +20,10 @@ describe('D1 errors', () => {
       withSession: () => Promise.resolve({} as D1Client),
     } as unknown as D1Client;
 
-    const transaction = d1Transaction(
-      () => ({}) as D1Connection,
-      JSONSerializer.from({}),
-    )(Promise.resolve(client), {
-      close: () => Promise.resolve(),
-      mode: 'session_based',
+    const transaction = d1Transaction(() => ({}) as D1Connection)({
+      client: Promise.resolve(client),
+      onTransactionFinished: () => {},
+      options: { mode: 'session_based' },
     });
 
     await assertRejectsDumboError(
