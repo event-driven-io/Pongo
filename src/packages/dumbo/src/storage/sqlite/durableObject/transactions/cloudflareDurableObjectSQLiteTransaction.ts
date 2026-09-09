@@ -183,6 +183,7 @@ const createTransaction = (
 ): CloudflareDurableObjectSQLiteTransaction => {
   const lifecycle = deferredTransactionLifecycle(context, boundClient);
   const transactionLifecycle = databaseTransaction(lifecycle, {
+    abort: context.options.abort,
     allowNestedTransactions: context.options.allowNestedTransactions ?? false,
   });
 
@@ -224,11 +225,11 @@ const createTransaction = (
           client,
           resolvedOptions.allowNestedTransactions === true,
           async () => {
-            const transactionResult = toTransactionResult(
-              await handle(createTransaction(context, client), {
-                abort: Abort.from(resolvedOptions),
-              }),
-            );
+            const result = await handle(createTransaction(context, client), {
+              abort: Abort.from(resolvedOptions),
+            });
+            Abort.throwIfAborted(resolvedOptions);
+            const transactionResult = toTransactionResult(result);
 
             if (!transactionResult.success) {
               rollback = {
@@ -258,7 +259,6 @@ const createTransaction = (
 export const cloudflareDurableObjectSQLiteTransaction = (
   connection: () => CloudflareDurableObjectSQLiteConnection,
   serializer: JSONSerializer,
-  defaultOptions?: CloudflareDurableObjectSQLiteTransactionOptions,
 ) => {
   const runStorageTransaction = storageTransactionRunner();
 
@@ -269,7 +269,7 @@ export const cloudflareDurableObjectSQLiteTransaction = (
     return createTransaction({
       connection,
       getClient,
-      options: { ...defaultOptions, ...factoryOptions },
+      options: factoryOptions ?? {},
       runStorageTransaction,
       serializer,
     });
@@ -285,22 +285,29 @@ export const cloudflareDurableObjectSQLiteTransactionFactory =
     const initTransaction = cloudflareDurableObjectSQLiteTransaction(
       connection,
       serializer,
-      defaultOptions,
     );
 
-    const transaction = (
+    const resolveOptions = (
       options?: CloudflareDurableObjectSQLiteTransactionOptions,
+    ): CloudflareDurableObjectSQLiteTransactionOptions => ({
+      ...defaultOptions,
+      ...options,
+    });
+
+    const transactionWithOptions = (
+      options: CloudflareDurableObjectSQLiteTransactionOptions,
     ) => {
       Abort.throwIfAborted(options);
       return initTransaction(connect({ abort: Abort.from(options) }), options);
     };
 
     return {
-      transaction,
+      transaction: (options) => transactionWithOptions(resolveOptions(options)),
       withTransaction: (handle, options) => {
-        const abortRejection = Abort.rejectIfAborted(options);
+        const resolvedOptions = resolveOptions(options);
+        const abortRejection = Abort.rejectIfAborted(resolvedOptions);
         if (abortRejection) return abortRejection;
-        return transaction(options).withTransaction(handle, options);
+        return transactionWithOptions(resolvedOptions).withTransaction(handle);
       },
     };
   };

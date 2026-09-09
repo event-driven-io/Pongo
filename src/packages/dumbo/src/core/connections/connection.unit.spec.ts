@@ -56,10 +56,10 @@ const transactionFactory: ConnectionTransactionFactory<AnyConnection> = (
   connect,
   connection,
 ) =>
-  transactionFactoryWithDbClient<AnyConnection>(
+  transactionFactoryWithDbClient<AnyConnection>({
     connect,
-    initTransaction(connection),
-  );
+    initTransaction: initTransaction(connection),
+  });
 
 const connectionFactories: Array<[string, () => AnyConnection]> = [
   [

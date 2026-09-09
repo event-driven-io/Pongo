@@ -1150,4 +1150,150 @@ describe('SQLite3 Transactions', () => {
       }
     });
   });
+
+  describe('transaction abort', () => {
+    it('honors an already-aborted default transaction option', async () => {
+      const controller = new AbortController();
+      const abortReason = new Error('default SQLite transaction aborted');
+      controller.abort(abortReason);
+      const pool = sqlite3Pool({
+        fileName,
+        transactionOptions: { abort: { signal: controller.signal } },
+      });
+      const connection = await pool.connection();
+      let callbackCalled = false;
+
+      try {
+        await assert.rejects(
+          () =>
+            connection.withTransaction(() => {
+              callbackCalled = true;
+              return Promise.resolve();
+            }),
+          (error) => error === abortReason,
+        );
+        assert.strictEqual(callbackCalled, false);
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+    });
+
+    it('rejects begin when aborted after creating an explicit transaction', async () => {
+      const controller = new AbortController();
+      const abortReason = new Error('SQLite transaction aborted before begin');
+      const pool = sqlite3Pool({ fileName });
+      const connection = await pool.connection();
+
+      try {
+        const transaction = connection.transaction({
+          abort: { signal: controller.signal },
+        });
+        controller.abort(abortReason);
+
+        await assert.rejects(
+          () => transaction.begin(),
+          (error) => error === abortReason,
+        );
+
+        await connection.withTransaction(() => Promise.resolve());
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+    });
+
+    it('rolls back when aborted during a callback that ignores its context', async () => {
+      const controller = new AbortController();
+      const abortReason = new Error(
+        'SQLite transaction aborted during callback',
+      );
+      const pool = sqlite3Pool({ fileName });
+      const connection = await pool.connection();
+
+      try {
+        await connection.execute.command(
+          SQL`CREATE TABLE abort_context_test (id INTEGER PRIMARY KEY)`,
+        );
+
+        await assert.rejects(
+          () =>
+            connection.withTransaction(
+              async (transaction) => {
+                await transaction.execute.command(
+                  SQL`INSERT INTO abort_context_test (id) VALUES (1)`,
+                );
+                controller.abort(abortReason);
+              },
+              { abort: { signal: controller.signal } },
+            ),
+          (error) => error === abortReason,
+        );
+
+        const result = await connection.execute.query<{ count: number }>(
+          SQL`SELECT COUNT(*) AS count FROM abort_context_test`,
+        );
+        assert.strictEqual(result.rows[0]?.count, 0);
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+    });
+  });
+
+  it('starts a fresh transaction after a lock prevents begin', async () => {
+    const blockerPool = sqlite3Pool({
+      fileName,
+      pragmaOptions: { busy_timeout: 1 },
+    });
+    const contenderPool = sqlite3Pool({
+      fileName,
+      pragmaOptions: { busy_timeout: 1 },
+    });
+    const blockerConnection = await blockerPool.connection();
+    const contenderConnection = await contenderPool.connection();
+    const blockerTransaction = blockerConnection.transaction({
+      mode: 'IMMEDIATE',
+    });
+    let blockerStarted = false;
+
+    try {
+      await blockerConnection.execute.command(
+        SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
+      );
+      await blockerTransaction.begin();
+      blockerStarted = true;
+      await blockerTransaction.execute.command(
+        SQL`INSERT INTO test_table (id, value) VALUES (1, 'blocking')`,
+      );
+
+      await assert.rejects(
+        () =>
+          contenderConnection.withTransaction(() => Promise.resolve(), {
+            mode: 'IMMEDIATE',
+          }),
+        /busy|locked/i,
+      );
+
+      await blockerTransaction.rollback();
+      blockerStarted = false;
+
+      await contenderConnection.withTransaction(async (transaction) => {
+        await transaction.execute.command(
+          SQL`INSERT INTO test_table (id, value) VALUES (2, 'recovered')`,
+        );
+      });
+
+      const result = await contenderConnection.execute.query<{ id: number }>(
+        SQL`SELECT id FROM test_table ORDER BY id`,
+      );
+      assert.deepStrictEqual(result.rows, [{ id: 2 }]);
+    } finally {
+      if (blockerStarted) await blockerTransaction.rollback();
+      await contenderConnection.close();
+      await blockerConnection.close();
+      await contenderPool.close();
+      await blockerPool.close();
+    }
+  });
 });

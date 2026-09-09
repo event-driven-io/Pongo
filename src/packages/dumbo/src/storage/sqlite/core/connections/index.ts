@@ -187,22 +187,28 @@ export const sqliteAmbientClientConnection = <
     errorMapper,
   } = options;
 
+  const defaultOptions = {
+    ...(defaultTransactionMode === undefined
+      ? {}
+      : { mode: defaultTransactionMode }),
+    allowNestedTransactions: allowNestedTransactions ?? false,
+  };
+
   return createAmbientConnection<SQLiteConnectionType>({
     driverType,
     client,
     transactionFactory:
       transactionFactory ??
       ((connect, connection) =>
-        transactionFactoryWithDbClient(
+        transactionFactoryWithDbClient({
           connect,
-          sqliteTransaction(
+          defaultOptions,
+          initTransaction: sqliteTransaction(
             driverType,
             connection,
-            { allowNestedTransactions: allowNestedTransactions ?? false },
             serializer,
-            defaultTransactionMode,
           ),
-        )),
+        })),
     executor: ({ serializer }) =>
       sqliteSQLExecutor(driverType, serializer, undefined, errorMapper),
     serializer,
@@ -220,6 +226,13 @@ export const sqliteClientConnection = <
   >,
 ): SQLiteConnectionType => {
   const { connectionOptions, sqliteClientFactory, serializer } = options;
+
+  const defaultOptions = {
+    ...(connectionOptions.defaultTransactionMode === undefined
+      ? {}
+      : { mode: connectionOptions.defaultTransactionMode }),
+    ...connectionOptions.transactionOptions,
+  };
 
   let client: InferDbClientFromConnection<SQLiteConnectionType> | null = null;
 
@@ -256,16 +269,15 @@ export const sqliteClientConnection = <
         client.release();
     },
     transactionFactory: (connect, connection) =>
-      transactionFactoryWithDbClient(
+      transactionFactoryWithDbClient({
         connect,
-        sqliteTransaction(
+        defaultOptions,
+        initTransaction: sqliteTransaction(
           options.driverType,
           connection,
-          connectionOptions.transactionOptions ?? {},
           serializer,
-          connectionOptions.defaultTransactionMode,
         ),
-      ),
+      }),
     executor: ({ serializer }) =>
       sqliteSQLExecutor(options.driverType, serializer),
     serializer,
@@ -283,6 +295,13 @@ export const sqlitePoolClientConnection = <
   >,
 ): SQLiteConnectionType => {
   const { connectionOptions, sqliteClientFactory, serializer } = options;
+
+  const defaultOptions = {
+    ...(connectionOptions.defaultTransactionMode === undefined
+      ? {}
+      : { mode: connectionOptions.defaultTransactionMode }),
+    ...connectionOptions.transactionOptions,
+  };
 
   let client: InferDbClientFromConnection<SQLiteConnectionType> | null = null;
 
@@ -310,16 +329,15 @@ export const sqlitePoolClientConnection = <
         ? Promise.resolve((client as unknown as SQLitePoolClient).release())
         : Promise.resolve(),
     transactionFactory: (connect, connection) =>
-      transactionFactoryWithDbClient(
+      transactionFactoryWithDbClient({
         connect,
-        sqliteTransaction(
+        defaultOptions,
+        initTransaction: sqliteTransaction(
           options.driverType,
           connection,
-          connectionOptions.transactionOptions ?? {},
           serializer,
-          connectionOptions.defaultTransactionMode,
         ),
-      ),
+      }),
     executor: ({ serializer }) =>
       sqliteSQLExecutor(options.driverType, serializer),
     serializer,
