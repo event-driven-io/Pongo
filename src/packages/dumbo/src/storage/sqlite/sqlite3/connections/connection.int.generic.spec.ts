@@ -156,9 +156,6 @@ describe('Node SQLite3 pool', () => {
 
         try {
           await connection.execute.query(SQL`SELECT 1`);
-        } catch (error) {
-          console.log(error);
-          assert.fail(error as Error);
         } finally {
           await connection.close();
           await pool.close();
@@ -183,31 +180,42 @@ describe('Node SQLite3 pool', () => {
         }
       });
 
-      it('connects using ambient client', withDeadline, async () => {
-        const existingClient = sqlite3Client({
-          fileName,
-          serializer: JSONSerializer,
-        });
-        await existingClient.connect();
+      it(
+        'does not close a supplied client when the generic pool closes',
+        withDeadline,
+        async () => {
+          const existingClient = sqlite3Client({
+            fileName,
+            serializer: JSONSerializer,
+          });
+          await existingClient.connect();
 
-        const pool = dumbo({
-          driverType: `SQLite:sqlite3`,
-          connectionString,
-          client: existingClient,
-        });
-        const connection = await pool.connection();
+          const pool = dumbo({
+            driverType: `SQLite:sqlite3`,
+            connectionString,
+            client: existingClient,
+          });
+          try {
+            const connection = await pool.connection();
+            try {
+              await connection.execute.query(SQL`SELECT 1`);
+            } finally {
+              await connection.close();
+              await pool.close();
+            }
 
-        try {
-          await connection.execute.query(SQL`SELECT 1`);
-        } finally {
-          await connection.close();
-          await pool.close();
-          await existingClient.close();
-        }
-      });
+            const result = await existingClient.query<{ value: number }>(
+              SQL`SELECT 1 AS value`,
+            );
+            assert.deepStrictEqual(result.rows, [{ value: 1 }]);
+          } finally {
+            await existingClient.close();
+          }
+        },
+      );
 
       it(
-        'connects using connected ambient connected connection',
+        'does not close a supplied connection when the generic pool closes',
         withDeadline,
         async () => {
           const ambientPool = dumbo({
@@ -225,9 +233,14 @@ describe('Node SQLite3 pool', () => {
           });
 
           try {
-            await pool.execute.query(SQL`SELECT 1`);
+            try {
+              await pool.execute.query(SQL`SELECT 1`);
+            } finally {
+              await pool.close();
+            }
+
+            await ambientConnection.execute.query(SQL`SELECT 1`);
           } finally {
-            await pool.close();
             await ambientConnection.close();
             await ambientPool.close();
           }

@@ -72,7 +72,7 @@ describe('Cloudflare d1 pool', () => {
     }
   });
 
-  it('connects using ambient client', async () => {
+  it('does not close a supplied client when the pool closes', async () => {
     const existingClient = d1Client({ database, serializer: JSONSerializer });
     await existingClient.connect();
 
@@ -80,13 +80,20 @@ describe('Cloudflare d1 pool', () => {
       database,
       client: existingClient,
     });
-    const connection = await pool.connection();
-
     try {
-      await connection.execute.query(SQL`SELECT 1`);
+      const connection = await pool.connection();
+      try {
+        await connection.execute.query(SQL`SELECT 1`);
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+
+      const result = await existingClient.query<{ value: number }>(
+        SQL`SELECT 1 AS value`,
+      );
+      assert.deepStrictEqual(result.rows, [{ value: 1 }]);
     } finally {
-      await connection.close();
-      await pool.close();
       await existingClient.close();
     }
   });

@@ -77,7 +77,7 @@ describe('Cloudflare Durable Object SQLite Dumbo pool', () => {
     }
   });
 
-  it('connects using an ambient client', async () => {
+  it('does not close a supplied client when the generic pool closes', async () => {
     const existingClient = cloudflareDurableObjectSQLiteClient({
       storage,
       serializer: JSONSerializer,
@@ -90,18 +90,28 @@ describe('Cloudflare Durable Object SQLite Dumbo pool', () => {
     });
 
     try {
-      const result = await pool.execute.query<{ value: number }>(
-        SQL`SELECT ${3} AS value`,
-      );
+      const connection = await pool.connection();
+      try {
+        const result = await connection.execute.query<{ value: number }>(
+          SQL`SELECT ${3} AS value`,
+        );
 
-      assert.deepStrictEqual(result.rows, [{ value: 3 }]);
+        assert.deepStrictEqual(result.rows, [{ value: 3 }]);
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+
+      const result = await existingClient.query<{ value: number }>(
+        SQL`SELECT 4 AS value`,
+      );
+      assert.deepStrictEqual(result.rows, [{ value: 4 }]);
     } finally {
-      await pool.close();
       await existingClient.close();
     }
   });
 
-  it('connects using an ambient connected connection', async () => {
+  it('does not close a supplied connection when the generic pool closes', async () => {
     const ambientPool = dumbo({
       driverType: CloudflareDurableObjectSQLiteDriverType,
       storage,
@@ -115,13 +125,21 @@ describe('Cloudflare Durable Object SQLite Dumbo pool', () => {
     });
 
     try {
-      const result = await pool.execute.query<{ value: number }>(
-        SQL`SELECT ${4} AS value`,
-      );
+      try {
+        const result = await pool.execute.query<{ value: number }>(
+          SQL`SELECT ${4} AS value`,
+        );
 
-      assert.deepStrictEqual(result.rows, [{ value: 4 }]);
+        assert.deepStrictEqual(result.rows, [{ value: 4 }]);
+      } finally {
+        await pool.close();
+      }
+
+      const result = await ambientConnection.execute.query<{ value: number }>(
+        SQL`SELECT ${5} AS value`,
+      );
+      assert.deepStrictEqual(result.rows, [{ value: 5 }]);
     } finally {
-      await pool.close();
       await ambientConnection.close();
       await ambientPool.close();
     }
@@ -141,10 +159,10 @@ describe('Cloudflare Durable Object SQLite Dumbo pool', () => {
 
     try {
       const result = await pool.execute.query<{ value: number }>(
-        SQL`SELECT ${5} AS value`,
+        SQL`SELECT ${6} AS value`,
       );
 
-      assert.deepStrictEqual(result.rows, [{ value: 5 }]);
+      assert.deepStrictEqual(result.rows, [{ value: 6 }]);
     } finally {
       await pool.close();
       await ambientConnection.close();
@@ -169,10 +187,10 @@ describe('Cloudflare Durable Object SQLite Dumbo pool', () => {
 
         try {
           const result = await pool.execute.query<{ value: number }>(
-            SQL`SELECT ${6} AS value`,
+            SQL`SELECT ${7} AS value`,
           );
 
-          assert.deepStrictEqual(result.rows, [{ value: 6 }]);
+          assert.deepStrictEqual(result.rows, [{ value: 7 }]);
         } finally {
           await pool.close();
         }

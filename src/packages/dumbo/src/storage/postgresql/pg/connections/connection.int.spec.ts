@@ -38,16 +38,24 @@ describe('pg', () => {
       }
     });
 
-    it('connects using ambient pool', async () => {
+    it('does not close a supplied native pool when the pool closes', async () => {
       const nativePool = getPgPool(connectionString);
       const pool = pgPool({ connectionString, pool: nativePool });
-      const connection = await pool.connection();
 
       try {
-        await connection.execute.query(SQL`SELECT 1`);
+        const connection = await pool.connection();
+        try {
+          await connection.execute.query(SQL`SELECT 1`);
+        } finally {
+          await connection.close();
+          await pool.close();
+        }
+
+        const result = await nativePool.query<{ value: number }>(
+          'SELECT 1 AS value',
+        );
+        assert.deepStrictEqual(result.rows, [{ value: 1 }]);
       } finally {
-        await connection.close();
-        await pool.close();
         await endPgPool({ connectionString });
       }
     });
@@ -67,7 +75,7 @@ describe('pg', () => {
       }
     });
 
-    it('connects using ambient client', async () => {
+    it('does not close a supplied client when the pool closes', async () => {
       const existingClient = new pg.Client({ connectionString });
       await existingClient.connect();
 
@@ -75,13 +83,20 @@ describe('pg', () => {
         connectionString,
         client: existingClient,
       });
-      const connection = await pool.connection();
-
       try {
-        await connection.execute.query(SQL`SELECT 1`);
+        const connection = await pool.connection();
+        try {
+          await connection.execute.query(SQL`SELECT 1`);
+        } finally {
+          await connection.close();
+          await pool.close();
+        }
+
+        const result = await existingClient.query<{ value: number }>(
+          'SELECT 1 AS value',
+        );
+        assert.deepStrictEqual(result.rows, [{ value: 1 }]);
       } finally {
-        await connection.close();
-        await pool.close();
         await existingClient.end();
       }
     });
