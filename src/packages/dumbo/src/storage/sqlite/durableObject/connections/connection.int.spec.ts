@@ -63,7 +63,7 @@ describe('Cloudflare Durable Object SQLite pool', () => {
     }
   });
 
-  it('uses a supplied client as the singleton client', async () => {
+  it('does not close a supplied client when the pool closes', async () => {
     const existingClient = cloudflareDurableObjectSQLiteClient({
       storage,
       serializer: JSONSerializer,
@@ -76,12 +76,21 @@ describe('Cloudflare Durable Object SQLite pool', () => {
 
     try {
       const connection = await pool.connection();
-      const client = await connection.open();
+      try {
+        const client = await connection.open();
 
-      assert.strictEqual(client, existingClient);
-      await pool.execute.query(SQL`SELECT 1`);
+        assert.strictEqual(client, existingClient);
+        await pool.execute.query(SQL`SELECT 1`);
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+
+      const result = await existingClient.query<{ value: number }>(
+        SQL`SELECT 1 AS value`,
+      );
+      assert.deepStrictEqual(result.rows, [{ value: 1 }]);
     } finally {
-      await pool.close();
       await existingClient.close();
     }
   });

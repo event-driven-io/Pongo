@@ -192,7 +192,7 @@ describe('Node SQLite3 pool', () => {
       });
 
       it(
-        `connects using ambient client ${testName}`,
+        `does not close a supplied client when the pool closes ${testName}`,
         withDeadline,
         async () => {
           const existingClient = sqlite3Client({
@@ -204,13 +204,20 @@ describe('Node SQLite3 pool', () => {
           const pool = sqlite3Pool({
             client: existingClient,
           });
-          const connection = await pool.connection();
-
           try {
-            await connection.execute.query(SQL`SELECT 1`);
+            const connection = await pool.connection();
+            try {
+              await connection.execute.query(SQL`SELECT 1`);
+            } finally {
+              await connection.close();
+              await pool.close();
+            }
+
+            const result = await existingClient.query<{ value: number }>(
+              SQL`SELECT 1 AS value`,
+            );
+            assert.deepStrictEqual(result.rows, [{ value: 1 }]);
           } finally {
-            await connection.close();
-            await pool.close();
             await existingClient.close();
           }
         },

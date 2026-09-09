@@ -42,6 +42,8 @@
 - [x] Run Prompt 8 build/test verification (historical baseline from 2026-09-07).
 - [x] Update `plan.md` and `todo.md` with the agreed conventional runtime-spec names, path-based ownership, lifecycle distinction, and reopened final gate.
 - [ ] Prompt 9: complete the user-run verification, fix any reported failures, and record the final results.
+- [x] Add direct and generic integration coverage for Durable Object, D1, sqlite3, and PostgreSQL proving that closing a wrapper connection/pool does not invalidate a caller-supplied client or connection; also cover a supplied PostgreSQL native pool.
+- [ ] Fix and test the generic DB-client transaction factory's failed-`begin()` lifecycle: a failed outer begin currently leaves the failed transaction cached. The production design change requires approval; do not solve it by monkey-patching transaction methods or by attempting an unconditional rollback after a failed begin.
 - [x] Rename all 17 Durable Object runtime specs to conventional `*.int.spec.ts`/`*.e2e.spec.ts` names without a runtime-specific Cloudflare filename segment, and move the Dumbo driver registration spec to `durableObject/driver.int.spec.ts`.
 - [x] Configure Cloudflare Vitest, TypeScript, and ESLint ownership by the Dumbo/Pongo `durableObject` paths rather than runtime-specific filename suffixes; keep production, unit, and type specs in their normal projects.
 - [x] Add real-workerd behavioral coverage for a parameterized SQL `null` binding and assert SQLite `NULL` round-tripping.

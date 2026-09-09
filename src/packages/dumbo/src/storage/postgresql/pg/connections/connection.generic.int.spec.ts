@@ -2,9 +2,9 @@ import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
+import assert from 'assert';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import pg from 'pg';
-import { pgPool } from '.';
 import { pgDumboDriver } from '..';
 import { SQL } from '../../../../core';
 import { dumbo } from '../../../all';
@@ -30,32 +30,43 @@ describe('pg', () => {
 
       try {
         await connection.execute.query(SQL`SELECT 1`);
-      } catch (error) {
-        console.log(error);
       } finally {
         await connection.close();
         await pool.close();
       }
     });
 
-    it('connects using ambient pool', async () => {
+    it('does not close a supplied native pool when the generic pool closes', async () => {
       const nativePool = getPgPool(connectionString);
-      const pool = pgPool({ connectionString, pool: nativePool });
-      const connection = await pool.connection();
+      const pool = dumbo({
+        connectionString,
+        pool: nativePool,
+        driver: pgDumboDriver,
+      });
 
       try {
-        await connection.execute.query(SQL`SELECT 1`);
+        const connection = await pool.connection();
+        try {
+          await connection.execute.query(SQL`SELECT 1`);
+        } finally {
+          await connection.close();
+          await pool.close();
+        }
+
+        const result = await nativePool.query<{ value: number }>(
+          'SELECT 1 AS value',
+        );
+        assert.deepStrictEqual(result.rows, [{ value: 1 }]);
       } finally {
-        await connection.close();
-        await pool.close();
         await endPgPool({ connectionString });
       }
     });
 
     it('connects using client', async () => {
-      const pool = pgPool({
+      const pool = dumbo({
         connectionString,
         pooled: false,
+        driver: pgDumboDriver,
       });
       const connection = await pool.connection();
 
@@ -67,51 +78,66 @@ describe('pg', () => {
       }
     });
 
-    it('connects using ambient client', async () => {
+    it('does not close a supplied client when the generic pool closes', async () => {
       const existingClient = new pg.Client({ connectionString });
       await existingClient.connect();
 
-      const pool = pgPool({
+      const pool = dumbo({
         connectionString,
         client: existingClient,
+        driver: pgDumboDriver,
       });
-      const connection = await pool.connection();
-
       try {
-        await connection.execute.query(SQL`SELECT 1`);
+        const connection = await pool.connection();
+        try {
+          await connection.execute.query(SQL`SELECT 1`);
+        } finally {
+          await connection.close();
+          await pool.close();
+        }
+
+        const result = await existingClient.query<{ value: number }>(
+          'SELECT 1 AS value',
+        );
+        assert.deepStrictEqual(result.rows, [{ value: 1 }]);
       } finally {
-        await connection.close();
-        await pool.close();
         await existingClient.end();
       }
     });
 
-    it('connects using connected ambient connected connection', async () => {
-      const ambientPool = pgPool({ connectionString });
+    it('does not close a supplied connection when the generic pool closes', async () => {
+      const ambientPool = dumbo({ connectionString, driver: pgDumboDriver });
       const ambientConnection = await ambientPool.connection();
       await ambientConnection.open();
 
-      const pool = pgPool({
+      const pool = dumbo({
         connectionString,
         connection: ambientConnection,
+        driver: pgDumboDriver,
       });
 
       try {
-        await pool.execute.query(SQL`SELECT 1`);
+        try {
+          await pool.execute.query(SQL`SELECT 1`);
+        } finally {
+          await pool.close();
+        }
+
+        await ambientConnection.execute.query(SQL`SELECT 1`);
       } finally {
-        await pool.close();
         await ambientConnection.close();
         await ambientPool.close();
       }
     });
 
     it('connects using connected ambient not-connected connection', async () => {
-      const ambientPool = pgPool({ connectionString });
+      const ambientPool = dumbo({ connectionString, driver: pgDumboDriver });
       const ambientConnection = await ambientPool.connection();
 
-      const pool = pgPool({
+      const pool = dumbo({
         connectionString,
         connection: ambientConnection,
+        driver: pgDumboDriver,
       });
 
       try {
@@ -124,15 +150,16 @@ describe('pg', () => {
     });
 
     it('connects using ambient connected connection with transaction', async () => {
-      const ambientPool = pgPool({ connectionString });
+      const ambientPool = dumbo({ connectionString, driver: pgDumboDriver });
       const ambientConnection = await ambientPool.connection();
       await ambientConnection.open();
 
       try {
         await ambientConnection.withTransaction<void>(async () => {
-          const pool = pgPool({
+          const pool = dumbo({
             connectionString,
             connection: ambientConnection,
+            driver: pgDumboDriver,
           });
           try {
             await pool.execute.query(SQL`SELECT 1`);
@@ -149,14 +176,15 @@ describe('pg', () => {
     });
 
     it('connects using ambient not-connected connection with transaction', async () => {
-      const ambientPool = pgPool({ connectionString });
+      const ambientPool = dumbo({ connectionString, driver: pgDumboDriver });
       const ambientConnection = await ambientPool.connection();
 
       try {
         await ambientConnection.withTransaction<void>(async () => {
-          const pool = pgPool({
+          const pool = dumbo({
             connectionString,
             connection: ambientConnection,
+            driver: pgDumboDriver,
           });
           try {
             await pool.execute.query(SQL`SELECT 1`);
@@ -173,12 +201,13 @@ describe('pg', () => {
     });
 
     it('connects using ambient connection in withConnection scope', async () => {
-      const ambientPool = pgPool({ connectionString });
+      const ambientPool = dumbo({ connectionString, driver: pgDumboDriver });
       try {
         await ambientPool.withConnection(async (ambientConnection) => {
-          const pool = pgPool({
+          const pool = dumbo({
             connectionString,
             connection: ambientConnection,
+            driver: pgDumboDriver,
           });
           try {
             await pool.execute.query(SQL`SELECT 1`);
@@ -194,13 +223,14 @@ describe('pg', () => {
     });
 
     it('connects using ambient connection in withConnection and withTransaction scope', async () => {
-      const ambientPool = pgPool({ connectionString });
+      const ambientPool = dumbo({ connectionString, driver: pgDumboDriver });
       try {
         await ambientPool.withConnection((ambientConnection) =>
           ambientConnection.withTransaction(async () => {
-            const pool = pgPool({
+            const pool = dumbo({
               connectionString,
               connection: ambientConnection,
+              driver: pgDumboDriver,
             });
             try {
               await pool.execute.query(SQL`SELECT 1`);

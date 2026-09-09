@@ -78,9 +78,6 @@ describe('D1 SQLite pool', () => {
 
     try {
       await connection.execute.query(SQL`SELECT 1`);
-    } catch (error) {
-      console.log(error);
-      assert.fail(error as Error);
     } finally {
       await connection.close();
       await pool.close();
@@ -104,7 +101,7 @@ describe('D1 SQLite pool', () => {
     }
   });
 
-  it('connects using ambient client', async () => {
+  it('does not close a supplied client when the generic pool closes', async () => {
     const existingClient = d1Client({ database, serializer: JSONSerializer });
     await existingClient.connect();
 
@@ -113,18 +110,25 @@ describe('D1 SQLite pool', () => {
       database,
       client: existingClient,
     });
-    const connection = await pool.connection();
-
     try {
-      await connection.execute.query(SQL`SELECT 1`);
+      const connection = await pool.connection();
+      try {
+        await connection.execute.query(SQL`SELECT 1`);
+      } finally {
+        await connection.close();
+        await pool.close();
+      }
+
+      const result = await existingClient.query<{ value: number }>(
+        SQL`SELECT 1 AS value`,
+      );
+      assert.deepStrictEqual(result.rows, [{ value: 1 }]);
     } finally {
-      await connection.close();
-      await pool.close();
       await existingClient.close();
     }
   });
 
-  it('connects using connected ambient connected connection', async () => {
+  it('does not close a supplied connection when the generic pool closes', async () => {
     const ambientPool = dumbo({
       driverType: `SQLite:d1`,
       database,
@@ -139,9 +143,14 @@ describe('D1 SQLite pool', () => {
     });
 
     try {
-      await pool.execute.query(SQL`SELECT 1`);
+      try {
+        await pool.execute.query(SQL`SELECT 1`);
+      } finally {
+        await pool.close();
+      }
+
+      await ambientConnection.execute.query(SQL`SELECT 1`);
     } finally {
-      await pool.close();
       await ambientConnection.close();
       await ambientPool.close();
     }
