@@ -230,12 +230,14 @@ export const executeInTransaction = async <
 
   let transactionResult: TransactionResult<Result>;
   try {
+    Abort.throwIfAborted(context);
     transactionResult = toTransactionResult(await handle(transaction, context));
     Abort.throwIfAborted(context);
   } catch (e) {
     try {
       await transaction.rollback(e);
     } catch {
+      // Rollback failure must not replace the original callback or abort error.
       throw e;
     }
     throw e;

@@ -303,29 +303,28 @@ describe('D1 Transactions', () => {
           SQL`CREATE TABLE test_table (id INTEGER, value TEXT)`,
         );
 
-        await connection.withTransaction<number>(
-          async () => {
-            await connection.execute.query(
-              SQL`INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id`,
-            );
-
-            const result = await connection.withTransaction<number>(
+        await assert.rejects(
+          () =>
+            connection.withTransaction<number>(
               async () => {
-                const result = await connection.execute.query(
-                  SQL`INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id`,
+                await connection.execute.query(
+                  SQL`INSERT INTO test_table (id, value) VALUES (2, "test") RETURNING id`,
                 );
-                return (result.rows[0]?.id as number) ?? null;
-              },
-            );
 
-            return result;
-          },
-          { mode: 'session_based' },
-        );
-      } catch (error) {
-        assert.strictEqual(
-          (error as Error).message,
-          'SQLITE_ERROR: cannot start a transaction within a transaction',
+                const result = await connection.withTransaction<number>(
+                  async () => {
+                    const result = await connection.execute.query(
+                      SQL`INSERT INTO test_table (id, value) VALUES (1, "test") RETURNING id`,
+                    );
+                    return (result.rows[0]?.id as number) ?? null;
+                  },
+                );
+
+                return result;
+              },
+              { mode: 'session_based' },
+            ),
+          /Cannot start a nested transaction: allowNestedTransactions is false/,
         );
       } finally {
         await connection.close();

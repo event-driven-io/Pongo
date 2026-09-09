@@ -412,6 +412,45 @@ describe('createBoundedConnectionPool', () => {
 });
 
 describe('createSingletonConnectionPool', () => {
+  it('does not run pool connection cleanup when a transaction completes', async () => {
+    const conn = makeFakeConnection(1);
+    let cleanupCalls = 0;
+    const pool = createSingletonConnectionPool<FakeConnection>({
+      driverType: fakeDriverType,
+      getConnection: () => conn,
+      closeConnection: () => {
+        cleanupCalls++;
+        return Promise.resolve();
+      },
+    });
+
+    await pool.withTransaction(() => Promise.resolve());
+
+    assert.strictEqual(cleanupCalls, 0);
+    assert.strictEqual(conn.closed, false);
+
+    await pool.close();
+  });
+
+  it('uses configured connection cleanup when the pool closes', async () => {
+    const conn = makeFakeConnection(1);
+    let cleanedConnection: FakeConnection | undefined;
+    const pool = createSingletonConnectionPool<FakeConnection>({
+      driverType: fakeDriverType,
+      getConnection: () => conn,
+      closeConnection: (connection) => {
+        cleanedConnection = connection;
+        return Promise.resolve();
+      },
+    });
+
+    await pool.withConnection(() => Promise.resolve());
+    await pool.close();
+
+    assert.strictEqual(cleanedConnection, conn);
+    assert.strictEqual(conn.closed, false);
+  });
+
   it('drains in-flight callbacks before closing the underlying connection', async () => {
     const conn = makeFakeConnection(1);
 

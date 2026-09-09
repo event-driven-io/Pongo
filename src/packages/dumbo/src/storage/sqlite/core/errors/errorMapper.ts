@@ -15,6 +15,16 @@ import {
   UniqueConstraintError,
 } from '../../../../core/errors';
 
+/**
+ * Extracts the SQLite error code string from a driver error.
+ *
+ * The `sqlite3` (node-sqlite3) driver sets `error.code` to a string like
+ * `'SQLITE_CONSTRAINT'` and `error.errno` to the numeric result code.
+ * See: https://github.com/TryGhost/node-sqlite3
+ *
+ * Cloudflare workerd does not expose `error.code`, so Durable Object SQLite
+ * errors fall back to the result code included in the error message.
+ */
 const getSqliteErrorCode = (error: unknown): string | undefined => {
   if (
     error instanceof Error &&

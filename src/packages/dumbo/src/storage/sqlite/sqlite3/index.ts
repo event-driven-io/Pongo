@@ -107,6 +107,9 @@ export const sqlite3Pool = (
     return sqlite3SingletonPool<SQLite3Connection>({
       driverType: SQLite3DriverType,
       getConnection: () => sqliteConnectionFactory(connectionOptions),
+      ...('client' in options && options.client
+        ? { closeConnection: () => Promise.resolve() }
+        : {}),
       ...lifecycleOptions,
     });
   }

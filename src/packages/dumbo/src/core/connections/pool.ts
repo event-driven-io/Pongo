@@ -127,7 +127,6 @@ export const createSingletonConnectionPool = <
   const innerTransactionFactory = transactionFactoryWithAsyncAmbientConnection(
     options.driverType,
     getExistingOrNewConnection,
-    options.closeConnection,
   );
 
   const result: ConnectionPool<ConnectionType> = {
@@ -196,7 +195,11 @@ export const createSingletonConnectionPool = <
       if (!connectionPromise) return;
       const connection = await connectionPromise;
       connectionPromise = null;
-      await connection.close();
+      if (options.closeConnection) {
+        await options.closeConnection(connection);
+      } else {
+        await connection.close();
+      }
     },
   };
 
