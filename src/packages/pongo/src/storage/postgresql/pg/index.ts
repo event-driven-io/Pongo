@@ -3,10 +3,12 @@ import {
   isPgClient,
   isPgNativePool,
   PgDriverType,
+  type PgConnection,
   type PgPool,
   type PgPoolOptions,
   type PgTransactionOptions,
 } from '@event-driven-io/dumbo/pg';
+import type { JSONSerializer } from '@event-driven-io/dumbo';
 import {
   PongoDatabase,
   PongoError,
@@ -47,8 +49,17 @@ type PgPoolDriverOptions = Omit<
   connectionOptions?: undefined;
 };
 
+type PgAmbientConnectionDriverOptions = PgDriverBaseOptions & {
+  databaseName?: string | undefined;
+  connectionString?: string | undefined;
+  connectionOptions: Extract<PgConnectionOptions, { connection: PgConnection }>;
+  pool?: PgPool | undefined;
+};
+
 export type PgDatabaseDriverOptions =
-  PgConnectionStringDriverOptions | PgPoolDriverOptions;
+  | PgConnectionStringDriverOptions
+  | PgPoolDriverOptions
+  | PgAmbientConnectionDriverOptions;
 
 const pgPongoDriver: PongoDriver<
   PongoDb<PgDriverType>,
@@ -84,42 +95,52 @@ const pgPongoDriver: PongoDriver<
       );
     }
 
-    const { connectionString } = options;
-
-    if (connectionString !== undefined) {
-      return PongoDatabase({
-        ...options,
-        transactionOptions: connectionOptions.transactionOptions,
-        pool:
-          options.pool ??
-          dumboDriver.createPool({
-            connectionString,
-            database: databaseName,
-            ...connectionOptions,
-            serialization: { serializer: options.serializer },
-          }),
-        sqlBuilderFor: (collection) =>
-          postgresSQLBuilder(collection, options.serializer),
-        databaseName,
-        defaultSchemaName,
-      });
-    }
-
-    const pool = options.pool;
-    if (pool === undefined) {
-      throw new PongoError('PostgreSQL connection string or pool is required');
-    }
-
     return PongoDatabase({
       ...options,
       transactionOptions: connectionOptions.transactionOptions,
-      pool,
+      pool: options.pool ?? createPgPool(options),
       sqlBuilderFor: (collection) =>
         postgresSQLBuilder(collection, options.serializer),
       databaseName,
       defaultSchemaName,
     });
   },
+};
+
+const createPgPool = (
+  options: PgDatabaseDriverOptions & {
+    databaseName: string;
+    serializer: JSONSerializer;
+  },
+): PgPool => {
+  const { connectionOptions, connectionString } = options;
+  const transactionOptions = withPongoTransactionOptions<
+    PgConnectionOptions,
+    PgTransactionOptions
+  >(connectionOptions).transactionOptions;
+  const txOpts = transactionOptions ? { transactionOptions } : {};
+  const serialization = { serializer: options.serializer };
+
+  if (connectionOptions && 'connection' in connectionOptions)
+    return dumboDriver.createPool({
+      ...connectionOptions,
+      ...txOpts,
+      serialization,
+    });
+
+  if (connectionString === undefined)
+    throw new PongoError('PostgreSQL connection string or pool is required');
+
+  return dumboDriver.createPool({
+    ...(connectionOptions as Exclude<
+      PgConnectionOptions,
+      { connection: PgConnection }
+    >),
+    connectionString,
+    database: options.databaseName,
+    ...txOpts,
+    serialization,
+  });
 };
 
 export const usePgPongoDriver = () => {

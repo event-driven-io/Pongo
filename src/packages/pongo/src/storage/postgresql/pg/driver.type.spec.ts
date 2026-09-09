@@ -45,6 +45,12 @@ describe('typing the PostgreSQL Pongo driver options', () => {
     }>().toExtend<PgPongoDriverOptions>();
   });
 
+  it('allows an ambient connection without another connection string', () => {
+    expectTypeOf<{
+      connectionOptions: { connection: PgConnection };
+    }>().toExtend<PgPongoDriverOptions>();
+  });
+
   it('takes a Dumbo pool in the dedicated pool option', () => {
     expectTypeOf<{
       connectionString: typeof _connectionString;
