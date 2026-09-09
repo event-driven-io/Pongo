@@ -403,6 +403,37 @@ describe('Cloudflare Durable Object SQLite transactions', () => {
     assert.strictEqual(await countItems(pool), 2);
   });
 
+  it('does not invoke a queued transaction callback after it is aborted', async () => {
+    const firstEntered = Promise.withResolvers<void>();
+    const releaseFirst = Promise.withResolvers<void>();
+    const controller = new AbortController();
+    const abortReason = new InvalidOperationError(
+      'queued transaction aborted before begin',
+    );
+    let callbackCalled = false;
+
+    const first = pool.withTransaction(async () => {
+      firstEntered.resolve();
+      await releaseFirst.promise;
+    });
+    await firstEntered.promise;
+
+    const second = pool.withTransaction(
+      () => {
+        callbackCalled = true;
+        return Promise.resolve();
+      },
+      { abort: { signal: controller.signal } },
+    );
+    await Promise.resolve();
+    controller.abort(abortReason);
+    releaseFirst.resolve();
+
+    await first;
+    await assert.rejects(second, (error) => error === abortReason);
+    assert.strictEqual(callbackCalled, false);
+  });
+
   it('keeps a root-pool write inside the active transaction callback', async () => {
     await assert.rejects(
       () =>

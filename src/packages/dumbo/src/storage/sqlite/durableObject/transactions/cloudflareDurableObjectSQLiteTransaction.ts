@@ -225,6 +225,7 @@ const createTransaction = (
           client,
           resolvedOptions.allowNestedTransactions === true,
           async () => {
+            Abort.throwIfAborted(resolvedOptions);
             const result = await handle(createTransaction(context, client), {
               abort: Abort.from(resolvedOptions),
             });

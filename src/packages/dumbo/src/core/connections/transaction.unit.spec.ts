@@ -277,6 +277,45 @@ describe('databaseTransaction', () => {
 });
 
 describe('executeInTransaction', () => {
+  it('rolls back without invoking the callback when aborted during begin', async () => {
+    const controller = new AbortController();
+    const abortReason = new Error('transaction aborted during begin');
+    const calls: string[] = [];
+    const transaction = {
+      begin: () => {
+        calls.push('begin');
+        controller.abort(abortReason);
+        return Promise.resolve();
+      },
+      commit: () => {
+        calls.push('commit');
+        return Promise.resolve();
+      },
+      rollback: (error?: unknown) => {
+        calls.push('rollback');
+        assert.strictEqual(error, abortReason);
+        return Promise.resolve();
+      },
+    };
+    let callbackCalls = 0;
+
+    await assert.rejects(
+      () =>
+        executeInTransaction(
+          transaction,
+          () => {
+            callbackCalls++;
+            return Promise.resolve();
+          },
+          { abort: { signal: controller.signal } },
+        ),
+      (error) => error === abortReason,
+    );
+
+    assert.strictEqual(callbackCalls, 0);
+    assert.deepStrictEqual(calls, ['begin', 'rollback']);
+  });
+
   it('rolls back when the signal is aborted during a callback that ignores its context', async () => {
     const controller = new AbortController();
     const abortReason = new Error('transaction aborted during callback');
