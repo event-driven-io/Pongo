@@ -197,9 +197,10 @@ export const createSingletonConnectionPool = <
       connectionPromise = null;
       if (options.closeConnection) {
         await options.closeConnection(connection);
-      } else {
-        await connection.close();
+        return;
       }
+
+      await connection.close();
     },
   };
 

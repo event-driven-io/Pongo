@@ -243,9 +243,12 @@ export const executeInTransaction = async <
     throw e;
   }
 
-  if (transactionResult.success) await transaction.commit();
-  else await transaction.rollback();
+  if (!transactionResult.success) {
+    await transaction.rollback();
+    return transactionResult.result;
+  }
 
+  await transaction.commit();
   return transactionResult.result;
 };
 

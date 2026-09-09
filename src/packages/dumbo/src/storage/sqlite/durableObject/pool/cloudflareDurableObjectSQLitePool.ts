@@ -76,15 +76,14 @@ export const cloudflareDurableObjectSQLitePool = (
         });
       }
 
-      if (options.storage) {
-        return cloudflareDurableObjectSQLiteConnection({
-          ...connectionOptions,
-          storage: options.storage,
-        });
-      }
+      if (!options.storage)
+        throw new InvalidOperationError(
+          'Exactly one Cloudflare Durable Object SQLite storage, client, or connection is required',
+        );
 
-      throw new InvalidOperationError(
-        'Exactly one Cloudflare Durable Object SQLite storage, client, or connection is required',
-      );
+      return cloudflareDurableObjectSQLiteConnection({
+        ...connectionOptions,
+        storage: options.storage,
+      });
     },
   });
