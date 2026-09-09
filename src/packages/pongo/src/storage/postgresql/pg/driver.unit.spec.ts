@@ -1,5 +1,5 @@
 import { DumboError, dumbo, JSONSerializer } from '@event-driven-io/dumbo';
-import { pgDumboDriver } from '@event-driven-io/dumbo/pg';
+import { pgConnection, pgDumboDriver } from '@event-driven-io/dumbo/pg';
 import assert from 'node:assert';
 import pg from 'pg';
 import { describe, it } from 'vitest';
@@ -103,6 +103,28 @@ describe('PostgreSQL Pongo driver resolution', () => {
       );
     } finally {
       await pool.close();
+    }
+  });
+
+  it('builds a pool from an ambient connection without a connection string', async () => {
+    const connection = pgConnection({
+      type: 'Client',
+      connect: () => Promise.resolve(new pg.Client({ connectionString })),
+      close: () => Promise.resolve(),
+      serializer: JSONSerializer,
+    });
+
+    const db = pgDriver.databaseFactory({
+      connectionOptions: { connection },
+      databaseName: 'connected',
+      defaultSchemaName: 'public',
+      serializer: JSONSerializer,
+    });
+
+    try {
+      assert.strictEqual(db.databaseName, 'connected');
+    } finally {
+      await db.close();
     }
   });
 
