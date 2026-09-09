@@ -10,8 +10,9 @@ import {
   createSingletonConnection,
   createTransientConnection,
   type AnyConnection,
-  type InitTransaction,
+  type ConnectionTransactionFactory,
 } from './connection';
+import { transactionFactoryWithDbClient } from './transaction';
 
 const fakeDriverType = 'fake-driver' as unknown as AnyConnection['driverType'];
 
@@ -31,7 +32,7 @@ const executor = () =>
     formatter: SQLFormatter({}),
   }) satisfies DbSQLExecutor;
 
-const initTransaction: InitTransaction<AnyConnection> = () => () => {
+const initTransaction = (_connection: () => AnyConnection) => () => {
   const transaction = {
     driverType: fakeDriverType,
     connection: undefined,
@@ -51,13 +52,85 @@ const initTransaction: InitTransaction<AnyConnection> = () => () => {
   return transaction;
 };
 
+const transactionFactory: ConnectionTransactionFactory<AnyConnection> = (
+  connect,
+  connection,
+) =>
+  transactionFactoryWithDbClient<AnyConnection>(
+    connect,
+    initTransaction(connection),
+  );
+
+const connectionFactories: Array<[string, () => AnyConnection]> = [
+  [
+    'ambient',
+    () =>
+      createAmbientConnection<AnyConnection>({
+        driverType: fakeDriverType,
+        client: undefined,
+        executor,
+        transactionFactory,
+        serializer: jsonSerializer(),
+      }),
+  ],
+  [
+    'singleton',
+    () =>
+      createSingletonConnection<AnyConnection>({
+        driverType: fakeDriverType,
+        connect: () => Promise.resolve(undefined),
+        close: () => Promise.resolve(),
+        executor,
+        transactionFactory,
+        serializer: jsonSerializer(),
+      }),
+  ],
+  [
+    'transient',
+    () =>
+      createTransientConnection<AnyConnection>({
+        driverType: fakeDriverType,
+        open: () => Promise.resolve(undefined),
+        close: () => Promise.resolve(),
+        executor,
+        transactionFactory,
+        serializer: jsonSerializer(),
+      }),
+  ],
+  [
+    'regular',
+    () =>
+      createConnection<AnyConnection>({
+        driverType: fakeDriverType,
+        connect: () => Promise.resolve(undefined),
+        close: () => Promise.resolve(),
+        executor,
+        transactionFactory,
+        serializer: jsonSerializer(),
+      }),
+  ],
+];
+
 describe('connection factories', () => {
+  it.each(connectionFactories)(
+    'uses a supplied transaction strategy for a %s connection',
+    async (_name, create) => {
+      const connection = create();
+
+      const result = await connection.withTransaction(() =>
+        Promise.resolve('completed'),
+      );
+
+      assert.strictEqual(result, 'completed');
+    },
+  );
+
   it('does not hand out an ambient connection when the caller has already aborted', () => {
     const connection = createAmbientConnection<AnyConnection>({
       driverType: fakeDriverType,
       client: undefined,
       executor,
-      initTransaction,
+      transactionFactory,
       serializer: jsonSerializer(),
     });
 
@@ -76,7 +149,7 @@ describe('connection factories', () => {
       },
       close: () => Promise.resolve(),
       executor,
-      initTransaction,
+      transactionFactory,
       serializer: jsonSerializer(),
     });
 
@@ -98,7 +171,7 @@ describe('connection factories', () => {
       },
       close: () => Promise.resolve(),
       executor,
-      initTransaction,
+      transactionFactory,
       serializer: jsonSerializer(),
     });
 
@@ -119,7 +192,7 @@ describe('connection factories', () => {
       },
       close: () => Promise.resolve(),
       executor,
-      initTransaction,
+      transactionFactory,
       serializer: jsonSerializer(),
     });
 

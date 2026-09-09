@@ -85,10 +85,7 @@ export const databaseTransaction = (
   return {
     begin: async () => {
       if (!allowNestedTransactions && hasBegun) {
-        throw new InvalidOperationError(
-          'Cannot start a nested transaction: allowNestedTransactions is false. ' +
-            'Set transactionOptions: { allowNestedTransactions: true } on your pool or connection.',
-        );
+        throw nestedTransactionNotAllowed();
       }
       if (allowNestedTransactions) {
         if (counter.level >= 1) {
@@ -157,6 +154,22 @@ export interface WithDatabaseTransactionFactory<
 
 export type TransactionResult<Result> = { success: boolean; result: Result };
 
+export const toTransactionResult = <Result>(
+  transactionResult: TransactionResult<Result> | Result,
+): TransactionResult<Result> =>
+  transactionResult !== undefined &&
+  transactionResult !== null &&
+  typeof transactionResult === 'object' &&
+  'success' in transactionResult
+    ? transactionResult
+    : { success: true, result: transactionResult };
+
+export const nestedTransactionNotAllowed = () =>
+  new InvalidOperationError(
+    'Cannot start a nested transaction: allowNestedTransactions is false. ' +
+      'Set transactionOptions: { allowNestedTransactions: true } on your pool or connection.',
+  );
+
 type TransactionLifecycle = {
   begin: () => Promise<void>;
   commit: () => Promise<void>;
@@ -168,16 +181,6 @@ type NestedTransactionLifecycle<
 > = TransactionLifecycle & {
   _transactionOptions: TransactionOptionsType;
 };
-
-const toTransactionResult = <Result>(
-  transactionResult: TransactionResult<Result> | Result,
-): TransactionResult<Result> =>
-  transactionResult !== undefined &&
-  transactionResult !== null &&
-  typeof transactionResult === 'object' &&
-  'success' in transactionResult
-    ? transactionResult
-    : { success: true, result: transactionResult };
 
 export const executeInTransaction = async <
   DatabaseTransactionType extends TransactionLifecycle = TransactionLifecycle,
@@ -235,10 +238,7 @@ export const executeInNestedTransaction = async <
     false;
 
   if (!allowNestedTransactions) {
-    throw new InvalidOperationError(
-      'Cannot start a nested transaction: allowNestedTransactions is false. ' +
-        'Set transactionOptions: { allowNestedTransactions: true } on your pool or connection.',
-    );
+    throw nestedTransactionNotAllowed();
   }
 
   return executeInTransaction(transaction, handle, context);
