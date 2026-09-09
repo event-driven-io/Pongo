@@ -425,12 +425,15 @@ describe('Cloudflare Durable Object SQLite transactions', () => {
       },
       { abort: { signal: controller.signal } },
     );
+    const secondRejected = assert.rejects(
+      second,
+      (error) => error === abortReason,
+    );
     await Promise.resolve();
     controller.abort(abortReason);
     releaseFirst.resolve();
 
-    await first;
-    await assert.rejects(second, (error) => error === abortReason);
+    await Promise.all([first, secondRejected]);
     assert.strictEqual(callbackCalled, false);
   });
 

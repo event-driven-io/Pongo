@@ -97,36 +97,35 @@ const cloudflareDurableObjectSQLitePongoDriver: PongoDriver<
       CloudflareDurableObjectSQLiteTransactionOptions
     >({ transactionOptions: configuredTransactionOptions });
 
-    let pool: CloudflareDurableObjectSQLiteConnectionPool;
+    const resolvePool = (): CloudflareDurableObjectSQLiteConnectionPool => {
+      if (options.pool) return options.pool;
 
-    if (options.pool) {
-      pool = options.pool;
-    } else {
-      const storage = options.storage ?? connectionStorage;
-
-      if (storage) {
-        pool = cloudflareDurableObjectSQLitePool({
-          storage,
-          transactionOptions,
-          serialization: { serializer: options.serializer },
-        });
-      } else if (connection) {
-        pool = cloudflareDurableObjectSQLitePool({
+      if (connection) {
+        return cloudflareDurableObjectSQLitePool({
           connection,
           transactionOptions,
           serialization: { serializer: options.serializer },
         });
-      } else {
+      }
+
+      const storage = options.storage ?? connectionStorage;
+      if (!storage) {
         throw new PongoError(
           'Exactly one Durable Object SQLite storage, connection, or pool is required',
         );
       }
-    }
+
+      return cloudflareDurableObjectSQLitePool({
+        storage,
+        transactionOptions,
+        serialization: { serializer: options.serializer },
+      });
+    };
 
     return PongoDatabase({
       ...options,
       transactionOptions,
-      pool,
+      pool: resolvePool(),
       sqlBuilderFor: (collection) =>
         sqliteSQLBuilder(collection, options.serializer),
       databaseName,
