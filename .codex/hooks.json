@@ -1,0 +1,17 @@
+{
+  "description": "Autofix files and validate TypeScript before an agent finishes.",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.agents/hooks/validate-change.ts\"",
+            "timeout": 150,
+            "statusMessage": "Running autofix and TypeScript build"
+          }
+        ]
+      }
+    ]
+  }
+}

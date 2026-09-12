@@ -223,6 +223,14 @@ By doing so, you're helping to make our work on it sustainable and continuing ou
 
 Pongo is a community project, so once you find something missing or not working, we encourage you to [send us a GH issue](https://github.com/event-driven-io/Pongo/issues/new) or [Pull Request](https://github.com/event-driven-io/Pongo/compare) extending the support or test coverage! Check also [Contributing guide](https://github.com/event-driven-io/Pongo/blob/main/CONTRIBUTING.md)
 
+### AI stance
+
+Pongo isn't vibe-coded. We use a mix of regular coding and agent-assisted work, but people make the design decisions. Every change is reviewed, understood, and validated by a person before it lands.
+
+We don't mind contributors using agents either, as long as their contributions follow the contributing guide. The rule is simple: **you vibe it, you own it**. If you submit a change, you must understand it, stand behind it, and be able to explain, test, and fix it. The contribution is yours, not the tool's, so we don't accept generative AI tools as authors or co-authors.
+
+Please don't submit AI slop. Generic, unreviewed, or needlessly verbose generated issues, pull request descriptions, or review comments may be ignored or closed when they create more work than value.
+
 **If you think something is missing or want to get some features faster, I'm happy to take sponsoring to prioritise it. Feel free to [contact me](mailto:oskar@event-driven.io) - we'll find a way to help you!**
 
 ## Code of Conduct
