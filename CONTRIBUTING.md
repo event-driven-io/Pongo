@@ -10,6 +10,16 @@ We take Pull Requests!
 4. We also highly appreciate any relevant updates to the documentation.
 5. Make sure that your code is compiling and all automated tests are passing.
 
+## Using coding agents
+
+We use coding agents while working on Pongo, but Pongo isn't vibe-coded. We combine regular coding with agent-assisted work. Every change is designed, reviewed, and validated by a person who understands it and takes responsibility for it.
+
+We don't mind contributors using agents either, as long as their contributions follow the same rules as any other work. The rule is simple: **you vibe it, you own it**. If you submit a change, you must understand it, stand behind it, and be able to explain, test, and fix it.
+
+The contribution is yours, not the tool's. Do not list generative AI tools as authors or co-authors.
+
+Please don't submit AI slop. Generic, unreviewed, or needlessly verbose generated issues, pull request descriptions, or review comments may be ignored or closed when they create more work than value.
+
 ## After you have sent Pull Request
 
 1. Make sure that you applied or answered all the feedback from the maintainers.

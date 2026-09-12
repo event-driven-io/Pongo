@@ -127,5 +127,9 @@ e2e/esmCompatibility/.output
 src/e2e/esmCompatibility/.output
 **/0x
 
+# Local coding-agent state
+CLAUDE.local.md
+.claude/settings.local.json
+
 **/*.db
 **/*.db-journal
