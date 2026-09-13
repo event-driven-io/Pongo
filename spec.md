@@ -402,7 +402,7 @@ Return RFC 9457-style Problem Details as `application/problem+json` through a sm
 
 Treat a cart whose stored `clientId` differs from the route's `clientId` as not found. Repeated confirmation and cancellation return `204` as described above.
 
-Use Hono's context response methods for `201`, `204`, JSON queries, headers, and errors. Do not depend on `@event-driven-io/emmett-honojs`: its package root also exports Node-server and event-store testing modules, and its API specification helpers do not cross the Worker/binding boundary required here. Emmett remains a source of presentation and domain-flow inspiration, not a runtime dependency.
+Use Hono's context response methods for `201`, `204`, JSON queries, headers, and errors. Use Emmett Hono's `ApiSpecification` in the integration tests for the fluent Given/When/Then request and response flow. Emmett remains test support and a source of presentation and domain-flow inspiration, not an application runtime dependency.
 
 ## Product catalogue boundary
 
@@ -450,10 +450,12 @@ const shoppingCarts = pongoSchema.collection<ShoppingCart>("shoppingCarts", {
 
 export default {
   schema: pongoSchema.client({
-    database: pongoSchema.db({ shoppingCarts }),
+    database: pongoSchema.db({ collections: { shoppingCarts } }),
   }),
 };
 ```
+
+The explicit `collections` property is required by Pongo `0.17.0-beta.52`; the older `pongoSchema.db({ shoppingCarts })` shorthand used by earlier samples is no longer valid.
 
 Build the index through `pongoSchema.index.custom` with Dumbo's public `SQL` token and the supplied table/index references; do not interpolate physical names manually. Import this config from the Worker and Durable Object composition code and pass `pongoConfig.schema` as the schema definition.
 
@@ -715,7 +717,7 @@ The test suite must distinguish integration from end to end while keeping the co
 - `src/shoppingCarts/api.int.spec.ts` exercises Pongo through the real local binding supplied by the Cloudflare test runtime while calling the shopping-cart API setup directly. D1 tests use `env.DB`. Durable Object tests obtain a unique object stub with `env.SHOPPING_CARTS.getByName(clientId)` and call its public typed RPC methods. Use `runInDurableObject` only for a narrow storage-invariant assertion that cannot be observed through RPC.
 - `src/shoppingCarts/api.e2e.spec.ts` imports `exports` from `cloudflare:workers` and sends Requests through `exports.default.fetch()`. This invokes the configured default Worker export, Hono routing, the D1 binding or Worker-to-Durable-Object RPC, Pongo, and SQLite in one local runtime process.[^3]
 
-Do not use Emmett's `ApiSpecification` or `ApiE2ESpecification` for these binding-level tests. The current helpers execute a Hono application directly through `HonoTestAgent`; they do not invoke the configured Worker export or provision Cloudflare bindings. `ApiSpecification` additionally requires an EventStore, while `ApiE2ESpecification` creates an in-memory EventStore when none is supplied. They are useful inspiration for fluent response assertions, but inserting unused event-store plumbing would make this non-event-sourced sample less clear.
+Use Emmett Hono's `ApiSpecification` for the integration tests. Its current API requires an EventStore even though this sample is document based, so supply a fresh in-memory EventStore only as test-harness plumbing; do not expose it to application code or assert events. Keep the smaller E2E suite on `exports.default.fetch()` because `ApiSpecification` executes a Hono application directly and cannot verify the configured Worker export and its Cloudflare bindings. A future Emmett Hono improvement could add a document/API-only overload and a dedicated testing subpath export.
 
 This differs deliberately from Emmett's current D1 package tests. On Emmett `main` at commit `d1882f6` (2026-09-11), both `.d1.int.spec.ts` and `.d1.e2e.spec.ts` construct `new Miniflare({ d1Databases: { DB: "test-db-id" } })` and obtain the database through `mf.getD1Database("DB")`. They test the library directly in a Node Vitest environment, not a deployed Worker entry point. Emmett currently has no Durable Object integration or E2E provisioning to copy. That pattern is valid for a storage library, but Cloudflare's current Vitest plugin is the better fit for runnable Worker samples because it provisions the bindings from the same `wrangler.jsonc` used by development and deployment.[^2]
 

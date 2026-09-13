@@ -9,6 +9,7 @@ Status: Complete
 - [x] Use the current generated Cloudflare Hono Worker as the Worker configuration baseline.
 - [x] Create independent `samples/cloudflare/d1` and `samples/cloudflare/durable-objects` npm projects.
 - [x] Copy and adapt the specified EditorConfig, Prettier, ESLint, and VS Code setup.
+- [x] Copy the matching setup, TypeScript project build/watch, cached lint/fix, and sequential test npm workflow into both samples.
 - [x] Add the final D1 and Durable Object Wrangler binding declarations.
 - [x] Pin the latest mutually compatible dependencies and create both lockfiles.
 - [x] Generate and check in `worker-configuration.d.ts` for both projects.
@@ -22,20 +23,22 @@ Verification completed in both sample directories:
 - `npm run types:cloudflare:check` passed.
 - `npm run build:ts` passed.
 - `npm run lint` passed.
+- `npm run fix` passed.
+- `npm run agent:check` passed with `tsc -b` in both samples.
 - `npm run build` passed as a Wrangler dry-run bundle and resolved the expected binding.
 
 Tests are intentionally deferred because the shopping-cart test files are introduced test-first in Phase 2.
 
 ## Phase 2: Shopping-cart domain
 
-Status: Awaiting approval
+Status: Complete
 
 - [x] Adapt the domain/type/test part of the seven-file Emmett shopping-cart feature slice in each sample; add the narrow API-only barrel with the API and API tests in Phases 3 and 4.
 - [x] Rewrite the immutable document model and pure business functions without event-sourcing code, using Emmett-compatible readonly command contracts and `CommandType['data']` inputs.
 - [x] Encapsulate immutable product-line quantity changes in `ProductItems.withUpdatedQuantity`, using positive changes for additions and negative changes for removals as in the Emmett sample.
 - [x] Write the colocated domain tests with explicit Given/When/Then sections and verify them in both samples.
 - [x] Verify that Pongo `handle` accepts newly returned immutable documents and does not depend on in-place mutation.
-- [ ] Receive approval to begin Phase 3.
+- [x] Receive approval to begin Phase 3.
 
 Verification completed:
 
@@ -47,12 +50,23 @@ Verification completed:
 
 ## Phase 3: D1 application
 
-Status: Not started
+Status: Complete
 
-- [ ] Add the Pongo schema and partial unique index.
-- [ ] Implement the Hono routes, D1 composition, current-cart flow, and migration endpoint.
-- [ ] Write and run D1 integration and HTTP E2E tests against local Cloudflare bindings.
+- [x] Add the Pongo schema and partial unique index.
+- [x] Implement the Hono routes, D1 composition, current-cart flow, and migration endpoint.
+- [x] Use document-version ETags and `If-Match` for optimistic concurrency on permanent-cart writes.
+- [x] Retry competing current-cart upserts so both additions reach the single opened cart.
+- [x] Write and run D1 integration and HTTP E2E tests against local Cloudflare bindings.
 - [ ] Receive approval to begin Phase 4.
+
+Verification completed:
+
+- `npm run agent:check` passed from `src` after rebasing the published beta.53 fixes.
+- `npm run build:ts` and `npm run lint` passed in the D1 sample.
+- The D1 integration suite passed with 24 comprehensive single-behavior scenarios, using `ApiE2ESpecification` against the directly composed Hono API.
+- The D1 Worker E2E suite passed with 6 focused single-behavior scenarios, using `ApiE2ESpecification` against `exports.default.fetch`.
+- `npm test` passed in the D1 sample with 3 files and 44 tests.
+- The repository `npm run test:unit` passed from `src` with 87 files and 1,289 tests.
 
 ## Phase 4: Durable Object application
 

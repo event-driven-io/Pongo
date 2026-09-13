@@ -10,7 +10,7 @@
       },
       "problemMatcher": [],
       "label": "npm: build:ts:watch",
-      "detail": "tsc --noEmit --watch"
+      "detail": "tsc -b --watch"
     },
     {
       "type": "npm",
