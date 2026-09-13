@@ -7,6 +7,12 @@ export default defineConfig({
       wrangler: {
         configPath: './wrangler.jsonc',
       },
+      miniflare: {
+        bindings: {
+          ENVIRONMENT: 'test',
+          MIGRATION_TOKEN: 'test-migration-token',
+        },
+      },
     }),
   ],
   test: {

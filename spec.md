@@ -72,7 +72,7 @@ The two final samples deliberately duplicate these adapted files so each remains
 - A cart-history/list endpoint without a concrete UI or business use case.
 - Cross-client queries in the Durable Object sample.
 - A shared package between samples.
-- A production product catalogue or a configured third Worker.
+- A production pricing service or a configured third Worker.
 - A general repository abstraction or an invented domain concept such as `ShoppingCartOwner`.
 - A third Node.js/`sqlite3` sample.
 
@@ -280,7 +280,7 @@ export const cancel = (state: ShoppingCart | null): ShoppingCart | null => {
 
 These are not placeholders for another abstraction. Implement their bodies directly from the supplied article with only the explicitly listed corrections below. The document types, command envelopes, command data, embedded lines, and arrays are readonly. `ProductItems.withUpdatedQuantity` follows the organization of the Emmett sample's helper: adding passes a positive quantity change and removing passes a negative one. Each operation returns a new document rather than mutating the state passed by Pongo; an idempotent operation may return the unchanged state reference. `api.ts` passes command `data` to operations that consume it inside `shoppingCarts.handle(...)`; `cancel` receives only the state because it needs no command data. There is no command bus, repository, service class, decider, event, or `evolve` function.
 
-Treat monetary values as integer minor units in sample catalogue data and explain this in the README. Each product ID has one embedded line in a cart. The line captures its unit price when first added; later additions of the same product increase quantity at that captured price for the lifetime of the cart. Clients never submit a trusted price. This explicit price-lock policy avoids ambiguous duplicate lines if a production catalogue price changes while a cart is open.
+Treat monetary values as integer minor units in sample pricing data and explain this in the README. Each product ID has one embedded line in a cart. The line captures its unit price when first added; later additions of the same product increase quantity at that captured price for the lifetime of the cart. Clients never submit a trusted price. This explicit price-lock policy avoids ambiguous duplicate lines if a production price changes while a cart is open.
 
 The whole cart is the document consistency boundary:
 
@@ -397,16 +397,16 @@ Validate route parameters, JSON shape, non-empty identifiers, and positive integ
 Return RFC 9457-style Problem Details as `application/problem+json` through a small Hono-local error mapper. Do not introduce a framework or domain abstraction for this.
 
 - `400 Bad Request`: malformed JSON, missing fields, invalid identifiers, non-positive/non-integer quantity, or an unknown product.
-- `404 Not Found`: no active cart for `GET .../current`, no matching cart for ID-based reads or additions, or confirmation of a missing cart.
-- `409 Conflict`: adding to a confirmed cart, removing from a missing/non-open cart, removing an unavailable quantity, confirming an empty cart, cancelling a confirmed cart, or a D1 active-cart uniqueness conflict.
+- `404 Not Found`: no active cart for `GET .../current`, or no matching cart for ID-based reads, additions, removals, or confirmation.
+- `409 Conflict`: adding to a confirmed cart, removing from a non-open cart, removing an unavailable quantity, confirming an empty cart, or cancelling a confirmed cart.
 
-Treat a cart whose stored `clientId` differs from the route's `clientId` as not found. Repeated confirmation and cancellation return `204` as described above.
+Treat a cart whose stored `clientId` differs from the route's `clientId` as not found. Cancellation deliberately returns `204` for a missing cart, including a cart absent from the client-keyed Durable Object, so it does not reveal another client's resource. Repeated confirmation and cancellation return `204` as described above.
 
-Use Hono's context response methods for `201`, `204`, JSON queries, headers, and errors. Do not depend on `@event-driven-io/emmett-honojs`: its package root also exports Node-server and event-store testing modules, and its API specification helpers do not cross the Worker/binding boundary required here. Emmett remains a source of presentation and domain-flow inspiration, not a runtime dependency.
+Use Hono's context response methods for `201`, `204`, JSON queries, headers, and errors. Use Emmett Hono's `ApiSpecification` in the integration tests for the fluent Given/When/Then request and response flow. Emmett remains test support and a source of presentation and domain-flow inspiration, not an application runtime dependency.
 
-## Product catalogue boundary
+## Product pricing boundary
 
-Keep `getUnitPrice` in `src/index.ts`, in the same composition-root position as the copied Emmett Hono sample. Do not create `catalogue.ts`. Define a small hardcoded lookup behind the same asynchronous function shape:
+Keep `getUnitPrice` in `src/index.ts`, in the same composition-root position as the copied Emmett Hono sample. Do not create `pricing.ts`. Define a small hardcoded lookup behind the same asynchronous function shape:
 
 ```ts
 const getUnitPrice = async (productId: string): Promise<number> => {
@@ -450,10 +450,12 @@ const shoppingCarts = pongoSchema.collection<ShoppingCart>("shoppingCarts", {
 
 export default {
   schema: pongoSchema.client({
-    database: pongoSchema.db({ shoppingCarts }),
+    database: pongoSchema.db({ collections: { shoppingCarts } }),
   }),
 };
 ```
+
+The explicit `collections` property is required by Pongo `0.17.0-beta.52`; the older `pongoSchema.db({ shoppingCarts })` shorthand used by earlier samples is no longer valid.
 
 Build the index through `pongoSchema.index.custom` with Dumbo's public `SQL` token and the supplied table/index references; do not interpolate physical names manually. Import this config from the Worker and Durable Object composition code and pass `pongoConfig.schema` as the schema definition.
 
@@ -538,9 +540,9 @@ The D1 database is shared across clients. The first-add handler:
 3. Otherwise generates a new ID.
 4. Calls `shoppingCarts.handle(id, state => addProductItem(command.data, state))`.
 5. Allows `null` state only when this attempt generated a fresh ID. If a previously found cart disappears before `handle` runs, restart current-cart resolution and allocate a new ID rather than recreating the deleted cart under its stale ID.
-6. Maps a partial-unique-index violation caused by concurrent creation to `409 Conflict`.
+6. Retries an optimistic or partial-unique-index conflict because product addition is additive, so competing first additions reach the same opened cart.
 
-All ID-based commands call `handle(shoppingCartId, ...)` and validate the document's `clientId` inside the handler before changing it. The ID-based add wrapper rejects `null` state before calling the domain function; only the current route has create-or-update semantics.
+All ID-based commands use one local helper that validates the document's `clientId`, calls `handle(shoppingCartId, ...)`, and returns the updated document. The helper validates ownership before `handle` because Pongo checks the expected version before invoking the callback, then validates again inside the callback to protect the change. The ID-based add wrapper rejects `null` state before calling the domain function; only the current route has create-or-update semantics. Cancellation remains separate because a missing or differently owned cart is an idempotent `204`.
 
 Queries use Pongo's MongoDB-like `findOne` API. Do not fall back to raw SQL for application reads; raw/custom SQL is limited to the schema index declaration.
 
@@ -592,9 +594,9 @@ The Durable Object:
 - Runs schema initialization/migration safely during object initialization.
 - Stores actual `ShoppingCart` documents in a Pongo collection; it does not store an invented owner document or an event stream.
 - Exposes small typed RPC methods corresponding directly to the public use cases: get current, get by ID, add to current, add by ID, remove, confirm, and cancel.
-- Verifies that any addressed document belongs to the object/client even though routing already provides that isolation.
+- Uses the client-keyed private database as the ownership boundary, so known-ID operations do not repeat shared-database ownership queries.
 
-Keep all requests affecting one client's active cart on that client's object. Durable Objects process requests with single-threaded JavaScript semantics and input gates around storage access, but application code can still interleave at `await` boundaries. Therefore each multi-step operation that discovers the current cart and then updates it must use a real Pongo Durable Object storage transaction, passing the returned session to both `findOne` and `handle`. Do not put catalogue lookups, RPC calls, or other network I/O inside this transaction. Cloudflare's actor routing provides the coordination boundary; the transaction makes each discovery-and-write operation atomic; the partial unique index remains the final data invariant.[^6]
+Keep all requests affecting one client's active cart on that client's object. Durable Objects process requests with single-threaded JavaScript semantics and input gates around storage access, but application code can still interleave at `await` boundaries. Therefore the multi-step current-cart operation that discovers the active cart and then updates it uses a real Pongo Durable Object storage transaction, passing the returned session to both `findOne` and `handle`. Known-ID operations target one document with its expected version through `handle` and need no additional outer transaction. Do not put pricing lookups, RPC calls, or other network I/O inside the current-cart transaction. Cloudflare's actor routing provides the coordination boundary; the transaction makes discovery and creation atomic; the partial unique index remains the final data invariant.[^6]
 
 Durable Object RPC can pass native structured-clone values, but expected application failures should still use an explicit serializable discriminated union rather than relying on custom error prototypes crossing the RPC boundary. The Worker maps these failures to the same Problem Details responses as the D1 sample. Unexpected exceptions remain failures and are not converted into domain results.
 
@@ -682,7 +684,7 @@ samples/cloudflare/durable-objects/
       shoppingCart.ts
 ```
 
-This grouping is intentional and should not be replaced with a separate `test/`, `domain.ts`, `catalogue.ts`, or `schema.ts` layout. It follows the copied Emmett feature slice. The only additional source files are `pongo.config.ts`, taken from Pongo's existing sample convention, and the Durable Object class required by Cloudflare.
+This grouping is intentional and should not be replaced with a separate `test/`, `domain.ts`, `pricing.ts`, or `schema.ts` layout. It follows the copied Emmett feature slice. The only additional source files are `pongo.config.ts`, taken from Pongo's existing sample convention, and the Durable Object class required by Cloudflare.
 
 Use the researched dependency baseline above, refreshed to the latest compatible versions during implementation. Runtime dependencies are Hono, Pongo, and Dumbo. Dumbo is direct because the custom index declaration imports its public `SQL` tokens. Development dependencies include the Cloudflare Vitest plugin, Workers types, Wrangler, Vitest, TypeScript, ESLint, and Prettier. Declare `@cloudflare/workers-types` directly because the Pongo/Dumbo Cloudflare declaration files expose its types. Generate and check `worker-configuration.d.ts` using Wrangler rather than maintaining large handwritten platform interfaces. The root `env.d.ts` only augments `cloudflare:workers` with `interface ProvidedEnv extends CloudflareBindings {}` as prescribed by the Vitest plugin documentation.[^3] Ignore `.wrangler/`, `dist/`, coverage, and normal dependency artefacts.
 
@@ -712,10 +714,10 @@ Duplication of these tests is intentional because each sample is independently r
 
 The test suite must distinguish integration from end to end while keeping the copied Emmett filenames beside the feature code:
 
-- `src/shoppingCarts/api.int.spec.ts` exercises Pongo through the real local binding supplied by the Cloudflare test runtime while calling the shopping-cart API setup directly. D1 tests use `env.DB`. Durable Object tests obtain a unique object stub with `env.SHOPPING_CARTS.getByName(clientId)` and call its public typed RPC methods. Use `runInDurableObject` only for a narrow storage-invariant assertion that cannot be observed through RPC.
+- `src/shoppingCarts/api.int.spec.ts` exercises Pongo through the real local binding supplied by the Cloudflare test runtime while calling the shopping-cart API setup through HTTP. D1 tests use `env.DB`. Durable Object tests use the bound namespace through the Hono API, which routes each client to its typed object stub.
 - `src/shoppingCarts/api.e2e.spec.ts` imports `exports` from `cloudflare:workers` and sends Requests through `exports.default.fetch()`. This invokes the configured default Worker export, Hono routing, the D1 binding or Worker-to-Durable-Object RPC, Pongo, and SQLite in one local runtime process.[^3]
 
-Do not use Emmett's `ApiSpecification` or `ApiE2ESpecification` for these binding-level tests. The current helpers execute a Hono application directly through `HonoTestAgent`; they do not invoke the configured Worker export or provision Cloudflare bindings. `ApiSpecification` additionally requires an EventStore, while `ApiE2ESpecification` creates an in-memory EventStore when none is supplied. They are useful inspiration for fluent response assertions, but inserting unused event-store plumbing would make this non-event-sourced sample less clear.
+Use Emmett Hono's `ApiE2ESpecification` for both HTTP suites. Integration tests provide a fetch function for the directly composed Hono application and real local binding. The smaller Worker E2E suite provides `exports.default.fetch()` so it also verifies the configured Worker export. Do not expose an event store to application or test code.
 
 This differs deliberately from Emmett's current D1 package tests. On Emmett `main` at commit `d1882f6` (2026-09-11), both `.d1.int.spec.ts` and `.d1.e2e.spec.ts` construct `new Miniflare({ d1Databases: { DB: "test-db-id" } })` and obtain the database through `mf.getD1Database("DB")`. They test the library directly in a Node Vitest environment, not a deployed Worker entry point. Emmett currently has no Durable Object integration or E2E provisioning to copy. That pattern is valid for a storage library, but Cloudflare's current Vitest plugin is the better fit for runnable Worker samples because it provisions the bindings from the same `wrangler.jsonc` used by development and deployment.[^2]
 
@@ -756,7 +758,7 @@ Keep the suite focused:
 - Cancellation deletes an opened cart and repeating it returns `204`.
 - If an active cart is cancelled between current-cart lookup and mutation, the first-add flow retries discovery and never recreates the cancelled ID.
 - Invalid input and domain conflicts produce the expected Problem Details responses.
-- Two competing first additions never leave two opened carts for one client; D1 maps a unique conflict to `409`, while the Durable Object keeps both requests within the same client actor and still satisfies the invariant.
+- Two competing first additions never leave two opened carts for one client; both additions succeed against the same cart, with one `201` response and one `204` response.
 
 Run tests in Cloudflare's local Workers test environment so D1 and Durable Object SQLite behavior is exercised rather than replacing persistence with a custom in-memory repository. Avoid a bespoke end-to-end framework and remote deployment tests.
 
@@ -823,10 +825,11 @@ The dry-run build is mandatory. A test-time module resolver can hide an import o
 
 ## Deployment
 
-Nobody deploys either sample manually. Each sample's dedicated GitHub Actions workflow validates and deploys its Worker after a matching change is merged to the upstream `main` branch. Pull requests and manual workflow dispatches run validation only.
+Nobody deploys either sample manually. Each sample's dedicated GitHub Actions workflow validates and deploys its Worker after a matching change is pushed to `main` in a repository that explicitly enabled Cloudflare deployment. Pull requests and manual workflow dispatches run validation only. Forks remain validation-only unless their owner opts in with their own Cloudflare credentials.
 
 Repository administrators perform one-time credential setup, not deployments:
 
+- Add `CLOUDFLARE_DEPLOY_ENABLED` as a GitHub Actions repository variable with the value `true`. Without it, the deployment job is skipped.
 - Add `CLOUDFLARE_ACCOUNT_ID` as a GitHub Actions secret.
 - Create a narrowly scoped Cloudflare API token and add it as `CLOUDFLARE_API_TOKEN`. It needs permission to edit Workers; because the D1 workflow automatically provisions a database, it also needs D1 edit permission. Restrict both permissions to the deployment account.[^8]
 - Generate an independent random value for the D1 migration endpoint and add it as `CLOUDFLARE_MIGRATION_TOKEN`. The workflow publishes it to the D1 Worker as the `MIGRATION_TOKEN` secret; never place it in `wrangler.jsonc`, logs, or source control.
@@ -835,7 +838,7 @@ Repository administrators perform one-time credential setup, not deployments:
 Each workflow has a `build_and_test` job and a `deploy` job. The deploy job:
 
 - Depends on the successful validation job.
-- Runs only for `push` events on `refs/heads/main` in `event-driven-io/Pongo`, preventing forks and pull requests from accessing deployment secrets.
+- Runs only for `push` events on `refs/heads/main` when `CLOUDFLARE_DEPLOY_ENABLED` is `true`. Pull requests cannot access deployment secrets, and forks must supply their own opt-in variable and secrets.
 - Checks out the exact commit and sets up Node from the sample's `.nvmrc`.
 - Runs `npm ci` in the sample directory so deployment uses the locked Wrangler version.
 - Uses the current `cloudflare/wrangler-action@v4` with `workingDirectory`, `apiToken`, `accountId`, and `command: deploy`.[^9]
@@ -845,7 +848,7 @@ The workflow shape for each sample is explicit:
 
 ```yaml
 deploy:
-  if: github.event_name == 'push' && github.ref == 'refs/heads/main' && github.repository == 'event-driven-io/Pongo'
+  if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'
   needs: build_and_test
   runs-on: ubuntu-latest
   permissions:
@@ -913,7 +916,7 @@ Each Cloudflare README should read like a compact Getting Started guide:
 5. Show the Pongo driver configuration and schema/index declaration.
 6. Explain the storage-specific architecture: shared D1 database or client-keyed Durable Object actor.
 7. Explain Hono usage and identify Emmett only as presentation and domain-flow inspiration, without adding event-sourcing dependencies.
-8. Explain the local catalogue boundary and show the production Service Binding alternative.
+8. Explain the local pricing boundary and show the production Service Binding alternative.
 9. Provide install, type-generation, local development, test, migration, and automated GitHub Actions deployment instructions.
 10. Link the optional `requests.http` file as a complete API walkthrough, not as a setup step.
 
@@ -946,7 +949,7 @@ Follow the structure of Emmett's `build_and_test_sample_webapi-expressjs-with-es
 - Treat `npm run build` as a Wrangler dry-run bundle, not a production deployment.
 - Do not include Docker steps.
 - Keep the `build_and_test` job local and credential-free.
-- Add the deployment job defined above. It uses repository secrets only after a successful upstream `main` build; pull requests, forks, and manual validation runs never receive those secrets or deploy.
+- Add the deployment job defined above. It uses repository secrets only after a successful opt-in `main` build; pull requests and manual validation runs never receive those secrets or deploy, while forks can deploy only with their own variable and secrets.
 
 ## Implementation sequence
 
@@ -957,7 +960,7 @@ An implementer should be able to execute this specification in the following ord
 3. Copy the seven listed `src/shoppingCarts` files from Emmett into both samples. Delete projections, events, `evolve`, event-store/message-bus plumbing, observability, and Node server code.
 4. Copy Pongo's `samples/simple-ts/src/pongo.config.ts` convention into both samples. Replace its example document with `ShoppingCart` and add the specified partial unique index.
 5. Rewrite `shoppingCart.ts`, `businessLogic.ts`, and `businessLogic.unit.spec.ts` to the exact document contracts and operations above. Run the colocated unit test before adding persistence.
-6. Adapt `api.ts` from the copied Emmett Hono API. Keep its route-registration and injected `getUnitPrice`/clock style; replace command-handler/event-store calls with the direct Pongo `handle` flows specified here. Keep the catalogue implementation in `src/index.ts`.
+6. Adapt `api.ts` from the copied Emmett Hono API. Keep its route-registration and injected `getUnitPrice`/clock style; replace command-handler/event-store calls with the direct Pongo `handle` flows specified here. Keep the pricing implementation in `src/index.ts`.
 7. Complete the D1 composition in `src/index.ts`, including its binding-backed Pongo client and authenticated migration route. Rewrite the colocated `api.int.spec.ts` and `api.e2e.spec.ts` for the real local D1 binding and Worker export.
 8. Complete `shoppingCartDurableObject.ts` from Cloudflare's required class shape, use the same copied shopping-cart business functions in its typed RPC methods, and connect `api.ts` through the client-keyed namespace. Rewrite the colocated integration and E2E specs for the real local Durable Object binding and Worker export.
 9. Resolve the latest compatible dependencies, regenerate and commit each lockfile and `worker-configuration.d.ts`, add `requests.http`, and write the Getting Started-style READMEs and top-level sample index.
@@ -995,7 +998,7 @@ An implementer should be able to execute this specification in the following ord
 - D1 and Durable Object tests provision only local resources from Wrangler configuration; they require no account, token, Docker container, dashboard setup, or running development server.
 - Documentation explains both document modelling and Cloudflare architecture in a concise Getting Started style.
 - The sample index and both dedicated GitHub Actions workflows are present.
-- CI performs type-generation consistency checks, TypeScript validation, linting, local Worker-runtime tests, and Wrangler dry-run bundles. Successful matching pushes to the upstream `main` branch then deploy both Workers through `cloudflare/wrangler-action@v4`; no human deployment is required.
+- CI performs type-generation consistency checks, TypeScript validation, linting, local Worker-runtime tests, and Wrangler dry-run bundles. Successful matching pushes to an opted-in repository's `main` branch then deploy the affected Worker through `cloudflare/wrangler-action@v4`; no human deployment is required.
 
 ## Research sources
 
