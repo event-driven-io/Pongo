@@ -1,0 +1,41 @@
+{
+  "name": "pongo-sample-cloudflare-d1",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Shopping cart sample using Pongo, Hono, and Cloudflare D1",
+  "scripts": {
+    "dev": "wrangler dev --var ENVIRONMENT:development",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "types:cloudflare": "wrangler types worker-configuration.d.ts --env-interface CloudflareBindings",
+    "types:cloudflare:check": "wrangler types worker-configuration.d.ts --env-interface CloudflareBindings --check",
+    "build:ts": "tsc --noEmit",
+    "build:ts:watch": "tsc --noEmit --watch",
+    "lint": "eslint . && prettier --check .",
+    "test": "vitest run",
+    "test:unit": "vitest run src/shoppingCarts/businessLogic.unit.spec.ts",
+    "test:int": "vitest run src/shoppingCarts/api.int.spec.ts",
+    "test:e2e": "vitest run src/shoppingCarts/api.e2e.spec.ts"
+  },
+  "dependencies": {
+    "@event-driven-io/dumbo": "0.13.0-beta.52",
+    "@event-driven-io/pongo": "0.17.0-beta.52",
+    "hono": "4.13.7"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.1.8",
+    "@cloudflare/workers-types": "5.20260911.1",
+    "@eslint/js": "10.0.1",
+    "@types/node": "26.5.1",
+    "@typescript-eslint/eslint-plugin": "8.70.0",
+    "@typescript-eslint/parser": "8.70.0",
+    "eslint": "10.10.0",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-prettier": "5.5.6",
+    "globals": "17.12.0",
+    "prettier": "3.9.6",
+    "typescript": "6.0.3",
+    "vitest": "4.1.11",
+    "wrangler": "4.131.1"
+  }
+}

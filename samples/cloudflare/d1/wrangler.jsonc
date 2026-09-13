@@ -1,0 +1,9 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "pongo-shopping-cart-d1",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-11",
+  "workers_dev": true,
+  "d1_databases": [{ "binding": "DB" }],
+  "vars": { "ENVIRONMENT": "production" },
+}
