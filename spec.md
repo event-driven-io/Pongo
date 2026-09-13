@@ -85,53 +85,114 @@ Each sample contains the same local copy of the shopping-cart code. Preserve the
 - `src/shoppingCarts/businessLogic.unit.spec.ts` calls those functions directly with Vitest.
 - `src/shoppingCarts/api.ts` contains the Hono routes and Pongo orchestration.
 - `src/shoppingCarts/api.int.spec.ts` and `api.e2e.spec.ts` stay beside `api.ts`.
-- `src/shoppingCarts/index.ts` re-exports the shopping-cart API, business logic, and types, following the copied Emmett barrel file but removing its projections.
+- `src/shoppingCarts/index.ts` exports only the shopping-cart API entry point used by the Worker. Feature-internal business functions and document types use direct imports and are not re-exported through the barrel.
 
 Start `shoppingCart.ts` by copying the corresponding Emmett file. Delete all event types, `initialState`, `evolve`, `Map`, and empty/closed state unions. Replace them with the document model from the supplied article:
 
 ```ts
-export interface ProductItem {
+export type ProductItem = Readonly<{
   productId: string;
   quantity: number;
-}
+}>;
 
-export type PricedProductItem = ProductItem & {
-  unitPrice: number;
+export type PricedProductItem = Readonly<
+  ProductItem & {
+    unitPrice: number;
+  }
+>;
+
+export type ProductItems = ReadonlyArray<PricedProductItem>;
+
+const findProductItem = (
+  productItems: ProductItems,
+  productId: string,
+): PricedProductItem | undefined =>
+  productItems.find((productItem) => productItem.productId === productId);
+
+export const ProductItems = {
+  find: findProductItem,
+
+  withUpdatedQuantity(
+    productItems: ProductItems,
+    productItem: PricedProductItem,
+    quantityChange: number,
+  ): ProductItems {
+    const currentProductItem = findProductItem(
+      productItems,
+      productItem.productId,
+    );
+
+    if (!currentProductItem)
+      return [...productItems, { ...productItem, quantity: quantityChange }];
+
+    const quantity = currentProductItem.quantity + quantityChange;
+    if (quantity === 0)
+      return productItems.filter(
+        ({ productId }) => productId !== productItem.productId,
+      );
+
+    return productItems.map((current) => {
+      if (current.productId !== productItem.productId) return current;
+
+      return { ...current, quantity };
+    });
+  },
 };
 
-export type ShoppingCart = {
+export type ShoppingCart = Readonly<{
   _id: string;
   clientId: string;
-  productItems: PricedProductItem[];
+  productItems: ProductItems;
   productItemsCount: number;
   totalAmount: number;
   status: "Opened" | "Confirmed";
   openedAt: Date;
   confirmedAt?: Date;
-};
+}>;
 ```
 
 Start `businessLogic.ts` by copying the corresponding Emmett file. Delete the Emmett imports, event-returning types, `decide`, `decider`, and metadata wrappers. Keep the recognizable operation names from the article and export these exact contracts:
 
 ```ts
+import { ProductItems } from "./shoppingCart";
 import type { PricedProductItem, ShoppingCart } from "./shoppingCart";
 
-export type AddProductItem = {
-  clientId: string;
-  shoppingCartId: string;
-  productItem: PricedProductItem;
-  now: Date;
-};
+export type AddProductItemToShoppingCart = Readonly<{
+  type: "AddProductItemToShoppingCart";
+  data: Readonly<{
+    clientId: string;
+    shoppingCartId: string;
+    productItem: PricedProductItem;
+    now: Date;
+  }>;
+}>;
 
-export type RemoveProductItem = {
-  productId: string;
-  quantity: number;
-};
+export type RemoveProductItemFromShoppingCart = Readonly<{
+  type: "RemoveProductItemFromShoppingCart";
+  data: Readonly<{
+    productId: string;
+    quantity: number;
+  }>;
+}>;
 
-export type ConfirmShoppingCart = { now: Date };
+export type ConfirmShoppingCart = Readonly<{
+  type: "ConfirmShoppingCart";
+  data: Readonly<{ now: Date }>;
+}>;
+
+export type CancelShoppingCart = Readonly<{
+  type: "CancelShoppingCart";
+  data: Readonly<Record<string, never>>;
+}>;
+
+export type ShoppingCartCommand =
+  | AddProductItemToShoppingCart
+  | RemoveProductItemFromShoppingCart
+  | ConfirmShoppingCart
+  | CancelShoppingCart;
 
 export const addProductItem = (
-  command: AddProductItem,
+  command: AddProductItemToShoppingCart["data"],
   state: ShoppingCart | null,
 ): ShoppingCart => {
   if (state?.status === "Confirmed")
@@ -147,56 +208,67 @@ export const addProductItem = (
     openedAt: command.now,
   };
 
-  const currentProductItem = shoppingCart.productItems.find(
-    ({ productId }) => productId === command.productItem.productId,
+  const currentProductItem = ProductItems.find(
+    shoppingCart.productItems,
+    command.productItem.productId,
   );
-
   const unitPrice =
     currentProductItem?.unitPrice ?? command.productItem.unitPrice;
-  if (currentProductItem)
-    currentProductItem.quantity += command.productItem.quantity;
-  else shoppingCart.productItems.push({ ...command.productItem });
 
-  shoppingCart.productItemsCount += command.productItem.quantity;
-  shoppingCart.totalAmount += unitPrice * command.productItem.quantity;
-  return shoppingCart;
+  return {
+    ...shoppingCart,
+    productItems: ProductItems.withUpdatedQuantity(
+      shoppingCart.productItems,
+      command.productItem,
+      command.productItem.quantity,
+    ),
+    productItemsCount:
+      shoppingCart.productItemsCount + command.productItem.quantity,
+    totalAmount:
+      shoppingCart.totalAmount + unitPrice * command.productItem.quantity,
+  };
 };
 
 export const removeProductItem = (
-  command: RemoveProductItem,
+  command: RemoveProductItemFromShoppingCart["data"],
   state: ShoppingCart | null,
 ): ShoppingCart => {
   if (state?.status !== "Opened")
     throw new Error("Shopping Cart is not opened");
 
-  const currentProductItem = state.productItems.find(
-    ({ productId }) => productId === command.productId,
+  const currentProductItem = ProductItems.find(
+    state.productItems,
+    command.productId,
   );
   if (!currentProductItem || currentProductItem.quantity < command.quantity)
     throw new Error("Not enough products in shopping cart");
 
-  currentProductItem.quantity -= command.quantity;
-  state.productItemsCount -= command.quantity;
-  state.totalAmount -= currentProductItem.unitPrice * command.quantity;
-  if (currentProductItem.quantity === 0)
-    state.productItems.splice(
-      state.productItems.indexOf(currentProductItem),
-      1,
-    );
-  return state;
+  return {
+    ...state,
+    productItems: ProductItems.withUpdatedQuantity(
+      state.productItems,
+      currentProductItem,
+      -command.quantity,
+    ),
+    productItemsCount: state.productItemsCount - command.quantity,
+    totalAmount:
+      state.totalAmount - currentProductItem.unitPrice * command.quantity,
+  };
 };
 
 export const confirm = (
-  command: ConfirmShoppingCart,
+  command: ConfirmShoppingCart["data"],
   state: ShoppingCart | null,
 ): ShoppingCart => {
   if (!state) throw new Error("Shopping Cart is not opened");
   if (state.status === "Confirmed") return state;
   if (state.productItemsCount === 0) throw new Error("Shopping Cart is empty");
 
-  state.status = "Confirmed";
-  state.confirmedAt = command.now;
-  return state;
+  return {
+    ...state,
+    status: "Confirmed",
+    confirmedAt: command.now,
+  };
 };
 
 export const cancel = (state: ShoppingCart | null): ShoppingCart | null => {
@@ -206,7 +278,7 @@ export const cancel = (state: ShoppingCart | null): ShoppingCart | null => {
 };
 ```
 
-These are not placeholders for another abstraction. Implement their bodies directly from the supplied article with only the explicitly listed corrections below. `api.ts` passes each function straight to `shoppingCarts.handle(...)`; there is no command bus, repository, service class, decider, event, or `evolve` function.
+These are not placeholders for another abstraction. Implement their bodies directly from the supplied article with only the explicitly listed corrections below. The document types, command envelopes, command data, embedded lines, and arrays are readonly. `ProductItems.withUpdatedQuantity` follows the organization of the Emmett sample's helper: adding passes a positive quantity change and removing passes a negative one. Each operation returns a new document rather than mutating the state passed by Pongo; an idempotent operation may return the unchanged state reference. `api.ts` passes command `data` to operations that consume it inside `shoppingCarts.handle(...)`; `cancel` receives only the state because it needs no command data. There is no command bus, repository, service class, decider, event, or `evolve` function.
 
 Treat monetary values as integer minor units in sample catalogue data and explain this in the README. Each product ID has one embedded line in a cart. The line captures its unit price when first added; later additions of the same product increase quantity at that captured price for the lifetime of the cart. Clients never submit a trusted price. This explicit price-lock policy avoids ambiguous duplicate lines if a production catalogue price changes while a cart is open.
 
@@ -258,6 +330,8 @@ This intentionally fixes the omission in the article snippet where the line quan
 - Return `null` for an opened or missing cart.
 - Pongo deletes an existing open cart when the handler returns `null`.
 - Repeated cancellation succeeds as an idempotent no-op when the document is already absent.
+
+Confirmation and cancellation are idempotent because repeating them does not apply another state change. Adding and removing quantities are intentionally not idempotent: repeating either command applies the quantity change again. Do not add an idempotency-key store or request-deduplication abstraction to this sample.
 
 Domain functions contain no Hono, Cloudflare, Pongo, or external-service code. They return documents, never events.
 
@@ -462,7 +536,7 @@ The D1 database is shared across clients. The first-add handler:
 1. Finds `{ clientId, status: 'Opened' }`.
 2. Uses that cart's ID when found.
 3. Otherwise generates a new ID.
-4. Calls `shoppingCarts.handle(id, state => addProductItem(command, state))`.
+4. Calls `shoppingCarts.handle(id, state => addProductItem(command.data, state))`.
 5. Allows `null` state only when this attempt generated a fresh ID. If a previously found cart disappears before `handle` runs, restart current-cart resolution and allocate a new ID rather than recreating the deleted cart under its stale ID.
 6. Maps a partial-unique-index violation caused by concurrent creation to `409 Conflict`.
 
@@ -630,6 +704,7 @@ Cover:
 - Confirmation rejects a missing or empty cart.
 - Confirmation changes an opened cart once and is idempotent thereafter.
 - Cancellation rejects a confirmed cart and returns `null` for an opened or absent cart.
+- Add, remove, and confirm leave the input document unchanged.
 
 Duplication of these tests is intentional because each sample is independently runnable.
 
