@@ -1,0 +1,21 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "pongo-shopping-cart-durable-objects",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-11",
+  "workers_dev": true,
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SHOPPING_CARTS",
+        "class_name": "ShoppingCartDurableObject",
+      },
+    ],
+  },
+  "exports": {
+    "ShoppingCartDurableObject": {
+      "type": "durable-object",
+      "storage": "sqlite",
+    },
+  },
+}
