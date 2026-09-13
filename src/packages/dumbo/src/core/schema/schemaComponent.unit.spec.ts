@@ -1,21 +1,17 @@
 import assert from 'node:assert';
 import { describe, expectTypeOf, it } from 'vitest';
-import { DefaultDatabaseSchemaName, SQL } from '../sql';
+import { DefaultDatabaseSchemaName, SQL, SQLTableReference } from '../sql';
 import {
   columnSchemaComponent,
   databaseComponent,
-  databaseComponentType,
   databaseSchemaComponent,
-  databaseSchemaComponentType,
   extensionComponent,
-  extensionComponentType,
   indexComponent,
-  indexComponentType,
+  isSchemaComponent,
+  isTableComponent,
   schemaComponent,
-  schemaComponentType,
   sqlMigration,
   tableComponent,
-  tableComponentType,
   type DatabaseComponent,
   type DatabaseSchemaComponent,
   type ExtensionComponent,
@@ -36,9 +32,7 @@ const extensionWith = (
     migrations: () => migrations,
   });
 
-const migrationBundleType: unique symbol = Symbol(
-  'test.schemaComponent.migrationBundle',
-);
+const migrationBundleType = 'migrationBundle' as const;
 
 describe('collapsing repeated migrations', () => {
   it('collapses one migration listed twice into a single run', () => {
@@ -104,32 +98,36 @@ describe('collapsing repeated migrations', () => {
 });
 
 describe('composing schema components', () => {
-  it('identifies every component kind without relying on string keys', () => {
+  it('identifies every component by its structural component type', () => {
     expectTypeOf<DatabaseComponent>().toHaveProperty('schemas');
     expectTypeOf<DatabaseSchemaComponent>().toHaveProperty('tables');
     expectTypeOf<TableComponent>().toHaveProperty('indexes');
     expectTypeOf<IndexComponent>().toHaveProperty('indexName');
 
-    assert.strictEqual(
-      databaseComponent({ databaseName: 'app' })[schemaComponentType],
-      databaseComponentType,
-    );
-    assert.strictEqual(
-      databaseSchemaComponent({ schemaName: 'public' })[schemaComponentType],
-      databaseSchemaComponentType,
-    );
-    assert.strictEqual(
-      tableComponent({ tableName: 'users' })[schemaComponentType],
-      tableComponentType,
-    );
-    assert.strictEqual(
-      indexComponent({
-        indexName: 'users_email_idx',
-        columnNames: ['email'],
-        isUnique: false,
-      })[schemaComponentType],
-      indexComponentType,
-    );
+    const database = databaseComponent({ databaseName: 'app' });
+    const databaseSchema = databaseSchemaComponent({ schemaName: 'public' });
+    const table = tableComponent({ tableName: 'users' });
+    const index = indexComponent({
+      indexName: 'users_email_idx',
+      columnNames: ['email'],
+      isUnique: false,
+    });
+    const column = columnSchemaComponent({
+      columnName: 'email',
+      type: 'TEXT',
+    });
+    const extension = extensionComponent('audit');
+
+    assert.strictEqual(database.componentType, 'database');
+    assert.strictEqual(databaseSchema.componentType, 'databaseSchema');
+    assert.strictEqual(table.componentType, 'table');
+    assert.strictEqual(index.componentType, 'index');
+    assert.strictEqual(column.componentType, 'column');
+    assert.strictEqual(extension.componentType, 'extension');
+    assert.strictEqual(isSchemaComponent(database), true);
+    assert.strictEqual(isSchemaComponent({ migrations: () => [] }), false);
+    assert.strictEqual(isTableComponent(table), true);
+    assert.strictEqual(isTableComponent(extension), false);
   });
 
   it('runs a parent migration before child migrations in declaration order', () => {
@@ -312,12 +310,10 @@ describe('exposing a component as a plain frozen value', () => {
     const root = extensionWith('root', [migration]);
 
     assert.deepStrictEqual(Object.getOwnPropertyNames(root), Object.keys(root));
-    assert.deepStrictEqual(Object.getOwnPropertySymbols(root), [
-      schemaComponentType,
-    ]);
+    assert.deepStrictEqual(Object.getOwnPropertySymbols(root), []);
 
     const copy = { ...root };
-    assert.strictEqual(copy[schemaComponentType], extensionComponentType);
+    assert.strictEqual(copy.componentType, 'extension');
     assert.deepStrictEqual(copy.migrations(), root.migrations());
     assert.deepStrictEqual(copy.migrations(), [migration]);
   });
@@ -349,11 +345,16 @@ describe('exposing a component as a plain frozen value', () => {
 });
 
 describe('grouping components that migrate as one unit', () => {
-  it('marks a group with the kind it was declared with', () => {
+  it('marks a group with the component type it was declared with', () => {
     const group = schemaComponent(migrationBundleType);
 
-    assert.strictEqual(group[schemaComponentType], migrationBundleType);
-    assert.deepStrictEqual(Object.getOwnPropertyNames(group), ['migrations']);
+    assert.strictEqual(group.componentType, migrationBundleType);
+    assert.strictEqual(group.kind, undefined);
+    assert.deepStrictEqual(Object.getOwnPropertyNames(group), [
+      'componentType',
+      'kind',
+      'migrations',
+    ]);
     assert.deepStrictEqual(group.migrations(), []);
   });
 
@@ -397,6 +398,79 @@ describe('grouping components that migrate as one unit', () => {
       own.name,
       'table:users:create',
     ]);
+  });
+});
+
+describe('preserving component specialization kinds', () => {
+  it('retains kinds through component transformations', () => {
+    const column = columnSchemaComponent({
+      columnName: 'payload',
+      type: 'TEXT',
+      kind: 'json_payload',
+    });
+    const index = indexComponent({
+      indexName: 'messages_payload_idx',
+      columnNames: ['payload'],
+      isUnique: false,
+      kind: 'search_index',
+    });
+    const table = tableComponent({
+      tableName: 'messages',
+      kind: 'outbox',
+    });
+    const schema = databaseSchemaComponent({
+      schemaName: 'messaging',
+      kind: 'message_schema',
+    });
+    const extension = extensionComponent('outbox', {
+      kind: 'messaging_extension',
+      tables: { messages: table },
+    });
+    const database = databaseComponent({
+      databaseName: 'app',
+      kind: 'application_database',
+    });
+
+    assert.strictEqual(column.kind, 'json_payload');
+    assert.strictEqual(
+      index.withTableReference(
+        SQLTableReference.from({
+          databaseSchemaName: DefaultDatabaseSchemaName,
+          tableName: 'messages',
+        }),
+      ).kind,
+      'search_index',
+    );
+    assert.strictEqual(table.withTableName('pending_messages').kind, 'outbox');
+    assert.strictEqual(
+      table.withDatabaseSchemaName('messaging').kind,
+      'outbox',
+    );
+    assert.strictEqual(table.rename('sent_messages').kind, 'outbox');
+    assert.strictEqual(
+      schema.withTable({ messages: table }).kind,
+      'message_schema',
+    );
+    assert.strictEqual(
+      extension.withDatabaseSchemaName('messaging').kind,
+      'messaging_extension',
+    );
+    assert.strictEqual(
+      database.withDefaultSchemaName('public').kind,
+      'application_database',
+    );
+    assert.strictEqual(
+      database.withSchema({ messaging: schema }).kind,
+      'application_database',
+    );
+    assert.strictEqual(
+      database.withTable({ messages: table }).kind,
+      'application_database',
+    );
+    assert.strictEqual(
+      database.withTable({ messages: table }, 'messaging').kind,
+      'application_database',
+    );
   });
 });
 
@@ -534,9 +608,9 @@ describe('grouping components in extensions', () => {
     const extension = extensionWith('audit');
     const table = tableComponent({ tableName: 'audit_log' });
 
-    assert.strictEqual(extension[schemaComponentType], extensionComponentType);
-    assert.strictEqual(table[schemaComponentType], tableComponentType);
-    assert.notStrictEqual(table[schemaComponentType], extensionComponentType);
+    assert.strictEqual(extension.componentType, 'extension');
+    assert.strictEqual(table.componentType, 'table');
+    assert.notStrictEqual(table.componentType, extension.componentType);
   });
 
   it('accepts the same direct extension-map shape on databases and schemas', () => {

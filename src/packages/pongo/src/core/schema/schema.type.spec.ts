@@ -2,7 +2,6 @@ import type {
   AnyDatabaseComponent,
   DatabaseComponent,
   DatabaseSchemaComponent,
-  IndexComponent,
   TableRowType,
 } from '@event-driven-io/dumbo';
 import { dumboSchema, SQL } from '@event-driven-io/dumbo';
@@ -14,6 +13,7 @@ import {
   type PongoDatabaseDefinition,
   type PongoDbSchema,
   type PongoDbWithSchema,
+  type PongoIndexComponent,
 } from './index';
 
 type User = PongoDocument & { email: string };
@@ -56,7 +56,17 @@ describe('typing Pongo declarations and projected databases', () => {
     expectTypeOf<TableRowType<typeof _users>['data']>().toEqualTypeOf<User>();
     expectTypeOf<
       NonNullable<(typeof _users.indexes)['email']>
-    >().toMatchTypeOf<IndexComponent>();
+    >().toMatchTypeOf<PongoIndexComponent>();
+    expectTypeOf(_users.kind).toEqualTypeOf<'pongo_collection'>();
+    expectTypeOf(
+      _users.withTableName('accounts').kind,
+    ).toEqualTypeOf<'pongo_collection'>();
+    expectTypeOf(
+      _users.withDatabaseSchemaName('crm').kind,
+    ).toEqualTypeOf<'pongo_collection'>();
+    expectTypeOf<
+      NonNullable<(typeof _users.indexes)['email']>['kind']
+    >().toEqualTypeOf<'pongo_index'>();
     expectTypeOf<
       Extract<keyof typeof _users, 'databaseSchemaName'>
     >().toEqualTypeOf<never>();

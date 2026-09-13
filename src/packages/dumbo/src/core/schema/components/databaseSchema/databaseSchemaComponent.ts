@@ -13,10 +13,6 @@ import { sqlMigration, type SQLMigration } from '../../sqlMigration';
 import type { AnyExtensionComponent } from '../extensions';
 import type { AnyTableComponent } from '../table';
 
-export const databaseSchemaComponentType: unique symbol = Symbol(
-  'dumbo.schemaComponent.databaseSchema',
-);
-
 const databaseSchemaMigrationName = (
   databaseSchemaName: string,
   kind: string | undefined,
@@ -104,7 +100,8 @@ export type DatabaseSchemaComponent<
   Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
   SchemaName extends string = string,
   Extensions extends SchemaExtensions = Readonly<Record<never, never>>,
-> = SchemaComponent<typeof databaseSchemaComponentType> &
+  Kind extends string | undefined = undefined,
+> = SchemaComponent<'databaseSchema', Kind> &
   Readonly<{
     schemaName: SchemaName;
     tables: WithExtensionTables<Tables, Extensions>;
@@ -115,23 +112,26 @@ export type DatabaseSchemaComponent<
     ) => DatabaseSchemaComponent<
       MergeRecords<Tables, Added>,
       SchemaName,
-      Extensions
+      Extensions,
+      Kind
     >;
   }>;
 
 export type AnyDatabaseSchemaComponent = DatabaseSchemaComponent<
   DatabaseSchemaTables,
   string,
-  SchemaExtensions
+  SchemaExtensions,
+  string | undefined
 >;
 
 export type DatabaseSchemaComponentOptions<
   Tables extends DatabaseSchemaTables,
   SchemaName extends string,
   Extensions extends SchemaExtensions,
+  Kind extends string | undefined = undefined,
 > = Readonly<{
   schemaName: SchemaName;
-  kind?: string | undefined;
+  kind?: Kind | undefined;
   tables?: Tables | undefined;
   extensions?: Extensions | undefined;
   migrations?:
@@ -142,9 +142,10 @@ export const databaseSchemaComponent = <
   const Tables extends DatabaseSchemaTables = DatabaseSchemaTables,
   const SchemaName extends string = string,
   const Extensions extends SchemaExtensions = Readonly<Record<never, never>>,
+  const Kind extends string | undefined = undefined,
 >(
-  options: DatabaseSchemaComponentOptions<Tables, SchemaName, Extensions>,
-): DatabaseSchemaComponent<Tables, SchemaName, Extensions> => {
+  options: DatabaseSchemaComponentOptions<Tables, SchemaName, Extensions, Kind>,
+): DatabaseSchemaComponent<Tables, SchemaName, Extensions, Kind> => {
   const { schemaName, kind } = options;
 
   if (schemaName === '')
@@ -180,8 +181,14 @@ export const databaseSchemaComponent = <
     WithExtensionTables<Tables, Extensions>
   >(...extensionTables, tables);
 
-  const component: DatabaseSchemaComponent<Tables, SchemaName, Extensions> = {
-    ...schemaComponent(databaseSchemaComponentType, {
+  const component: DatabaseSchemaComponent<
+    Tables,
+    SchemaName,
+    Extensions,
+    Kind
+  > = {
+    ...schemaComponent('databaseSchema', {
+      kind,
       components: Object.freeze([
         ...Object.values(tables),
         ...Object.values(extensions),
@@ -202,7 +209,8 @@ export const databaseSchemaComponent = <
       databaseSchemaComponent<
         MergeRecords<Tables, Added>,
         SchemaName,
-        Extensions
+        Extensions,
+        Kind
       >({ ...options, tables: { ...tables, ...added } }),
   };
 

@@ -257,8 +257,16 @@ export type ValidateColumnsMatch<
   Column extends AnyColumnSchemaComponent,
   references extends QualifiedColumnName = QualifiedColumnName,
 > =
-  Column extends ColumnSchemaComponent<infer ColumnType>
-    ? ReferenceColumn extends ColumnSchemaComponent<infer RefColumnType>
+  Column extends ColumnSchemaComponent<
+    infer ColumnType,
+    infer _ColumnName,
+    infer _ColumnKind
+  >
+    ? ReferenceColumn extends ColumnSchemaComponent<
+        infer RefColumnType,
+        infer _ReferenceColumnName,
+        infer _ReferenceColumnKind
+      >
       ? ValidateColumnTypeMatch<RefColumnType, ColumnType, references>
       : never
     : never;
@@ -270,7 +278,10 @@ type SchemaColumn<
   ColumnName extends string,
 > = SchemaName extends keyof Schemas
   ? Schemas[SchemaName] extends DatabaseSchemaComponent<
-      infer Tables extends DatabaseSchemaTables
+      infer Tables extends DatabaseSchemaTables,
+      infer _SchemaName,
+      infer _Extensions,
+      infer _Kind
     >
     ? TableName extends keyof Tables
       ? InferTableComponentData<Tables[TableName]> extends {
@@ -371,7 +382,13 @@ export type CollectReferencesErrors<
 >;
 
 export type SchemaTablesWithSingle<Table extends AnyTableComponent> =
-  Table extends TableComponent<infer _Columns, infer TableName>
+  Table extends TableComponent<
+    infer _Columns,
+    infer TableName,
+    infer _Indexes,
+    infer _Relationships,
+    infer _Kind
+  >
     ? DatabaseSchemaComponent<
         {
           [K in TableName]: Table;
@@ -383,7 +400,12 @@ export type SchemaTablesWithSingle<Table extends AnyTableComponent> =
 export type DatabaseSchemasWithSingle<
   Schema extends AnyDatabaseSchemaComponent,
 > =
-  Schema extends DatabaseSchemaComponent<infer _Tables, infer _SchemaName>
+  Schema extends DatabaseSchemaComponent<
+    infer _Tables,
+    infer _SchemaName,
+    infer _Extensions,
+    infer _Kind
+  >
     ? {
         [K in _SchemaName]: Schema;
       }
@@ -458,7 +480,13 @@ export type CollectRelationshipErrors<
         ? Relationships[R]
         : never,
       Extract<R, string>,
-      Table extends TableComponent<infer _Columns, infer TableName>
+      Table extends TableComponent<
+        infer _Columns,
+        infer TableName,
+        infer _Indexes,
+        infer _Relationships,
+        infer _Kind
+      >
         ? TableName
         : string,
       Table,
@@ -562,7 +590,12 @@ export type ValidateDatabaseSchema<
   Schema extends AnyDatabaseSchemaComponent,
   Schemas extends DatabaseSchemas = DatabaseSchemasWithSingle<Schema>,
 > =
-  Schema extends DatabaseSchemaComponent<infer Tables, infer SchemaName>
+  Schema extends DatabaseSchemaComponent<
+    infer Tables,
+    infer SchemaName,
+    infer _Extensions,
+    infer _Kind
+  >
     ? ValidateSchemaTables<Tables, SchemaName, Schema, Schemas>
     : TypeValidationSuccess;
 

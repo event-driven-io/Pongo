@@ -6,6 +6,7 @@ import type {
 } from './components';
 import type * as dumboPublicAPI from './index';
 import {
+  databaseSchemaComponent,
   dumboSchema,
   type DatabaseComponent,
   type DatabaseSchemaComponent,
@@ -91,6 +92,58 @@ describe('composing a schema through the Dumbo declaration API', () => {
     expectTypeOf(publicSchema).toExtend<DatabaseSchemaComponent>();
     expectTypeOf(app).toExtend<DatabaseComponent>();
     expectTypeOf(flat).toExtend<DatabaseComponent>();
+  });
+
+  it('retains literal specialization kinds through declarations and transformations', () => {
+    const column = dumboSchema.column('payload', SQL.column.type.Text, {
+      kind: 'json_payload',
+    });
+    const index = dumboSchema.index('messages_payload_idx', ['payload'], {
+      kind: 'search_index',
+    });
+    const table = dumboSchema.table('messages', {
+      kind: 'outbox',
+      columns: { payload: column },
+      indexes: { payload: index },
+    });
+    const schema = databaseSchemaComponent({
+      schemaName: 'messaging',
+      kind: 'message_schema',
+    });
+    const extension = dumboSchema.extension('outbox', {
+      kind: 'messaging_extension',
+      tables: { messages: table },
+    });
+    const database = dumboSchema.database('app', {
+      kind: 'application_database',
+      tables: { messages: table },
+    });
+
+    expectTypeOf(column.kind).toEqualTypeOf<'json_payload'>();
+    expectTypeOf(index.kind).toEqualTypeOf<'search_index'>();
+    expectTypeOf(table.kind).toEqualTypeOf<'outbox'>();
+    expectTypeOf(table.withTableName('pending').kind).toEqualTypeOf<'outbox'>();
+    expectTypeOf(
+      table.withDatabaseSchemaName('messaging').kind,
+    ).toEqualTypeOf<'outbox'>();
+    expectTypeOf(schema.kind).toEqualTypeOf<'message_schema'>();
+    expectTypeOf(
+      schema.withTable({ messages: table }).kind,
+    ).toEqualTypeOf<'message_schema'>();
+    expectTypeOf(extension.kind).toEqualTypeOf<'messaging_extension'>();
+    expectTypeOf(
+      extension.withDatabaseSchemaName('messaging').kind,
+    ).toEqualTypeOf<'messaging_extension'>();
+    expectTypeOf(database.kind).toEqualTypeOf<'application_database'>();
+    expectTypeOf(
+      database.withDefaultSchemaName('public').kind,
+    ).toEqualTypeOf<'application_database'>();
+    expectTypeOf(
+      database.withSchema({ messaging: schema }).kind,
+    ).toEqualTypeOf<'application_database'>();
+    expectTypeOf(
+      database.withTable({ audit: table }).kind,
+    ).toEqualTypeOf<'application_database'>();
   });
 
   it('keeps declared names and row types reachable through the tree', () => {

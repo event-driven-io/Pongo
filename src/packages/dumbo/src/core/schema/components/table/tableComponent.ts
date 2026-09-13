@@ -6,10 +6,9 @@ import {
 } from '../../../sql';
 import { migrationName, schemaSegments } from '../../migrators/migrationName';
 import {
+  isSchemaComponent,
   schemaComponent,
   schemaComponentMap,
-  schemaComponentType,
-  type AnySchemaComponent,
   type SchemaComponent,
 } from '../../schemaComponent';
 import { sqlMigration, type SQLMigration } from '../../sqlMigration';
@@ -17,10 +16,6 @@ import type { AnyColumnSchemaComponent } from '../columns';
 import type { TableRelationships } from '../relationships/relationshipTypes';
 import type { AnyIndexComponent } from '../tableIndex';
 import { createTableSQL } from './createTableSQL';
-
-export const tableComponentType: unique symbol = Symbol(
-  'dumbo.schemaComponent.table',
-);
 
 const tableMigrationName = (
   identifier: Readonly<{
@@ -96,42 +91,52 @@ export type TableComponent<
   Indexes extends TableIndexes = TableIndexes,
   Relationships extends TableRelationships<keyof Columns & string> =
     TableRelationships<keyof Columns & string>,
-> = SchemaComponent<typeof tableComponentType> &
+  Kind extends string | undefined = undefined,
+> = SchemaComponent<'table', Kind> &
   Readonly<{
     tableName: TableName;
     fullName: SQLTableReference;
-    kind: string | undefined;
     columns: Columns;
     primaryKey: ReadonlyArray<Extract<keyof Columns, string>>;
     relationships: Relationships;
     indexes: Indexes;
     withDatabaseSchemaName: (
       databaseSchemaName: string,
-    ) => TableComponent<Columns, TableName, Indexes, Relationships>;
+    ) => TableComponent<Columns, TableName, Indexes, Relationships, Kind>;
     withTableName: <const NewTableName extends string>(
       tableName: NewTableName,
-    ) => TableComponent<Columns, NewTableName, Indexes, Relationships>;
+    ) => TableComponent<Columns, NewTableName, Indexes, Relationships, Kind>;
     rename: <const NewTableName extends string>(
       tableName: NewTableName,
-    ) => TableComponent<Columns, NewTableName, Indexes, Relationships>;
+    ) => TableComponent<Columns, NewTableName, Indexes, Relationships, Kind>;
   }>;
 
 export type AnyTableComponent = TableComponent<
   TableColumns,
   string,
   TableIndexes,
-  TableRelationships<string>
+  TableRelationships<string>,
+  string | undefined
 >;
 
 export type InferTableComponentColumns<T extends AnyTableComponent> =
-  T extends TableComponent<infer Columns> ? Columns : never;
+  T extends TableComponent<
+    infer Columns,
+    infer _TableName,
+    infer _Indexes,
+    infer _Relationships,
+    infer _Kind
+  >
+    ? Columns
+    : never;
 
 export type InferTableComponentData<T extends AnyTableComponent> =
   T extends TableComponent<
     infer Columns,
     infer TableName,
     infer Indexes,
-    infer Relationships
+    infer Relationships,
+    infer _Kind
   >
     ? {
         columns: Columns;
@@ -146,10 +151,11 @@ export type TableComponentOptions<
   TableName extends string,
   Indexes extends TableIndexes,
   Relationships extends TableRelationships<keyof Columns & string>,
+  Kind extends string | undefined = undefined,
 > = Readonly<{
   tableName: TableName;
   databaseSchemaName?: string | undefined;
-  kind?: string | undefined;
+  kind?: Kind | undefined;
   columns?: Columns | undefined;
   primaryKey?: ReadonlyArray<Extract<keyof Columns, string>> | undefined;
   relationships?: Relationships | undefined;
@@ -165,9 +171,16 @@ export const tableComponent = <
   const Indexes extends TableIndexes = TableIndexes,
   const Relationships extends TableRelationships<keyof Columns & string> =
     TableRelationships<keyof Columns & string>,
+  const Kind extends string | undefined = undefined,
 >(
-  options: TableComponentOptions<Columns, TableName, Indexes, Relationships>,
-): TableComponent<Columns, TableName, Indexes, Relationships> => {
+  options: TableComponentOptions<
+    Columns,
+    TableName,
+    Indexes,
+    Relationships,
+    Kind
+  >,
+): TableComponent<Columns, TableName, Indexes, Relationships, Kind> => {
   const columns = (options.columns ?? {}) as Columns;
   const fullName = SQLTableReference.from({
     databaseSchemaName: options.databaseSchemaName ?? DefaultDatabaseSchemaName,
@@ -193,58 +206,61 @@ export const tableComponent = <
           renamedFrom: options.renamedFrom,
         });
 
-  const component: TableComponent<Columns, TableName, Indexes, Relationships> =
-    {
-      ...schemaComponent(tableComponentType, {
-        components: children,
-        migrations: ownMigrations,
-      }),
-      tableName: options.tableName,
-      fullName,
+  const component: TableComponent<
+    Columns,
+    TableName,
+    Indexes,
+    Relationships,
+    Kind
+  > = {
+    ...schemaComponent('table', {
       kind: options.kind,
-      primaryKey: Object.freeze([...(options.primaryKey ?? [])]),
-      relationships: Object.freeze({
-        ...(options.relationships ?? {}),
-      }) as Relationships,
-      columns: schemaComponentMap(columns),
-      indexes: schemaComponentMap(indexes),
-      // spreading the receiver first keeps the properties outer factories
-      // added to it, as Pongo does for its collection components
-      withDatabaseSchemaName(databaseSchemaName: string) {
-        if (fullName.databaseSchemaName === databaseSchemaName) return this;
+      components: children,
+      migrations: ownMigrations,
+    }),
+    tableName: options.tableName,
+    fullName,
+    primaryKey: Object.freeze([...(options.primaryKey ?? [])]),
+    relationships: Object.freeze({
+      ...(options.relationships ?? {}),
+    }) as Relationships,
+    columns: schemaComponentMap(columns),
+    indexes: schemaComponentMap(indexes),
+    // spreading the receiver first keeps the properties outer factories
+    // added to it, as Pongo does for its collection components
+    withDatabaseSchemaName(databaseSchemaName: string) {
+      if (fullName.databaseSchemaName === databaseSchemaName) return this;
 
-        return {
-          ...this,
-          ...tableComponent({ ...options, databaseSchemaName }),
-        };
-      },
-      rename<const NewTableName extends string>(tableName: NewTableName) {
-        return {
-          ...this,
-          ...tableComponent<Columns, NewTableName, Indexes, Relationships>({
-            ...options,
-            tableName,
-            renamedFrom: fullName,
-          }),
-        };
-      },
-      withTableName<const NewTableName extends string>(
-        tableName: NewTableName,
-      ) {
-        return {
-          ...this,
-          ...tableComponent<Columns, NewTableName, Indexes, Relationships>({
-            ...options,
-            tableName,
-          }),
-        };
-      },
-    };
+      return {
+        ...this,
+        ...tableComponent({ ...options, databaseSchemaName }),
+      };
+    },
+    rename<const NewTableName extends string>(tableName: NewTableName) {
+      return {
+        ...this,
+        ...tableComponent<Columns, NewTableName, Indexes, Relationships, Kind>({
+          ...options,
+          tableName,
+          renamedFrom: fullName,
+        }),
+      };
+    },
+    withTableName<const NewTableName extends string>(tableName: NewTableName) {
+      return {
+        ...this,
+        ...tableComponent<Columns, NewTableName, Indexes, Relationships, Kind>({
+          ...options,
+          tableName,
+        }),
+      };
+    },
+  };
 
   return component;
 };
 
 export const isTableComponent = (
-  component: AnySchemaComponent,
+  component: unknown,
 ): component is AnyTableComponent =>
-  component[schemaComponentType] === tableComponentType;
+  isSchemaComponent(component) && component.componentType === 'table';

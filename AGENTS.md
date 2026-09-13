@@ -82,4 +82,5 @@ relevant checks were skipped.
   require concrete, evidence-backed findings so important details are not lost.
 - Do not commit, create branches or tags, rebase, reset, or otherwise modify Git
   history unless explicitly requested.
+- When the user asks for work on a branch, use the current workspace so the changes remain visible in their Git view. Do not create or use a Git worktree unless the user explicitly requests one.
 - Do not add manual line breaks inside Markdown paragraphs. Keep each paragraph on a single line and let the renderer or editor wrap it.

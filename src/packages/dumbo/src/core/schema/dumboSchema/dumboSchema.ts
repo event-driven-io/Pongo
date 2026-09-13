@@ -29,25 +29,37 @@ import type { SQLMigration } from '../sqlMigration';
 function dumboColumn<
   const ColumnType extends AnyColumnTypeToken | string,
   const ColumnName extends string,
+  const Kind extends string | undefined = undefined,
 >(
   name: ColumnName,
   type: ColumnType,
-  options: Omit<ColumnSchemaComponentOptions<ColumnType>, 'type'> &
+  options: Omit<ColumnSchemaComponentOptions<ColumnType, Kind>, 'type'> &
     ({ notNull: true } | { primaryKey: true }),
-): ColumnSchemaComponent<ColumnType, ColumnName> & { notNull: true };
+): ColumnSchemaComponent<ColumnType, ColumnName, Kind> & { notNull: true };
 function dumboColumn<
   const ColumnType extends AnyColumnTypeToken | string,
   const ColumnName extends string,
+  const Kind extends string | undefined = undefined,
 >(
   name: ColumnName,
   type: ColumnType,
-  options?: Omit<ColumnSchemaComponentOptions<ColumnType>, 'type'>,
-): ColumnSchemaComponent<ColumnType, ColumnName> & { notNull?: false };
+  options?: Omit<ColumnSchemaComponentOptions<ColumnType, Kind>, 'type'>,
+): ColumnSchemaComponent<ColumnType, ColumnName, Kind> & { notNull?: false };
 function dumboColumn(
   name: string,
   type: AnyColumnTypeToken | string,
-  options?: Omit<ColumnSchemaComponentOptions, 'type'>,
-): ColumnSchemaComponent {
+  options?: Omit<
+    ColumnSchemaComponentOptions<
+      AnyColumnTypeToken | string,
+      string | undefined
+    >,
+    'type'
+  >,
+): ColumnSchemaComponent<
+  AnyColumnTypeToken | string,
+  string,
+  string | undefined
+> {
   return columnSchemaComponent({
     ...options,
     columnName: name,
@@ -58,14 +70,15 @@ function dumboColumn(
 const dumboIndex = <
   const Name extends string,
   const ColumnNames extends readonly string[],
+  const Kind extends string | undefined = undefined,
 >(
   name: Name,
   columnNames: ColumnNames,
   options?: Omit<
-    Parameters<typeof indexComponent<Name, ColumnNames>>[0],
+    Parameters<typeof indexComponent<Name, ColumnNames, Kind>>[0],
     'indexName' | 'columnNames' | 'isUnique'
   > & { unique?: boolean },
-): IndexComponent<Name, ColumnNames> =>
+): IndexComponent<Name, ColumnNames, Kind> =>
   indexComponent({
     indexName: name,
     columnNames,
@@ -79,17 +92,18 @@ const dumboTable = <
   const Indexes extends TableIndexes = TableIndexes,
   const Relationships extends TableRelationships<keyof Columns & string> =
     TableRelationships<keyof Columns & string>,
+  const Kind extends string | undefined = undefined,
 >(
   name: TableName,
   definition: Readonly<{
-    kind?: string;
+    kind?: Kind;
     columns?: Columns;
     primaryKey?: ReadonlyArray<Extract<keyof Columns, string>>;
     relationships?: Relationships;
     indexes?: Indexes;
     migrations?: () => ReadonlyArray<SQLMigration>;
   }> = {},
-): TableComponent<Columns, TableName, Indexes, Relationships> =>
+): TableComponent<Columns, TableName, Indexes, Relationships, Kind> =>
   tableComponent({
     tableName: name,
     ...definition,
@@ -132,37 +146,58 @@ type ValidatedDatabaseComponent<
   Tables extends DatabaseTables,
   Schemas extends DatabaseSchemas,
   Extensions extends DatabaseExtensions,
+  Kind extends string | undefined,
 > =
   ValidateDatabaseSchemas<DeclaredSchemas<Tables, Schemas>> extends {
     valid: false;
     error: infer ErrorType;
   }
     ? { valid: false; error: ErrorType }
-    : DatabaseComponent<DatabaseName, Tables, Schemas, Extensions>;
+    : DatabaseComponent<DatabaseName, Tables, Schemas, Extensions, Kind>;
 
 function dumboDatabase<
   const Tables extends DatabaseTables = EmptyComponentMap,
   const Schemas extends DatabaseSchemas = EmptyComponentMap,
   const Extensions extends DatabaseExtensions = EmptyComponentMap,
+  const Kind extends string | undefined = undefined,
 >(
   options: WithoutDatabaseName<
-    DatabaseComponentOptions<undefined, Tables, Schemas, Extensions>
+    DatabaseComponentOptions<undefined, Tables, Schemas, Extensions, Kind>
   >,
-): ValidatedDatabaseComponent<undefined, Tables, Schemas, Extensions>;
+): ValidatedDatabaseComponent<undefined, Tables, Schemas, Extensions, Kind>;
 function dumboDatabase<
   const Name extends string,
   const Tables extends DatabaseTables = EmptyComponentMap,
   const Schemas extends DatabaseSchemas = EmptyComponentMap,
   const Extensions extends DatabaseExtensions = EmptyComponentMap,
+  const Kind extends string | undefined = undefined,
 >(
   databaseName: Name,
   options: WithoutDatabaseName<
-    DatabaseComponentOptions<Name, Tables, Schemas, Extensions>
+    DatabaseComponentOptions<Name, Tables, Schemas, Extensions, Kind>
   >,
-): ValidatedDatabaseComponent<Name, Tables, Schemas, Extensions>;
+): ValidatedDatabaseComponent<Name, Tables, Schemas, Extensions, Kind>;
 function dumboDatabase(
-  databaseNameOrOptions: string | WithoutDatabaseName<DatabaseComponentOptions>,
-  maybeOptions?: WithoutDatabaseName<DatabaseComponentOptions>,
+  databaseNameOrOptions:
+    | string
+    | WithoutDatabaseName<
+        DatabaseComponentOptions<
+          string | undefined,
+          DatabaseTables,
+          DatabaseSchemas,
+          DatabaseExtensions,
+          string | undefined
+        >
+      >,
+  maybeOptions?: WithoutDatabaseName<
+    DatabaseComponentOptions<
+      string | undefined,
+      DatabaseTables,
+      DatabaseSchemas,
+      DatabaseExtensions,
+      string | undefined
+    >
+  >,
 ): unknown {
   const databaseName =
     typeof databaseNameOrOptions === 'string'

@@ -23,10 +23,6 @@ import {
 import type { AnyExtensionComponent } from '../extensions';
 import type { AnyTableComponent } from '../table';
 
-export const databaseComponentType: unique symbol = Symbol(
-  'dumbo.schemaComponent.database',
-);
-
 export type DatabaseTables = Readonly<Record<string, AnyTableComponent>>;
 export type DatabaseSchemas = Readonly<
   Record<string, AnyDatabaseSchemaComponent>
@@ -49,12 +45,14 @@ type SchemaWithTables<Schema, Added extends DatabaseTables> =
   Schema extends DatabaseSchemaComponent<
     infer Tables,
     infer SchemaName,
-    infer Extensions
+    infer Extensions,
+    infer Kind
   >
     ? DatabaseSchemaComponent<
         MergeRecords<Tables, Added>,
         SchemaName,
-        Extensions
+        Extensions,
+        Kind
       >
     : never;
 
@@ -81,7 +79,8 @@ export type DatabaseComponent<
   Tables extends DatabaseTables = DatabaseTables,
   Schemas extends DatabaseSchemas = DatabaseSchemas,
   Extensions extends DatabaseExtensions = DatabaseExtensions,
-> = SchemaComponent<typeof databaseComponentType> &
+  Kind extends string | undefined = undefined,
+> = SchemaComponent<'database', Kind> &
   Readonly<{
     databaseName: DatabaseName;
     defaultSchema: DatabaseSchemaComponent<Tables, string, Extensions>;
@@ -105,14 +104,15 @@ export type DatabaseComponent<
     ) => AnyDatabaseSchemaComponent | undefined;
     withDefaultSchemaName: (
       defaultSchemaName: string | undefined,
-    ) => DatabaseComponent<DatabaseName, Tables, Schemas, Extensions>;
+    ) => DatabaseComponent<DatabaseName, Tables, Schemas, Extensions, Kind>;
     withSchema: <const Added extends DatabaseSchemas>(
       schemas: Added,
     ) => DatabaseComponent<
       DatabaseName,
       Tables,
       MergeRecords<Schemas, Added>,
-      Extensions
+      Extensions,
+      Kind
     >;
     withTable: {
       <const Added extends DatabaseTables>(
@@ -121,7 +121,8 @@ export type DatabaseComponent<
         DatabaseName,
         MergeRecords<Tables, Added>,
         Schemas,
-        Extensions
+        Extensions,
+        Kind
       >;
       <const Added extends DatabaseTables, const SchemaName extends string>(
         tables: Added,
@@ -130,7 +131,8 @@ export type DatabaseComponent<
         DatabaseName,
         Tables,
         UpsertSchemaTables<Schemas, SchemaName, Added>,
-        Extensions
+        Extensions,
+        Kind
       >;
     };
   }>;
@@ -139,16 +141,19 @@ export type AnyDatabaseComponent = DatabaseComponent<
   string | undefined,
   DatabaseTables,
   DatabaseSchemas,
-  DatabaseExtensions
+  DatabaseExtensions,
+  string | undefined
 >;
 
 type DatabaseComponentSharedOptions<
   DatabaseName extends string | undefined,
   Extensions extends DatabaseExtensions,
+  Kind extends string | undefined,
 > = Readonly<{
   databaseName?: DatabaseName | undefined;
   defaultSchemaName?: string | undefined;
   extensions?: Extensions | undefined;
+  kind?: Kind | undefined;
   migrations?: (() => ReadonlyArray<SQLMigration>) | undefined;
 }>;
 
@@ -157,7 +162,8 @@ export type DatabaseComponentOptions<
   Tables extends DatabaseTables = DatabaseTables,
   Schemas extends DatabaseSchemas = DatabaseSchemas,
   Extensions extends DatabaseExtensions = DatabaseExtensions,
-> = DatabaseComponentSharedOptions<DatabaseName, Extensions> &
+  Kind extends string | undefined = undefined,
+> = DatabaseComponentSharedOptions<DatabaseName, Extensions, Kind> &
   (
     | Readonly<{ tables?: Tables | undefined; schemas?: never }>
     | Readonly<{ schemas?: Schemas | undefined; tables?: never }>
@@ -168,7 +174,8 @@ type DatabaseComponentCompositionOptions<
   Tables extends DatabaseTables,
   Schemas extends DatabaseSchemas,
   Extensions extends DatabaseExtensions,
-> = DatabaseComponentSharedOptions<DatabaseName, Extensions> &
+  Kind extends string | undefined,
+> = DatabaseComponentSharedOptions<DatabaseName, Extensions, Kind> &
   Readonly<{
     tables?: Tables | undefined;
     schemas?: Schemas | undefined;
@@ -179,17 +186,28 @@ export const databaseComponent = <
   const Tables extends DatabaseTables = DatabaseTables,
   const Schemas extends DatabaseSchemas = DatabaseSchemas,
   const Extensions extends DatabaseExtensions = Readonly<Record<never, never>>,
+  const Kind extends string | undefined = undefined,
 >(
-  options: DatabaseComponentOptions<DatabaseName, Tables, Schemas, Extensions>,
-): DatabaseComponent<DatabaseName, Tables, Schemas, Extensions> => {
+  options: DatabaseComponentOptions<
+    DatabaseName,
+    Tables,
+    Schemas,
+    Extensions,
+    Kind
+  >,
+): DatabaseComponent<DatabaseName, Tables, Schemas, Extensions, Kind> => {
   if (options.tables !== undefined && options.schemas !== undefined)
     throw new InvalidOperationError(
       'A database declaration can contain either tables or schemas, not both',
     );
 
-  return buildDatabaseComponent<DatabaseName, Tables, Schemas, Extensions>(
-    options,
-  );
+  return buildDatabaseComponent<
+    DatabaseName,
+    Tables,
+    Schemas,
+    Extensions,
+    Kind
+  >(options);
 };
 
 const buildDatabaseComponent = <
@@ -197,14 +215,16 @@ const buildDatabaseComponent = <
   const Tables extends DatabaseTables = DatabaseTables,
   const Schemas extends DatabaseSchemas = DatabaseSchemas,
   const Extensions extends DatabaseExtensions = DatabaseExtensions,
+  const Kind extends string | undefined = undefined,
 >(
   options: DatabaseComponentCompositionOptions<
     DatabaseName,
     Tables,
     Schemas,
-    Extensions
+    Extensions,
+    Kind
   >,
-): DatabaseComponent<DatabaseName, Tables, Schemas, Extensions> => {
+): DatabaseComponent<DatabaseName, Tables, Schemas, Extensions, Kind> => {
   const { databaseName, defaultSchemaName = DefaultDatabaseSchemaName } =
     options;
   const schemas = (options.schemas ?? {}) as Schemas;
@@ -226,7 +246,13 @@ const buildDatabaseComponent = <
   });
 
   const allSchemas = mergeSchemaComponentMaps<
-    DatabaseComponent<DatabaseName, Tables, Schemas, Extensions>['schemas']
+    DatabaseComponent<
+      DatabaseName,
+      Tables,
+      Schemas,
+      Extensions,
+      Kind
+    >['schemas']
   >(
     { [DefaultDatabaseSchemaName]: defaultSchema },
     ...Object.values(extensions).map((extension) => extension.schemas),
@@ -253,9 +279,11 @@ const buildDatabaseComponent = <
     DatabaseName,
     Tables,
     Schemas,
-    Extensions
+    Extensions,
+    Kind
   > = {
-    ...schemaComponent(databaseComponentType, {
+    ...schemaComponent('database', {
+      kind: options.kind,
       components: Object.freeze([
         defaultSchema,
         ...Object.values(schemas),
@@ -279,7 +307,13 @@ const buildDatabaseComponent = <
     withDefaultSchemaName: (nextDefaultSchemaName: string | undefined) =>
       nextDefaultSchemaName === defaultSchemaName
         ? component
-        : buildDatabaseComponent<DatabaseName, Tables, Schemas, Extensions>({
+        : buildDatabaseComponent<
+            DatabaseName,
+            Tables,
+            Schemas,
+            Extensions,
+            Kind
+          >({
             ...options,
             defaultSchemaName: nextDefaultSchemaName,
           }),
@@ -288,7 +322,8 @@ const buildDatabaseComponent = <
         DatabaseName,
         Tables,
         MergeRecords<Schemas, Added>,
-        Extensions
+        Extensions,
+        Kind
       >({ ...options, schemas: { ...schemas, ...added } }),
     withTable: ((added: DatabaseTables, schemaName?: string) => {
       const resolvedSchemaName = resolveSchemaName(schemaName);
@@ -311,7 +346,8 @@ const buildDatabaseComponent = <
       DatabaseName,
       Tables,
       Schemas,
-      Extensions
+      Extensions,
+      Kind
     >['withTable'],
   };
 

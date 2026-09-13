@@ -1,6 +1,8 @@
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
@@ -269,6 +271,74 @@ describe('pongo package types', () => {
           ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n'),
         ),
       ).toEqual([]);
+    },
+  );
+});
+
+describe('pongo package runtime compatibility', () => {
+  const drivers = [
+    {
+      entry: 'pg',
+      options: {
+        connectionString:
+          'postgresql://postgres:postgres@localhost:5432/postgres',
+      },
+    },
+    { entry: 'sqlite3', options: { connectionString: ':memory:' } },
+    { entry: 'cloudflare', options: { database: {} } },
+  ] as const;
+
+  it.each(
+    drivers.flatMap(({ entry, options }) =>
+      (['cjs', 'js'] as const).map((format) => ({ entry, options, format })),
+    ),
+  )(
+    'uses schemas from the root entry with the $entry $format driver',
+    ({ entry, options, format }) => {
+      const tempDirectory = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'pongo-runtime-'),
+      );
+      const extension = format === 'js' ? 'mjs' : 'cjs';
+      const consumerFile = path.join(tempDirectory, `consumer.${extension}`);
+      const pongoDist = path.resolve('packages/pongo/dist');
+      const rootEntry = path.join(pongoDist, `index.${format}`);
+      const driverEntry = path.join(pongoDist, `${entry}.${format}`);
+      const imports =
+        format === 'js'
+          ? `
+            import * as pongo from '${pathToFileURL(rootEntry).href}';
+            import * as driver from '${pathToFileURL(driverEntry).href}';
+          `
+          : `
+            const pongo = require(${JSON.stringify(rootEntry)});
+            const driver = require(${JSON.stringify(driverEntry)});
+          `;
+
+      fs.writeFileSync(
+        consumerFile,
+        `${imports}
+          const shoppingCarts = pongo.pongoSchema.collection('shoppingCarts');
+          const schema = pongo.pongoSchema.client({
+            database: pongo.pongoSchema.db({
+              collections: { shoppingCarts },
+            }),
+          });
+          const client = pongo.pongoClient({
+            driver: driver.pongoDriver,
+            ...${JSON.stringify(options)},
+            schema: { definition: schema, autoMigration: 'None' },
+          });
+
+          const collection = client.database.collection('shoppingCarts');
+          if (collection.collectionName !== 'shoppingCarts') process.exit(1);
+        `,
+      );
+
+      const result = spawnSync(process.execPath, [consumerFile], {
+        encoding: 'utf8',
+      });
+
+      expect(result.status, result.stderr).toBe(0);
     },
   );
 });
