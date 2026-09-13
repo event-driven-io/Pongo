@@ -51,3 +51,48 @@ jobs:
 
       - name: Build Worker
         run: npm run build
+
+  deploy:
+    name: Deploy Cloudflare D1 sample
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'
+    needs: build_and_test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Use Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: samples/cloudflare/d1/.nvmrc
+          cache: npm
+          cache-dependency-path: samples/cloudflare/d1/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy Worker
+        id: deploy
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: samples/cloudflare/d1
+          command: deploy
+          secrets: MIGRATION_TOKEN
+        env:
+          MIGRATION_TOKEN: ${{ secrets.CLOUDFLARE_MIGRATION_TOKEN }}
+
+      - name: Migrate D1 schema
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
+          MIGRATION_TOKEN: ${{ secrets.CLOUDFLARE_MIGRATION_TOKEN }}
+        run: >-
+          curl --fail-with-body --request POST
+          --header "Authorization: Bearer ${MIGRATION_TOKEN}"
+          "${DEPLOYMENT_URL}/_system/migrations"
+
+      - name: Publish deployment URL
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
+        run: echo "### Deployed to ${DEPLOYMENT_URL}" >> "${GITHUB_STEP_SUMMARY}"

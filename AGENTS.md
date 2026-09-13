@@ -62,6 +62,10 @@ Before the final handoff of completed application-code work, run `npm test`.
 Report which verification commands were run, whether they passed, and why any
 relevant checks were skipped.
 
+## Coding guide
+
+- Use the module pattern with functions, closures, and object literals instead of classes.
+
 ## Working rules
 
 - Use simple, direct language. Keep explanations concise, example-based, and

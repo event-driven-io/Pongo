@@ -1,3 +1,4 @@
+import { EmmettError } from '@event-driven-io/emmett';
 import { ProductItems } from './shoppingCart';
 import type { PricedProductItem, ShoppingCart } from './shoppingCart';
 
@@ -40,7 +41,10 @@ export const addProductItem = (
   state: ShoppingCart | null,
 ): ShoppingCart => {
   if (state?.status === 'Confirmed')
-    throw new Error('Shopping Cart already closed');
+    throw new EmmettError({
+      errorCode: 409,
+      message: 'Shopping Cart already closed',
+    });
 
   const shoppingCart: ShoppingCart = state ?? {
     _id: command.shoppingCartId,
@@ -78,14 +82,20 @@ export const removeProductItem = (
   state: ShoppingCart | null,
 ): ShoppingCart => {
   if (state?.status !== 'Opened')
-    throw new Error('Shopping Cart is not opened');
+    throw new EmmettError({
+      errorCode: 409,
+      message: 'Shopping Cart is not opened',
+    });
 
   const currentProductItem = ProductItems.find(
     state.productItems,
     command.productId,
   );
   if (!currentProductItem || currentProductItem.quantity < command.quantity)
-    throw new Error('Not enough products in shopping cart');
+    throw new EmmettError({
+      errorCode: 409,
+      message: 'Not enough products in shopping cart',
+    });
 
   return {
     ...state,
@@ -104,9 +114,17 @@ export const confirm = (
   command: ConfirmShoppingCart['data'],
   state: ShoppingCart | null,
 ): ShoppingCart => {
-  if (!state) throw new Error('Shopping Cart is not opened');
+  if (!state)
+    throw new EmmettError({
+      errorCode: 409,
+      message: 'Shopping Cart is not opened',
+    });
   if (state.status === 'Confirmed') return state;
-  if (state.productItemsCount === 0) throw new Error('Shopping Cart is empty');
+  if (state.productItemsCount === 0)
+    throw new EmmettError({
+      errorCode: 409,
+      message: 'Shopping Cart is empty',
+    });
 
   return {
     ...state,
@@ -117,6 +135,9 @@ export const confirm = (
 
 export const cancel = (state: ShoppingCart | null): ShoppingCart | null => {
   if (state?.status === 'Confirmed')
-    throw new Error('Cannot cancel confirmed Shopping Cart');
+    throw new EmmettError({
+      errorCode: 409,
+      message: 'Cannot cancel confirmed Shopping Cart',
+    });
   return null;
 };
