@@ -1,0 +1,30 @@
+{
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnPaste": false,
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.organizeImports": "explicit",
+    "source.fixAll.eslint": "explicit",
+    "source.addMissingImports": "always"
+  },
+  "[typescript]": {
+    "editor.formatOnSave": false
+  },
+  "editor.tabSize": 2,
+  "files.associations": {
+    "wrangler.jsonc": "jsonc"
+  },
+  "files.exclude": {
+    "**/*.tsbuildinfo": true,
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.wrangler": true
+  },
+  "files.eol": "\n",
+  "typescript.preferences.importModuleSpecifier": "relative",
+  "eslint.workingDirectories": [
+    {
+      "mode": "auto"
+    }
+  ]
+}
