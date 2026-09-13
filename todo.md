@@ -4,7 +4,7 @@ This file tracks the approval-gated implementation of [`spec.md`](./spec.md). On
 
 ## Phase 1: Standalone Cloudflare scaffolds
 
-Status: Awaiting approval
+Status: Complete
 
 - [x] Use the current generated Cloudflare Hono Worker as the Worker configuration baseline.
 - [x] Create independent `samples/cloudflare/d1` and `samples/cloudflare/durable-objects` npm projects.
@@ -14,7 +14,7 @@ Status: Awaiting approval
 - [x] Generate and check in `worker-configuration.d.ts` for both projects.
 - [x] Verify TypeScript, linting, generated types, and dry-run Worker bundles.
 - [x] Add immediately runnable GitHub Actions validation workflows for both scaffolds.
-- [ ] Receive approval to begin Phase 2.
+- [x] Receive approval to begin Phase 2.
 
 Verification completed in both sample directories:
 
@@ -28,12 +28,22 @@ Tests are intentionally deferred because the shopping-cart test files are introd
 
 ## Phase 2: Shopping-cart domain
 
-Status: Not started
+Status: Awaiting approval
 
-- [ ] Copy the seven-file Emmett shopping-cart feature slice into each sample.
-- [ ] Rewrite the document model and pure business functions without event-sourcing code.
-- [ ] Write the colocated domain tests first and verify them in both samples.
+- [x] Adapt the domain/type/test part of the seven-file Emmett shopping-cart feature slice in each sample; add the narrow API-only barrel with the API and API tests in Phases 3 and 4.
+- [x] Rewrite the immutable document model and pure business functions without event-sourcing code, using Emmett-compatible readonly command contracts and `CommandType['data']` inputs.
+- [x] Encapsulate immutable product-line quantity changes in `ProductItems.withUpdatedQuantity`, using positive changes for additions and negative changes for removals as in the Emmett sample.
+- [x] Write the colocated domain tests with explicit Given/When/Then sections and verify them in both samples.
+- [x] Verify that Pongo `handle` accepts newly returned immutable documents and does not depend on in-place mutation.
 - [ ] Receive approval to begin Phase 3.
+
+Verification completed:
+
+- The initial `npm run test:unit` failed in both samples because the tested domain modules did not exist yet.
+- After implementation, `npm test` passed in both samples with 14 tests each.
+- `npm run build:ts`, `npm run lint`, and the Wrangler `npm run build` dry run passed in both samples.
+- The repository `npm run test:unit` passed from `src` with 87 files and 1,286 tests.
+- `git diff --check` and Prettier checks for this ledger and both workflows passed.
 
 ## Phase 3: D1 application
 
@@ -67,7 +77,7 @@ Status: Not started
 Status: Partially implemented
 
 - [x] Add the two path-filtered GitHub Actions validation workflows based on the named Emmett workflow.
-- [ ] Add `npm test` to both validation jobs after the test files exist.
+- [x] Add `npm test` to both validation jobs after the test files exist.
 - [ ] Configure upstream-main-only deployment, automatic D1 migration, and Durable Object deployment.
 - [ ] Validate workflow configuration without using deployment credentials.
 - [ ] Receive approval to begin Phase 7.
