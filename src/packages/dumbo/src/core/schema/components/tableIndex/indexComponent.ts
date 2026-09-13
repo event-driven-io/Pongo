@@ -12,10 +12,6 @@ import { schemaComponent, type SchemaComponent } from '../../schemaComponent';
 import { sqlMigration, type SQLMigration } from '../../sqlMigration';
 import type { IndexTarget } from './indexTarget';
 
-export const indexComponentType: unique symbol = Symbol(
-  'dumbo.schemaComponent.index',
-);
-
 const indexMigrationName = (
   identifier: Readonly<{
     databaseSchemaName: string | undefined;
@@ -46,7 +42,8 @@ export type IndexSQLContext = Readonly<{
 export type IndexComponent<
   IndexName extends string = string,
   ColumnNames extends readonly string[] = readonly string[],
-> = SchemaComponent<typeof indexComponentType> &
+  Kind extends string | undefined = undefined,
+> = SchemaComponent<'index', Kind> &
   Readonly<{
     indexName: IndexName;
     indexTargetNames: ReadonlyArray<string>;
@@ -57,17 +54,22 @@ export type IndexComponent<
     tableReference: SQLTableReference | undefined;
     withTableReference: (
       tableReference: SQLTableReference,
-    ) => IndexComponent<IndexName, ColumnNames>;
+    ) => IndexComponent<IndexName, ColumnNames, Kind>;
   }>;
 
-export type AnyIndexComponent = IndexComponent<string, readonly string[]>;
+export type AnyIndexComponent = IndexComponent<
+  string,
+  readonly string[],
+  string | undefined
+>;
 
 export type IndexComponentOptions<
   IndexName extends string,
   ColumnNames extends readonly string[],
+  Kind extends string | undefined = undefined,
 > = Readonly<{
   indexName: IndexName;
-  kind?: string | undefined;
+  kind?: Kind | undefined;
   indexTargetNames?: ReadonlyArray<string> | undefined;
   columnNames: ColumnNames;
   isUnique: boolean;
@@ -149,9 +151,10 @@ const generatedIndexMigrations = (
 export const indexComponent = <
   const IndexName extends string,
   const ColumnNames extends readonly string[],
+  const Kind extends string | undefined = undefined,
 >(
-  options: IndexComponentOptions<IndexName, ColumnNames>,
-): IndexComponent<IndexName, ColumnNames> => {
+  options: IndexComponentOptions<IndexName, ColumnNames, Kind>,
+): IndexComponent<IndexName, ColumnNames, Kind> => {
   const ownMigrations = () => {
     const tableReference = options.tableReference;
     if (tableReference === undefined)
@@ -171,8 +174,9 @@ export const indexComponent = <
     return generatedIndexMigrations(identifier, options);
   };
 
-  const component: IndexComponent<IndexName, ColumnNames> = {
-    ...schemaComponent(indexComponentType, {
+  const component: IndexComponent<IndexName, ColumnNames, Kind> = {
+    ...schemaComponent('index', {
+      kind: options.kind,
       migrations: ownMigrations,
     }),
     indexName: options.indexName,

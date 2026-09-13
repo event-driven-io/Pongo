@@ -5,7 +5,6 @@ import type {
   DatabaseSchemaComponent,
   DatabaseSchemas,
   DatabaseSchemaTables,
-  TableColumnNames,
   TableColumns,
   TableComponent,
   Writable,
@@ -18,21 +17,32 @@ export type ExtractSchemaNames<DB> =
   DB extends DatabaseComponent<
     infer _DatabaseName,
     infer _Tables,
-    infer Schemas extends DatabaseSchemas
+    infer Schemas extends DatabaseSchemas,
+    infer _Extensions,
+    infer _Kind
   >
     ? keyof Schemas
     : never;
 
 export type ExtractTableNames<Schema extends AnyDatabaseSchemaComponent> =
   Schema extends DatabaseSchemaComponent<
-    infer Tables extends DatabaseSchemaTables
+    infer Tables extends DatabaseSchemaTables,
+    infer _SchemaName,
+    infer _Extensions,
+    infer _Kind
   >
     ? keyof Tables
     : never;
 
 export type ExtractColumnNames<Table extends AnyTableComponent> =
-  Table extends TableComponent<infer Columns extends TableColumns>
-    ? TableColumnNames<TableComponent<Columns>>
+  Table extends TableComponent<
+    infer Columns extends TableColumns,
+    infer _TableName,
+    infer _Indexes,
+    infer _Relationships,
+    infer _Kind
+  >
+    ? Extract<keyof Columns, string>
     : never;
 
 export type ExtractColumnTypeName<T> =
@@ -48,10 +58,19 @@ export type ExtractColumnTypeName<T> =
 export type AllColumnTypes<Schemas extends DatabaseSchemas> = {
   [
     SchemaName in keyof Schemas
-  ]: Schemas[SchemaName] extends DatabaseSchemaComponent<infer Tables>
+  ]: Schemas[SchemaName] extends DatabaseSchemaComponent<
+    infer Tables,
+    infer _SchemaName,
+    infer _Extensions,
+    infer _Kind
+  >
     ? Writable<{
         [TableName in keyof Tables]: Tables[TableName] extends TableComponent<
-          infer Columns
+          infer Columns,
+          infer _TableName,
+          infer _Indexes,
+          infer _Relationships,
+          infer _TableKind
         >
           ? Writable<{
               [ColumnName in keyof Columns]: {
@@ -68,10 +87,19 @@ export type AllColumnTypes<Schemas extends DatabaseSchemas> = {
 export type AllColumnReferences<Schemas extends DatabaseSchemas> = {
   [
     SchemaName in keyof Schemas
-  ]: Schemas[SchemaName] extends DatabaseSchemaComponent<infer Tables>
+  ]: Schemas[SchemaName] extends DatabaseSchemaComponent<
+    infer Tables,
+    infer _SchemaName,
+    infer _Extensions,
+    infer _Kind
+  >
     ? {
         [TableName in keyof Tables]: Tables[TableName] extends TableComponent<
-          infer Columns
+          infer Columns,
+          infer _TableName,
+          infer _Indexes,
+          infer _Relationships,
+          infer _TableKind
         >
           ? {
               [ColumnName in keyof Columns]: `${SchemaName &
@@ -83,10 +111,19 @@ export type AllColumnReferences<Schemas extends DatabaseSchemas> = {
 }[keyof Schemas];
 
 export type AllColumnTypesInSchema<Schema extends AnyDatabaseSchemaComponent> =
-  Schema extends DatabaseSchemaComponent<infer Tables>
+  Schema extends DatabaseSchemaComponent<
+    infer Tables,
+    infer _SchemaName,
+    infer _Extensions,
+    infer _Kind
+  >
     ? {
         [TableName in keyof Tables]: Tables[TableName] extends TableComponent<
-          infer Columns
+          infer Columns,
+          infer _TableName,
+          infer _Indexes,
+          infer _Relationships,
+          infer _TableKind
         >
           ? {
               [ColumnName in keyof Columns]: {
@@ -103,10 +140,19 @@ export type AllColumnReferencesInSchema<
   Schema extends AnyDatabaseSchemaComponent,
   SchemaName extends string,
 > =
-  Schema extends DatabaseSchemaComponent<infer Tables>
+  Schema extends DatabaseSchemaComponent<
+    infer Tables,
+    infer _SchemaName,
+    infer _Extensions,
+    infer _Kind
+  >
     ? {
         [TableName in keyof Tables]: Tables[TableName] extends TableComponent<
-          infer Columns
+          infer Columns,
+          infer _TableName,
+          infer _Indexes,
+          infer _Relationships,
+          infer _TableKind
         >
           ? {
               [

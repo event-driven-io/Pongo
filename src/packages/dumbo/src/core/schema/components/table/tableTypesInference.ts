@@ -40,7 +40,15 @@ export type TableColumnType<T extends AnyColumnSchemaComponent> = T extends {
   : unknown;
 
 export type TableColumnNames<T extends AnyTableComponent> = Extract<
-  T extends TableComponent<infer Columns> ? keyof Columns : never,
+  T extends TableComponent<
+    infer Columns,
+    infer _TableName,
+    infer _Indexes,
+    infer _Relationships,
+    infer _Kind
+  >
+    ? keyof Columns
+    : never,
   string
 >;
 
@@ -49,12 +57,33 @@ export type InferTableRow<Columns extends TableColumns> = Writable<{
 }>;
 
 export type TableRowType<T extends AnyTableComponent> =
-  T extends TableComponent<infer Columns> ? InferTableRow<Columns> : never;
+  T extends TableComponent<
+    infer Columns,
+    infer _TableName,
+    infer _Indexes,
+    infer _Relationships,
+    infer _Kind
+  >
+    ? InferTableRow<Columns>
+    : never;
 
 export type InferSchemaTables<T extends AnyDatabaseSchemaComponent> =
-  T extends DatabaseSchemaComponent<infer Tables> ? Tables : never;
+  T extends DatabaseSchemaComponent<
+    infer Tables,
+    infer _SchemaName,
+    infer _Extensions,
+    infer _Kind
+  >
+    ? Tables
+    : never;
 
 export type InferDatabaseSchemas<T extends AnyDatabaseComponent> =
-  T extends DatabaseComponent<infer _DatabaseName, infer _Tables, infer Schemas>
+  T extends DatabaseComponent<
+    infer _DatabaseName,
+    infer _Tables,
+    infer Schemas,
+    infer _Extensions,
+    infer _Kind
+  >
     ? Schemas
     : never;

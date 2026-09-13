@@ -3,14 +3,14 @@ import { describe, it } from 'vitest';
 import {
   JSONSerializer,
   migrationTableComponentFor,
-  type SchemaComponent,
+  type AnySchemaComponent,
 } from '../../../../core';
 import { pgFormatter } from '../sql';
 
-const migrationNames = (component: SchemaComponent): string[] =>
+const migrationNames = (component: AnySchemaComponent): string[] =>
   component.migrations().map(({ name }) => name);
 
-const ledgerDDL = (component: SchemaComponent): string[] =>
+const ledgerDDL = (component: AnySchemaComponent): string[] =>
   component
     .migrations()
     .flatMap(({ sqls }) => sqls)

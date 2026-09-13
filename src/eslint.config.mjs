@@ -209,11 +209,29 @@ export default [
     },
   },
   {
+    files: ['packages/dumbo/src/**/*.ts', 'packages/pongo/src/**/*.ts'],
+    rules: {
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "CallExpression[callee.type='Identifier'][callee.name='Symbol']",
+          message:
+            'Use typed structural discriminators instead of module-local symbol identity.',
+        },
+      ],
+    },
+  },
+  {
     files: ['packages/dumbo/src/**/*.ts'],
     ignores: ['packages/**/*.spec.ts'],
     rules: {
       'no-restricted-syntax': [
         'error',
+        {
+          selector: "CallExpression[callee.type='Identifier'][callee.name='Symbol']",
+          message:
+            'Use typed structural discriminators instead of module-local symbol identity.',
+        },
         {
           selector: "ThrowStatement > NewExpression[callee.name='Error']",
           message: 'Throw a DumboError or PongoError subclass, not a raw Error.',
@@ -236,6 +254,11 @@ export default [
     rules: {
       'no-restricted-syntax': [
         'error',
+        {
+          selector: "CallExpression[callee.type='Identifier'][callee.name='Symbol']",
+          message:
+            'Use typed structural discriminators instead of module-local symbol identity.',
+        },
         {
           selector:
             ':matches(ImportDeclaration, ExportNamedDeclaration, ExportAllDeclaration, ImportExpression)[source.value=/(^|\\/)(cli|bin|commandLine)(\\/|$)/]',
@@ -263,6 +286,11 @@ export default [
     rules: {
       'no-restricted-syntax': [
         'error',
+        {
+          selector: "CallExpression[callee.type='Identifier'][callee.name='Symbol']",
+          message:
+            'Use typed structural discriminators instead of module-local symbol identity.',
+        },
         {
           selector: "ThrowStatement > NewExpression[callee.name='Error']",
           message: 'Throw a DumboError or PongoError subclass, not a raw Error.',

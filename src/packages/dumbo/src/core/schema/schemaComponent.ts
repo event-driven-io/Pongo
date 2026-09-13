@@ -1,20 +1,16 @@
 import { InvalidOperationError } from '../errors';
 import { haveSameSQL, type SQLMigration } from './sqlMigration';
 
-export const schemaComponentType: unique symbol = Symbol(
-  'dumbo.schemaComponent.type',
-);
-
-export type SchemaComponentKind = symbol;
-
 export type SchemaComponent<
-  Kind extends SchemaComponentKind = SchemaComponentKind,
+  ComponentType extends string,
+  Kind extends string | undefined = undefined,
 > = Readonly<{
-  [schemaComponentType]: Kind;
+  componentType: ComponentType;
+  kind: Kind;
   migrations: () => ReadonlyArray<SQLMigration>;
 }>;
 
-export type AnySchemaComponent = SchemaComponent<SchemaComponentKind>;
+export type AnySchemaComponent = SchemaComponent<string, string | undefined>;
 
 export type SchemaComponentMap<
   Component extends AnySchemaComponent = AnySchemaComponent,
@@ -22,7 +18,10 @@ export type SchemaComponentMap<
 
 export type MergeRecords<Current, Added> = Omit<Current, keyof Added> & Added;
 
-export type SchemaComponentOptions = Readonly<{
+export type SchemaComponentOptions<
+  Kind extends string | undefined = undefined,
+> = Readonly<{
+  kind?: Kind | undefined;
   migrations?: (() => ReadonlyArray<SQLMigration>) | undefined;
   components?: ReadonlyArray<AnySchemaComponent> | undefined;
 }>;
@@ -64,14 +63,18 @@ export const dedupeMigrations = (
   return result;
 };
 
-export const schemaComponent = <const Kind extends SchemaComponentKind>(
-  kind: Kind,
-  options: SchemaComponentOptions = {},
-): SchemaComponent<Kind> => {
+export const schemaComponent = <
+  const ComponentType extends string,
+  const Kind extends string | undefined = undefined,
+>(
+  componentType: ComponentType,
+  options: SchemaComponentOptions<Kind> = {},
+): SchemaComponent<ComponentType, Kind> => {
   const children = Object.freeze([...(options.components ?? [])]);
 
-  const component: SchemaComponent<Kind> = {
-    [schemaComponentType]: kind,
+  const component: SchemaComponent<ComponentType, Kind> = {
+    componentType,
+    kind: options.kind as Kind,
     migrations: () =>
       dedupeMigrations([
         ...(options.migrations?.() ?? []),
@@ -87,6 +90,9 @@ export const isSchemaComponent = (
 ): value is AnySchemaComponent =>
   typeof value === 'object' &&
   value !== null &&
-  schemaComponentType in value &&
+  'componentType' in value &&
+  typeof value.componentType === 'string' &&
+  'kind' in value &&
+  (typeof value.kind === 'string' || value.kind === undefined) &&
   'migrations' in value &&
   typeof value.migrations === 'function';

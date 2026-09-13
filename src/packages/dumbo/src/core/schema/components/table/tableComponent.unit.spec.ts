@@ -23,12 +23,10 @@ const usersTable = (databaseSchemaName?: string) =>
     },
   });
 
-const pongoCollectionComponentType = Symbol('pongo.collectionComponent');
-
 const pongoCollection = (databaseSchemaName?: string) =>
   Object.freeze({
     ...usersTable(databaseSchemaName),
-    [pongoCollectionComponentType]: true,
+    collectionType: 'pongo' as const,
   });
 
 describe('declaring a table in a database schema', () => {
@@ -127,7 +125,8 @@ describe('table.withTableName(tableName)', () => {
     const renamed = collection.withTableName('accounts');
 
     assert.strictEqual(renamed.tableName, 'accounts');
-    assert.ok(pongoCollectionComponentType in renamed);
+    assert.ok('collectionType' in renamed);
+    assert.strictEqual(renamed.collectionType, 'pongo');
   });
 });
 
@@ -154,6 +153,18 @@ describe('table.withDatabaseSchemaName(databaseSchemaName)', () => {
     const placed = collection.withDatabaseSchemaName('crm');
 
     assert.strictEqual(placed.fullName.databaseSchemaName, 'crm');
-    assert.ok(pongoCollectionComponentType in placed);
+    assert.ok('collectionType' in placed);
+    assert.strictEqual(placed.collectionType, 'pongo');
+  });
+
+  it('retains its kind when it is placed or renamed', () => {
+    const users = tableComponent({
+      tableName: 'users',
+      kind: 'read_model',
+    });
+
+    assert.strictEqual(users.withDatabaseSchemaName('crm').kind, 'read_model');
+    assert.strictEqual(users.withTableName('accounts').kind, 'read_model');
+    assert.strictEqual(users.rename('accounts').kind, 'read_model');
   });
 });

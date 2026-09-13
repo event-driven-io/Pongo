@@ -1,11 +1,8 @@
 import {
-  databaseComponentType,
   DefaultDatabaseSchemaName,
   DumboError,
   dumboSchema,
-  indexComponentType,
   isTableComponent,
-  schemaComponentType,
   SQL,
   sqlMigration,
   SQLTableReference,
@@ -15,7 +12,6 @@ import assert from 'node:assert';
 import { describe, expectTypeOf, it } from 'vitest';
 import {
   isPongoCollectionComponent,
-  pongoCollectionComponentType,
   pongoSchema,
   toDbSchemaMetadata,
   type PongoCollectionIndexSQLContext,
@@ -56,7 +52,8 @@ describe('declaring Pongo indexes', () => {
     assert.strictEqual(externalId.isUnique, true);
     assert.strictEqual(document.indexName, 'users_data_idx');
     assert.ok(document.target?.targetType === 'jsonDocument');
-    assert.strictEqual(email[schemaComponentType], indexComponentType);
+    assert.strictEqual(email.componentType, 'index');
+    assert.strictEqual(email.kind, 'pongo_index');
   });
 
   it('keeps explicit index names as typed collection aliases', () => {
@@ -84,7 +81,8 @@ describe('declaring Pongo indexes', () => {
 
     assert.strictEqual(custom.indexName, 'users_search_idx');
     assert.strictEqual(custom.sql, sql);
-    assert.strictEqual(custom[schemaComponentType], indexComponentType);
+    assert.strictEqual(custom.componentType, 'index');
+    assert.strictEqual(custom.kind, 'pongo_index');
   });
 
   it('uses Pongo kinds only for collection tables and indexes', () => {
@@ -231,12 +229,27 @@ describe('declaring Pongo collections', () => {
     );
   });
 
-  it('retains Pongo specialization markers after Dumbo composition', () => {
+  it('retains its Pongo kind after Dumbo composition', () => {
     const users = pongoSchema.collection<User>('users');
     const crm = dumboSchema.schema('crm', { users });
 
-    assert.strictEqual(users[pongoCollectionComponentType], true);
-    assert.strictEqual(crm.tables.users[pongoCollectionComponentType], true);
+    assert.strictEqual(users.kind, 'pongo_collection');
+    assert.strictEqual(crm.tables.users.kind, 'pongo_collection');
+  });
+
+  it('retains its Pongo kind when placed or renamed', () => {
+    const users = pongoSchema.collection<User>('users');
+
+    const transformed = [
+      users.withDatabaseSchemaName('crm'),
+      users.withTableName('accounts'),
+      users.rename('accounts'),
+    ];
+
+    for (const collection of transformed) {
+      assert.strictEqual(collection.kind, 'pongo_collection');
+      assert.strictEqual(isPongoCollectionComponent(collection), true);
+    }
   });
 });
 
@@ -268,7 +281,7 @@ describe('declaring Pongo schemas and databases', () => {
         }),
       });
 
-    assert.strictEqual(database[schemaComponentType], databaseComponentType);
+    assert.strictEqual(database.componentType, 'database');
     assert.strictEqual(database.databaseName, 'app');
     assert.strictEqual(
       database.defaultSchema.schemaName,

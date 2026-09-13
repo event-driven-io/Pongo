@@ -1,19 +1,14 @@
-import type {
-  columnComponentType,
-  schemaComponentType,
-  tableComponentType,
-} from '@event-driven-io/dumbo';
 import {
   databaseComponent,
   databaseSchemaComponent,
   dumboSchema,
   indexComponent,
   isDefaultDatabaseSchema,
-  isSchemaComponent,
   isTableComponent,
   jsonDocumentIndexTarget,
   jsonPathIndexTarget,
   SQL,
+  type AnyColumnSchemaComponent,
   type AnyDatabaseComponent,
   type AnyDatabaseSchemaComponent,
   type DatabaseComponent,
@@ -26,6 +21,7 @@ import {
   type SchemaExtensions,
   type SQL as SQLStatement,
   type TableComponent,
+  type TableRelationships,
   type TableRowType,
 } from '@event-driven-io/dumbo';
 import {
@@ -37,15 +33,12 @@ import {
 } from '../typing';
 import { PongoError } from '../errors';
 
-export const pongoCollectionComponentType: unique symbol = Symbol(
-  'pongo.collectionComponent',
-);
-
 type EmptyComponentRecord = Readonly<Record<never, never>>;
 
 export type PongoIndexComponent<Name extends string = string> = IndexComponent<
   Name,
-  readonly ['data']
+  readonly ['data'],
+  'pongo_index'
 >;
 
 export type PongoCollectionIndex = PongoIndexComponent;
@@ -90,10 +83,7 @@ const pongoCollectionColumns = <Document extends PongoDocument>() =>
       notNull: true,
       default: SQL.plain('CURRENT_TIMESTAMP'),
     }),
-  }) satisfies Record<
-    string,
-    { [schemaComponentType]: typeof columnComponentType }
-  >;
+  }) satisfies Record<string, AnyColumnSchemaComponent>;
 
 export type PongoCollectionColumns<Document extends PongoDocument> = ReturnType<
   typeof pongoCollectionColumns<Document>
@@ -108,7 +98,13 @@ const pongoCollectionTable = <
   options: Readonly<{
     indexes?: Indexes;
   }>,
-): TableComponent<PongoCollectionColumns<Document>, Name, Indexes> =>
+): TableComponent<
+  PongoCollectionColumns<Document>,
+  Name,
+  Indexes,
+  TableRelationships<keyof PongoCollectionColumns<Document>>,
+  'pongo_collection'
+> =>
   table(name, {
     columns: pongoCollectionColumns<Document>(),
     ...options,
@@ -120,23 +116,13 @@ export type PongoCollectionComponent<
   Document extends PongoDocument = PongoDocument,
   Name extends string = string,
   Indexes extends PongoCollectionIndexes = PongoCollectionIndexes,
-> = Omit<
-  TableComponent<PongoCollectionColumns<Document>, Name, Indexes>,
-  'withDatabaseSchemaName' | 'withTableName' | 'rename'
-> &
-  Readonly<{
-    [schemaComponentType]: typeof tableComponentType;
-    [pongoCollectionComponentType]: true;
-    withDatabaseSchemaName: (
-      databaseSchemaName: string,
-    ) => PongoCollectionComponent<Document, Name, Indexes>;
-    withTableName: <const NewTableName extends string>(
-      tableName: NewTableName,
-    ) => PongoCollectionComponent<Document, NewTableName, Indexes>;
-    rename: <const NewTableName extends string>(
-      tableName: NewTableName,
-    ) => PongoCollectionComponent<Document, NewTableName, Indexes>;
-  }>;
+> = TableComponent<
+  PongoCollectionColumns<Document>,
+  Name,
+  Indexes,
+  TableRelationships<keyof PongoCollectionColumns<Document>>,
+  'pongo_collection'
+>;
 
 export type PongoSchemaComponent<
   Collections extends Readonly<Record<string, PongoCollectionComponent>> =
@@ -318,8 +304,7 @@ const pongoCollection = <
   );
   return Object.freeze({
     ...collection,
-    [pongoCollectionComponentType]: true,
-  }) as PongoCollectionComponent<Document, Name, Indexes>;
+  });
 };
 
 pongoCollection.from = (
@@ -475,10 +460,7 @@ export const pongoSchema = {
 export const isPongoCollectionComponent = (
   value: unknown,
 ): value is PongoCollectionComponent =>
-  isSchemaComponent(value) &&
-  isTableComponent(value) &&
-  pongoCollectionComponentType in value &&
-  value[pongoCollectionComponentType] === true;
+  isTableComponent(value) && value.kind === 'pongo_collection';
 
 export type PongoCollectionSchemaMetadata = {
   name: string;

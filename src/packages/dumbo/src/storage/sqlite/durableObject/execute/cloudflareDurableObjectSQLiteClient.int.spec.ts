@@ -102,7 +102,7 @@ describe('Cloudflare Durable Object SQLite direct client async API', () => {
     });
 
     await assert.rejects(
-      client.query(SQL`SELECT ${Symbol('unsupported')}`),
+      client.query(SQL`SELECT ${Symbol.iterator}`),
       DataError,
     );
   });
