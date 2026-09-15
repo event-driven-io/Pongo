@@ -5,7 +5,7 @@ import { InvalidOperationError } from '../errors';
 import {
   assertRejectsDumboError,
   assertThrowsDumboError,
-} from '../errors/errorAssertions';
+} from '../../testing/errorAssertions';
 import { Abort, type AbortContext } from '../taskProcessing';
 import {
   type DatabaseTransaction,

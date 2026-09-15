@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
-import { assertThrowsDumboError } from '../../../errors/errorAssertions';
+import { assertThrowsDumboError } from '../../../../testing/errorAssertions';
 import { DefaultDatabaseSchemaName, SQL } from '../../../sql';
 import { sqlMigration } from '../../sqlMigration';
 import { extensionComponent } from '../extensions';

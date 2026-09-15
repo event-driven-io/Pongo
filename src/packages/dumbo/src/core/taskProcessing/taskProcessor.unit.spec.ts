@@ -1,6 +1,6 @@
 import assert from 'assert';
 import { beforeEach, describe, it } from 'vitest';
-import { assertRejectsDumboError } from '../errors/errorAssertions';
+import { assertRejectsDumboError } from '../../testing/errorAssertions';
 import { Clock } from './clock';
 import { taskProcessor, type TaskProcessor, type Task } from './taskProcessor';
 

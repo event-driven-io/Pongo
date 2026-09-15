@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import { describe, it } from 'vitest';
 import type { SQLExecutor } from '../../../../core';
 import { LockNotAvailableError, QueryCanceledError } from '../../../../core';
-import { assertRejectsDumboError } from '../../../../core/errors/errorAssertions';
+import { assertRejectsDumboError } from '../../../../testing/errorAssertions';
 import { acquireAdvisoryLock, tryAcquireAdvisoryLock } from './advisoryLocks';
 
 const executorTimingOut = (): SQLExecutor =>

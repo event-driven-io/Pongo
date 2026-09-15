@@ -3,7 +3,7 @@ import type { Dumbo } from '..';
 import {
   assertRejectsDumboError,
   assertThrowsDumboError,
-} from '../errors/errorAssertions';
+} from '../../testing/errorAssertions';
 import type { SQLExecutor } from '../execute';
 import { registerFormatter, SQL, SQLFormatter } from '../sql';
 import {

@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
-import { assertThrowsDumboError } from '../../../core/errors/errorAssertions';
+import { assertThrowsDumboError } from '../../../testing/errorAssertions';
 import { parseConnectionString } from './connectionString';
 
 describe('parsing a database connection string', () => {

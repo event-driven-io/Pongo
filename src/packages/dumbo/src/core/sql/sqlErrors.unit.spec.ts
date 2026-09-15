@@ -1,5 +1,5 @@
 import { describe, it } from 'vitest';
-import { assertThrowsDumboError } from '../errors/errorAssertions';
+import { assertThrowsDumboError } from '../../testing/errorAssertions';
 import { JSONSerializer } from '../serializer';
 import { getFormatter, SQLFormatter } from './formatters';
 import { ParametrizedSQLBuilder } from './parametrizedSQL';

@@ -9,7 +9,7 @@ import {
   type DefaultSQLColumnToken,
   type SQLProcessorContext,
 } from '../../../../../core';
-import { assertThrowsDumboError } from '../../../../../core/errors/errorAssertions';
+import { assertThrowsDumboError } from '../../../../../testing/errorAssertions';
 import { postgreSQLColumnProcessors } from './columProcessors';
 
 const processorContext = (): SQLProcessorContext => {

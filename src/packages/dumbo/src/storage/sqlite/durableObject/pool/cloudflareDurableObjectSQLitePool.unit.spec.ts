@@ -1,6 +1,6 @@
 import { describe, it } from 'vitest';
 import { DumboDatabaseDriverRegistry } from '../../../../core';
-import { assertRejectsDumboError } from '../../../../core/errors/errorAssertions';
+import { assertRejectsDumboError } from '../../../../testing/errorAssertions';
 import {
   cloudflareDurableObjectSQLiteDumboDriver,
   CloudflareDurableObjectSQLiteDriverType,
