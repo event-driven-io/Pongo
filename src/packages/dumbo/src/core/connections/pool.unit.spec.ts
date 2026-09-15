@@ -3,7 +3,7 @@ import { describe, it } from 'vitest';
 import {
   assertRejectsDumboError,
   assertThrowsDumboError,
-} from '../errors/errorAssertions';
+} from '../../testing/errorAssertions';
 import { Abort } from '../taskProcessing';
 import type { AnyConnection } from './connection';
 import type { DatabaseTransactionOptions } from './transaction';

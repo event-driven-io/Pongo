@@ -5,7 +5,7 @@ import {
   type SQLIndexReference,
   type SQLTableReference,
 } from '../../../../core';
-import { assertThrowsDumboError } from '../../../../core/errors/errorAssertions';
+import { assertThrowsDumboError } from '../../../../testing/errorAssertions';
 import { sqliteIndexName, sqliteTableName } from './sqlitePhysicalNames';
 
 describe('using logical database schemas in SQLite', () => {

@@ -6,7 +6,7 @@ import {
   SQL,
   SQLProcessorsRegistry,
 } from '../../../../../core';
-import { assertThrowsDumboError } from '../../../../../core/errors/errorAssertions';
+import { assertThrowsDumboError } from '../../../../../testing/errorAssertions';
 import { pgFormatter } from '../formatter';
 import { PostgreSQLExpandSQLInProcessor } from './arrayProcessors';
 

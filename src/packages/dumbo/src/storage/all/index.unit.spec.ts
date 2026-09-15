@@ -1,5 +1,5 @@
 import { describe, it } from 'vitest';
-import { assertThrowsDumboError } from '../../core/errors/errorAssertions';
+import { assertThrowsDumboError } from '../../testing/errorAssertions';
 import { dumbo } from './index';
 
 describe('resolving a database driver', () => {

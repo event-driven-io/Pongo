@@ -1,7 +1,7 @@
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
 import { DataError } from '../errors';
-import { assertRejectsDumboError } from '../errors/errorAssertions';
+import { assertRejectsDumboError } from '../../testing/errorAssertions';
 import type { QueryResult, QueryResultRow } from './query';
 import { first, single, singleOrNull } from './selectors';
 

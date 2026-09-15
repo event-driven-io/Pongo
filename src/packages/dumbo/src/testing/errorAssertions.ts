@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { DumboError } from './index';
+import { DumboError } from '../core/errors';
 
 export type ExpectedDumboError = {
   errorType: string;

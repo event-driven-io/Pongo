@@ -1,5 +1,5 @@
 import { describe, it } from 'vitest';
-import { assertRejectsDumboError } from '../../../core/errors/errorAssertions';
+import { assertRejectsDumboError } from '../../../testing/errorAssertions';
 import type { D1Client, D1Connection } from './connections';
 import { d1Pool } from './pool';
 import { d1Transaction } from './transactions';

@@ -3,6 +3,12 @@ import typescriptEslint from '@typescript-eslint/eslint-plugin';
 import prettierRecommended from 'eslint-plugin-prettier/recommended';
 import globals from 'globals';
 
+const noNodeBuiltins = {
+  group: ['node:*'],
+  message:
+    'Code reachable from the Cloudflare entries cannot import Node built-ins. Specs can.',
+};
+
 export default [
   {
     ignores: [
@@ -111,6 +117,33 @@ export default [
     },
   },
   {
+    files: ['packages/dumbo/src/core/**/*.ts'],
+    ignores: ['packages/**/*.spec.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '../storage/all',
+              importNames: ['dumbo', 'parseConnectionString'],
+              message:
+                'Core cannot import implementation from storage/all. Use the registry pattern instead.',
+            },
+          ],
+          patterns: [
+            {
+              group: ['../storage/postgresql/**', '../storage/sqlite/**'],
+              message:
+                'Core cannot import from storage implementations. Use the registry pattern instead.',
+            },
+            noNodeBuiltins,
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['packages/dumbo/src/storage/postgresql/**/*.ts'],
     rules: {
       'no-restricted-imports': [
@@ -143,6 +176,28 @@ export default [
     },
   },
   {
+    files: [
+      'packages/dumbo/src/storage/sqlite/core/**/*.ts',
+      'packages/dumbo/src/storage/sqlite/d1/**/*.ts',
+      'packages/dumbo/src/storage/sqlite/durableObject/**/*.ts',
+    ],
+    ignores: ['packages/**/*.spec.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['../postgresql/**', '../../postgresql/**'],
+              message: 'SQLite storage cannot import from PostgreSQL storage.',
+            },
+            noNodeBuiltins,
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['packages/pongo/src/core/**/*.ts'],
     rules: {
       'no-restricted-imports': [
@@ -154,6 +209,25 @@ export default [
               message:
                 'Pongo core cannot import from storage implementations. Use dependency injection or registry pattern instead.',
             },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['packages/pongo/src/core/**/*.ts'],
+    ignores: ['packages/**/*.spec.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['../storage/**', '../../storage/**'],
+              message:
+                'Pongo core cannot import from storage implementations. Use dependency injection or registry pattern instead.',
+            },
+            noNodeBuiltins,
           ],
         },
       ],
@@ -186,6 +260,28 @@ export default [
               group: ['../postgresql/**', '../../postgresql/**'],
               message: 'SQLite storage cannot import from PostgreSQL storage.',
             },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: [
+      'packages/pongo/src/storage/sqlite/core/**/*.ts',
+      'packages/pongo/src/storage/sqlite/d1/**/*.ts',
+      'packages/pongo/src/storage/sqlite/durableObject/**/*.ts',
+    ],
+    ignores: ['packages/**/*.spec.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['../postgresql/**', '../../postgresql/**'],
+              message: 'SQLite storage cannot import from PostgreSQL storage.',
+            },
+            noNodeBuiltins,
           ],
         },
       ],
@@ -300,6 +396,12 @@ export default [
           message: 'Throw a DumboError or PongoError subclass, not a raw Error.',
         },
       ],
+    },
+  },
+  {
+    files: ['packages/dumbo/src/cloudflare.ts', 'packages/pongo/src/cloudflare.ts'],
+    rules: {
+      'no-restricted-imports': ['error', { patterns: [noNodeBuiltins] }],
     },
   },
 ];
