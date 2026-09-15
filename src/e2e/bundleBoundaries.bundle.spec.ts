@@ -120,6 +120,20 @@ describe('pongo package runtime compatibility', () => {
       expect(result.status, result.stderr).toBe(0);
     },
   );
+
+  it.each(pongoDriverLoadingScenarios())(
+    'loads the $driverType driver from the root entry in $moduleSystem',
+    (scenario) => {
+      // Given
+      const consumer = pongoDriverLoadingConsumer(scenario);
+
+      // When
+      const result = runNodeConsumer(scenario.format, consumer);
+
+      // Then
+      expect(result.status, result.stderr).toBe(0);
+    },
+  );
 });
 
 describe('dumbo package error compatibility', () => {
@@ -151,7 +165,7 @@ function bundleBoundaryScenarios() {
         /^(?:core\/|storage\/sqlite\/(?:core|d1|durableObject)\/|cloudflare\.ts$)/,
     },
     pongo: {
-      index: /^(?:core\/|storage\/|(?:index|pg|sqlite3|cloudflare)\.ts$)/,
+      index: /^(?:core\/|index\.ts$)/,
       shim: /^(?:core\/|mongo\/|shim\.ts$)/,
       cli: /^(?:core\/|commandLine\/|cli\.ts$)/,
       pg: /^(?:core\/|storage\/postgresql\/|pg\.ts$)/,
@@ -276,6 +290,51 @@ function dumboErrorScenarios() {
       moduleSystem: format === 'js' ? 'ESM' : 'CommonJS',
     })),
   );
+}
+
+function pongoDriverLoadingScenarios() {
+  const driverTypes = [
+    'PostgreSQL:pg',
+    'SQLite:sqlite3',
+    'SQLite:d1',
+    'SQLite:cloudflareDurableObjectSQLite',
+  ] as const;
+
+  return driverTypes.flatMap((driverType) =>
+    moduleFormats.map((format) => ({
+      driverType,
+      format,
+      moduleSystem: format === 'js' ? 'ESM' : 'CommonJS',
+    })),
+  );
+}
+
+function pongoDriverLoadingConsumer(
+  scenario: ReturnType<typeof pongoDriverLoadingScenarios>[number],
+): string {
+  const rootEntry = path.resolve(
+    `packages/pongo/dist/index.${scenario.format}`,
+  );
+  const load =
+    scenario.format === 'js'
+      ? `const pongo = await import(${JSON.stringify(pathToFileURL(rootEntry).href)});`
+      : `const pongo = require(${JSON.stringify(rootEntry)});`;
+
+  return `
+    const run = async () => {
+      ${load}
+      const driver = await pongo.pongoDriverRegistry.tryResolve(${JSON.stringify(scenario.driverType)});
+
+      if (!driver) {
+        throw new Error('The root entry did not load ${scenario.driverType}');
+      }
+    };
+
+    run().catch((error) => {
+      console.error(error);
+      process.exit(1);
+    });
+  `;
 }
 
 function pongoCollectionConsumer(
