@@ -12,7 +12,7 @@
     "outDir": "./dist" /* Redirect output structure to the directory. */,
     "rootDir": "./src",
     "paths": {
-      "@event-driven-io/emmett": ["../packages/dumbo"]
+      "@event-driven-io/dumbo": ["../dumbo/src"]
     }
   },
   "references": [
