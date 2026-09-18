@@ -217,7 +217,6 @@ By doing so, you're helping to make our work on it sustainable and continuing ou
 **🥉 [Bronze Sponsors](https://github.com/sponsors/event-driven-io)**
 
 - [productminds](https://github.com/pminds)
-- [Lightest Night](https://github.com/lightest-night)
 
 ## Contribution
 
