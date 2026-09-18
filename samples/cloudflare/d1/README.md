@@ -105,6 +105,13 @@ This sample has no end-user authentication or authorization. A deployed `workers
 
 This tutorial deploys the sample to a public `workers.dev` URL, first from your machine and then from GitHub Actions. You can stop after either part.
 
+### How the database is created
+
+`npm run deploy` sets up the database in two steps, both locally and in GitHub Actions:
+
+1. Wrangler creates an empty D1 database. The `DB` binding in [`wrangler.jsonc`](./wrangler.jsonc) has no database ID, so on the first deploy Wrangler creates a database in your account and binds it to the Worker. Later deploys reuse it. The database ID stays out of `wrangler.jsonc`, so the sample works in any account.
+2. The script creates the tables. It calls the deployed Worker's `POST /_system/migrations` endpoint, which runs Pongo's migration and creates the collection, the migration ledger, and the partial unique index. Every later deploy runs it again and applies only what's missing.
+
 ### Prepare your Cloudflare account
 
 The [Cloudflare Durable Objects sample](../durable-objects/README.md) uses the same account and API token.
@@ -203,7 +210,7 @@ Protect the repository's `main` branch and require review for workflow changes, 
 
 Deployments from CI and from your machine to the same account update the same Worker.
 
-### Worker name and database
+### Worker name
 
 Wrangler deploys the Worker named `pongo-shopping-cart-d1` into the selected account. With `workers_dev: true`, its URL is normally:
 
@@ -212,8 +219,6 @@ https://pongo-shopping-cart-d1.<your-workers-subdomain>.workers.dev
 ```
 
 If the account already has a Worker with that name, change `name` in [`wrangler.jsonc`](./wrangler.jsonc) before the first deployment; otherwise the sample replaces it.
-
-The checked-in `DB` binding has no database ID, so the first deployment provisions a D1 database and binds it. Later deployments reuse the binding Cloudflare stored. The dashboard shows the generated database ID; the sample leaves it out of `wrangler.jsonc` so the configuration works in any account.
 
 ### Copy the sample to its own repository
 
