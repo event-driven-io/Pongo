@@ -145,7 +145,7 @@ export type ShoppingCart = Readonly<{
   productItems: ProductItems;
   productItemsCount: number;
   totalAmount: number;
-  status: "Opened" | "Confirmed";
+  status: 'Opened' | 'Confirmed';
   openedAt: Date;
   confirmedAt?: Date;
 }>;
@@ -154,11 +154,11 @@ export type ShoppingCart = Readonly<{
 Start `businessLogic.ts` by copying the corresponding Emmett file. Delete the Emmett imports, event-returning types, `decide`, `decider`, and metadata wrappers. Keep the recognizable operation names from the article and export these exact contracts:
 
 ```ts
-import { ProductItems } from "./shoppingCart";
-import type { PricedProductItem, ShoppingCart } from "./shoppingCart";
+import { ProductItems } from './shoppingCart';
+import type { PricedProductItem, ShoppingCart } from './shoppingCart';
 
 export type AddProductItemToShoppingCart = Readonly<{
-  type: "AddProductItemToShoppingCart";
+  type: 'AddProductItemToShoppingCart';
   data: Readonly<{
     clientId: string;
     shoppingCartId: string;
@@ -168,7 +168,7 @@ export type AddProductItemToShoppingCart = Readonly<{
 }>;
 
 export type RemoveProductItemFromShoppingCart = Readonly<{
-  type: "RemoveProductItemFromShoppingCart";
+  type: 'RemoveProductItemFromShoppingCart';
   data: Readonly<{
     productId: string;
     quantity: number;
@@ -176,12 +176,12 @@ export type RemoveProductItemFromShoppingCart = Readonly<{
 }>;
 
 export type ConfirmShoppingCart = Readonly<{
-  type: "ConfirmShoppingCart";
+  type: 'ConfirmShoppingCart';
   data: Readonly<{ now: Date }>;
 }>;
 
 export type CancelShoppingCart = Readonly<{
-  type: "CancelShoppingCart";
+  type: 'CancelShoppingCart';
   data: Readonly<Record<string, never>>;
 }>;
 
@@ -192,11 +192,11 @@ export type ShoppingCartCommand =
   | CancelShoppingCart;
 
 export const addProductItem = (
-  command: AddProductItemToShoppingCart["data"],
+  command: AddProductItemToShoppingCart['data'],
   state: ShoppingCart | null,
 ): ShoppingCart => {
-  if (state?.status === "Confirmed")
-    throw new Error("Shopping Cart already closed");
+  if (state?.status === 'Confirmed')
+    throw new Error('Shopping Cart already closed');
 
   const shoppingCart = state ?? {
     _id: command.shoppingCartId,
@@ -204,7 +204,7 @@ export const addProductItem = (
     productItems: [],
     productItemsCount: 0,
     totalAmount: 0,
-    status: "Opened" as const,
+    status: 'Opened' as const,
     openedAt: command.now,
   };
 
@@ -230,18 +230,18 @@ export const addProductItem = (
 };
 
 export const removeProductItem = (
-  command: RemoveProductItemFromShoppingCart["data"],
+  command: RemoveProductItemFromShoppingCart['data'],
   state: ShoppingCart | null,
 ): ShoppingCart => {
-  if (state?.status !== "Opened")
-    throw new Error("Shopping Cart is not opened");
+  if (state?.status !== 'Opened')
+    throw new Error('Shopping Cart is not opened');
 
   const currentProductItem = ProductItems.find(
     state.productItems,
     command.productId,
   );
   if (!currentProductItem || currentProductItem.quantity < command.quantity)
-    throw new Error("Not enough products in shopping cart");
+    throw new Error('Not enough products in shopping cart');
 
   return {
     ...state,
@@ -257,23 +257,23 @@ export const removeProductItem = (
 };
 
 export const confirm = (
-  command: ConfirmShoppingCart["data"],
+  command: ConfirmShoppingCart['data'],
   state: ShoppingCart | null,
 ): ShoppingCart => {
-  if (!state) throw new Error("Shopping Cart is not opened");
-  if (state.status === "Confirmed") return state;
-  if (state.productItemsCount === 0) throw new Error("Shopping Cart is empty");
+  if (!state) throw new Error('Shopping Cart is not opened');
+  if (state.status === 'Confirmed') return state;
+  if (state.productItemsCount === 0) throw new Error('Shopping Cart is empty');
 
   return {
     ...state,
-    status: "Confirmed",
+    status: 'Confirmed',
     confirmedAt: command.now,
   };
 };
 
 export const cancel = (state: ShoppingCart | null): ShoppingCart | null => {
-  if (state?.status === "Confirmed")
-    throw new Error("Cannot cancel confirmed Shopping Cart");
+  if (state?.status === 'Confirmed')
+    throw new Error('Cannot cancel confirmed Shopping Cart');
   return null;
 };
 ```
@@ -431,14 +431,14 @@ WHERE json_extract(data, '$.status') = 'Opened';
 The file has this shape:
 
 ```ts
-import { SQL } from "@event-driven-io/dumbo";
-import { pongoSchema } from "@event-driven-io/pongo";
-import type { ShoppingCart } from "./shoppingCarts/shoppingCart";
+import { SQL } from '@event-driven-io/dumbo';
+import { pongoSchema } from '@event-driven-io/pongo';
+import type { ShoppingCart } from './shoppingCarts/shoppingCart';
 
-const shoppingCarts = pongoSchema.collection<ShoppingCart>("shoppingCarts", {
+const shoppingCarts = pongoSchema.collection<ShoppingCart>('shoppingCarts', {
   indexes: {
     currentByClient: pongoSchema.index.custom(
-      "shopping_carts_one_open_per_client",
+      'shopping_carts_one_open_per_client',
       ({ tableReference, indexReference }) => SQL`
         CREATE UNIQUE INDEX IF NOT EXISTS ${indexReference}
         ON ${tableReference} (json_extract(data, '$.clientId'))
@@ -486,7 +486,7 @@ Do not add duplicate Wrangler `migrations/*.sql` files for the same Pongo-owned 
 Use imports from `@event-driven-io/pongo/cloudflare`:
 
 ```ts
-import { d1Driver } from "@event-driven-io/pongo/cloudflare";
+import { d1Driver } from '@event-driven-io/pongo/cloudflare';
 ```
 
 Create the Pongo client from the D1 binding:
@@ -498,7 +498,7 @@ pongoClient({
   schema: {
     definition: shoppingCartSchema,
     autoMigration:
-      env.ENVIRONMENT === "development" ? "CreateOrUpdate" : "None",
+      env.ENVIRONMENT === 'development' ? 'CreateOrUpdate' : 'None',
   },
 });
 ```
@@ -724,17 +724,17 @@ This differs deliberately from Emmett's current D1 package tests. On Emmett `mai
 Configure each sample with:
 
 ```ts
-import { cloudflareTest } from "@cloudflare/vitest-plugin";
-import { defineConfig } from "vitest/config";
+import { cloudflareTest } from '@cloudflare/vitest-plugin';
+import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   plugins: [
     cloudflareTest({
-      wrangler: { configPath: "./wrangler.jsonc" },
+      wrangler: { configPath: './wrangler.jsonc' },
     }),
   ],
   test: {
-    include: ["src/**/*.spec.ts"],
+    include: ['src/**/*.spec.ts'],
   },
 });
 ```
