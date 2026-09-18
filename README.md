@@ -21,20 +21,20 @@ Read also [introduction article on my blog](https://event-driven.io/en/introduct
 You can use Pongo syntax with explicit typing about supported syntax:
 
 ```ts
-import { pongoClient, ObjectId } from "@event-driven-io/pongo";
+import { pongoClient, ObjectId } from '@event-driven-io/pongo';
 
 type User = { name: string; age: number };
 
 const connectionString =
-  "postgresql://dbuser:secretpassword@database.server.com:3211/mydb";
+  'postgresql://dbuser:secretpassword@database.server.com:3211/mydb';
 
 const pongo = pongoClient(connectionString);
 const pongoDb = pongo.db();
 
-const users = pongoDb.collection<User>("users");
-const roger = { name: "Roger", age: 30 };
-const anita = { name: "Anita", age: 25 };
-const cruella = { _id: ObjectId(), name: "Cruella", age: 40 };
+const users = pongoDb.collection<User>('users');
+const roger = { name: 'Roger', age: 30 };
+const anita = { name: 'Anita', age: 25 };
+const cruella = { _id: ObjectId(), name: 'Cruella', age: 40 };
 
 // Inserting
 await users.insertOne(roger);
@@ -59,20 +59,20 @@ const usersFromDb = await users.find({ age: { $lt: 40 } });
 Or use MongoDB compliant shim:
 
 ```ts
-import { MongoClient, ObjectId } from "@event-driven-io/pongo/shim";
+import { MongoClient, ObjectId } from '@event-driven-io/pongo/shim';
 
 type User = { name: string; age: number };
 
 const connectionString =
-  "postgresql://dbuser:secretpassword@database.server.com:3211/mydb";
+  'postgresql://dbuser:secretpassword@database.server.com:3211/mydb';
 
 const pongoClient = new MongoClient(postgresConnectionString);
 const pongoDb = pongoClient.db();
 
-const users = pongoDb.collection<User>("users");
-const roger = { name: "Roger", age: 30 };
-const anita = { name: "Anita", age: 25 };
-const cruella = { _id: ObjectId(), name: "Cruella", age: 40 };
+const users = pongoDb.collection<User>('users');
+const roger = { name: 'Roger', age: 30 };
+const anita = { name: 'Anita', age: 25 };
+const cruella = { _id: ObjectId(), name: 'Cruella', age: 40 };
 
 // Inserting
 await users.insertOne(roger);
@@ -118,9 +118,9 @@ CREATE TABLE IF NOT EXISTS "YourCollectionName" (
 **E.g. the MongoDB update syntax:**
 
 ```ts
-const users = pongoDb.collection<User>("users");
+const users = pongoDb.collection<User>('users');
 
-await users.updateOne({ _id: someId }, { $push: { tags: "character" } });
+await users.updateOne({ _id: someId }, { $push: { tags: 'character' } });
 ```
 
 will be translated to:
@@ -135,7 +135,7 @@ WHERE _id = '137ef052-e41c-428b-b606-1c8070a47eda';
 
 ```ts
 const result = await users
-  .find({ "address.history": { $elemMatch: { street: "Elm St" } } })
+  .find({ 'address.history': { $elemMatch: { street: 'Elm St' } } })
   .toArray();
 ```
 
