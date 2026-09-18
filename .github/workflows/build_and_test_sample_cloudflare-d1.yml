@@ -71,28 +71,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Deploy Worker
-        id: deploy
-        uses: cloudflare/wrangler-action@v4
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          workingDirectory: samples/cloudflare/d1
-          command: deploy
-          secrets: MIGRATION_TOKEN
+      - name: Deploy Worker and migrate schema
         env:
-          MIGRATION_TOKEN: ${{ secrets.CLOUDFLARE_MIGRATION_TOKEN }}
-
-      - name: Migrate D1 schema
-        env:
-          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
-          MIGRATION_TOKEN: ${{ secrets.CLOUDFLARE_MIGRATION_TOKEN }}
-        run: >-
-          curl --fail-with-body --retry 5 --retry-all-errors --request POST
-          --header "Authorization: Bearer ${MIGRATION_TOKEN}"
-          "${DEPLOYMENT_URL}/_system/migrations"
-
-      - name: Publish deployment URL
-        env:
-          DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
-        run: echo "### Deployed to ${DEPLOYMENT_URL}" >> "${GITHUB_STEP_SUMMARY}"
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npm run deploy

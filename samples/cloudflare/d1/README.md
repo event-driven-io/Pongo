@@ -1,6 +1,6 @@
 # Pongo on Cloudflare D1
 
-This standalone sample implements a shopping-cart HTTP API with [Hono](https://hono.dev/), [Pongo](https://github.com/event-driven-io/Pongo), and Cloudflare D1. It uses document-based CRUD internally while keeping commands that change a cart separate from queries that read one. It is deliberately not event sourced.
+This standalone sample implements a shopping-cart HTTP API with [Hono](https://hono.dev/), [Pongo](https://github.com/event-driven-io/Pongo), and Cloudflare D1. It stores each cart's current state as a document and keeps commands that change a cart separate from queries that read one.
 
 ## How the cart is modelled
 
@@ -10,7 +10,7 @@ The command functions in [`businessLogic.ts`](./src/shoppingCarts/businessLogic.
 
 The first product added through `/current` opens a cart and returns its permanent URL in the `Location` header. Confirmation keeps the closed cart under that ID, while cancellation deletes an opened cart. The next addition through `/current` creates a new cart when no opened cart exists. A partial unique index declared in [`pongo.config.ts`](./src/pongo.config.ts) guarantees that a client has at most one opened cart.
 
-Prices are integer minor units: `1000` means 10.00 in the chosen currency. The local pricing lookup contains `product-1` at `1000` and `product-2` at `2500`. A product's price is captured when it first enters a cart; clients cannot submit trusted prices.
+Prices are integer minor units: `1000` means 10.00 in the chosen currency. The local pricing lookup contains `product-1` at `1000` and `product-2` at `2500`. A product's price is captured when it first enters a cart; clients send only the product ID and quantity.
 
 ## HTTP API
 
@@ -51,188 +51,9 @@ curl -i http://localhost:8787/clients/client-1/shopping-carts/current
 
 ## D1 and schema migrations
 
-The Worker creates Pongo with the Cloudflare `d1Driver` and the `DB` binding from [`wrangler.jsonc`](./wrangler.jsonc). Local development uses `CreateOrUpdate`, so the first normal cart operation initializes a fresh local database. Production uses `autoMigration: "None"`.
+The Worker creates Pongo with the Cloudflare `d1Driver` and the `DB` binding from [`wrangler.jsonc`](./wrangler.jsonc). Local development uses `CreateOrUpdate`, so the first cart operation initializes a fresh local database. Production uses `autoMigration: "None"`, so cart requests never change the schema.
 
-Production migration is part of deployment. After deploying, the GitHub Actions workflow or `npm run migrate` calls the bearer-protected `POST /_system/migrations` operational endpoint once. That endpoint runs Pongo's schema migration, including the collection, migration ledger, and partial unique index. It is not part of the public shopping-cart API, and there are no duplicate Wrangler SQL migrations.
-
-## Run locally
-
-Use the Node version from [`.nvmrc`](./.nvmrc), then install and start the Worker:
-
-```shell
-npm ci
-npm run dev
-```
-
-Wrangler prints the local URL, normally `http://localhost:8787`. Local development needs no Cloudflare login, environment file, migration request, or manually created D1 database. Local data is kept under the ignored `.wrangler/state` directory.
-
-Useful checks are:
-
-```shell
-npm run types:cloudflare:check
-npm run build:ts
-npm test
-npm run lint
-npm run build
-```
-
-`npm run build` is a Wrangler dry-run bundle. It does not deploy anything. Run `npm run types:cloudflare` after changing Worker bindings to regenerate [`worker-configuration.d.ts`](./worker-configuration.d.ts).
-
-## Deploy to Cloudflare
-
-This tutorial deploys the sample to your Cloudflare account, first from your machine and then from GitHub Actions. You can stop after either part.
-
-### Prepare your Cloudflare account
-
-Do this once. The same account and API token also serve the Durable Objects sample.
-
-1. Create a [Cloudflare account](https://dash.cloudflare.com/sign-up). The free plan is enough for Workers and D1.
-2. Open **Workers & Pages** in the dashboard and pick a `workers.dev` subdomain. Cloudflare asks for it the first time you open that page. Deployed Workers get URLs under this subdomain.
-3. Copy your **Account ID**. You'll find it in the sidebar of the account home page and on the **Workers & Pages** overview.
-4. If you'll deploy through GitHub Actions, create an API token. Go to **My Profile → API Tokens → Create Token** and start from the **Edit Cloudflare Workers** template. Add the permission **Account → D1 → Edit**: the template doesn't include D1, and the first deployment creates the database. Under **Account Resources**, select only this account. Leave **Zone Resources** as the template allows, either all zones or none. Don't use a Global API Key. Copy the token when Cloudflare shows it, because it's shown only once. Skip this step if you'll deploy only from your machine.
-5. Prefer a separate development account. The deployed API has no authentication and is public, as explained in [Security scope](#security-scope).
-
-### Deploy from your machine
-
-1. Install the dependencies:
-
-   ```shell
-   npm ci
-   ```
-
-2. Log in to Cloudflare:
-
-   ```shell
-   npx wrangler login
-   ```
-
-   Wrangler opens your browser and asks you to authorize it. Run `npx wrangler whoami` to see which account you're logged in to. If you have access to several accounts, set the `CLOUDFLARE_ACCOUNT_ID` environment variable to the Account ID you copied earlier.
-
-3. Deploy the Worker:
-
-   ```shell
-   npm run deploy
-   ```
-
-   On the first deployment, Wrangler provisions a D1 database for the `DB` binding. In an interactive terminal it may ask whether to create a new database or use an existing one; choose to create a new one. When it finishes, Wrangler prints the Worker URL:
-
-   ```text
-   https://pongo-shopping-cart-d1.<your-workers-subdomain>.workers.dev
-   ```
-
-4. Generate a migration token and store it as a Worker secret:
-
-   ```shell
-   export MIGRATION_TOKEN=$(openssl rand -hex 32)
-   echo "$MIGRATION_TOKEN" | npm run secret:migration-token
-   ```
-
-   Wrangler confirms that it uploaded the `MIGRATION_TOKEN` secret.
-
-5. Run the Pongo schema migration against the deployed Worker, in the same terminal so `MIGRATION_TOKEN` is still set:
-
-   ```shell
-   export DEPLOYMENT_URL=https://pongo-shopping-cart-d1.<your-workers-subdomain>.workers.dev
-   npm run migrate
-   ```
-
-   The endpoint returns `204 No Content`, so a successful migration prints nothing after the npm script line. A freshly deployed `workers.dev` URL can briefly return `404`, so the script retries up to five times; the migration is idempotent, which makes retrying safe. Failures retry too, so a `401` error appears after roughly 30 seconds. It means the token you sent doesn't match the Worker secret.
-
-6. Start a cart on the deployed Worker:
-
-   ```shell
-   curl -i --request POST "${DEPLOYMENT_URL}/clients/client-1/shopping-carts/current/product-items" \
-     --header 'Content-Type: application/json' \
-     --data '{"productId":"product-1","quantity":2}'
-   ```
-
-   You'll see `201 Created` with the permanent cart URL in `Location`. Then read the current cart:
-
-   ```shell
-   curl -i "${DEPLOYMENT_URL}/clients/client-1/shopping-carts/current"
-   ```
-
-   You'll see the cart document with `product-1`, a quantity of `2`, and its `ETag`.
-
-To deploy a later change, run `npm run deploy` and then `npm run migrate` again. Running the migration more than once is safe. The Worker secret stays in place between deployments, so keep the migration token, for example in a password manager, or set a new one by repeating step 4.
-
-### Deploy with GitHub Actions
-
-Production deployment is defined in the repository-level [Cloudflare D1 workflow](../../../.github/workflows/build_and_test_sample_cloudflare-d1.yml).
-
-In the repository that will deploy the sample, open **Settings → Secrets and variables → Actions** and configure:
-
-| Name                         | Kind     | Value and purpose                                                                                                                                                            |
-| ---------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CLOUDFLARE_DEPLOY_ENABLED`  | Variable | `true`. Without it, the deployment job is skipped, which keeps ordinary forks validation-only.                                                                               |
-| `CLOUDFLARE_ACCOUNT_ID`      | Secret   | The Account ID of the target Cloudflare account.                                                                                                                             |
-| `CLOUDFLARE_API_TOKEN`       | Secret   | The API token you created while preparing the account. The workflow uses it to deploy the Worker and provision D1.                                                           |
-| `CLOUDFLARE_MIGRATION_TOKEN` | Secret   | An independent random value, for example one produced by `openssl rand -hex 32`. The workflow stores it as the Worker's `MIGRATION_TOKEN` secret. Don't reuse the API token. |
-
-You can set the same values with the [GitHub CLI](https://cli.github.com/) from inside your clone:
-
-```shell
-gh variable set CLOUDFLARE_DEPLOY_ENABLED --body true
-gh secret set CLOUDFLARE_ACCOUNT_ID
-gh secret set CLOUDFLARE_API_TOKEN
-openssl rand -hex 32 | gh secret set CLOUDFLARE_MIGRATION_TOKEN
-```
-
-`gh secret set NAME` without `--body` prompts for the value, so the secret doesn't end up in your shell history. Add `--repo owner/name` to each command if you run them outside the clone.
-
-The workflow deploys in two cases:
-
-- A push to `main` that changes the sample or the workflow.
-- A manual run from `main`. Open **Actions → Build and test Sample - Cloudflare D1 → Run workflow**, select the `main` branch, and confirm. Or run `gh workflow run build_and_test_sample_cloudflare-d1.yml --ref main`.
-
-Pull requests and manual runs from other branches only validate the sample. Configure the variable and secrets before merging the change that adds the sample; otherwise the deployment job is skipped. If you missed that, a manual run from `main` deploys it.
-
-A deploying run validates the sample, deploys the Worker, sets the `MIGRATION_TOKEN` Worker secret, calls the migration endpoint, and writes the deployment URL to the job summary.
-
-Protect the repository's `main` branch and require review for workflow changes, because a workflow running after merge can access deployment secrets.
-
-GitHub Actions and your machine update the same Worker when they use the same account. Each workflow deployment overwrites the Worker's `MIGRATION_TOKEN` secret with `CLOUDFLARE_MIGRATION_TOKEN`, so the last deployment's token wins. If you use both, either set the same value in both places or leave migrations to the workflow.
-
-### Worker name and database
-
-Wrangler deploys the Worker named `pongo-shopping-cart-d1` into the selected account. With `workers_dev: true`, its URL is normally:
-
-```text
-https://pongo-shopping-cart-d1.<your-workers-subdomain>.workers.dev
-```
-
-Change `name` in [`wrangler.jsonc`](./wrangler.jsonc) before deploying if that Cloudflare account already contains a Worker with this name; deploying the sample updates the same named Worker.
-
-The first deployment automatically provisions and binds the remote D1 database because the checked-in `DB` binding intentionally has no account-specific database ID. Later deployments reuse the binding stored by Cloudflare. The generated database ID is visible in the Cloudflare dashboard but is not written into this portable sample.
-
-### Copy the sample to its own repository
-
-If you copy this sample as a separate repository, also copy the workflow into `.github/workflows`. When the sample is no longer under `samples/cloudflare/d1`, update the workflow's path filters, `workingDirectory`, Node version file path, and lockfile path. There is no repository-name condition to replace: a fork deploys to its own account once it explicitly enables deployment and supplies its own secrets.
-
-### Clean up
-
-Delete the Worker:
-
-```shell
-npx wrangler delete
-```
-
-Find the name of the provisioned database, then delete it:
-
-```shell
-npx wrangler d1 list
-npx wrangler d1 delete <database-name>
-```
-
-To stop GitHub Actions from deploying, remove the variable:
-
-```shell
-gh variable delete CLOUDFLARE_DEPLOY_ENABLED
-```
-
-## Security scope
-
-This sample has no end-user authentication or authorization. A deployed `workers.dev` endpoint is public, so use an isolated development account and synthetic data only. The migration endpoint is protected by its independent Worker secret, while the Cloudflare API token is stored only in GitHub Actions; local deployments use `wrangler login` instead. Keep both tokens out of source control and logs, and grant the API token only the account permissions the workflows require.
+`npm run deploy` migrates the production schema right after deploying. It deploys the Worker with `wrangler deploy`, stores a fresh random token with `wrangler secret put MIGRATION_TOKEN`, and calls the bearer-protected `POST /_system/migrations` endpoint with curl. The endpoint runs Pongo's schema migration, which creates the collection, the migration ledger, and the partial unique index. Every deploy generates a new token, so earlier tokens stop working. The endpoint sits outside the shopping-cart API, and Pongo owns the whole schema, so the sample keeps no separate Wrangler SQL migrations.
 
 ## Production pricing boundary
 
@@ -251,11 +72,177 @@ const getUnitPrice = (env: Bindings, productId: string) =>
   env.PRICING.getUnitPrice(productId);
 ```
 
-That changes the infrastructure supplying the price, not the shopping-cart business logic.
+The shopping-cart business logic stays the same; only the source of the price changes.
+
+## Run locally
+
+Use the Node version from [`.nvmrc`](./.nvmrc), then install and start the Worker:
+
+```shell
+npm ci
+npm run dev
+```
+
+Wrangler prints the local URL, normally `http://localhost:8787`. It runs the Worker against a local D1 database stored in the ignored `.wrangler/state` directory, so you can develop without logging in to Cloudflare. The first cart request creates the schema.
+
+To check the sample, run:
+
+```shell
+npm run types:cloudflare:check
+npm run build:ts
+npm test
+npm run lint
+npm run build
+```
+
+`npm run build` bundles the Worker with a Wrangler dry run, without deploying it. Run `npm run types:cloudflare` after changing Worker bindings to regenerate [`worker-configuration.d.ts`](./worker-configuration.d.ts).
+
+## Security scope
+
+This sample has no end-user authentication or authorization. A deployed `workers.dev` endpoint is public, so use an isolated development account and synthetic data only. `npm run deploy` deploys with `wrangler deploy`, stores a fresh random token with `wrangler secret put MIGRATION_TOKEN`, and calls the migration endpoint with curl (retrying up to 5 times). It passes the token to Wrangler and curl through stdin, so the token never lands in a file, command line or log. The Cloudflare API token is stored only in GitHub Actions; local deploys use `wrangler login`. Keep the API token out of source control and logs, and grant it only the account permissions the workflow requires.
+
+## Deploy to Cloudflare
+
+This tutorial deploys the sample to a public `workers.dev` URL, first from your machine and then from GitHub Actions. You can stop after either part.
+
+### Prepare your Cloudflare account
+
+The [Cloudflare Durable Objects sample](../durable-objects/README.md) uses the same account and API token.
+
+1. Create a [Cloudflare account](https://dash.cloudflare.com/sign-up). The free plan is enough for Workers and D1.
+2. If you'll deploy through GitHub Actions, create an API token. Skip this step if you'll deploy only from your machine.
+   - Go to **My Profile → API Tokens → Create Token**.
+   - Pick the **Edit Cloudflare Workers** template.
+   - Add **Account → D1 → Edit**. The template lacks it, and the first deployment creates the database.
+   - Under **Account Resources**, include only this account.
+   - Under **Zone Resources**, choose **Include → All zones from an account → your account**. The template includes zone permissions for Workers Routes, so Cloudflare requires a zone selection even though the sample deploys only to `workers.dev`.
+   - Create the token and copy it. Cloudflare shows it only once.
+   - Don't use a Global API Key.
+3. Use a separate development account if you can. The deployed API is public and has no authentication; see [Security scope](#security-scope).
+
+The API token is the only thing you create in the dashboard. Wrangler asks for the rest while deploying.
+
+### Deploy from your machine
+
+Install dependencies, log in, and deploy:
+
+```shell
+npm ci
+npx wrangler login
+npm run deploy
+```
+
+`wrangler login` opens your browser to authorize Wrangler. On the first deploy, Wrangler asks which account to use if your login can reach several, and offers to register a `workers.dev` subdomain if the account has none yet. It then provisions a D1 database for the `DB` binding. If the account already has D1 databases, Wrangler asks whether to connect an existing one or create a new one; choose **Create new**. Wrangler then asks for a database name; accept the default.
+
+After Wrangler finishes, the script runs the schema migration and prints the Worker's URL:
+
+```text
+Deployed to https://pongo-shopping-cart-d1.<your-workers-subdomain>.workers.dev
+```
+
+A freshly deployed `workers.dev` URL can briefly return `404`, so curl retries the migration call up to five times, waiting longer each time. The migration is idempotent, which makes retrying safe. If every attempt fails, curl prints the last error and the script exits with an error.
+
+Check the deployed API against the URL the script printed:
+
+```shell
+url=https://pongo-shopping-cart-d1.<your-workers-subdomain>.workers.dev
+
+curl -i --request POST "$url/clients/client-1/shopping-carts/current/product-items" \
+  --header 'Content-Type: application/json' \
+  --data '{"productId":"product-1","quantity":2}'
+```
+
+You'll see `201 Created` with the permanent cart URL in `Location`. Then read the current cart:
+
+```shell
+curl -i "$url/clients/client-1/shopping-carts/current"
+```
+
+You'll see the cart document with `product-1`, a quantity of `2`, and its `ETag`.
+
+To deploy later changes, run `npm run deploy` again.
+
+### Deploy with GitHub Actions
+
+The repository-level [Cloudflare D1 workflow](../../../.github/workflows/build_and_test_sample_cloudflare-d1.yml) validates the sample and can deploy it. The deploy job runs the same `npm run deploy`.
+
+The workflow needs your Account ID and the API token. `npx wrangler whoami` prints the Account ID.
+
+GitHub Actions can't answer Wrangler's prompts, so the account needs a `workers.dev` subdomain before the first CI deploy. A local deploy registers one, or you can pick one under **Workers & Pages** in the dashboard.
+
+In the repository that will deploy the sample, open **Settings → Secrets and variables → Actions** and add:
+
+| Kind     | Name                        | Value                                                                                                              |
+| -------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Variable | `CLOUDFLARE_DEPLOY_ENABLED` | `true`. Without it, the deployment job is skipped, which keeps ordinary forks validation-only.                     |
+| Secret   | `CLOUDFLARE_ACCOUNT_ID`     | The Account ID printed by `npx wrangler whoami`.                                                                   |
+| Secret   | `CLOUDFLARE_API_TOKEN`      | The API token you created while preparing the account. The workflow uses it to deploy the Worker and provision D1. |
+
+The Durable Objects sample uses the same settings.
+
+You can set them with the [GitHub CLI](https://cli.github.com/) instead:
+
+```shell
+gh variable set CLOUDFLARE_DEPLOY_ENABLED --body true
+gh secret set CLOUDFLARE_ACCOUNT_ID
+gh secret set CLOUDFLARE_API_TOKEN
+```
+
+`gh secret set NAME` without `--body` prompts for the value, so the secret stays out of your shell history. Add `--repo owner/name` to each command if you run them outside the repository clone.
+
+The workflow deploys in two cases:
+
+- A push to `main` that changes the sample or the workflow.
+- A manual run from `main`. Open **Actions → Build and test Sample - Cloudflare D1 → Run workflow**, choose the `main` branch, and run it. Or use `gh workflow run build_and_test_sample_cloudflare-d1.yml --ref main`.
+
+Pull requests and manual runs from other branches only validate the sample. Configure the variable and secrets before merging the change that adds the sample; otherwise its push to `main` skips the deployment job. If that already happened, a manual run from `main` deploys it.
+
+The job validates the sample, deploys and migrates it, and prints the deployment URL in the job log.
+
+Protect the repository's `main` branch and require review for workflow changes, because a workflow running after merge can access deployment secrets.
+
+Deployments from CI and from your machine to the same account update the same Worker.
+
+### Worker name and database
+
+Wrangler deploys the Worker named `pongo-shopping-cart-d1` into the selected account. With `workers_dev: true`, its URL is normally:
+
+```text
+https://pongo-shopping-cart-d1.<your-workers-subdomain>.workers.dev
+```
+
+If the account already has a Worker with that name, change `name` in [`wrangler.jsonc`](./wrangler.jsonc) before the first deployment; otherwise the sample replaces it.
+
+The checked-in `DB` binding has no database ID, so the first deployment provisions a D1 database and binds it. Later deployments reuse the binding Cloudflare stored. The dashboard shows the generated database ID; the sample leaves it out of `wrangler.jsonc` so the configuration works in any account.
+
+### Copy the sample to its own repository
+
+If you copy this sample as a separate repository, also copy the workflow into `.github/workflows`. When the sample is no longer under `samples/cloudflare/d1`, update the workflow's path filters, `working-directory`, Node version file path, and lockfile path. A fork deploys to its own account once it sets `CLOUDFLARE_DEPLOY_ENABLED` and supplies its own secrets.
+
+### Clean up
+
+If GitHub Actions deploys the sample, turn that off first, or the next push to `main` recreates the Worker:
+
+```shell
+gh variable delete CLOUDFLARE_DEPLOY_ENABLED
+```
+
+Delete the Worker:
+
+```shell
+npx wrangler delete
+```
+
+Deleting the Worker keeps its D1 database. Find the database's name, then delete it:
+
+```shell
+npx wrangler d1 list
+npx wrangler d1 delete <database-name>
+```
 
 ## Further reading
 
 - [Cloudflare D1](https://developers.cloudflare.com/d1/)
 - [Deploy Workers with GitHub Actions](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/)
 - [Wrangler automatic resource provisioning](https://developers.cloudflare.com/changelog/post/2025-10-24-automatic-resource-provisioning/)
-- [Emmett Getting Started](https://event-driven-io.github.io/emmett/getting-started.html), used as presentation and testing inspiration rather than for event sourcing here
+- [Emmett Getting Started](https://event-driven-io.github.io/emmett/getting-started.html), which inspired how this sample presents its API and tests it
