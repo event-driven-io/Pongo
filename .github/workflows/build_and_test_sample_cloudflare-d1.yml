@@ -54,7 +54,7 @@ jobs:
 
   deploy:
     name: Deploy Cloudflare D1 sample
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main' && vars.CLOUDFLARE_DEPLOY_ENABLED == 'true'
     needs: build_and_test
     runs-on: ubuntu-latest
     steps:
@@ -88,7 +88,7 @@ jobs:
           DEPLOYMENT_URL: ${{ steps.deploy.outputs.deployment-url }}
           MIGRATION_TOKEN: ${{ secrets.CLOUDFLARE_MIGRATION_TOKEN }}
         run: >-
-          curl --fail-with-body --request POST
+          curl --fail-with-body --retry 5 --retry-all-errors --request POST
           --header "Authorization: Bearer ${MIGRATION_TOKEN}"
           "${DEPLOYMENT_URL}/_system/migrations"
 
