@@ -53,7 +53,8 @@ export type ShoppingCart = Readonly<{
   productItems: ProductItems;
   productItemsCount: number;
   totalAmount: number;
-  status: 'Opened' | 'Confirmed';
+  status: 'Opened' | 'Confirmed' | 'Cancelled';
   openedAt: Date;
   confirmedAt?: Date;
+  cancelledAt?: Date;
 }>;

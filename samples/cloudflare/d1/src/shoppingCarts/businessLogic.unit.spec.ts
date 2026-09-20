@@ -12,6 +12,7 @@ describe('ShoppingCart', () => {
   const shoppingCartId = 'cart-1';
   const openedAt = new Date('2026-09-13T10:00:00.000Z');
   const confirmedAt = new Date('2026-09-13T11:00:00.000Z');
+  const cancelledAt = new Date('2026-09-13T12:00:00.000Z');
 
   const openedCart = (overrides: Partial<ShoppingCart> = {}): ShoppingCart => ({
     _id: shoppingCartId,
@@ -133,6 +134,30 @@ describe('ShoppingCart', () => {
       // Then
       expect(when).toThrow('Shopping Cart already closed');
     });
+
+    it('rejects adding a product to a cancelled cart', () => {
+      // Given
+      const state = openedCart({ status: 'Cancelled', cancelledAt });
+
+      // When
+      const when = () =>
+        addProductItem(
+          {
+            clientId,
+            shoppingCartId,
+            productItem: {
+              productId: 'product-2',
+              quantity: 1,
+              unitPrice: 2_000,
+            },
+            now: cancelledAt,
+          },
+          state,
+        );
+
+      // Then
+      expect(when).toThrow('Shopping Cart already closed');
+    });
   });
 
   describe('removing a product item', () => {
@@ -208,6 +233,18 @@ describe('ShoppingCart', () => {
       // Then
       expect(when).toThrow('Shopping Cart is not opened');
     });
+
+    it('rejects removing a product from a cancelled cart', () => {
+      // Given
+      const state = openedCart({ status: 'Cancelled', cancelledAt });
+
+      // When
+      const when = () =>
+        removeProductItem({ productId: 'product-1', quantity: 1 }, state);
+
+      // Then
+      expect(when).toThrow('Shopping Cart is not opened');
+    });
   });
 
   describe('confirming a cart', () => {
@@ -262,20 +299,55 @@ describe('ShoppingCart', () => {
       // Then
       expect(when).toThrow('Shopping Cart is empty');
     });
+
+    it('rejects confirming a cancelled cart', () => {
+      // Given
+      const state = openedCart({ status: 'Cancelled', cancelledAt });
+
+      // When
+      const when = () => confirm({ now: confirmedAt }, state);
+
+      // Then
+      expect(when).toThrow('Shopping Cart is not opened');
+    });
   });
 
   describe('cancelling a cart', () => {
-    it('cancels an opened cart and remains cancelled when repeated', () => {
+    it('cancels an opened cart', () => {
       // Given
       const state = openedCart();
 
       // When
-      const firstResult = cancel(state);
-      const repeatedResult = cancel(firstResult);
+      const result = cancel({ now: cancelledAt }, state);
 
       // Then
-      expect(firstResult).toBeNull();
-      expect(repeatedResult).toBeNull();
+      expect(result.status).toBe('Cancelled');
+      expect(result.cancelledAt).toEqual(cancelledAt);
+      expect(state).toEqual(openedCart());
+    });
+
+    it('returns an already cancelled cart unchanged', () => {
+      // Given
+      const state = openedCart();
+
+      // When
+      const firstResult = cancel({ now: openedAt }, state);
+      const repeatedResult = cancel({ now: cancelledAt }, firstResult);
+
+      // Then
+      expect(repeatedResult).toBe(firstResult);
+      expect(repeatedResult.cancelledAt).toEqual(openedAt);
+    });
+
+    it('rejects cancelling a missing cart', () => {
+      // Given
+      const state = null;
+
+      // When
+      const when = () => cancel({ now: cancelledAt }, state);
+
+      // Then
+      expect(when).toThrow('Shopping Cart is not opened');
     });
 
     it('rejects cancelling a confirmed cart', () => {
@@ -283,10 +355,10 @@ describe('ShoppingCart', () => {
       const state = openedCart({ status: 'Confirmed', confirmedAt });
 
       // When
-      const when = () => cancel(state);
+      const when = () => cancel({ now: cancelledAt }, state);
 
       // Then
-      expect(when).toThrow('Cannot cancel confirmed Shopping Cart');
+      expect(when).toThrow('Shopping Cart is not opened');
     });
   });
 });

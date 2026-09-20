@@ -1,4 +1,3 @@
-import { env } from 'cloudflare:workers';
 import {
   ApiE2ESpecification,
   getApplication,
@@ -7,34 +6,24 @@ import {
   type HonoResponse,
   type TestRequest,
 } from '@event-driven-io/emmett-honojs';
-import { pongoClient, type PongoDb } from '@event-driven-io/pongo';
-import { d1Driver } from '@event-driven-io/pongo/cloudflare';
-import { Hono } from 'hono';
 import { beforeAll, describe, expect, it } from 'vitest';
-import pongoConfig from '../pongo.config';
+import { pongoDb } from '../pongo';
 import { shoppingCartApi } from './api';
+import { getUnitPrice } from './pricing';
 
 describe('D1 shopping-cart API integration', () => {
-  let db: PongoDb;
-
   beforeAll(async () => {
-    const client = pongoClient({
-      driver: d1Driver,
-      database: env.DB,
-      schema: { definition: pongoConfig.schema, autoMigration: 'None' },
-    });
-    db = client.database;
-    await db.schema.migrate();
+    await pongoDb.schema.migrate();
   });
 
   it('starts a shopping cart by adding the first product', () => {
     const cart = shoppingCart();
 
-    return givenApi(db)()
+    return givenApi()()
       .when(openShoppingCart(cart, { productId: 'product-1', quantity: 2 }))
       .then([
         async (response) => {
-          await expectResponse(201)(response);
+          await expectResponse(201, { headers: { etag: 'W/"1"' } })(response);
           expectCapturedETag(cart, response);
           expect(await response.text()).toBe('');
           expect(response.headers.location).toMatch(
@@ -47,7 +36,7 @@ describe('D1 shopping-cart API integration', () => {
   it('allows a client to revisit a known shopping cart', () => {
     const now = new Date('2026-09-13T10:00:00.000Z');
     const cart = shoppingCart();
-    const given = givenApi(db, now);
+    const given = givenApi(now);
 
     return given(
       ...openedShoppingCart(cart, {
@@ -87,11 +76,12 @@ describe('D1 shopping-cart API integration', () => {
         removeProductFromShoppingCart(cart, 'product-1', 1),
     ],
     ['confirm', (cart: TestShoppingCart) => confirmShoppingCart(cart)],
+    ['cancel', (cart: TestShoppingCart) => cancelShoppingCart(cart)],
   ])(
     'does not allow another client to %s a shopping cart',
     (_action, accessShoppingCart) => {
       const ownerCart = shoppingCart();
-      const given = givenApi(db);
+      const given = givenApi();
 
       return given(
         ...openedShoppingCart(ownerCart, {
@@ -104,23 +94,9 @@ describe('D1 shopping-cart API integration', () => {
     },
   );
 
-  it("does not reveal another client's shopping cart during cancellation", () => {
-    const ownerCart = shoppingCart();
-    const given = givenApi(db);
-
-    return given(
-      ...openedShoppingCart(ownerCart, {
-        productId: 'product-1',
-        quantity: 1,
-      }),
-    )
-      .when(accessAsAnotherClient(ownerCart, cancelShoppingCart))
-      .then([expectResponse(204)]);
-  });
-
   it('allows a client to find their active shopping cart', () => {
     const cart = shoppingCart();
-    const given = givenApi(db);
+    const given = givenApi();
 
     return given(
       ...openedShoppingCart(cart, {
@@ -144,7 +120,7 @@ describe('D1 shopping-cart API integration', () => {
 
   it('adds another product to an opened shopping cart', () => {
     const cart = shoppingCart();
-    const given = givenApi(db);
+    const given = givenApi();
 
     return given(
       ...openedShoppingCart(cart, {
@@ -155,9 +131,7 @@ describe('D1 shopping-cart API integration', () => {
       .when(addProductToShoppingCart(cart, 'product-2', 1))
       .then([
         async (response) => {
-          await expectResponse(204, {
-            headers: { location: cart.location },
-          })(response);
+          await expectResponse(204)(response);
           expectChangedETag(cart, response);
         },
       ]);
@@ -165,7 +139,7 @@ describe('D1 shopping-cart API integration', () => {
 
   it('shows all products added to a shopping cart', () => {
     const cart = shoppingCart();
-    const given = givenApi(db);
+    const given = givenApi();
 
     return given(
       ...openedShoppingCart(
@@ -193,7 +167,7 @@ describe('D1 shopping-cart API integration', () => {
 
   it('reduces the product quantity in a shopping cart', () => {
     const cart = shoppingCart();
-    const given = givenApi(db);
+    const given = givenApi();
 
     return given(
       ...openedShoppingCart(cart, {
@@ -221,7 +195,7 @@ describe('D1 shopping-cart API integration', () => {
 
   it('does not confirm an empty shopping cart', () => {
     const cart = shoppingCart();
-    const given = givenApi(db);
+    const given = givenApi();
 
     return given(
       ...openedShoppingCart(cart, {
@@ -236,7 +210,7 @@ describe('D1 shopping-cart API integration', () => {
 
   it('confirms an opened shopping cart', () => {
     const cart = shoppingCart();
-    const given = givenApi(db);
+    const given = givenApi();
 
     return given(
       ...openedShoppingCart(cart, {
@@ -247,9 +221,7 @@ describe('D1 shopping-cart API integration', () => {
       .when(confirmShoppingCart(cart))
       .then([
         async (response) => {
-          await expectResponse(204, {
-            headers: { location: cart.location },
-          })(response);
+          await expectResponse(204)(response);
           expectChangedETag(cart, response);
         },
       ]);
@@ -257,7 +229,7 @@ describe('D1 shopping-cart API integration', () => {
 
   it('allows a client to safely retry confirmation', () => {
     const cart = shoppingCart();
-    const given = givenApi(db);
+    const given = givenApi();
 
     return given(
       ...confirmedShoppingCart(cart, {
@@ -274,7 +246,7 @@ describe('D1 shopping-cart API integration', () => {
 
   it('stops treating a confirmed shopping cart as active', () => {
     const cart = shoppingCart();
-    const given = givenApi(db);
+    const given = givenApi();
 
     return given(
       ...confirmedShoppingCart(cart, {
@@ -289,7 +261,7 @@ describe('D1 shopping-cart API integration', () => {
   it('starts a new shopping cart after confirming the previous one', () => {
     const previousCart = shoppingCart();
     const nextCart = shoppingCart(previousCart.clientId);
-    const given = givenApi(db);
+    const given = givenApi();
 
     return given(
       ...confirmedShoppingCart(previousCart, {
@@ -309,7 +281,7 @@ describe('D1 shopping-cart API integration', () => {
 
   it('cancels an opened shopping cart', () => {
     const cart = shoppingCart();
-    const given = givenApi(db);
+    const given = givenApi();
 
     return given(
       ...openedShoppingCart(cart, {
@@ -318,12 +290,17 @@ describe('D1 shopping-cart API integration', () => {
       }),
     )
       .when(cancelShoppingCart(cart))
-      .then([expectResponse(204)]);
+      .then([
+        async (response) => {
+          await expectResponse(204)(response);
+          expectChangedETag(cart, response);
+        },
+      ]);
   });
 
   it('allows a client to safely retry cancellation', () => {
     const cart = shoppingCart();
-    const given = givenApi(db);
+    const given = givenApi();
 
     return given(
       ...cancelledShoppingCart(cart, {
@@ -332,12 +309,15 @@ describe('D1 shopping-cart API integration', () => {
       }),
     )
       .when(cancelShoppingCart(cart))
-      .then([expectResponse(204)]);
+      .then([
+        async (response) =>
+          expectResponse(204, { headers: { etag: cart.eTag } })(response),
+      ]);
   });
 
   it('does not add products to a cancelled shopping cart', () => {
     const cart = shoppingCart();
-    const given = givenApi(db);
+    const given = givenApi();
 
     return given(
       ...cancelledShoppingCart(cart, {
@@ -346,7 +326,42 @@ describe('D1 shopping-cart API integration', () => {
       }),
     )
       .when(addProductToShoppingCart(cart, 'product-1', 1))
+      .then([expectError(409)]);
+  });
+
+  it('stops treating a cancelled shopping cart as active', () => {
+    const cart = shoppingCart();
+    const given = givenApi();
+
+    return given(
+      ...cancelledShoppingCart(cart, {
+        productId: 'product-1',
+        quantity: 1,
+      }),
+    )
+      .when(getCurrentShoppingCart(cart))
       .then([expectError(404)]);
+  });
+
+  it('starts a new shopping cart after cancelling the previous one', () => {
+    const previousCart = shoppingCart();
+    const nextCart = shoppingCart(previousCart.clientId);
+    const given = givenApi();
+
+    return given(
+      ...cancelledShoppingCart(previousCart, {
+        productId: 'product-1',
+        quantity: 1,
+      }),
+    )
+      .when(openShoppingCart(nextCart, { productId: 'product-2', quantity: 1 }))
+      .then([
+        async (response) => {
+          await expectResponse(201)(response);
+          expectCapturedETag(nextCart, response);
+          expect(response.headers.location).not.toBe(previousCart.location);
+        },
+      ]);
   });
 
   it.each([
@@ -361,12 +376,13 @@ describe('D1 shopping-cart API integration', () => {
         removeProductFromShoppingCart(cart, 'product-1', 1),
     ],
     ['confirm it', (cart: TestShoppingCart) => confirmShoppingCart(cart)],
+    ['cancel it', (cart: TestShoppingCart) => cancelShoppingCart(cart)],
   ])(
     'does not %s when the shopping cart does not exist',
     (_action, changeShoppingCart) => {
       const cart = missingShoppingCart();
 
-      return givenApi(db)()
+      return givenApi()()
         .when(changeShoppingCart(cart))
         .then([expectError(404)]);
     },
@@ -374,7 +390,7 @@ describe('D1 shopping-cart API integration', () => {
 
   it('does not add a product based on an out-of-date shopping cart', () => {
     const cart = shoppingCart();
-    const given = givenApi(db);
+    const given = givenApi();
 
     return given(
       ...openedShoppingCart(
@@ -389,7 +405,7 @@ describe('D1 shopping-cart API integration', () => {
 
   it('does not remove a product based on an out-of-date shopping cart', () => {
     const cart = shoppingCart();
-    const given = givenApi(db);
+    const given = givenApi();
 
     return given(
       ...openedShoppingCart(
@@ -404,7 +420,7 @@ describe('D1 shopping-cart API integration', () => {
 
   it('does not confirm an out-of-date shopping cart', () => {
     const cart = shoppingCart();
-    const given = givenApi(db);
+    const given = givenApi();
 
     return given(
       ...openedShoppingCart(
@@ -419,7 +435,7 @@ describe('D1 shopping-cart API integration', () => {
 
   it('does not cancel an out-of-date shopping cart', () => {
     const cart = shoppingCart();
-    const given = givenApi(db);
+    const given = givenApi();
 
     return given(
       ...openedShoppingCart(
@@ -434,7 +450,7 @@ describe('D1 shopping-cart API integration', () => {
 
   it('requires changes to be based on the current shopping cart state', () => {
     const cart = shoppingCart();
-    const given = givenApi(db);
+    const given = givenApi();
 
     return given(
       ...openedShoppingCart(cart, {
@@ -457,7 +473,7 @@ describe('D1 shopping-cart API integration', () => {
   ])('rejects %s', (_case, body) => {
     const cart = shoppingCart();
 
-    return givenApi(db)()
+    return givenApi()()
       .when(addInvalidProductToCurrentShoppingCart(cart, body))
       .then([expectError(400, { status: 400, title: 'Bad Request' })]);
   });
@@ -465,7 +481,7 @@ describe('D1 shopping-cart API integration', () => {
   it('keeps one active cart when first products are added concurrently', async () => {
     const first = shoppingCart();
     const second = shoppingCart(first.clientId);
-    const given = givenApi(db);
+    const given = givenApi();
 
     await Promise.all([
       given()
@@ -481,7 +497,7 @@ describe('D1 shopping-cart API integration', () => {
       .then([
         async (response) => {
           expect([first.status, second.status].sort()).toEqual([201, 204]);
-          expect(first.location).toBe(second.location);
+          const created = first.status === 201 ? first : second;
 
           const productItems = [
             { productId: 'product-1', quantity: 1, unitPrice: 1000 },
@@ -491,6 +507,7 @@ describe('D1 shopping-cart API integration', () => {
 
           await expectResponse(200, {
             body: {
+              _id: shoppingCartId(created),
               clientId: first.clientId,
               productItems,
               productItemsCount: 2,
@@ -526,7 +543,7 @@ const missingShoppingCart = (
 ): TestShoppingCart => ({
   clientId,
   location: `/clients/${clientId}/shopping-carts/${crypto.randomUUID()}`,
-  eTag: '"1"',
+  eTag: 'W/"1"',
   previousETag: '',
   status: 0,
 });
@@ -660,13 +677,21 @@ const confirmShoppingCartUsingPreviousVersion =
 
 const cancelShoppingCart =
   (cart: TestShoppingCart): TestRequest =>
-  (request) =>
-    request.delete(cart.location).set({ 'If-Match': cart.eTag });
+  async (request) => {
+    const response = await request
+      .post(`${cart.location}/cancel`)
+      .set({ 'If-Match': cart.eTag })
+      .expect();
+    captureCartResponse(cart, response);
+    return response;
+  };
 
 const cancelShoppingCartUsingPreviousVersion =
   (cart: TestShoppingCart): TestRequest =>
   (request) =>
-    request.delete(cart.location).set({ 'If-Match': cart.previousETag });
+    request
+      .post(`${cart.location}/cancel`)
+      .set({ 'If-Match': cart.previousETag });
 
 const getShoppingCart =
   (cart: TestShoppingCart): TestRequest =>
@@ -707,27 +732,12 @@ const expectOneOf =
     expect(statuses).toContain(response.status);
   };
 
-const unitPrices: Readonly<Record<string, number>> = {
-  'product-1': 1000,
-  'product-2': 2500,
-};
-
-const getUnitPrice = (productId: string): Promise<number> => {
-  const unitPrice = unitPrices[productId];
-  if (unitPrice === undefined) throw new Error('Product not found');
-  return Promise.resolve(unitPrice);
-};
-
-const givenApi = (db: PongoDb, now = new Date()) => {
-  const api = new Hono<{ Bindings: CloudflareBindings }>();
-  shoppingCartApi<CloudflareBindings>(
-    () => db,
-    getUnitPrice,
-    () => now,
-  )(api);
-  const app = getApplication({ apis: [] });
-  app.route('/', api);
-  return ApiE2ESpecification.for({
-    fetch: (request) => app.fetch(request),
+const givenApi = (now = new Date()) =>
+  ApiE2ESpecification.for({
+    getApplication: () =>
+      getApplication({
+        apis: [
+          shoppingCartApi({ pongoDb, getUnitPrice, getCurrentTime: () => now }),
+        ],
+      }),
   });
-};

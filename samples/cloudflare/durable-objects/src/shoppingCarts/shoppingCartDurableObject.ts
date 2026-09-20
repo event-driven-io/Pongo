@@ -1,6 +1,10 @@
 import { DurableObject } from 'cloudflare:workers';
-import { ConcurrencyError } from '@event-driven-io/dumbo';
-import { pongoClient, type PongoCollection } from '@event-driven-io/pongo';
+import { NotFoundError } from '@event-driven-io/emmett';
+import {
+  pongoClient,
+  type PongoCollection,
+  type WithIdAndVersion,
+} from '@event-driven-io/pongo';
 import { cloudflareDurableObjectSQLiteDriver } from '@event-driven-io/pongo/cloudflare';
 import pongoConfig from '../pongo.config';
 import {
@@ -8,11 +12,39 @@ import {
   cancel,
   confirm,
   removeProductItem,
-  type AddProductItemToShoppingCart,
-  type ConfirmShoppingCart,
-  type RemoveProductItemFromShoppingCart,
 } from './businessLogic';
-import type { ShoppingCart } from './shoppingCart';
+import type { PricedProductItem, ShoppingCart } from './shoppingCart';
+
+type GetCurrentShoppingCart = { clientId: string };
+
+type GetShoppingCart = { shoppingCartId: string };
+
+type AddProductItemToCurrentShoppingCart = {
+  clientId: string;
+  productItem: PricedProductItem;
+  now: Date;
+};
+
+type AddProductItemToShoppingCart = {
+  clientId: string;
+  shoppingCartId: string;
+  expectedVersion: bigint;
+  productItem: PricedProductItem;
+  now: Date;
+};
+
+type RemoveProductItemFromShoppingCart = {
+  shoppingCartId: string;
+  expectedVersion: bigint;
+  productId: string;
+  quantity: number;
+};
+
+type ChangeShoppingCartStatus = {
+  shoppingCartId: string;
+  expectedVersion: bigint;
+  now: Date;
+};
 
 export class ShoppingCartDurableObject extends DurableObject<CloudflareBindings> {
   readonly #shoppingCarts: PongoCollection<ShoppingCart>;
@@ -26,7 +58,7 @@ export class ShoppingCartDurableObject extends DurableObject<CloudflareBindings>
       schema: { definition: pongoConfig.schema, autoMigration: 'None' },
       errors: { throwOnOperationFailures: true },
     });
-    const db = client.db();
+    const db = client.database;
     this.#shoppingCarts = db.collection<ShoppingCart>('shoppingCarts');
 
     void ctx.blockConcurrencyWhile(async () => {
@@ -34,100 +66,112 @@ export class ShoppingCartDurableObject extends DurableObject<CloudflareBindings>
     });
   }
 
-  getCurrent(clientId: string): Promise<ShoppingCart | null> {
-    return this.#shoppingCarts.findOne({
+  async getCurrent({ clientId }: GetCurrentShoppingCart) {
+    const cart = await this.#shoppingCarts.findOne({
       clientId,
       status: 'Opened',
     });
+    if (cart === null)
+      throw new NotFoundError({ id: clientId, type: 'Shopping cart' });
+
+    return cart;
   }
 
-  getById(shoppingCartId: string): Promise<ShoppingCart | null> {
-    return this.#shoppingCarts.findOne({ _id: shoppingCartId });
+  async getById({ shoppingCartId }: GetShoppingCart) {
+    const cart = await this.#shoppingCarts.findOne({ _id: shoppingCartId });
+    if (cart === null)
+      throw new NotFoundError({ id: shoppingCartId, type: 'Shopping cart' });
+
+    return cart;
   }
 
-  async addProductItemToCurrent(
-    command: AddProductItemToShoppingCart['data'],
-  ): Promise<Readonly<{ cart: ShoppingCart; created: boolean }>> {
+  async addProductItemToCurrent({
+    clientId,
+    productItem,
+    now,
+  }: AddProductItemToCurrentShoppingCart) {
     const current = await this.#shoppingCarts.findOne({
-      clientId: command.clientId,
+      clientId,
       status: 'Opened',
     });
-    const shoppingCartId = current?._id ?? command.shoppingCartId;
+    const shoppingCartId = current?._id ?? crypto.randomUUID();
+
     const result = await this.#shoppingCarts.handle(
       {
         _id: shoppingCartId,
         expectedVersion: current?._version ?? 'DOCUMENT_DOES_NOT_EXIST',
       },
-      (state) => addProductItem({ ...command, shoppingCartId }, state),
+      (state) =>
+        addProductItem({ clientId, shoppingCartId, productItem, now }, state),
     );
 
-    return { cart: result.document!, created: current === null };
+    return {
+      cart: result.document as WithIdAndVersion<ShoppingCart>,
+      created: current === null,
+    };
   }
 
-  addProductItem(
-    command: AddProductItemToShoppingCart['data'],
-    expectedVersion: bigint,
-  ): Promise<ShoppingCart | null> {
-    return this.#handleExistingCart(
-      command.shoppingCartId,
-      expectedVersion,
-      (state) => addProductItem(command, state),
-    );
-  }
-
-  removeProductItem(
-    shoppingCartId: string,
-    command: RemoveProductItemFromShoppingCart['data'],
-    expectedVersion: bigint,
-  ): Promise<ShoppingCart | null> {
-    return this.#handleExistingCart(shoppingCartId, expectedVersion, (state) =>
-      removeProductItem(command, state),
-    );
-  }
-
-  confirmShoppingCart(
-    shoppingCartId: string,
-    command: ConfirmShoppingCart['data'],
-    expectedVersion: bigint,
-  ): Promise<ShoppingCart | null> {
-    return this.#handleExistingCart(shoppingCartId, expectedVersion, (state) =>
-      confirm(command, state),
-    );
-  }
-
-  async cancelShoppingCart(
-    shoppingCartId: string,
-    expectedVersion?: bigint,
-  ): Promise<void> {
-    const existing = await this.#shoppingCarts.findOne({
-      _id: shoppingCartId,
-    });
-    if (!existing) return;
-    if (expectedVersion === undefined)
-      throw new ConcurrencyError(
-        'If-Match must contain the current shopping cart ETag',
-      );
-
-    await this.#shoppingCarts.handle(
-      { _id: shoppingCartId, expectedVersion },
-      cancel,
-    );
-  }
-
-  async #handleExistingCart(
-    shoppingCartId: string,
-    expectedVersion: bigint,
-    handle: (state: ShoppingCart) => ShoppingCart,
-  ): Promise<ShoppingCart | null> {
-    const existing = await this.#shoppingCarts.findOne({
-      _id: shoppingCartId,
-    });
-    if (!existing) return null;
+  async addProductItem({
+    clientId,
+    shoppingCartId,
+    expectedVersion,
+    productItem,
+    now,
+  }: AddProductItemToShoppingCart) {
+    await this.getById({ shoppingCartId });
 
     const result = await this.#shoppingCarts.handle(
       { _id: shoppingCartId, expectedVersion },
-      (state) => handle(state!),
+      (state) =>
+        addProductItem({ clientId, shoppingCartId, productItem, now }, state),
     );
-    return result.document;
+
+    return result.document as WithIdAndVersion<ShoppingCart>;
+  }
+
+  async removeProductItem({
+    shoppingCartId,
+    expectedVersion,
+    productId,
+    quantity,
+  }: RemoveProductItemFromShoppingCart) {
+    await this.getById({ shoppingCartId });
+
+    const result = await this.#shoppingCarts.handle(
+      { _id: shoppingCartId, expectedVersion },
+      (state) => removeProductItem({ productId, quantity }, state),
+    );
+
+    return result.document as WithIdAndVersion<ShoppingCart>;
+  }
+
+  async confirm({
+    shoppingCartId,
+    expectedVersion,
+    now,
+  }: ChangeShoppingCartStatus) {
+    await this.getById({ shoppingCartId });
+
+    const result = await this.#shoppingCarts.handle(
+      { _id: shoppingCartId, expectedVersion },
+      (state) => confirm({ now }, state),
+    );
+
+    return result.document as WithIdAndVersion<ShoppingCart>;
+  }
+
+  async cancel({
+    shoppingCartId,
+    expectedVersion,
+    now,
+  }: ChangeShoppingCartStatus) {
+    await this.getById({ shoppingCartId });
+
+    const result = await this.#shoppingCarts.handle(
+      { _id: shoppingCartId, expectedVersion },
+      (state) => cancel({ now }, state),
+    );
+
+    return result.document as WithIdAndVersion<ShoppingCart>;
   }
 }

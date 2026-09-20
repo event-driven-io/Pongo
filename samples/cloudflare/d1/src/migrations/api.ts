@@ -1,28 +1,23 @@
+import { NoContent, type WebApiSetup } from '@event-driven-io/emmett-honojs';
 import type { PongoDb } from '@event-driven-io/pongo';
-import type { Hono } from 'hono';
 
-type MigrationBindings = {
-  MIGRATION_TOKEN?: string;
+type MigrationsApiDependencies = {
+  pongoDb: PongoDb;
+  migrationToken?: string;
 };
 
 export const migrationsApi =
-  <Bindings extends MigrationBindings>(
-    getPongoDb: (bindings: Bindings) => PongoDb,
-  ) =>
-  (router: Hono<{ Bindings: Bindings }>) => {
+  ({ pongoDb, migrationToken }: MigrationsApiDependencies): WebApiSetup =>
+  (router) => {
     router.post('/_system/migrations', async (context) => {
-      const migrationToken = context.env.MIGRATION_TOKEN;
       if (
         !migrationToken ||
         context.req.header('Authorization') !== `Bearer ${migrationToken}`
       )
         return context.body(null, 401);
 
-      try {
-        await getPongoDb(context.env).schema.migrate();
-        return context.body(null, 204);
-      } catch {
-        return context.body(null, 500);
-      }
+      await pongoDb.schema.migrate();
+
+      return NoContent({ context });
     });
   };
