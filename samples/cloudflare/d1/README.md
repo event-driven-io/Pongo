@@ -1,16 +1,30 @@
 # Pongo on Cloudflare D1
 
-This standalone sample implements a shopping-cart HTTP API with [Hono](https://hono.dev/), [Pongo](https://github.com/event-driven-io/Pongo), and Cloudflare D1. It stores each cart's current state as a document and keeps commands that change a cart separate from queries that read one.
+A shopping cart API for Cloudflare Workers. Each cart is a document stored in D1 through [Pongo](https://github.com/event-driven-io/Pongo), with [Hono](https://hono.dev/) routing requests and [Emmett](https://event-driven-io.github.io/emmett/) handling the HTTP details and the tests.
+
+It is a complete service, kept small enough to read in one sitting: the cart rules, the HTTP API, the database schema and how it is migrated on deploy, unit, integration and end-to-end tests, and a GitHub Actions workflow that deploys it to a public URL.
+
+What it shows:
+
+- storing and changing a document in D1 with Pongo, without writing SQL or mapping code,
+- keeping concurrent changes to the same cart safe, using Pongo's version check and the `ETag` and `If-Match` headers,
+- running the same cart code on another store: the [Durable Objects sample](../durable-objects/README.md) shares the business logic and its unit tests, and differs only in how storage is wired.
+
+## Why Pongo and Emmett
+
+D1 is a SQL database. A cart is a small object with a list of products in it, so keeping it in SQL means at least two tables, a join to read a cart back, an insert, update or delete per product line, and a version column you maintain yourself so two concurrent requests do not overwrite each other's changes.
+
+Pongo stores the cart as a single document and handles that last part. A function in [`businessLogic.ts`](./src/shoppingCarts/businessLogic.ts) receives the cart that was read and returns the changed cart, and `handle` saves it only if nobody changed it first. If somebody did, it throws, and the API answers `412 Precondition Failed`. Pongo's collection API is the same on D1, on Durable Object SQLite and on PostgreSQL.
+
+Hono routes the request and Pongo stores the cart. Emmett fills the gap between them: it reads `If-Match`, writes `ETag`s, turns a concurrency conflict into `412` and a rejected business rule into `409`, and formats errors as problem details. That keeps try/catch out of the routes. Emmett also provides the test API, so [`api.int.spec.ts`](./src/shoppingCarts/api.int.spec.ts) states a request and the response it expects, and runs it against the real Worker.
 
 ## How the cart is modelled
 
-Each shopping cart is one document. Product lines, their captured unit prices, the item count, and the total amount are embedded so the API reads and writes the cart as one consistency boundary.
+A cart is one document: the client it belongs to, its status, its product lines with the unit price captured when each product was added, and the resulting item count and total amount. Everything a request reads or changes is in that document.
 
-The command functions in [`businessLogic.ts`](./src/shoppingCarts/businessLogic.ts) are immutable: they receive the current document and return the next document. Cancellation returns `null`. Pongo `handle` maps those results to insert, replace, delete, or an idempotent no-op. Queries use `findOne` directly.
+A client's first product opens a cart, and the response gives its permanent URL. Confirming or cancelling a cart does not delete it: the status changes, the cart stays readable under the same URL, and the client has no open cart again, so the next product added through `/current` opens a new one. A partial unique index declared in [`pongo.config.ts`](./src/pongo.config.ts) keeps a client from ever having two open carts.
 
-The first product added through `/current` opens a cart and returns its permanent URL in the `Location` header. Confirmation keeps the closed cart under that ID, while cancellation deletes an opened cart. The next addition through `/current` creates a new cart when no opened cart exists. A partial unique index declared in [`pongo.config.ts`](./src/pongo.config.ts) guarantees that a client has at most one opened cart.
-
-Prices are integer minor units: `1000` means 10.00 in the chosen currency. The local pricing lookup contains `product-1` at `1000` and `product-2` at `2500`. A product's price is captured when it first enters a cart; clients send only the product ID and quantity.
+Prices are integers in minor units, so `1000` means 10.00. Clients send a product ID and a quantity, never a price. [`pricing.ts`](./src/shoppingCarts/pricing.ts) knows `product-1` at `1000` and `product-2` at `2500`, and the price is copied into the cart when the product first enters it.
 
 ## HTTP API
 
@@ -22,7 +36,7 @@ Prices are integer minor units: `1000` means 10.00 in the chosen currency. The l
 | Add a product to a known cart                              | `POST /clients/:clientId/shopping-carts/:shoppingCartId/product-items`                         |
 | Remove a quantity from a product line                      | `DELETE /clients/:clientId/shopping-carts/:shoppingCartId/product-items/:productId?quantity=N` |
 | Confirm a cart                                             | `POST /clients/:clientId/shopping-carts/:shoppingCartId/confirm`                               |
-| Cancel an opened cart                                      | `DELETE /clients/:clientId/shopping-carts/:shoppingCartId`                                     |
+| Cancel an opened cart                                      | `POST /clients/:clientId/shopping-carts/:shoppingCartId/cancel`                                |
 
 Product additions use a JSON body such as:
 
@@ -33,7 +47,9 @@ Product additions use a JSON body such as:
 }
 ```
 
-The first addition returns `201 Created`; later additions return `204 No Content`. Both include the permanent cart URL in `Location` and its current version in `ETag`. Reads return the document and its `ETag`. Send that value unchanged in `If-Match` for commands targeting the permanent cart URL. A stale version returns `412 Precondition Failed`.
+Every route returns the cart in the response body, as Stripe, BigCommerce and commercetools do, so a client sees the cart's ID and its new totals without reading it again. Adding a product through `/current` returns `201 Created` with the cart's permanent URL in `Location` when it opened the cart, and `200 OK` when it added to a cart that was already open. Every other route returns `200 OK`.
+
+Responses carry the cart's version as a weak `ETag`, such as `W/"3"`. Send that value back in `If-Match` when you change a cart through its permanent URL. You get `412 Precondition Failed` if the cart changed in the meantime, `404 Not Found` if it does not exist, and `409 Conflict` if its current state forbids the change, such as confirming an empty cart. Errors are problem details ([RFC 9457](https://www.rfc-editor.org/rfc/rfc9457)).
 
 For example, start a cart locally with:
 
@@ -51,7 +67,7 @@ curl -i http://localhost:8787/clients/client-1/shopping-carts/current
 
 ## D1 and schema migrations
 
-The Worker creates Pongo with the Cloudflare `d1Driver` and the `DB` binding from [`wrangler.jsonc`](./wrangler.jsonc). Local development uses `CreateOrUpdate`, so the first cart operation initializes a fresh local database. Production uses `autoMigration: "None"`, so cart requests never change the schema.
+[`src/pongo.ts`](./src/pongo.ts) creates one Pongo client for the Worker, with the Cloudflare `d1Driver`, the `DB` binding from [`wrangler.jsonc`](./wrangler.jsonc) read through `env` from `cloudflare:workers`, and `throwOnOperationFailures`, so a failed write throws instead of returning a flag. Local development uses `CreateOrUpdate`, so the first cart operation initializes a fresh local database. Production uses `autoMigration: "None"`, so cart requests never change the schema.
 
 `npm run deploy` migrates the production schema right after deploying. It deploys the Worker with `wrangler deploy`, stores a fresh random token with `wrangler secret put MIGRATION_TOKEN`, and calls the bearer-protected `POST /_system/migrations` endpoint with curl. The endpoint runs Pongo's schema migration, which creates the collection, the migration ledger, and the partial unique index. Every deploy generates a new token, so earlier tokens stop working. The endpoint sits outside the shopping-cart API, and Pongo owns the whole schema, so the sample keeps no separate Wrangler SQL migrations.
 
@@ -60,17 +76,12 @@ The Worker creates Pongo with the Cloudflare `d1Driver` and the `DB` binding fro
 The in-memory pricing lookup keeps this sample self-contained. In a production system, pricing would commonly be owned by another Worker and reached through a typed [Service Binding](https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/):
 
 ```ts
-type Pricing = {
-  getUnitPrice(productId: string): Promise<number>;
-};
+import { env } from 'cloudflare:workers';
 
-type Bindings = {
-  PRICING: Service<Pricing>;
-};
-
-const getUnitPrice = (env: Bindings, productId: string) =>
-  env.PRICING.getUnitPrice(productId);
+const getUnitPrice = (productId: string) => env.PRICING.getUnitPrice(productId);
 ```
+
+[`index.ts`](./src/index.ts) is the only place that reads `env`; it passes `getUnitPrice` to the API like every other dependency.
 
 The shopping-cart business logic stays the same; only the source of the price changes.
 
@@ -159,7 +170,7 @@ curl -i --request POST "$url/clients/client-1/shopping-carts/current/product-ite
   --data '{"productId":"product-1","quantity":2}'
 ```
 
-You'll see `201 Created` with the permanent cart URL in `Location`. Then read the current cart:
+You'll see `201 Created` with the new cart in the body and its permanent URL in `Location`. Then read the current cart:
 
 ```shell
 curl -i "$url/clients/client-1/shopping-carts/current"
