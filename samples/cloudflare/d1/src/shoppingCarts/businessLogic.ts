@@ -27,7 +27,7 @@ export type ConfirmShoppingCart = Readonly<{
 
 export type CancelShoppingCart = Readonly<{
   type: 'CancelShoppingCart';
-  data: Readonly<Record<string, never>>;
+  data: Readonly<{ now: Date }>;
 }>;
 
 export type ShoppingCartCommand =
@@ -40,7 +40,7 @@ export const addProductItem = (
   command: AddProductItemToShoppingCart['data'],
   state: ShoppingCart | null,
 ): ShoppingCart => {
-  if (state?.status === 'Confirmed')
+  if (state !== null && state.status !== 'Opened')
     throw new EmmettError({
       errorCode: 409,
       message: 'Shopping Cart already closed',
@@ -114,12 +114,12 @@ export const confirm = (
   command: ConfirmShoppingCart['data'],
   state: ShoppingCart | null,
 ): ShoppingCart => {
-  if (!state)
+  if (state?.status === 'Confirmed') return state;
+  if (state?.status !== 'Opened')
     throw new EmmettError({
       errorCode: 409,
       message: 'Shopping Cart is not opened',
     });
-  if (state.status === 'Confirmed') return state;
   if (state.productItemsCount === 0)
     throw new EmmettError({
       errorCode: 409,
@@ -133,11 +133,16 @@ export const confirm = (
   };
 };
 
-export const cancel = (state: ShoppingCart | null): ShoppingCart | null => {
-  if (state?.status === 'Confirmed')
+export const cancel = (
+  command: CancelShoppingCart['data'],
+  state: ShoppingCart | null,
+): ShoppingCart => {
+  if (state?.status === 'Cancelled') return state;
+  if (state?.status !== 'Opened')
     throw new EmmettError({
       errorCode: 409,
-      message: 'Cannot cancel confirmed Shopping Cart',
+      message: 'Shopping Cart is not opened',
     });
-  return null;
+
+  return { ...state, status: 'Cancelled', cancelledAt: command.now };
 };

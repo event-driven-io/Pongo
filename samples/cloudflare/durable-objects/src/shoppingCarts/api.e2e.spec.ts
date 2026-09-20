@@ -9,7 +9,7 @@ import {
 import { describe, expect, it } from 'vitest';
 
 const given = ApiE2ESpecification.for({
-  fetch: (request) => exports.default.fetch(request),
+  getApplication: () => exports.default,
 });
 
 describe('Durable Object shopping-cart Worker', () => {

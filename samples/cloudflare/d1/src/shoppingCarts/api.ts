@@ -1,278 +1,278 @@
 import {
   ConcurrencyError,
+  DumboError,
   UniqueConstraintError,
 } from '@event-driven-io/dumbo';
-import { NotFoundError, ValidationError } from '@event-driven-io/emmett';
-import type { PongoDb } from '@event-driven-io/pongo';
-import type { Context, Hono } from 'hono';
+import {
+  assertNotEmptyString,
+  assertUnsignedBigInt,
+  asyncRetry,
+  NotFoundError,
+  ValidationError,
+} from '@event-driven-io/emmett';
+import {
+  Created,
+  getETagValueFromIfMatch,
+  NoContent,
+  OK,
+  toWeakETag,
+  type WebApiSetup,
+} from '@event-driven-io/emmett-honojs';
+import type { PongoDb, WithIdAndVersion } from '@event-driven-io/pongo';
+import { validator } from 'hono/validator';
 import {
   addProductItem,
   cancel,
   confirm,
   removeProductItem,
-  type AddProductItemToShoppingCart,
-  type ConfirmShoppingCart,
-  type RemoveProductItemFromShoppingCart,
 } from './businessLogic';
 import type { ShoppingCart } from './shoppingCart';
 
-type GetUnitPrice = (productId: string) => Promise<number>;
-type GetCurrentTime = () => Date;
+type ShoppingCartApiDependencies = {
+  pongoDb: PongoDb;
+  getUnitPrice: (productId: string) => Promise<number>;
+  getCurrentTime: () => Date;
+};
 
 export const shoppingCartApi =
-  <Bindings extends object>(
-    getPongoDb: (bindings: Bindings) => PongoDb,
-    getUnitPrice: GetUnitPrice,
-    getCurrentTime: GetCurrentTime,
-  ) =>
-  (router: Hono<{ Bindings: Bindings }>) => {
+  ({
+    pongoDb,
+    getUnitPrice,
+    getCurrentTime,
+  }: ShoppingCartApiDependencies): WebApiSetup =>
+  (router) => {
+    const shoppingCarts = pongoDb.collection<ShoppingCart>('shoppingCarts');
+
     router.post(
       '/clients/:clientId/shopping-carts/current/product-items',
+      productItemBody,
       async (context) => {
-        const clientId = requiredIdentifier(
-          context.req.param('clientId'),
-          'clientId',
-        );
-        const { productId, quantity } = await productItemRequest(context);
-        const unitPrice = await resolveUnitPrice(getUnitPrice, productId);
+        const { clientId } = context.req.param();
+        const { productId, quantity } = context.req.valid('json');
+        const unitPrice = await getUnitPrice(productId);
         const now = getCurrentTime();
-        const shoppingCarts = getPongoDb(context.env).collection<ShoppingCart>(
-          'shoppingCarts',
-        );
 
-        while (true) {
-          const current = await shoppingCarts.findOne({
-            clientId,
-            status: 'Opened',
-          });
-          const shoppingCartId = current?._id ?? crypto.randomUUID();
-          const created = current === null;
+        const { cart, created } = await asyncRetry(
+          async () => {
+            const current = await shoppingCarts.findOne({
+              clientId,
+              status: 'Opened',
+            });
+            const shoppingCartId = current?._id ?? crypto.randomUUID();
 
-          try {
             const result = await shoppingCarts.handle(
               {
                 _id: shoppingCartId,
                 expectedVersion: current?._version ?? 'DOCUMENT_DOES_NOT_EXIST',
               },
-              (state) => {
-                const command: AddProductItemToShoppingCart = {
-                  type: 'AddProductItemToShoppingCart',
-                  data: {
+              (state) =>
+                addProductItem(
+                  {
                     clientId,
                     shoppingCartId,
                     productItem: { productId, quantity, unitPrice },
                     now,
                   },
-                };
-                return addProductItem(command.data, state);
-              },
+                  state,
+                ),
             );
 
-            if (!result.successful) continue;
+            return {
+              cart: result.document as WithIdAndVersion<ShoppingCart>,
+              created: current === null,
+            };
+          },
+          {
+            retries: 3,
+            minTimeout: 100,
+            factor: 1.5,
+            shouldRetryError: isConflict,
+          },
+        );
 
-            return noContentAt(
-              context,
-              clientId,
-              shoppingCartId,
-              requiredDocument(result.document),
-              created ? 201 : 204,
-            );
-          } catch (error) {
-            if (error instanceof UniqueConstraintError) continue;
-            throw error;
-          }
-        }
+        const eTag = toWeakETag(cart._version);
+
+        if (created)
+          return Created({ context, url: shoppingCartUrl(cart), eTag });
+
+        return NoContent({ context, eTag });
       },
     );
 
     router.get('/clients/:clientId/shopping-carts/current', async (context) => {
-      const clientId = requiredIdentifier(
-        context.req.param('clientId'),
-        'clientId',
-      );
-      const cart = await getPongoDb(context.env)
-        .collection<ShoppingCart>('shoppingCarts')
-        .findOne({ clientId, status: 'Opened' });
+      const { clientId } = context.req.param();
 
-      if (!cart)
-        throw new NotFoundError({
-          id: clientId,
-          type: 'Shopping cart',
-          message: 'Shopping cart not found',
-        });
-      return cartResponse(context, cart);
+      const cart = await shoppingCarts.findOne({ clientId, status: 'Opened' });
+      if (cart === null)
+        throw new NotFoundError({ id: clientId, type: 'Shopping cart' });
+
+      const { _version, ...body } = cart;
+
+      return OK({ context, body, eTag: toWeakETag(_version) });
     });
 
     router.get(
       '/clients/:clientId/shopping-carts/:shoppingCartId',
       async (context) => {
-        const { clientId, shoppingCartId } = routeIds(context);
-        const cart = await getPongoDb(context.env)
-          .collection<ShoppingCart>('shoppingCarts')
-          .findOne({ _id: shoppingCartId, clientId });
+        const { clientId, shoppingCartId } = context.req.param();
 
-        if (!cart)
+        const cart = await shoppingCarts.findOne({
+          _id: shoppingCartId,
+          clientId,
+        });
+        if (cart === null)
           throw new NotFoundError({
             id: shoppingCartId,
             type: 'Shopping cart',
-            message: 'Shopping cart not found',
           });
-        return cartResponse(context, cart);
+
+        const { _version, ...body } = cart;
+
+        return OK({ context, body, eTag: toWeakETag(_version) });
       },
     );
 
     router.post(
       '/clients/:clientId/shopping-carts/:shoppingCartId/product-items',
+      productItemBody,
       async (context) => {
-        const { clientId, shoppingCartId } = routeIds(context);
-        const db = getPongoDb(context.env);
-        const { productId, quantity } = await productItemRequest(context);
-        const unitPrice = await resolveUnitPrice(getUnitPrice, productId);
-        const expectedVersion = expectedVersionFromIfMatch(context);
-        const command: AddProductItemToShoppingCart = {
-          type: 'AddProductItemToShoppingCart',
-          data: {
-            clientId,
-            shoppingCartId,
-            productItem: { productId, quantity, unitPrice },
-            now: getCurrentTime(),
-          },
-        };
-
-        const cart = await handleOwnedCart(
-          db,
-          clientId,
-          shoppingCartId,
-          expectedVersion,
-          (state) => addProductItem(command.data, state),
+        const { clientId, shoppingCartId } = context.req.param();
+        const { productId, quantity } = context.req.valid('json');
+        const unitPrice = await getUnitPrice(productId);
+        const expectedVersion = assertUnsignedBigInt(
+          getETagValueFromIfMatch(context),
         );
 
-        return noContentAt(context, clientId, shoppingCartId, cart);
+        const existing = await shoppingCarts.findOne({
+          _id: shoppingCartId,
+          clientId,
+        });
+        if (existing === null)
+          throw new NotFoundError({
+            id: shoppingCartId,
+            type: 'Shopping cart',
+          });
+
+        const result = await shoppingCarts.handle(
+          { _id: shoppingCartId, expectedVersion },
+          (state) =>
+            addProductItem(
+              {
+                clientId,
+                shoppingCartId,
+                productItem: { productId, quantity, unitPrice },
+                now: getCurrentTime(),
+              },
+              state,
+            ),
+        );
+        const cart = result.document as WithIdAndVersion<ShoppingCart>;
+
+        return NoContent({ context, eTag: toWeakETag(cart._version) });
       },
     );
 
     router.delete(
       '/clients/:clientId/shopping-carts/:shoppingCartId/product-items/:productId',
       async (context) => {
-        const { clientId, shoppingCartId } = routeIds(context);
-        const db = getPongoDb(context.env);
-        const productId = requiredIdentifier(
-          context.req.param('productId'),
-          'productId',
+        const { clientId, shoppingCartId, productId } = context.req.param();
+        const quantity = positiveInteger(
+          context.req.query('quantity'),
+          'quantity',
         );
-        const command: RemoveProductItemFromShoppingCart = {
-          type: 'RemoveProductItemFromShoppingCart',
-          data: {
-            productId,
-            quantity: positiveInteger(
-              context.req.query('quantity'),
-              'quantity',
-            ),
-          },
-        };
-        const expectedVersion = expectedVersionFromIfMatch(context);
+        const expectedVersion = assertUnsignedBigInt(
+          getETagValueFromIfMatch(context),
+        );
 
-        const cart = await handleOwnedCart(
-          db,
+        const existing = await shoppingCarts.findOne({
+          _id: shoppingCartId,
           clientId,
-          shoppingCartId,
-          expectedVersion,
-          (state) => removeProductItem(command.data, state),
-        );
+        });
+        if (existing === null)
+          throw new NotFoundError({
+            id: shoppingCartId,
+            type: 'Shopping cart',
+          });
 
-        return noContentAt(context, clientId, shoppingCartId, cart);
+        const result = await shoppingCarts.handle(
+          { _id: shoppingCartId, expectedVersion },
+          (state) => removeProductItem({ productId, quantity }, state),
+        );
+        const cart = result.document as WithIdAndVersion<ShoppingCart>;
+
+        return NoContent({ context, eTag: toWeakETag(cart._version) });
       },
     );
 
     router.post(
       '/clients/:clientId/shopping-carts/:shoppingCartId/confirm',
       async (context) => {
-        const { clientId, shoppingCartId } = routeIds(context);
-        const db = getPongoDb(context.env);
-        const command: ConfirmShoppingCart = {
-          type: 'ConfirmShoppingCart',
-          data: { now: getCurrentTime() },
-        };
-        const expectedVersion = expectedVersionFromIfMatch(context);
-
-        const cart = await handleOwnedCart(
-          db,
-          clientId,
-          shoppingCartId,
-          expectedVersion,
-          (state) => confirm(command.data, state),
+        const { clientId, shoppingCartId } = context.req.param();
+        const expectedVersion = assertUnsignedBigInt(
+          getETagValueFromIfMatch(context),
         );
 
-        return noContentAt(context, clientId, shoppingCartId, cart);
+        const existing = await shoppingCarts.findOne({
+          _id: shoppingCartId,
+          clientId,
+        });
+        if (existing === null)
+          throw new NotFoundError({
+            id: shoppingCartId,
+            type: 'Shopping cart',
+          });
+
+        const result = await shoppingCarts.handle(
+          { _id: shoppingCartId, expectedVersion },
+          (state) => confirm({ now: getCurrentTime() }, state),
+        );
+        const cart = result.document as WithIdAndVersion<ShoppingCart>;
+
+        return NoContent({ context, eTag: toWeakETag(cart._version) });
       },
     );
 
-    router.delete(
-      '/clients/:clientId/shopping-carts/:shoppingCartId',
+    router.post(
+      '/clients/:clientId/shopping-carts/:shoppingCartId/cancel',
       async (context) => {
-        const { clientId, shoppingCartId } = routeIds(context);
-        const db = getPongoDb(context.env);
-        const existing = await db
-          .collection<ShoppingCart>('shoppingCarts')
-          .findOne({ _id: shoppingCartId, clientId });
+        const { clientId, shoppingCartId } = context.req.param();
+        const expectedVersion = assertUnsignedBigInt(
+          getETagValueFromIfMatch(context),
+        );
 
-        if (!existing) return context.body(null, 204);
-        const expectedVersion = expectedVersionFromIfMatch(context);
-
-        const result = await db
-          .collection<ShoppingCart>('shoppingCarts')
-          .handle({ _id: shoppingCartId, expectedVersion }, (state) => {
-            assertOwnedCart(state, clientId);
-            return cancel(state);
+        const existing = await shoppingCarts.findOne({
+          _id: shoppingCartId,
+          clientId,
+        });
+        if (existing === null)
+          throw new NotFoundError({
+            id: shoppingCartId,
+            type: 'Shopping cart',
           });
 
-        if (!result.successful) {
-          const stillExists = await db
-            .collection<ShoppingCart>('shoppingCarts')
-            .findOne({ _id: shoppingCartId, clientId });
-          if (stillExists) result.assertSuccessful();
-        }
+        const result = await shoppingCarts.handle(
+          { _id: shoppingCartId, expectedVersion },
+          (state) => cancel({ now: getCurrentTime() }, state),
+        );
+        const cart = result.document as WithIdAndVersion<ShoppingCart>;
 
-        return context.body(null, 204);
+        return NoContent({ context, eTag: toWeakETag(cart._version) });
       },
     );
   };
 
-const routeIds = (context: Context) => ({
-  clientId: requiredIdentifier(context.req.param('clientId'), 'clientId'),
-  shoppingCartId: requiredIdentifier(
-    context.req.param('shoppingCartId'),
-    'shoppingCartId',
-  ),
-});
+const isConflict = (error: unknown) =>
+  DumboError.isInstanceOf(error, { errorType: ConcurrencyError.ErrorType }) ||
+  DumboError.isInstanceOf(error, {
+    errorType: UniqueConstraintError.ErrorType,
+  });
 
-const productItemRequest = async (context: Context) => {
-  let body: unknown;
-  try {
-    body = await context.req.json();
-  } catch {
-    throw new ValidationError('Request body must be valid JSON');
-  }
+type ProductItemRequest = { productId?: unknown; quantity?: unknown };
 
-  if (!body || typeof body !== 'object' || Array.isArray(body))
-    throw new ValidationError('Request body must be a JSON object');
-
-  const productId = requiredIdentifier(
-    'productId' in body ? body.productId : undefined,
-    'productId',
-  );
-  const quantity = positiveInteger(
-    'quantity' in body ? body.quantity : undefined,
-    'quantity',
-  );
-  return { productId, quantity };
-};
-
-const requiredIdentifier = (value: unknown, name: string): string => {
-  if (typeof value !== 'string' || value.trim().length === 0)
-    throw new ValidationError(`${name} must be a non-empty string`);
-  return value;
-};
+const productItemBody = validator('json', (body: ProductItemRequest) => ({
+  productId: assertNotEmptyString(body.productId),
+  quantity: positiveInteger(body.quantity, 'quantity'),
+}));
 
 const positiveInteger = (value: unknown, name: string): number => {
   const number = typeof value === 'string' ? Number(value) : value;
@@ -281,106 +281,5 @@ const positiveInteger = (value: unknown, name: string): number => {
   return number;
 };
 
-const resolveUnitPrice = async (
-  getUnitPrice: GetUnitPrice,
-  productId: string,
-): Promise<number> => {
-  try {
-    return await getUnitPrice(productId);
-  } catch {
-    throw new ValidationError('Unknown product');
-  }
-};
-
-type AssertOwnedCart = (
-  state: ShoppingCart | null,
-  clientId: string,
-) => asserts state is ShoppingCart;
-
-const assertOwnedCart: AssertOwnedCart = (
-  state: ShoppingCart | null,
-  clientId: string,
-): asserts state is ShoppingCart => {
-  if (!state || state.clientId !== clientId)
-    throw new NotFoundError({
-      id: state?._id ?? 'unknown',
-      type: 'Shopping cart',
-      message: 'Shopping cart not found',
-    });
-};
-
-type HandleShoppingCart = (state: ShoppingCart) => ShoppingCart;
-
-const handleOwnedCart = async (
-  db: PongoDb,
-  clientId: string,
-  shoppingCartId: string,
-  expectedVersion: bigint,
-  handle: HandleShoppingCart,
-): Promise<ShoppingCart> => {
-  const shoppingCarts = db.collection<ShoppingCart>('shoppingCarts');
-  const existing = await shoppingCarts.findOne({ _id: shoppingCartId });
-  assertOwnedCart(existing, clientId);
-
-  const result = await shoppingCarts.handle(
-    { _id: shoppingCartId, expectedVersion },
-    (state) => {
-      assertOwnedCart(state, clientId);
-      return handle(state);
-    },
-  );
-  result.assertSuccessful();
-  return requiredDocument(result.document);
-};
-
-const shoppingCartLocation = (clientId: string, shoppingCartId: string) =>
-  `/clients/${encodeURIComponent(clientId)}/shopping-carts/${encodeURIComponent(shoppingCartId)}`;
-
-const noContentAt = (
-  context: Context,
-  clientId: string,
-  shoppingCartId: string,
-  cart: ShoppingCart,
-  status: 201 | 204 = 204,
-) => {
-  context.header('Location', shoppingCartLocation(clientId, shoppingCartId));
-  setCartETag(context, cart);
-  return context.body(null, status);
-};
-
-const cartResponse = (context: Context, cart: ShoppingCart) => {
-  setCartETag(context, cart);
-  return context.json(toResponse(cart));
-};
-
-const setCartETag = (context: Context, cart: ShoppingCart) => {
-  context.header('ETag', `"${documentVersion(cart)}"`);
-};
-
-const documentVersion = (cart: ShoppingCart): bigint => {
-  const version = (cart as ShoppingCart & { _version?: unknown })._version;
-  if (typeof version !== 'bigint') throw new Error('Document version missing');
-  return version;
-};
-
-const requiredDocument = (document: ShoppingCart | null): ShoppingCart => {
-  if (!document) throw new Error('Updated document missing');
-  return document;
-};
-
-const expectedVersionFromIfMatch = (context: Context): bigint => {
-  const ifMatch = context.req.header('If-Match');
-  const match = ifMatch?.match(/^"(\d+)"$/);
-  if (!match)
-    throw new ConcurrencyError(
-      'If-Match must contain the current shopping cart ETag',
-    );
-  return BigInt(match[1]);
-};
-
-const toResponse = (cart: ShoppingCart) => {
-  const { _version: _, ...response } = cart as ShoppingCart & {
-    _version?: bigint;
-  };
-  return response;
-};
+const shoppingCartUrl = (cart: ShoppingCart) =>
+  `/clients/${encodeURIComponent(cart.clientId)}/shopping-carts/${encodeURIComponent(cart._id)}`;
