@@ -19,9 +19,19 @@ describe('Durable Object shopping-cart API integration', () => {
       .when(openShoppingCart(cart, { productId: 'product-1', quantity: 2 }))
       .then([
         async (response) => {
-          await expectResponse(201, { headers: { etag: 'W/"1"' } })(response);
+          await expectResponse(201, {
+            headers: { etag: 'W/"1"' },
+            body: {
+              clientId: cart.clientId,
+              productItems: [
+                { productId: 'product-1', quantity: 2, unitPrice: 1000 },
+              ],
+              productItemsCount: 2,
+              totalAmount: 2000,
+              status: 'Opened',
+            },
+          })(response);
           expectCapturedETag(cart, response);
-          expect(await response.text()).toBe('');
           expect(response.headers.location).toMatch(
             new RegExp(`^/clients/${cart.clientId}/shopping-carts/[^/]+$`),
           );
@@ -127,7 +137,17 @@ describe('Durable Object shopping-cart API integration', () => {
       .when(addProductToShoppingCart(cart, 'product-2', 1))
       .then([
         async (response) => {
-          await expectResponse(204)(response);
+          await expectResponse(200, {
+            body: {
+              productItems: [
+                { productId: 'product-1', quantity: 1, unitPrice: 1000 },
+                { productId: 'product-2', quantity: 1, unitPrice: 2500 },
+              ],
+              productItemsCount: 2,
+              totalAmount: 3500,
+              status: 'Opened',
+            },
+          })(response);
           expectChangedETag(cart, response);
         },
       ]);
@@ -217,7 +237,9 @@ describe('Durable Object shopping-cart API integration', () => {
       .when(confirmShoppingCart(cart))
       .then([
         async (response) => {
-          await expectResponse(204)(response);
+          await expectResponse(200, { body: { status: 'Confirmed' } })(
+            response,
+          );
           expectChangedETag(cart, response);
         },
       ]);
@@ -236,7 +258,10 @@ describe('Durable Object shopping-cart API integration', () => {
       .when(confirmShoppingCart(cart))
       .then([
         async (response) =>
-          expectResponse(204, { headers: { etag: cart.eTag } })(response),
+          expectResponse(200, {
+            headers: { etag: cart.eTag },
+            body: { status: 'Confirmed' },
+          })(response),
       ]);
   });
 
@@ -288,7 +313,9 @@ describe('Durable Object shopping-cart API integration', () => {
       .when(cancelShoppingCart(cart))
       .then([
         async (response) => {
-          await expectResponse(204)(response);
+          await expectResponse(200, { body: { status: 'Cancelled' } })(
+            response,
+          );
           expectChangedETag(cart, response);
         },
       ]);
@@ -307,7 +334,10 @@ describe('Durable Object shopping-cart API integration', () => {
       .when(cancelShoppingCart(cart))
       .then([
         async (response) =>
-          expectResponse(204, { headers: { etag: cart.eTag } })(response),
+          expectResponse(200, {
+            headers: { etag: cart.eTag },
+            body: { status: 'Cancelled' },
+          })(response),
       ]);
   });
 
@@ -482,18 +512,18 @@ describe('Durable Object shopping-cart API integration', () => {
     await Promise.all([
       given()
         .when(openShoppingCart(first, { productId: 'product-1', quantity: 1 }))
-        .then([expectOneOf(201, 204)]),
+        .then([expectOneOf(200, 201)]),
       given()
         .when(openShoppingCart(second, { productId: 'product-2', quantity: 1 }))
-        .then([expectOneOf(201, 204)]),
+        .then([expectOneOf(200, 201)]),
     ]);
 
     await given()
       .when(getCurrentShoppingCart(first))
       .then([
         async (response) => {
-          expect([first.status, second.status].sort()).toEqual([201, 204]);
-          const created = first.status === 201 ? first : second;
+          expect([first.status, second.status].sort()).toEqual([200, 201]);
+          expect(first.location).toBe(second.location);
 
           const productItems = [
             { productId: 'product-1', quantity: 1, unitPrice: 1000 },
@@ -503,7 +533,7 @@ describe('Durable Object shopping-cart API integration', () => {
 
           await expectResponse(200, {
             body: {
-              _id: shoppingCartId(created),
+              _id: shoppingCartId(first),
               clientId: first.clientId,
               productItems,
               productItemsCount: 2,
@@ -593,7 +623,7 @@ const openShoppingCart =
       .post(`/clients/${cart.clientId}/shopping-carts/current/product-items`)
       .send(productItem)
       .expect();
-    captureCartResponse(cart, response);
+    await captureCartResponse(cart, response);
     return response;
   };
 
@@ -605,7 +635,7 @@ const addProductToShoppingCart =
       .set({ 'If-Match': cart.eTag })
       .send({ productId, quantity })
       .expect();
-    captureCartResponse(cart, response);
+    await captureCartResponse(cart, response);
     return response;
   };
 
@@ -640,7 +670,7 @@ const removeProductFromShoppingCart =
       )
       .set({ 'If-Match': cart.eTag })
       .expect();
-    captureCartResponse(cart, response);
+    await captureCartResponse(cart, response);
     return response;
   };
 
@@ -660,7 +690,7 @@ const confirmShoppingCart =
       .post(`${cart.location}/confirm`)
       .set({ 'If-Match': cart.eTag })
       .expect();
-    captureCartResponse(cart, response);
+    await captureCartResponse(cart, response);
     return response;
   };
 
@@ -678,7 +708,7 @@ const cancelShoppingCart =
       .post(`${cart.location}/cancel`)
       .set({ 'If-Match': cart.eTag })
       .expect();
-    captureCartResponse(cart, response);
+    await captureCartResponse(cart, response);
     return response;
   };
 
@@ -702,12 +732,16 @@ const getCurrentShoppingCart =
 const shoppingCartId = (cart: TestShoppingCart) =>
   cart.location.split('/').at(-1) ?? '';
 
-const captureCartResponse = (
+const captureCartResponse = async (
   cart: TestShoppingCart,
   response: HonoResponse,
 ) => {
+  const body = (await response.json()) as { _id?: string } | null;
+
   cart.previousETag = cart.eTag;
-  cart.location = response.headers.location || cart.location;
+  cart.location = body?._id
+    ? `/clients/${cart.clientId}/shopping-carts/${body._id}`
+    : cart.location;
   cart.eTag = response.headers.etag || cart.eTag;
   cart.status = response.status;
 };

@@ -134,7 +134,7 @@ const openShoppingCart =
       .post(`/clients/${cart.clientId}/shopping-carts/current/product-items`)
       .send(productItem)
       .expect();
-    captureCartResponse(cart, response);
+    await captureCartResponse(cart, response);
     return response;
   };
 
@@ -145,7 +145,7 @@ const confirmShoppingCart =
       .post(`${cart.location}/confirm`)
       .set({ 'If-Match': cart.eTag })
       .expect();
-    captureCartResponse(cart, response);
+    await captureCartResponse(cart, response);
     return response;
   };
 
@@ -173,10 +173,14 @@ const migrateSchema =
 const shoppingCartId = (cart: TestShoppingCart) =>
   cart.location.split('/').at(-1) ?? '';
 
-const captureCartResponse = (
+const captureCartResponse = async (
   cart: TestShoppingCart,
   response: HonoResponse,
 ) => {
-  cart.location = response.headers.location || cart.location;
+  const body = (await response.json()) as { _id?: string } | null;
+
+  cart.location = body?._id
+    ? `/clients/${cart.clientId}/shopping-carts/${body._id}`
+    : cart.location;
   cart.eTag = response.headers.etag || cart.eTag;
 };

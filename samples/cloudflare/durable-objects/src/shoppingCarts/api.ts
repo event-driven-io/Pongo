@@ -12,7 +12,6 @@ import {
 import {
   Created,
   getETagValueFromIfMatch,
-  NoContent,
   OK,
   toWeakETag,
   type WebApiSetup,
@@ -58,12 +57,13 @@ export const shoppingCartApi =
           },
         );
 
-        const eTag = toWeakETag(cart._version);
+        const { _version, ...body } = cart;
+        const eTag = toWeakETag(_version);
 
         if (created)
-          return Created({ context, url: shoppingCartUrl(cart), eTag });
+          return Created({ context, url: shoppingCartUrl(cart), body, eTag });
 
-        return NoContent({ context, eTag });
+        return OK({ context, body, eTag });
       },
     );
 
@@ -110,7 +110,9 @@ export const shoppingCartApi =
           now: getCurrentTime(),
         });
 
-        return NoContent({ context, eTag: toWeakETag(cart._version) });
+        const { _version, ...body } = cart;
+
+        return OK({ context, body, eTag: toWeakETag(_version) });
       },
     );
 
@@ -134,7 +136,9 @@ export const shoppingCartApi =
           quantity,
         });
 
-        return NoContent({ context, eTag: toWeakETag(cart._version) });
+        const { _version, ...body } = cart;
+
+        return OK({ context, body, eTag: toWeakETag(_version) });
       },
     );
 
@@ -153,7 +157,9 @@ export const shoppingCartApi =
           now: getCurrentTime(),
         });
 
-        return NoContent({ context, eTag: toWeakETag(cart._version) });
+        const { _version, ...body } = cart;
+
+        return OK({ context, body, eTag: toWeakETag(_version) });
       },
     );
 
@@ -172,7 +178,9 @@ export const shoppingCartApi =
           now: getCurrentTime(),
         });
 
-        return NoContent({ context, eTag: toWeakETag(cart._version) });
+        const { _version, ...body } = cart;
+
+        return OK({ context, body, eTag: toWeakETag(_version) });
       },
     );
   };
