@@ -13,7 +13,6 @@ import {
 import {
   Created,
   getETagValueFromIfMatch,
-  NoContent,
   OK,
   toWeakETag,
   type WebApiSetup,
@@ -90,12 +89,13 @@ export const shoppingCartApi =
           },
         );
 
-        const eTag = toWeakETag(cart._version);
+        const { _version, ...body } = cart;
+        const eTag = toWeakETag(_version);
 
         if (created)
-          return Created({ context, url: shoppingCartUrl(cart), eTag });
+          return Created({ context, url: shoppingCartUrl(cart), body, eTag });
 
-        return NoContent({ context, eTag });
+        return OK({ context, body, eTag });
       },
     );
 
@@ -166,9 +166,10 @@ export const shoppingCartApi =
               state,
             ),
         );
-        const cart = result.document as WithIdAndVersion<ShoppingCart>;
+        const { _version, ...body } =
+          result.document as WithIdAndVersion<ShoppingCart>;
 
-        return NoContent({ context, eTag: toWeakETag(cart._version) });
+        return OK({ context, body, eTag: toWeakETag(_version) });
       },
     );
 
@@ -198,9 +199,10 @@ export const shoppingCartApi =
           { _id: shoppingCartId, expectedVersion },
           (state) => removeProductItem({ productId, quantity }, state),
         );
-        const cart = result.document as WithIdAndVersion<ShoppingCart>;
+        const { _version, ...body } =
+          result.document as WithIdAndVersion<ShoppingCart>;
 
-        return NoContent({ context, eTag: toWeakETag(cart._version) });
+        return OK({ context, body, eTag: toWeakETag(_version) });
       },
     );
 
@@ -226,9 +228,10 @@ export const shoppingCartApi =
           { _id: shoppingCartId, expectedVersion },
           (state) => confirm({ now: getCurrentTime() }, state),
         );
-        const cart = result.document as WithIdAndVersion<ShoppingCart>;
+        const { _version, ...body } =
+          result.document as WithIdAndVersion<ShoppingCart>;
 
-        return NoContent({ context, eTag: toWeakETag(cart._version) });
+        return OK({ context, body, eTag: toWeakETag(_version) });
       },
     );
 
@@ -254,9 +257,10 @@ export const shoppingCartApi =
           { _id: shoppingCartId, expectedVersion },
           (state) => cancel({ now: getCurrentTime() }, state),
         );
-        const cart = result.document as WithIdAndVersion<ShoppingCart>;
+        const { _version, ...body } =
+          result.document as WithIdAndVersion<ShoppingCart>;
 
-        return NoContent({ context, eTag: toWeakETag(cart._version) });
+        return OK({ context, body, eTag: toWeakETag(_version) });
       },
     );
   };
