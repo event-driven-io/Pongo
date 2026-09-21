@@ -27,10 +27,10 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@event-driven-io/dumbo": "0.13.0-beta.54",
+    "@event-driven-io/dumbo": "0.13.0-beta.55",
     "@event-driven-io/emmett": "0.43.0-beta.47",
     "@event-driven-io/emmett-honojs": "0.43.0-beta.47",
-    "@event-driven-io/pongo": "0.17.0-beta.54",
+    "@event-driven-io/pongo": "0.17.0-beta.55",
     "hono": "4.13.7"
   },
   "devDependencies": {
