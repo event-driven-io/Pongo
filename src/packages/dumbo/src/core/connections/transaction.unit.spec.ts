@@ -202,6 +202,51 @@ describe('databaseTransaction', () => {
     assert.deepStrictEqual(calls, ['begin', 'commit', 'begin', 'rollback']);
   });
 
+  it('lets a nested begin finish only after the root begin finished', async () => {
+    const calls: string[] = [];
+    let finishRootBegin: () => void = () => {};
+    const tx = databaseTransaction(
+      {
+        begin: () =>
+          new Promise<void>((resolve) => {
+            finishRootBegin = () => {
+              calls.push('root begun');
+              resolve();
+            };
+          }),
+        commit: () => Promise.resolve(),
+        rollback: () => Promise.resolve(),
+      },
+      { allowNestedTransactions: true },
+    );
+
+    const rootBegin = tx.begin();
+    const nestedBegin = tx.begin().then(() => calls.push('nested begun'));
+
+    await Promise.resolve();
+    finishRootBegin();
+    await Promise.all([rootBegin, nestedBegin]);
+
+    assert.deepStrictEqual(calls, ['root begun', 'nested begun']);
+  });
+
+  it('rejects a nested begin when the root begin fails', async () => {
+    const tx = databaseTransaction(
+      {
+        begin: () => Promise.reject(new Error('root begin failed')),
+        commit: () => Promise.resolve(),
+        rollback: () => Promise.resolve(),
+      },
+      { allowNestedTransactions: true },
+    );
+
+    const rootBegin = tx.begin();
+    const nestedBegin = tx.begin();
+
+    await assert.rejects(rootBegin, /root begin failed/);
+    await assert.rejects(nestedBegin, /root begin failed/);
+  });
+
   it('uses savepoints for nested commit and rollback when enabled', async () => {
     const { backend, calls } = makeBackend();
     const tx = databaseTransaction(backend, {

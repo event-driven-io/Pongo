@@ -83,6 +83,7 @@ export const databaseTransaction = (
   const useSavepoints = options?.useSavepoints ?? false;
   const counter = transactionNestingCounter();
   let hasBegun = false;
+  let rootBegin: Promise<void> = Promise.resolve();
 
   const begin = async () => {
     if (!allowNestedTransactions && hasBegun) {
@@ -91,6 +92,7 @@ export const databaseTransaction = (
     if (allowNestedTransactions) {
       if (counter.level >= 1) {
         counter.increment();
+        await rootBegin;
         if (useSavepoints && backend.savepoint) {
           await backend.savepoint(counter.level);
         }
@@ -102,7 +104,8 @@ export const databaseTransaction = (
       Abort.throwIfAborted(options);
       if (allowNestedTransactions) counter.increment();
       hasBegun = true;
-      await backend.begin();
+      rootBegin = backend.begin();
+      await rootBegin;
     } catch (error) {
       if (allowNestedTransactions) counter.reset();
       hasBegun = false;
