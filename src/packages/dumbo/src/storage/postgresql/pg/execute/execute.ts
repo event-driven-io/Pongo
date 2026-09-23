@@ -46,6 +46,18 @@ export const pgExecute = async <Result = void>(
   }
 };
 
+export const pgQueryStatements = async <
+  Result extends QueryResultRow = QueryResultRow,
+>(
+  poolOrClient: pg.Pool | pg.PoolClient | pg.Client,
+  statements: string[],
+): Promise<pg.QueryResult<Result>[]> => {
+  const result = (await poolOrClient.query<Result>(statements.join('; '))) as
+    pg.QueryResult<Result> | pg.QueryResult<Result>[];
+
+  return Array.isArray(result) ? result : [result];
+};
+
 export type PgSQLExecutor = DbSQLExecutor<PgDriverType, PgClientOrPoolClient>;
 
 export const pgSQLExecutor = ({
@@ -93,7 +105,44 @@ export const pgSQLExecutor = ({
   formatter: pgFormatter,
 });
 
-async function batchQuery<Result extends QueryResultRow = QueryResultRow>(
+async function withStatementTimeout<Result>(
+  client: PgClientOrPoolClient,
+  timeoutMs: number | undefined,
+  handle: () => Promise<Result>,
+): Promise<Result> {
+  if (!timeoutMs) return handle();
+
+  const [shown] = await pgQueryStatements<{ statement_timeout: string }>(
+    client,
+    ['SHOW statement_timeout', `SET statement_timeout = ${timeoutMs}`],
+  );
+  const previousTimeout = shown!.rows[0]!.statement_timeout;
+
+  try {
+    return await handle();
+  } finally {
+    try {
+      await client.query(`SELECT set_config('statement_timeout', $1, false)`, [
+        previousTimeout,
+      ]);
+    } catch (error) {
+      tracer.warn('db:sql:statement_timeout:restore:error', { error });
+    }
+  }
+}
+
+function batchQuery<Result extends QueryResultRow = QueryResultRow>(
+  client: PgClientOrPoolClient,
+  sqls: SQL[],
+  serializer: JSONSerializer,
+  options?: SQLQueryOptions,
+): Promise<QueryResult<Result>[]> {
+  return withStatementTimeout(client, options?.timeoutMs, () =>
+    runBatchQuery<Result>(client, sqls, serializer, options),
+  );
+}
+
+async function runBatchQuery<Result extends QueryResultRow = QueryResultRow>(
   client: PgClientOrPoolClient,
   sqls: SQL[],
   serializer: JSONSerializer,
@@ -102,10 +151,6 @@ async function batchQuery<Result extends QueryResultRow = QueryResultRow>(
   const results: QueryResult<Result>[] = Array<QueryResult<Result>>(
     sqls.length,
   );
-
-  if (options?.timeoutMs) {
-    await client.query(`SET statement_timeout = ${options.timeoutMs}`);
-  }
 
   //TODO: make it smarter at some point
   for (let i = 0; i < sqls.length; i++) {
@@ -140,7 +185,18 @@ async function batchQuery<Result extends QueryResultRow = QueryResultRow>(
   return results;
 }
 
-async function batchCommand<Result extends QueryResultRow = QueryResultRow>(
+function batchCommand<Result extends QueryResultRow = QueryResultRow>(
+  client: PgClientOrPoolClient,
+  sqls: SQL[],
+  serializer: JSONSerializer,
+  options?: BatchSQLCommandOptions,
+): Promise<QueryResult<Result>[]> {
+  return withStatementTimeout(client, options?.timeoutMs, () =>
+    runBatchCommand<Result>(client, sqls, serializer, options),
+  );
+}
+
+async function runBatchCommand<Result extends QueryResultRow = QueryResultRow>(
   client: PgClientOrPoolClient,
   sqls: SQL[],
   serializer: JSONSerializer,
@@ -149,10 +205,6 @@ async function batchCommand<Result extends QueryResultRow = QueryResultRow>(
   const results: QueryResult<Result>[] = Array<QueryResult<Result>>(
     sqls.length,
   );
-
-  if (options?.timeoutMs) {
-    await client.query(`SET statement_timeout = ${options.timeoutMs}`);
-  }
 
   //TODO: make it smarter at some point
   for (let i = 0; i < sqls.length; i++) {

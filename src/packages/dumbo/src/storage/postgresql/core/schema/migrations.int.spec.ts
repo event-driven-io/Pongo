@@ -1,7 +1,15 @@
 import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import assert from 'assert';
-import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
+import pg from 'pg';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  it,
+} from 'vitest';
 import { PostgreSQLConnectionString, tableExists } from '..';
 import { dumbo, type Dumbo } from '../../../..';
 import {
@@ -19,7 +27,7 @@ import {
   tableComponent,
   type SQLMigration,
 } from '../../../../core';
-import { pgDumboDriver } from '../../pg';
+import { pgDumboDriver, pgPool } from '../../pg';
 import { acquireAdvisoryLock, releaseAdvisoryLock } from '../locks';
 
 const migrationsLockId = 123456789;
@@ -523,6 +531,53 @@ describe('Migration Integration Tests', () => {
     assert.ok(table2Exists, 'The large_table_2 table should exist.');
     assert.ok(table3Exists, 'The large_table_3 table should exist.');
     assert.ok(table4Exists, 'The large_table_4 table should exist.');
+  });
+
+  describe('on a single pooled connection', () => {
+    let nativePool: pg.Pool;
+    let singleConnectionPool: Dumbo;
+
+    const showStatementTimeout = async () =>
+      (
+        await single(
+          singleConnectionPool.execute.query<{ statement_timeout: string }>(
+            SQL`SHOW statement_timeout`,
+          ),
+        )
+      ).statement_timeout;
+
+    beforeEach(async () => {
+      nativePool = new pg.Pool({ connectionString, max: 1 });
+      singleConnectionPool = pgPool({ connectionString, pool: nativePool });
+      await singleConnectionPool.execute.command(
+        SQL`SET statement_timeout = '5s'`,
+      );
+    });
+
+    afterEach(async () => {
+      await singleConnectionPool.close();
+      await nativePool.end();
+    });
+
+    it('keeps the connection statement timeout after migrations run', async () => {
+      await runSQLMigrations(singleConnectionPool, [
+        sqlMigration('statement-timeout:001', [
+          SQL`CREATE TABLE statement_timeout_result (id TEXT PRIMARY KEY);`,
+        ]),
+      ]);
+
+      assert.strictEqual(await showStatementTimeout(), '5s');
+    });
+
+    it('does not limit migration statements with the lock timeout', async () => {
+      await runSQLMigrations(
+        singleConnectionPool,
+        [sqlMigration('statement-timeout:002', [SQL`SELECT pg_sleep(0.5);`])],
+        { lock: { options: { timeoutMs: 300 } } },
+      );
+
+      assert.strictEqual(await showStatementTimeout(), '5s');
+    });
   });
 
   describe('running schema component SQL', () => {
