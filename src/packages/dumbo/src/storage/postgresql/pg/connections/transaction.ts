@@ -1,6 +1,7 @@
 import {
   databaseTransaction,
   executeInNestedTransaction,
+  single,
   SQL,
   sqlExecutor,
   type AnyConnection,
@@ -8,8 +9,10 @@ import {
   type DatabaseTransactionOptions,
   type DbClientTransactionContext,
   type JSONSerializer,
+  type SQLExecutor,
 } from '../../../../core';
-import { pgQueryStatements, pgSQLExecutor } from '../execute';
+import { pgSQLExecutor } from '../execute';
+import { statementTimeoutSQL } from '../execute/statementTimeout';
 import {
   PgDriverType,
   type PgConnection,
@@ -29,6 +32,42 @@ export type PgTransactionOptions = DatabaseTransactionOptions & {
   useSavepoints?: boolean;
 };
 
+const beginSQL = (options: PgTransactionOptions): SQL =>
+  SQL.merge([
+    SQL`BEGIN`,
+    options.isolationLevel
+      ? SQL`ISOLATION LEVEL ${SQL.plain(options.isolationLevel)}`
+      : SQL.EMPTY,
+    options.readonly ? SQL`READ ONLY` : SQL.EMPTY,
+  ]);
+
+const commitSQL = (previousStatementTimeout: string | undefined): SQL =>
+  previousStatementTimeout === undefined
+    ? SQL`COMMIT`
+    : SQL.merge(
+        [SQL`COMMIT`, statementTimeoutSQL.restore(previousStatementTimeout)],
+        '; ',
+      );
+
+const beginWithStatementTimeout = async (
+  execute: SQLExecutor,
+  options: PgTransactionOptions,
+  statementTimeoutMs: number,
+): Promise<string> => {
+  const { statement_timeout } = await single(
+    execute.query<{ statement_timeout: string }>(
+      SQL.merge(
+        [
+          beginSQL(options),
+          statementTimeoutSQL.set(statementTimeoutMs, 'transaction'),
+        ],
+        '; ',
+      ),
+    ),
+  );
+  return statement_timeout;
+};
+
 export const pgTransaction =
   <ConnectionType extends AnyConnection = AnyConnection>(
     connection: () => ConnectionType,
@@ -41,42 +80,27 @@ export const pgTransaction =
     const allowNestedTransactions = options.allowNestedTransactions ?? false;
     const useSavepoints = options.useSavepoints ?? false;
     let previousStatementTimeout: string | undefined = undefined;
+    const execute = sqlExecutor(pgSQLExecutor({ serializer }), {
+      connect: () => getClient,
+    });
 
     const tx = databaseTransaction(
       {
         begin: async () => {
-          const client = await getClient;
-          const parts = ['BEGIN'];
-          if (options.isolationLevel) {
-            parts.push(`ISOLATION LEVEL ${options.isolationLevel}`);
+          // Wait for the client so closing the connection after a rejected begin releases it.
+          await getClient;
+          if (!options.statementTimeoutMs) {
+            await execute.command(beginSQL(options));
+            return;
           }
-          if (options.readonly) {
-            parts.push('READ ONLY');
-          }
-          const statements = [parts.join(' ')];
-          if (options.statementTimeoutMs) {
-            statements.push(
-              'SHOW statement_timeout',
-              `SET LOCAL statement_timeout = ${options.statementTimeoutMs}`,
-            );
-          }
-          const [, shown] = await pgQueryStatements<{
-            statement_timeout: string;
-          }>(client, statements);
-          if (shown) {
-            previousStatementTimeout = shown.rows[0]!.statement_timeout;
-          }
+          previousStatementTimeout = await beginWithStatementTimeout(
+            execute,
+            options,
+            options.statementTimeoutMs,
+          );
         },
         commit: async () => {
-          const client = await getClient;
-          const statements: string[] = [];
-          if (previousStatementTimeout !== undefined) {
-            statements.push(
-              `SET statement_timeout = ${SQL.literal(previousStatementTimeout).value}`,
-            );
-          }
-          statements.push('COMMIT');
-          await pgQueryStatements(client, statements);
+          await execute.command(commitSQL(previousStatementTimeout));
         },
         rollback: async () => {
           const client = await getClient;
@@ -109,9 +133,7 @@ export const pgTransaction =
       begin: tx.begin,
       commit: tx.commit,
       rollback: tx.rollback,
-      execute: sqlExecutor(pgSQLExecutor({ serializer }), {
-        connect: () => getClient,
-      }),
+      execute,
       withTransaction: (handle, options) =>
         executeInNestedTransaction(transaction, handle, options),
       _transactionOptions: {
