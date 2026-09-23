@@ -1,6 +1,10 @@
 import assert from 'assert';
 import { describe, it } from 'vitest';
-import { JSONSerializer, type AnyConnection } from '../../../../core';
+import {
+  InvalidOperationError,
+  JSONSerializer,
+  type AnyConnection,
+} from '../../../../core';
 import type { PgClient } from './connection';
 import { pgTransaction, type PgTransactionOptions } from './transaction';
 
@@ -11,14 +15,13 @@ const fakePgClient = (shownStatementTimeout = '5s') => {
     query: (text: string) => {
       calls.push(text);
       return Promise.resolve(
-        text.includes('SHOW statement_timeout;')
+        text.includes("current_setting('statement_timeout')")
           ? [
               { rowCount: null, rows: [] },
               {
-                rowCount: null,
+                rowCount: 1,
                 rows: [{ statement_timeout: shownStatementTimeout }],
               },
-              { rowCount: null, rows: [] },
             ]
           : { rowCount: null, rows: [] },
       );
@@ -86,8 +89,8 @@ describe('pg transaction', () => {
       await transaction.commit();
 
       assert.deepStrictEqual(calls, [
-        'BEGIN; SHOW statement_timeout; SET LOCAL statement_timeout = 50',
-        "SET statement_timeout = '5s'; COMMIT",
+        "BEGIN; SELECT current_setting('statement_timeout') AS statement_timeout, set_config('statement_timeout', '50', true)",
+        "COMMIT; SELECT set_config('statement_timeout', '5s', false)",
       ]);
     });
 
@@ -99,7 +102,7 @@ describe('pg transaction', () => {
       await transaction.rollback();
 
       assert.deepStrictEqual(calls, [
-        'BEGIN; SHOW statement_timeout; SET LOCAL statement_timeout = 50',
+        "BEGIN; SELECT current_setting('statement_timeout') AS statement_timeout, set_config('statement_timeout', '50', true)",
         'ROLLBACK',
       ]);
     });
@@ -115,7 +118,7 @@ describe('pg transaction', () => {
       await transaction.begin();
 
       assert.deepStrictEqual(calls, [
-        'BEGIN ISOLATION LEVEL SERIALIZABLE READ ONLY; SHOW statement_timeout; SET LOCAL statement_timeout = 50',
+        "BEGIN ISOLATION LEVEL SERIALIZABLE READ ONLY; SELECT current_setting('statement_timeout') AS statement_timeout, set_config('statement_timeout', '50', true)",
       ]);
     });
 
@@ -126,7 +129,22 @@ describe('pg transaction', () => {
       await transaction.begin();
       await transaction.commit();
 
-      assert.strictEqual(calls[1], "SET statement_timeout = '5s''x'; COMMIT");
+      assert.strictEqual(
+        calls[1],
+        "COMMIT; SELECT set_config('statement_timeout', '5s''x', false)",
+      );
     });
+
+    it.each([-1, 1.5, 2147483648])(
+      'rejects statementTimeoutMs %s on begin without sending anything',
+      async (statementTimeoutMs) => {
+        const { client, calls } = fakePgClient();
+        const transaction = transactionFor(client, { statementTimeoutMs });
+
+        await assert.rejects(() => transaction.begin(), InvalidOperationError);
+
+        assert.deepStrictEqual(calls, []);
+      },
+    );
   });
 });

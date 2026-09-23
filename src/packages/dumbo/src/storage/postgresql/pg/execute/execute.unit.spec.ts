@@ -1,24 +1,21 @@
 import assert from 'assert';
 import { describe, it } from 'vitest';
 import {
+  BatchCommandNoChangesError,
+  InvalidOperationError,
   JSONSerializer,
   QueryCanceledError,
   SQL,
   sqlExecutor,
 } from '../../../../core';
 import type { PgClientOrPoolClient } from '../connections';
-import { pgQueryStatements, pgSQLExecutor } from './execute';
+import { pgSQLExecutor } from './execute';
 
 type RecordedCall = { text: string; params?: unknown[] };
 
-const showAndSetStatementTimeoutResult = [
-  { rowCount: null, rows: [{ statement_timeout: '5s' }] },
-  { rowCount: null, rows: [] },
-];
-
 const respondAsPostgres = (text: string) =>
-  text.startsWith('SHOW statement_timeout;')
-    ? showAndSetStatementTimeoutResult
+  text.startsWith("SELECT current_setting('statement_timeout')")
+    ? { rowCount: 1, rows: [{ statement_timeout: '5s' }] }
     : { rowCount: 0, rows: [] };
 
 const fakePgClient = (
@@ -85,13 +82,69 @@ describe('pg SQL executor', () => {
     });
   });
 
+  describe('with multiple statements in one SQL', () => {
+    const respondWithResultPerStatement = () => [
+      { rowCount: null, rows: [] },
+      { rowCount: 1, rows: [{ value: 1 }] },
+    ];
+
+    it('query returns the rows of the last statement', async () => {
+      const { client } = fakePgClient(respondWithResultPerStatement);
+
+      const result = await executorFor(client).query(
+        SQL`BEGIN; SELECT 1 AS value`,
+      );
+
+      assert.deepStrictEqual(result, { rowCount: 1, rows: [{ value: 1 }] });
+    });
+
+    it('command returns the rows of the last statement', async () => {
+      const { client } = fakePgClient(respondWithResultPerStatement);
+
+      const result = await executorFor(client).command(
+        SQL`BEGIN; SELECT 1 AS value`,
+      );
+
+      assert.deepStrictEqual(result, { rowCount: 1, rows: [{ value: 1 }] });
+    });
+
+    it('batchCommand with assertChanges fails when the last statement changes no rows', async () => {
+      const { client } = fakePgClient(() => [
+        { rowCount: 1, rows: [] },
+        { rowCount: 0, rows: [] },
+      ]);
+
+      await assert.rejects(
+        () =>
+          executorFor(client).batchCommand(
+            [SQL`DELETE FROM users; DELETE FROM roles`],
+            { assertChanges: true },
+          ),
+        BatchCommandNoChangesError,
+      );
+    });
+
+    it('batchCommand with assertChanges succeeds when the last statement changes rows', async () => {
+      const { client } = fakePgClient(() => [
+        { rowCount: 0, rows: [] },
+        { rowCount: 1, rows: [] },
+      ]);
+
+      const [result] = await executorFor(client).batchCommand(
+        [SQL`DELETE FROM users; DELETE FROM roles`],
+        { assertChanges: true },
+      );
+
+      assert.strictEqual(result!.rowCount, 1);
+    });
+  });
+
   describe('with timeoutMs', () => {
     const setStatementTimeout = {
-      text: 'SHOW statement_timeout; SET statement_timeout = 50',
+      text: "SELECT current_setting('statement_timeout') AS statement_timeout, set_config('statement_timeout', '50', false)",
     };
     const restoreStatementTimeout = {
-      text: "SELECT set_config('statement_timeout', $1, false)",
-      params: ['5s'],
+      text: "SELECT set_config('statement_timeout', '5s', false)",
     };
 
     it('query sets the timeout, runs its statement, then restores the previous timeout', async () => {
@@ -172,6 +225,37 @@ describe('pg SQL executor', () => {
       ]);
     });
 
+    it.each([-1, 1.5])(
+      'rejects timeoutMs %s without sending anything',
+      async (timeoutMs) => {
+        const { client, calls } = fakePgClient();
+
+        await assert.rejects(
+          () => executorFor(client).query(SQL`SELECT 1`, { timeoutMs }),
+          InvalidOperationError,
+        );
+
+        assert.deepStrictEqual(calls, []);
+      },
+    );
+
+    it('throws the mapped error and sends nothing else when setting the timeout fails', async () => {
+      const { client, calls } = fakePgClient((text) => {
+        if (text.startsWith("SELECT current_setting('statement_timeout')"))
+          throw Object.assign(new Error('canceling statement'), {
+            code: '57014',
+          });
+        return respondAsPostgres(text);
+      });
+
+      await assert.rejects(
+        () => executorFor(client).query(SQL`SELECT 1`, { timeoutMs: 50 }),
+        QueryCanceledError,
+      );
+
+      assert.deepStrictEqual(calls, [setStatementTimeout]);
+    });
+
     it('throws the failed statement error when restoring the previous timeout fails too', async () => {
       const { client } = fakePgClient((text) => {
         if (text === 'DELETE FROM users')
@@ -193,30 +277,5 @@ describe('pg SQL executor', () => {
         QueryCanceledError,
       );
     });
-  });
-});
-
-describe('pgQueryStatements', () => {
-  it('sends all statements joined in one query and returns a result per statement', async () => {
-    const { client, calls } = fakePgClient();
-
-    const results = await pgQueryStatements(client, [
-      'SHOW statement_timeout',
-      'SET statement_timeout = 50',
-    ]);
-
-    assert.deepStrictEqual(calls, [
-      { text: 'SHOW statement_timeout; SET statement_timeout = 50' },
-    ]);
-    assert.deepStrictEqual(results, showAndSetStatementTimeoutResult);
-  });
-
-  it('returns a one-element list for a single statement', async () => {
-    const { client, calls } = fakePgClient();
-
-    const results = await pgQueryStatements(client, ['COMMIT']);
-
-    assert.deepStrictEqual(calls, [{ text: 'COMMIT' }]);
-    assert.deepStrictEqual(results, [{ rowCount: 0, rows: [] }]);
   });
 });
