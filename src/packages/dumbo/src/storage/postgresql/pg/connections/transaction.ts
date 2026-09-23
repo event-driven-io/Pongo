@@ -1,6 +1,7 @@
 import {
   databaseTransaction,
   executeInNestedTransaction,
+  SQL,
   sqlExecutor,
   type AnyConnection,
   type DatabaseTransaction,
@@ -8,7 +9,7 @@ import {
   type DbClientTransactionContext,
   type JSONSerializer,
 } from '../../../../core';
-import { pgSQLExecutor } from '../execute';
+import { pgQueryStatements, pgSQLExecutor } from '../execute';
 import {
   PgDriverType,
   type PgConnection,
@@ -39,6 +40,7 @@ export const pgTransaction =
     const { client: getClient, onTransactionFinished, options } = context;
     const allowNestedTransactions = options.allowNestedTransactions ?? false;
     const useSavepoints = options.useSavepoints ?? false;
+    let previousStatementTimeout: string | undefined = undefined;
 
     const tx = databaseTransaction(
       {
@@ -51,11 +53,30 @@ export const pgTransaction =
           if (options.readonly) {
             parts.push('READ ONLY');
           }
-          await client.query(parts.join(' '));
+          const statements = [parts.join(' ')];
+          if (options.statementTimeoutMs) {
+            statements.push(
+              'SHOW statement_timeout',
+              `SET LOCAL statement_timeout = ${options.statementTimeoutMs}`,
+            );
+          }
+          const [, shown] = await pgQueryStatements<{
+            statement_timeout: string;
+          }>(client, statements);
+          if (shown) {
+            previousStatementTimeout = shown.rows[0]!.statement_timeout;
+          }
         },
         commit: async () => {
           const client = await getClient;
-          await client.query('COMMIT');
+          const statements: string[] = [];
+          if (previousStatementTimeout !== undefined) {
+            statements.push(
+              `SET statement_timeout = ${SQL.literal(previousStatementTimeout).value}`,
+            );
+          }
+          statements.push('COMMIT');
+          await pgQueryStatements(client, statements);
         },
         rollback: async () => {
           const client = await getClient;
