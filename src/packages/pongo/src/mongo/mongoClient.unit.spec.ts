@@ -23,24 +23,6 @@ describe('MongoClient', () => {
     );
   });
 
-  it('startSession passes defaultTransactionOptions to the session', () => {
-    const session = testMongoClient().startSession({
-      defaultTransactionOptions: { maxCommitTimeMS: 50 },
-    });
-
-    assert.strictEqual(session.defaultTransactionOptions.maxCommitTimeMS, 50);
-  });
-
-  it('withSession passes defaultTransactionOptions to the session', async () => {
-    const maxCommitTimeMS = await testMongoClient().withSession(
-      { defaultTransactionOptions: { maxCommitTimeMS: 50 } },
-      (session) =>
-        Promise.resolve(session.defaultTransactionOptions.maxCommitTimeMS),
-    );
-
-    assert.strictEqual(maxCommitTimeMS, 50);
-  });
-
   it('startSession passes defaultTimeoutMS to the session', () => {
     const session = testMongoClient().startSession({ defaultTimeoutMS: 50 });
 

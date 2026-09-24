@@ -1,4 +1,4 @@
-import { QueryCanceledError, SQL } from '@event-driven-io/dumbo';
+import { DumboError, QueryCanceledError, SQL } from '@event-driven-io/dumbo';
 import { PostgreSQLConnectionString } from '@event-driven-io/dumbo/pg';
 import {
   PostgreSqlContainer,
@@ -33,6 +33,9 @@ type Address = {
   zip?: string;
   history?: History[];
 };
+
+const isQueryCanceledError = (error: unknown) =>
+  DumboError.isInstanceOf(error, { errorType: QueryCanceledError.ErrorType });
 
 type User = {
   _id?: string;
@@ -1092,7 +1095,7 @@ describe('MongoDB Compatibility Tests', () => {
     it('cancels a find exceeding timeoutMS', async () => {
       await assert.rejects(
         () => users().find(sleep, { timeoutMS: 10 }),
-        QueryCanceledError,
+        isQueryCanceledError,
       );
 
       await assertSleepingFindSucceeds();
@@ -1104,7 +1107,7 @@ describe('MongoDB Compatibility Tests', () => {
 
         await assert.rejects(
           () => users().find(sleep, { session, timeoutMS: 10 }),
-          QueryCanceledError,
+          isQueryCanceledError,
         );
 
         await session.abortTransaction();
@@ -1136,7 +1139,7 @@ describe('MongoDB Compatibility Tests', () => {
 
         await assert.rejects(
           () => users().find(sleep, { session }),
-          QueryCanceledError,
+          isQueryCanceledError,
         );
 
         await session.abortTransaction();
@@ -1167,7 +1170,7 @@ describe('MongoDB Compatibility Tests', () => {
               transactionOptions,
             ),
           ),
-        QueryCanceledError,
+        isQueryCanceledError,
       );
 
       await assertSleepingFindSucceeds();
@@ -1193,7 +1196,7 @@ describe('MongoDB Compatibility Tests', () => {
 
       await assert.rejects(
         () => users().find(sleep, { session }),
-        QueryCanceledError,
+        isQueryCanceledError,
       );
 
       await session.abortTransaction();
@@ -1210,7 +1213,7 @@ describe('MongoDB Compatibility Tests', () => {
             (session) =>
               session.withTransaction(() => users().find(sleep, { session })),
           ),
-        QueryCanceledError,
+        isQueryCanceledError,
       );
 
       await assertSleepingFindSucceeds();
@@ -1221,7 +1224,7 @@ describe('MongoDB Compatibility Tests', () => {
 
       await assert.rejects(
         () => users().find(sleep, { session }),
-        QueryCanceledError,
+        isQueryCanceledError,
       );
 
       await session.endSession();
@@ -1235,7 +1238,7 @@ describe('MongoDB Compatibility Tests', () => {
           timeoutClient.withSession({ defaultTimeoutMS: 10 }, (session) =>
             session.withTransaction(() => users().find(sleep, { session })),
           ),
-        QueryCanceledError,
+        isQueryCanceledError,
       );
 
       await assertSleepingFindSucceeds();
@@ -1257,7 +1260,7 @@ describe('MongoDB Compatibility Tests', () => {
       it('cancels a find exceeding timeoutMS', async () => {
         await assert.rejects(
           () => shimUsers().find(shimSleep, { timeoutMS: 10 }).toArray(),
-          QueryCanceledError,
+          isQueryCanceledError,
         );
 
         await assertShimSleepingFindSucceeds();
@@ -1286,7 +1289,7 @@ describe('MongoDB Compatibility Tests', () => {
                 shimUsers().find(shimSleep, { session }).toArray(),
               ),
             ),
-          QueryCanceledError,
+          isQueryCanceledError,
         );
 
         await assertShimSleepingFindSucceeds();
@@ -1298,7 +1301,7 @@ describe('MongoDB Compatibility Tests', () => {
             shim.withSession({ defaultTimeoutMS: 10 }, (session) =>
               shimUsers().find(shimSleep, { session }).toArray(),
             ),
-          QueryCanceledError,
+          isQueryCanceledError,
         );
 
         await assertShimSleepingFindSucceeds();

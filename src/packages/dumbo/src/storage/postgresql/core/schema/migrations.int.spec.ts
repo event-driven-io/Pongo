@@ -21,6 +21,7 @@ import {
   jsonDocumentIndexTarget,
   runSQLMigrations,
   extensionComponent,
+  QueryCanceledError,
   single,
   SQL,
   sqlMigration,
@@ -577,6 +578,71 @@ describe('Migration Integration Tests', () => {
       );
 
       assert.strictEqual(await showStatementTimeout(), '5s');
+    });
+  });
+
+  describe('with migrationTimeoutMS', () => {
+    let blocker: pg.Client;
+
+    beforeEach(async () => {
+      await runSQLMigrations(pool, []);
+      blocker = new pg.Client({ connectionString });
+      await blocker.connect();
+      await blocker.query('BEGIN');
+    });
+
+    afterEach(async () => {
+      await blocker.query('ROLLBACK');
+      await blocker.end();
+    });
+
+    it('cancels checking whether a migration was applied when it exceeds migrationTimeoutMS', async () => {
+      await blocker.query('LOCK TABLE dmb_migrations IN ACCESS EXCLUSIVE MODE');
+
+      await assert.rejects(
+        () =>
+          runSQLMigrations(
+            pool,
+            [sqlMigration('timeout:check', [SQL`SELECT 1;`])],
+            { migrationTimeoutMS: 100 },
+          ),
+        QueryCanceledError,
+      );
+    });
+
+    it('cancels recording an applied migration when it exceeds migrationTimeoutMS', async () => {
+      await blocker.query(
+        `INSERT INTO dmb_migrations (name, sql_hash) VALUES ('timeout:record', 'hash')`,
+      );
+
+      await assert.rejects(
+        () =>
+          runSQLMigrations(
+            pool,
+            [sqlMigration('timeout:record', [SQL`SELECT 1;`])],
+            { migrationTimeoutMS: 100 },
+          ),
+        QueryCanceledError,
+      );
+    });
+
+    it('cancels updating the hash of an applied migration when it exceeds migrationTimeoutMS', async () => {
+      await runSQLMigrations(pool, [
+        sqlMigration('timeout:hash', [SQL`SELECT 1;`]),
+      ]);
+      await blocker.query(
+        `UPDATE dmb_migrations SET timestamp = now() WHERE name = 'timeout:hash'`,
+      );
+
+      await assert.rejects(
+        () =>
+          runSQLMigrations(
+            pool,
+            [sqlMigration('timeout:hash', [SQL`SELECT 2;`])],
+            { migrationTimeoutMS: 100, ignoreMigrationHashMismatch: true },
+          ),
+        QueryCanceledError,
+      );
     });
   });
 

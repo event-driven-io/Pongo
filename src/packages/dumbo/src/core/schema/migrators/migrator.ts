@@ -218,6 +218,7 @@ const runSQLMigration = async (
       execute,
       newMigration,
       migrationTableReference,
+      options?.migrationTimeoutMS,
     );
 
     if (checkResult.exists === true) {
@@ -243,7 +244,12 @@ const runSQLMigration = async (
 
       if (migration.ignoreHashMismatch === true) return false;
 
-      await updateMigrationHash(execute, newMigration, migrationTableReference);
+      await updateMigrationHash(
+        execute,
+        newMigration,
+        migrationTableReference,
+        options?.migrationTimeoutMS,
+      );
 
       return false;
     }
@@ -252,7 +258,12 @@ const runSQLMigration = async (
       timeoutMS: options?.migrationTimeoutMS,
     });
 
-    await recordMigration(execute, newMigration, migrationTableReference);
+    await recordMigration(
+      execute,
+      newMigration,
+      migrationTableReference,
+      options?.migrationTimeoutMS,
+    );
     return true;
     // console.log(`Migration "${newMigration.name}" applied successfully.`);
   } catch (error) {
@@ -292,10 +303,12 @@ const ensureMigrationWasNotAppliedYet = async (
   execute: SQLExecutor,
   migration: { name: string; sqlHash: string },
   migrationTableReference: SQLTableReference,
+  timeoutMS: number | undefined,
 ): Promise<EnsureMigrationResult> => {
   const result = await singleOrNull(
     execute.query<{ sqlHash: string }>(
       SQL`SELECT sql_hash as "sqlHash" FROM ${migrationTableReference} WHERE name = ${migration.name}`,
+      { timeoutMS },
     ),
   );
 
@@ -314,11 +327,13 @@ const recordMigration = async (
   execute: SQLExecutor,
   migration: { name: string; sqlHash: string },
   migrationTableReference: SQLTableReference,
+  timeoutMS: number | undefined,
 ): Promise<void> => {
   await execute.command(
     SQL`
       INSERT INTO ${migrationTableReference} (name, sql_hash)
       VALUES (${migration.name}, ${migration.sqlHash})`,
+    { timeoutMS },
   );
 };
 
@@ -326,6 +341,7 @@ const updateMigrationHash = async (
   execute: SQLExecutor,
   migration: { name: string; sqlHash: string },
   migrationTableReference: SQLTableReference,
+  timeoutMS: number | undefined,
 ): Promise<void> => {
   await execute.command(
     SQL`
@@ -333,5 +349,6 @@ const updateMigrationHash = async (
       SET sql_hash = ${migration.sqlHash}, timestamp = ${new Date()}
       WHERE name = ${migration.name}
       `,
+    { timeoutMS },
   );
 };

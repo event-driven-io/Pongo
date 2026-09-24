@@ -115,14 +115,15 @@ migrateCommand
 
     const driverType = `${databaseType}:${databaseDriver}` as const;
 
+    const pool = dumbo({ connectionString, driverType });
+
     const migrations = getMigrations({
       driverType,
       connectionString,
+      pool,
       databaseName: options.databaseName,
       collectionNames,
     });
-
-    const pool = dumbo({ connectionString, driverType });
 
     try {
       await runSQLMigrations(pool, migrations, {
@@ -198,11 +199,13 @@ migrateCommand
 const getMigrations = ({
   driverType,
   connectionString,
+  pool,
   databaseName,
   collectionNames,
 }: {
   driverType: DatabaseDriverType;
   connectionString: string | undefined;
+  pool?: AnyPongoDriverOptions['pool'];
   databaseName: string | undefined;
   collectionNames: (string | PongoCollectionSchemaMetadata)[];
 }) => {
@@ -234,6 +237,7 @@ const getMigrations = ({
 
   const customOptions = {
     connectionString,
+    pool,
   };
 
   const db = driver.databaseFactory({ ...driverOptions, ...customOptions });
