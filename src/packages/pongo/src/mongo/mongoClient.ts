@@ -2,8 +2,11 @@ import {
   parseConnectionString,
   toDatabaseDriverType,
 } from '@event-driven-io/dumbo';
-import type { ClientSessionOptions } from 'http2';
-import type { ClientSession, WithSessionCallback } from 'mongodb';
+import type {
+  ClientSession,
+  ClientSessionOptions,
+  WithSessionCallback,
+} from 'mongodb';
 import {
   pongoClient,
   pongoSession,
@@ -12,8 +15,21 @@ import {
   type PongoClient,
   type PongoClientOptions,
   type PongoClientSchema,
+  type PongoSessionOptions,
+  type PongoTransactionOptions,
 } from '../core';
 import { Db } from './mongoDb';
+
+const toPongoSessionOptions = (
+  options: ClientSessionOptions | undefined,
+): PongoSessionOptions | undefined =>
+  options
+    ? {
+        defaultTransactionOptions: options.defaultTransactionOptions as
+          PongoTransactionOptions | undefined,
+        defaultTimeoutMS: options.defaultTimeoutMS,
+      }
+    : undefined;
 
 export class MongoClient<
   DatabaseDriverType extends AnyPongoDriver = AnyPongoDriver,
@@ -87,8 +103,10 @@ export class MongoClient<
   db(dbName?: string): Db {
     return new Db(this.pongoClient.db(dbName));
   }
-  startSession(_options?: ClientSessionOptions): ClientSession {
-    return pongoSession() as unknown as ClientSession;
+  startSession(options?: ClientSessionOptions): ClientSession {
+    return pongoSession(
+      toPongoSessionOptions(options),
+    ) as unknown as ClientSession;
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   withSession<T = any>(_executor: WithSessionCallback<T>): Promise<T>;
@@ -105,7 +123,9 @@ export class MongoClient<
     const callback =
       typeof optionsOrExecutor === 'function' ? optionsOrExecutor : executor!;
 
-    const session = pongoSession() as unknown as ClientSession;
+    const session = this.startSession(
+      typeof optionsOrExecutor === 'function' ? undefined : optionsOrExecutor,
+    );
 
     try {
       return await callback(session);

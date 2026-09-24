@@ -39,7 +39,7 @@ const executorFor = (client: PgClientOrPoolClient) =>
   });
 
 describe('pg SQL executor', () => {
-  describe('without timeoutMs', () => {
+  describe('without timeoutMS', () => {
     it('query sends only its statement', async () => {
       const { client, calls } = fakePgClient();
 
@@ -139,7 +139,7 @@ describe('pg SQL executor', () => {
     });
   });
 
-  describe('with timeoutMs', () => {
+  describe('with timeoutMS', () => {
     const setStatementTimeout = {
       text: "SELECT current_setting('statement_timeout') AS statement_timeout, set_config('statement_timeout', '50', false)",
     };
@@ -150,7 +150,7 @@ describe('pg SQL executor', () => {
     it('query sets the timeout, runs its statement, then restores the previous timeout', async () => {
       const { client, calls } = fakePgClient();
 
-      await executorFor(client).query(SQL`SELECT 1`, { timeoutMs: 50 });
+      await executorFor(client).query(SQL`SELECT 1`, { timeoutMS: 50 });
 
       assert.deepStrictEqual(calls, [
         setStatementTimeout,
@@ -163,7 +163,7 @@ describe('pg SQL executor', () => {
       const { client, calls } = fakePgClient();
 
       await executorFor(client).batchQuery([SQL`SELECT 1`, SQL`SELECT 2`], {
-        timeoutMs: 50,
+        timeoutMS: 50,
       });
 
       assert.deepStrictEqual(calls, [
@@ -178,7 +178,7 @@ describe('pg SQL executor', () => {
       const { client, calls } = fakePgClient();
 
       await executorFor(client).command(SQL`DELETE FROM users`, {
-        timeoutMs: 50,
+        timeoutMS: 50,
       });
 
       assert.deepStrictEqual(calls, [
@@ -193,7 +193,7 @@ describe('pg SQL executor', () => {
 
       await executorFor(client).batchCommand(
         [SQL`DELETE FROM users`, SQL`DELETE FROM roles`],
-        { timeoutMs: 50 },
+        { timeoutMS: 50 },
       );
 
       assert.deepStrictEqual(calls, [
@@ -214,7 +214,7 @@ describe('pg SQL executor', () => {
       });
 
       await assert.rejects(
-        () => executorFor(client).query(SQL`SELECT 1`, { timeoutMs: 50 }),
+        () => executorFor(client).query(SQL`SELECT 1`, { timeoutMS: 50 }),
         QueryCanceledError,
       );
 
@@ -226,12 +226,12 @@ describe('pg SQL executor', () => {
     });
 
     it.each([-1, 1.5])(
-      'rejects timeoutMs %s without sending anything',
-      async (timeoutMs) => {
+      'rejects timeoutMS %s without sending anything',
+      async (timeoutMS) => {
         const { client, calls } = fakePgClient();
 
         await assert.rejects(
-          () => executorFor(client).query(SQL`SELECT 1`, { timeoutMs }),
+          () => executorFor(client).query(SQL`SELECT 1`, { timeoutMS }),
           InvalidOperationError,
         );
 
@@ -249,7 +249,7 @@ describe('pg SQL executor', () => {
       });
 
       await assert.rejects(
-        () => executorFor(client).query(SQL`SELECT 1`, { timeoutMs: 50 }),
+        () => executorFor(client).query(SQL`SELECT 1`, { timeoutMS: 50 }),
         QueryCanceledError,
       );
 
@@ -272,7 +272,7 @@ describe('pg SQL executor', () => {
       await assert.rejects(
         () =>
           executorFor(client).command(SQL`DELETE FROM users`, {
-            timeoutMs: 50,
+            timeoutMS: 50,
           }),
         QueryCanceledError,
       );

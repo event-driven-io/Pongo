@@ -1,4 +1,5 @@
 import type {
+  Abort,
   AnyConnection,
   AnyDatabaseComponent,
   DatabaseComponent,
@@ -45,9 +46,19 @@ export interface PongoClient<
 
   db(dbName?: string, options?: PongoDbOptions): Database;
 
-  startSession(): PongoSession<DriverType>;
+  startSession(options?: {
+    defaultTransactionOptions?: PongoTransactionOptions;
+    defaultTimeoutMS?: number;
+  }): PongoSession<DriverType>;
 
   withSession<T = unknown>(
+    callback: (session: PongoSession<DriverType>) => Promise<T>,
+  ): Promise<T>;
+  withSession<T = unknown>(
+    options: {
+      defaultTransactionOptions?: PongoTransactionOptions;
+      defaultTimeoutMS?: number;
+    },
     callback: (session: PongoSession<DriverType>) => Promise<T>,
   ): Promise<T>;
 }
@@ -78,8 +89,8 @@ export type PongoClientOptions<
     : never;
 
 export declare interface PongoTransactionOptions {
-  get snapshotEnabled(): boolean;
   maxCommitTimeMS?: number;
+  timeoutMS?: number | undefined;
 }
 
 export interface PongoDbTransaction<
@@ -106,8 +117,8 @@ export interface PongoSession<
   hasEnded: boolean;
   explicit: boolean;
   defaultTransactionOptions: PongoTransactionOptions;
+  defaultTimeoutMS?: number | undefined;
   transaction: PongoDbTransaction | null;
-  get snapshotEnabled(): boolean;
 
   endSession(): Promise<void>;
   incrementTransactionNumber(): void;
@@ -183,13 +194,15 @@ export type PongoMigrationOptions = {
   session?: PongoSession | undefined;
   dryRun?: boolean | undefined;
   ignoreMigrationHashMismatch?: boolean | undefined;
-  migrationTimeoutMs?: number | undefined;
+  migrationTimeoutMS?: number | undefined;
   migrationTable?: MigrationTableOptions | undefined;
 };
 
 export type CollectionOperationOptions = {
   session?: PongoSession;
   skipCache?: boolean;
+  timeoutMS?: number;
+  abort?: Abort;
 };
 
 export type InsertOneOptions = {

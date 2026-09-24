@@ -9,7 +9,8 @@ import type {
 
 export type PongoSessionOptions = {
   explicit?: boolean;
-  defaultTransactionOptions: PongoTransactionOptions;
+  defaultTransactionOptions?: PongoTransactionOptions | undefined;
+  defaultTimeoutMS?: number | undefined;
   cache?: CacheConfig | 'disabled' | PongoCache;
 };
 
@@ -33,12 +34,9 @@ function assertNotInActiveTransaction(
 
 export const pongoSession = (options?: PongoSessionOptions): PongoSession => {
   const explicit = options?.explicit === true;
+  const defaultTimeoutMS = options?.defaultTimeoutMS;
   const defaultTransactionOptions: PongoTransactionOptions =
-    options?.defaultTransactionOptions ?? {
-      get snapshotEnabled() {
-        return false;
-      },
-    };
+    options?.defaultTransactionOptions ?? {};
 
   let transaction: PongoDbTransaction | null = null;
   let hasEnded = false;
@@ -46,7 +44,12 @@ export const pongoSession = (options?: PongoSessionOptions): PongoSession => {
   const startTransaction = (options?: PongoTransactionOptions) => {
     assertNotInActiveTransaction(transaction);
 
-    transaction = pongoTransaction(options ?? defaultTransactionOptions);
+    const transactionOptions = options ?? defaultTransactionOptions;
+
+    transaction = pongoTransaction({
+      ...transactionOptions,
+      timeoutMS: transactionOptions.timeoutMS ?? defaultTimeoutMS,
+    });
   };
   const commitTransaction = async () => {
     assertInActiveTransaction(transaction);
@@ -71,16 +74,10 @@ export const pongoSession = (options?: PongoSessionOptions): PongoSession => {
       return hasEnded;
     },
     explicit,
-    defaultTransactionOptions: defaultTransactionOptions ?? {
-      get snapshotEnabled() {
-        return false;
-      },
-    },
+    defaultTransactionOptions,
+    defaultTimeoutMS,
     get transaction() {
       return transaction;
-    },
-    get snapshotEnabled() {
-      return defaultTransactionOptions.snapshotEnabled;
     },
     endSession,
     incrementTransactionNumber: () => {},

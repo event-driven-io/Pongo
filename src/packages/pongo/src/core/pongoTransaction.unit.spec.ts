@@ -12,11 +12,7 @@ const assertPongoError = (error: unknown, message: string): void => {
 
 describe('pongoTransaction', () => {
   it('rejects committing after rollback', async () => {
-    const transaction = pongoTransaction({
-      get snapshotEnabled() {
-        return false;
-      },
-    });
+    const transaction = pongoTransaction({});
 
     await transaction.rollback();
 
@@ -30,11 +26,7 @@ describe('pongoTransaction', () => {
   });
 
   it('rejects rolling back after commit', async () => {
-    const transaction = pongoTransaction({
-      get snapshotEnabled() {
-        return false;
-      },
-    });
+    const transaction = pongoTransaction({});
 
     await transaction.commit();
 
@@ -48,11 +40,7 @@ describe('pongoTransaction', () => {
   });
 
   it('rejects using a SQL executor before a database transaction starts', () => {
-    const transaction = pongoTransaction({
-      get snapshotEnabled() {
-        return false;
-      },
-    });
+    const transaction = pongoTransaction({});
 
     assert.throws(
       () => transaction.sqlExecutor,

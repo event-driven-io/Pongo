@@ -10,13 +10,13 @@ import { mapPostgresError } from '../../core/errors/errorMapper';
 import type { PgClientOrPoolClient } from '../connections';
 
 export const statementTimeoutSQL = {
-  set: (timeoutMs: number, scope: 'session' | 'transaction') => {
-    if (!Number.isInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 2147483647)
+  set: (timeoutMS: number, scope: 'session' | 'transaction') => {
+    if (!Number.isInteger(timeoutMS) || timeoutMS < 1 || timeoutMS > 2147483647)
       throw new InvalidOperationError(
-        `statement timeout must be an integer between 1 and 2147483647 ms, got ${timeoutMs}`,
+        `statement timeout must be an integer between 1 and 2147483647 ms, got ${timeoutMS}`,
       );
 
-    return SQL`SELECT current_setting('statement_timeout') AS statement_timeout, set_config('statement_timeout', ${SQL.literal(String(timeoutMs))}, ${SQL.plain(String(scope === 'transaction'))})`;
+    return SQL`SELECT current_setting('statement_timeout') AS statement_timeout, set_config('statement_timeout', ${SQL.literal(String(timeoutMS))}, ${SQL.plain(String(scope === 'transaction'))})`;
   },
   restore: (previousTimeout: string) =>
     SQL`SELECT set_config('statement_timeout', ${SQL.literal(previousTimeout)}, false)`,
@@ -24,11 +24,11 @@ export const statementTimeoutSQL = {
 
 export const setStatementTimeout = async (
   client: PgClientOrPoolClient,
-  timeoutMs: number,
+  timeoutMS: number,
   serializer: JSONSerializer,
 ): Promise<string> => {
   const { query } = pgFormatter.format(
-    statementTimeoutSQL.set(timeoutMs, 'session'),
+    statementTimeoutSQL.set(timeoutMS, 'session'),
     { serializer },
   );
   try {

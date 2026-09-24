@@ -240,7 +240,7 @@ describe('PostgreSQL error mapping', () => {
       const pool = pgPool({ connectionString });
       try {
         await assert.rejects(
-          () => pool.execute.query(SQL`SELECT pg_sleep(10)`, { timeoutMs: 1 }),
+          () => pool.execute.query(SQL`SELECT pg_sleep(10)`, { timeoutMS: 1 }),
           (error) => {
             assert.ok(error instanceof TransientDatabaseError);
             assert.ok(error instanceof DumboError);

@@ -34,7 +34,7 @@ export type AnyDatabaseTransaction = DatabaseTransaction<any, any>;
 export type DatabaseTransactionOptions = AbortOptions & {
   allowNestedTransactions?: boolean;
   readonly?: boolean;
-  statementTimeoutMs?: number | undefined;
+  statementTimeoutMS?: number | undefined;
 };
 
 export type TransactionNestingCounter = {

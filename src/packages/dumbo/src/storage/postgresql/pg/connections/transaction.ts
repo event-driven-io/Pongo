@@ -52,14 +52,14 @@ const commitSQL = (previousStatementTimeout: string | undefined): SQL =>
 const beginWithStatementTimeout = async (
   execute: SQLExecutor,
   options: PgTransactionOptions,
-  statementTimeoutMs: number,
+  statementTimeoutMS: number,
 ): Promise<string> => {
   const { statement_timeout } = await single(
     execute.query<{ statement_timeout: string }>(
       SQL.merge(
         [
           beginSQL(options),
-          statementTimeoutSQL.set(statementTimeoutMs, 'transaction'),
+          statementTimeoutSQL.set(statementTimeoutMS, 'transaction'),
         ],
         '; ',
       ),
@@ -89,14 +89,14 @@ export const pgTransaction =
         begin: async () => {
           // Wait for the client so closing the connection after a rejected begin releases it.
           await getClient;
-          if (!options.statementTimeoutMs) {
+          if (!options.statementTimeoutMS) {
             await execute.command(beginSQL(options));
             return;
           }
           previousStatementTimeout = await beginWithStatementTimeout(
             execute,
             options,
-            options.statementTimeoutMs,
+            options.statementTimeoutMS,
           );
         },
         commit: async () => {

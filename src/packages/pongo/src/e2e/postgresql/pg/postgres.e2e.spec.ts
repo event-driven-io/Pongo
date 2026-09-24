@@ -1,4 +1,4 @@
-import { SQL } from '@event-driven-io/dumbo';
+import { QueryCanceledError, SQL } from '@event-driven-io/dumbo';
 import { PostgreSQLConnectionString } from '@event-driven-io/dumbo/pg';
 import {
   PostgreSqlContainer,
@@ -6,6 +6,8 @@ import {
 } from '@testcontainers/postgresql';
 import assert from 'assert';
 import console from 'console';
+import type { Filter } from 'mongodb';
+import pg from 'pg';
 import { v7 as uuid } from 'uuid';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import {
@@ -917,6 +919,390 @@ describe('MongoDB Compatibility Tests', () => {
           assert.equal(0, mongoDocs.length);
         }),
       );
+    });
+
+    it('should find uncommitted documents by filter in transaction', async () => {
+      const docs = [
+        { name: 'David', age: 40 },
+        { name: 'Eve', age: 45 },
+        { name: 'Frank', age: 50 },
+      ];
+
+      await client.withSession((session) =>
+        session.withTransaction(async () => {
+          const pongoCollection = pongoDb.collection<User>(
+            'findByFilterInTransaction',
+          );
+
+          await pongoCollection.insertMany(docs, { session });
+
+          const pongoDocs = await pongoCollection.find(
+            { age: { $gte: 40 } },
+            { session },
+          );
+
+          assert.equal(3, pongoDocs.length);
+        }),
+      );
+    });
+
+    it('should find uncommitted documents by ids in transaction skipping cache', async () => {
+      const docs = [
+        { name: 'David', age: 40 },
+        { name: 'Eve', age: 45 },
+        { name: 'Frank', age: 50 },
+      ];
+
+      await client.withSession((session) =>
+        session.withTransaction(async () => {
+          const pongoCollection = pongoDb.collection<User>(
+            'findByIdsInTransaction',
+          );
+
+          const pongoInsertResult = await pongoCollection.insertMany(docs, {
+            session,
+          });
+          const pongoIds = Object.values(pongoInsertResult.insertedIds);
+
+          const pongoDocs = await pongoCollection.find(
+            { _id: { $in: pongoIds } },
+            { session, skipCache: true },
+          );
+
+          assert.equal(3, pongoDocs.length);
+        }),
+      );
+    });
+
+    it('should count uncommitted documents in transaction', async () => {
+      const docs = [
+        { name: 'David', age: 40 },
+        { name: 'Eve', age: 45 },
+        { name: 'Frank', age: 50 },
+      ];
+
+      await client.withSession((session) =>
+        session.withTransaction(async () => {
+          const pongoCollection =
+            pongoDb.collection<User>('countInTransaction');
+
+          await pongoCollection.insertMany(docs, { session });
+
+          const count = await pongoCollection.countDocuments(
+            { age: { $gte: 40 } },
+            { session },
+          );
+
+          assert.equal(3, count);
+        }),
+      );
+    });
+
+    it('should handle uncommitted document in transaction', async () => {
+      await client.withSession((session) =>
+        session.withTransaction(async () => {
+          const pongoCollection = pongoDb.collection<User>(
+            'handleInTransaction',
+          );
+
+          const existingDoc: User = { name: 'David', age: 40 };
+          const pongoInsertResult = await pongoCollection.insertOne(
+            existingDoc,
+            { session, skipCache: true },
+          );
+
+          const handle = (existing: User | null) => existing;
+
+          const resultPongo = await pongoCollection.handle(
+            pongoInsertResult.insertedId!,
+            handle,
+            { session },
+          );
+
+          assert(resultPongo.successful);
+          assert.deepStrictEqual(resultPongo.document, {
+            ...existingDoc,
+            _id: pongoInsertResult.insertedId,
+            _version: 1n,
+          });
+        }),
+      );
+    });
+
+    it('should keep collection dropped in aborted transaction', async () => {
+      const docs = [
+        { name: 'David', age: 40 },
+        { name: 'Eve', age: 45 },
+        { name: 'Frank', age: 50 },
+      ];
+      const pongoCollection = pongoDb.collection<User>(
+        'dropInAbortedTransaction',
+      );
+      await pongoCollection.insertMany(docs);
+
+      await client.withSession(async (session) => {
+        session.startTransaction();
+
+        await pongoCollection.drop({ session });
+
+        await session.abortTransaction();
+      });
+
+      const count = await pongoCollection.countDocuments({
+        age: { $gte: 40 },
+      });
+
+      assert.equal(3, count);
+    });
+  });
+
+  describe('Statement timeouts', () => {
+    let pgClient: pg.Client;
+    let timeoutClient: PongoClient;
+
+    const sleep = SQL`pg_sleep(0.05) IS NOT NULL`;
+    const transactionOptions = {
+      timeoutMS: 10,
+    };
+
+    const users = () =>
+      timeoutClient.db(dbName).collection<User>('statementTimeouts');
+
+    const assertSleepingFindSucceeds = async () => {
+      const found = await users().find(sleep);
+      assert.equal(found.length, 1);
+    };
+
+    beforeAll(async () => {
+      pgClient = new pg.Client({ connectionString: postgresConnectionString });
+      await pgClient.connect();
+      timeoutClient = pongoClient({
+        driver: pongoDriver,
+        connectionString: postgresConnectionString,
+        connectionOptions: { client: pgClient },
+      });
+      await users().insertOne({ name: 'Anita', age: 25 });
+    });
+
+    afterAll(async () => {
+      await timeoutClient.close();
+      await pgClient.end();
+    });
+
+    it('cancels a find exceeding timeoutMS', async () => {
+      await assert.rejects(
+        () => users().find(sleep, { timeoutMS: 10 }),
+        QueryCanceledError,
+      );
+
+      await assertSleepingFindSucceeds();
+    });
+
+    it('cancels a find exceeding timeoutMS in a transaction', async () => {
+      await timeoutClient.withSession(async (session) => {
+        session.startTransaction();
+
+        await assert.rejects(
+          () => users().find(sleep, { session, timeoutMS: 10 }),
+          QueryCanceledError,
+        );
+
+        await session.abortTransaction();
+      });
+
+      await assertSleepingFindSucceeds();
+    });
+
+    it('rejects an operation with an already aborted signal without running it', async () => {
+      const controller = new AbortController();
+      const reason = new Error('Cancelled by caller');
+      controller.abort(reason);
+
+      await assert.rejects(
+        () =>
+          users().insertOne(
+            { name: 'Aborted', age: 99 },
+            { abort: { signal: controller.signal } },
+          ),
+        (error) => error === reason,
+      );
+
+      assert.equal(await users().countDocuments({ name: 'Aborted' }), 0);
+    });
+
+    it('cancels a find exceeding timeoutMS of a started transaction', async () => {
+      await timeoutClient.withSession(async (session) => {
+        session.startTransaction(transactionOptions);
+
+        await assert.rejects(
+          () => users().find(sleep, { session }),
+          QueryCanceledError,
+        );
+
+        await session.abortTransaction();
+      });
+
+      await assertSleepingFindSucceeds();
+    });
+
+    it('runs a find whose timeoutMS is longer than the timeoutMS of a started transaction', async () => {
+      await timeoutClient.withSession(async (session) => {
+        session.startTransaction(transactionOptions);
+
+        const found = await users().find(sleep, { session, timeoutMS: 1000 });
+        assert.equal(found.length, 1);
+
+        await session.commitTransaction();
+      });
+
+      await assertSleepingFindSucceeds();
+    });
+
+    it('cancels a find exceeding timeoutMS of withTransaction', async () => {
+      await assert.rejects(
+        () =>
+          timeoutClient.withSession((session) =>
+            session.withTransaction(
+              () => users().find(sleep, { session }),
+              transactionOptions,
+            ),
+          ),
+        QueryCanceledError,
+      );
+
+      await assertSleepingFindSucceeds();
+    });
+
+    it('runs a find whose timeoutMS is longer than the timeoutMS of withTransaction', async () => {
+      const found = await timeoutClient.withSession((session) =>
+        session.withTransaction(
+          () => users().find(sleep, { session, timeoutMS: 1000 }),
+          transactionOptions,
+        ),
+      );
+      assert.equal(found.length, 1);
+
+      await assertSleepingFindSucceeds();
+    });
+
+    it('cancels a find exceeding timeoutMS of the defaultTransactionOptions passed to startSession', async () => {
+      const session = timeoutClient.startSession({
+        defaultTransactionOptions: transactionOptions,
+      });
+      session.startTransaction();
+
+      await assert.rejects(
+        () => users().find(sleep, { session }),
+        QueryCanceledError,
+      );
+
+      await session.abortTransaction();
+      await session.endSession();
+
+      await assertSleepingFindSucceeds();
+    });
+
+    it('cancels a find exceeding timeoutMS of the defaultTransactionOptions passed to withSession', async () => {
+      await assert.rejects(
+        () =>
+          timeoutClient.withSession(
+            { defaultTransactionOptions: transactionOptions },
+            (session) =>
+              session.withTransaction(() => users().find(sleep, { session })),
+          ),
+        QueryCanceledError,
+      );
+
+      await assertSleepingFindSucceeds();
+    });
+
+    it('cancels a find exceeding defaultTimeoutMS passed to startSession', async () => {
+      const session = timeoutClient.startSession({ defaultTimeoutMS: 10 });
+
+      await assert.rejects(
+        () => users().find(sleep, { session }),
+        QueryCanceledError,
+      );
+
+      await session.endSession();
+
+      await assertSleepingFindSucceeds();
+    });
+
+    it('cancels a find exceeding defaultTimeoutMS passed to withSession in a transaction', async () => {
+      await assert.rejects(
+        () =>
+          timeoutClient.withSession({ defaultTimeoutMS: 10 }, (session) =>
+            session.withTransaction(() => users().find(sleep, { session })),
+          ),
+        QueryCanceledError,
+      );
+
+      await assertSleepingFindSucceeds();
+    });
+
+    describe('through the Mongo shim', () => {
+      const shimUsers = () => mongoDb.collection<User>('shimStatementTimeouts');
+      const shimSleep = sleep as unknown as Filter<User>;
+
+      const assertShimSleepingFindSucceeds = async () => {
+        const found = await shimUsers().find(shimSleep).toArray();
+        assert.equal(found.length, 1);
+      };
+
+      beforeAll(async () => {
+        await shimUsers().insertOne({ name: 'Anita', age: 25 });
+      });
+
+      it('cancels a find exceeding timeoutMS', async () => {
+        await assert.rejects(
+          () => shimUsers().find(shimSleep, { timeoutMS: 10 }).toArray(),
+          QueryCanceledError,
+        );
+
+        await assertShimSleepingFindSucceeds();
+      });
+
+      it('rejects an operation with an already aborted signal', async () => {
+        const controller = new AbortController();
+        const reason = new Error('Cancelled by caller');
+        controller.abort(reason);
+
+        await assert.rejects(
+          () =>
+            shimUsers().findOne(
+              { name: 'Anita' },
+              { signal: controller.signal },
+            ),
+          (error) => error === reason,
+        );
+      });
+
+      it('cancels a find exceeding defaultTimeoutMS passed to withSession in a transaction', async () => {
+        await assert.rejects(
+          () =>
+            shim.withSession({ defaultTimeoutMS: 10 }, (session) =>
+              session.withTransaction(() =>
+                shimUsers().find(shimSleep, { session }).toArray(),
+              ),
+            ),
+          QueryCanceledError,
+        );
+
+        await assertShimSleepingFindSucceeds();
+      });
+
+      it('cancels a find exceeding defaultTimeoutMS passed to withSession', async () => {
+        await assert.rejects(
+          () =>
+            shim.withSession({ defaultTimeoutMS: 10 }, (session) =>
+              shimUsers().find(shimSleep, { session }).toArray(),
+            ),
+          QueryCanceledError,
+        );
+
+        await assertShimSleepingFindSucceeds();
+      });
     });
   });
 

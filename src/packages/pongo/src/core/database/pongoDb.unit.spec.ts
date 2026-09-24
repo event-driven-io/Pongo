@@ -4,16 +4,25 @@ import {
   DumboError,
   dumboSchema,
   JSONSerializer,
+  registerDefaultMigratorOptions,
+  registerFormatter,
   SQL,
+  SQLFormatter,
   SQLTableReference,
   type Abort,
   type AnyConnection,
   type ConnectionPool,
   type DatabaseTransactionOptions,
+  type MigrationStyle,
+  type SQLCommandOptions,
+  type SQLExecutor,
+  type SQLQueryOptions,
 } from '@event-driven-io/dumbo';
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
 import type { PongoCollectionSQLBuilder } from '../collection';
+import { pongoSession } from '../pongoSession';
+import type { CollectionOperationOptions, PongoCollection } from '../typing';
 import {
   pongoSchema,
   type PongoDbSchema,
@@ -43,15 +52,57 @@ const stubSQLBuilder: PongoCollectionSQLBuilder = {
   drop: emptySQL,
 };
 
+registerFormatter(
+  'test',
+  SQLFormatter({
+    format: () => ({ query: 'SELECT 1', params: [] }),
+    describe: () => 'SELECT 1',
+  }),
+);
+registerDefaultMigratorOptions('test', {});
+
+type ExecutedCall = {
+  method: keyof SQLExecutor;
+  options: unknown;
+};
+
+const recordingExecutor = (
+  calls: ExecutedCall[],
+  rows: unknown[] = [],
+): SQLExecutor =>
+  ({
+    query: (_sql: SQL, options?: unknown) => {
+      calls.push({ method: 'query', options });
+      return Promise.resolve({ rows });
+    },
+    batchQuery: (_sqls: SQL[], options?: unknown) => {
+      calls.push({ method: 'batchQuery', options });
+      return Promise.resolve([]);
+    },
+    command: (_sql: SQL, options?: unknown) => {
+      calls.push({ method: 'command', options });
+      return Promise.resolve({ rows, changes: 0 });
+    },
+    batchCommand: (_sqls: SQL[], options?: unknown) => {
+      calls.push({ method: 'batchCommand', options });
+      return Promise.resolve([]);
+    },
+  }) as unknown as SQLExecutor;
+
 const createTestDb = <
   Definition extends PongoDbSchema = PongoDbSchema,
 >(options?: {
   allowNestedTransactions?: boolean;
+  autoMigration?: MigrationStyle;
   defaultSchemaName?: string;
   definition?: Definition;
+  poolRows?: unknown[];
+  transactionRows?: unknown[];
 }) => {
   let transactionOptions: DatabaseTransactionOptions | undefined;
   let withTransactionOptions: DatabaseTransactionOptions | undefined;
+  const poolCalls: ExecutedCall[] = [];
+  const transactionCalls: ExecutedCall[] = [];
   const abort: Abort = {
     signal: new AbortController().signal,
   };
@@ -61,15 +112,15 @@ const createTestDb = <
     close: () => Promise.resolve(),
     connection: () => Promise.resolve({} as AnyConnection),
     withConnection: () => Promise.resolve(undefined),
-    execute: {
-      query: () => Promise.resolve({ rows: [] }),
-      batchQuery: () => Promise.resolve([]),
-      command: () => Promise.resolve({ rows: [], changes: 0 }),
-      batchCommand: () => Promise.resolve([]),
-    },
-    transaction: (options?: DatabaseTransactionOptions) => {
-      transactionOptions = options;
-      return {} as ReturnType<ConnectionPool['transaction']>;
+    execute: recordingExecutor(poolCalls, options?.poolRows),
+    transaction: (dumboTransactionOptions?: DatabaseTransactionOptions) => {
+      transactionOptions = dumboTransactionOptions;
+      return {
+        begin: () => Promise.resolve(),
+        commit: () => Promise.resolve(),
+        rollback: () => Promise.resolve(),
+        execute: recordingExecutor(transactionCalls, options?.transactionRows),
+      } as unknown as ReturnType<ConnectionPool['transaction']>;
     },
     withTransaction: async (
       handle: Parameters<ConnectionPool['withTransaction']>[0],
@@ -90,6 +141,7 @@ const createTestDb = <
     defaultSchemaName: options?.defaultSchemaName,
     transactionOptions: options,
     schema: {
+      ...(options?.autoMigration && { autoMigration: options.autoMigration }),
       definition:
         options?.definition ??
         pongoSchema.db('test', {
@@ -103,6 +155,8 @@ const createTestDb = <
     db,
     transactionOptions: () => transactionOptions,
     withTransactionOptions: () => withTransactionOptions,
+    poolCalls,
+    transactionCalls,
   };
 };
 
@@ -842,6 +896,315 @@ describe('using a Pongo database', () => {
     });
     assert.deepStrictEqual(withTransactionOptions(), {
       allowNestedTransactions: false,
+    });
+  });
+
+  describe('with a session in a started transaction', () => {
+    const startedSession = () => {
+      const session = pongoSession();
+      session.startTransaction();
+      return session;
+    };
+
+    const assertRanOnlyOnTransaction = (
+      { poolCalls, transactionCalls }: ReturnType<typeof createTestDb>,
+      method: keyof SQLExecutor,
+    ) => {
+      assert.deepStrictEqual(poolCalls, []);
+      assert.deepStrictEqual(
+        transactionCalls.map((call) => call.method),
+        [method],
+      );
+    };
+
+    it('find with a non-id filter runs on the transaction', async () => {
+      const testDb = createTestDb({ autoMigration: 'None' });
+      const session = startedSession();
+
+      await testDb.db
+        .collection<{ _id: string; age: number }>('users')
+        .find({ age: { $gte: 40 } }, { session });
+
+      assertRanOnlyOnTransaction(testDb, 'query');
+    });
+
+    it('find with an id-only filter and skipCache runs on the transaction', async () => {
+      const testDb = createTestDb({ autoMigration: 'None' });
+      const session = startedSession();
+
+      await testDb.db
+        .collection<{ _id: string }>('users')
+        .find({ _id: 'user-1' }, { session, skipCache: true });
+
+      assertRanOnlyOnTransaction(testDb, 'query');
+    });
+
+    it('find with an id-only filter of uncached documents runs on the transaction', async () => {
+      const testDb = createTestDb({ autoMigration: 'None' });
+      const session = startedSession();
+
+      await testDb.db
+        .collection<{ _id: string }>('users')
+        .find({ _id: 'user-1' }, { session });
+
+      assertRanOnlyOnTransaction(testDb, 'query');
+    });
+
+    it('countDocuments runs on the transaction', async () => {
+      const testDb = createTestDb({
+        autoMigration: 'None',
+        transactionRows: [{ count: 0 }],
+      });
+      const session = startedSession();
+
+      const count = await testDb.db
+        .collection<{ _id: string }>('users')
+        .countDocuments({}, { session });
+
+      assert.strictEqual(count, 0);
+      assertRanOnlyOnTransaction(testDb, 'query');
+    });
+
+    it('handle reads an uncached document on the transaction', async () => {
+      const testDb = createTestDb({ autoMigration: 'None' });
+      const session = startedSession();
+
+      await testDb.db
+        .collection<{ _id: string }>('users')
+        .handle('user-1', () => null, { session });
+
+      assertRanOnlyOnTransaction(testDb, 'query');
+    });
+
+    it('drop runs on the transaction', async () => {
+      const testDb = createTestDb({ autoMigration: 'None' });
+      const session = startedSession();
+
+      await testDb.db.collection<{ _id: string }>('users').drop({ session });
+
+      assertRanOnlyOnTransaction(testDb, 'command');
+    });
+  });
+
+  describe('with timeoutMS and abort', () => {
+    type User = { _id: string; age: number };
+
+    const abort: Abort = { signal: new AbortController().signal };
+
+    const operations: [
+      string,
+      (
+        users: PongoCollection<User>,
+        options: CollectionOperationOptions,
+      ) => Promise<unknown>,
+    ][] = [
+      ['find', (users, options) => users.find({ age: { $gte: 40 } }, options)],
+      [
+        'findOne',
+        (users, options) => users.findOne({ age: { $gte: 40 } }, options),
+      ],
+      [
+        'insertOne',
+        (users, options) =>
+          users.insertOne({ _id: 'user-1', age: 40 }, options),
+      ],
+      [
+        'updateOne',
+        (users, options) =>
+          users.updateOne({ _id: 'user-1' }, { $set: { age: 41 } }, options),
+      ],
+      [
+        'deleteOne',
+        (users, options) => users.deleteOne({ _id: 'user-1' }, options),
+      ],
+      ['countDocuments', (users, options) => users.countDocuments({}, options)],
+      [
+        'sql.query',
+        (users, options) => users.sql.query(SQL`SELECT 1`, options),
+      ],
+      [
+        'sql.command',
+        (users, options) => users.sql.command(SQL`SELECT 1`, options),
+      ],
+    ];
+
+    const assertPassedTimeoutAndAbort = (calls: ExecutedCall[]) => {
+      assert.ok(calls.length > 0);
+      for (const call of calls) {
+        const { mapping, ...rest } = call.options as SQLQueryOptions;
+        assert.deepStrictEqual(rest, { timeoutMS: 50, abort });
+        assert.deepStrictEqual(Object.keys(mapping ?? {}), [
+          'data',
+          '_version',
+        ]);
+      }
+    };
+
+    for (const [name, operation] of operations) {
+      it(`${name} passes timeoutMS and abort to the executor`, async () => {
+        const testDb = createTestDb({
+          autoMigration: 'None',
+          poolRows: [{ count: 0 }],
+        });
+
+        await operation(testDb.db.collection<User>('users'), {
+          timeoutMS: 50,
+          abort,
+        });
+
+        assertPassedTimeoutAndAbort(testDb.poolCalls);
+        assert.deepStrictEqual(testDb.transactionCalls, []);
+      });
+
+      it(`${name} with a session passes timeoutMS and abort to the transaction`, async () => {
+        const testDb = createTestDb({
+          autoMigration: 'None',
+          transactionRows: [{ count: 0 }],
+        });
+        const session = pongoSession();
+        session.startTransaction();
+
+        await operation(testDb.db.collection<User>('users'), {
+          session,
+          timeoutMS: 50,
+          abort,
+        });
+
+        assertPassedTimeoutAndAbort(testDb.transactionCalls);
+        assert.deepStrictEqual(testDb.poolCalls, []);
+      });
+
+      it(`${name} with a session passes defaultTimeoutMS of the session as timeoutMS to the executor`, async () => {
+        const testDb = createTestDb({
+          autoMigration: 'None',
+          poolRows: [{ count: 0 }],
+        });
+        const session = pongoSession({ defaultTimeoutMS: 50 });
+
+        await operation(testDb.db.collection<User>('users'), {
+          session,
+          abort,
+        });
+
+        assertPassedTimeoutAndAbort(testDb.poolCalls);
+      });
+    }
+
+    it('an operation with timeoutMS overrides defaultTimeoutMS of its session', async () => {
+      const testDb = createTestDb({ autoMigration: 'None' });
+      const session = pongoSession({ defaultTimeoutMS: 1000 });
+
+      await testDb.db
+        .collection<User>('users')
+        .find({ age: { $gte: 40 } }, { session, timeoutMS: 50, abort });
+
+      assertPassedTimeoutAndAbort(testDb.poolCalls);
+    });
+
+    it('the first operation on a new collection passes defaultTimeoutMS of its session to its migration', async () => {
+      const testDb = createTestDb();
+      const session = pongoSession({ defaultTimeoutMS: 50 });
+
+      await testDb.db
+        .collection<User>('users')
+        .find({ age: { $gte: 40 } }, { session });
+
+      const migrationCommands = testDb.poolCalls.filter(
+        (call) => call.method === 'batchCommand',
+      );
+      assert.ok(migrationCommands.length > 0);
+      for (const call of migrationCommands)
+        assert.strictEqual((call.options as SQLCommandOptions).timeoutMS, 50);
+    });
+
+    it('a transaction started in a session with defaultTimeoutMS passes it to the database transaction as statementTimeoutMS', async () => {
+      const testDb = createTestDb({ autoMigration: 'None' });
+      const session = pongoSession({ defaultTimeoutMS: 50 });
+      session.startTransaction();
+
+      await testDb.db
+        .collection<User>('users')
+        .find({ age: { $gte: 40 } }, { session });
+
+      assert.strictEqual(testDb.transactionOptions()?.statementTimeoutMS, 50);
+      for (const call of testDb.transactionCalls)
+        assert.strictEqual(
+          (call.options as SQLQueryOptions).timeoutMS,
+          undefined,
+        );
+    });
+
+    it('a transaction started with timeoutMS overrides defaultTimeoutMS of its session', async () => {
+      const testDb = createTestDb({ autoMigration: 'None' });
+      const session = pongoSession({ defaultTimeoutMS: 1000 });
+      session.startTransaction({ timeoutMS: 50 });
+
+      await testDb.db
+        .collection<User>('users')
+        .find({ age: { $gte: 40 } }, { session });
+
+      assert.strictEqual(testDb.transactionOptions()?.statementTimeoutMS, 50);
+    });
+
+    it('insertOne and updateOne keep session, skipCache, upsert and expectedVersion away from the executor', async () => {
+      const testDb = createTestDb({ autoMigration: 'None' });
+      const session = pongoSession();
+      session.startTransaction();
+      const users = testDb.db.collection<User>('users');
+
+      await users.insertOne(
+        { _id: 'user-1', age: 40 },
+        {
+          session,
+          skipCache: true,
+          upsert: true,
+          expectedVersion: 'DOCUMENT_DOES_NOT_EXIST',
+          timeoutMS: 50,
+          abort,
+        },
+      );
+      await users.updateOne(
+        { _id: 'user-1' },
+        { $set: { age: 41 } },
+        {
+          session,
+          skipCache: true,
+          expectedVersion: 1n,
+          timeoutMS: 50,
+          abort,
+        },
+      );
+
+      assertPassedTimeoutAndAbort(testDb.transactionCalls);
+    });
+
+    it('the first operation on a new collection passes timeoutMS to its migration', async () => {
+      const testDb = createTestDb();
+
+      await testDb.db
+        .collection<User>('users')
+        .find({ age: { $gte: 40 } }, { timeoutMS: 50 });
+
+      const migrationCommands = testDb.poolCalls.filter(
+        (call) => call.method === 'batchCommand',
+      );
+      assert.ok(migrationCommands.length > 0);
+      for (const call of migrationCommands)
+        assert.strictEqual((call.options as SQLCommandOptions).timeoutMS, 50);
+    });
+
+    it('a transaction started with timeoutMS passes it to the database transaction as statementTimeoutMS', async () => {
+      const testDb = createTestDb({ autoMigration: 'None' });
+      const session = pongoSession();
+      session.startTransaction({
+        timeoutMS: 50,
+      });
+
+      await testDb.db
+        .collection<User>('users')
+        .find({ age: { $gte: 40 } }, { session });
+
+      assert.strictEqual(testDb.transactionOptions()?.statementTimeoutMS, 50);
     });
   });
 });

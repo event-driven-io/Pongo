@@ -54,37 +54,37 @@ describe('PostgreSQL per-call statement timeout', () => {
       await pool.execute.command(SQL`SET statement_timeout = '5s'`);
     });
 
-    it('query with timeoutMs keeps the previous statement timeout', async () => {
-      await pool.execute.query(SQL`SELECT 1`, { timeoutMs: 1000 });
+    it('query with timeoutMS keeps the previous statement timeout', async () => {
+      await pool.execute.query(SQL`SELECT 1`, { timeoutMS: 1000 });
 
       assert.strictEqual(await showStatementTimeout(), '5s');
     });
 
-    it('batchQuery with timeoutMs keeps the previous statement timeout', async () => {
+    it('batchQuery with timeoutMS keeps the previous statement timeout', async () => {
       await pool.execute.batchQuery([SQL`SELECT 1`, SQL`SELECT 2`], {
-        timeoutMs: 1000,
+        timeoutMS: 1000,
       });
 
       assert.strictEqual(await showStatementTimeout(), '5s');
     });
 
-    it('command with timeoutMs keeps the previous statement timeout', async () => {
-      await pool.execute.command(SQL`SELECT 1`, { timeoutMs: 1000 });
+    it('command with timeoutMS keeps the previous statement timeout', async () => {
+      await pool.execute.command(SQL`SELECT 1`, { timeoutMS: 1000 });
 
       assert.strictEqual(await showStatementTimeout(), '5s');
     });
 
-    it('batchCommand with timeoutMs keeps the previous statement timeout', async () => {
+    it('batchCommand with timeoutMS keeps the previous statement timeout', async () => {
       await pool.execute.batchCommand([SQL`SELECT 1`, SQL`SELECT 2`], {
-        timeoutMs: 1000,
+        timeoutMS: 1000,
       });
 
       assert.strictEqual(await showStatementTimeout(), '5s');
     });
 
-    it('a statement exceeding timeoutMs is cancelled and keeps the previous statement timeout', async () => {
+    it('a statement exceeding timeoutMS is cancelled and keeps the previous statement timeout', async () => {
       await assert.rejects(
-        () => pool.execute.query(SQL`SELECT pg_sleep(0.2)`, { timeoutMs: 50 }),
+        () => pool.execute.query(SQL`SELECT pg_sleep(0.2)`, { timeoutMS: 50 }),
         QueryCanceledError,
       );
 
@@ -93,7 +93,7 @@ describe('PostgreSQL per-call statement timeout', () => {
   });
 
   it('without a previous session value, the statement timeout stays disabled after a call', async () => {
-    await pool.execute.query(SQL`SELECT 1`, { timeoutMs: 1000 });
+    await pool.execute.query(SQL`SELECT 1`, { timeoutMS: 1000 });
 
     assert.strictEqual(await showStatementTimeout(), '0');
   });

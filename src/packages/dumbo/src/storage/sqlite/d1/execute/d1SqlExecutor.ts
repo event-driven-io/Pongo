@@ -7,7 +7,7 @@ import type {
   SQLCommandOptions,
   SQLQueryOptions,
 } from '../../../../core';
-import { tracer } from '../../../../core';
+import { mapSQLQueryResult, tracer } from '../../../../core';
 import { sqliteFormatter } from '../../core';
 import type { D1Client, D1DriverType } from '../connections';
 import { mapD1Error } from '../errors/errorMapper';
@@ -22,7 +22,18 @@ export const d1SQLExecutor = (): DbSQLExecutor<D1DriverType, D1Client> => ({
     options?: SQLQueryOptions,
   ): Promise<QueryResult<Result>> => {
     try {
-      return await client.query<Result>(sql, options);
+      const result = await client.query<Result>(sql, options);
+
+      if (options?.mapping) {
+        return {
+          ...result,
+          rows: result.rows.map((row) =>
+            mapSQLQueryResult(row, options.mapping!),
+          ),
+        };
+      }
+
+      return result;
     } catch (error) {
       tracer.error('db:sql:query:execute:error', { error });
       throw mapD1Error(error);
@@ -35,7 +46,18 @@ export const d1SQLExecutor = (): DbSQLExecutor<D1DriverType, D1Client> => ({
     options?: SQLQueryOptions,
   ): Promise<QueryResult<Result>[]> => {
     try {
-      return await client.batchQuery<Result>(sqls, options);
+      const results = await client.batchQuery<Result>(sqls, options);
+
+      if (options?.mapping) {
+        return results.map((result) => ({
+          ...result,
+          rows: result.rows.map((row) =>
+            mapSQLQueryResult(row, options.mapping!),
+          ),
+        }));
+      }
+
+      return results;
     } catch (error) {
       tracer.error('db:sql:batch_query:execute:error', { error });
       throw mapD1Error(error);

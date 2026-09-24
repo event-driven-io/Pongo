@@ -58,7 +58,7 @@ export type MigratorOptions = {
   };
   dryRun?: boolean | undefined;
   ignoreMigrationHashMismatch?: boolean | undefined;
-  migrationTimeoutMs?: number | undefined;
+  migrationTimeoutMS?: number | undefined;
 };
 
 export type RunSQLMigrationsResult = {
@@ -121,8 +121,8 @@ const applySQLMigrations = async (
     ignoreMigrationHashMismatch:
       partialOptions?.ignoreMigrationHashMismatch ??
       defaultOptions.ignoreMigrationHashMismatch,
-    migrationTimeoutMs:
-      partialOptions?.migrationTimeoutMs ?? defaultOptions.migrationTimeoutMs,
+    migrationTimeoutMS:
+      partialOptions?.migrationTimeoutMS ?? defaultOptions.migrationTimeoutMS,
   };
 
   const databaseLock = options.lock?.databaseLock ?? NoDatabaseLock;
@@ -156,7 +156,7 @@ const applySQLMigrations = async (
         if (sqls.length === 0) continue;
 
         await execute.batchCommand(sqls, {
-          timeoutMs: options.migrationTimeoutMs,
+          timeoutMS: options.migrationTimeoutMS,
         });
       }
 
@@ -169,7 +169,7 @@ const applySQLMigrations = async (
           {
             ignoreMigrationHashMismatch:
               options.ignoreMigrationHashMismatch ?? false,
-            migrationTimeoutMs: options.migrationTimeoutMs,
+            migrationTimeoutMS: options.migrationTimeoutMS,
           },
         );
         if (wasApplied) {
@@ -196,7 +196,7 @@ const runSQLMigration = async (
   migrationTableReference: SQLTableReference,
   options?: {
     ignoreMigrationHashMismatch?: boolean;
-    migrationTimeoutMs?: number | undefined;
+    migrationTimeoutMS?: number | undefined;
   },
 ): Promise<boolean> => {
   const formatter = getFormatter(databaseType);
@@ -249,7 +249,7 @@ const runSQLMigration = async (
     }
 
     await execute.batchCommand(sqls, {
-      timeoutMs: options?.migrationTimeoutMs,
+      timeoutMS: options?.migrationTimeoutMS,
     });
 
     await recordMigration(execute, newMigration, migrationTableReference);

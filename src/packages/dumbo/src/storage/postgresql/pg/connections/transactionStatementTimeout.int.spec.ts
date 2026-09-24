@@ -63,7 +63,7 @@ describe('PostgreSQL transaction statement timeout', () => {
       () =>
         pool.withTransaction(
           ({ execute }) => execute.query(SQL`SELECT pg_sleep(0.2)`),
-          { statementTimeoutMs: 50 },
+          { statementTimeoutMS: 50 },
         ),
       QueryCanceledError,
     );
@@ -73,7 +73,7 @@ describe('PostgreSQL transaction statement timeout', () => {
 
   it('keeps the previous timeout after a committed transaction', async () => {
     await pool.withTransaction(({ execute }) => execute.query(SQL`SELECT 1`), {
-      statementTimeoutMs: 50,
+      statementTimeoutMS: 50,
     });
 
     assert.strictEqual(await showStatementTimeout(), '5s');
@@ -82,7 +82,7 @@ describe('PostgreSQL transaction statement timeout', () => {
   it('applies a per-call timeout inside the transaction, then the transaction timeout again, and keeps the previous timeout after commit', async () => {
     await pool.withTransaction(
       async ({ execute }) => {
-        await execute.query(SQL`SELECT pg_sleep(0.2)`, { timeoutMs: 1000 });
+        await execute.query(SQL`SELECT pg_sleep(0.2)`, { timeoutMS: 1000 });
 
         await execute.command(SQL`SAVEPOINT before_sleep`);
         await assert.rejects(
@@ -91,7 +91,7 @@ describe('PostgreSQL transaction statement timeout', () => {
         );
         await execute.command(SQL`ROLLBACK TO SAVEPOINT before_sleep`);
       },
-      { statementTimeoutMs: 50 },
+      { statementTimeoutMS: 50 },
     );
 
     assert.strictEqual(await showStatementTimeout(), '5s');
@@ -103,11 +103,11 @@ describe('PostgreSQL transaction statement timeout', () => {
         pool.withTransaction(
           async ({ execute }) => {
             await execute.query(SQL`SELECT pg_sleep(0.2)`, {
-              timeoutMs: 1000,
+              timeoutMS: 1000,
             });
             await execute.query(SQL`SELECT pg_sleep(0.2)`);
           },
-          { statementTimeoutMs: 50 },
+          { statementTimeoutMS: 50 },
         ),
       QueryCanceledError,
     );
@@ -127,7 +127,7 @@ describe('PostgreSQL transaction statement timeout', () => {
               execute.command(
                 SQL`INSERT INTO deferred_unique (id) VALUES (1), (1)`,
               ),
-            { statementTimeoutMs: 50 },
+            { statementTimeoutMS: 50 },
           ),
         UniqueConstraintError,
       );
@@ -143,18 +143,18 @@ describe('PostgreSQL transaction statement timeout', () => {
       async ({ execute }) => {
         await assert.rejects(() => execute.query(SQL`SELECT 1/0`), DataError);
       },
-      { statementTimeoutMs: 50 },
+      { statementTimeoutMS: 50 },
     );
 
     await pool.execute.query(SQL`SELECT 1`);
     assert.strictEqual(await showStatementTimeout(), '5s');
   });
 
-  it('rejects an invalid statementTimeoutMs and leaves the connection usable', async () => {
+  it('rejects an invalid statementTimeoutMS and leaves the connection usable', async () => {
     await assert.rejects(
       () =>
         pool.withTransaction(({ execute }) => execute.query(SQL`SELECT 1`), {
-          statementTimeoutMs: -1,
+          statementTimeoutMS: -1,
         }),
       InvalidOperationError,
     );
@@ -163,7 +163,7 @@ describe('PostgreSQL transaction statement timeout', () => {
     assert.strictEqual(await showStatementTimeout(), '5s');
   });
 
-  it('keeps the outer transaction timeout in a nested transaction with a different statementTimeoutMs', async () => {
+  it('keeps the outer transaction timeout in a nested transaction with a different statementTimeoutMS', async () => {
     const nestedTimeout = await pool.withTransaction(
       (transaction) =>
         transaction.withTransaction(
@@ -171,10 +171,10 @@ describe('PostgreSQL transaction statement timeout', () => {
             await execute.query(SQL`SELECT pg_sleep(0.2)`);
             return showStatementTimeout(execute);
           },
-          { statementTimeoutMs: 50 },
+          { statementTimeoutMS: 50 },
         ),
       {
-        statementTimeoutMs: 1000,
+        statementTimeoutMS: 1000,
         allowNestedTransactions: true,
         useSavepoints: true,
       },
@@ -192,9 +192,9 @@ describe('PostgreSQL transaction statement timeout', () => {
             await execute.query(SQL`SELECT pg_sleep(0.2)`);
             return showStatementTimeout(execute);
           },
-          { statementTimeoutMs: 50 },
+          { statementTimeoutMS: 50 },
         ),
-      { statementTimeoutMs: 1000, allowNestedTransactions: true },
+      { statementTimeoutMS: 1000, allowNestedTransactions: true },
     );
 
     assert.strictEqual(nestedTimeout, '1s');
@@ -207,14 +207,14 @@ describe('PostgreSQL transaction statement timeout', () => {
         await assert.rejects(
           () =>
             transaction.withTransaction(({ execute }) =>
-              execute.query(SQL`SELECT pg_sleep(0.2)`, { timeoutMs: 50 }),
+              execute.query(SQL`SELECT pg_sleep(0.2)`, { timeoutMS: 50 }),
             ),
           QueryCanceledError,
         );
         return showStatementTimeout(transaction.execute);
       },
       {
-        statementTimeoutMs: 1000,
+        statementTimeoutMS: 1000,
         allowNestedTransactions: true,
         useSavepoints: true,
       },

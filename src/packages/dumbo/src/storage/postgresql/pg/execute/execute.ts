@@ -109,8 +109,8 @@ async function executeBatch<Result extends QueryResultRow = QueryResultRow>(
     sqls.length,
   );
 
-  const previousTimeout = options?.timeoutMs
-    ? await setStatementTimeout(client, options.timeoutMs, serializer)
+  const previousTimeout = options?.timeoutMS
+    ? await setStatementTimeout(client, options.timeoutMS, serializer)
     : undefined;
 
   try {
