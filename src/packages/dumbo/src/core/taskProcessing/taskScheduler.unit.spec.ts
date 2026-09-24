@@ -1,5 +1,6 @@
 import assert from 'assert';
 import { describe, it } from 'vitest';
+import { heapUsedAfterCollecting } from '../testing/garbageCollection.testHelpers';
 import { taskScheduler } from './taskScheduler';
 import type { TaskQueueItem } from './taskProcessor';
 
@@ -122,6 +123,111 @@ describe('taskScheduler', () => {
 
     assert.deepStrictEqual(scheduler.expire(20), [expired]);
     assert.strictEqual(scheduler.takeNext(), next);
+  });
+
+  it('keeps serializing a group after all its earlier work finished', () => {
+    const scheduler = taskScheduler();
+    const finished = queuedTask('finished', { taskGroupId: 'account' });
+    const first = queuedTask('first', { taskGroupId: 'account' });
+    const second = queuedTask('second', { taskGroupId: 'account' });
+
+    scheduler.enqueue(finished);
+    assert.strictEqual(scheduler.takeNext(), finished);
+    scheduler.complete(finished);
+
+    scheduler.enqueue(first);
+    scheduler.enqueue(second);
+
+    assert.strictEqual(scheduler.takeNext(), first);
+    assert.strictEqual(scheduler.takeNext(), null);
+
+    scheduler.complete(first);
+
+    assert.strictEqual(scheduler.takeNext(), second);
+  });
+
+  it('keeps serializing a group after its only waiting caller left', () => {
+    const scheduler = taskScheduler();
+    const leaving = queuedTask('leaving', { taskGroupId: 'account' });
+    const first = queuedTask('first', { taskGroupId: 'account' });
+    const second = queuedTask('second', { taskGroupId: 'account' });
+
+    scheduler.enqueue(leaving);
+    assert.strictEqual(scheduler.remove(leaving), true);
+
+    scheduler.enqueue(first);
+    scheduler.enqueue(second);
+
+    assert.strictEqual(scheduler.takeNext(), first);
+    assert.strictEqual(scheduler.takeNext(), null);
+
+    scheduler.complete(first);
+
+    assert.strictEqual(scheduler.takeNext(), second);
+  });
+
+  it('keeps serializing a group after its only waiting caller expired', () => {
+    const scheduler = taskScheduler();
+    const expired = queuedTask('expired', { taskGroupId: 'account' }, 10);
+    const first = queuedTask('first', { taskGroupId: 'account' });
+    const second = queuedTask('second', { taskGroupId: 'account' });
+
+    scheduler.enqueue(expired);
+    assert.deepStrictEqual(scheduler.expire(20), [expired]);
+
+    scheduler.enqueue(first);
+    scheduler.enqueue(second);
+
+    assert.strictEqual(scheduler.takeNext(), first);
+    assert.strictEqual(scheduler.takeNext(), null);
+
+    scheduler.complete(first);
+
+    assert.strictEqual(scheduler.takeNext(), second);
+  });
+
+  it('keeps a group busy while its work runs after the caller waiting behind it left', () => {
+    const scheduler = taskScheduler();
+    const active = queuedTask('active', { taskGroupId: 'account' });
+    const leaving = queuedTask('leaving', { taskGroupId: 'account' });
+    const next = queuedTask('next', { taskGroupId: 'account' });
+    const last = queuedTask('last', { taskGroupId: 'account' });
+
+    scheduler.enqueue(active);
+    assert.strictEqual(scheduler.takeNext(), active);
+    scheduler.enqueue(leaving);
+    assert.strictEqual(scheduler.remove(leaving), true);
+
+    scheduler.enqueue(next);
+
+    assert.strictEqual(scheduler.takeNext(), null);
+
+    scheduler.complete(active);
+    scheduler.enqueue(last);
+
+    assert.strictEqual(scheduler.takeNext(), next);
+    assert.strictEqual(scheduler.takeNext(), null);
+
+    scheduler.complete(next);
+
+    assert.strictEqual(scheduler.takeNext(), last);
+  });
+
+  it('keeps grouped work in arrival order after many callers from that group finished', () => {
+    const scheduler = taskScheduler();
+    const callers = Array.from({ length: 10 }, (_, index) =>
+      queuedTask(`caller ${index}`, { taskGroupId: 'account' }),
+    );
+
+    for (const caller of callers) scheduler.enqueue(caller);
+
+    for (const caller of callers) {
+      assert.strictEqual(scheduler.takeNext(), caller);
+      assert.strictEqual(scheduler.takeNext(), null);
+      scheduler.complete(caller);
+    }
+
+    assert.strictEqual(scheduler.takeNext(), null);
   });
 
   it('does not remove a caller that already started', () => {
@@ -286,6 +392,61 @@ describe('taskScheduler', () => {
     scheduler.complete(active);
 
     assert.strictEqual(scheduler.takeNext(), null);
+  });
+
+  it('keeps tasks of a group one at a time when the queue is cleared while a task of that group runs', () => {
+    const scheduler = taskScheduler();
+    const running = queuedTask('running', { taskGroupId: 'account' });
+    const next = queuedTask('next', { taskGroupId: 'account' });
+
+    scheduler.enqueue(running);
+    assert.strictEqual(scheduler.takeNext(), running);
+
+    scheduler.clear();
+    scheduler.enqueue(next);
+
+    assert.strictEqual(scheduler.takeNext(), null);
+
+    scheduler.complete(running);
+
+    assert.strictEqual(scheduler.takeNext(), next);
+  });
+
+  it('forgets the group after the running task completes when the queue was cleared', async () => {
+    const scheduler = taskScheduler();
+    const groupCount = 200;
+    const groupIdLength = 100_000;
+    const allGroupIdsSize = 2 * groupCount * groupIdLength;
+
+    const heapBefore = await heapUsedAfterCollecting();
+
+    const running = Array.from({ length: groupCount }, (_, index) => {
+      const task = queuedTask(`running ${index}`, {
+        taskGroupId: `${index}:`.padEnd(groupIdLength, '-'),
+      });
+      scheduler.enqueue(task);
+      assert.strictEqual(scheduler.takeNext(), task);
+      return task;
+    });
+
+    for (let index = 0; index < groupCount; index++)
+      scheduler.enqueue(
+        queuedTask(`waiting ${index}`, {
+          taskGroupId: `waiting ${index}:`.padEnd(groupIdLength, '-'),
+        }),
+      );
+
+    scheduler.clear();
+    for (const task of running) scheduler.complete(task);
+    running.length = 0;
+
+    const heapGrowth = (await heapUsedAfterCollecting()) - heapBefore;
+
+    assert.strictEqual(scheduler.takeNext(), null);
+    assert.ok(
+      heapGrowth < allGroupIdsSize / 4,
+      `Heap grew by ${heapGrowth} bytes after clearing ${groupCount} running and ${groupCount} waiting groups`,
+    );
   });
 
   it('keeps capacity accurate after clearing waiting callers', () => {

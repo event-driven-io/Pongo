@@ -1,6 +1,6 @@
 import { v7 as uuid } from 'uuid';
-import { InvalidOperationError } from '../errors';
-import type { AbortContext, AbortOptions } from './abort';
+import { IllegalStateError } from '../errors';
+import { Abort, type AbortContext, type AbortOptions } from './abort';
 import {
   taskProcessor,
   type TaskProcessorLogger,
@@ -116,6 +116,15 @@ export const guardBoundedAccess = <Resource>(
     { release: () => void; taskContext: TaskContext }
   >();
 
+  const returnUnusedResource = async (resource: Resource) => {
+    if (options.reuseResources) {
+      resourcePool.push(resource);
+      return;
+    }
+    allResources.delete(resource);
+    await options.closeResource?.(resource);
+  };
+
   const acquireResource = async (
     taskContext: TaskContext,
   ): Promise<Resource> => {
@@ -129,6 +138,11 @@ export const guardBoundedAccess = <Resource>(
       if (!resource) {
         resource = await getResource({ abort: taskContext.abort });
         allResources.add(resource);
+      }
+
+      if (taskContext.abort.signal.aborted) {
+        await returnUnusedResource(resource);
+        throw Abort.reason(taskContext.abort);
       }
 
       activeResourceContexts.set(resource, {
@@ -153,7 +167,7 @@ export const guardBoundedAccess = <Resource>(
   const getActiveResourceContext = (resource: Resource) => {
     const activeResourceContext = activeResourceContexts.get(resource);
     if (!activeResourceContext) {
-      throw new InvalidOperationError('Acquired resource is not active');
+      throw new IllegalStateError('Acquired resource is not active');
     }
 
     return activeResourceContext;

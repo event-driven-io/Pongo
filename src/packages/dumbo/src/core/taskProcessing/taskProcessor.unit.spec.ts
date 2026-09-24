@@ -1,8 +1,13 @@
 import assert from 'assert';
 import { beforeEach, describe, it } from 'vitest';
-import { assertRejectsDumboError } from '../../testing/errorAssertions';
+import { DumboError } from '../errors';
+import {
+  collectGarbage,
+  heapUsedAfterCollecting,
+  retainedIndexes,
+} from '../testing/garbageCollection.testHelpers';
 import { Clock } from './clock';
-import { taskProcessor, type TaskProcessor, type Task } from './taskProcessor';
+import { taskProcessor, type Task, type TaskProcessor } from './taskProcessor';
 
 describe('TaskProcessor', () => {
   let processor: TaskProcessor;
@@ -232,7 +237,7 @@ describe('TaskProcessor', () => {
 
     await assert.rejects(
       () => Promise.all(tasks),
-      /Too many pending connections/,
+      /Too many pending tasks/,
       'Should reject tasks when queue size is exceeded',
     );
   });
@@ -543,15 +548,13 @@ describe('TaskProcessor', () => {
       return Promise.resolve('queued');
     });
 
-    await assert.rejects(
-      queuedTask,
-      /Task was not started within the maximum waiting time/,
-    );
-
-    await assertRejectsDumboError(() => queuedTask, {
-      errorType: 'QueryCanceledError',
-      errorCode: 503,
-      message: 'Task was not started within the maximum waiting time',
+    await assert.rejects(queuedTask, (error) => {
+      assert.ok(error instanceof DumboError);
+      assert.strictEqual(
+        error.message,
+        'Task was not started within the maximum waiting time',
+      );
+      return true;
     });
 
     releaseActiveTask();
@@ -920,6 +923,150 @@ describe('TaskProcessor', () => {
 
     assert.strictEqual(await activeTask, 'active');
     assert.strictEqual(wasAborted, false);
+  });
+
+  it('releases finished work while its group still has work waiting', async () => {
+    const busyProcessor = taskProcessor({
+      maxActiveTasks: 1,
+      maxQueueSize: 1_000,
+    });
+    const handled: WeakRef<object>[] = [];
+
+    const finished = Array.from({ length: 200 }, (_, index) => {
+      const message = { index };
+      handled.push(new WeakRef(message));
+
+      return busyProcessor.enqueue(() => Promise.resolve(message.index), {
+        taskGroupId: 'account',
+      });
+    });
+
+    let unblock: () => void = () => {};
+    const blocking = busyProcessor.enqueue(
+      () =>
+        new Promise<void>((resolve) => {
+          unblock = resolve;
+        }),
+      { taskGroupId: 'account' },
+    );
+    const waiting = busyProcessor.enqueue(() => Promise.resolve(), {
+      taskGroupId: 'account',
+    });
+
+    await Promise.all(finished);
+    await collectGarbage();
+
+    const retained = retainedIndexes(handled).length;
+
+    unblock();
+    await Promise.all([blocking, waiting]);
+
+    assert.strictEqual(retained, 0, 'Finished work is still retained');
+  });
+
+  it('forgets task groups after their work finishes', async () => {
+    const groupsProcessor = taskProcessor({
+      maxActiveTasks: 10,
+      maxQueueSize: 1_000,
+    });
+    const groupCount = 200;
+    const groupIdLength = 100_000;
+    const allGroupIdsSize = groupCount * groupIdLength;
+
+    const heapBefore = await heapUsedAfterCollecting();
+
+    for (let index = 0; index < groupCount; index++)
+      void groupsProcessor.enqueue(() => Promise.resolve(), {
+        taskGroupId: `${index}:`.padEnd(groupIdLength, '-'),
+      });
+
+    await groupsProcessor.waitForEndOfProcessing();
+
+    const heapGrowth = (await heapUsedAfterCollecting()) - heapBefore;
+
+    await groupsProcessor.stop();
+
+    assert.ok(
+      heapGrowth < allGroupIdsSize / 4,
+      `Heap grew by ${heapGrowth} bytes after ${groupCount} finished groups`,
+    );
+  });
+
+  it('stop with a close deadline returns and releases the task that did not finish', async () => {
+    const closingProcessor = taskProcessor({
+      maxActiveTasks: 1,
+      maxQueueSize: 10,
+    });
+    const closeDeadline = 20;
+    const startedIds: string[] = [];
+
+    const enqueueNeverSettlingTask = (): WeakRef<object> => {
+      const message = { id: 'never-settles' };
+
+      void closingProcessor.enqueue(() => {
+        startedIds.push(message.id);
+        return new Promise<void>(() => {});
+      });
+
+      return new WeakRef(message);
+    };
+    const handled = enqueueNeverSettlingTask();
+
+    const startedAt = Clock.now();
+    await closingProcessor.stop({ closeDeadline });
+    const stopDuration = Clock.now() - startedAt;
+
+    await collectGarbage();
+
+    assert.deepStrictEqual(startedIds, ['never-settles']);
+    assert.ok(
+      stopDuration >= closeDeadline - 1,
+      `Stop returned after ${stopDuration}ms, before the ${closeDeadline}ms deadline`,
+    );
+    assert.strictEqual(
+      retainedIndexes([handled]).length,
+      0,
+      'Unfinished task is still retained after stop',
+    );
+    await assert.rejects(
+      closingProcessor.enqueue(() => Promise.resolve()),
+      DumboError,
+    );
+  });
+
+  it('force stop releases the task that did not finish', async () => {
+    const closingProcessor = taskProcessor({
+      maxActiveTasks: 1,
+      maxQueueSize: 10,
+    });
+    const startedIds: string[] = [];
+
+    const enqueueNeverSettlingTask = (): WeakRef<object> => {
+      const message = { id: 'never-settles' };
+
+      void closingProcessor.enqueue(() => {
+        startedIds.push(message.id);
+        return new Promise<void>(() => {});
+      });
+
+      return new WeakRef(message);
+    };
+    const handled = enqueueNeverSettlingTask();
+
+    await closingProcessor.stop({ force: true });
+
+    await collectGarbage();
+
+    assert.deepStrictEqual(startedIds, ['never-settles']);
+    assert.strictEqual(
+      retainedIndexes([handled]).length,
+      0,
+      'Unfinished task is still retained after force stop',
+    );
+    await assert.rejects(
+      closingProcessor.enqueue(() => Promise.resolve()),
+      DumboError,
+    );
   });
 });
 

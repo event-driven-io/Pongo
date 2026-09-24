@@ -133,6 +133,19 @@ export class ConnectionError extends TransientDatabaseError {
     Object.setPrototypeOf(this, ConnectionError.prototype);
   }
 }
+export class IllegalStateError extends DumboError {
+  static readonly ErrorCode: number = 403;
+  static readonly ErrorType: string = 'IllegalStateError';
+  constructor(message?: string) {
+    super({
+      errorCode: IllegalStateError.ErrorCode,
+      message: message ?? `Illegal State ocurred during Emmett processing`,
+    });
+
+    // 👇️ because we are extending a built-in class
+    Object.setPrototypeOf(this, IllegalStateError.prototype);
+  }
+}
 
 export class SerializationError extends TransientDatabaseError {
   static readonly ErrorCode: number = 503;
