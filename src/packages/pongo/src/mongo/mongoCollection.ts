@@ -1,4 +1,5 @@
 import type {
+  Abortable,
   AbstractCursorOptions,
   AggregateOptions,
   AggregationCursor,
@@ -77,17 +78,33 @@ import type { Db as ShimDb } from '../shim';
 import { FindCursor } from './findCursor';
 
 const toCollectionOperationOptions = (
-  options: OperationOptions | undefined,
-): CollectionOperationOptions | undefined =>
-  options?.session
-    ? { session: options.session as unknown as PongoSession }
-    : undefined;
+  options: (OperationOptions & Abortable) | undefined,
+): CollectionOperationOptions | undefined => {
+  if (!options?.session && options?.timeoutMS === undefined && !options?.signal)
+    return undefined;
+
+  const pongoOptions: CollectionOperationOptions = {};
+
+  if (options.session) {
+    pongoOptions.session = options.session as unknown as PongoSession;
+  }
+  if (options.timeoutMS !== undefined) {
+    pongoOptions.timeoutMS = options.timeoutMS;
+  }
+  if (options.signal) {
+    pongoOptions.abort = { signal: options.signal };
+  }
+
+  return pongoOptions;
+};
 
 const toFindOptions = (
-  options: FindOptions | undefined,
+  options: (FindOptions & Abortable) | undefined,
 ): PongoFindOptions | undefined => {
+  const collectionOperationOptions = toCollectionOperationOptions(options);
+
   if (
-    !options?.session &&
+    !collectionOperationOptions &&
     !options?.limit &&
     !options?.skip &&
     !options?.sort
@@ -95,11 +112,8 @@ const toFindOptions = (
     return undefined;
   }
 
-  const pongoFindOptions: PongoFindOptions = {};
+  const pongoFindOptions: PongoFindOptions = { ...collectionOperationOptions };
 
-  if (options?.session) {
-    pongoFindOptions.session = options.session as unknown as PongoSession;
-  }
   if (options?.limit !== undefined) {
     pongoFindOptions.limit = options.limit;
   }
@@ -291,16 +305,19 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   }
   findOne(): Promise<WithId<T> | null>;
   findOne(filter: Filter<T>): Promise<WithId<T> | null>;
-  findOne(filter: Filter<T>, options: FindOptions): Promise<WithId<T> | null>;
+  findOne(
+    filter: Filter<T>,
+    options: FindOptions & Abortable,
+  ): Promise<WithId<T> | null>;
   findOne<TS = T>(): Promise<TS | null>;
   findOne<TS = T>(filter: Filter<TS>): Promise<TS | null>;
   findOne<TS = T>(
     filter: Filter<TS>,
-    options?: FindOptions,
+    options?: FindOptions & Abortable,
   ): Promise<TS | null>;
   async findOne(
     filter?: unknown,
-    options?: FindOptions,
+    options?: FindOptions & Abortable,
   ): Promise<WithId<T> | T | null> {
     return await this.collection.findOne(
       filter as PongoFilter<T>,
@@ -308,14 +325,17 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     );
   }
   find(): MongoFindCursor<WithId<T>>;
-  find(filter: Filter<T>, options?: FindOptions): MongoFindCursor<WithId<T>>;
+  find(
+    filter: Filter<T>,
+    options?: FindOptions & Abortable,
+  ): MongoFindCursor<WithId<T>>;
   find<T extends Document>(
     filter: Filter<T>,
-    options?: FindOptions,
+    options?: FindOptions & Abortable,
   ): MongoFindCursor<T>;
   find(
     filter?: unknown,
-    options?: FindOptions,
+    options?: FindOptions & Abortable,
   ): MongoFindCursor<WithId<T>> | MongoFindCursor<T> {
     return new FindCursor(
       this.collection.find(filter as PongoFilter<T>, toFindOptions(options)),
@@ -385,7 +405,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
   }
   countDocuments(
     filter?: Filter<T>,
-    options?: CountDocumentsOptions,
+    options?: CountDocumentsOptions & Abortable,
   ): Promise<number> {
     return this.collection.countDocuments(
       filter as PongoFilter<T>,

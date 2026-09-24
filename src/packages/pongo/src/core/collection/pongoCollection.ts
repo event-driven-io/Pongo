@@ -104,6 +104,12 @@ export const transactionExecutorOrDefault = async <
   return existingTransaction?.execute ?? defaultSqlExecutor;
 };
 
+const timeoutMSOf = (options: CollectionOperationOptions | undefined) =>
+  options?.timeoutMS ??
+  (options?.session?.inTransaction()
+    ? undefined
+    : options?.session?.defaultTimeoutMS);
+
 export const pongoCollection = <
   T extends PongoDocument,
   DriverType extends DatabaseDriverType = DatabaseDriverType,
@@ -137,7 +143,11 @@ export const pongoCollection = <
   ) =>
     (
       await transactionExecutorOrDefault(db, options, sqlExecutor)
-    ).command<Result>(sql, columnMapping);
+    ).command<Result>(sql, {
+      timeoutMS: timeoutMSOf(options),
+      abort: options?.abort,
+      ...columnMapping,
+    });
 
   const query = async <T extends QueryResultRow>(
     sql: SQL,
@@ -145,7 +155,11 @@ export const pongoCollection = <
   ) =>
     (await transactionExecutorOrDefault(db, options, sqlExecutor)).query<T>(
       sql,
-      columnMapping,
+      {
+        timeoutMS: timeoutMSOf(options),
+        abort: options?.abort,
+        ...columnMapping,
+      },
     );
 
   const autoMigrates = schema?.autoMigration !== 'None';
@@ -154,7 +168,10 @@ export const pongoCollection = <
   const ensureMigrated = async (options?: CollectionOperationOptions) => {
     if (!autoMigrates || migrated) return;
 
-    await db.schema.migrate({ session: options?.session });
+    await db.schema.migrate({
+      session: options?.session,
+      migrationTimeoutMS: timeoutMSOf(options),
+    });
 
     migrated = true;
   };
@@ -243,7 +260,7 @@ export const pongoCollection = <
         data: Payload;
         _id: string;
         _version: bigint;
-      }>(SqlFor.find({ _id: { $in: missIds } }, options));
+      }>(SqlFor.find({ _id: { $in: missIds } }, options), options);
       const dbDocs = dbResult.rows.map((row) => ({
         ...row.data,
         _id: row._id,
@@ -914,7 +931,7 @@ export const pongoCollection = <
         data: Payload;
         _id: string;
         _version: bigint;
-      }>(SqlFor.find(filter ?? {}, options));
+      }>(SqlFor.find(filter ?? {}, options), options);
       return result.rows.map((row) =>
         fromStored({ ...row.data, _id: row._id, _version: row._version }),
       );
@@ -926,13 +943,13 @@ export const pongoCollection = <
       await ensureMigrated(options);
 
       const { count } = await single(
-        query<{ count: number }>(SqlFor.countDocuments(filter ?? {})),
+        query<{ count: number }>(SqlFor.countDocuments(filter ?? {}), options),
       );
       return count;
     },
     drop: async (options?: CollectionOperationOptions): Promise<boolean> => {
       await ensureMigrated(options);
-      const result = await command(SqlFor.drop());
+      const result = await command(SqlFor.drop(), options);
       return (result?.rowCount ?? 0) > 0;
     },
     rename: async (

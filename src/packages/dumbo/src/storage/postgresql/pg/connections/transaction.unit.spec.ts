@@ -42,7 +42,7 @@ const transactionFor = (client: PgClient, options: PgTransactionOptions) =>
   });
 
 describe('pg transaction', () => {
-  describe('without statementTimeoutMs', () => {
+  describe('without statementTimeoutMS', () => {
     it('begins and commits with plain BEGIN and COMMIT', async () => {
       const { client, calls } = fakePgClient();
       const transaction = transactionFor(client, {});
@@ -80,10 +80,10 @@ describe('pg transaction', () => {
     });
   });
 
-  describe('with statementTimeoutMs', () => {
+  describe('with statementTimeoutMS', () => {
     it('sets a local statement timeout on begin and restores the previous one on commit', async () => {
       const { client, calls } = fakePgClient();
-      const transaction = transactionFor(client, { statementTimeoutMs: 50 });
+      const transaction = transactionFor(client, { statementTimeoutMS: 50 });
 
       await transaction.begin();
       await transaction.commit();
@@ -96,7 +96,7 @@ describe('pg transaction', () => {
 
     it('rolls back with plain ROLLBACK', async () => {
       const { client, calls } = fakePgClient();
-      const transaction = transactionFor(client, { statementTimeoutMs: 50 });
+      const transaction = transactionFor(client, { statementTimeoutMS: 50 });
 
       await transaction.begin();
       await transaction.rollback();
@@ -112,7 +112,7 @@ describe('pg transaction', () => {
       const transaction = transactionFor(client, {
         isolationLevel: 'SERIALIZABLE',
         readonly: true,
-        statementTimeoutMs: 50,
+        statementTimeoutMS: 50,
       });
 
       await transaction.begin();
@@ -124,7 +124,7 @@ describe('pg transaction', () => {
 
     it('doubles single quotes in the restored statement timeout', async () => {
       const { client, calls } = fakePgClient("5s'x");
-      const transaction = transactionFor(client, { statementTimeoutMs: 50 });
+      const transaction = transactionFor(client, { statementTimeoutMS: 50 });
 
       await transaction.begin();
       await transaction.commit();
@@ -136,10 +136,10 @@ describe('pg transaction', () => {
     });
 
     it.each([-1, 1.5, 2147483648])(
-      'rejects statementTimeoutMs %s on begin without sending anything',
-      async (statementTimeoutMs) => {
+      'rejects statementTimeoutMS %s on begin without sending anything',
+      async (statementTimeoutMS) => {
         const { client, calls } = fakePgClient();
-        const transaction = transactionFor(client, { statementTimeoutMs });
+        const transaction = transactionFor(client, { statementTimeoutMS });
 
         await assert.rejects(() => transaction.begin(), InvalidOperationError);
 

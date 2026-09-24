@@ -25,7 +25,7 @@ interface MigrateRunOptions {
   databaseDriver: string;
   config?: string;
   dryRun?: boolean;
-  timeoutMs?: number;
+  timeout?: number;
 }
 
 interface MigrateSqlOptions {
@@ -80,7 +80,7 @@ migrateCommand
     parseInt,
   )
   .action(async (options: MigrateRunOptions) => {
-    const { collection, dryRun, databaseName, databaseDriver, timeoutMs } =
+    const { collection, dryRun, databaseName, databaseDriver, timeout } =
       options;
     const connectionString =
       options.connectionString ?? process.env.DB_CONNECTION_STRING;
@@ -124,10 +124,14 @@ migrateCommand
 
     const pool = dumbo({ connectionString, driverType });
 
-    await runSQLMigrations(pool, migrations, {
-      dryRun,
-      migrationTimeoutMs: timeoutMs,
-    });
+    try {
+      await runSQLMigrations(pool, migrations, {
+        dryRun,
+        migrationTimeoutMS: timeout,
+      });
+    } finally {
+      await pool.close();
+    }
   });
 
 migrateCommand

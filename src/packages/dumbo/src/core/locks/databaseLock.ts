@@ -1,6 +1,6 @@
 import type { SQLExecutor } from '..';
 
-export type DatabaseLockOptions = { lockId: number; timeoutMs?: number };
+export type DatabaseLockOptions = { lockId: number; timeoutMS?: number };
 
 export type AcquireDatabaseLockMode = 'Permanent' | 'Session';
 
@@ -12,7 +12,7 @@ export type ReleaseDatabaseLockOptions = DatabaseLockOptions;
 export const defaultDatabaseLockOptions: Required<
   Omit<DatabaseLockOptions, 'lockId'>
 > = {
-  timeoutMs: 10000,
+  timeoutMS: 10000,
 };
 
 export type DatabaseLock = {

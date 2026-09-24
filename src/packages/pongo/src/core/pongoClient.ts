@@ -19,6 +19,7 @@ import type {
   PongoDb,
   PongoDbOptions,
   PongoSession,
+  PongoTransactionOptions,
 } from './typing';
 
 const isPongoClientSchema = <T extends PongoClientSchema>(
@@ -118,12 +119,22 @@ export const pongoClient = <
     },
     startSession: pongoSession,
     withSession: async <T>(
-      callback: (session: PongoSession) => Promise<T>,
+      optionsOrCallback:
+        | {
+            defaultTransactionOptions?: PongoTransactionOptions;
+            defaultTimeoutMS?: number;
+          }
+        | ((session: PongoSession) => Promise<T>),
+      callback?: (session: PongoSession) => Promise<T>,
     ): Promise<T> => {
-      const session = pongoSession();
+      const session = pongoSession(
+        typeof optionsOrCallback === 'function' ? undefined : optionsOrCallback,
+      );
+      const execute =
+        typeof optionsOrCallback === 'function' ? optionsOrCallback : callback!;
 
       try {
-        return await callback(session);
+        return await execute(session);
       } finally {
         await session.endSession();
       }

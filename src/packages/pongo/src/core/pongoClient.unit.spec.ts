@@ -2,6 +2,7 @@ import assert from 'node:assert';
 import {
   DumboError,
   type AnyDumboDatabaseDriver,
+  type DatabaseTransactionOptions,
   type DatabaseDriverType,
 } from '@event-driven-io/dumbo';
 import { describe, expectTypeOf, it } from 'vitest';
@@ -478,16 +479,84 @@ describe('pongoClient', () => {
     let transactionActiveDuringCallback = false;
 
     await client.withSession((session) => {
-      session.startTransaction({
-        get snapshotEnabled() {
-          return false;
-        },
-      });
+      session.startTransaction({});
       transactionActiveDuringCallback = session.inTransaction();
       return Promise.resolve();
     });
 
     assert.strictEqual(transactionActiveDuringCallback, true);
+  });
+
+  describe('with session defaultTransactionOptions', () => {
+    const recordingDb = () => {
+      let transactionOptions: DatabaseTransactionOptions | undefined;
+      const db = {
+        databaseName: 'app',
+        transaction: (options?: DatabaseTransactionOptions) => {
+          transactionOptions = options;
+          return {
+            begin: () => Promise.resolve(),
+            commit: () => Promise.resolve(),
+            rollback: () => Promise.resolve(),
+          };
+        },
+      } as unknown as PongoDb;
+
+      return { db, transactionOptions: () => transactionOptions };
+    };
+
+    const defaultTransactionOptions = {
+      timeoutMS: 50,
+    };
+
+    it('startSession passes timeoutMS of defaultTransactionOptions to the database transaction as statementTimeoutMS', async () => {
+      const { driver } = testPongoDriver();
+      const client = pongoClient({ driver });
+      const { db, transactionOptions } = recordingDb();
+
+      const session = client.startSession({ defaultTransactionOptions });
+      session.startTransaction();
+      await session.transaction!.enlistDatabase(db);
+
+      assert.strictEqual(transactionOptions()?.statementTimeoutMS, 50);
+    });
+
+    it('withSession passes timeoutMS of defaultTransactionOptions to the database transaction as statementTimeoutMS', async () => {
+      const { driver } = testPongoDriver();
+      const client = pongoClient({ driver });
+      const { db, transactionOptions } = recordingDb();
+
+      await client.withSession({ defaultTransactionOptions }, (session) =>
+        session.withTransaction(async () => {
+          await session.transaction!.enlistDatabase(db);
+        }),
+      );
+
+      assert.strictEqual(transactionOptions()?.statementTimeoutMS, 50);
+    });
+  });
+
+  describe('with session defaultTimeoutMS', () => {
+    it('startSession passes defaultTimeoutMS to the session', () => {
+      const { driver } = testPongoDriver();
+      const client = pongoClient({ driver });
+
+      const session = client.startSession({ defaultTimeoutMS: 50 });
+
+      assert.strictEqual(session.defaultTimeoutMS, 50);
+    });
+
+    it('withSession passes defaultTimeoutMS to the session', async () => {
+      const { driver } = testPongoDriver();
+      const client = pongoClient({ driver });
+
+      const defaultTimeoutMS = await client.withSession(
+        { defaultTimeoutMS: 50 },
+        (session) => Promise.resolve(session.defaultTimeoutMS),
+      );
+
+      assert.strictEqual(defaultTimeoutMS, 50);
+    });
   });
 
   it('resolves a database declared under an alias key to its declared name', () => {

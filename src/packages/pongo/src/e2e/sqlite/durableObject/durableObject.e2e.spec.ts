@@ -912,6 +912,200 @@ describe('Pongo Cloudflare Durable Object SQLite', () => {
         }),
       );
     });
+
+    it('should find uncommitted documents by filter in transaction', async () => {
+      const docs = [
+        { name: 'David', age: 40 },
+        { name: 'Eve', age: 45 },
+        { name: 'Frank', age: 50 },
+      ];
+
+      await client.withSession((session) =>
+        session.withTransaction(async () => {
+          const pongoCollection = pongoDb.collection<User>(
+            'findByFilterInTransaction',
+          );
+
+          await pongoCollection.insertMany(docs, { session });
+
+          const pongoDocs = await pongoCollection.find(
+            { age: { $gte: 40 } },
+            { session },
+          );
+
+          assert.equal(3, pongoDocs.length);
+        }),
+      );
+    });
+
+    it('should find uncommitted documents by ids in transaction skipping cache', async () => {
+      const docs = [
+        { name: 'David', age: 40 },
+        { name: 'Eve', age: 45 },
+        { name: 'Frank', age: 50 },
+      ];
+
+      await client.withSession((session) =>
+        session.withTransaction(async () => {
+          const pongoCollection = pongoDb.collection<User>(
+            'findByIdsInTransaction',
+          );
+
+          const pongoInsertResult = await pongoCollection.insertMany(docs, {
+            session,
+          });
+          const pongoIds = Object.values(pongoInsertResult.insertedIds);
+
+          const pongoDocs = await pongoCollection.find(
+            { _id: { $in: pongoIds } },
+            { session, skipCache: true },
+          );
+
+          assert.equal(3, pongoDocs.length);
+        }),
+      );
+    });
+
+    it('should count uncommitted documents in transaction', async () => {
+      const docs = [
+        { name: 'David', age: 40 },
+        { name: 'Eve', age: 45 },
+        { name: 'Frank', age: 50 },
+      ];
+
+      await client.withSession((session) =>
+        session.withTransaction(async () => {
+          const pongoCollection =
+            pongoDb.collection<User>('countInTransaction');
+
+          await pongoCollection.insertMany(docs, { session });
+
+          const count = await pongoCollection.countDocuments(
+            { age: { $gte: 40 } },
+            { session },
+          );
+
+          assert.equal(3, count);
+        }),
+      );
+    });
+
+    it('should handle uncommitted document in transaction', async () => {
+      await client.withSession((session) =>
+        session.withTransaction(async () => {
+          const pongoCollection = pongoDb.collection<User>(
+            'handleInTransaction',
+          );
+
+          const existingDoc: User = { name: 'David', age: 40 };
+          const pongoInsertResult = await pongoCollection.insertOne(
+            existingDoc,
+            { session, skipCache: true },
+          );
+
+          const handle = (existing: User | null) => existing;
+
+          const resultPongo = await pongoCollection.handle(
+            pongoInsertResult.insertedId!,
+            handle,
+            { session },
+          );
+
+          assert(resultPongo.successful);
+          assert.deepStrictEqual(resultPongo.document, {
+            ...existingDoc,
+            _id: pongoInsertResult.insertedId,
+            _version: 1n,
+          });
+        }),
+      );
+    });
+
+    it('should keep collection dropped in aborted transaction', async () => {
+      const docs = [
+        { name: 'David', age: 40 },
+        { name: 'Eve', age: 45 },
+        { name: 'Frank', age: 50 },
+      ];
+      const pongoCollection = pongoDb.collection<User>(
+        'dropInAbortedTransaction',
+      );
+      await pongoCollection.insertMany(docs);
+
+      await client.withSession(async (session) => {
+        session.startTransaction();
+
+        await pongoCollection.drop({ session });
+
+        await session.abortTransaction();
+      });
+
+      const count = await pongoCollection.countDocuments({
+        age: { $gte: 40 },
+      });
+
+      assert.equal(3, count);
+    });
+
+    it('should ignore timeoutMS on operations', async () => {
+      const pongoCollection = pongoDb.collection<User>('ignoredTimeouts');
+
+      await pongoCollection.insertOne(
+        { name: 'Anita', age: 25 },
+        { timeoutMS: 50 },
+      );
+      const count = await pongoCollection.countDocuments(
+        { age: 25 },
+        { timeoutMS: 50 },
+      );
+
+      assert.equal(1, count);
+    });
+
+    it('should ignore timeoutMS on operations and transactions', async () => {
+      const pongoCollection = pongoDb.collection<User>(
+        'ignoredTransactionTimeouts',
+      );
+
+      await client.withSession((session) =>
+        session.withTransaction(
+          async () => {
+            await pongoCollection.insertOne(
+              { name: 'Anita', age: 25 },
+              { session, timeoutMS: 50 },
+            );
+            const pongoDocs = await pongoCollection.find(
+              { age: 25 },
+              { session, timeoutMS: 50 },
+            );
+
+            assert.equal(1, pongoDocs.length);
+          },
+          { timeoutMS: 50 },
+        ),
+      );
+    });
+
+    it('should ignore defaultTimeoutMS of sessions', async () => {
+      const pongoCollection = pongoDb.collection<User>(
+        'ignoredSessionTimeouts',
+      );
+
+      await client.withSession({ defaultTimeoutMS: 50 }, async (session) => {
+        await pongoCollection.insertOne(
+          { name: 'Anita', age: 25 },
+          { session },
+        );
+        await session.withTransaction(async () => {
+          const pongoDocs = await pongoCollection.find(
+            { age: 25 },
+            { session },
+          );
+
+          assert.equal(1, pongoDocs.length);
+        });
+      });
+    });
   });
 
   describe('Find Operations', () => {

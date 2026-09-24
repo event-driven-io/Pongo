@@ -2,7 +2,7 @@ import { DumboError } from '@event-driven-io/dumbo';
 import type { Document } from 'mongodb';
 import assert from 'node:assert';
 import { describe, it } from 'vitest';
-import type { PongoCollection } from '../core';
+import type { CollectionOperationOptions, PongoCollection } from '../core';
 import type { Db as ShimDb } from '../shim';
 import { Collection } from './mongoCollection';
 
@@ -127,4 +127,88 @@ describe('Mongo Collection shim unsupported members', () => {
       });
     }
   });
+});
+
+describe('Mongo Collection shim operation options', () => {
+  type User = { _id?: string; age: number };
+
+  const recordingCollection = () => {
+    const received: unknown[] = [];
+    const record =
+      (result: unknown) =>
+      (...args: unknown[]) => {
+        received.push(args[args.length - 1]);
+        return Promise.resolve(result);
+      };
+
+    const pongoCollection = {
+      find: record([]),
+      findOne: record(null),
+      insertOne: record({ acknowledged: true, insertedId: 'user-1' }),
+      updateOne: record({
+        acknowledged: true,
+        matchedCount: 0,
+        modifiedCount: 0,
+        upsertedCount: 0,
+        upsertedId: null,
+      }),
+      deleteOne: record({ acknowledged: true, deletedCount: 0 }),
+      countDocuments: record(0),
+    } as unknown as PongoCollection<User>;
+
+    return {
+      collection: new Collection<User>({} as ShimDb, pongoCollection),
+      received,
+    };
+  };
+
+  const signal = new AbortController().signal;
+
+  const operations: [
+    string,
+    (
+      collection: Collection<User>,
+      options: { timeoutMS: number; signal: AbortSignal },
+    ) => Promise<unknown>,
+  ][] = [
+    [
+      'find',
+      (collection, options) =>
+        collection.find({ age: { $gte: 40 } }, options).toArray(),
+    ],
+    [
+      'findOne',
+      (collection, options) => collection.findOne({ age: 40 }, options),
+    ],
+    [
+      'insertOne',
+      (collection, options) => collection.insertOne({ age: 40 }, options),
+    ],
+    [
+      'updateOne',
+      (collection, options) =>
+        collection.updateOne({ age: 40 }, { $set: { age: 41 } }, options),
+    ],
+    [
+      'deleteOne',
+      (collection, options) => collection.deleteOne({ age: 40 }, options),
+    ],
+    [
+      'countDocuments',
+      (collection, options) => collection.countDocuments({}, options),
+    ],
+  ];
+
+  for (const [name, operation] of operations) {
+    it(`${name} passes timeoutMS and signal to Pongo as timeoutMS and abort`, async () => {
+      const { collection, received } = recordingCollection();
+
+      await operation(collection, { timeoutMS: 50, signal });
+
+      const [options] = received as CollectionOperationOptions[];
+      assert.strictEqual(received.length, 1);
+      assert.strictEqual(options?.timeoutMS, 50);
+      assert.deepStrictEqual(options?.abort, { signal });
+    });
+  }
 });

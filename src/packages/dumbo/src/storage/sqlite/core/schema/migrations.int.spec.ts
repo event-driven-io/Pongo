@@ -95,7 +95,7 @@ describe('Migration Integration Tests', () => {
           ],
         };
         await runSQLMigrations(pool, [firstMigration, secondMigration], {
-          lock: { options: { timeoutMs: 300 } },
+          lock: { options: { timeoutMS: 300 } },
         });
 
         const usersTableExists = await tableExists(pool.execute, 'users');
@@ -310,7 +310,7 @@ describe('Migration Integration Tests', () => {
           },
           extensions: { eventStore },
         });
-        const options = { lock: { options: { timeoutMs: 300 } } };
+        const options = { lock: { options: { timeoutMS: 300 } } };
 
         await runSQLMigrations(pool, component.migrations(), options);
         await runSQLMigrations(pool, component.migrations(), options);
@@ -359,7 +359,7 @@ describe('Migration Integration Tests', () => {
           },
         });
         await runSQLMigrations(pool, component.migrations(), {
-          lock: { options: { timeoutMs: 300 } },
+          lock: { options: { timeoutMS: 300 } },
         });
 
         const migrationNames = await pool.execute.query<{ name: string }>(
@@ -400,7 +400,7 @@ describe('Migration Integration Tests', () => {
 
       //     try {
       //       await runSQLMigrations(pool, [migration], {
-      //         lock: { options: { timeoutMs: 300 } },
+      //         lock: { options: { timeoutMS: 300 } },
       //       });
 
       //       assert.fail('The migration should have timed out and not proceeded.');

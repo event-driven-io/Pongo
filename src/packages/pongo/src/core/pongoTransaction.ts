@@ -63,7 +63,9 @@ export const pongoTransaction = (
       if (transaction && databaseName === db.databaseName) return transaction;
 
       databaseName = db.databaseName;
-      transaction = db.transaction();
+      transaction = db.transaction({
+        statementTimeoutMS: options.timeoutMS,
+      });
       await transaction.begin();
 
       return transaction;

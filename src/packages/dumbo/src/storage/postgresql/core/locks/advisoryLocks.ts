@@ -19,7 +19,7 @@ export const tryAcquireAdvisoryLock = async (
   execute: SQLExecutor,
   options: AcquireDatabaseLockOptions,
 ): Promise<boolean> => {
-  const timeoutMs = options.timeoutMs ?? defaultDatabaseLockOptions.timeoutMs;
+  const timeoutMS = options.timeoutMS ?? defaultDatabaseLockOptions.timeoutMS;
 
   const advisoryLock =
     options.mode === 'Permanent' ? 'pg_advisory_lock' : 'pg_advisory_xact_lock';
@@ -28,7 +28,7 @@ export const tryAcquireAdvisoryLock = async (
     await single(
       execute.query<{ locked: boolean }>(
         SQL`SELECT ${SQL.plain(advisoryLock)}(${options.lockId}) AS locked`,
-        { timeoutMs },
+        { timeoutMS },
       ),
     );
     return true;
@@ -49,13 +49,13 @@ export const releaseAdvisoryLock = async (
   execute: SQLExecutor,
   options: ReleaseDatabaseLockOptions,
 ): Promise<boolean> => {
-  const timeoutMs = options.timeoutMs ?? defaultDatabaseLockOptions.timeoutMs;
+  const timeoutMS = options.timeoutMS ?? defaultDatabaseLockOptions.timeoutMS;
 
   try {
     await single(
       execute.query<{ locked: boolean }>(
         SQL`SELECT pg_advisory_unlock(${options.lockId}) AS locked`,
-        { timeoutMs },
+        { timeoutMS },
       ),
     );
     return true;
