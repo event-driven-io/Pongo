@@ -94,7 +94,7 @@ export const taskScheduler = (): TaskScheduler => {
 
     const group = getOrCreateGroup(entry.groupId);
     group.entries.push(entry);
-    promoteGroupHead(group);
+    promoteGroupHead(entry.groupId, group);
   };
 
   const takeNext = (): TaskQueueItem | null => {
@@ -142,7 +142,7 @@ export const taskScheduler = (): TaskScheduler => {
     if (!group) return;
 
     group.active = false;
-    promoteGroupHead(group);
+    promoteGroupHead(groupId, group);
   };
 
   const nextExpirationMs = (): number | null => {
@@ -180,7 +180,14 @@ export const taskScheduler = (): TaskScheduler => {
     nextSequence = 0;
     queuedSize = 0;
     entriesByItem.clear();
-    groups.clear();
+    for (const [groupId, group] of groups) {
+      if (!group.active) {
+        groups.delete(groupId);
+        continue;
+      }
+      group.entries = [];
+      group.headIndex = 0;
+    }
     readyHeap.clear();
     expirationHeap.clear();
 
@@ -214,14 +221,18 @@ export const taskScheduler = (): TaskScheduler => {
     const group = groups.get(entry.groupId);
     if (!group) return;
 
-    promoteGroupHead(group);
+    promoteGroupHead(entry.groupId, group);
   };
 
-  const promoteGroupHead = (group: GroupQueue): void => {
+  const promoteGroupHead = (groupId: string, group: GroupQueue): void => {
     if (group.active) return;
 
     const head = compactGroupHead(group);
-    if (!head || head.readyHeapIndex !== null) return;
+    if (!head) {
+      groups.delete(groupId);
+      return;
+    }
+    if (head.readyHeapIndex !== null) return;
 
     readyHeap.push(head);
   };
@@ -238,6 +249,11 @@ export const taskScheduler = (): TaskScheduler => {
       group.entries.length = 0;
       group.headIndex = 0;
       return null;
+    }
+
+    if (group.headIndex * 2 >= group.entries.length) {
+      group.entries.splice(0, group.headIndex);
+      group.headIndex = 0;
     }
 
     return group.entries[group.headIndex] ?? null;

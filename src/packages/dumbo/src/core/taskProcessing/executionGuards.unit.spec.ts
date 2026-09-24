@@ -393,6 +393,58 @@ describe('Task Processing Guards', () => {
         /bounded aborted/,
       );
     });
+
+    it('frees the slot when caller aborts acquire while resource is still being created', async () => {
+      const slowResources = [
+        Promise.withResolvers<{ id: number }>(),
+        Promise.withResolvers<{ id: number }>(),
+      ];
+      const resourceRequested = [
+        Promise.withResolvers<void>(),
+        Promise.withResolvers<void>(),
+      ];
+      let requestedResources = 0;
+      const guard = guardBoundedAccess(
+        () => {
+          const index = requestedResources++;
+          if (index >= slowResources.length) return { id: index + 1 };
+
+          resourceRequested[index]!.resolve();
+          return slowResources[index]!.promise;
+        },
+        { maxResources: 2 },
+      );
+
+      for (const index of [0, 1]) {
+        const abortController = new AbortController();
+        const acquisition = guard.acquire({
+          abort: { signal: abortController.signal },
+        });
+        await resourceRequested[index]!.promise;
+
+        abortController.abort(new Error('caller gave up'));
+        await assert.rejects(acquisition, /caller gave up/);
+
+        slowResources[index]!.resolve({ id: index + 1 });
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+
+      const thirdAcquisition = guard.acquire();
+      thirdAcquisition.catch(() => {});
+
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const outcome = await Promise.race([
+        thirdAcquisition.then(() => 'acquired'),
+        new Promise<string>((resolve) => {
+          timer = setTimeout(() => resolve('still waiting'), 50);
+        }),
+      ]);
+      clearTimeout(timer);
+
+      await guard.stop({ force: true });
+
+      assert.strictEqual(outcome, 'acquired');
+    });
   });
 
   describe('guardInitializedOnce', () => {
