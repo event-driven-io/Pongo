@@ -63,6 +63,7 @@ export const PongoDatabaseComponent = ({
   const collectionComponent = <Document extends PongoDocument>(
     collectionName: string,
     requestedSchemaName?: string,
+    definition?: PongoCollectionComponent<Document>,
   ) => {
     const databaseSchemaName = requestedSchemaName ?? defaultSchemaName;
     const declared = component.findTable({
@@ -87,7 +88,9 @@ export const PongoDatabaseComponent = ({
       );
     }
 
-    const created = pongoSchema.collection<Document>(collectionName);
+    const created =
+      definition?.withTableName(collectionName) ??
+      pongoSchema.collection<Document>(collectionName);
     component = component.withTable(
       { [collectionName]: created },
       databaseSchemaName,
@@ -126,6 +129,7 @@ export const PongoDatabaseComponent = ({
     const resolved = collectionComponent<Document>(
       collectionName,
       options?.databaseSchemaName,
+      options?.definition,
     );
     const schemaCollections = collectionsIn(
       resolved.fullName.databaseSchemaName,

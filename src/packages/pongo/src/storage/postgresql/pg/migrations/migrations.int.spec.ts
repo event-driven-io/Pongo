@@ -124,6 +124,43 @@ describe('Migration Integration Tests', () => {
     assert.strictEqual(await tableExists(pool.execute, 'roles'), true);
   });
 
+  it('creates the indexes of a collection definition through a collection schema migrate', async () => {
+    const definitionClient = pongoClient({
+      driver: pongoDriver,
+      connectionString,
+    });
+
+    try {
+      const customers = definitionClient
+        .db('database')
+        .collection<User>('customers', {
+          definition: pongoSchema.collection<User>('customers', {
+            indexes: {
+              email: pongoSchema.index('customers_email_idx', 'email'),
+            },
+          }),
+        });
+
+      await customers.schema.migrate();
+
+      const indexes = await pool.execute.query<{ indexname: string }>(
+        SQL`
+          SELECT indexname
+          FROM pg_indexes
+          WHERE schemaname = 'public' AND tablename = 'customers'
+            AND indexname = 'customers_email_idx'`,
+      );
+
+      assert.strictEqual(await tableExists(pool.execute, 'customers'), true);
+      assert.deepStrictEqual(
+        indexes.rows.map(({ indexname }) => indexname),
+        ['customers_email_idx'],
+      );
+    } finally {
+      await definitionClient.close();
+    }
+  });
+
   it('rolls back a collection schema migrate with the active session', async () => {
     const db = client.db('database');
     const users = db.collection<User>('users', { databaseSchemaName: 'crm' });
