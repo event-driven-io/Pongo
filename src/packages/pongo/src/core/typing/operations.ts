@@ -89,7 +89,6 @@ export type PongoClientOptions<
     : never;
 
 export declare interface PongoTransactionOptions {
-  maxCommitTimeMS?: number;
   timeoutMS?: number | undefined;
 }
 

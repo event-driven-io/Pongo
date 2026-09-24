@@ -1,4 +1,4 @@
-import { QueryCanceledError } from '@event-driven-io/dumbo';
+import { DumboError, QueryCanceledError } from '@event-driven-io/dumbo';
 import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
@@ -8,6 +8,9 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import '../pg';
 import { migrateCommand } from './migrate';
+
+const isQueryCanceledError = (error: unknown) =>
+  DumboError.isInstanceOf(error, { errorType: QueryCanceledError.ErrorType });
 
 describe('pongo migrate run', () => {
   let postgres: StartedPostgreSqlContainer;
@@ -46,7 +49,7 @@ describe('pongo migrate run', () => {
             ],
             { from: 'user' },
           ),
-        QueryCanceledError,
+        isQueryCanceledError,
       );
     } finally {
       clearTimeout(unblock);
