@@ -224,6 +224,97 @@ describe('using a Pongo database', () => {
     ]);
   });
 
+  it('opens an undeclared collection with the indexes of the given definition', () => {
+    const { db } = createTestDb();
+    const definition = pongoSchema.collection('users', {
+      indexes: { email: pongoSchema.index('users_email_idx', 'email') },
+    });
+
+    const users = db.collection('users', { definition });
+
+    assert.strictEqual(
+      db.schema.component.tables.users,
+      users.schema.component,
+    );
+    assert.deepStrictEqual(migrationNames(db.schema.migrations), [
+      'table:pongo_collection:users:create',
+      'index:pongo_index:users:users_email_idx:create',
+    ]);
+  });
+
+  it('opens an undeclared collection with the given definition in a named schema', () => {
+    const { db } = createTestDb();
+    const definition = pongoSchema.collection('entries', {
+      indexes: { email: pongoSchema.index('entries_email_idx', 'email') },
+    });
+
+    const entries = db.collection('entries', {
+      databaseSchemaName: 'audit',
+      definition,
+    });
+
+    assert.strictEqual(
+      db.schema.component.schemas.audit?.tables.entries,
+      entries.schema.component,
+    );
+    assert.deepStrictEqual(migrationNames(db.schema.migrations), [
+      'schema:audit:create',
+      'table:pongo_collection:audit:entries:create',
+      'index:pongo_index:audit:entries:entries_email_idx:create',
+    ]);
+  });
+
+  it('names the collection from the collection name when the definition has a different table name', () => {
+    const { db } = createTestDb();
+    const definition = pongoSchema.collection('accounts', {
+      indexes: { email: pongoSchema.index('users_email_idx', 'email') },
+    });
+
+    const users = db.collection('users', { definition });
+
+    assert.strictEqual(users.collectionName, 'users');
+    assert.strictEqual(users.schema.component.tableName, 'users');
+    assert.strictEqual(
+      db.schema.component.tables.users,
+      users.schema.component,
+    );
+    assert.deepStrictEqual(migrationNames(db.schema.migrations), [
+      'table:pongo_collection:users:create',
+      'index:pongo_index:users:users_email_idx:create',
+    ]);
+  });
+
+  it('reuses the collection opened with a definition on repeated access', () => {
+    const { db } = createTestDb();
+    const definition = pongoSchema.collection('users', {
+      indexes: { email: pongoSchema.index('users_email_idx', 'email') },
+    });
+
+    const users = db.collection('users', { definition });
+
+    assert.strictEqual(db.collection('users'), users);
+    assert.strictEqual(db.collection('users', { definition }), users);
+    assert.deepStrictEqual(db.collections(), [users]);
+  });
+
+  it('keeps the declared collection when a definition is given for it', () => {
+    const declared = pongoSchema.collection('users');
+    const { db } = createTestDb({
+      definition: pongoSchema.db('test', { collections: { users: declared } }),
+    });
+
+    const users = db.collection('users', {
+      definition: pongoSchema.collection('users', {
+        indexes: { email: pongoSchema.index('users_email_idx', 'email') },
+      }),
+    });
+
+    assert.strictEqual(users.schema.component, declared);
+    assert.deepStrictEqual(migrationNames(db.schema.migrations), [
+      'table:pongo_collection:users:create',
+    ]);
+  });
+
   it('opens an undeclared collection in a named schema without mutating the reusable definition', () => {
     const definition = pongoSchema.db('test', { collections: {} });
     const { db } = createTestDb({ definition });

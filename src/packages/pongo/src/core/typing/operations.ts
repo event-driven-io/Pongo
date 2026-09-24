@@ -136,6 +136,7 @@ export type PongoDBCollectionOptions<
   Payload extends PongoDocument = T,
 > = {
   databaseSchemaName?: string | undefined;
+  definition?: PongoCollectionComponent<T>;
   schema?: {
     versioning?: {
       upcast?: (document: Payload) => T;

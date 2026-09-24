@@ -87,6 +87,39 @@ describe('SQLite3 migration integration', () => {
     }
   });
 
+  it('creates the indexes of a collection definition through a collection schema migrate', async () => {
+    const client = pongoClient({ driver: sqlite3Driver, connectionString });
+    const pool = sqlite3Pool({ fileName });
+
+    try {
+      const customers = client.db('database').collection<User>('customers', {
+        definition: pongoSchema.collection<User>('customers', {
+          indexes: {
+            email: pongoSchema.index('customers_email_idx', 'email'),
+          },
+        }),
+      });
+
+      await customers.schema.migrate();
+
+      const objects = await pool.execute.query<{ name: string; type: string }>(
+        SQL`
+          SELECT name, type
+          FROM sqlite_master
+          WHERE name IN ('customers', 'customers_email_idx')
+          ORDER BY type, name`,
+      );
+
+      assert.deepStrictEqual(objects.rows, [
+        { name: 'customers_email_idx', type: 'index' },
+        { name: 'customers', type: 'table' },
+      ]);
+    } finally {
+      await client.close();
+      await pool.close();
+    }
+  });
+
   it('rolls back a collection schema migrate with the active session', async () => {
     const client: PongoClient = pongoClient({
       driver: sqlite3Driver,
