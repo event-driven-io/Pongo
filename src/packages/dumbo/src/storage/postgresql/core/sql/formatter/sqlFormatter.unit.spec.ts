@@ -2,7 +2,15 @@ import assert from 'assert';
 import { describe, it } from 'vitest';
 import { pgFormatter } from '.';
 import { PostgreSQLJSON } from '..';
-import { SQL, isSQL, isTokenizedSQL } from '../../../../../core/sql';
+import { JSONSerializer } from '../../../../../core';
+import {
+  SQL,
+  SQLTableReference,
+  describeSQL,
+  formatSQL,
+  isSQL,
+  isTokenizedSQL,
+} from '../../../../../core/sql';
 
 describe('SQLite SQL Tagged Template Literal', () => {
   it('should format identifiers correctly', () => {
@@ -163,7 +171,7 @@ describe('SQLite SQL Tagged Template Literal', () => {
 
   it('should correctly format arrays as comma-separated values', () => {
     const ids = [1, 2, 3];
-    const query = SQL`SELECT * FROM users WHERE id IN (${ids});`;
+    const query = SQL`SELECT * FROM users WHERE id IN (${SQL.array(ids, { mode: 'params' })});`;
     assert.deepStrictEqual(SQL.format(query, pgFormatter), {
       query: 'SELECT * FROM users WHERE id IN ($1, $2, $3);',
       params: [1, 2, 3],
@@ -294,5 +302,64 @@ describe('SQLite SQL Tagged Template Literal', () => {
       query: 'SELECT * FROM users LIMIT $1 OFFSET $2;',
       params: [limit, offset],
     });
+  });
+});
+
+describe('formatting PostgreSQL-specific tokens without calling the formatter methods', () => {
+  const users = SQLTableReference.from({
+    databaseSchemaName: 'crm',
+    tableName: 'users',
+  });
+  const selectUser = SQL`SELECT * FROM ${users} WHERE name = ${'John'};`;
+  const createUsers = SQL`CREATE TABLE users (id ${SQL.column.type.Serial});`;
+
+  it('formats a table reference with SQL.format', () => {
+    assert.deepStrictEqual(SQL.format(selectUser, pgFormatter), {
+      query: 'SELECT * FROM crm.users WHERE name = $1;',
+      params: ['John'],
+    });
+  });
+
+  it('formats a column type with SQL.format', () => {
+    assert.deepStrictEqual(SQL.format(createUsers, pgFormatter), {
+      query: 'CREATE TABLE users (id SERIAL);',
+      params: [],
+    });
+  });
+
+  it('describes a table reference with SQL.describe', () => {
+    assert.strictEqual(
+      SQL.describe(selectUser, pgFormatter),
+      `SELECT * FROM crm.users WHERE name = "John";`,
+    );
+  });
+
+  it('describes a column type with SQL.describe', () => {
+    assert.strictEqual(
+      SQL.describe(createUsers, pgFormatter),
+      'CREATE TABLE users (id SERIAL);',
+    );
+  });
+
+  it('formats the same as the formatter when calling formatSQL directly', () => {
+    const expected = pgFormatter.format([selectUser, createUsers], {
+      serializer: JSONSerializer,
+    });
+
+    assert.deepStrictEqual(
+      formatSQL([selectUser, createUsers], pgFormatter, JSONSerializer),
+      expected,
+    );
+  });
+
+  it('describes the same as the formatter when calling describeSQL directly', () => {
+    const expected = pgFormatter.describe([selectUser, createUsers], {
+      serializer: JSONSerializer,
+    });
+
+    assert.strictEqual(
+      describeSQL([selectUser, createUsers], pgFormatter, JSONSerializer),
+      expected,
+    );
   });
 });

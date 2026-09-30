@@ -1,5 +1,13 @@
-import { DumboError, QueryCanceledError, SQL } from '@event-driven-io/dumbo';
-import { PostgreSQLConnectionString } from '@event-driven-io/dumbo/pg';
+import {
+  DumboError,
+  JSONSerializer,
+  QueryCanceledError,
+  SQL,
+} from '@event-driven-io/dumbo';
+import {
+  pgFormatter,
+  PostgreSQLConnectionString,
+} from '@event-driven-io/dumbo/pg';
 import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
@@ -23,7 +31,7 @@ import {
   type PongoDb,
 } from '../../..';
 import { pongoSchema } from '../../../core';
-import { pongoDriver } from '../../../pg';
+import { pongoDriver, postgresSQLBuilder } from '../../../pg';
 import { MongoClient, type Db } from '../../../shim';
 
 type History = { street: string };
@@ -2449,6 +2457,54 @@ describe('MongoDB Compatibility Tests', () => {
         { profile: doc?.profile, timestamps: doc?.timestamps },
         replacement,
       );
+    });
+  });
+
+  describe('Rendering collection SQL with dumbo formatters', () => {
+    it('describes and formats a filtered find built with the collection SQL builder', async () => {
+      const collectionName = 'rendered_sql_find';
+      await pongoDb.collection<User>(collectionName).insertMany([
+        { _id: 'oskar', name: 'Oskar', age: 40 },
+        { _id: 'anita', name: 'Anita', age: 25 },
+      ]);
+      const find = postgresSQLBuilder(
+        pongoSchema.collection(collectionName),
+        JSONSerializer,
+      ).find<User>({ name: 'Oskar' });
+
+      const described = SQL.describe(find, pgFormatter);
+      const { query, params } = SQL.format(find, pgFormatter);
+
+      assert.ok(
+        described.startsWith(
+          `SELECT data, _id, _version FROM ${collectionName} WHERE  (data -> 'name' = `,
+        ),
+        `got: ${described}`,
+      );
+      assert.equal(
+        query,
+        `SELECT data, _id, _version FROM ${collectionName} WHERE  (data -> 'name' = $1::jsonb OR data -> 'name' @> $2::jsonb) ;`,
+      );
+      assert.deepEqual(params, [
+        JSONSerializer.serialize('Oskar'),
+        JSONSerializer.serialize(['Oskar']),
+      ]);
+
+      const pool = new pg.Pool({
+        connectionString: postgresConnectionString,
+      });
+      try {
+        const result = await pool.query<{ _id: string; data: User }>(
+          query,
+          params,
+        );
+        assert.deepEqual(
+          result.rows.map(({ _id, data }) => ({ _id, name: data.name })),
+          [{ _id: 'oskar', name: 'Oskar' }],
+        );
+      } finally {
+        await pool.end();
+      }
     });
   });
 });

@@ -227,6 +227,62 @@ describe('SQL template', () => {
         params: [true],
       });
     });
+
+    it('uses the format provided to the formatter', () => {
+      const formatter = SQLFormatter({
+        format: () => ({ query: 'SELECT 1', params: [] }),
+      });
+
+      const formatted = SQL.format(SQL`SELECT * FROM users`, formatter);
+
+      assert.deepStrictEqual(formatted, { query: 'SELECT 1', params: [] });
+    });
+
+    it('uses the describe provided to the formatter', () => {
+      const formatter = SQLFormatter({
+        describe: () => 'SELECT 1',
+      });
+
+      const described = SQL.describe(SQL`SELECT * FROM users`, formatter);
+
+      assert.strictEqual(described, 'SELECT 1');
+    });
+
+    it('uses the identifier mapper passed in options', () => {
+      const formatted = SQL.format(
+        SQL`SELECT * FROM ${SQL.identifier('users')}`,
+        mockFormatter,
+        { mapper: { mapIdentifier: (value) => `[${value}]` } },
+      );
+
+      assert.deepStrictEqual(formatted, {
+        query: 'SELECT * FROM [users]',
+        params: [],
+      });
+    });
+
+    it('uses the date mapper passed in options', () => {
+      const formatted = SQL.format(
+        SQL`SELECT ${new Date('2024-01-01')}`,
+        mockFormatter,
+        { mapper: { mapDate: () => '2024-01-01' } },
+      );
+
+      assert.deepStrictEqual(formatted, {
+        query: 'SELECT $1',
+        params: ['2024-01-01'],
+      });
+    });
+
+    it('describes using the identifier mapper passed in options', () => {
+      const described = SQL.describe(
+        SQL`SELECT * FROM ${SQL.identifier('users')} WHERE id = ${1}`,
+        mockFormatter,
+        { mapper: { mapIdentifier: (value) => `[${value}]` } },
+      );
+
+      assert.strictEqual(described, 'SELECT * FROM [users] WHERE id = 1');
+    });
   });
 
   describe('RawSQL template', () => {

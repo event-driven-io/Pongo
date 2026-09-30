@@ -1,4 +1,5 @@
 import { JSONSerializer, mapColumnToJSON, SQL } from '@event-driven-io/dumbo';
+import { sqliteFormatter } from '@event-driven-io/dumbo/sqlite';
 import { SQLiteConnectionString } from '@event-driven-io/dumbo/sqlite3';
 import assert from 'assert';
 import console from 'console';
@@ -21,6 +22,7 @@ import {
   type PongoDb,
 } from '../../..';
 import { MongoClient, type Db } from '../../../shim';
+import { sqliteSQLBuilder } from '../../../sqlite3';
 import { sqlite3Driver as databaseDriver } from '../../../storage/sqlite/sqlite3';
 
 type History = { street: string };
@@ -2269,6 +2271,36 @@ describe('SQLite MongoDB Compatibility Tests', () => {
       ] as unknown as Array<WithId<User>>;
 
       await assert.rejects(() => users.replaceMany(docs, { upsert: true }));
+    });
+  });
+
+  describe('Rendering collection SQL with dumbo formatters', () => {
+    it('describes and formats a filtered find built with the collection SQL builder', () => {
+      const find = sqliteSQLBuilder(
+        pongoSchema.collection('rendered_sql_find'),
+        JSONSerializer,
+      ).find<User>({ name: 'Oskar' });
+
+      const described = SQL.describe(find, sqliteFormatter);
+      const { query, params } = SQL.format(find, sqliteFormatter);
+
+      assert.ok(
+        described.startsWith(
+          'SELECT data, _id, _version FROM rendered_sql_find WHERE',
+        ),
+        `got: ${described}`,
+      );
+      assert.ok(
+        described.includes(`json_extract(data, '$.name') = "Oskar"`),
+        `got: ${described}`,
+      );
+      assert.ok(
+        query.startsWith(
+          'SELECT data, _id, _version FROM rendered_sql_find WHERE',
+        ),
+        `got: ${query}`,
+      );
+      assert.deepEqual(params, ['Oskar', 'Oskar']);
     });
   });
 });
