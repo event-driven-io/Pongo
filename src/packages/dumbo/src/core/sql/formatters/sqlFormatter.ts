@@ -25,8 +25,10 @@ export type FormatSQLOptions = {
   serializer?: JSONSerializer;
 };
 
-export type FormatContext = Partial<SQLProcessorContext> &
-  Pick<SQLProcessorContext, 'serializer'>;
+export type FormatContext = Partial<Omit<SQLProcessorContext, 'mapper'>> &
+  Pick<SQLProcessorContext, 'serializer'> & {
+    mapper?: MapSQLParamValueOptions;
+  };
 
 export type SQLFormatterOptions = Partial<Omit<SQLFormatter, 'valueMapper'>> & {
   valueMapper?: MapSQLParamValueOptions;
@@ -40,43 +42,92 @@ export const SQLFormatter = ({
   processorsRegistry,
 }: SQLFormatterOptions): SQLFormatter => {
   const valueMapper = SQLValueMapper(valueMapperOptions);
-  const options = {
-    builder: ParametrizedSQLBuilder({
-      mapParamPlaceholder: valueMapper.mapPlaceholder,
-    }),
-    mapper: valueMapper,
-    processorsRegistry: processorsRegistry ?? defaultProcessorsRegistry,
+
+  const formatTokens = (
+    sql: SQL | SQL[],
+    serializer: JSONSerializer,
+    mapper: SQLValueMapper,
+    registry: SQLProcessorsReadonlyRegistry,
+  ): ParametrizedSQL => {
+    const merged = (Array.isArray(sql)
+      ? SQL.merge(sql, '\n')
+      : sql) as unknown as TokenizedSQL;
+
+    if (!isTokenizedSQL(merged)) {
+      throw new InvalidOperationError(
+        'Expected TokenizedSQL, got string-based SQL',
+      );
+    }
+
+    const builder = ParametrizedSQLBuilder({
+      mapParamPlaceholder: mapper.mapPlaceholder,
+    });
+
+    let paramIndex = 0;
+
+    for (let i = 0; i < merged.sqlChunks.length; i++) {
+      const sqlChunk = merged.sqlChunks[i]!;
+
+      if (sqlChunk !== TokenizedSQL.paramPlaceholder) {
+        builder.addSQL(sqlChunk);
+        continue;
+      }
+
+      const token = merged.sqlTokens[paramIndex++]!;
+
+      const processor = registry.get(token.sqlTokenType);
+
+      if (!processor) {
+        throw new NotRegisteredError(
+          `No SQL processor registered for token type: ${token.sqlTokenType}`,
+        );
+      }
+
+      processor.handle(token, {
+        builder,
+        processorsRegistry: registry,
+        serializer,
+        mapper,
+      });
+    }
+
+    return builder.build();
   };
 
-  const resultFormatter: SQLFormatter = {
+  return {
     format:
       format ??
       ((sql: SQL | SQL[], methodOptions) =>
-        formatSQL(
+        formatTokens(
           sql,
-          resultFormatter,
           methodOptions?.serializer ?? JSONSerializer,
-          {
-            ...options,
-            ...(methodOptions ?? {}),
-          },
+          methodOptions?.mapper
+            ? SQLValueMapper({ ...valueMapperOptions, ...methodOptions.mapper })
+            : valueMapper,
+          methodOptions?.processorsRegistry ??
+            processorsRegistry ??
+            defaultProcessorsRegistry,
         )),
     describe:
       describe ??
-      ((sql: SQL | SQL[], methodOptions) =>
-        describeSQL(
+      ((sql: SQL | SQL[], methodOptions) => {
+        const serializer = methodOptions?.serializer ?? JSONSerializer;
+
+        return formatTokens(
           sql,
-          resultFormatter,
-          methodOptions?.serializer ?? JSONSerializer,
-          {
-            ...options,
-            ...(methodOptions ?? {}),
-          },
-        )),
+          serializer,
+          SQLValueMapper({
+            ...valueMapperOptions,
+            ...methodOptions?.mapper,
+            mapPlaceholder: (_, value) => serializer.serialize(value),
+          }),
+          methodOptions?.processorsRegistry ??
+            processorsRegistry ??
+            defaultProcessorsRegistry,
+        ).query;
+      }),
     valueMapper,
   };
-
-  return resultFormatter;
 };
 
 declare global {
@@ -109,59 +160,7 @@ export function formatSQL(
   serializer: JSONSerializer,
   context?: FormatSQLOptions,
 ): ParametrizedSQL {
-  const mapper: SQLValueMapper =
-    context?.mapper == undefined
-      ? formatter.valueMapper
-      : {
-          ...formatter.valueMapper,
-          ...context.mapper,
-        };
-  const processorsRegistry =
-    context?.processorsRegistry ?? defaultProcessorsRegistry;
-
-  const merged = (Array.isArray(sql)
-    ? SQL.merge(sql, '\n')
-    : sql) as unknown as TokenizedSQL;
-
-  if (!isTokenizedSQL(merged)) {
-    throw new InvalidOperationError(
-      'Expected TokenizedSQL, got string-based SQL',
-    );
-  }
-
-  const builder = ParametrizedSQLBuilder({
-    mapParamPlaceholder: mapper.mapPlaceholder,
-  });
-
-  let paramIndex = 0;
-
-  for (let i = 0; i < merged.sqlChunks.length; i++) {
-    const sqlChunk = merged.sqlChunks[i]!;
-
-    if (sqlChunk !== TokenizedSQL.paramPlaceholder) {
-      builder.addSQL(sqlChunk);
-      continue;
-    }
-
-    const token = merged.sqlTokens[paramIndex++]!;
-
-    const processor = processorsRegistry.get(token.sqlTokenType);
-
-    if (!processor) {
-      throw new NotRegisteredError(
-        `No SQL processor registered for token type: ${token.sqlTokenType}`,
-      );
-    }
-
-    processor.handle(token, {
-      builder,
-      processorsRegistry,
-      serializer,
-      mapper,
-    });
-  }
-
-  return builder.build();
+  return formatter.format(sql, { ...context, serializer });
 }
 
 export const describeSQL = (
@@ -169,10 +168,4 @@ export const describeSQL = (
   formatter: SQLFormatter,
   serializer: JSONSerializer,
   options?: FormatSQLOptions,
-): string =>
-  formatSQL(sql, formatter, serializer, {
-    ...(options ?? {}),
-    mapper: {
-      mapPlaceholder: (_, value) => serializer.serialize(value),
-    },
-  }).query;
+): string => formatter.describe(sql, { ...options, serializer });

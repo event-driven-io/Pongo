@@ -850,3 +850,72 @@ describe('find() logical operators', () => {
     assertNotImplementedError(() => builder.find(unsupportedFilter));
   });
 });
+
+describe('rendering builder SQL with SQL.format and SQL.describe', () => {
+  const builder = builderFor(
+    collectionInSchema(DefaultDatabaseSchemaName, 'users'),
+  );
+
+  it('SQL.format renders a filtered find into a parametrized query', () => {
+    const query = builder.find({ name: 'Oskar' });
+
+    assert.deepStrictEqual(SQL.format(query, pgFormatter), {
+      query: `SELECT data, _id, _version FROM users WHERE  (data -> 'name' = $1::jsonb OR data -> 'name' @> $2::jsonb) ;`,
+      params: [
+        JSONSerializer.serialize('Oskar'),
+        JSONSerializer.serialize(['Oskar']),
+      ],
+    });
+  });
+
+  it('SQL.format renders a filtered find the same as the formatter format method', () => {
+    const query = builder.find({ name: 'Oskar' }, { limit: 10 });
+
+    assert.deepStrictEqual(
+      SQL.format(query, pgFormatter),
+      formatSQL(query, pgFormatter),
+    );
+  });
+
+  it('SQL.describe renders a filtered find with the collection table name', () => {
+    const query = builder.find({ name: 'Oskar' });
+    const described = SQL.describe(query, pgFormatter);
+
+    assert.ok(
+      described.startsWith(
+        `SELECT data, _id, _version FROM users WHERE  (data -> 'name' = `,
+      ),
+      `got: ${described}`,
+    );
+  });
+
+  it('SQL.describe renders a filtered find the same as the formatter describe method', () => {
+    const query = builder.find({ name: 'Oskar' }, { limit: 10 });
+
+    assert.strictEqual(
+      SQL.describe(query, pgFormatter),
+      pgFormatter.describe(query, { serializer: JSONSerializer }),
+    );
+  });
+
+  it('SQL.format renders insertOne the same as the formatter format method', () => {
+    const query = builder.insertOne({ _id: 'user-1', name: 'Oskar' });
+
+    assert.deepStrictEqual(
+      SQL.format(query, pgFormatter),
+      formatSQL(query, pgFormatter),
+    );
+  });
+
+  it('SQL.describe renders updateOne the same as the formatter describe method', () => {
+    const query = builder.updateOne<{ name: string }>(
+      { _id: 'user-1' },
+      { $set: { name: 'Anita' } },
+    );
+
+    assert.strictEqual(
+      SQL.describe(query, pgFormatter),
+      pgFormatter.describe(query, { serializer: JSONSerializer }),
+    );
+  });
+});

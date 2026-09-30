@@ -62,6 +62,28 @@ describe('D1 SQL Formatter Integration Tests', () => {
 
       assert.strictEqual(result, 1);
     });
+
+    it('handles non-empty arrays in IN clauses', async () => {
+      const ids = [1, 2];
+      const result = await count(
+        pool.execute.query(
+          SQL`SELECT COUNT(*) as count FROM test_users WHERE id IN (${ids})`,
+        ),
+      );
+
+      assert.strictEqual(result, 2);
+    });
+
+    it('handles non-empty arrays in IN clauses with SQL.in', async () => {
+      const ids = [1, 2];
+      const result = await count(
+        pool.execute.query(
+          SQL`SELECT COUNT(*) as count FROM test_users WHERE ${SQL.in('id', ids)}`,
+        ),
+      );
+
+      assert.strictEqual(result, 2);
+    });
   });
 
   describe('SQL.in Helper', () => {

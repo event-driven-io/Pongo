@@ -53,6 +53,33 @@ describe('PostgreSQL SQL Formatter Integration Tests', () => {
 
       assert.strictEqual(result, 1);
     });
+
+    it('fails for non-empty arrays in IN clauses', async () => {
+      const ids = [1, 2];
+
+      try {
+        await pool.execute.query(
+          SQL`SELECT COUNT(*) as count FROM test_users WHERE id IN (${ids})`,
+        );
+        assert.fail('Should have thrown error for array in IN clause');
+      } catch (error) {
+        assert.ok(error instanceof Error);
+        assert.ok(
+          error.message.includes('invalid input syntax for type integer'),
+        );
+      }
+    });
+
+    it('handles non-empty arrays in IN clauses with SQL.in', async () => {
+      const ids = [1, 2];
+      const result = await count(
+        pool.execute.query(
+          SQL`SELECT COUNT(*) as count FROM test_users WHERE ${SQL.in('id', ids)}`,
+        ),
+      );
+
+      assert.strictEqual(result, 2);
+    });
   });
 
   describe('SQL.in Helper', () => {

@@ -2,7 +2,15 @@ import assert from 'assert';
 import { describe, it } from 'vitest';
 import { sqliteFormatter } from '.';
 import { SQLiteJSON } from '..';
-import { SQL, isSQL, isTokenizedSQL } from '../../../../../core/sql';
+import { JSONSerializer } from '../../../../../core';
+import {
+  SQL,
+  SQLTableReference,
+  describeSQL,
+  formatSQL,
+  isSQL,
+  isTokenizedSQL,
+} from '../../../../../core/sql';
 
 describe('SQLite SQL Tagged Template Literal', () => {
   it('should format identifiers correctly', () => {
@@ -294,5 +302,64 @@ describe('SQLite SQL Tagged Template Literal', () => {
       query: 'SELECT * FROM users LIMIT ? OFFSET ?;',
       params: [limit, offset],
     });
+  });
+});
+
+describe('formatting SQLite-specific tokens without calling the formatter methods', () => {
+  const users = SQLTableReference.from({
+    databaseSchemaName: 'crm',
+    tableName: 'users',
+  });
+  const selectUser = SQL`SELECT * FROM ${users} WHERE name = ${'John'};`;
+  const createUsers = SQL`CREATE TABLE users (id ${SQL.column.type.Serial});`;
+
+  it('formats a table reference with SQL.format', () => {
+    assert.deepStrictEqual(SQL.format(selectUser, sqliteFormatter), {
+      query: 'SELECT * FROM "crm.users" WHERE name = ?;',
+      params: ['John'],
+    });
+  });
+
+  it('formats a column type with SQL.format', () => {
+    assert.deepStrictEqual(SQL.format(createUsers, sqliteFormatter), {
+      query: 'CREATE TABLE users (id INTEGER);',
+      params: [],
+    });
+  });
+
+  it('describes a table reference with SQL.describe', () => {
+    assert.strictEqual(
+      SQL.describe(selectUser, sqliteFormatter),
+      `SELECT * FROM "crm.users" WHERE name = "John";`,
+    );
+  });
+
+  it('describes a column type with SQL.describe', () => {
+    assert.strictEqual(
+      SQL.describe(createUsers, sqliteFormatter),
+      'CREATE TABLE users (id INTEGER);',
+    );
+  });
+
+  it('formats the same as the formatter when calling formatSQL directly', () => {
+    const expected = sqliteFormatter.format([selectUser, createUsers], {
+      serializer: JSONSerializer,
+    });
+
+    assert.deepStrictEqual(
+      formatSQL([selectUser, createUsers], sqliteFormatter, JSONSerializer),
+      expected,
+    );
+  });
+
+  it('describes the same as the formatter when calling describeSQL directly', () => {
+    const expected = sqliteFormatter.describe([selectUser, createUsers], {
+      serializer: JSONSerializer,
+    });
+
+    assert.strictEqual(
+      describeSQL([selectUser, createUsers], sqliteFormatter, JSONSerializer),
+      expected,
+    );
   });
 });

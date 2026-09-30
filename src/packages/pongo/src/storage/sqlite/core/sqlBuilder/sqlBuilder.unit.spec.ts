@@ -953,4 +953,86 @@ describe('sqliteSQLBuilder', () => {
       assertNotImplementedError(() => builder.find(unsupportedFilter));
     });
   });
+
+  describe('rendering builder SQL with SQL.format and SQL.describe', () => {
+    it('SQL.format renders a filtered find into a parametrized query', () => {
+      const result = builder.find<{ name: string }>({ name: 'Oskar' });
+
+      const { query, params } = SQL.format(result, sqliteFormatter);
+
+      assert.ok(
+        query.startsWith(
+          'SELECT data, _id, _version FROM "testCollection" WHERE',
+        ),
+        `got: ${query}`,
+      );
+      assert.ok(
+        query.includes(`json_extract(data, '$.name') = ?`),
+        `got: ${query}`,
+      );
+      assert.deepStrictEqual(params, ['Oskar', 'Oskar']);
+    });
+
+    it('SQL.format renders a filtered find the same as the formatter format method', () => {
+      const result = builder.find<{ name: string }>(
+        { name: 'Oskar' },
+        { limit: 10 },
+      );
+
+      assert.deepStrictEqual(
+        SQL.format(result, sqliteFormatter),
+        formatSQL(result, sqliteFormatter),
+      );
+    });
+
+    it('SQL.describe renders a filtered find with the collection table name', () => {
+      const result = builder.find<{ name: string }>({ name: 'Oskar' });
+
+      const described = SQL.describe(result, sqliteFormatter);
+
+      assert.ok(
+        described.startsWith(
+          'SELECT data, _id, _version FROM "testCollection" WHERE',
+        ),
+        `got: ${described}`,
+      );
+      assert.ok(
+        described.includes(`json_extract(data, '$.name') = "Oskar"`),
+        `got: ${described}`,
+      );
+    });
+
+    it('SQL.describe renders a filtered find the same as the formatter describe method', () => {
+      const result = builder.find<{ name: string }>(
+        { name: 'Oskar' },
+        { limit: 10 },
+      );
+
+      assert.strictEqual(
+        SQL.describe(result, sqliteFormatter),
+        sqliteFormatter.describe(result, { serializer: JSONSerializer }),
+      );
+    });
+
+    it('SQL.format renders insertOne the same as the formatter format method', () => {
+      const result = builder.insertOne({ _id: 'user-1', name: 'Oskar' });
+
+      assert.deepStrictEqual(
+        SQL.format(result, sqliteFormatter),
+        formatSQL(result, sqliteFormatter),
+      );
+    });
+
+    it('SQL.describe renders updateOne the same as the formatter describe method', () => {
+      const result = builder.updateOne<{ name: string }>(
+        { _id: 'user-1' },
+        { $set: { name: 'Anita' } },
+      );
+
+      assert.strictEqual(
+        SQL.describe(result, sqliteFormatter),
+        sqliteFormatter.describe(result, { serializer: JSONSerializer }),
+      );
+    });
+  });
 });
