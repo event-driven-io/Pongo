@@ -1,3 +1,4 @@
+import { PendingMigrationsError } from '@event-driven-io/dumbo';
 import { dumbo, SQL, type Dumbo } from '@event-driven-io/dumbo';
 import { PostgreSQLConnectionString } from '@event-driven-io/dumbo/pg';
 import {
@@ -235,7 +236,15 @@ describe('renaming a PostgreSQL Pongo collection', () => {
       await manualDb.schema.migrate();
       await users.insertOne({ name: 'Oskar' });
 
-      await users.rename('archived_users');
+      await assert.rejects(users.rename('archived_users'), (error: unknown) => {
+        assert.ok(error instanceof PendingMigrationsError);
+        assert.ok(
+          error.pendingMigrations.some(({ name }) =>
+            name.includes('archived_users:rename'),
+          ),
+        );
+        return true;
+      });
 
       assert.deepStrictEqual(await tablesIn('public'), ['users']);
 

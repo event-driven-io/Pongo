@@ -107,12 +107,11 @@ describe('Migration Integration Tests', () => {
     );
   });
 
-  it('migrates the whole database through a collection schema', async () => {
+  it('migrates the whole database through the database schema', async () => {
     const db = client.db('database');
 
-    await db
-      .collection<User>('users', { databaseSchemaName: 'crm' })
-      .schema.migrate();
+    db.collection<User>('users', { databaseSchemaName: 'crm' });
+    await db.schema.migrate();
 
     const crmUsersTableExists = await pool.execute.query<{ exists: boolean }>(
       SQL`
@@ -126,24 +125,22 @@ describe('Migration Integration Tests', () => {
     assert.strictEqual(await tableExists(pool.execute, 'roles'), true);
   });
 
-  it('creates the indexes of a collection definition through a collection schema migrate', async () => {
+  it('creates the indexes of a collection definition through database schema migration', async () => {
     const definitionClient = pongoClient({
       driver: pongoDriver,
       connectionString,
     });
 
     try {
-      const customers = definitionClient
-        .db('database')
-        .collection<User>('customers', {
-          definition: pongoSchema.collection<User>('customers', {
-            indexes: {
-              email: pongoSchema.index('customers_email_idx', 'email'),
-            },
-          }),
-        });
+      definitionClient.db('database').collection<User>('customers', {
+        definition: pongoSchema.collection<User>('customers', {
+          indexes: {
+            email: pongoSchema.index('customers_email_idx', 'email'),
+          },
+        }),
+      });
 
-      await customers.schema.migrate();
+      await definitionClient.db('database').schema.migrate();
 
       const indexes = await pool.execute.query<{ indexname: string }>(
         SQL`
@@ -165,12 +162,12 @@ describe('Migration Integration Tests', () => {
 
   it('rolls back a collection schema migrate with the active session', async () => {
     const db = client.db('database');
-    const users = db.collection<User>('users', { databaseSchemaName: 'crm' });
+    db.collection<User>('users', { databaseSchemaName: 'crm' });
 
     await assert.rejects(
       client.withSession(async (session) => {
         await session.withTransaction(async (session) => {
-          await users.schema.migrate({ session });
+          await db.schema.migrate({ session });
           throw new Error('rollback');
         });
       }),

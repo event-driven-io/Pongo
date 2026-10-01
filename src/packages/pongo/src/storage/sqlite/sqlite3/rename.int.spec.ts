@@ -1,3 +1,4 @@
+import { PendingMigrationsError } from '@event-driven-io/dumbo';
 import { SQL } from '@event-driven-io/dumbo';
 import {
   SQLiteConnectionString,
@@ -259,7 +260,15 @@ describe('renaming a SQLite Pongo collection', () => {
       await manualDb.schema.migrate();
       await users.insertOne({ name: 'Oskar' });
 
-      await users.rename('archived_users');
+      await assert.rejects(users.rename('archived_users'), (error: unknown) => {
+        assert.ok(error instanceof PendingMigrationsError);
+        assert.ok(
+          error.pendingMigrations.some(({ name }) =>
+            name.includes('archived_users:rename'),
+          ),
+        );
+        return true;
+      });
 
       assert.deepStrictEqual(await tableNames(), ['users']);
 
@@ -289,14 +298,14 @@ describe('renaming a SQLite Pongo collection', () => {
       /rollback/,
     );
 
-    const tables = await db.sql.query<{ name: string }>(
+    const tables = await pool.execute.query<{ name: string }>(
       SQL`
         SELECT name
         FROM sqlite_master
         WHERE type = 'table' AND name IN ('users', 'archived_users')
         ORDER BY name`,
     );
-    assert.deepStrictEqual(tables, []);
+    assert.deepStrictEqual(tables.rows, []);
   });
 
   it('renames a collection declared in a named schema and keeps the renamed handle usable', async () => {

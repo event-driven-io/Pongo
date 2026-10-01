@@ -1,3 +1,4 @@
+import { PendingMigrationsError } from '@event-driven-io/dumbo';
 import type { DurableObjectStorage } from '@cloudflare/workers-types';
 import { SQL } from '@event-driven-io/dumbo';
 import { env } from 'cloudflare:workers';
@@ -221,7 +222,15 @@ describe('renaming a Cloudflare Durable Object SQLite Pongo collection', () => {
       await manualDb.schema.migrate();
       await users.insertOne({ name: 'Oskar' });
 
-      await users.rename('archived_users');
+      await assert.rejects(users.rename('archived_users'), (error: unknown) => {
+        assert.ok(error instanceof PendingMigrationsError);
+        assert.ok(
+          error.pendingMigrations.some(({ name }) =>
+            name.includes('archived_users:rename'),
+          ),
+        );
+        return true;
+      });
 
       assert.deepStrictEqual(tableNames(), ['users']);
 
@@ -251,13 +260,11 @@ describe('renaming a Cloudflare Durable Object SQLite Pongo collection', () => {
       /rollback/,
     );
 
-    const tables = await db.sql.query<{ name: string }>(
-      SQL`
-        SELECT name
-        FROM sqlite_master
-        WHERE type = 'table' AND name IN ('users', 'archived_users')
-        ORDER BY name`,
-    );
+    const tables = storage.sql
+      .exec<{ name: string }>(
+        `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('users', 'archived_users') ORDER BY name`,
+      )
+      .toArray();
     assert.deepStrictEqual(tables, []);
   });
 

@@ -155,6 +155,9 @@ export type PongoDbOptions = {
 
 export interface PongoDatabaseSchema {
   readonly component: AnyDatabaseComponent;
+  sql(): string;
+  print(): void;
+  ensureMigrated(): Promise<void>;
   readonly migrations: ReturnType<DatabaseComponent['migrations']>;
   migrate(options?: PongoMigrationOptions): Promise<RunSQLMigrationsResult>;
   renameCollection<Document extends PongoDocument>(
@@ -346,7 +349,6 @@ export interface PongoCollection<T extends PongoDocument> {
   ): Promise<PongoReplaceManyResult>;
   readonly schema: Readonly<{
     component: PongoCollectionComponent;
-    migrate(options?: PongoMigrationOptions): Promise<RunSQLMigrationsResult>;
   }>;
   close: () => MaybePromise<void>;
   sql: {
