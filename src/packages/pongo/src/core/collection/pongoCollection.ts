@@ -39,7 +39,6 @@ import {
   type PongoFilter,
   type PongoInsertManyResult,
   type PongoInsertOneResult,
-  type PongoMigrationOptions,
   type PongoReplaceManyResult,
   type PongoSession,
   type PongoUpdate,
@@ -61,6 +60,7 @@ export type PongoCollectionOptions<
   Payload extends PongoDocument = T,
 > = {
   db: PongoDb<DriverType>;
+  ensureSchema?: (options?: CollectionOperationOptions) => Promise<void>;
   pool: Dumbo<DatabaseDriverType>;
   component: PongoCollectionComponent;
   sqlBuilderFor: (
@@ -116,6 +116,7 @@ export const pongoCollection = <
   Payload extends PongoDocument = T,
 >({
   db,
+  ensureSchema,
   pool,
   component: initialComponent,
   sqlBuilderFor,
@@ -162,19 +163,8 @@ export const pongoCollection = <
       },
     );
 
-  const autoMigrates = schema?.autoMigration !== 'None';
-  let migrated = false;
-
-  const ensureMigrated = async (options?: CollectionOperationOptions) => {
-    if (!autoMigrates || migrated) return;
-
-    await db.schema.migrate({
-      session: options?.session,
-      migrationTimeoutMS: timeoutMSOf(options),
-    });
-
-    migrated = true;
-  };
+  const ensureMigrated = (options?: CollectionOperationOptions) =>
+    ensureSchema?.(options) ?? db.schema.ensureMigrated();
 
   const upcast =
     schema?.versioning?.upcast ?? ((doc: Payload) => doc as unknown as T);
@@ -407,7 +397,6 @@ export const pongoCollection = <
     },
     createCollection: async (options?: CollectionOperationOptions) => {
       await db.schema.migrate({ session: options?.session });
-      migrated = true;
     },
     insertOne: async (
       document: OptionalUnlessRequiredIdAndVersion<T>,
@@ -958,7 +947,6 @@ export const pongoCollection = <
     ): Promise<PongoCollection<T>> => {
       component = db.schema.renameCollection(component, newName);
       SqlFor = sqlBuilderFor(component);
-      migrated = false;
 
       await ensureMigrated(options);
 
@@ -988,11 +976,6 @@ export const pongoCollection = <
     schema: {
       get component() {
         return component;
-      },
-      migrate: async (options?: PongoMigrationOptions) => {
-        const result = await db.schema.migrate(options);
-        migrated = true;
-        return result;
       },
     },
   };

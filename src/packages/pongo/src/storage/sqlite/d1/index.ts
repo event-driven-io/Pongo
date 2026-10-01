@@ -39,11 +39,13 @@ const d1PongoDriver: PongoDriver<
       const pongoConnectionOptions = withPongoTransactionOptions(
         ambientConnectionOptions,
       );
+      const pool = options.pool ?? d1Pool(pongoConnectionOptions);
 
       return PongoDatabase({
         ...options,
         transactionOptions: pongoConnectionOptions.transactionOptions,
-        pool: options.pool ?? d1Pool(pongoConnectionOptions),
+        pool,
+        migrationOptions: { execute: pool.execute },
         sqlBuilderFor: (collection) =>
           sqliteSQLBuilder(collection, options.serializer),
         databaseName,
@@ -66,11 +68,13 @@ const d1PongoDriver: PongoDriver<
       ...options.connectionOptions,
       database,
     });
+    const pool = options.pool ?? d1Pool(pongoConnectionOptions);
 
     return PongoDatabase({
       ...options,
       transactionOptions: pongoConnectionOptions.transactionOptions,
-      pool: options.pool ?? d1Pool(pongoConnectionOptions),
+      pool,
+      migrationOptions: { execute: pool.execute },
       sqlBuilderFor: (collection) =>
         sqliteSQLBuilder(collection, options.serializer),
       databaseName,

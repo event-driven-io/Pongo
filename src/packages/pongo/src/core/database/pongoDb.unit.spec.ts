@@ -4,6 +4,7 @@ import {
   DumboError,
   dumboSchema,
   JSONSerializer,
+  isTokenizedSQL,
   registerDefaultMigratorOptions,
   registerFormatter,
   SQL,
@@ -19,6 +20,7 @@ import {
   type SQLQueryOptions,
 } from '@event-driven-io/dumbo';
 import assert from 'node:assert';
+import { createHash } from 'node:crypto';
 import { describe, it } from 'vitest';
 import type { PongoCollectionSQLBuilder } from '../collection';
 import { pongoSession } from '../pongoSession';
@@ -69,9 +71,40 @@ type ExecutedCall = {
 const recordingExecutor = (
   calls: ExecutedCall[],
   rows: unknown[] = [],
+  migrated = false,
+  historyCalls: SQL[] = [],
+  failMigrationOnce = false,
 ): SQLExecutor =>
   ({
     query: (_sql: SQL, options?: unknown) => {
+      const statement: unknown = _sql;
+      if (
+        migrated &&
+        (isTokenizedSQL(statement)
+          ? statement.sqlChunks.join('')
+          : ''
+        ).includes('SELECT EXISTS')
+      ) {
+        historyCalls.push(_sql);
+        return Promise.resolve({ rows: [{ exists: true }] });
+      }
+      if (
+        migrated &&
+        (isTokenizedSQL(statement)
+          ? statement.sqlChunks.join('')
+          : ''
+        ).includes('sql_hash')
+      ) {
+        return Promise.resolve({
+          rows: [
+            {
+              name: 'table:pongo_collection:users:create',
+              sqlHash: createHash('sha256').update('SELECT 1').digest('hex'),
+              sql_hash: createHash('sha256').update('SELECT 1').digest('hex'),
+            },
+          ],
+        });
+      }
       calls.push({ method: 'query', options });
       return Promise.resolve({ rows });
     },
@@ -84,6 +117,10 @@ const recordingExecutor = (
       return Promise.resolve({ rows, changes: 0 });
     },
     batchCommand: (_sqls: SQL[], options?: unknown) => {
+      if (failMigrationOnce) {
+        failMigrationOnce = false;
+        return Promise.reject(new Error('migration failed'));
+      }
       calls.push({ method: 'batchCommand', options });
       return Promise.resolve([]);
     },
@@ -98,10 +135,12 @@ const createTestDb = <
   definition?: Definition;
   poolRows?: unknown[];
   transactionRows?: unknown[];
+  failTransactionMigrationOnce?: boolean;
 }) => {
   let transactionOptions: DatabaseTransactionOptions | undefined;
   let withTransactionOptions: DatabaseTransactionOptions | undefined;
   const poolCalls: ExecutedCall[] = [];
+  const historyCalls: SQL[] = [];
   const transactionCalls: ExecutedCall[] = [];
   const abort: Abort = {
     signal: new AbortController().signal,
@@ -112,14 +151,25 @@ const createTestDb = <
     close: () => Promise.resolve(),
     connection: () => Promise.resolve({} as AnyConnection),
     withConnection: () => Promise.resolve(undefined),
-    execute: recordingExecutor(poolCalls, options?.poolRows),
+    execute: recordingExecutor(
+      poolCalls,
+      options?.poolRows,
+      options?.autoMigration === 'None',
+      historyCalls,
+    ),
     transaction: (dumboTransactionOptions?: DatabaseTransactionOptions) => {
       transactionOptions = dumboTransactionOptions;
       return {
         begin: () => Promise.resolve(),
         commit: () => Promise.resolve(),
         rollback: () => Promise.resolve(),
-        execute: recordingExecutor(transactionCalls, options?.transactionRows),
+        execute: recordingExecutor(
+          transactionCalls,
+          options?.transactionRows,
+          options?.autoMigration === 'None',
+          historyCalls,
+          options?.failTransactionMigrationOnce,
+        ),
       } as unknown as ReturnType<ConnectionPool['transaction']>;
     },
     withTransaction: async (
@@ -156,6 +206,7 @@ const createTestDb = <
     transactionOptions: () => transactionOptions,
     withTransactionOptions: () => withTransactionOptions,
     poolCalls,
+    historyCalls,
     transactionCalls,
   };
 };
@@ -174,6 +225,69 @@ const assertThrowsPongoError = (
 };
 
 describe('using a Pongo database', () => {
+  it('exposes database-wide migration operations and declarative collection schemas', () => {
+    const { db } = createTestDb();
+    const collection = db.collection('users');
+    assert.strictEqual(typeof db.schema.sql, 'function');
+    assert.strictEqual(typeof db.schema.print, 'function');
+    assert.strictEqual(typeof db.schema.ensureMigrated, 'function');
+    assert.deepStrictEqual(Object.keys(collection.schema), ['component']);
+    assert.ok(db.schema.sql().includes('SELECT 1'));
+  });
+
+  it('shares schema migration for concurrent operations in one session transaction', async () => {
+    const { db, transactionCalls } = createTestDb();
+    const users = db.collection('users');
+    const session = pongoSession();
+    session.startTransaction();
+    await Promise.all([
+      users.find({}, { session }),
+      users.find({}, { session }),
+    ]);
+    assert.strictEqual(
+      transactionCalls.filter(({ method }) => method === 'batchCommand').length,
+      2,
+    );
+    await session.abortTransaction();
+  });
+
+  it('retries failed session migration on the same transaction before reading documents', async () => {
+    const { db, poolCalls, transactionCalls } = createTestDb({
+      failTransactionMigrationOnce: true,
+    });
+    const users = db.collection('users');
+    const session = pongoSession();
+    session.startTransaction();
+    await assert.rejects(db.schema.migrate({ session }), /migration failed/);
+    await users.find({}, { session });
+    assert.deepStrictEqual(poolCalls, []);
+    assert.ok(transactionCalls.some(({ method }) => method === 'batchCommand'));
+    await session.abortTransaction();
+  });
+
+  it('checks recorded migrations once for normal operations with automatic migration disabled', async () => {
+    const { db, historyCalls } = createTestDb({ autoMigration: 'None' });
+    const users = db.collection('users');
+    await users.find({});
+    await users.find({});
+    await db.schema.ensureMigrated();
+    assert.strictEqual(historyCalls.length, 1);
+  });
+
+  it('checks the expanded graph after registering another collection', async () => {
+    const { db, historyCalls } = createTestDb({ autoMigration: 'None' });
+    await db.collection('users').find({});
+    const prior = db.schema.component;
+    db.collection('orders');
+    assert.notStrictEqual(db.schema.component, prior);
+    await assert.rejects(db.schema.ensureMigrated(), (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.match(error.message, /table:pongo_collection:orders:create/);
+      return true;
+    });
+    assert.strictEqual(historyCalls.length, 2);
+  });
+
   it('accepts database schema and document schema settings together', () => {
     const { db } = createTestDb();
 
@@ -1192,7 +1306,7 @@ describe('using a Pongo database', () => {
       assertPassedTimeoutAndAbort(testDb.poolCalls);
     });
 
-    it('the first operation on a new collection passes defaultTimeoutMS of its session to its migration', async () => {
+    it('automatic migration uses the database migration timeout default', async () => {
       const testDb = createTestDb();
       const session = pongoSession({ defaultTimeoutMS: 50 });
 
@@ -1205,7 +1319,10 @@ describe('using a Pongo database', () => {
       );
       assert.ok(migrationCommands.length > 0);
       for (const call of migrationCommands)
-        assert.strictEqual((call.options as SQLCommandOptions).timeoutMS, 50);
+        assert.strictEqual(
+          (call.options as SQLCommandOptions).timeoutMS,
+          undefined,
+        );
     });
 
     it('a transaction started in a session with defaultTimeoutMS passes it to the database transaction as statementTimeoutMS', async () => {
@@ -1269,7 +1386,7 @@ describe('using a Pongo database', () => {
       assertPassedTimeoutAndAbort(testDb.transactionCalls);
     });
 
-    it('the first operation on a new collection passes timeoutMS to its migration', async () => {
+    it('operation timeout does not override the database migration timeout', async () => {
       const testDb = createTestDb();
 
       await testDb.db
@@ -1281,7 +1398,10 @@ describe('using a Pongo database', () => {
       );
       assert.ok(migrationCommands.length > 0);
       for (const call of migrationCommands)
-        assert.strictEqual((call.options as SQLCommandOptions).timeoutMS, 50);
+        assert.strictEqual(
+          (call.options as SQLCommandOptions).timeoutMS,
+          undefined,
+        );
     });
 
     it('a transaction started with timeoutMS passes it to the database transaction as statementTimeoutMS', async () => {

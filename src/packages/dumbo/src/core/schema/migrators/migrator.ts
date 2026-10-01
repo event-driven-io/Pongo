@@ -185,7 +185,7 @@ const applySQLMigrations = async (
   return result;
 };
 
-const rendersNothing = (sql: SQL, formatter: SQLFormatter): boolean =>
+export const rendersNothing = (sql: SQL, formatter: SQLFormatter): boolean =>
   formatter.format(sql, { serializer: JSONSerializer }).query.trim().length ===
   0;
 
@@ -275,7 +275,7 @@ const runSQLMigration = async (
   }
 };
 
-const getMigrationHash = async (
+export const getMigrationHash = async (
   sqls: SQL[],
   sqlFormatter: SQLFormatter,
 ): Promise<string> => {

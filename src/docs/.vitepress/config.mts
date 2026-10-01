@@ -27,7 +27,10 @@ export default defineConfig({
     sidebar: [
       {
         text: 'Documentation',
-        items: [{ text: 'Getting Started', link: '/getting-started' }],
+        items: [
+          { text: 'Getting Started', link: '/getting-started' },
+          { text: 'Schema migrations', link: '/schema-migrations' },
+        ],
       },
     ],
 

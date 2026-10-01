@@ -58,7 +58,37 @@ describe('Cloudflare Durable Object SQLite migration integration', () => {
       .toArray()
       .map(({ name }) => name);
 
-  it('migrates the whole database through a collection schema', async () => {
+  it('migrates through the strongly typed database and uses its collection handle', async () => {
+    const typedClient = pongoClient({
+      driver: cloudflareDurableObjectSQLiteDriver,
+      storage,
+      schema: {
+        definition: pongoSchema.client({
+          database: pongoSchema.db({
+            schemas: {
+              crm: pongoSchema.schema('crm', {
+                users: pongoSchema.collection<User>('users'),
+              }),
+            },
+          }),
+        }),
+      },
+    });
+    try {
+      await typedClient.database.schema.migrate();
+      await typedClient.database.crm.users.insertOne({
+        email: 'typed@example.com',
+      });
+      assert.strictEqual(
+        (await typedClient.database.crm.users.find({}))[0]?.email,
+        'typed@example.com',
+      );
+    } finally {
+      await typedClient.close();
+    }
+  });
+
+  it('migrates the whole database through the database schema', async () => {
     client = pongoClient({
       driver: cloudflareDurableObjectSQLiteDriver,
       storage,
@@ -66,28 +96,27 @@ describe('Cloudflare Durable Object SQLite migration integration', () => {
     });
     const db = client.db('database');
 
-    await db
-      .collection<User>('users', { databaseSchemaName: 'crm' })
-      .schema.migrate();
+    db.collection<User>('users', { databaseSchemaName: 'crm' });
+    await db.schema.migrate();
 
     assert.deepStrictEqual(declaredTables(), ['crm.users', 'hr.roles']);
   });
 
-  it('rolls back a collection schema migrate with the active session', async () => {
+  it('rolls back database migration with the active session', async () => {
     client = pongoClient({
       driver: cloudflareDurableObjectSQLiteDriver,
       storage,
       schema: { definition: twoSchemaDefinition() },
     });
     const db = client.db('database');
-    const users = db.collection<User>('users', {
+    db.collection<User>('users', {
       databaseSchemaName: 'crm',
     });
 
     await assert.rejects(
       client.withSession(async (session) => {
         await session.withTransaction(async (session) => {
-          await users.schema.migrate({ session });
+          await db.schema.migrate({ session });
           throw new Error('rollback');
         });
       }),
