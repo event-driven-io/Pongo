@@ -1,5 +1,7 @@
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { PostgreSqlContainer } from '@testcontainers/postgresql';
+import {
+  sharedPostgreSQLDatabase,
+  type SharedPostgreSQLDatabase,
+} from '@event-driven-io/testing/postgresql';
 import assert from 'assert';
 import pg from 'pg';
 import {
@@ -35,18 +37,18 @@ const migrationsLockId = 123456789;
 
 describe('Migration Integration Tests', () => {
   let pool: Dumbo;
-  let postgres: StartedPostgreSqlContainer;
+  let database: SharedPostgreSQLDatabase;
   let connectionString: PostgreSQLConnectionString;
 
   beforeAll(async () => {
-    postgres = await new PostgreSqlContainer('postgres:18.0').start();
-    connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
+    database = await sharedPostgreSQLDatabase();
+    connectionString = PostgreSQLConnectionString(database.connectionString);
     pool = dumbo({ connectionString, driver: pgDumboDriver });
   });
 
   afterAll(async () => {
     await pool.close();
-    await postgres.stop();
+    await database.close();
   });
 
   beforeEach(async () => {

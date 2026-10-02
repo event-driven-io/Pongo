@@ -26,17 +26,17 @@
     "test:postgresql": "run-s test:unit:postgresql test:int:postgresql test:e2e:postgresql",
     "test:sqlite": "run-s test:unit:sqlite test:int:sqlite test:e2e:sqlite",
     "test:unit": "vitest run \".unit.spec\"",
-    "test:unit:postgresql": "vitest run postgresql \".unit.spec\"",
-    "test:unit:sqlite": "vitest run sqlite \".unit.spec\"",
+    "test:unit:postgresql": "vitest run --project \"*(unit)\" postgresql",
+    "test:unit:sqlite": "vitest run --project \"*(unit)\" sqlite",
     "test:int": "vitest run \".int.spec\"",
     "test:int:cloudflare": "vitest run --config vitest.cloudflare.config.ts",
     "types:cloudflare": "wrangler types packages/dumbo/worker-configuration.d.ts --config packages/dumbo/wrangler.durable-object-sqlite.jsonc",
     "types:cloudflare:check": "wrangler types packages/dumbo/worker-configuration.d.ts --config packages/dumbo/wrangler.durable-object-sqlite.jsonc --check",
-    "test:int:postgresql": "vitest run postgresql \".int.spec\"",
-    "test:int:sqlite": "vitest run sqlite \".int.spec\"",
+    "test:int:postgresql": "vitest run --project \"*(postgresql)\" \".int.spec\"",
+    "test:int:sqlite": "vitest run --project \"*(sqlite)\" --project @event-driven-io/cloudflare \".int.spec\"",
     "test:e2e": "vitest run \".e2e.spec\"",
-    "test:e2e:postgresql": "vitest run postgresql \".e2e.spec\"",
-    "test:e2e:sqlite": "vitest run sqlite \".e2e.spec\"",
+    "test:e2e:postgresql": "vitest run --project \"*(postgresql)\" --project \"*(mongodb)\" \".e2e.spec\"",
+    "test:e2e:sqlite": "vitest run --project \"*(sqlite)\" --project @event-driven-io/cloudflare \".e2e.spec\"",
     "test:bundles": "vitest run --project bundle",
     "test:file": "vitest run --no-file-parallelism",
     "test:watch": "vitest",
@@ -135,6 +135,7 @@
   },
   "workspaces": [
     "packages/dumbo",
-    "packages/pongo"
+    "packages/pongo",
+    "packages/testing"
   ]
 }

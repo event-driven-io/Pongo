@@ -1,4 +1,12 @@
 import { defineConfig } from 'vitest/config';
-import shared from '../../vitest.shared.ts';
 
-export default defineConfig({ ...shared });
+export default defineConfig({
+  test: {
+    projects: [
+      './vitest.unit.config.ts',
+      './vitest.sqlite.config.ts',
+      './vitest.postgresql.config.ts',
+      './vitest.mongodb.config.ts',
+    ],
+  },
+});

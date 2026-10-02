@@ -5,9 +5,9 @@ import {
   type PgConnection,
 } from '@event-driven-io/dumbo/pg';
 import {
-  PostgreSqlContainer,
-  type StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+  sharedPostgreSQLDatabase,
+  type SharedPostgreSQLDatabase,
+} from '@event-driven-io/testing/postgresql';
 import assert from 'assert';
 import { randomUUID } from 'node:crypto';
 import pg from 'pg';
@@ -27,16 +27,16 @@ const isNestedTransactionsDisabledError = (error: unknown): boolean =>
   error.message.includes('allowNestedTransactions');
 
 describe('Pongo PostgreSQL connections', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: SharedPostgreSQLDatabase;
   let connectionString: PostgreSQLConnectionString;
 
   beforeAll(async () => {
-    postgres = await new PostgreSqlContainer('postgres:18.0').start();
-    connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
+    database = await sharedPostgreSQLDatabase();
+    connectionString = PostgreSQLConnectionString(database.connectionString);
   });
 
   afterAll(async () => {
-    await postgres.stop();
+    await database.close();
   });
 
   const insertDocumentUsingPongo = async (

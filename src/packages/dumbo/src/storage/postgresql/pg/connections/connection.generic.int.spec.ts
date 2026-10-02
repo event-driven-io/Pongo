@@ -1,7 +1,7 @@
 import {
-  PostgreSqlContainer,
-  type StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+  sharedPostgreSQLDatabase,
+  type SharedPostgreSQLDatabase,
+} from '@event-driven-io/testing/postgresql';
 import assert from 'assert';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import pg from 'pg';
@@ -11,16 +11,16 @@ import { dumbo } from '../../../all';
 import { endPgPool, getPgPool } from './pool';
 
 describe('pg', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: SharedPostgreSQLDatabase;
   let connectionString: string;
 
   beforeAll(async () => {
-    postgres = await new PostgreSqlContainer('postgres:18.0').start();
-    connectionString = postgres.getConnectionUri();
+    database = await sharedPostgreSQLDatabase();
+    connectionString = database.connectionString;
   });
 
   afterAll(async () => {
-    await postgres.stop();
+    await database.close();
   });
 
   describe('pgPool', () => {

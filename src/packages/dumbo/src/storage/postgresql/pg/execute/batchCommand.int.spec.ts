@@ -1,19 +1,19 @@
 import {
-  PostgreSqlContainer,
-  type StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+  sharedPostgreSQLDatabase,
+  type SharedPostgreSQLDatabase,
+} from '@event-driven-io/testing/postgresql';
 import assert from 'assert';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import { BatchCommandNoChangesError, SQL } from '../../../../core';
 import { pgPool, type PgNativePool } from '../connections';
 
 describe('PostgreSQL batchCommand with assertChanges', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: SharedPostgreSQLDatabase;
   let pool: PgNativePool;
 
   beforeAll(async () => {
-    postgres = await new PostgreSqlContainer('postgres:18.0').start();
-    pool = pgPool({ connectionString: postgres.getConnectionUri() });
+    database = await sharedPostgreSQLDatabase();
+    pool = pgPool({ connectionString: database.connectionString });
 
     await pool.execute.command(
       SQL`CREATE TABLE test_items (id INT PRIMARY KEY, value TEXT)`,
@@ -25,7 +25,7 @@ describe('PostgreSQL batchCommand with assertChanges', () => {
 
   afterAll(async () => {
     await pool.close();
-    await postgres.stop();
+    await database.close();
   });
 
   it('reports the conflict with a dedicated error type distinct from a generic database failure', async () => {

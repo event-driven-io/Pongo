@@ -1,6 +1,8 @@
 import { PostgreSQLConnectionString } from '@event-driven-io/dumbo/pg';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { PostgreSqlContainer } from '@testcontainers/postgresql';
+import {
+  sharedPostgreSQLDatabase,
+  type SharedPostgreSQLDatabase,
+} from '@event-driven-io/testing/postgresql';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { pongoClient, type PongoClient, type PongoDb } from '../../..';
 import { pgDriver } from './';
@@ -14,12 +16,12 @@ const downcast = (doc: Domain): StoredPayload => ({ n: doc.value });
 describe('versioned collection: id reads, handle and replaceMany keep working', () => {
   let client: PongoClient;
   let db: PongoDb;
-  let postgres: StartedPostgreSqlContainer;
+  let database: SharedPostgreSQLDatabase;
 
   beforeAll(async () => {
-    postgres = await new PostgreSqlContainer('postgres:18.0').start();
+    database = await sharedPostgreSQLDatabase();
     const connectionString = PostgreSQLConnectionString(
-      postgres.getConnectionUri(),
+      database.connectionString,
     );
     client = pongoClient({
       driver: pgDriver,
@@ -31,7 +33,7 @@ describe('versioned collection: id reads, handle and replaceMany keep working', 
 
   afterAll(async () => {
     await client.close();
-    await postgres.stop();
+    await database.close();
   });
 
   const versioned = (name: string, cache?: { type: 'identity-map' }) =>

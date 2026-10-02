@@ -1,8 +1,8 @@
 import { DumboError, QueryCanceledError } from '@event-driven-io/dumbo';
 import {
-  PostgreSqlContainer,
-  type StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+  sharedPostgreSQLDatabase,
+  type SharedPostgreSQLDatabase,
+} from '@event-driven-io/testing/postgresql';
 import assert from 'assert';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, it } from 'vitest';
@@ -13,16 +13,16 @@ const isQueryCanceledError = (error: unknown) =>
   DumboError.isInstanceOf(error, { errorType: QueryCanceledError.ErrorType });
 
 describe('pongo migrate run', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: SharedPostgreSQLDatabase;
   let connectionString: string;
 
   beforeAll(async () => {
-    postgres = await new PostgreSqlContainer('postgres:18.0').start();
-    connectionString = postgres.getConnectionUri();
+    database = await sharedPostgreSQLDatabase();
+    connectionString = database.connectionString;
   });
 
   afterAll(async () => {
-    await postgres.stop();
+    await database.close();
   });
 
   it('cancels a migration statement exceeding --timeout', async () => {

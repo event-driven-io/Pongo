@@ -9,9 +9,9 @@ import {
   PostgreSQLConnectionString,
 } from '@event-driven-io/dumbo/pg';
 import {
-  PostgreSqlContainer,
-  type StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+  sharedPostgreSQLDatabase,
+  type SharedPostgreSQLDatabase,
+} from '@event-driven-io/testing/postgresql';
 import assert from 'assert';
 import console from 'console';
 import type { Filter } from 'mongodb';
@@ -60,7 +60,7 @@ type SpecialCharacterWriteDocument = InsertOneSpecialCharacterDocument & {
 };
 
 describe('MongoDB Compatibility Tests', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: SharedPostgreSQLDatabase;
   let postgresConnectionString: PostgreSQLConnectionString;
   let client: PongoClient;
   let shim: MongoClient;
@@ -70,9 +70,9 @@ describe('MongoDB Compatibility Tests', () => {
   let dbName: string;
 
   beforeAll(async () => {
-    postgres = await new PostgreSqlContainer('postgres:18.0').start();
+    database = await sharedPostgreSQLDatabase();
     postgresConnectionString = PostgreSQLConnectionString(
-      postgres.getConnectionUri(),
+      database.connectionString,
     );
     client = pongoClient({
       driver: pongoDriver,
@@ -82,7 +82,7 @@ describe('MongoDB Compatibility Tests', () => {
     await client.connect();
     await shim.connect();
 
-    dbName = postgres.getDatabase();
+    dbName = database.databaseName;
 
     pongoDb = client.db(dbName);
     mongoDb = shim.db(dbName);
@@ -93,7 +93,7 @@ describe('MongoDB Compatibility Tests', () => {
       await client.close();
       await shim.close();
       //await endAllPools();
-      await postgres.stop();
+      await database.close();
     } catch (error) {
       console.log(error);
     }

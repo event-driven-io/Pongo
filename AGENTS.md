@@ -4,10 +4,11 @@ Pongo provides a MongoDB-style document API backed by PostgreSQL and SQLite.
 
 ## Repository structure
 
-Repository is using npm workspaces and have two packages;
+Repository is using npm workspaces and have three packages;
 
 - `src/packages/dumbo`: relational database foundations (connection pooling, management, SQL querying, etc.).
 - `src/packages/pongo`: MongoDB-compatible document database API.
+- `src/packages/testing`: private helpers sharing one database container per test run. Prepared to move to its own repository.
 
 Besides that:
 
@@ -48,7 +49,7 @@ Available test suites:
 
 ## Verification
 
-The completion hook runs `npm run agent:check` automatically.
+The completion hook runs `npm run agent:check` automatically. See `.agents/README.md` for how skills and the change-check hooks work.
 
 For documentation or agent-configuration changes, validate only the changed files
 and configuration. Application test suites are not required.
@@ -57,7 +58,7 @@ While changing application code, identify and run the smallest relevant set of
 tests covering the affected behavior and applicable backends or variants. Before
 reporting a development phase as complete, also run `npm run test:unit`.
 
-Before the final handoff of completed application-code work, run `npm test`.
+Before the final handoff of completed application-code work, run `npm test`. If a test run is interrupted, ask before running it again.
 
 Report which verification commands were run, whether they passed, and why any
 relevant checks were skipped.

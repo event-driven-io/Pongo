@@ -19,7 +19,7 @@ describe('Node SQLite3 pool', () => {
   const testDatabasePath = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
   );
-  const fileName = path.resolve(testDatabasePath, 'test.db');
+  const fileName = path.resolve(testDatabasePath, 'generic-test.db');
   const connectionString = SQLiteConnectionString(`file:${fileName}`);
 
   const testCases = [

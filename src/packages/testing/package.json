@@ -1,0 +1,39 @@
+{
+  "name": "@event-driven-io/testing",
+  "version": "0.1.0",
+  "description": "Shared database containers for integration tests",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build:ts": "tsc -b",
+    "test": "vitest run",
+    "test:int": "vitest run \".int.spec\""
+  },
+  "exports": {
+    "./postgresql": "./src/postgresql/index.ts",
+    "./postgresql/globalSetup": "./src/postgresql/sharedPostgreSQLGlobalSetup.ts",
+    "./mongodb": "./src/mongodb/index.ts",
+    "./mongodb/globalSetup": "./src/mongodb/sharedMongoDBGlobalSetup.ts"
+  },
+  "peerDependencies": {
+    "@testcontainers/mongodb": "^11.14.0",
+    "@testcontainers/postgresql": "^11.14.0",
+    "mongodb": "^7.4.0",
+    "pg": "^8.20.0",
+    "vitest": "^4.1.4"
+  },
+  "peerDependenciesMeta": {
+    "@testcontainers/mongodb": {
+      "optional": true
+    },
+    "@testcontainers/postgresql": {
+      "optional": true
+    },
+    "mongodb": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    }
+  }
+}
