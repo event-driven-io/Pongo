@@ -5,7 +5,8 @@
     "./tsup.config.ts",
     "vitest.config.ts",
     "vitest.shared.ts",
-    "packages/*/vitest.config.ts"
+    "packages/*/vitest.config.ts",
+    "packages/*/vitest.*.config.ts"
   ],
   "exclude": ["node_modules", "tmp"],
   "files": [],
@@ -23,6 +24,9 @@
     },
     {
       "path": "./packages/pongo/"
+    },
+    {
+      "path": "./packages/testing/"
     }
   ]
 }

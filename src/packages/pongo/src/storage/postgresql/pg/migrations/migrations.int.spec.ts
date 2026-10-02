@@ -9,8 +9,10 @@ import {
   PostgreSQLConnectionString,
   tableExists,
 } from '@event-driven-io/dumbo/pg';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { PostgreSqlContainer } from '@testcontainers/postgresql';
+import {
+  sharedPostgreSQLDatabase,
+  type SharedPostgreSQLDatabase,
+} from '@event-driven-io/testing/postgresql';
 import assert from 'assert';
 import {
   afterAll,
@@ -34,7 +36,7 @@ type User = {
 
 describe('Migration Integration Tests', () => {
   let pool: Dumbo;
-  let postgres: StartedPostgreSqlContainer;
+  let database: SharedPostgreSQLDatabase;
   let connectionString: PostgreSQLConnectionString;
   let client: PongoClient;
 
@@ -82,8 +84,8 @@ describe('Migration Integration Tests', () => {
   });
 
   beforeAll(async () => {
-    postgres = await new PostgreSqlContainer('postgres:18.0').start();
-    connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
+    database = await sharedPostgreSQLDatabase();
+    connectionString = PostgreSQLConnectionString(database.connectionString);
     pool = dumbo({ connectionString });
     client = pongoClient({
       driver: pongoDriver,
@@ -96,7 +98,7 @@ describe('Migration Integration Tests', () => {
   afterAll(async () => {
     await client.close();
     await pool.close();
-    await postgres.stop();
+    await database.close();
   });
 
   beforeEach(async () => {

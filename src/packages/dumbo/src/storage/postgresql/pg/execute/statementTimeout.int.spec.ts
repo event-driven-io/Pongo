@@ -1,7 +1,7 @@
 import {
-  PostgreSqlContainer,
-  type StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+  sharedPostgreSQLDatabase,
+  type SharedPostgreSQLDatabase,
+} from '@event-driven-io/testing/postgresql';
 import assert from 'assert';
 import pg from 'pg';
 import {
@@ -16,7 +16,7 @@ import { QueryCanceledError, single, SQL } from '../../../../core';
 import { pgPool, type PgNativePool } from '../connections';
 
 describe('PostgreSQL per-call statement timeout', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: SharedPostgreSQLDatabase;
   let connectionString: string;
   let nativePool: pg.Pool;
   let pool: PgNativePool;
@@ -31,12 +31,12 @@ describe('PostgreSQL per-call statement timeout', () => {
     ).statement_timeout;
 
   beforeAll(async () => {
-    postgres = await new PostgreSqlContainer('postgres:18.0').start();
-    connectionString = postgres.getConnectionUri();
+    database = await sharedPostgreSQLDatabase();
+    connectionString = database.connectionString;
   });
 
   afterAll(async () => {
-    await postgres.stop();
+    await database.close();
   });
 
   beforeEach(() => {

@@ -1,5 +1,7 @@
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { PostgreSqlContainer } from '@testcontainers/postgresql';
+import {
+  sharedPostgreSQLDatabase,
+  type SharedPostgreSQLDatabase,
+} from '@event-driven-io/testing/postgresql';
 import assert from 'assert';
 import { afterAll, beforeAll, describe, it } from 'vitest';
 import { pgDumboDriver } from '..';
@@ -9,12 +11,12 @@ import { PostgreSQLConnectionString } from '../../core';
 
 describe('PostgreSQL SQL Formatter Integration Tests', () => {
   let pool: Dumbo;
-  let postgres: StartedPostgreSqlContainer;
+  let database: SharedPostgreSQLDatabase;
   let connectionString: PostgreSQLConnectionString;
 
   beforeAll(async () => {
-    postgres = await new PostgreSqlContainer('postgres:18.0').start();
-    connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
+    database = await sharedPostgreSQLDatabase();
+    connectionString = PostgreSQLConnectionString(database.connectionString);
     pool = dumbo({ connectionString, driver: pgDumboDriver });
 
     await pool.execute.batchCommand([
@@ -25,7 +27,7 @@ describe('PostgreSQL SQL Formatter Integration Tests', () => {
 
   afterAll(async () => {
     await pool.close();
-    await postgres.stop();
+    await database.close();
   });
 
   describe('Direct Array Handling', () => {

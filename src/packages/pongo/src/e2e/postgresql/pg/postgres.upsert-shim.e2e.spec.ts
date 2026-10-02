@@ -1,12 +1,12 @@
 import { PostgreSQLConnectionString } from '@event-driven-io/dumbo/pg';
 import {
-  MongoDBContainer,
-  type StartedMongoDBContainer,
-} from '@testcontainers/mongodb';
+  sharedMongoDBDatabase,
+  type SharedMongoDBDatabase,
+} from '@event-driven-io/testing/mongodb';
 import {
-  PostgreSqlContainer,
-  type StartedPostgreSqlContainer,
-} from '@testcontainers/postgresql';
+  sharedPostgreSQLDatabase,
+  type SharedPostgreSQLDatabase,
+} from '@event-driven-io/testing/postgresql';
 import assert from 'assert';
 import type { Db as MongoDb, ObjectId } from 'mongodb';
 import { MongoClient as OriginalMongoClient } from 'mongodb';
@@ -21,12 +21,11 @@ type User = {
 };
 
 describe('Upsert Shim Parity Tests', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: SharedPostgreSQLDatabase;
   let postgresConnectionString: PostgreSQLConnectionString;
   let pongoClient: MongoClient;
 
-  let mongo: StartedMongoDBContainer;
-  let mongoConnectionString: string;
+  let mongoDatabase: SharedMongoDBDatabase;
   let mongoClient: OriginalMongoClient;
 
   let pongoDb: Db;
@@ -35,9 +34,9 @@ describe('Upsert Shim Parity Tests', () => {
   beforeAll(async () => {
     usePgPongoDriver();
 
-    postgres = await new PostgreSqlContainer('postgres:18.0').start();
+    database = await sharedPostgreSQLDatabase();
     postgresConnectionString = PostgreSQLConnectionString(
-      postgres.getConnectionUri(),
+      database.connectionString,
     );
     pongoClient = new MongoClient({
       driver: pgDriver,
@@ -45,29 +44,26 @@ describe('Upsert Shim Parity Tests', () => {
     });
     await pongoClient.connect();
 
-    mongo = await new MongoDBContainer('mongo:6.0.12').start();
-    mongoConnectionString = mongo.getConnectionString();
-    mongoClient = new OriginalMongoClient(mongoConnectionString, {
+    mongoDatabase = sharedMongoDBDatabase();
+    mongoClient = new OriginalMongoClient(mongoDatabase.connectionString, {
       directConnection: true,
     });
     await mongoClient.connect();
 
-    const dbName = postgres.getDatabase();
-
-    pongoDb = pongoClient.db(dbName);
-    mongoDb = mongoClient.db(dbName);
+    pongoDb = pongoClient.db(database.databaseName);
+    mongoDb = mongoClient.db(mongoDatabase.databaseName);
   });
 
   afterAll(async () => {
     try {
       await pongoClient.close();
-      await postgres.stop();
+      await database.close();
     } catch (error) {
       console.log(error);
     }
     try {
       await mongoClient.close();
-      await mongo.stop();
+      await mongoDatabase.close();
     } catch (error) {
       console.log(error);
     }

@@ -12,5 +12,9 @@
     "rootDir": "./src",
     "paths": {}
   },
-  "references": []
+  "references": [
+    {
+      "path": "../testing/"
+    }
+  ]
 }

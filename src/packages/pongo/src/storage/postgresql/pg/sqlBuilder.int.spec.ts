@@ -3,8 +3,10 @@ import {
   pgFormatter,
   PostgreSQLConnectionString,
 } from '@event-driven-io/dumbo/pg';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { PostgreSqlContainer } from '@testcontainers/postgresql';
+import {
+  sharedPostgreSQLDatabase,
+  type SharedPostgreSQLDatabase,
+} from '@event-driven-io/testing/postgresql';
 import assert from 'node:assert/strict';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, it } from 'vitest';
@@ -20,7 +22,7 @@ import { pgDriver } from './';
 type User = { _id?: string; name: string };
 
 describe('executing PostgreSQL collection SQL rendered with SQL.format', () => {
-  let postgres: StartedPostgreSqlContainer;
+  let database: SharedPostgreSQLDatabase;
   let connectionString: PostgreSQLConnectionString;
   let pool: pg.Pool;
   let client: PongoClient;
@@ -32,8 +34,8 @@ describe('executing PostgreSQL collection SQL rendered with SQL.format', () => {
   );
 
   beforeAll(async () => {
-    postgres = await new PostgreSqlContainer('postgres:18.0').start();
-    connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
+    database = await sharedPostgreSQLDatabase();
+    connectionString = PostgreSQLConnectionString(database.connectionString);
     pool = new pg.Pool({ connectionString });
     client = pongoClient({ driver: pgDriver, connectionString });
     await client.connect();
@@ -48,7 +50,7 @@ describe('executing PostgreSQL collection SQL rendered with SQL.format', () => {
   afterAll(async () => {
     await client?.close();
     await pool?.end();
-    await postgres?.stop();
+    await database?.close();
   });
 
   it('returns the documents matching the filtered find', async () => {

@@ -24,7 +24,7 @@ describe('D1 SQLite pool', () => {
     await mf.dispose();
   });
 
-  it('returns the new connection each time', async () => {
+  it('returns the singleton connection by default', async () => {
     const pool = dumbo({
       driverType: `SQLite:d1`,
       database,
@@ -34,11 +34,11 @@ describe('D1 SQLite pool', () => {
 
     try {
       // Won't work for now as it's lazy loaded
-      // assert.notDeepStrictEqual(connection, otherConnection);
+      // assert.strictEqual(connection, otherConnection);
 
       const client = await connection.open();
       const otherClient = await otherConnection.open();
-      assert.notDeepStrictEqual(client, otherClient);
+      assert.strictEqual(client, otherClient);
     } finally {
       await connection.close();
       await otherConnection.close();
@@ -178,10 +178,11 @@ describe('D1 SQLite pool', () => {
     }
   });
 
-  it('connects using ambient connected connection with transaction', async () => {
+  it('connects using ambient connected connection with transaction and session_based mode', async () => {
     const ambientPool = dumbo({
       driverType: `SQLite:d1`,
       database,
+      transactionOptions: { mode: 'session_based' },
     });
     const ambientConnection = await ambientPool.connection();
     await ambientConnection.open();
@@ -207,10 +208,11 @@ describe('D1 SQLite pool', () => {
     }
   });
 
-  it('connects using ambient not-connected connection with transaction', async () => {
+  it('connects using ambient not-connected connection with transaction and session_based mode', async () => {
     const ambientPool = dumbo({
       driverType: `SQLite:d1`,
       database,
+      transactionOptions: { mode: 'session_based' },
     });
     const ambientConnection = await ambientPool.connection();
 
@@ -220,6 +222,7 @@ describe('D1 SQLite pool', () => {
           driverType: `SQLite:d1`,
           database,
           connection: ambientConnection,
+          transactionOptions: { mode: 'session_based' },
         });
         try {
           await pool.execute.query(SQL`SELECT 1`);
@@ -260,25 +263,29 @@ describe('D1 SQLite pool', () => {
     }
   });
 
-  it('connects using ambient connection in withConnection and withTransaction scope', async () => {
+  it('connects using ambient connection in withConnection and withTransaction scope and session_based mode', async () => {
     const ambientPool = dumbo({
       driverType: `SQLite:d1`,
       database,
+      transactionOptions: { mode: 'session_based' },
     });
     try {
       await ambientPool.withConnection((ambientConnection) =>
-        ambientConnection.withTransaction<void>(async () => {
-          const pool = dumbo({
-            driverType: `SQLite:d1`,
-            database,
-            connection: ambientConnection,
-          });
-          try {
-            await pool.execute.query(SQL`SELECT 1`);
-          } finally {
-            await pool.close();
-          }
-        }),
+        ambientConnection.withTransaction<void>(
+          async () => {
+            const pool = dumbo({
+              driverType: `SQLite:d1`,
+              database,
+              connection: ambientConnection,
+            });
+            try {
+              await pool.execute.query(SQL`SELECT 1`);
+            } finally {
+              await pool.close();
+            }
+          },
+          { mode: 'session_based' },
+        ),
       );
     } finally {
       await ambientPool.close();

@@ -2,16 +2,31 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    maxWorkers: '50%',
     projects: [
-      'packages/dumbo',
+      'packages/dumbo/vitest.unit.config.ts',
+      'packages/dumbo/vitest.sqlite.config.ts',
+      'packages/dumbo/vitest.postgresql.config.ts',
       'vitest.cloudflare.config.ts',
-      'packages/pongo',
+      'packages/pongo/vitest.unit.config.ts',
+      'packages/pongo/vitest.sqlite.config.ts',
+      'packages/pongo/vitest.postgresql.config.ts',
+      'packages/pongo/vitest.mongodb.config.ts',
+      'packages/testing/vitest.postgresql.config.ts',
+      'packages/testing/vitest.mongodb.config.ts',
       {
         test: {
           name: 'bundle',
           environment: 'node',
           include: ['e2e/bundleBoundaries.bundle.spec.ts'],
           globalSetup: ['e2e/buildBundles.ts'],
+        },
+      },
+      {
+        test: {
+          name: 'agents',
+          environment: 'node',
+          include: ['../.agents/**/*.spec.ts', '../.opencode/**/*.spec.ts'],
         },
       },
     ],

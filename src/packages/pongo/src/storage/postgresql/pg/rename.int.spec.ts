@@ -1,7 +1,9 @@
 import { dumbo, SQL, type Dumbo } from '@event-driven-io/dumbo';
 import { PostgreSQLConnectionString } from '@event-driven-io/dumbo/pg';
-import type { StartedPostgreSqlContainer } from '@testcontainers/postgresql';
-import { PostgreSqlContainer } from '@testcontainers/postgresql';
+import {
+  sharedPostgreSQLDatabase,
+  type SharedPostgreSQLDatabase,
+} from '@event-driven-io/testing/postgresql';
 import assert from 'node:assert/strict';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import {
@@ -16,21 +18,21 @@ type User = { _id?: string; name: string };
 
 describe('renaming a PostgreSQL Pongo collection', () => {
   let pool: Dumbo | undefined;
-  let postgres: StartedPostgreSqlContainer | undefined;
+  let database: SharedPostgreSQLDatabase | undefined;
   let connectionString: PostgreSQLConnectionString;
   let client: PongoClient;
   let db: PongoDb;
 
   beforeAll(async () => {
-    postgres = await new PostgreSqlContainer('postgres:18.0').start();
-    connectionString = PostgreSQLConnectionString(postgres.getConnectionUri());
+    database = await sharedPostgreSQLDatabase();
+    connectionString = PostgreSQLConnectionString(database.connectionString);
     pool = dumbo({ connectionString });
   });
 
   afterAll(async () => {
     await client?.close();
     await pool?.close();
-    await postgres?.stop();
+    await database?.close();
   });
 
   beforeEach(async () => {
