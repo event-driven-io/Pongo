@@ -2,7 +2,7 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    maxWorkers: '50%',
+    ...(process.env.CI ? {} : { maxWorkers: '50%' }),
     projects: [
       'packages/dumbo/vitest.unit.config.ts',
       'packages/dumbo/vitest.sqlite.config.ts',
@@ -12,6 +12,7 @@ export default defineConfig({
       'packages/pongo/vitest.sqlite.config.ts',
       'packages/pongo/vitest.postgresql.config.ts',
       'packages/pongo/vitest.mongodb.config.ts',
+      'packages/testing/vitest.unit.config.ts',
       'packages/testing/vitest.postgresql.config.ts',
       'packages/testing/vitest.mongodb.config.ts',
       {
