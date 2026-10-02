@@ -94,6 +94,16 @@ const anitaFromDb = await users.findOne({ _id: anitaId });
 const usersFromDb = await users.find({ age: { $lt: 40 } }).toArray();
 ```
 
+## Schema migrations
+
+Register your collections, then provision the database with one `await pongoDb.schema.migrate()` call. `PongoDb.schema` is the database-wide migration API: it exposes `component`, `sql()`, `print()`, `migrate()`, and `ensureMigrated()`, plus Pongo's `migrations` and `renameCollection()` members. Collection schema objects expose only the declarative `collection.schema.component`.
+
+Normal operations lazily migrate the registered database schema. The default `CreateOrUpdate` style applies pending migrations. With `schema: { autoMigration: 'None' }`, operations read migration history without DDL or migration locks and throw Dumbo's `PendingMigrationsError` when migrations are missing or hash-mismatched; `schema.ensureMigrated()` runs the same check under any setting. Provisioning code applies migrations with `schema.migrate({ migrationStyle: 'CreateOrUpdate' })`. A successful check or migration is remembered until the collection graph changes.
+
+`schema.sql()` and `schema.print()` describe component SQL without migration bookkeeping. On PostgreSQL, sqlite3, and Durable Object storage, `schema.migrate({ dryRun: true, migrationStyle: 'CreateOrUpdate' })` executes inside a transaction and rolls back; it requires DDL privileges and its result isn't remembered. Pongo rejects migration dry runs on D1, which does not support these transactions; use `schema.sql()` to preview its SQL.
+
+**Beta migration:** replace `collection.schema.migrate()` with `pongoDb.schema.migrate()` after registering all required collections. See the [schema migration guide](./src/docs/schema-migrations.md) for provisioning examples and Dumbo's shared `SchemaComponentMigrator`.
+
 ## How does it work?
 
 **Pongo treats PostgreSQL as a Document Database benefiting from JSONB support.** Unlike the plain text storage of the traditional JSON type, JSONB stores JSON data in a binary format. This simple change brings significant advantages in terms of performance and storage efficiency.

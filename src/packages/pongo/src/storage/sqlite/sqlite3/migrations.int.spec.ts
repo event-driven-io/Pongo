@@ -62,7 +62,7 @@ describe('SQLite3 migration integration', () => {
       )
       .then((tables) => tables.rows.map(({ name }) => name));
 
-  it('migrates the whole database through a collection schema', async () => {
+  it('migrates the whole database through the database schema', async () => {
     const client = pongoClient({
       driver: sqlite3Driver,
       connectionString,
@@ -73,9 +73,8 @@ describe('SQLite3 migration integration', () => {
     try {
       const db = client.db('database');
 
-      await db
-        .collection<User>('users', { databaseSchemaName: 'crm' })
-        .schema.migrate();
+      db.collection<User>('users', { databaseSchemaName: 'crm' });
+      await db.schema.migrate();
 
       assert.deepStrictEqual(await declaredTables(pool), [
         'crm.users',
@@ -87,12 +86,12 @@ describe('SQLite3 migration integration', () => {
     }
   });
 
-  it('creates the indexes of a collection definition through a collection schema migrate', async () => {
+  it('creates the indexes of a collection definition through database schema migration', async () => {
     const client = pongoClient({ driver: sqlite3Driver, connectionString });
     const pool = sqlite3Pool({ fileName });
 
     try {
-      const customers = client.db('database').collection<User>('customers', {
+      client.db('database').collection<User>('customers', {
         definition: pongoSchema.collection<User>('customers', {
           indexes: {
             email: pongoSchema.index('customers_email_idx', 'email'),
@@ -100,7 +99,7 @@ describe('SQLite3 migration integration', () => {
         }),
       });
 
-      await customers.schema.migrate();
+      await client.db('database').schema.migrate();
 
       const objects = await pool.execute.query<{ name: string; type: string }>(
         SQL`
@@ -120,7 +119,7 @@ describe('SQLite3 migration integration', () => {
     }
   });
 
-  it('rolls back a collection schema migrate with the active session', async () => {
+  it('rolls back database migration with the active session', async () => {
     const client: PongoClient = pongoClient({
       driver: sqlite3Driver,
       connectionString,
@@ -130,14 +129,14 @@ describe('SQLite3 migration integration', () => {
 
     try {
       const db = client.db('database');
-      const users = db.collection<User>('users', {
+      db.collection<User>('users', {
         databaseSchemaName: 'crm',
       });
 
       await assert.rejects(
         client.withSession(async (session) => {
           await session.withTransaction(async (session) => {
-            await users.schema.migrate({ session });
+            await db.schema.migrate({ session });
             throw new Error('rollback');
           });
         }),
@@ -327,15 +326,9 @@ describe('SQLite3 migration integration', () => {
     try {
       const db = client.db('database');
       await db.schema.migrate();
-      await db.schema.migrate({
-        migrationTable: { tableName: 'call_migrations' },
-      });
 
       const clientLedger = await pool.execute.query<{ name: string }>(
         SQL`SELECT name FROM client_migrations ORDER BY id`,
-      );
-      const callLedger = await pool.execute.query<{ name: string }>(
-        SQL`SELECT name FROM call_migrations ORDER BY id`,
       );
       const defaultLedger = await pool.execute.query<{ count: number }>(
         SQL`SELECT COUNT(*) as count FROM sqlite_master WHERE name = 'dmb_migrations'`,
@@ -343,10 +336,6 @@ describe('SQLite3 migration integration', () => {
 
       assert.deepStrictEqual(
         clientLedger.rows.map((row) => row.name),
-        ['table:pongo_collection:users:create'],
-      );
-      assert.deepStrictEqual(
-        callLedger.rows.map((row) => row.name),
         ['table:pongo_collection:users:create'],
       );
       assert.strictEqual(defaultLedger.rows[0]?.count, 0);

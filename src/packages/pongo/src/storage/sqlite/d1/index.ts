@@ -1,5 +1,9 @@
 import type { D1Database } from '@cloudflare/workers-types';
-import type { D1TransactionOptions } from '@event-driven-io/dumbo/cloudflare';
+import type { MigratorOptions } from '@event-driven-io/dumbo';
+import type {
+  D1ConnectionPool,
+  D1TransactionOptions,
+} from '@event-driven-io/dumbo/cloudflare';
 import {
   D1DriverType,
   d1Pool,
@@ -21,6 +25,11 @@ export type D1DatabaseDriverOptions = PongoDriverOptions<typeof dumboDriver> & {
   transactionOptions?: D1TransactionOptions | undefined;
 };
 
+const d1MigrationOptions = (pool: D1ConnectionPool): MigratorOptions => {
+  const transactionOptions: D1TransactionOptions = { mode: 'strict' };
+  return { execute: pool.execute, transactionOptions };
+};
+
 const d1PongoDriver: PongoDriver<
   PongoDb<D1DriverType>,
   typeof dumboDriver,
@@ -39,11 +48,13 @@ const d1PongoDriver: PongoDriver<
       const pongoConnectionOptions = withPongoTransactionOptions(
         ambientConnectionOptions,
       );
+      const pool = options.pool ?? d1Pool(pongoConnectionOptions);
 
       return PongoDatabase({
         ...options,
         transactionOptions: pongoConnectionOptions.transactionOptions,
-        pool: options.pool ?? d1Pool(pongoConnectionOptions),
+        pool,
+        migrationOptions: d1MigrationOptions(pool),
         sqlBuilderFor: (collection) =>
           sqliteSQLBuilder(collection, options.serializer),
         databaseName,
@@ -66,11 +77,13 @@ const d1PongoDriver: PongoDriver<
       ...options.connectionOptions,
       database,
     });
+    const pool = options.pool ?? d1Pool(pongoConnectionOptions);
 
     return PongoDatabase({
       ...options,
       transactionOptions: pongoConnectionOptions.transactionOptions,
-      pool: options.pool ?? d1Pool(pongoConnectionOptions),
+      pool,
+      migrationOptions: d1MigrationOptions(pool),
       sqlBuilderFor: (collection) =>
         sqliteSQLBuilder(collection, options.serializer),
       databaseName,

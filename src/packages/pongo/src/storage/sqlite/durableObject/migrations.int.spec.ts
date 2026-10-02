@@ -58,36 +58,48 @@ describe('Cloudflare Durable Object SQLite migration integration', () => {
       .toArray()
       .map(({ name }) => name);
 
-  it('migrates the whole database through a collection schema', async () => {
-    client = pongoClient({
+  it('migrates the database of a typed client', async () => {
+    const typedClient = pongoClient({
       driver: cloudflareDurableObjectSQLiteDriver,
       storage,
       schema: { definition: twoSchemaDefinition() },
     });
-    const db = client.db('database');
+    client = typedClient;
 
-    await db
-      .collection<User>('users', { databaseSchemaName: 'crm' })
-      .schema.migrate();
+    await typedClient.database.schema.migrate();
 
     assert.deepStrictEqual(declaredTables(), ['crm.users', 'hr.roles']);
   });
 
-  it('rolls back a collection schema migrate with the active session', async () => {
+  it('migrates the whole database through the database schema', async () => {
     client = pongoClient({
       driver: cloudflareDurableObjectSQLiteDriver,
       storage,
       schema: { definition: twoSchemaDefinition() },
     });
     const db = client.db('database');
-    const users = db.collection<User>('users', {
+
+    db.collection<User>('users', { databaseSchemaName: 'crm' });
+    await db.schema.migrate();
+
+    assert.deepStrictEqual(declaredTables(), ['crm.users', 'hr.roles']);
+  });
+
+  it('rolls back database migration with the active session', async () => {
+    client = pongoClient({
+      driver: cloudflareDurableObjectSQLiteDriver,
+      storage,
+      schema: { definition: twoSchemaDefinition() },
+    });
+    const db = client.db('database');
+    db.collection<User>('users', {
       databaseSchemaName: 'crm',
     });
 
     await assert.rejects(
       client.withSession(async (session) => {
         await session.withTransaction(async (session) => {
-          await users.schema.migrate({ session });
+          await db.schema.migrate({ session });
           throw new Error('rollback');
         });
       }),
@@ -268,15 +280,9 @@ describe('Cloudflare Durable Object SQLite migration integration', () => {
     const db = client.db('database');
 
     await db.schema.migrate();
-    await db.schema.migrate({
-      migrationTable: { tableName: 'call_migrations' },
-    });
 
     const clientLedger = storage.sql
       .exec<{ name: string }>('SELECT name FROM client_migrations ORDER BY id')
-      .toArray();
-    const callLedger = storage.sql
-      .exec<{ name: string }>('SELECT name FROM call_migrations ORDER BY id')
       .toArray();
     const defaultLedger = storage.sql
       .exec<{ count: number }>(
@@ -286,10 +292,6 @@ describe('Cloudflare Durable Object SQLite migration integration', () => {
 
     assert.deepStrictEqual(
       clientLedger.map((row) => row.name),
-      ['table:pongo_collection:users:create'],
-    );
-    assert.deepStrictEqual(
-      callLedger.map((row) => row.name),
       ['table:pongo_collection:users:create'],
     );
     assert.strictEqual(defaultLedger[0]?.count, 0);

@@ -142,7 +142,34 @@ describe('Pongo PostgreSQL connections', () => {
     }
   });
 
-  it('connects using existing connection from transaction', async () => {
+  it('runs on existing connection from transaction of a pool that allows nested transactions', async () => {
+    const pool = dumbo({
+      connectionString,
+      transactionOptions: { allowNestedTransactions: true },
+    });
+    const name = randomUUID();
+
+    try {
+      await pool.withTransaction(
+        async ({ connection }: { connection: PgConnection }) => {
+          const pongo = pongoClient({
+            driver: pongoDriver,
+            connectionString,
+            connectionOptions: { connection },
+          });
+          const users = pongo.db().collection<User>('connections');
+
+          await users.insertOne({ name });
+
+          assert.strictEqual((await users.findOne({ name }))?.name, name);
+        },
+      );
+    } finally {
+      await pool.close();
+    }
+  });
+
+  it('rejects first operation on existing connection from transaction of a pool that does not allow nested transactions', async () => {
     const pool = dumbo({ connectionString });
 
     try {
@@ -153,10 +180,16 @@ describe('Pongo PostgreSQL connections', () => {
             connectionString,
             connectionOptions: { connection },
           });
+          const users = pongo
+            .db()
+            .collection<User>(
+              `connections_${randomUUID().replaceAll('-', '')}`,
+            );
 
-          const users = pongo.db().collection<User>('connections');
-          await users.insertOne({ name: randomUUID() });
-          await users.insertOne({ name: randomUUID() });
+          await assert.rejects(
+            users.insertOne({ name: randomUUID() }),
+            isNestedTransactionsDisabledError,
+          );
         },
       );
     } finally {

@@ -256,14 +256,43 @@ describe('renaming a SQLite Pongo collection', () => {
     try {
       const manualDb = manualClient.db('database');
       const users = manualDb.collection<User>('users');
-      await manualDb.schema.migrate();
+      await manualDb.schema.migrate({ migrationStyle: 'CreateOrUpdate' });
       await users.insertOne({ name: 'Oskar' });
 
       await users.rename('archived_users');
 
       assert.deepStrictEqual(await tableNames(), ['users']);
+    } finally {
+      await manualClient.close();
+    }
+  });
 
-      await manualDb.schema.migrate();
+  it('applies the rename on the next migrate when autoMigration is None', async () => {
+    const manualClient = pongoClient({
+      driver: sqlite3Driver,
+      connectionString,
+      schema: { autoMigration: 'None' },
+    });
+    const tableNames = async () => {
+      const tables = await pool.execute.query<{ name: string }>(
+        SQL`
+          SELECT name
+          FROM sqlite_master
+          WHERE type = 'table' AND name IN ('users', 'archived_users')
+          ORDER BY name`,
+      );
+      return tables.rows.map(({ name }) => name);
+    };
+
+    try {
+      const manualDb = manualClient.db('database');
+      const users = manualDb.collection<User>('users');
+      await manualDb.schema.migrate({ migrationStyle: 'CreateOrUpdate' });
+      await users.insertOne({ name: 'Oskar' });
+
+      await users.rename('archived_users');
+
+      await manualDb.schema.migrate({ migrationStyle: 'CreateOrUpdate' });
 
       assert.deepStrictEqual(await tableNames(), ['archived_users']);
       assert.deepStrictEqual(
@@ -289,14 +318,14 @@ describe('renaming a SQLite Pongo collection', () => {
       /rollback/,
     );
 
-    const tables = await db.sql.query<{ name: string }>(
+    const tables = await pool.execute.query<{ name: string }>(
       SQL`
         SELECT name
         FROM sqlite_master
         WHERE type = 'table' AND name IN ('users', 'archived_users')
         ORDER BY name`,
     );
-    assert.deepStrictEqual(tables, []);
+    assert.deepStrictEqual(tables.rows, [{ name: 'users' }]);
   });
 
   it('renames a collection declared in a named schema and keeps the renamed handle usable', async () => {

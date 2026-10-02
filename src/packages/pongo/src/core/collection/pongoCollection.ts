@@ -39,7 +39,6 @@ import {
   type PongoFilter,
   type PongoInsertManyResult,
   type PongoInsertOneResult,
-  type PongoMigrationOptions,
   type PongoReplaceManyResult,
   type PongoSession,
   type PongoUpdate,
@@ -61,6 +60,7 @@ export type PongoCollectionOptions<
   Payload extends PongoDocument = T,
 > = {
   db: PongoDb<DriverType>;
+  ensureSchema: (options?: CollectionOperationOptions) => Promise<void>;
   pool: Dumbo<DatabaseDriverType>;
   component: PongoCollectionComponent;
   sqlBuilderFor: (
@@ -80,7 +80,7 @@ export type PongoCollectionOptions<
 
 type SessionOptions = { session?: PongoSession | undefined };
 
-const enlistIntoTransactionIfActive = async <
+export const enlistIntoTransactionIfActive = async <
   DriverType extends DatabaseDriverType = DatabaseDriverType,
 >(
   db: PongoDb<DriverType>,
@@ -104,7 +104,7 @@ export const transactionExecutorOrDefault = async <
   return existingTransaction?.execute ?? defaultSqlExecutor;
 };
 
-const timeoutMSOf = (options: CollectionOperationOptions | undefined) =>
+export const timeoutMSOf = (options: CollectionOperationOptions | undefined) =>
   options?.timeoutMS ??
   (options?.session?.inTransaction()
     ? undefined
@@ -116,6 +116,7 @@ export const pongoCollection = <
   Payload extends PongoDocument = T,
 >({
   db,
+  ensureSchema: ensureMigrated,
   pool,
   component: initialComponent,
   sqlBuilderFor,
@@ -161,20 +162,6 @@ export const pongoCollection = <
         ...columnMapping,
       },
     );
-
-  const autoMigrates = schema?.autoMigration !== 'None';
-  let migrated = false;
-
-  const ensureMigrated = async (options?: CollectionOperationOptions) => {
-    if (!autoMigrates || migrated) return;
-
-    await db.schema.migrate({
-      session: options?.session,
-      migrationTimeoutMS: timeoutMSOf(options),
-    });
-
-    migrated = true;
-  };
 
   const upcast =
     schema?.versioning?.upcast ?? ((doc: Payload) => doc as unknown as T);
@@ -406,8 +393,10 @@ export const pongoCollection = <
       return component.tableName;
     },
     createCollection: async (options?: CollectionOperationOptions) => {
-      await db.schema.migrate({ session: options?.session });
-      migrated = true;
+      await db.schema.migrate({
+        session: options?.session,
+        migrationStyle: 'CreateOrUpdate',
+      });
     },
     insertOne: async (
       document: OptionalUnlessRequiredIdAndVersion<T>,
@@ -958,9 +947,13 @@ export const pongoCollection = <
     ): Promise<PongoCollection<T>> => {
       component = db.schema.renameCollection(component, newName);
       SqlFor = sqlBuilderFor(component);
-      migrated = false;
 
-      await ensureMigrated(options);
+      if (schema?.autoMigration !== 'None')
+        await db.schema.migrate({
+          session: options?.session,
+          migrationTimeoutMS: timeoutMSOf(options),
+          migrationStyle: 'CreateOrUpdate',
+        });
 
       return collection;
     },
@@ -988,11 +981,6 @@ export const pongoCollection = <
     schema: {
       get component() {
         return component;
-      },
-      migrate: async (options?: PongoMigrationOptions) => {
-        const result = await db.schema.migrate(options);
-        migrated = true;
-        return result;
       },
     },
   };

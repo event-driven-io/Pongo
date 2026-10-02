@@ -195,8 +195,11 @@ describe('Pongo Cloudflare Durable Object SQLite connections', () => {
     }
   });
 
-  it('connects using existing connection from transaction', async () => {
-    const pool = cloudflareDurableObjectSQLitePool({ storage });
+  it('runs on existing connection from transaction of a pool that allows nested transactions', async () => {
+    const pool = cloudflareDurableObjectSQLitePool({
+      storage,
+      transactionOptions: { allowNestedTransactions: true },
+    });
     const collectionName = uniqueCollectionName();
 
     try {
@@ -212,6 +215,33 @@ describe('Pongo Cloudflare Durable Object SQLite connections', () => {
           await users.insertOne({ name: randomUUID() });
 
           assert.strictEqual(await users.countDocuments({}), 2);
+        } finally {
+          await pongo.close();
+        }
+      });
+    } finally {
+      await pool.close();
+    }
+  });
+
+  it('rejects first operation on existing connection from transaction of a pool that does not allow nested transactions', async () => {
+    const pool = cloudflareDurableObjectSQLitePool({ storage });
+    const collectionName = uniqueCollectionName();
+
+    try {
+      await pool.withTransaction(async ({ connection }) => {
+        const pongo = pongoClient({
+          driver: databaseDriver,
+          connectionOptions: { connection },
+        });
+
+        try {
+          const users = pongo.db().collection<User>(collectionName);
+
+          await assert.rejects(
+            users.insertOne({ name: randomUUID() }),
+            isNestedTransactionsDisabledError,
+          );
         } finally {
           await pongo.close();
         }

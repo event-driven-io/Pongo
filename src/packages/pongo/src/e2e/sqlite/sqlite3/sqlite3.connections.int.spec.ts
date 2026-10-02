@@ -69,6 +69,63 @@ describe('Pongo SQLite3 connections', () => {
     }
   });
 
+  it('runs on existing connection from transaction of a pool that allows nested transactions', async () => {
+    const pool = sqlite3Pool({
+      fileName,
+      transactionOptions: { allowNestedTransactions: true },
+    });
+
+    try {
+      await pool.withTransaction(async ({ connection }) => {
+        const pongo = pongoClient({
+          driver: databaseDriver,
+          connectionString,
+          connectionOptions: { connection },
+        });
+
+        try {
+          const users = pongo.db().collection<User>('connections');
+          await users.insertOne({ name: randomUUID() });
+          await users.insertOne({ name: randomUUID() });
+
+          assert.strictEqual(await users.countDocuments({}), 2);
+        } finally {
+          await pongo.close();
+        }
+      });
+    } finally {
+      await pool.close();
+    }
+  });
+
+  it('rejects first operation on existing connection from transaction of a pool that does not allow nested transactions', async () => {
+    const pool = sqlite3Pool({ fileName });
+
+    try {
+      await pool.withTransaction(async ({ connection }) => {
+        const pongo = pongoClient({
+          driver: databaseDriver,
+          connectionString,
+          connectionOptions: { connection },
+        });
+
+        try {
+          await assert.rejects(
+            pongo
+              .db()
+              .collection<User>('connections')
+              .insertOne({ name: randomUUID() }),
+            isNestedTransactionsDisabledError,
+          );
+        } finally {
+          await pongo.close();
+        }
+      });
+    } finally {
+      await pool.close();
+    }
+  });
+
   it('runs nested Pongo transaction on existing Dumbo connection without nested transaction options', async () => {
     const pool = sqlite3Pool({ fileName });
 

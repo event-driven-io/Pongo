@@ -160,6 +160,19 @@ const createTestDb = <
   };
 };
 
+const migratedTestDb = async ({
+  poolRows = [],
+  ...options
+}: Parameters<typeof createTestDb>[0] = {}) => {
+  const operationRows: unknown[] = [];
+  const testDb = createTestDb({ ...options, poolRows: operationRows });
+  testDb.db.collection('users');
+  await testDb.db.schema.migrate({ migrationStyle: 'CreateOrUpdate' });
+  testDb.poolCalls.length = 0;
+  operationRows.push(...poolRows);
+  return testDb;
+};
+
 const assertThrowsPongoError = (
   operation: () => unknown,
   message: string,
@@ -1009,7 +1022,7 @@ describe('using a Pongo database', () => {
     };
 
     it('find with a non-id filter runs on the transaction', async () => {
-      const testDb = createTestDb({ autoMigration: 'None' });
+      const testDb = await migratedTestDb();
       const session = startedSession();
 
       await testDb.db
@@ -1020,7 +1033,7 @@ describe('using a Pongo database', () => {
     });
 
     it('find with an id-only filter and skipCache runs on the transaction', async () => {
-      const testDb = createTestDb({ autoMigration: 'None' });
+      const testDb = await migratedTestDb();
       const session = startedSession();
 
       await testDb.db
@@ -1031,7 +1044,7 @@ describe('using a Pongo database', () => {
     });
 
     it('find with an id-only filter of uncached documents runs on the transaction', async () => {
-      const testDb = createTestDb({ autoMigration: 'None' });
+      const testDb = await migratedTestDb();
       const session = startedSession();
 
       await testDb.db
@@ -1042,8 +1055,7 @@ describe('using a Pongo database', () => {
     });
 
     it('countDocuments runs on the transaction', async () => {
-      const testDb = createTestDb({
-        autoMigration: 'None',
+      const testDb = await migratedTestDb({
         transactionRows: [{ count: 0 }],
       });
       const session = startedSession();
@@ -1057,7 +1069,7 @@ describe('using a Pongo database', () => {
     });
 
     it('handle reads an uncached document on the transaction', async () => {
-      const testDb = createTestDb({ autoMigration: 'None' });
+      const testDb = await migratedTestDb();
       const session = startedSession();
 
       await testDb.db
@@ -1068,7 +1080,7 @@ describe('using a Pongo database', () => {
     });
 
     it('drop runs on the transaction', async () => {
-      const testDb = createTestDb({ autoMigration: 'None' });
+      const testDb = await migratedTestDb();
       const session = startedSession();
 
       await testDb.db.collection<{ _id: string }>('users').drop({ session });
@@ -1133,8 +1145,7 @@ describe('using a Pongo database', () => {
 
     for (const [name, operation] of operations) {
       it(`${name} passes timeoutMS and abort to the executor`, async () => {
-        const testDb = createTestDb({
-          autoMigration: 'None',
+        const testDb = await migratedTestDb({
           poolRows: [{ count: 0 }],
         });
 
@@ -1148,8 +1159,7 @@ describe('using a Pongo database', () => {
       });
 
       it(`${name} with a session passes timeoutMS and abort to the transaction`, async () => {
-        const testDb = createTestDb({
-          autoMigration: 'None',
+        const testDb = await migratedTestDb({
           transactionRows: [{ count: 0 }],
         });
         const session = pongoSession();
@@ -1166,8 +1176,7 @@ describe('using a Pongo database', () => {
       });
 
       it(`${name} with a session passes defaultTimeoutMS of the session as timeoutMS to the executor`, async () => {
-        const testDb = createTestDb({
-          autoMigration: 'None',
+        const testDb = await migratedTestDb({
           poolRows: [{ count: 0 }],
         });
         const session = pongoSession({ defaultTimeoutMS: 50 });
@@ -1182,7 +1191,7 @@ describe('using a Pongo database', () => {
     }
 
     it('an operation with timeoutMS overrides defaultTimeoutMS of its session', async () => {
-      const testDb = createTestDb({ autoMigration: 'None' });
+      const testDb = await migratedTestDb();
       const session = pongoSession({ defaultTimeoutMS: 1000 });
 
       await testDb.db
@@ -1209,7 +1218,7 @@ describe('using a Pongo database', () => {
     });
 
     it('a transaction started in a session with defaultTimeoutMS passes it to the database transaction as statementTimeoutMS', async () => {
-      const testDb = createTestDb({ autoMigration: 'None' });
+      const testDb = await migratedTestDb();
       const session = pongoSession({ defaultTimeoutMS: 50 });
       session.startTransaction();
 
@@ -1226,7 +1235,7 @@ describe('using a Pongo database', () => {
     });
 
     it('a transaction started with timeoutMS overrides defaultTimeoutMS of its session', async () => {
-      const testDb = createTestDb({ autoMigration: 'None' });
+      const testDb = await migratedTestDb();
       const session = pongoSession({ defaultTimeoutMS: 1000 });
       session.startTransaction({ timeoutMS: 50 });
 
@@ -1238,7 +1247,7 @@ describe('using a Pongo database', () => {
     });
 
     it('insertOne and updateOne keep session, skipCache, upsert and expectedVersion away from the executor', async () => {
-      const testDb = createTestDb({ autoMigration: 'None' });
+      const testDb = await migratedTestDb();
       const session = pongoSession();
       session.startTransaction();
       const users = testDb.db.collection<User>('users');
@@ -1285,7 +1294,7 @@ describe('using a Pongo database', () => {
     });
 
     it('a transaction started with timeoutMS passes it to the database transaction as statementTimeoutMS', async () => {
-      const testDb = createTestDb({ autoMigration: 'None' });
+      const testDb = await migratedTestDb();
       const session = pongoSession();
       session.startTransaction({
         timeoutMS: 50,

@@ -1,10 +1,11 @@
 import type { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import {
   DefaultDatabaseSchemaName,
-  runSQLMigrations,
+  schemaComponentMigrator,
   type DatabaseDriverType,
   type Dumbo,
   type MigrationStyle,
+  type MigratorOptions,
   type MigrationTableOptions,
   type QueryResult,
   type QueryResultRow,
@@ -13,7 +14,9 @@ import {
 } from '@event-driven-io/dumbo';
 import { pongoCache, type CacheConfig, type PongoCache } from '../cache';
 import {
+  enlistIntoTransactionIfActive,
   pongoCollection,
+  timeoutMSOf,
   transactionExecutorOrDefault,
   type PongoCollectionSQLBuilder,
 } from '../collection';
@@ -54,6 +57,7 @@ export type PongoDatabaseOptions<
     collection: PongoCollectionComponent,
   ) => PongoCollectionSQLBuilder;
   migrationTable?: MigrationTableOptions | undefined;
+  migrationOptions?: MigratorOptions | undefined;
   schema?:
     | {
         autoMigration?: MigrationStyle;
@@ -87,19 +91,22 @@ export const PongoDatabase = <
   const command = async <Result extends QueryResultRow = QueryResultRow>(
     sql: SQL,
     options?: CollectionOperationOptions & SQLCommandOptions,
-  ) =>
-    (
+  ) => {
+    await ensureSchema(options);
+    return (
       await transactionExecutorOrDefault(db, options, pool.execute)
     ).command<Result>(sql, options);
+  };
 
   const query = async <T extends QueryResultRow>(
     sql: SQL,
     options?: CollectionOperationOptions & SQLQueryOptions,
-  ) =>
-    (await transactionExecutorOrDefault(db, options, pool.execute)).query<T>(
-      sql,
-      options,
-    );
+  ) => {
+    await ensureSchema(options);
+    return (
+      await transactionExecutorOrDefault(db, options, pool.execute)
+    ).query<T>(sql, options);
+  };
 
   const driverType = pool.driverType as Database['driverType'];
   const defaultTransactionOptions = options.transactionOptions;
@@ -125,12 +132,21 @@ export const PongoDatabase = <
   const databaseComponent = PongoDatabaseComponent({
     component: options.schema?.definition,
     defaultSchemaName,
+    createMigrator: (component) =>
+      schemaComponentMigrator({
+        ...options.migrationOptions,
+        pool,
+        component,
+        autoMigration: options.schema?.autoMigration ?? 'CreateOrUpdate',
+        migrationTable: options.migrationTable,
+      }),
     createCollection: (component, collectionOptions) => {
       const collectionRuntimeSchema = collectionOptions?.schema;
 
       return pongoCollection({
         db,
         pool,
+        ensureSchema,
         component,
         sqlBuilderFor: options.sqlBuilderFor,
         schema: { ...options.schema, ...collectionRuntimeSchema },
@@ -144,16 +160,21 @@ export const PongoDatabase = <
     },
   });
 
-  const migrate = async (migrationOptions?: PongoMigrationOptions) =>
-    runSQLMigrations(pool, databaseComponent.migrations, {
+  const ensureSchema = async (
+    operationOptions?: CollectionOperationOptions,
+  ) => {
+    await databaseComponent.migrator.migrate({
+      migrationTimeoutMS: timeoutMSOf(operationOptions),
+    });
+  };
+
+  const migrate = async ({
+    session,
+    ...migrationOptions
+  }: PongoMigrationOptions = {}) =>
+    databaseComponent.migrator.migrate({
       ...migrationOptions,
-      migrationTable:
-        migrationOptions?.migrationTable ?? options.migrationTable,
-      execute: await transactionExecutorOrDefault(
-        db,
-        migrationOptions,
-        pool.execute,
-      ),
+      execute: (await enlistIntoTransactionIfActive(db, { session }))?.execute,
     });
 
   const core: PongoDb<Database['driverType']> = {
@@ -195,6 +216,9 @@ export const PongoDatabase = <
       get migrations() {
         return databaseComponent.migrations;
       },
+      sql: () => databaseComponent.migrator.sql(),
+      print: () => databaseComponent.migrator.print(),
+      ensureMigrated: () => databaseComponent.migrator.ensureMigrated(),
       migrate,
       renameCollection: databaseComponent.renameCollection,
     },

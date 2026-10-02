@@ -16,6 +16,7 @@ import {
 import assert from 'assert';
 import {
   afterAll,
+  afterEach,
   beforeAll,
   beforeEach,
   describe,
@@ -87,16 +88,9 @@ describe('Migration Integration Tests', () => {
     database = await sharedPostgreSQLDatabase();
     connectionString = PostgreSQLConnectionString(database.connectionString);
     pool = dumbo({ connectionString });
-    client = pongoClient({
-      driver: pongoDriver,
-      connectionString,
-      defaultSchemaName: 'public',
-      schema: { autoMigration: 'CreateOrUpdate', definition: schema },
-    });
   });
 
   afterAll(async () => {
-    await client.close();
     await pool.close();
     await database.close();
   });
@@ -105,14 +99,23 @@ describe('Migration Integration Tests', () => {
     await pool.execute.query(
       SQL`DROP SCHEMA IF EXISTS audit CASCADE; DROP SCHEMA IF EXISTS crm CASCADE; DROP SCHEMA IF EXISTS readmodels CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public;`,
     );
+    client = pongoClient({
+      driver: pongoDriver,
+      connectionString,
+      defaultSchemaName: 'public',
+      schema: { autoMigration: 'CreateOrUpdate', definition: schema },
+    });
   });
 
-  it('migrates the whole database through a collection schema', async () => {
+  afterEach(async () => {
+    await client.close();
+  });
+
+  it('migrates the whole database through the database schema', async () => {
     const db = client.db('database');
 
-    await db
-      .collection<User>('users', { databaseSchemaName: 'crm' })
-      .schema.migrate();
+    db.collection<User>('users', { databaseSchemaName: 'crm' });
+    await db.schema.migrate();
 
     const crmUsersTableExists = await pool.execute.query<{ exists: boolean }>(
       SQL`
@@ -126,24 +129,22 @@ describe('Migration Integration Tests', () => {
     assert.strictEqual(await tableExists(pool.execute, 'roles'), true);
   });
 
-  it('creates the indexes of a collection definition through a collection schema migrate', async () => {
+  it('creates the indexes of a collection definition through database schema migration', async () => {
     const definitionClient = pongoClient({
       driver: pongoDriver,
       connectionString,
     });
 
     try {
-      const customers = definitionClient
-        .db('database')
-        .collection<User>('customers', {
-          definition: pongoSchema.collection<User>('customers', {
-            indexes: {
-              email: pongoSchema.index('customers_email_idx', 'email'),
-            },
-          }),
-        });
+      definitionClient.db('database').collection<User>('customers', {
+        definition: pongoSchema.collection<User>('customers', {
+          indexes: {
+            email: pongoSchema.index('customers_email_idx', 'email'),
+          },
+        }),
+      });
 
-      await customers.schema.migrate();
+      await definitionClient.db('database').schema.migrate();
 
       const indexes = await pool.execute.query<{ indexname: string }>(
         SQL`
@@ -163,14 +164,14 @@ describe('Migration Integration Tests', () => {
     }
   });
 
-  it('rolls back a collection schema migrate with the active session', async () => {
+  it('rolls back database migration with the active session', async () => {
     const db = client.db('database');
-    const users = db.collection<User>('users', { databaseSchemaName: 'crm' });
+    db.collection<User>('users', { databaseSchemaName: 'crm' });
 
     await assert.rejects(
       client.withSession(async (session) => {
         await session.withTransaction(async (session) => {
-          await users.schema.migrate({ session });
+          await db.schema.migrate({ session });
           throw new Error('rollback');
         });
       }),
