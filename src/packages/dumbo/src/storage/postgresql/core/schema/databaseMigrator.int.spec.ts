@@ -3,7 +3,7 @@ import {
   PostgreSqlContainer,
   type StartedPostgreSqlContainer,
 } from '@testcontainers/postgresql';
-import { afterAll, beforeAll, describe, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import {
   databaseMigrator,
   dumbo,
@@ -15,16 +15,18 @@ import {
 } from '../../../..';
 import { PostgreSQLConnectionString } from '..';
 import { pgDumboDriver } from '../../pg';
+import { tableExists } from './schema';
 
-const component = schemaComponent('test', {
+const users = schemaComponent('users', {
   migrations: () => [
-    sqlMigration('example:create', [SQL`CREATE TABLE example (id INTEGER)`]),
+    sqlMigration('users:create', [SQL`CREATE TABLE users (id INTEGER)`]),
   ],
 });
 
-describe('PostgreSQL read-only database migration assurance', () => {
+describe('PostgreSQL database migrator with automatic migration disabled', () => {
   let container: StartedPostgreSqlContainer;
   let pool: Dumbo;
+
   beforeAll(async () => {
     container = await new PostgreSqlContainer('postgres:18.0').start();
     pool = dumbo({
@@ -34,64 +36,81 @@ describe('PostgreSQL read-only database migration assurance', () => {
       driver: pgDumboDriver,
     });
   });
+
   afterAll(async () => {
     await pool?.close();
     await container?.stop();
   });
-  it('reports missing migrations without creating history then assures provisioned history', async () => {
+
+  beforeEach(async () => {
+    await pool.execute.command(
+      SQL`DROP SCHEMA IF EXISTS ops CASCADE; DROP SCHEMA IF EXISTS alternate CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public;`,
+    );
+  });
+
+  it('reports pending migrations without creating migration history', async () => {
     const migrator = databaseMigrator({
       pool,
-      component,
+      component: users,
       autoMigration: 'None',
     });
-    await assert.rejects(migrator.ensureMigrated(), PendingMigrationsError);
-    const history = await pool.execute.query(
-      SQL`SELECT to_regclass('dmb_migrations') AS relation`,
-    );
-    assert.equal(history.rows[0]?.relation, null);
-    await migrator.migrate();
-    await databaseMigrator({
-      pool,
-      component,
-      autoMigration: 'None',
-    }).ensureMigrated();
-    const changed = schemaComponent('changed', {
-      migrations: () => [
-        sqlMigration('example:create', [SQL`CREATE TABLE example (id TEXT)`]),
-      ],
+
+    await assert.rejects(migrator.ensureMigrated(), (error) => {
+      assert.ok(error instanceof PendingMigrationsError);
+      assert.deepEqual(
+        error.pendingMigrations.map(({ name }) => name),
+        ['users:create'],
+      );
+      return true;
     });
-    await assert.rejects(
-      databaseMigrator({
-        pool,
-        component: changed,
-        autoMigration: 'None',
-      }).ensureMigrated(),
-      PendingMigrationsError,
-    );
-    await databaseMigrator({
-      pool,
-      component: changed,
-      autoMigration: 'None',
-      ignoreMigrationHashMismatch: true,
-    }).ensureMigrated();
+
+    assert.equal(await tableExists(pool.execute, 'dmb_migrations'), false);
   });
-  it('resolves unqualified history using the executor search path', async () => {
-    await pool.withConnection(async (connection) => {
-      const execute = connection.execute;
+
+  it('accepts migrations that were applied', async () => {
+    await databaseMigrator({ pool, component: users }).migrate();
+    const migrator = databaseMigrator({
+      pool,
+      component: users,
+      autoMigration: 'None',
+    });
+
+    await assert.doesNotReject(migrator.ensureMigrated());
+  });
+
+  it('finds migration history in a migration table in another database schema', async () => {
+    const migrationTable = { schemaName: 'ops' };
+    await databaseMigrator({
+      pool,
+      component: users,
+      migrationTable,
+    }).migrate();
+    const migrator = databaseMigrator({
+      pool,
+      component: users,
+      autoMigration: 'None',
+      migrationTable,
+    });
+
+    await assert.doesNotReject(migrator.ensureMigrated());
+  });
+
+  it('finds unqualified migration history through the search path of the configured executor', async () => {
+    await pool.withConnection(async ({ execute }) => {
       await execute.command(
         SQL`CREATE SCHEMA alternate; SET search_path TO alternate`,
       );
-      try {
-        await databaseMigrator({ pool, component, execute }).migrate();
-        await databaseMigrator({
-          pool,
-          component,
-          execute,
-          autoMigration: 'None',
-        }).ensureMigrated();
-      } finally {
-        await execute.command(SQL`SET search_path TO public`);
-      }
+      await databaseMigrator({ pool, component: users, execute }).migrate();
+      const migrator = databaseMigrator({
+        pool,
+        component: users,
+        autoMigration: 'None',
+        execute,
+      });
+
+      await assert.doesNotReject(migrator.ensureMigrated());
+
+      await execute.command(SQL`SET search_path TO public`);
     });
   });
 });

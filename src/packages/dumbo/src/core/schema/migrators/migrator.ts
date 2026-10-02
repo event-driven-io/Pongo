@@ -1,7 +1,8 @@
 import { type Dumbo, JSONSerializer } from '../..';
+import type { DatabaseTransactionOptions } from '../../connections';
 import { type DatabaseType, fromDatabaseDriverType } from '../../drivers';
 import { InvalidOperationError, NotRegisteredError } from '../../errors';
-import type { SQLExecutor } from '../../execute';
+import type { SQLExecutor, SQLQueryOptions } from '../../execute';
 import {
   type DatabaseLock,
   type DatabaseLockOptions,
@@ -56,6 +57,12 @@ export type MigratorOptions = {
     options?: Omit<DatabaseLockOptions, 'lockId'> &
       Partial<Pick<DatabaseLockOptions, 'lockId'>>;
   };
+  transactionOptions?: DatabaseTransactionOptions | undefined;
+  migrationTableExists?: (
+    execute: SQLExecutor,
+    table: SQLTableReference,
+    options?: SQLQueryOptions,
+  ) => Promise<boolean>;
   dryRun?: boolean | undefined;
   ignoreMigrationHashMismatch?: boolean | undefined;
   migrationTimeoutMS?: number | undefined;
@@ -75,15 +82,18 @@ export const runSQLMigrations = (
 
   return providedExecutor !== undefined
     ? applySQLMigrations(pool, providedExecutor, migrations, partialOptions)
-    : pool.withTransaction(async ({ execute }) => ({
-        success: partialOptions?.dryRun ? false : true,
-        result: await applySQLMigrations(
-          pool,
-          execute,
-          migrations,
-          partialOptions,
-        ),
-      }));
+    : pool.withTransaction(
+        async ({ execute }) => ({
+          success: partialOptions?.dryRun ? false : true,
+          result: await applySQLMigrations(
+            pool,
+            execute,
+            migrations,
+            partialOptions,
+          ),
+        }),
+        partialOptions?.transactionOptions,
+      );
 };
 
 const applySQLMigrations = async (

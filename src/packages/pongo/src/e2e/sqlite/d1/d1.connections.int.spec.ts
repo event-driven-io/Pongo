@@ -192,6 +192,35 @@ describe('Pongo D1 connections', () => {
     }
   });
 
+  it('runs on existing connection from transaction of a pool that does not allow nested transactions', async () => {
+    const pool = d1Pool({
+      database,
+      transactionOptions: { mode: 'session_based' },
+    });
+    const collectionName = uniqueCollectionName();
+
+    try {
+      await pool.withTransaction(async ({ connection }) => {
+        const pongo = pongoClient({
+          driver: databaseDriver,
+          connectionOptions: { connection },
+        });
+
+        try {
+          const users = pongo.db().collection<User>(collectionName);
+          await users.insertOne({ name: randomUUID() });
+          await users.insertOne({ name: randomUUID() });
+
+          assert.strictEqual(await users.countDocuments({}), 2);
+        } finally {
+          await pongo.close();
+        }
+      });
+    } finally {
+      await pool.close();
+    }
+  });
+
   it('runs nested Pongo transaction on existing D1 connection without nested transaction options', async () => {
     const pool = d1Pool({ database });
 

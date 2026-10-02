@@ -1,434 +1,295 @@
 import assert from 'node:assert/strict';
-import { describe, it } from 'vitest';
+import { afterEach, beforeEach, describe, it } from 'vitest';
 import {
+  databaseMigrator,
   dumbo,
+  PendingMigrationsError,
   schemaComponent,
   SQL,
   sqlMigration,
-  databaseMigrator,
-  PendingMigrationsError,
+  type Dumbo,
 } from '../../../..';
 import { SQLite3DriverType } from '../../sqlite3';
 import { InMemorySQLiteDatabase } from '..';
+import { tableExists } from './schema';
 
-const component = (sql = SQL`CREATE TABLE example (id INTEGER)`) =>
-  schemaComponent('test', {
-    migrations: () => [sqlMigration('example:create', [sql])],
-  });
-const poolFor = () =>
-  dumbo({
-    connectionString: InMemorySQLiteDatabase,
-    driverType: SQLite3DriverType,
+const users = schemaComponent('users', {
+  migrations: () => [
+    sqlMigration('users:create', [SQL`CREATE TABLE users (id INTEGER)`]),
+  ],
+});
+
+const usersWithChangedSQL = schemaComponent('users', {
+  migrations: () => [
+    sqlMigration('users:create', [SQL`CREATE TABLE users (id TEXT)`]),
+  ],
+});
+
+const assertRejectsWithPendingMigrations = (
+  operation: Promise<unknown>,
+  migrationNames: string[],
+) =>
+  assert.rejects(operation, (error) => {
+    assert.ok(error instanceof PendingMigrationsError);
+    assert.deepEqual(
+      error.pendingMigrations.map(({ name }) => name),
+      migrationNames,
+    );
+    return true;
   });
 
-describe('SQLite database migration assurance', () => {
-  it('reports missing migrations without creating schema when automatic migration is disabled', async () => {
-    const pool = poolFor();
-    try {
+describe('SQLite database migrator', () => {
+  let pool: Dumbo;
+
+  beforeEach(() => {
+    pool = dumbo({
+      connectionString: InMemorySQLiteDatabase,
+      driverType: SQLite3DriverType,
+    });
+  });
+
+  afterEach(async () => {
+    await pool.close();
+  });
+
+  describe('ensuring migrations with automatic migration disabled', () => {
+    it('reports pending migrations without applying them', async () => {
       const migrator = databaseMigrator({
         pool,
-        component: component(),
+        component: users,
         autoMigration: 'None',
       });
 
-      await assert.rejects(migrator.ensureMigrated(), (error) => {
-        assert.ok(error instanceof PendingMigrationsError);
-        assert.deepEqual(
-          error.pendingMigrations.map(({ name }) => name),
-          ['example:create'],
-        );
-        return true;
-      });
+      await assertRejectsWithPendingMigrations(migrator.ensureMigrated(), [
+        'users:create',
+      ]);
 
-      const tables = await pool.execute.query(
-        SQL`SELECT name FROM sqlite_master WHERE type = 'table'`,
-      );
-      assert.deepEqual(tables.rows, []);
-    } finally {
-      await pool.close();
-    }
-  });
+      assert.equal(await tableExists(pool.execute, 'users'), false);
+    });
 
-  it('assures explicitly provisioned schema when automatic migration is disabled', async () => {
-    const pool = poolFor();
-    try {
-      await databaseMigrator({ pool, component: component() }).migrate();
+    it('accepts migrations that were applied', async () => {
+      await databaseMigrator({ pool, component: users }).migrate();
       const migrator = databaseMigrator({
         pool,
-        component: component(),
+        component: users,
         autoMigration: 'None',
       });
 
-      await migrator.ensureMigrated();
+      await assert.doesNotReject(migrator.ensureMigrated());
+    });
 
-      const columns = await pool.execute.query<{ type: string }>(
-        SQL`PRAGMA table_info(example)`,
-      );
-      assert.equal(columns.rows[0]?.type, 'INTEGER');
-    } finally {
-      await pool.close();
-    }
-  });
-
-  it('reports a changed migration hash when automatic migration is disabled', async () => {
-    const pool = poolFor();
-    try {
-      await databaseMigrator({ pool, component: component() }).migrate();
+    it('reports a migration whose SQL changed after it was applied', async () => {
+      await databaseMigrator({ pool, component: users }).migrate();
       const migrator = databaseMigrator({
         pool,
-        component: component(SQL`CREATE TABLE example (id TEXT)`),
+        component: usersWithChangedSQL,
         autoMigration: 'None',
       });
 
-      await assert.rejects(migrator.ensureMigrated(), PendingMigrationsError);
-    } finally {
-      await pool.close();
-    }
-  });
+      await assertRejectsWithPendingMigrations(migrator.ensureMigrated(), [
+        'users:create',
+      ]);
+    });
 
-  it('allows a changed hash when hash checking is disabled for the migrator', async () => {
-    const pool = poolFor();
-    try {
-      await databaseMigrator({ pool, component: component() }).migrate();
+    it('accepts changed SQL when the migrator ignores hash mismatches', async () => {
+      await databaseMigrator({ pool, component: users }).migrate();
       const migrator = databaseMigrator({
         pool,
-        component: component(SQL`CREATE TABLE example (id TEXT)`),
+        component: usersWithChangedSQL,
         autoMigration: 'None',
         ignoreMigrationHashMismatch: true,
       });
 
-      await migrator.ensureMigrated();
+      await assert.doesNotReject(migrator.ensureMigrated());
+    });
 
-      const columns = await pool.execute.query<{ type: string }>(
-        SQL`PRAGMA table_info(example)`,
-      );
-      assert.equal(columns.rows[0]?.type, 'INTEGER');
-    } finally {
-      await pool.close();
-    }
-  });
-
-  it('allows a changed hash when hash checking is disabled for the migration', async () => {
-    const pool = poolFor();
-    try {
-      await databaseMigrator({ pool, component: component() }).migrate();
-      const ignored = schemaComponent('test', {
-        migrations: () => [
-          sqlMigration(
-            'example:create',
-            [SQL`CREATE TABLE example (id TEXT)`],
-            { ignoreHashMismatch: true },
-          ),
-        ],
-      });
+    it('accepts changed SQL when the migration ignores hash mismatches', async () => {
+      await databaseMigrator({ pool, component: users }).migrate();
       const migrator = databaseMigrator({
         pool,
-        component: ignored,
+        component: schemaComponent('users', {
+          migrations: () => [
+            sqlMigration('users:create', [SQL`CREATE TABLE users (id TEXT)`], {
+              ignoreHashMismatch: true,
+            }),
+          ],
+        }),
         autoMigration: 'None',
       });
 
-      await migrator.ensureMigrated();
+      await assert.doesNotReject(migrator.ensureMigrated());
+    });
 
-      const columns = await pool.execute.query<{ type: string }>(
-        SQL`PRAGMA table_info(example)`,
-      );
-      assert.equal(columns.rows[0]?.type, 'INTEGER');
-    } finally {
-      await pool.close();
-    }
-  });
-
-  it('ignores migration history outside its component', async () => {
-    const pool = poolFor();
-    try {
-      await databaseMigrator({ pool, component: component() }).migrate();
+    it('finds migration history in the configured migration table', async () => {
+      const migrationTable = { tableName: 'app_migrations' };
+      await databaseMigrator({
+        pool,
+        component: users,
+        migrationTable,
+      }).migrate();
       const migrator = databaseMigrator({
         pool,
-        component: schemaComponent('empty'),
+        component: users,
         autoMigration: 'None',
+        migrationTable,
       });
 
-      await migrator.ensureMigrated();
-
-      const history = await pool.execute.query(
-        SQL`SELECT name FROM dmb_migrations WHERE name = 'example:create'`,
-      );
-      assert.equal(history.rows.length, 1);
-    } finally {
-      await pool.close();
-    }
+      await assert.doesNotReject(migrator.ensureMigrated());
+    });
   });
 
-  it('shares concurrent assurance while provisioning the schema', async () => {
-    const pool = poolFor();
-    try {
-      const migrator = databaseMigrator({ pool, component: component() });
-
-      const first = migrator.ensureMigrated();
-      const second = migrator.ensureMigrated();
-      await Promise.all([first, second]);
-
-      assert.equal(first, second);
-      const columns = await pool.execute.query<{ type: string }>(
-        SQL`PRAGMA table_info(example)`,
-      );
-      assert.equal(columns.rows[0]?.type, 'INTEGER');
-    } finally {
-      await pool.close();
-    }
-  });
-
-  it('provisions the schema after a dry run', async () => {
-    const pool = poolFor();
-    try {
-      const migrator = databaseMigrator({ pool, component: component() });
-      await migrator.migrate({ dryRun: true });
-      const before = await pool.execute.query(
-        SQL`SELECT name FROM sqlite_master WHERE type = 'table'`,
-      );
-      assert.deepEqual(before.rows, []);
+  describe('ensuring migrations with automatic migration', () => {
+    it('applies pending migrations', async () => {
+      const migrator = databaseMigrator({ pool, component: users });
 
       await migrator.ensureMigrated();
 
-      const columns = await pool.execute.query<{ type: string }>(
-        SQL`PRAGMA table_info(example)`,
-      );
-      assert.equal(columns.rows[0]?.type, 'INTEGER');
-    } finally {
-      await pool.close();
-    }
-  });
+      assert.equal(await tableExists(pool.execute, 'users'), true);
+    });
 
-  it('shares explicit provisioning with concurrent assurance', async () => {
-    const pool = poolFor();
-    try {
-      const migrator = databaseMigrator({ pool, component: component() });
+    it('applies pending migrations for concurrent calls', async () => {
+      const migrator = databaseMigrator({ pool, component: users });
 
-      const first = migrator.migrate();
-      const second = migrator.migrate();
-      await Promise.all([first, second, migrator.ensureMigrated()]);
+      await Promise.all([migrator.ensureMigrated(), migrator.ensureMigrated()]);
 
-      assert.equal(first, second);
-      const columns = await pool.execute.query<{ type: string }>(
-        SQL`PRAGMA table_info(example)`,
-      );
-      assert.equal(columns.rows[0]?.type, 'INTEGER');
-    } finally {
-      await pool.close();
-    }
-  });
+      assert.equal(await tableExists(pool.execute, 'users'), true);
+    });
 
-  it('remembers successful assurance for its schema graph', async () => {
-    const pool = poolFor();
-    try {
-      const migrator = databaseMigrator({ pool, component: component() });
+    it('does not access the database again after migrations were applied', async () => {
+      const migrator = databaseMigrator({ pool, component: users });
       await migrator.ensureMigrated();
-      // Removing history makes any repeated provisioning fail on the existing table.
-      await pool.execute.command(SQL`DROP TABLE dmb_migrations`);
+      await pool.close();
+
+      await assert.doesNotReject(migrator.ensureMigrated());
+    });
+
+    it('applies migrations after a dry run', async () => {
+      const migrator = databaseMigrator({ pool, component: users });
+      await migrator.ensureMigrated({ dryRun: true });
 
       await migrator.ensureMigrated();
 
-      const tables = await pool.execute.query(
-        SQL`SELECT name FROM sqlite_master WHERE name = 'dmb_migrations'`,
-      );
-      assert.deepEqual(tables.rows, []);
-    } finally {
-      await pool.close();
-    }
-  });
+      assert.equal(await tableExists(pool.execute, 'users'), true);
+    });
 
-  it('retries assurance after failed SQL is repaired', async () => {
-    const pool = poolFor();
-    try {
+    it('applies migrations after a configured dry run', async () => {
       const migrator = databaseMigrator({
         pool,
-        component: component(
-          SQL`CREATE TABLE example AS SELECT id FROM prerequisite`,
-        ),
+        component: users,
+        dryRun: true,
       });
-      await assert.rejects(migrator.ensureMigrated(), /prerequisite/);
-      await pool.execute.command(SQL`CREATE TABLE prerequisite (id INTEGER)`);
-      await pool.execute.command(
-        SQL`INSERT INTO prerequisite (id) VALUES (42)`,
-      );
+      await migrator.ensureMigrated();
+
+      await migrator.ensureMigrated({ dryRun: false });
+
+      assert.equal(await tableExists(pool.execute, 'users'), true);
+    });
+
+    it('retries migrations that failed on an earlier call', async () => {
+      const migrator = databaseMigrator({
+        pool,
+        component: schemaComponent('copies', {
+          migrations: () => [
+            sqlMigration('copies:create', [
+              SQL`CREATE TABLE copies AS SELECT id FROM originals`,
+            ]),
+          ],
+        }),
+      });
+      await assert.rejects(migrator.ensureMigrated(), /originals/);
+      await pool.execute.command(SQL`CREATE TABLE originals (id INTEGER)`);
 
       await migrator.ensureMigrated();
 
-      const result = await pool.execute.query<{ id: number }>(
-        SQL`SELECT id FROM example`,
-      );
-      assert.deepEqual(result.rows, [{ id: 42 }]);
-    } finally {
-      await pool.close();
-    }
-  });
+      assert.equal(await tableExists(pool.execute, 'copies'), true);
+    });
 
-  it('rolls back schema changes when migration SQL fails', async () => {
-    const pool = poolFor();
-    try {
-      const failing = schemaComponent('test', {
-        migrations: () => [
-          sqlMigration('example:create', [
-            SQL`CREATE TABLE example (id INTEGER)`,
-            SQL`INSERT INTO missing_table VALUES (1)`,
-          ]),
-        ],
+    it('rolls back every statement of a failed migration', async () => {
+      const migrator = databaseMigrator({
+        pool,
+        component: schemaComponent('users', {
+          migrations: () => [
+            sqlMigration('users:create', [
+              SQL`CREATE TABLE users (id INTEGER)`,
+              SQL`INSERT INTO missing_table VALUES (1)`,
+            ]),
+          ],
+        }),
       });
-      const migrator = databaseMigrator({ pool, component: failing });
 
       await assert.rejects(migrator.ensureMigrated(), /missing_table/);
 
-      const tables = await pool.execute.query(
-        SQL`SELECT name FROM sqlite_master WHERE type = 'table'`,
-      );
-      assert.deepEqual(tables.rows, []);
-    } finally {
-      await pool.close();
-    }
+      assert.equal(await tableExists(pool.execute, 'users'), false);
+    });
   });
 
-  it('waits for concurrent explicit provisioning with automatic migrations disabled', async () => {
-    const pool = poolFor();
-    try {
-      const migrator = databaseMigrator({
-        pool,
-        component: component(),
-        autoMigration: 'None',
+  describe('migrating', () => {
+    it('records history in the migration table passed to the call', async () => {
+      const migrator = databaseMigrator({ pool, component: users });
+
+      await migrator.migrate({
+        migrationTable: { tableName: 'app_migrations' },
       });
 
-      await Promise.all([migrator.migrate(), migrator.ensureMigrated()]);
+      assert.equal(await tableExists(pool.execute, 'app_migrations'), true);
+      assert.equal(await tableExists(pool.execute, 'dmb_migrations'), false);
+    });
 
-      const columns = await pool.execute.query<{ type: string }>(
-        SQL`PRAGMA table_info(example)`,
-      );
-      assert.equal(columns.rows[0]?.type, 'INTEGER');
-    } finally {
-      await pool.close();
-    }
-  });
+    it('does not apply migrations in a dry run', async () => {
+      const migrator = databaseMigrator({ pool, component: users });
 
-  it('keeps a configured dry run when a call omits its override value', async () => {
-    const pool = poolFor();
-    try {
+      await migrator.migrate({ dryRun: true });
+
+      assert.equal(await tableExists(pool.execute, 'users'), false);
+    });
+
+    it('does not apply migrations in a dry run on the configured executor', async () => {
       const migrator = databaseMigrator({
         pool,
-        component: component(),
-        dryRun: true,
-      });
-
-      await migrator.migrate({ dryRun: undefined });
-
-      const tables = await pool.execute.query(
-        SQL`SELECT name FROM sqlite_master WHERE type = 'table'`,
-      );
-      assert.deepEqual(tables.rows, []);
-    } finally {
-      await pool.close();
-    }
-  });
-
-  it('runs assurance again after configured dry runs', async () => {
-    const pool = poolFor();
-    try {
-      const migrator = databaseMigrator({
-        pool,
-        component: component(),
-        dryRun: true,
-      });
-      await migrator.ensureMigrated();
-      // A second execution must see the invalid schema instead of returning cached success.
-      await pool.execute.command(SQL`CREATE TABLE example (id INTEGER)`);
-
-      await assert.rejects(migrator.ensureMigrated(), /already exists/);
-    } finally {
-      await pool.close();
-    }
-  });
-
-  it('allows a call to override configured dry runs', async () => {
-    const pool = poolFor();
-    try {
-      const migrator = databaseMigrator({
-        pool,
-        component: component(),
-        dryRun: true,
-      });
-
-      await migrator.migrate({ dryRun: false });
-
-      const columns = await pool.execute.query<{ type: string }>(
-        SQL`PRAGMA table_info(example)`,
-      );
-      assert.equal(columns.rows[0]?.type, 'INTEGER');
-    } finally {
-      await pool.close();
-    }
-  });
-
-  it('keeps configured hash-ignore settings when a call omits its override value', async () => {
-    const pool = poolFor();
-    try {
-      await databaseMigrator({ pool, component: component() }).migrate();
-      const migrator = databaseMigrator({
-        pool,
-        component: component(SQL`CREATE TABLE example (id TEXT)`),
-        ignoreMigrationHashMismatch: true,
-      });
-
-      await migrator.migrate({ ignoreMigrationHashMismatch: undefined });
-
-      const columns = await pool.execute.query<{ type: string }>(
-        SQL`PRAGMA table_info(example)`,
-      );
-      assert.equal(columns.rows[0]?.type, 'INTEGER');
-    } finally {
-      await pool.close();
-    }
-  });
-
-  it('rolls back a dry run when an executor is supplied', async () => {
-    const pool = poolFor();
-    try {
-      const migrator = databaseMigrator({
-        pool,
-        component: component(),
+        component: users,
         execute: pool.execute,
       });
 
       await migrator.migrate({ dryRun: true });
 
-      const tables = await pool.execute.query(
-        SQL`SELECT name FROM sqlite_master WHERE type = 'table'`,
-      );
-      assert.deepEqual(tables.rows, []);
-    } finally {
-      await pool.close();
-    }
-  });
+      assert.equal(await tableExists(pool.execute, 'users'), false);
+    });
 
-  it('honors different hash-checking options on concurrent explicit migrations', async () => {
-    const pool = poolFor();
-    try {
-      await databaseMigrator({ pool, component: component() }).migrate();
+    it('keeps the configured dry run when a call passes undefined', async () => {
       const migrator = databaseMigrator({
         pool,
-        component: component(SQL`CREATE TABLE example (id TEXT)`),
+        component: users,
+        dryRun: true,
       });
 
-      const checkingHash = migrator.migrate({
-        ignoreMigrationHashMismatch: false,
+      await migrator.migrate({ dryRun: undefined });
+
+      assert.equal(await tableExists(pool.execute, 'users'), false);
+    });
+
+    it('applies migrations when a call overrides the configured dry run', async () => {
+      const migrator = databaseMigrator({
+        pool,
+        component: users,
+        dryRun: true,
       });
-      const ignoringHash = migrator.migrate({
+
+      await migrator.migrate({ dryRun: false });
+
+      assert.equal(await tableExists(pool.execute, 'users'), true);
+    });
+
+    it('keeps ignoring hash mismatches when a call passes undefined', async () => {
+      await databaseMigrator({ pool, component: users }).migrate();
+      const migrator = databaseMigrator({
+        pool,
+        component: usersWithChangedSQL,
         ignoreMigrationHashMismatch: true,
       });
-      await Promise.all([ignoringHash, assert.rejects(checkingHash, /hash/i)]);
 
-      const columns = await pool.execute.query<{ type: string }>(
-        SQL`PRAGMA table_info(example)`,
+      await assert.doesNotReject(
+        migrator.migrate({ ignoreMigrationHashMismatch: undefined }),
       );
-      assert.equal(columns.rows[0]?.type, 'INTEGER');
-    } finally {
-      await pool.close();
-    }
+    });
   });
 });

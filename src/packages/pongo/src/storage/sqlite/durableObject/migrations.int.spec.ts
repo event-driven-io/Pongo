@@ -58,34 +58,17 @@ describe('Cloudflare Durable Object SQLite migration integration', () => {
       .toArray()
       .map(({ name }) => name);
 
-  it('migrates through the strongly typed database and uses its collection handle', async () => {
+  it('migrates the database of a typed client', async () => {
     const typedClient = pongoClient({
       driver: cloudflareDurableObjectSQLiteDriver,
       storage,
-      schema: {
-        definition: pongoSchema.client({
-          database: pongoSchema.db({
-            schemas: {
-              crm: pongoSchema.schema('crm', {
-                users: pongoSchema.collection<User>('users'),
-              }),
-            },
-          }),
-        }),
-      },
+      schema: { definition: twoSchemaDefinition() },
     });
-    try {
-      await typedClient.database.schema.migrate();
-      await typedClient.database.crm.users.insertOne({
-        email: 'typed@example.com',
-      });
-      assert.strictEqual(
-        (await typedClient.database.crm.users.find({}))[0]?.email,
-        'typed@example.com',
-      );
-    } finally {
-      await typedClient.close();
-    }
+    client = typedClient;
+
+    await typedClient.database.schema.migrate();
+
+    assert.deepStrictEqual(declaredTables(), ['crm.users', 'hr.roles']);
   });
 
   it('migrates the whole database through the database schema', async () => {

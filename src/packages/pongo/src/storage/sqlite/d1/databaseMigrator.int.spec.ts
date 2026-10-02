@@ -1,15 +1,40 @@
+import type { MigrationStyle } from '@event-driven-io/dumbo';
 import { Miniflare } from 'miniflare';
 import { D1TransactionNotSupportedError } from '@event-driven-io/dumbo/cloudflare';
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'vitest';
 import { pongoClient, type PongoClient } from '../../../core';
 import { databaseMigratorTests } from '../../databaseMigratorTests';
-import { d1Driver } from '.';
+import { d1Driver, type D1DatabaseDriverOptions } from '.';
 
-describe('D1 database migration assurance', () => {
+describe('D1 database migrator', () => {
   let mf: Miniflare;
   let database: Awaited<ReturnType<Miniflare['getD1Database']>>;
   let clients: PongoClient[];
+
+  const client = (
+    autoMigration: MigrationStyle,
+    options?: Pick<D1DatabaseDriverOptions, 'transactionOptions'>,
+  ) => {
+    const created = pongoClient({
+      driver: d1Driver,
+      database,
+      schema: { autoMigration },
+      ...options,
+    });
+    clients.push(created);
+    return created;
+  };
+
+  const tables = async () =>
+    (
+      await database
+        .prepare(
+          "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '_cf_%' ORDER BY name",
+        )
+        .all<{ name: string }>()
+    ).results.map(({ name }) => name);
+
   beforeEach(async () => {
     mf = new Miniflare({
       modules: true,
@@ -19,39 +44,28 @@ describe('D1 database migration assurance', () => {
     database = await mf.getD1Database('DB');
     clients = [];
   });
+
   afterEach(async () => {
-    await Promise.all(clients.map((client) => client.close()));
+    await Promise.all(clients.map((created) => created.close()));
     await mf.dispose();
   });
-  it('rejects dry runs before creating collections or migration history', async () => {
-    const client = pongoClient({
-      driver: d1Driver,
-      database,
-      schema: { autoMigration: 'None' },
-    });
-    clients.push(client);
-    const db = client.db();
+
+  it('rejects dry runs without creating tables', async () => {
+    const db = client('None').db();
     db.collection('users');
+
     await assert.rejects(
       db.schema.migrate({ dryRun: true }),
       D1TransactionNotSupportedError,
     );
-    const result = await database
-      .prepare(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('users', 'dmb_migrations')",
-      )
-      .all();
-    assert.deepEqual(result.results, []);
+
+    assert.deepEqual(await tables(), []);
   });
-  it('rejects migration dry runs even when session-based transactions are enabled', async () => {
-    const client = pongoClient({
-      driver: d1Driver,
-      database,
+
+  it('rejects dry runs without creating tables when session-based transactions are enabled', async () => {
+    const db = client('None', {
       transactionOptions: { mode: 'session_based' },
-      schema: { autoMigration: 'None' },
-    });
-    clients.push(client);
-    const db = client.db();
+    }).db();
     db.collection('users');
 
     await assert.rejects(
@@ -59,32 +73,12 @@ describe('D1 database migration assurance', () => {
       D1TransactionNotSupportedError,
     );
 
-    const tables = await database
-      .prepare(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('users', 'dmb_migrations')",
-      )
-      .all();
-    assert.deepEqual(tables.results, []);
+    assert.deepEqual(await tables(), []);
   });
 
   databaseMigratorTests({
     supportsRollback: false,
-    client: (autoMigration) => {
-      const client = pongoClient({
-        driver: d1Driver,
-        database,
-        schema: { autoMigration },
-      });
-      clients.push(client);
-      return client;
-    },
-    tables: async () =>
-      (
-        await database
-          .prepare(
-            "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '_cf_%' ORDER BY name",
-          )
-          .all<{ name: string }>()
-      ).results.map(({ name }) => name),
+    client,
+    tables,
   });
 });

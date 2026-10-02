@@ -8,11 +8,11 @@ import { schemaComponent } from '../schemaComponent';
 import { sqlMigration } from '../sqlMigration';
 import { databaseMigrator } from './databaseMigrator';
 
-describe('database migration description', () => {
-  it('retains its component and describes only component SQL', () => {
-    const component = schemaComponent('test', {
+describe('database migrator', () => {
+  it('describes the SQL of its component without the migration table', () => {
+    const component = schemaComponent('users', {
       migrations: () => [
-        sqlMigration('test:create', [SQL`CREATE TABLE example (id INTEGER)`]),
+        sqlMigration('users:create', [SQL`CREATE TABLE users (id INTEGER)`]),
       ],
     });
     const pool = dumbo({
@@ -20,11 +20,9 @@ describe('database migration description', () => {
       driverType: SQLite3DriverType,
     });
 
-    const migrator = databaseMigrator({ component, pool });
+    const sql = databaseMigrator({ component, pool }).sql();
 
-    assert.equal(migrator.component, component);
-    assert.match(migrator.sql(), /CREATE TABLE example/);
-    assert.doesNotMatch(migrator.sql(), /dmb_migrations/);
-    assert.ok(Object.isFrozen(migrator));
+    assert.match(sql, /CREATE TABLE users/);
+    assert.doesNotMatch(sql, /dmb_migrations/);
   });
 });

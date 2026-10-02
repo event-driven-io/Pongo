@@ -3,7 +3,7 @@ export * from './schema';
 
 export const defaultSQLiteDatabase = ':memory:';
 
-const tableExistsSQL = (tableName: string): SQL =>
+export const tableExistsSQL = (tableName: string): SQL =>
   SQL`
   SELECT EXISTS (
     SELECT 1

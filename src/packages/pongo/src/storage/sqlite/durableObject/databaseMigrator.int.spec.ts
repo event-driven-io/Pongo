@@ -6,7 +6,7 @@ import { pongoClient, type PongoClient } from '../../../core';
 import { databaseMigratorTests } from '../../databaseMigratorTests';
 import { cloudflareDurableObjectSQLiteDriver } from '.';
 
-describe('Durable Object database migration assurance', () => {
+describe('Durable Object database migrator', () => {
   let storage: DurableObjectStorage;
   let clients: PongoClient[];
   aroundEach(async (runTest) => {

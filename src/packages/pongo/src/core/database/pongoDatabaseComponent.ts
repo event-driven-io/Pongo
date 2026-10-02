@@ -2,6 +2,7 @@ import {
   databaseComponent,
   isDefaultDatabaseSchema,
   type AnyDatabaseComponent,
+  type DatabaseMigrator,
 } from '@event-driven-io/dumbo';
 import {
   isPongoCollectionComponent,
@@ -19,6 +20,9 @@ import type {
 type PongoDatabaseComponentOptions = Readonly<{
   component?: AnyDatabaseComponent | undefined;
   defaultSchemaName: string;
+  createMigrator: (
+    component: AnyDatabaseComponent,
+  ) => DatabaseMigrator<AnyDatabaseComponent>;
   createCollection: <
     Document extends PongoDocument,
     Payload extends PongoDocument = Document,
@@ -36,12 +40,17 @@ const databaseSchemaLabel = (databaseSchemaName: string): string =>
 export const PongoDatabaseComponent = ({
   component: initialComponent,
   defaultSchemaName,
+  createMigrator,
   createCollection,
 }: PongoDatabaseComponentOptions) => {
-  let component: AnyDatabaseComponent =
+  let migrator = createMigrator(
     initialComponent === undefined
       ? databaseComponent({ defaultSchemaName })
-      : initialComponent.withDefaultSchemaName(defaultSchemaName);
+      : initialComponent.withDefaultSchemaName(defaultSchemaName),
+  );
+  const replaceComponent = (component: AnyDatabaseComponent) => {
+    migrator = createMigrator(component);
+  };
 
   const collectionsBySchema = new Map<
     string,
@@ -66,7 +75,7 @@ export const PongoDatabaseComponent = ({
     definition?: PongoCollectionComponent<Document>,
   ) => {
     const databaseSchemaName = requestedSchemaName ?? defaultSchemaName;
-    const declared = component.findTable({
+    const declared = migrator.component.findTable({
       tableName: collectionName,
       databaseSchemaName,
     });
@@ -81,7 +90,7 @@ export const PongoDatabaseComponent = ({
     }
 
     const aliased =
-      component.findSchema(databaseSchemaName)?.tables[collectionName];
+      migrator.component.findSchema(databaseSchemaName)?.tables[collectionName];
     if (aliased !== undefined) {
       throw new PongoError(
         `Cannot add collection "${collectionName}" to ${databaseSchemaLabel(databaseSchemaName)} because that alias already refers to table "${aliased.tableName}"`,
@@ -91,12 +100,14 @@ export const PongoDatabaseComponent = ({
     const created =
       definition?.withTableName(collectionName) ??
       pongoSchema.collection<Document>(collectionName);
-    component = component.withTable(
-      { [collectionName]: created },
-      databaseSchemaName,
+    replaceComponent(
+      migrator.component.withTable(
+        { [collectionName]: created },
+        databaseSchemaName,
+      ),
     );
 
-    return component.findTable({
+    return migrator.component.findTable({
       tableName: collectionName,
       databaseSchemaName,
     }) as PongoCollectionComponent<Document>;
@@ -108,12 +119,14 @@ export const PongoDatabaseComponent = ({
   ): PongoCollectionComponent<Document> => {
     const { databaseSchemaName } = collection.fullName;
 
-    component = component.withTable(
-      { [newCollectionName]: collection.rename(newCollectionName) },
-      databaseSchemaName,
+    replaceComponent(
+      migrator.component.withTable(
+        { [newCollectionName]: collection.rename(newCollectionName) },
+        databaseSchemaName,
+      ),
     );
 
-    return component.findTable({
+    return migrator.component.findTable({
       tableName: newCollectionName,
       databaseSchemaName,
     }) as PongoCollectionComponent<Document>;
@@ -176,7 +189,7 @@ export const PongoDatabaseComponent = ({
         get: (_target, property) => {
           if (typeof property !== 'string') return undefined;
 
-          const schema = component.schemas[schemaName];
+          const schema = migrator.component.schemas[schemaName];
           if (schema === undefined) return undefined;
 
           const table = schema.tables[property];
@@ -194,10 +207,13 @@ export const PongoDatabaseComponent = ({
 
   return {
     get component() {
-      return component;
+      return migrator.component;
     },
     get migrations() {
-      return component.migrations();
+      return migrator.component.migrations();
+    },
+    get migrator() {
+      return migrator;
     },
     collection,
     collections,
@@ -210,12 +226,12 @@ export const PongoDatabaseComponent = ({
           }
           if (typeof property !== 'string') return undefined;
 
-          const table = component.tables[property];
+          const table = migrator.component.tables[property];
           if (isPongoCollectionComponent(table)) {
             return collection(table.tableName);
           }
 
-          const schema = component.schemas[property];
+          const schema = migrator.component.schemas[property];
           if (
             schema === undefined ||
             !Object.values(schema.tables).some(isPongoCollectionComponent)

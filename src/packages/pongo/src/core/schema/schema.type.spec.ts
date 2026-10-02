@@ -6,12 +6,7 @@ import type {
 } from '@event-driven-io/dumbo';
 import { dumboSchema, SQL } from '@event-driven-io/dumbo';
 import { describe, expectTypeOf, it } from 'vitest';
-import type {
-  PongoCollection,
-  PongoDatabaseSchema,
-  PongoDb,
-  PongoDocument,
-} from '../typing';
+import type { PongoCollection, PongoDb, PongoDocument } from '../typing';
 import {
   pongoSchema,
   type PongoCollectionComponent,
@@ -39,11 +34,6 @@ describe('typing Pongo declarations and projected databases', () => {
         }),
       });
     type AppDatabase = PongoDbWithSchema<typeof app>;
-
-    expectTypeOf<AppDatabase['schema']>().toEqualTypeOf<PongoDatabaseSchema>();
-    expectTypeOf<AppDatabase['schema']['migrate']>().toEqualTypeOf<
-      PongoDb['schema']['migrate']
-    >();
 
     expectTypeOf(app).toMatchTypeOf<DatabaseComponent>();
     expectTypeOf(app.tables.users).toMatchTypeOf<

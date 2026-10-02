@@ -60,7 +60,7 @@ export type PongoCollectionOptions<
   Payload extends PongoDocument = T,
 > = {
   db: PongoDb<DriverType>;
-  ensureSchema?: (options?: CollectionOperationOptions) => Promise<void>;
+  ensureSchema: (options?: CollectionOperationOptions) => Promise<void>;
   pool: Dumbo<DatabaseDriverType>;
   component: PongoCollectionComponent;
   sqlBuilderFor: (
@@ -80,7 +80,7 @@ export type PongoCollectionOptions<
 
 type SessionOptions = { session?: PongoSession | undefined };
 
-const enlistIntoTransactionIfActive = async <
+export const enlistIntoTransactionIfActive = async <
   DriverType extends DatabaseDriverType = DatabaseDriverType,
 >(
   db: PongoDb<DriverType>,
@@ -104,7 +104,7 @@ export const transactionExecutorOrDefault = async <
   return existingTransaction?.execute ?? defaultSqlExecutor;
 };
 
-const timeoutMSOf = (options: CollectionOperationOptions | undefined) =>
+export const timeoutMSOf = (options: CollectionOperationOptions | undefined) =>
   options?.timeoutMS ??
   (options?.session?.inTransaction()
     ? undefined
@@ -116,7 +116,7 @@ export const pongoCollection = <
   Payload extends PongoDocument = T,
 >({
   db,
-  ensureSchema,
+  ensureSchema: ensureMigrated,
   pool,
   component: initialComponent,
   sqlBuilderFor,
@@ -162,9 +162,6 @@ export const pongoCollection = <
         ...columnMapping,
       },
     );
-
-  const ensureMigrated = (options?: CollectionOperationOptions) =>
-    ensureSchema?.(options) ?? db.schema.ensureMigrated();
 
   const upcast =
     schema?.versioning?.upcast ?? ((doc: Payload) => doc as unknown as T);
@@ -948,7 +945,11 @@ export const pongoCollection = <
       component = db.schema.renameCollection(component, newName);
       SqlFor = sqlBuilderFor(component);
 
-      await ensureMigrated(options);
+      if (schema?.autoMigration !== 'None')
+        await db.schema.migrate({
+          session: options?.session,
+          migrationTimeoutMS: timeoutMSOf(options),
+        });
 
       return collection;
     },
