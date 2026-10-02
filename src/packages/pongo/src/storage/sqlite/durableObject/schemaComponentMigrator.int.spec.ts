@@ -3,10 +3,10 @@ import { runInDurableObject } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import { aroundEach, describe } from 'vitest';
 import { pongoClient, type PongoClient } from '../../../core';
-import { databaseMigratorTests } from '../../databaseMigratorTests';
+import { schemaComponentMigratorTests } from '../../schemaComponentMigratorTests';
 import { cloudflareDurableObjectSQLiteDriver } from '.';
 
-describe('Durable Object database migrator', () => {
+describe('Durable Object schema component migrator', () => {
   let storage: DurableObjectStorage;
   let clients: PongoClient[];
   aroundEach(async (runTest) => {
@@ -21,7 +21,7 @@ describe('Durable Object database migrator', () => {
       }
     });
   });
-  databaseMigratorTests({
+  schemaComponentMigratorTests({
     client: (autoMigration) => {
       const client = pongoClient({
         driver: cloudflareDurableObjectSQLiteDriver,

@@ -2,7 +2,7 @@ import {
   databaseComponent,
   isDefaultDatabaseSchema,
   type AnyDatabaseComponent,
-  type DatabaseMigrator,
+  type SchemaComponentMigrator,
 } from '@event-driven-io/dumbo';
 import {
   isPongoCollectionComponent,
@@ -22,7 +22,7 @@ type PongoDatabaseComponentOptions = Readonly<{
   defaultSchemaName: string;
   createMigrator: (
     component: AnyDatabaseComponent,
-  ) => DatabaseMigrator<AnyDatabaseComponent>;
+  ) => SchemaComponentMigrator<AnyDatabaseComponent>;
   createCollection: <
     Document extends PongoDocument,
     Payload extends PongoDocument = Document,

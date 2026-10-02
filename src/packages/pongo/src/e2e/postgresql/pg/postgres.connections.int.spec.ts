@@ -180,7 +180,11 @@ describe('Pongo PostgreSQL connections', () => {
             connectionString,
             connectionOptions: { connection },
           });
-          const users = pongo.db().collection<User>('connections');
+          const users = pongo
+            .db()
+            .collection<User>(
+              `connections_${randomUUID().replaceAll('-', '')}`,
+            );
 
           await assert.rejects(
             users.insertOne({ name: randomUUID() }),

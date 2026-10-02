@@ -393,7 +393,10 @@ export const pongoCollection = <
       return component.tableName;
     },
     createCollection: async (options?: CollectionOperationOptions) => {
-      await db.schema.migrate({ session: options?.session });
+      await db.schema.migrate({
+        session: options?.session,
+        migrationStyle: 'CreateOrUpdate',
+      });
     },
     insertOne: async (
       document: OptionalUnlessRequiredIdAndVersion<T>,
@@ -949,6 +952,7 @@ export const pongoCollection = <
         await db.schema.migrate({
           session: options?.session,
           migrationTimeoutMS: timeoutMSOf(options),
+          migrationStyle: 'CreateOrUpdate',
         });
 
       return collection;

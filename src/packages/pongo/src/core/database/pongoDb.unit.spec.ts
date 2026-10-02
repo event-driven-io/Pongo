@@ -167,7 +167,7 @@ const migratedTestDb = async ({
   const operationRows: unknown[] = [];
   const testDb = createTestDb({ ...options, poolRows: operationRows });
   testDb.db.collection('users');
-  await testDb.db.schema.ensureMigrated();
+  await testDb.db.schema.migrate({ migrationStyle: 'CreateOrUpdate' });
   testDb.poolCalls.length = 0;
   operationRows.push(...poolRows);
   return testDb;

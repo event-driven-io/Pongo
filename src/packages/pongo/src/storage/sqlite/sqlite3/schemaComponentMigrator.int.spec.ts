@@ -8,10 +8,10 @@ import { randomUUID } from 'node:crypto';
 import { rm } from 'node:fs/promises';
 import { afterEach, beforeEach, describe } from 'vitest';
 import { pongoClient, type PongoClient } from '../../../core';
-import { databaseMigratorTests } from '../../databaseMigratorTests';
+import { schemaComponentMigratorTests } from '../../schemaComponentMigratorTests';
 import { sqlite3Driver } from '.';
 
-describe('sqlite3 database migrator', () => {
+describe('sqlite3 schema component migrator', () => {
   let fileName: string;
   let pool: Sqlite3Pool;
   let clients: PongoClient[];
@@ -29,7 +29,7 @@ describe('sqlite3 database migrator', () => {
       ),
     );
   });
-  databaseMigratorTests({
+  schemaComponentMigratorTests({
     client: (autoMigration) => {
       const client = pongoClient({
         driver: sqlite3Driver,

@@ -5,7 +5,7 @@ import {
 } from '@testcontainers/postgresql';
 import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import {
-  databaseMigrator,
+  schemaComponentMigrator,
   dumbo,
   PendingMigrationsError,
   schemaComponent,
@@ -23,7 +23,7 @@ const users = schemaComponent('users', {
   ],
 });
 
-describe('PostgreSQL database migrator with automatic migration disabled', () => {
+describe('PostgreSQL schema component migrator', () => {
   let container: StartedPostgreSqlContainer;
   let pool: Dumbo;
 
@@ -49,11 +49,7 @@ describe('PostgreSQL database migrator with automatic migration disabled', () =>
   });
 
   it('reports pending migrations without creating migration history', async () => {
-    const migrator = databaseMigrator({
-      pool,
-      component: users,
-      autoMigration: 'None',
-    });
+    const migrator = schemaComponentMigrator({ pool, component: users });
 
     await assert.rejects(migrator.ensureMigrated(), (error) => {
       assert.ok(error instanceof PendingMigrationsError);
@@ -68,27 +64,22 @@ describe('PostgreSQL database migrator with automatic migration disabled', () =>
   });
 
   it('accepts migrations that were applied', async () => {
-    await databaseMigrator({ pool, component: users }).migrate();
-    const migrator = databaseMigrator({
-      pool,
-      component: users,
-      autoMigration: 'None',
-    });
+    await schemaComponentMigrator({ pool, component: users }).migrate();
+    const migrator = schemaComponentMigrator({ pool, component: users });
 
     await assert.doesNotReject(migrator.ensureMigrated());
   });
 
   it('finds migration history in a migration table in another database schema', async () => {
     const migrationTable = { schemaName: 'ops' };
-    await databaseMigrator({
+    await schemaComponentMigrator({
       pool,
       component: users,
       migrationTable,
     }).migrate();
-    const migrator = databaseMigrator({
+    const migrator = schemaComponentMigrator({
       pool,
       component: users,
-      autoMigration: 'None',
       migrationTable,
     });
 
@@ -100,17 +91,50 @@ describe('PostgreSQL database migrator with automatic migration disabled', () =>
       await execute.command(
         SQL`CREATE SCHEMA alternate; SET search_path TO alternate`,
       );
-      await databaseMigrator({ pool, component: users, execute }).migrate();
-      const migrator = databaseMigrator({
+      await schemaComponentMigrator({
         pool,
         component: users,
-        autoMigration: 'None',
+        execute,
+      }).migrate();
+      const migrator = schemaComponentMigrator({
+        pool,
+        component: users,
         execute,
       });
 
       await assert.doesNotReject(migrator.ensureMigrated());
 
       await execute.command(SQL`SET search_path TO public`);
+    });
+  });
+
+  it('reports pending migrations on migrate without creating migration history when automatic migration is disabled', async () => {
+    const migrator = schemaComponentMigrator({
+      pool,
+      component: users,
+      autoMigration: 'None',
+    });
+
+    await assert.rejects(migrator.migrate(), PendingMigrationsError);
+
+    assert.equal(await tableExists(pool.execute, 'dmb_migrations'), false);
+  });
+
+  it('does not wait for the migration lock when migrations were already applied', async () => {
+    const lock = { options: { lockId: 42, timeoutMS: 100 } };
+    await schemaComponentMigrator({ pool, component: users, lock }).migrate();
+
+    await pool.withConnection(async ({ execute }) => {
+      await execute.query(SQL`SELECT pg_advisory_lock(42)`);
+      const migrator = schemaComponentMigrator({
+        pool,
+        component: users,
+        lock,
+      });
+
+      await assert.doesNotReject(migrator.migrate());
+
+      await execute.query(SQL`SELECT pg_advisory_unlock(42)`);
     });
   });
 });

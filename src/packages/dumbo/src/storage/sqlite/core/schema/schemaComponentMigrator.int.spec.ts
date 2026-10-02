@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'vitest';
 import {
-  databaseMigrator,
+  schemaComponentMigrator,
   dumbo,
   PendingMigrationsError,
   schemaComponent,
@@ -38,7 +38,7 @@ const assertRejectsWithPendingMigrations = (
     return true;
   });
 
-describe('SQLite database migrator', () => {
+describe('SQLite schema component migrator', () => {
   let pool: Dumbo;
 
   beforeEach(() => {
@@ -52,13 +52,9 @@ describe('SQLite database migrator', () => {
     await pool.close();
   });
 
-  describe('ensuring migrations with automatic migration disabled', () => {
+  describe('ensuring migrations', () => {
     it('reports pending migrations without applying them', async () => {
-      const migrator = databaseMigrator({
-        pool,
-        component: users,
-        autoMigration: 'None',
-      });
+      const migrator = schemaComponentMigrator({ pool, component: users });
 
       await assertRejectsWithPendingMigrations(migrator.ensureMigrated(), [
         'users:create',
@@ -68,22 +64,26 @@ describe('SQLite database migrator', () => {
     });
 
     it('accepts migrations that were applied', async () => {
-      await databaseMigrator({ pool, component: users }).migrate();
-      const migrator = databaseMigrator({
-        pool,
-        component: users,
-        autoMigration: 'None',
-      });
+      await schemaComponentMigrator({ pool, component: users }).migrate();
+      const migrator = schemaComponentMigrator({ pool, component: users });
+
+      await assert.doesNotReject(migrator.ensureMigrated());
+    });
+
+    it('does not access the database again after migrations were confirmed', async () => {
+      await schemaComponentMigrator({ pool, component: users }).migrate();
+      const migrator = schemaComponentMigrator({ pool, component: users });
+      await migrator.ensureMigrated();
+      await pool.close();
 
       await assert.doesNotReject(migrator.ensureMigrated());
     });
 
     it('reports a migration whose SQL changed after it was applied', async () => {
-      await databaseMigrator({ pool, component: users }).migrate();
-      const migrator = databaseMigrator({
+      await schemaComponentMigrator({ pool, component: users }).migrate();
+      const migrator = schemaComponentMigrator({
         pool,
         component: usersWithChangedSQL,
-        autoMigration: 'None',
       });
 
       await assertRejectsWithPendingMigrations(migrator.ensureMigrated(), [
@@ -92,11 +92,10 @@ describe('SQLite database migrator', () => {
     });
 
     it('accepts changed SQL when the migrator ignores hash mismatches', async () => {
-      await databaseMigrator({ pool, component: users }).migrate();
-      const migrator = databaseMigrator({
+      await schemaComponentMigrator({ pool, component: users }).migrate();
+      const migrator = schemaComponentMigrator({
         pool,
         component: usersWithChangedSQL,
-        autoMigration: 'None',
         ignoreMigrationHashMismatch: true,
       });
 
@@ -104,8 +103,8 @@ describe('SQLite database migrator', () => {
     });
 
     it('accepts changed SQL when the migration ignores hash mismatches', async () => {
-      await databaseMigrator({ pool, component: users }).migrate();
-      const migrator = databaseMigrator({
+      await schemaComponentMigrator({ pool, component: users }).migrate();
+      const migrator = schemaComponentMigrator({
         pool,
         component: schemaComponent('users', {
           migrations: () => [
@@ -114,7 +113,6 @@ describe('SQLite database migrator', () => {
             }),
           ],
         }),
-        autoMigration: 'None',
       });
 
       await assert.doesNotReject(migrator.ensureMigrated());
@@ -122,15 +120,14 @@ describe('SQLite database migrator', () => {
 
     it('finds migration history in the configured migration table', async () => {
       const migrationTable = { tableName: 'app_migrations' };
-      await databaseMigrator({
+      await schemaComponentMigrator({
         pool,
         component: users,
         migrationTable,
       }).migrate();
-      const migrator = databaseMigrator({
+      const migrator = schemaComponentMigrator({
         pool,
         component: users,
-        autoMigration: 'None',
         migrationTable,
       });
 
@@ -138,55 +135,126 @@ describe('SQLite database migrator', () => {
     });
   });
 
-  describe('ensuring migrations with automatic migration', () => {
-    it('applies pending migrations', async () => {
-      const migrator = databaseMigrator({ pool, component: users });
+  describe('migrating with automatic migration disabled', () => {
+    it('reports pending migrations without applying them', async () => {
+      const migrator = schemaComponentMigrator({
+        pool,
+        component: users,
+        autoMigration: 'None',
+      });
 
-      await migrator.ensureMigrated();
+      await assertRejectsWithPendingMigrations(migrator.migrate(), [
+        'users:create',
+      ]);
+
+      assert.equal(await tableExists(pool.execute, 'users'), false);
+    });
+
+    it('accepts migrations that were applied', async () => {
+      await schemaComponentMigrator({ pool, component: users }).migrate();
+      const migrator = schemaComponentMigrator({
+        pool,
+        component: users,
+        autoMigration: 'None',
+      });
+
+      await assert.doesNotReject(migrator.migrate());
+    });
+
+    it('applies pending migrations when the call allows creating them', async () => {
+      const migrator = schemaComponentMigrator({
+        pool,
+        component: users,
+        autoMigration: 'None',
+      });
+
+      await migrator.migrate({ migrationStyle: 'CreateOrUpdate' });
+
+      assert.equal(await tableExists(pool.execute, 'users'), true);
+    });
+  });
+
+  describe('migrating', () => {
+    it('applies pending migrations', async () => {
+      const migrator = schemaComponentMigrator({ pool, component: users });
+
+      await migrator.migrate();
 
       assert.equal(await tableExists(pool.execute, 'users'), true);
     });
 
     it('applies pending migrations for concurrent calls', async () => {
-      const migrator = databaseMigrator({ pool, component: users });
+      const migrator = schemaComponentMigrator({ pool, component: users });
 
-      await Promise.all([migrator.ensureMigrated(), migrator.ensureMigrated()]);
+      await Promise.all([migrator.migrate(), migrator.migrate()]);
 
       assert.equal(await tableExists(pool.execute, 'users'), true);
     });
 
+    it('reports pending migrations when the call disables migrations', async () => {
+      const migrator = schemaComponentMigrator({ pool, component: users });
+
+      await assertRejectsWithPendingMigrations(
+        migrator.migrate({ migrationStyle: 'None' }),
+        ['users:create'],
+      );
+
+      assert.equal(await tableExists(pool.execute, 'users'), false);
+    });
+
     it('does not access the database again after migrations were applied', async () => {
-      const migrator = databaseMigrator({ pool, component: users });
+      const migrator = schemaComponentMigrator({ pool, component: users });
+      await migrator.migrate();
+      await pool.close();
+
+      await assert.doesNotReject(migrator.migrate());
+    });
+
+    it('does not access the database after migrations were confirmed', async () => {
+      await schemaComponentMigrator({ pool, component: users }).migrate();
+      const migrator = schemaComponentMigrator({ pool, component: users });
       await migrator.ensureMigrated();
       await pool.close();
 
-      await assert.doesNotReject(migrator.ensureMigrated());
+      await assert.doesNotReject(migrator.migrate());
+    });
+
+    it('applies migrations again after the caller rolled back its transaction', async () => {
+      const migrator = schemaComponentMigrator({ pool, component: users });
+      await pool.withTransaction(async ({ execute }) => {
+        await migrator.migrate({ execute });
+        return { success: false, result: undefined };
+      });
+
+      await migrator.migrate();
+
+      assert.equal(await tableExists(pool.execute, 'users'), true);
     });
 
     it('applies migrations after a dry run', async () => {
-      const migrator = databaseMigrator({ pool, component: users });
-      await migrator.ensureMigrated({ dryRun: true });
+      const migrator = schemaComponentMigrator({ pool, component: users });
+      await migrator.migrate({ dryRun: true });
 
-      await migrator.ensureMigrated();
+      await migrator.migrate();
 
       assert.equal(await tableExists(pool.execute, 'users'), true);
     });
 
     it('applies migrations after a configured dry run', async () => {
-      const migrator = databaseMigrator({
+      const migrator = schemaComponentMigrator({
         pool,
         component: users,
         dryRun: true,
       });
-      await migrator.ensureMigrated();
+      await migrator.migrate();
 
-      await migrator.ensureMigrated({ dryRun: false });
+      await migrator.migrate({ dryRun: false });
 
       assert.equal(await tableExists(pool.execute, 'users'), true);
     });
 
     it('retries migrations that failed on an earlier call', async () => {
-      const migrator = databaseMigrator({
+      const migrator = schemaComponentMigrator({
         pool,
         component: schemaComponent('copies', {
           migrations: () => [
@@ -196,16 +264,16 @@ describe('SQLite database migrator', () => {
           ],
         }),
       });
-      await assert.rejects(migrator.ensureMigrated(), /originals/);
+      await assert.rejects(migrator.migrate(), /originals/);
       await pool.execute.command(SQL`CREATE TABLE originals (id INTEGER)`);
 
-      await migrator.ensureMigrated();
+      await migrator.migrate();
 
       assert.equal(await tableExists(pool.execute, 'copies'), true);
     });
 
     it('rolls back every statement of a failed migration', async () => {
-      const migrator = databaseMigrator({
+      const migrator = schemaComponentMigrator({
         pool,
         component: schemaComponent('users', {
           migrations: () => [
@@ -217,26 +285,13 @@ describe('SQLite database migrator', () => {
         }),
       });
 
-      await assert.rejects(migrator.ensureMigrated(), /missing_table/);
+      await assert.rejects(migrator.migrate(), /missing_table/);
 
       assert.equal(await tableExists(pool.execute, 'users'), false);
     });
-  });
-
-  describe('migrating', () => {
-    it('records history in the migration table passed to the call', async () => {
-      const migrator = databaseMigrator({ pool, component: users });
-
-      await migrator.migrate({
-        migrationTable: { tableName: 'app_migrations' },
-      });
-
-      assert.equal(await tableExists(pool.execute, 'app_migrations'), true);
-      assert.equal(await tableExists(pool.execute, 'dmb_migrations'), false);
-    });
 
     it('does not apply migrations in a dry run', async () => {
-      const migrator = databaseMigrator({ pool, component: users });
+      const migrator = schemaComponentMigrator({ pool, component: users });
 
       await migrator.migrate({ dryRun: true });
 
@@ -244,7 +299,7 @@ describe('SQLite database migrator', () => {
     });
 
     it('does not apply migrations in a dry run on the configured executor', async () => {
-      const migrator = databaseMigrator({
+      const migrator = schemaComponentMigrator({
         pool,
         component: users,
         execute: pool.execute,
@@ -256,7 +311,7 @@ describe('SQLite database migrator', () => {
     });
 
     it('keeps the configured dry run when a call passes undefined', async () => {
-      const migrator = databaseMigrator({
+      const migrator = schemaComponentMigrator({
         pool,
         component: users,
         dryRun: true,
@@ -268,7 +323,7 @@ describe('SQLite database migrator', () => {
     });
 
     it('applies migrations when a call overrides the configured dry run', async () => {
-      const migrator = databaseMigrator({
+      const migrator = schemaComponentMigrator({
         pool,
         component: users,
         dryRun: true,
@@ -280,8 +335,8 @@ describe('SQLite database migrator', () => {
     });
 
     it('keeps ignoring hash mismatches when a call passes undefined', async () => {
-      await databaseMigrator({ pool, component: users }).migrate();
-      const migrator = databaseMigrator({
+      await schemaComponentMigrator({ pool, component: users }).migrate();
+      const migrator = schemaComponentMigrator({
         pool,
         component: usersWithChangedSQL,
         ignoreMigrationHashMismatch: true,

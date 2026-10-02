@@ -218,7 +218,7 @@ describe('renaming a Cloudflare Durable Object SQLite Pongo collection', () => {
     try {
       const manualDb = manualClient.db('database');
       const users = manualDb.collection<User>('users');
-      await manualDb.schema.migrate();
+      await manualDb.schema.migrate({ migrationStyle: 'CreateOrUpdate' });
       await users.insertOne({ name: 'Oskar' });
 
       await users.rename('archived_users');
@@ -239,12 +239,12 @@ describe('renaming a Cloudflare Durable Object SQLite Pongo collection', () => {
     try {
       const manualDb = manualClient.db('database');
       const users = manualDb.collection<User>('users');
-      await manualDb.schema.migrate();
+      await manualDb.schema.migrate({ migrationStyle: 'CreateOrUpdate' });
       await users.insertOne({ name: 'Oskar' });
 
       await users.rename('archived_users');
 
-      await manualDb.schema.migrate();
+      await manualDb.schema.migrate({ migrationStyle: 'CreateOrUpdate' });
 
       assert.deepStrictEqual(tableNames(), ['archived_users']);
       assert.deepStrictEqual(

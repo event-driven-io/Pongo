@@ -23,7 +23,7 @@ const assertRejectsWithPendingMigrations = (
     return true;
   });
 
-export const databaseMigratorTests = (options: {
+export const schemaComponentMigratorTests = (options: {
   client: (autoMigration: MigrationStyle) => PongoClient;
   tables: () => Promise<string[]>;
   supportsRollback?: boolean;
@@ -36,6 +36,17 @@ export const databaseMigratorTests = (options: {
       await assertRejectsWithPendingMigrations(db.schema.ensureMigrated(), [
         'table:pongo_collection:users:create',
       ]);
+    });
+
+    it('reports pending migrations on migrate without creating tables', async () => {
+      const db = options.client('None').db();
+      db.collection<User>('users');
+
+      await assertRejectsWithPendingMigrations(db.schema.migrate(), [
+        'table:pongo_collection:users:create',
+      ]);
+
+      assert.deepEqual(await options.tables(), []);
     });
 
     it('rejects collection operations without creating tables while migrations are pending', async () => {
@@ -62,7 +73,7 @@ export const databaseMigratorTests = (options: {
     it('runs operations on collections migrated by another client', async () => {
       const provisioningDb = options.client('None').db();
       provisioningDb.collection<User>('users');
-      await provisioningDb.schema.migrate();
+      await provisioningDb.schema.migrate({ migrationStyle: 'CreateOrUpdate' });
       const users = options.client('None').db().collection<User>('users');
 
       await users.insertOne({ name: 'Oskar' });
@@ -73,7 +84,7 @@ export const databaseMigratorTests = (options: {
     it('reports a collection registered after migrations were ensured', async () => {
       const db = options.client('None').db();
       db.collection<User>('users');
-      await db.schema.migrate();
+      await db.schema.migrate({ migrationStyle: 'CreateOrUpdate' });
       await db.schema.ensureMigrated();
 
       db.collection<Order>('orders');
@@ -82,21 +93,20 @@ export const databaseMigratorTests = (options: {
         'table:pongo_collection:orders:create',
       ]);
     });
+  });
 
-    it('keeps checking the configured migration table after migrating with another one', async () => {
-      const db = options.client('None').db();
+  describe('with automatic migration', () => {
+    it('reports pending migrations on ensuring without creating tables', async () => {
+      const db = options.client('CreateOrUpdate').db();
       db.collection<User>('users');
-      await db.schema.migrate({
-        migrationTable: { tableName: 'app_migrations' },
-      });
 
       await assertRejectsWithPendingMigrations(db.schema.ensureMigrated(), [
         'table:pongo_collection:users:create',
       ]);
-    });
-  });
 
-  describe('with automatic migration', () => {
+      assert.deepEqual(await options.tables(), []);
+    });
+
     it('creates a collection registered after earlier operations', async () => {
       const db = options.client('CreateOrUpdate').db();
       await db.collection<User>('users').insertOne({ name: 'Oskar' });
@@ -125,7 +135,11 @@ export const databaseMigratorTests = (options: {
         db.collection<User>('users');
 
         await client.withSession((session) =>
-          db.schema.migrate({ session, dryRun: true }),
+          db.schema.migrate({
+            session,
+            dryRun: true,
+            migrationStyle: 'CreateOrUpdate',
+          }),
         );
 
         assert.deepEqual(await options.tables(), []);
@@ -137,7 +151,10 @@ export const databaseMigratorTests = (options: {
         db.collection<User>('users');
         await client.withSession(async (session) => {
           session.startTransaction();
-          await db.schema.migrate({ session });
+          await db.schema.migrate({
+            session,
+            migrationStyle: 'CreateOrUpdate',
+          });
           await session.abortTransaction();
         });
 
