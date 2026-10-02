@@ -4,10 +4,10 @@ import { D1TransactionNotSupportedError } from '@event-driven-io/dumbo/cloudflar
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'vitest';
 import { pongoClient, type PongoClient } from '../../../core';
-import { databaseMigratorTests } from '../../databaseMigratorTests';
+import { schemaComponentMigratorTests } from '../../schemaComponentMigratorTests';
 import { d1Driver, type D1DatabaseDriverOptions } from '.';
 
-describe('D1 database migrator', () => {
+describe('D1 schema component migrator', () => {
   let mf: Miniflare;
   let database: Awaited<ReturnType<Miniflare['getD1Database']>>;
   let clients: PongoClient[];
@@ -55,7 +55,7 @@ describe('D1 database migrator', () => {
     db.collection('users');
 
     await assert.rejects(
-      db.schema.migrate({ dryRun: true }),
+      db.schema.migrate({ dryRun: true, migrationStyle: 'CreateOrUpdate' }),
       D1TransactionNotSupportedError,
     );
 
@@ -69,14 +69,14 @@ describe('D1 database migrator', () => {
     db.collection('users');
 
     await assert.rejects(
-      db.schema.migrate({ dryRun: true }),
+      db.schema.migrate({ dryRun: true, migrationStyle: 'CreateOrUpdate' }),
       D1TransactionNotSupportedError,
     );
 
     assert.deepEqual(await tables(), []);
   });
 
-  databaseMigratorTests({
+  schemaComponentMigratorTests({
     supportsRollback: false,
     client,
     tables,

@@ -280,15 +280,9 @@ describe('Cloudflare Durable Object SQLite migration integration', () => {
     const db = client.db('database');
 
     await db.schema.migrate();
-    await db.schema.migrate({
-      migrationTable: { tableName: 'call_migrations' },
-    });
 
     const clientLedger = storage.sql
       .exec<{ name: string }>('SELECT name FROM client_migrations ORDER BY id')
-      .toArray();
-    const callLedger = storage.sql
-      .exec<{ name: string }>('SELECT name FROM call_migrations ORDER BY id')
       .toArray();
     const defaultLedger = storage.sql
       .exec<{ count: number }>(
@@ -298,10 +292,6 @@ describe('Cloudflare Durable Object SQLite migration integration', () => {
 
     assert.deepStrictEqual(
       clientLedger.map((row) => row.name),
-      ['table:pongo_collection:users:create'],
-    );
-    assert.deepStrictEqual(
-      callLedger.map((row) => row.name),
       ['table:pongo_collection:users:create'],
     );
     assert.strictEqual(defaultLedger[0]?.count, 0);

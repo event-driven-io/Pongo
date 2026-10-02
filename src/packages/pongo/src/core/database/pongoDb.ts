@@ -1,7 +1,7 @@
 import type { JSONSerializer, SQL } from '@event-driven-io/dumbo';
 import {
   DefaultDatabaseSchemaName,
-  databaseMigrator,
+  schemaComponentMigrator,
   type DatabaseDriverType,
   type Dumbo,
   type MigrationStyle,
@@ -133,7 +133,7 @@ export const PongoDatabase = <
     component: options.schema?.definition,
     defaultSchemaName,
     createMigrator: (component) =>
-      databaseMigrator({
+      schemaComponentMigrator({
         ...options.migrationOptions,
         pool,
         component,
@@ -160,10 +160,13 @@ export const PongoDatabase = <
     },
   });
 
-  const ensureSchema = (operationOptions?: CollectionOperationOptions) =>
-    databaseComponent.migrator.ensureMigrated({
+  const ensureSchema = async (
+    operationOptions?: CollectionOperationOptions,
+  ) => {
+    await databaseComponent.migrator.migrate({
       migrationTimeoutMS: timeoutMSOf(operationOptions),
     });
+  };
 
   const migrate = async ({
     session,

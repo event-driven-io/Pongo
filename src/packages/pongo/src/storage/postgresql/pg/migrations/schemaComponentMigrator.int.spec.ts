@@ -6,10 +6,10 @@ import {
 } from '@testcontainers/postgresql';
 import { afterAll, afterEach, beforeAll, beforeEach, describe } from 'vitest';
 import { pongoClient, type PongoClient } from '../../../../core';
-import { databaseMigratorTests } from '../../../databaseMigratorTests';
+import { schemaComponentMigratorTests } from '../../../schemaComponentMigratorTests';
 import { pongoDriver } from '..';
 
-describe('PostgreSQL database migrator', () => {
+describe('PostgreSQL schema component migrator', () => {
   let postgres: StartedPostgreSqlContainer;
   let pool: Dumbo;
   let connectionString: PostgreSQLConnectionString;
@@ -32,7 +32,7 @@ describe('PostgreSQL database migrator', () => {
     await pool?.close();
     await postgres?.stop();
   });
-  databaseMigratorTests({
+  schemaComponentMigratorTests({
     client: (autoMigration) => {
       const client = pongoClient({
         driver: pongoDriver,

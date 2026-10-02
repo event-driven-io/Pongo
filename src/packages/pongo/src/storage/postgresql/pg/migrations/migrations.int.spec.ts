@@ -16,6 +16,7 @@ import {
 import assert from 'assert';
 import {
   afterAll,
+  afterEach,
   beforeAll,
   beforeEach,
   describe,
@@ -87,16 +88,9 @@ describe('Migration Integration Tests', () => {
     database = await sharedPostgreSQLDatabase();
     connectionString = PostgreSQLConnectionString(database.connectionString);
     pool = dumbo({ connectionString });
-    client = pongoClient({
-      driver: pongoDriver,
-      connectionString,
-      defaultSchemaName: 'public',
-      schema: { autoMigration: 'CreateOrUpdate', definition: schema },
-    });
   });
 
   afterAll(async () => {
-    await client.close();
     await pool.close();
     await database.close();
   });
@@ -105,6 +99,16 @@ describe('Migration Integration Tests', () => {
     await pool.execute.query(
       SQL`DROP SCHEMA IF EXISTS audit CASCADE; DROP SCHEMA IF EXISTS crm CASCADE; DROP SCHEMA IF EXISTS readmodels CASCADE; DROP SCHEMA public CASCADE; CREATE SCHEMA public;`,
     );
+    client = pongoClient({
+      driver: pongoDriver,
+      connectionString,
+      defaultSchemaName: 'public',
+      schema: { autoMigration: 'CreateOrUpdate', definition: schema },
+    });
+  });
+
+  afterEach(async () => {
+    await client.close();
   });
 
   it('migrates the whole database through the database schema', async () => {

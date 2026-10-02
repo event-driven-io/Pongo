@@ -326,15 +326,9 @@ describe('SQLite3 migration integration', () => {
     try {
       const db = client.db('database');
       await db.schema.migrate();
-      await db.schema.migrate({
-        migrationTable: { tableName: 'call_migrations' },
-      });
 
       const clientLedger = await pool.execute.query<{ name: string }>(
         SQL`SELECT name FROM client_migrations ORDER BY id`,
-      );
-      const callLedger = await pool.execute.query<{ name: string }>(
-        SQL`SELECT name FROM call_migrations ORDER BY id`,
       );
       const defaultLedger = await pool.execute.query<{ count: number }>(
         SQL`SELECT COUNT(*) as count FROM sqlite_master WHERE name = 'dmb_migrations'`,
@@ -342,10 +336,6 @@ describe('SQLite3 migration integration', () => {
 
       assert.deepStrictEqual(
         clientLedger.rows.map((row) => row.name),
-        ['table:pongo_collection:users:create'],
-      );
-      assert.deepStrictEqual(
-        callLedger.rows.map((row) => row.name),
         ['table:pongo_collection:users:create'],
       );
       assert.strictEqual(defaultLedger.rows[0]?.count, 0);

@@ -6,9 +6,9 @@ import { SQLite3DriverType } from '../../../storage/sqlite/sqlite3';
 import { SQL } from '../../sql';
 import { schemaComponent } from '../schemaComponent';
 import { sqlMigration } from '../sqlMigration';
-import { databaseMigrator } from './databaseMigrator';
+import { schemaComponentMigrator } from './schemaComponentMigrator';
 
-describe('database migrator', () => {
+describe('schema component migrator', () => {
   it('describes the SQL of its component without the migration table', () => {
     const component = schemaComponent('users', {
       migrations: () => [
@@ -20,7 +20,7 @@ describe('database migrator', () => {
       driverType: SQLite3DriverType,
     });
 
-    const sql = databaseMigrator({ component, pool }).sql();
+    const sql = schemaComponentMigrator({ component, pool }).sql();
 
     assert.match(sql, /CREATE TABLE users/);
     assert.doesNotMatch(sql, /dmb_migrations/);
