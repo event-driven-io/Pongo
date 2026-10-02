@@ -1,8 +1,6 @@
 import { type Dumbo, JSONSerializer } from '../..';
-import type { DatabaseTransactionOptions } from '../../connections';
 import { fromDatabaseDriverType } from '../../drivers';
-import { singleOrNull } from '../../query';
-import { DefaultDatabaseSchemaName, getFormatter, SQL } from '../../sql';
+import { describeSQL, getFormatter, SQL } from '../../sql';
 import type { AnySchemaComponent } from '../schemaComponent';
 import type { MigrationStyle, SQLMigration } from '../sqlMigration';
 import { migrationTableComponentFor } from './migrationTableComponent';
@@ -15,19 +13,22 @@ import {
   type RunSQLMigrationsResult,
 } from './migrator';
 
-export type MigratorRunOptions = Omit<MigratorOptions, 'migrationTable'>;
-export type DatabaseMigratorOptions = MigratorOptions & {
-  component: AnySchemaComponent;
+export type DatabaseMigratorOptions<
+  Component extends AnySchemaComponent = AnySchemaComponent,
+> = MigratorOptions & {
   pool: Dumbo;
+  component: Component;
   autoMigration?: MigrationStyle | undefined;
-  transactionOptions?: DatabaseTransactionOptions | undefined;
 };
-export type DatabaseMigrator = Readonly<{
-  component: AnySchemaComponent;
+
+export type DatabaseMigrator<
+  Component extends AnySchemaComponent = AnySchemaComponent,
+> = Readonly<{
+  component: Component;
   sql(): string;
   print(): void;
-  migrate(options?: MigratorRunOptions): Promise<RunSQLMigrationsResult>;
-  ensureMigrated(): Promise<void>;
+  migrate(options?: MigratorOptions): Promise<RunSQLMigrationsResult>;
+  ensureMigrated(options?: Omit<MigratorOptions, 'execute'>): Promise<void>;
 }>;
 
 export class PendingMigrationsError extends Error {
@@ -41,138 +42,72 @@ export class PendingMigrationsError extends Error {
   }
 }
 
-export const databaseMigrator = (
-  options: DatabaseMigratorOptions,
-): DatabaseMigrator => {
+export const databaseMigrator = <Component extends AnySchemaComponent>(
+  options: DatabaseMigratorOptions<Component>,
+): DatabaseMigrator<Component> => {
   const {
-    component,
     pool,
+    component,
     autoMigration = 'CreateOrUpdate',
-    transactionOptions,
-    ...providedDefaults
+    ...configured
   } = options;
   const databaseType = fromDatabaseDriverType(pool.driverType).databaseType;
-  const registeredDefaults =
-    getDefaultMigratorOptionsFromRegistry(databaseType);
-  const defaults = {
-    ...registeredDefaults,
-    ...providedDefaults,
-    execute: providedDefaults.execute ?? registeredDefaults.execute,
-    lock: {
-      ...registeredDefaults.lock,
-      ...providedDefaults.lock,
-      options: {
-        ...registeredDefaults.lock?.options,
-        ...providedDefaults.lock?.options,
-      },
-    },
-    migrationTable:
-      providedDefaults.migrationTable ?? registeredDefaults.migrationTable,
-    dryRun: providedDefaults.dryRun ?? registeredDefaults.dryRun,
-    ignoreMigrationHashMismatch:
-      providedDefaults.ignoreMigrationHashMismatch ??
-      registeredDefaults.ignoreMigrationHashMismatch,
-    migrationTimeoutMS:
-      providedDefaults.migrationTimeoutMS ??
-      registeredDefaults.migrationTimeoutMS,
-  };
-  const migrationTable = { ...defaults.migrationTable };
-  const boundTransactionOptions = transactionOptions
-    ? { ...transactionOptions }
-    : undefined;
-  const migrations = [...component.migrations()];
-  const formatter = getFormatter(databaseType);
-  let assured = false;
-  let inFlight: Promise<void> | undefined;
-  let migrationInFlight: Promise<RunSQLMigrationsResult> | undefined;
+  let ensured = false;
+
+  const optionsFor = (overrides?: MigratorOptions): MigratorOptions => ({
+    ...configured,
+    ...Object.fromEntries(
+      Object.entries(overrides ?? {}).filter(
+        ([, value]) => value !== undefined,
+      ),
+    ),
+  });
 
   const sql = (): string =>
-    formatter.describe(
-      migrations.flatMap(({ sqls }) => sqls),
-      { serializer: JSONSerializer },
+    describeSQL(
+      component.migrations().flatMap(({ sqls }) => sqls),
+      getFormatter(databaseType),
+      JSONSerializer,
     );
+
   const migrate = (
-    runOptions?: MigratorRunOptions,
+    overrides?: MigratorOptions,
   ): Promise<RunSQLMigrationsResult> => {
-    const resolved = {
-      ...defaults,
-      ...runOptions,
-      migrationTable,
-      execute: runOptions?.execute ?? defaults.execute,
-      lock: {
-        ...defaults.lock,
-        ...runOptions?.lock,
-        options: {
-          ...defaults.lock.options,
-          ...runOptions?.lock?.options,
-        },
-      },
-      dryRun: runOptions?.dryRun ?? defaults.dryRun,
-      ignoreMigrationHashMismatch:
-        runOptions?.ignoreMigrationHashMismatch ??
-        defaults.ignoreMigrationHashMismatch,
-      migrationTimeoutMS:
-        runOptions?.migrationTimeoutMS ?? defaults.migrationTimeoutMS,
-    };
-    const run = (): Promise<RunSQLMigrationsResult> =>
-      resolved.execute && !resolved.dryRun
-        ? runSQLMigrations(pool, migrations, resolved)
-        : pool.withTransaction(
-            async ({ execute }) => ({
-              success: !resolved.dryRun,
-              result: await runSQLMigrations(pool, migrations, {
-                ...resolved,
-                execute,
-              }),
-            }),
-            boundTransactionOptions,
-          );
+    const { execute, ...migrationOptions } = optionsFor(overrides);
 
-    if (resolved.dryRun) return run();
-
-    const pending = run()
-      .then((result) => {
-        assured = true;
-        return result;
-      })
-      .finally(() => {
-        if (migrationInFlight === pending) migrationInFlight = undefined;
-      });
-    migrationInFlight = pending;
-    return pending;
+    return runSQLMigrations(
+      pool,
+      component.migrations(),
+      migrationOptions.dryRun
+        ? migrationOptions
+        : { ...migrationOptions, execute },
+    );
   };
 
-  const checkHistory = async (): Promise<void> => {
-    const execute = defaults.execute ?? pool.execute;
-    const reference = migrationTableComponentFor(migrationTable).fullName;
-    const tableName = reference.tableName;
-    const schemaName = reference.databaseSchemaName;
-    const physicalName =
-      schemaName === DefaultDatabaseSchemaName
-        ? tableName
-        : `${schemaName}.${tableName}`;
-    const postgresRelation =
-      schemaName === DefaultDatabaseSchemaName
-        ? `"${tableName.replaceAll('"', '""')}"`
-        : `"${schemaName.replaceAll('"', '""')}"."${tableName.replaceAll('"', '""')}"`;
-    const existsSQL =
-      databaseType === 'PostgreSQL'
-        ? SQL`SELECT to_regclass(${postgresRelation}) IS NOT NULL AS "exists"`
-        : SQL`SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ${physicalName}) AS "exists"`;
-    const timeout = { timeoutMS: defaults.migrationTimeoutMS };
-    const tableExists = await singleOrNull(
-      execute.query<{ exists: boolean | number }>(existsSQL, timeout),
-    );
+  const checkHistory = async (overrides?: MigratorOptions): Promise<void> => {
+    const {
+      execute = pool.execute,
+      migrationTable,
+      ignoreMigrationHashMismatch,
+      migrationTimeoutMS,
+    } = optionsFor(overrides);
+    const { migrationTableExists } =
+      getDefaultMigratorOptionsFromRegistry(databaseType);
+    const formatter = getFormatter(databaseType);
+    const table = migrationTableComponentFor(migrationTable).fullName;
+    const queryOptions = { timeoutMS: migrationTimeoutMS };
+
     const history = new Map<string, string>();
-    if (tableExists?.exists) {
+    if (await migrationTableExists?.(execute, table, queryOptions)) {
       const result = await execute.query<{ name: string; sqlHash: string }>(
-        SQL`SELECT name, sql_hash AS "sqlHash" FROM ${reference}`,
-        timeout,
+        SQL`SELECT name, sql_hash AS "sqlHash" FROM ${table}`,
+        queryOptions,
       );
-      for (const row of result.rows) history.set(row.name, row.sqlHash);
+      for (const { name, sqlHash } of result.rows) history.set(name, sqlHash);
     }
+
     const pending: SQLMigration[] = [];
-    for (const migration of migrations) {
+    for (const migration of component.migrations()) {
       const sqls = migration.sqls.filter(
         (statement) => !rendersNothing(statement, formatter),
       );
@@ -180,7 +115,7 @@ export const databaseMigrator = (
       const recorded = history.get(migration.name);
       if (
         recorded === undefined ||
-        (!defaults.ignoreMigrationHashMismatch &&
+        (!ignoreMigrationHashMismatch &&
           !migration.ignoreHashMismatch &&
           recorded !== (await getMigrationHash(sqls, formatter)))
       )
@@ -189,24 +124,16 @@ export const databaseMigrator = (
     if (pending.length) throw new PendingMigrationsError(pending);
   };
 
-  const ensureMigrated = (): Promise<void> => {
-    if (assured) return Promise.resolve();
-    if (inFlight) return inFlight;
-    inFlight = (
-      migrationInFlight
-        ? migrationInFlight.then(() => {})
-        : autoMigration === 'None'
-          ? checkHistory()
-          : migrate().then(() => {})
-    )
-      .then(() => {
-        if (!defaults.dryRun || autoMigration === 'None') assured = true;
-      })
-      .finally(() => {
-        inFlight = undefined;
-      });
-    return inFlight;
+  const ensureMigrated = async (
+    overrides?: Omit<MigratorOptions, 'execute'>,
+  ): Promise<void> => {
+    if (ensured) return;
+    await (autoMigration === 'None'
+      ? checkHistory(overrides)
+      : migrate(overrides));
+    if (!optionsFor(overrides).dryRun) ensured = true;
   };
+
   return Object.freeze({
     component,
     sql,

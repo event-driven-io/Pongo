@@ -119,7 +119,7 @@ describe('SQLite3 migration integration', () => {
     }
   });
 
-  it('rolls back a collection schema migrate with the active session', async () => {
+  it('rolls back database migration with the active session', async () => {
     const client: PongoClient = pongoClient({
       driver: sqlite3Driver,
       connectionString,

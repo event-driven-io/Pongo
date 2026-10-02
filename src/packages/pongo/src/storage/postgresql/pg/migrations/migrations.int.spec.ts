@@ -160,7 +160,7 @@ describe('Migration Integration Tests', () => {
     }
   });
 
-  it('rolls back a collection schema migrate with the active session', async () => {
+  it('rolls back database migration with the active session', async () => {
     const db = client.db('database');
     db.collection<User>('users', { databaseSchemaName: 'crm' });
 

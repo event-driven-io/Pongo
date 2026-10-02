@@ -1,4 +1,3 @@
-import { PendingMigrationsError } from '@event-driven-io/dumbo';
 import { dumbo, SQL, type Dumbo } from '@event-driven-io/dumbo';
 import { PostgreSQLConnectionString } from '@event-driven-io/dumbo/pg';
 import {
@@ -236,17 +235,29 @@ describe('renaming a PostgreSQL Pongo collection', () => {
       await manualDb.schema.migrate();
       await users.insertOne({ name: 'Oskar' });
 
-      await assert.rejects(users.rename('archived_users'), (error: unknown) => {
-        assert.ok(error instanceof PendingMigrationsError);
-        assert.ok(
-          error.pendingMigrations.some(({ name }) =>
-            name.includes('archived_users:rename'),
-          ),
-        );
-        return true;
-      });
+      await users.rename('archived_users');
 
       assert.deepStrictEqual(await tablesIn('public'), ['users']);
+    } finally {
+      await manualClient.close();
+    }
+  });
+
+  it('applies the rename on the next migrate when autoMigration is None', async () => {
+    const manualClient = pongoClient({
+      driver: pgDriver,
+      connectionString,
+      defaultSchemaName: 'public',
+      schema: { autoMigration: 'None' },
+    });
+
+    try {
+      const manualDb = manualClient.db('database');
+      const users = manualDb.collection<User>('users');
+      await manualDb.schema.migrate();
+      await users.insertOne({ name: 'Oskar' });
+
+      await users.rename('archived_users');
 
       await manualDb.schema.migrate();
 
@@ -274,7 +285,7 @@ describe('renaming a PostgreSQL Pongo collection', () => {
       /rollback/,
     );
 
-    assert.deepStrictEqual(await tablesIn('public'), []);
+    assert.deepStrictEqual(await tablesIn('public'), ['users']);
   });
 
   it('renames a collection declared in a named schema and keeps the renamed handle usable', async () => {

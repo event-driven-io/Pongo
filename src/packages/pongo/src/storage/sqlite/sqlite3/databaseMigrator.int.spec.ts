@@ -11,7 +11,7 @@ import { pongoClient, type PongoClient } from '../../../core';
 import { databaseMigratorTests } from '../../databaseMigratorTests';
 import { sqlite3Driver } from '.';
 
-describe('sqlite3 database migration assurance', () => {
+describe('sqlite3 database migrator', () => {
   let fileName: string;
   let pool: Sqlite3Pool;
   let clients: PongoClient[];

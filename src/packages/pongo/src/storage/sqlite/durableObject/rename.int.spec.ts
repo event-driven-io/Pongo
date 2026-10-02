@@ -1,4 +1,3 @@
-import { PendingMigrationsError } from '@event-driven-io/dumbo';
 import type { DurableObjectStorage } from '@cloudflare/workers-types';
 import { SQL } from '@event-driven-io/dumbo';
 import { env } from 'cloudflare:workers';
@@ -222,17 +221,28 @@ describe('renaming a Cloudflare Durable Object SQLite Pongo collection', () => {
       await manualDb.schema.migrate();
       await users.insertOne({ name: 'Oskar' });
 
-      await assert.rejects(users.rename('archived_users'), (error: unknown) => {
-        assert.ok(error instanceof PendingMigrationsError);
-        assert.ok(
-          error.pendingMigrations.some(({ name }) =>
-            name.includes('archived_users:rename'),
-          ),
-        );
-        return true;
-      });
+      await users.rename('archived_users');
 
       assert.deepStrictEqual(tableNames(), ['users']);
+    } finally {
+      await manualClient.close();
+    }
+  });
+
+  it('applies the rename on the next migrate when autoMigration is None', async () => {
+    const manualClient = pongoClient({
+      driver: cloudflareDurableObjectSQLiteDriver,
+      storage,
+      schema: { autoMigration: 'None' },
+    });
+
+    try {
+      const manualDb = manualClient.db('database');
+      const users = manualDb.collection<User>('users');
+      await manualDb.schema.migrate();
+      await users.insertOne({ name: 'Oskar' });
+
+      await users.rename('archived_users');
 
       await manualDb.schema.migrate();
 
@@ -265,7 +275,7 @@ describe('renaming a Cloudflare Durable Object SQLite Pongo collection', () => {
         `SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('users', 'archived_users') ORDER BY name`,
       )
       .toArray();
-    assert.deepStrictEqual(tables, []);
+    assert.deepStrictEqual(tables, [{ name: 'users' }]);
   });
 
   it('renames a collection declared in a named schema and keeps the renamed handle usable', async () => {
