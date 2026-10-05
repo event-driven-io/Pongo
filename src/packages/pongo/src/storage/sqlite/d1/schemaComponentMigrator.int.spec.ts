@@ -55,7 +55,7 @@ describe('D1 schema component migrator', () => {
     db.collection('users');
 
     await assert.rejects(
-      db.schema.migrate({ dryRun: true, migrationStyle: 'CreateOrUpdate' }),
+      db.schema.migrate({ dryRun: true }),
       D1TransactionNotSupportedError,
     );
 
@@ -69,7 +69,7 @@ describe('D1 schema component migrator', () => {
     db.collection('users');
 
     await assert.rejects(
-      db.schema.migrate({ dryRun: true, migrationStyle: 'CreateOrUpdate' }),
+      db.schema.migrate({ dryRun: true }),
       D1TransactionNotSupportedError,
     );
 

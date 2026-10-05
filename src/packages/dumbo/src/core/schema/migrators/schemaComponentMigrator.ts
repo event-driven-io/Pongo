@@ -2,7 +2,7 @@ import { type Dumbo, JSONSerializer } from '../..';
 import { fromDatabaseDriverType } from '../../drivers';
 import { describeSQL, getFormatter, SQL } from '../../sql';
 import type { AnySchemaComponent } from '../schemaComponent';
-import type { MigrationStyle, SQLMigration } from '../sqlMigration';
+import type { SQLMigration } from '../sqlMigration';
 import { migrationTableComponentFor } from './migrationTableComponent';
 import {
   getDefaultMigratorOptionsFromRegistry,
@@ -18,7 +18,6 @@ export type SchemaComponentMigratorOptions<
 > = MigratorOptions & {
   pool: Dumbo;
   component: Component;
-  autoMigration?: MigrationStyle | undefined;
 };
 
 export type SchemaComponentMigrator<
@@ -28,12 +27,19 @@ export type SchemaComponentMigrator<
   sql(): string;
   print(): void;
   migrate(
-    options?: Omit<MigratorOptions, 'migrationTable'> & {
-      migrationStyle?: MigrationStyle | undefined;
-    },
+    options?: Pick<
+      MigratorOptions,
+      | 'execute'
+      | 'dryRun'
+      | 'ignoreMigrationHashMismatch'
+      | 'migrationTimeoutMS'
+    >,
   ): Promise<RunSQLMigrationsResult>;
   ensureMigrated(
-    options?: Omit<MigratorOptions, 'execute' | 'migrationTable'>,
+    options?: Pick<
+      MigratorOptions,
+      'dryRun' | 'ignoreMigrationHashMismatch' | 'migrationTimeoutMS'
+    >,
   ): Promise<void>;
 }>;
 
@@ -51,17 +57,18 @@ export class PendingMigrationsError extends Error {
 export const schemaComponentMigrator = <Component extends AnySchemaComponent>(
   options: SchemaComponentMigratorOptions<Component>,
 ): SchemaComponentMigrator<Component> => {
-  const {
-    pool,
-    component,
-    autoMigration = 'CreateOrUpdate',
-    ...configured
-  } = options;
+  const { pool, component, ...configured } = options;
   const databaseType = fromDatabaseDriverType(pool.driverType).databaseType;
   let migrated = false;
 
   const optionsFor = (
-    overrides?: Omit<MigratorOptions, 'migrationTable'>,
+    overrides?: Pick<
+      MigratorOptions,
+      | 'execute'
+      | 'dryRun'
+      | 'ignoreMigrationHashMismatch'
+      | 'migrationTimeoutMS'
+    >,
   ): MigratorOptions => ({
     ...configured,
     ...Object.fromEntries(
@@ -118,7 +125,10 @@ export const schemaComponentMigrator = <Component extends AnySchemaComponent>(
   };
 
   const ensureMigrated = async (
-    overrides?: Omit<MigratorOptions, 'execute' | 'migrationTable'>,
+    overrides?: Pick<
+      MigratorOptions,
+      'dryRun' | 'ignoreMigrationHashMismatch' | 'migrationTimeoutMS'
+    >,
   ): Promise<void> => {
     if (migrated) return;
     const pending = await pendingMigrations(optionsFor(overrides));
@@ -126,12 +136,15 @@ export const schemaComponentMigrator = <Component extends AnySchemaComponent>(
     migrated = true;
   };
 
-  const migrate = async ({
-    migrationStyle = autoMigration,
-    ...overrides
-  }: Omit<MigratorOptions, 'migrationTable'> & {
-    migrationStyle?: MigrationStyle | undefined;
-  } = {}): Promise<RunSQLMigrationsResult> => {
+  const migrate = async (
+    overrides: Pick<
+      MigratorOptions,
+      | 'execute'
+      | 'dryRun'
+      | 'ignoreMigrationHashMismatch'
+      | 'migrationTimeoutMS'
+    > = {},
+  ): Promise<RunSQLMigrationsResult> => {
     const migrations = component.migrations();
     const { execute, ...migrationOptions } = optionsFor(overrides);
     const inCallerTransaction = overrides.execute !== undefined;
@@ -143,7 +156,6 @@ export const schemaComponentMigrator = <Component extends AnySchemaComponent>(
       if (!inCallerTransaction) migrated = true;
       return { applied: [], skipped: [...migrations] };
     }
-    if (migrationStyle === 'None') throw new PendingMigrationsError(pending);
 
     const result = await runSQLMigrations(
       pool,

@@ -27,7 +27,7 @@ describe('SQLite3 schema migrations', () => {
   const provisionUsers = async () => {
     const db = client().db();
     db.collection<User>('users');
-    await db.schema.migrate({ migrationStyle: 'CreateOrUpdate' });
+    await db.schema.migrate();
   };
 
   beforeEach(() => {

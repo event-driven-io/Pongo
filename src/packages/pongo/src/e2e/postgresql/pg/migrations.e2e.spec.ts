@@ -44,7 +44,7 @@ describe('PostgreSQL schema migrations', () => {
   const provisionUsers = async () => {
     const db = client(provisioningConnectionString).db();
     db.collection<User>('users');
-    await db.schema.migrate({ migrationStyle: 'CreateOrUpdate' });
+    await db.schema.migrate();
     await pool.execute.command(
       SQL`GRANT USAGE ON SCHEMA public TO pongo_runtime; GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO pongo_runtime`,
     );

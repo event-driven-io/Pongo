@@ -108,18 +108,6 @@ describe('PostgreSQL schema component migrator', () => {
     });
   });
 
-  it('reports pending migrations on migrate without creating migration history when automatic migration is disabled', async () => {
-    const migrator = schemaComponentMigrator({
-      pool,
-      component: users,
-      autoMigration: 'None',
-    });
-
-    await assert.rejects(migrator.migrate(), PendingMigrationsError);
-
-    assert.equal(await tableExists(pool.execute, 'dmb_migrations'), false);
-  });
-
   it('does not wait for the migration lock when migrations were already applied', async () => {
     const lock = { options: { lockId: 42, timeoutMS: 100 } };
     await schemaComponentMigrator({ pool, component: users, lock }).migrate();

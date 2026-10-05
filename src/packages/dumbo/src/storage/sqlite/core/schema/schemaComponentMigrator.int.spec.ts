@@ -135,45 +135,6 @@ describe('SQLite schema component migrator', () => {
     });
   });
 
-  describe('migrating with automatic migration disabled', () => {
-    it('reports pending migrations without applying them', async () => {
-      const migrator = schemaComponentMigrator({
-        pool,
-        component: users,
-        autoMigration: 'None',
-      });
-
-      await assertRejectsWithPendingMigrations(migrator.migrate(), [
-        'users:create',
-      ]);
-
-      assert.equal(await tableExists(pool.execute, 'users'), false);
-    });
-
-    it('accepts migrations that were applied', async () => {
-      await schemaComponentMigrator({ pool, component: users }).migrate();
-      const migrator = schemaComponentMigrator({
-        pool,
-        component: users,
-        autoMigration: 'None',
-      });
-
-      await assert.doesNotReject(migrator.migrate());
-    });
-
-    it('applies pending migrations when the call allows creating them', async () => {
-      const migrator = schemaComponentMigrator({
-        pool,
-        component: users,
-        autoMigration: 'None',
-      });
-
-      await migrator.migrate({ migrationStyle: 'CreateOrUpdate' });
-
-      assert.equal(await tableExists(pool.execute, 'users'), true);
-    });
-  });
-
   describe('migrating', () => {
     it('applies pending migrations', async () => {
       const migrator = schemaComponentMigrator({ pool, component: users });
@@ -189,17 +150,6 @@ describe('SQLite schema component migrator', () => {
       await Promise.all([migrator.migrate(), migrator.migrate()]);
 
       assert.equal(await tableExists(pool.execute, 'users'), true);
-    });
-
-    it('reports pending migrations when the call disables migrations', async () => {
-      const migrator = schemaComponentMigrator({ pool, component: users });
-
-      await assertRejectsWithPendingMigrations(
-        migrator.migrate({ migrationStyle: 'None' }),
-        ['users:create'],
-      );
-
-      assert.equal(await tableExists(pool.execute, 'users'), false);
     });
 
     it('does not access the database again after migrations were applied', async () => {
