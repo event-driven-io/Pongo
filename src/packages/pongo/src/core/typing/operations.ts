@@ -159,10 +159,6 @@ export interface PongoDatabaseSchema {
   print(): void;
   ensureMigrated(): Promise<void>;
   readonly migrations: ReturnType<DatabaseComponent['migrations']>;
-  migrate(
-    options: PongoMigrationOptions & { migrationStyle: MigrationStyle },
-  ): Promise<RunSQLMigrationsResult>;
-  /** @deprecated Pass `migrationStyle` to say which migrations the call may apply. */
   migrate(options?: PongoMigrationOptions): Promise<RunSQLMigrationsResult>;
   renameCollection<Document extends PongoDocument>(
     collection: PongoCollectionComponent<Document>,
@@ -202,7 +198,6 @@ export type PongoMigrationOptions = {
   dryRun?: boolean | undefined;
   ignoreMigrationHashMismatch?: boolean | undefined;
   migrationTimeoutMS?: number | undefined;
-  migrationStyle?: MigrationStyle | undefined;
 };
 
 export type CollectionOperationOptions = {
@@ -353,6 +348,8 @@ export interface PongoCollection<T extends PongoDocument> {
   ): Promise<PongoReplaceManyResult>;
   readonly schema: Readonly<{
     component: PongoCollectionComponent;
+    /** @deprecated Use `db.schema.migrate()`, which migrates the whole database. */
+    migrate(options?: PongoMigrationOptions): Promise<RunSQLMigrationsResult>;
   }>;
   close: () => MaybePromise<void>;
   sql: {

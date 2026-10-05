@@ -39,6 +39,7 @@ import {
   type PongoFilter,
   type PongoInsertManyResult,
   type PongoInsertOneResult,
+  type PongoMigrationOptions,
   type PongoReplaceManyResult,
   type PongoSession,
   type PongoUpdate,
@@ -393,10 +394,7 @@ export const pongoCollection = <
       return component.tableName;
     },
     createCollection: async (options?: CollectionOperationOptions) => {
-      await db.schema.migrate({
-        session: options?.session,
-        migrationStyle: 'CreateOrUpdate',
-      });
+      await db.schema.migrate({ session: options?.session });
     },
     insertOne: async (
       document: OptionalUnlessRequiredIdAndVersion<T>,
@@ -952,7 +950,6 @@ export const pongoCollection = <
         await db.schema.migrate({
           session: options?.session,
           migrationTimeoutMS: timeoutMSOf(options),
-          migrationStyle: 'CreateOrUpdate',
         });
 
       return collection;
@@ -982,6 +979,7 @@ export const pongoCollection = <
       get component() {
         return component;
       },
+      migrate: (options?: PongoMigrationOptions) => db.schema.migrate(options),
     },
   };
 

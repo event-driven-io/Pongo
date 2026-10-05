@@ -264,15 +264,9 @@ const runSQLMigration = async (
       return false;
     }
 
-    await execute.batchCommand(sqls, {
-      timeoutMS: options?.migrationTimeoutMS,
-    });
-
-    await recordMigration(
-      execute,
-      newMigration,
-      migrationTableReference,
-      options?.migrationTimeoutMS,
+    await execute.batchCommand(
+      [...sqls, recordMigrationSQL(newMigration, migrationTableReference)],
+      { timeoutMS: options?.migrationTimeoutMS },
     );
     return true;
     // console.log(`Migration "${newMigration.name}" applied successfully.`);
@@ -333,19 +327,13 @@ const ensureMigrationWasNotAppliedYet = async (
   };
 };
 
-const recordMigration = async (
-  execute: SQLExecutor,
+const recordMigrationSQL = (
   migration: { name: string; sqlHash: string },
   migrationTableReference: SQLTableReference,
-  timeoutMS: number | undefined,
-): Promise<void> => {
-  await execute.command(
-    SQL`
+): SQL =>
+  SQL`
       INSERT INTO ${migrationTableReference} (name, sql_hash)
-      VALUES (${migration.name}, ${migration.sqlHash})`,
-    { timeoutMS },
-  );
-};
+      VALUES (${migration.name}, ${migration.sqlHash})`;
 
 const updateMigrationHash = async (
   execute: SQLExecutor,

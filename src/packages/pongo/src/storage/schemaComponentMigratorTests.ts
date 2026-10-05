@@ -38,17 +38,6 @@ export const schemaComponentMigratorTests = (options: {
       ]);
     });
 
-    it('reports pending migrations on migrate without creating tables', async () => {
-      const db = options.client('None').db();
-      db.collection<User>('users');
-
-      await assertRejectsWithPendingMigrations(db.schema.migrate(), [
-        'table:pongo_collection:users:create',
-      ]);
-
-      assert.deepEqual(await options.tables(), []);
-    });
-
     it('rejects collection operations without creating tables while migrations are pending', async () => {
       const users = options.client('None').db().collection<User>('users');
 
@@ -73,8 +62,17 @@ export const schemaComponentMigratorTests = (options: {
     it('runs operations on collections migrated by another client', async () => {
       const provisioningDb = options.client('None').db();
       provisioningDb.collection<User>('users');
-      await provisioningDb.schema.migrate({ migrationStyle: 'CreateOrUpdate' });
+      await provisioningDb.schema.migrate();
       const users = options.client('None').db().collection<User>('users');
+
+      await users.insertOne({ name: 'Oskar' });
+
+      assert.equal((await users.findOne({ name: 'Oskar' }))?.name, 'Oskar');
+    });
+
+    it('runs operations on a collection migrated through its schema', async () => {
+      const users = options.client('None').db().collection<User>('users');
+      await users.schema.migrate();
 
       await users.insertOne({ name: 'Oskar' });
 
@@ -84,7 +82,7 @@ export const schemaComponentMigratorTests = (options: {
     it('reports a collection registered after migrations were ensured', async () => {
       const db = options.client('None').db();
       db.collection<User>('users');
-      await db.schema.migrate({ migrationStyle: 'CreateOrUpdate' });
+      await db.schema.migrate();
       await db.schema.ensureMigrated();
 
       db.collection<Order>('orders');
@@ -138,7 +136,6 @@ export const schemaComponentMigratorTests = (options: {
           db.schema.migrate({
             session,
             dryRun: true,
-            migrationStyle: 'CreateOrUpdate',
           }),
         );
 
@@ -153,7 +150,6 @@ export const schemaComponentMigratorTests = (options: {
           session.startTransaction();
           await db.schema.migrate({
             session,
-            migrationStyle: 'CreateOrUpdate',
           });
           await session.abortTransaction();
         });

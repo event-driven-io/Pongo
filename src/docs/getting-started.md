@@ -94,7 +94,7 @@ const usersFromDb = await users.find({ age: { $lt: 40 } }).toArray();
 
 ## Schema migrations
 
-Pongo automatically assures the database schema before normal operations. For explicit provisioning, register your collections and call `await pongoDb.schema.migrate({ migrationStyle: 'CreateOrUpdate' })` once. Configure `schema: { autoMigration: 'None' }` to check migration history without DDL at runtime; pending migrations cause a `PendingMigrationsError`. See [Schema migrations](./schema-migrations) for policy settings, SQL previews, dry runs, and the beta migration from `collection.schema.migrate()` to the database API.
+Pongo automatically assures the database schema before normal operations. For explicit provisioning, register your collections and call `await pongoDb.schema.migrate()` once. Configure `schema: { autoMigration: 'None' }` to check migration history without DDL at runtime; pending migrations cause a `PendingMigrationsError`. See [Schema migrations](./schema-migrations) for policy settings, SQL previews, dry runs, and the beta migration from `collection.schema.migrate()` to the database API.
 
 ## How does it work?
 

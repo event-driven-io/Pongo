@@ -1,5 +1,5 @@
 import type { DurableObjectStorage } from '@cloudflare/workers-types';
-import { SQL } from '@event-driven-io/dumbo';
+import { PendingMigrationsError, SQL } from '@event-driven-io/dumbo';
 import { env } from 'cloudflare:workers';
 import { runInDurableObject } from 'cloudflare:test';
 import assert from 'node:assert/strict';
@@ -218,12 +218,33 @@ describe('renaming a Cloudflare Durable Object SQLite Pongo collection', () => {
     try {
       const manualDb = manualClient.db('database');
       const users = manualDb.collection<User>('users');
-      await manualDb.schema.migrate({ migrationStyle: 'CreateOrUpdate' });
+      await manualDb.schema.migrate();
       await users.insertOne({ name: 'Oskar' });
 
       await users.rename('archived_users');
 
       assert.deepStrictEqual(tableNames(), ['users']);
+    } finally {
+      await manualClient.close();
+    }
+  });
+
+  it('rejects operations on a renamed collection until the rename is migrated when autoMigration is None', async () => {
+    const manualClient = pongoClient({
+      driver: cloudflareDurableObjectSQLiteDriver,
+      storage,
+      schema: { autoMigration: 'None' },
+    });
+
+    try {
+      const manualDb = manualClient.db('database');
+      const users = manualDb.collection<User>('users');
+      await manualDb.schema.migrate();
+      await users.insertOne({ name: 'Oskar' });
+
+      await users.rename('archived_users');
+
+      await assert.rejects(users.find({}), PendingMigrationsError);
     } finally {
       await manualClient.close();
     }
@@ -239,12 +260,12 @@ describe('renaming a Cloudflare Durable Object SQLite Pongo collection', () => {
     try {
       const manualDb = manualClient.db('database');
       const users = manualDb.collection<User>('users');
-      await manualDb.schema.migrate({ migrationStyle: 'CreateOrUpdate' });
+      await manualDb.schema.migrate();
       await users.insertOne({ name: 'Oskar' });
 
       await users.rename('archived_users');
 
-      await manualDb.schema.migrate({ migrationStyle: 'CreateOrUpdate' });
+      await manualDb.schema.migrate();
 
       assert.deepStrictEqual(tableNames(), ['archived_users']);
       assert.deepStrictEqual(

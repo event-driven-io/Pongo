@@ -137,7 +137,6 @@ export const PongoDatabase = <
         ...options.migrationOptions,
         pool,
         component,
-        autoMigration: options.schema?.autoMigration ?? 'CreateOrUpdate',
         migrationTable: options.migrationTable,
       }),
     createCollection: (component, collectionOptions) => {
@@ -163,9 +162,13 @@ export const PongoDatabase = <
   const ensureSchema = async (
     operationOptions?: CollectionOperationOptions,
   ) => {
-    await databaseComponent.migrator.migrate({
+    const { migrator } = databaseComponent;
+    const migrationOptions = {
       migrationTimeoutMS: timeoutMSOf(operationOptions),
-    });
+    };
+    await (options.schema?.autoMigration === 'None'
+      ? migrator.ensureMigrated(migrationOptions)
+      : migrator.migrate(migrationOptions));
   };
 
   const migrate = async ({

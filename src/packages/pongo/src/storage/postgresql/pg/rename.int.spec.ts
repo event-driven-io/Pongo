@@ -1,4 +1,9 @@
-import { dumbo, SQL, type Dumbo } from '@event-driven-io/dumbo';
+import {
+  dumbo,
+  PendingMigrationsError,
+  SQL,
+  type Dumbo,
+} from '@event-driven-io/dumbo';
 import { PostgreSQLConnectionString } from '@event-driven-io/dumbo/pg';
 import {
   sharedPostgreSQLDatabase,
@@ -232,12 +237,34 @@ describe('renaming a PostgreSQL Pongo collection', () => {
     try {
       const manualDb = manualClient.db('database');
       const users = manualDb.collection<User>('users');
-      await manualDb.schema.migrate({ migrationStyle: 'CreateOrUpdate' });
+      await manualDb.schema.migrate();
       await users.insertOne({ name: 'Oskar' });
 
       await users.rename('archived_users');
 
       assert.deepStrictEqual(await tablesIn('public'), ['users']);
+    } finally {
+      await manualClient.close();
+    }
+  });
+
+  it('rejects operations on a renamed collection until the rename is migrated when autoMigration is None', async () => {
+    const manualClient = pongoClient({
+      driver: pgDriver,
+      connectionString,
+      defaultSchemaName: 'public',
+      schema: { autoMigration: 'None' },
+    });
+
+    try {
+      const manualDb = manualClient.db('database');
+      const users = manualDb.collection<User>('users');
+      await manualDb.schema.migrate();
+      await users.insertOne({ name: 'Oskar' });
+
+      await users.rename('archived_users');
+
+      await assert.rejects(users.find({}), PendingMigrationsError);
     } finally {
       await manualClient.close();
     }
@@ -254,12 +281,12 @@ describe('renaming a PostgreSQL Pongo collection', () => {
     try {
       const manualDb = manualClient.db('database');
       const users = manualDb.collection<User>('users');
-      await manualDb.schema.migrate({ migrationStyle: 'CreateOrUpdate' });
+      await manualDb.schema.migrate();
       await users.insertOne({ name: 'Oskar' });
 
       await users.rename('archived_users');
 
-      await manualDb.schema.migrate({ migrationStyle: 'CreateOrUpdate' });
+      await manualDb.schema.migrate();
 
       assert.deepStrictEqual(await tablesIn('public'), ['archived_users']);
       assert.deepStrictEqual(
