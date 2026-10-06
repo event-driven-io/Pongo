@@ -156,7 +156,7 @@ function bundleBoundaryScenarios() {
   const allowedSources = {
     dumbo: {
       index:
-        /^(?:core\/|storage\/all\/|storage\/postgresql\/core\/(?:connections\/connectionString|schema\/(?:schema|postgreSQLMetadata))\.ts$|storage\/sqlite\/core\/schema\/(?:schema|sqliteMetadata)\.ts$|index\.ts$)/,
+        /^(?:core\/|storage\/all\/|storage\/postgresql\/core\/(?:connections\/connectionString|schema\/(?:schema|postgreSQLMetadata))\.ts$|storage\/sqlite\/core\/schema\/(?:schema|sqliteMetadata|sqlitePhysicalNames)\.ts$|index\.ts$)/,
       postgresql: /^(?:core\/|storage\/postgresql\/core\/|postgresql\.ts$)/,
       pg: /^(?:core\/|storage\/postgresql\/|pg\.ts$)/,
       sqlite: /^(?:core\/|storage\/sqlite\/core\/|sqlite\.ts$)/,

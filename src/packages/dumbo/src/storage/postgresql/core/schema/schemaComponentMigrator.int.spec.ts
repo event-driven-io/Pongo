@@ -86,6 +86,17 @@ describe('PostgreSQL schema component migrator', () => {
     await assert.doesNotReject(migrator.ensureMigrated());
   });
 
+  it('reports pending migrations when only a migration table in another database schema has their history', async () => {
+    await schemaComponentMigrator({
+      pool,
+      component: users,
+      migrationTable: { schemaName: 'ops' },
+    }).migrate();
+    const migrator = schemaComponentMigrator({ pool, component: users });
+
+    await assert.rejects(migrator.ensureMigrated(), PendingMigrationsError);
+  });
+
   it('finds unqualified migration history through the search path of the configured executor', async () => {
     await pool.withConnection(async ({ execute }) => {
       await execute.command(

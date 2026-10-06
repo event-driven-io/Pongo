@@ -77,7 +77,6 @@ describe('using logical database schemas in SQLite', () => {
       () =>
         sqliteIndexName({
           databaseSchemaName: DefaultDatabaseSchemaName,
-          tableName: 'users',
           indexName: 'users.email_idx',
         }),
       /SQLite index names containing \. are reserved/,
@@ -105,7 +104,6 @@ describe('using logical database schemas in SQLite', () => {
       () =>
         sqliteIndexName({
           databaseSchemaName: 'crm',
-          tableName: 'users',
           indexName: 'a.b',
         }),
       /SQLite index names containing \. are reserved/,
@@ -130,7 +128,6 @@ describe('using logical database schemas in SQLite', () => {
       () =>
         sqliteIndexName({
           databaseSchemaName: DefaultDatabaseSchemaName,
-          tableName: 'users',
           indexName: 'users.email_idx',
         }),
       {

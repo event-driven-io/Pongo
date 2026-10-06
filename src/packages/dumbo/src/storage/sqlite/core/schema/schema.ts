@@ -1,4 +1,10 @@
-import { exists, SQL, type SQLExecutor } from '../../../../core';
+import {
+  exists,
+  SQL,
+  type SQLExecutor,
+  type SQLQueryOptions,
+} from '../../../../core';
+import { sqliteIndexName, sqliteTableName } from './sqlitePhysicalNames';
 export * from './schema';
 
 export const defaultSQLiteDatabase = ':memory:';
@@ -15,7 +21,21 @@ export const tableExistsSQL = (tableName: string): SQL =>
 export const tableExists = async (
   execute: SQLExecutor,
   tableName: string,
-): Promise<boolean> => exists(execute.query(tableExistsSQL(tableName)));
+  options?: { databaseSchemaName?: string | undefined } & SQLQueryOptions,
+): Promise<boolean> =>
+  exists(
+    execute.query(
+      tableExistsSQL(
+        options?.databaseSchemaName === undefined
+          ? tableName
+          : sqliteTableName({
+              databaseSchemaName: options.databaseSchemaName,
+              tableName,
+            }),
+      ),
+      options,
+    ),
+  );
 
 const indexExistsSQL = (indexName: string): SQL =>
   SQL`
@@ -29,4 +49,18 @@ const indexExistsSQL = (indexName: string): SQL =>
 export const indexExists = async (
   execute: SQLExecutor,
   indexName: string,
-): Promise<boolean> => exists(execute.query(indexExistsSQL(indexName)));
+  options?: { databaseSchemaName?: string | undefined } & SQLQueryOptions,
+): Promise<boolean> =>
+  exists(
+    execute.query(
+      indexExistsSQL(
+        options?.databaseSchemaName === undefined
+          ? indexName
+          : sqliteIndexName({
+              databaseSchemaName: options.databaseSchemaName,
+              indexName,
+            }),
+      ),
+      options,
+    ),
+  );
