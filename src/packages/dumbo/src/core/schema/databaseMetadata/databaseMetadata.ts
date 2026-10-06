@@ -3,7 +3,7 @@ import {
   type DatabaseDriverType,
   type DatabaseType,
 } from '../../drivers';
-import type { SQLExecutor } from '../../execute';
+import type { SQLExecutor, SQLQueryOptions } from '../../execute';
 
 export interface DatabaseCapabilities<
   SupportsMultipleDatabases extends boolean,
@@ -30,6 +30,7 @@ export type DatabaseMetadata<
   readonly tableExists: (
     pool: SQLExecutor,
     tableName: string,
+    options?: { databaseSchemaName?: string | undefined } & SQLQueryOptions,
   ) => Promise<boolean>;
 } & (SupportsMultipleDatabases extends true
   ? {
@@ -45,12 +46,18 @@ export type DatabaseMetadata<
         readonly functionExists: (
           pool: SQLExecutor,
           functionName: string,
+          options?: {
+            databaseSchemaName?: string | undefined;
+          } & SQLQueryOptions,
         ) => Promise<boolean>;
       }
     : {
         readonly functionExists?: (
           pool: SQLExecutor,
           functionName: string,
+          options?: {
+            databaseSchemaName?: string | undefined;
+          } & SQLQueryOptions,
         ) => Promise<boolean>;
       });
 

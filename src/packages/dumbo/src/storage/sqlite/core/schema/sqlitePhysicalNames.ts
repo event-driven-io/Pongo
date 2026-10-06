@@ -30,7 +30,7 @@ export const sqliteTableName = (
 };
 
 export const sqliteIndexName = (
-  identifier: Omit<SQLIndexReference, 'sqlTokenType'>,
+  identifier: Pick<SQLIndexReference, 'databaseSchemaName' | 'indexName'>,
 ): string => {
   const { databaseSchemaName, indexName } = identifier;
   assertNativeName('index', indexName);

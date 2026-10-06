@@ -1,11 +1,11 @@
 import { type Dumbo, JSONSerializer } from '../..';
 import { fromDatabaseDriverType } from '../../drivers';
 import { describeSQL, getFormatter, SQL } from '../../sql';
+import { getDatabaseMetadata } from '../databaseMetadata/databaseMetadata';
 import type { AnySchemaComponent } from '../schemaComponent';
 import type { SQLMigration } from '../sqlMigration';
 import { migrationTableComponentFor } from './migrationTableComponent';
 import {
-  getDefaultMigratorOptionsFromRegistry,
   getMigrationHash,
   type MigratorOptions,
   rendersNothing,
@@ -91,14 +91,18 @@ export const schemaComponentMigrator = <Component extends AnySchemaComponent>(
     ignoreMigrationHashMismatch,
     migrationTimeoutMS,
   }: MigratorOptions): Promise<SQLMigration[]> => {
-    const { migrationTableExists } =
-      getDefaultMigratorOptionsFromRegistry(databaseType);
     const formatter = getFormatter(databaseType);
     const table = migrationTableComponentFor(migrationTable).fullName;
     const queryOptions = { timeoutMS: migrationTimeoutMS };
 
     const history = new Map<string, string>();
-    if (await migrationTableExists?.(execute, table, queryOptions)) {
+    const migrationTableExists = await getDatabaseMetadata(
+      pool.driverType,
+    )?.tableExists(execute, table.tableName, {
+      ...queryOptions,
+      databaseSchemaName: migrationTable?.schemaName,
+    });
+    if (migrationTableExists) {
       const result = await execute.query<{ name: string; sqlHash: string }>(
         SQL`SELECT name, sql_hash AS "sqlHash" FROM ${table}`,
         queryOptions,
