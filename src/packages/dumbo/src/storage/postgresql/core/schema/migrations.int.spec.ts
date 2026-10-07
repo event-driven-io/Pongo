@@ -31,10 +31,15 @@ import {
   sqlMigration,
   tableComponent,
   UniqueConstraintError,
+  type DatabaseLock,
   type SQLMigration,
 } from '../../../../core';
 import { pgDumboDriver, pgPool } from '../../pg';
-import { acquireAdvisoryLock, releaseAdvisoryLock } from '../locks';
+import {
+  acquireAdvisoryLock,
+  AdvisoryLock,
+  releaseAdvisoryLock,
+} from '../locks';
 
 const migrationsLockId = 123456789;
 
@@ -293,7 +298,7 @@ describe('Migration Integration Tests', () => {
     }
   });
 
-  it('should ensure that advisory locks prevent failing on concurrent migrations', async () => {
+  it('holds the migration lock while applying a migration', async () => {
     const migration: SQLMigration = {
       name: 'concurrent_migration',
       sqls: [
@@ -305,30 +310,46 @@ describe('Migration Integration Tests', () => {
       ],
     };
 
-    // Run the first migration but simulate long execution by not releasing the lock immediately
-    const connection = await pool.connection();
-    try {
-      // Simulate other migration holding the advisory lock
-      await acquireAdvisoryLock(connection.execute, {
-        lockId: migrationsLockId,
-      });
-      await Promise.all([
-        runSQLMigrations(pool, [migration], {
-          lock: { options: { lockId: migrationsLockId } },
-        }),
-        // simulate other projection running in parallel
-        new Promise((resolve) => setTimeout(resolve, 100)).then(() =>
-          releaseAdvisoryLock(connection.execute, {
-            lockId: migrationsLockId,
-          }),
+    const migrationApplying = Promise.withResolvers<void>();
+    const canFinishMigration = Promise.withResolvers<void>();
+    const pausingInsideLock: DatabaseLock = {
+      ...AdvisoryLock,
+      withAcquire: (execute, handle, options) =>
+        AdvisoryLock.withAcquire(
+          execute,
+          async () => {
+            migrationApplying.resolve();
+            await canFinishMigration.promise;
+            return handle();
+          },
+          options,
         ),
-      ]); // This should wait due to the lock
-    } finally {
-      await connection.close();
-    }
-    const wasCreated = await tableExists(pool.execute, 'concurrent_table');
+    };
 
-    assert.ok(wasCreated, 'The concurrent_table should exist.');
+    const migrating = runSQLMigrations(pool, [migration], {
+      lock: {
+        databaseLock: pausingInsideLock,
+        options: { lockId: migrationsLockId },
+      },
+    });
+    await migrationApplying.promise;
+
+    let otherSessionAcquiredLock: boolean;
+    try {
+      otherSessionAcquiredLock = (
+        await single(
+          pool.execute.query<{ acquired: boolean }>(
+            SQL`SELECT pg_try_advisory_xact_lock(${migrationsLockId}) AS acquired`,
+          ),
+        )
+      ).acquired;
+    } finally {
+      canFinishMigration.resolve();
+    }
+    await migrating;
+
+    assert.strictEqual(otherSessionAcquiredLock, false);
+    assert.ok(await tableExists(pool.execute, 'concurrent_table'));
   });
 
   it('fails with a UniqueConstraintError when a concurrent run already applied the same migration', async () => {
@@ -336,28 +357,31 @@ describe('Migration Integration Tests', () => {
       SQL`CREATE TABLE duplicated_concurrent_table (id SERIAL PRIMARY KEY);`,
     ]);
 
-    const connection = await pool.connection();
-    let results: PromiseSettledResult<unknown>[];
-    try {
-      await acquireAdvisoryLock(connection.execute, {
-        lockId: migrationsLockId,
-      });
-      const runs = Promise.allSettled([
+    const checksDone = [
+      Promise.withResolvers<void>(),
+      Promise.withResolvers<void>(),
+    ];
+    const bothChecksDone = Promise.all(
+      checksDone.map(({ promise }) => promise),
+    );
+    const lockAfterBothChecks = (
+      checkDone: PromiseWithResolvers<void>,
+    ): DatabaseLock => ({
+      ...AdvisoryLock,
+      withAcquire: async (execute, handle, options) => {
+        checkDone.resolve();
+        await bothChecksDone;
+        return AdvisoryLock.withAcquire(execute, handle, options);
+      },
+    });
+
+    const results = await Promise.allSettled(
+      checksDone.map((checkDone) =>
         runSQLMigrations(pool, [migration], {
-          lock: { options: { lockId: migrationsLockId } },
+          lock: { databaseLock: lockAfterBothChecks(checkDone) },
         }),
-        runSQLMigrations(pool, [migration], {
-          lock: { options: { lockId: migrationsLockId } },
-        }),
-      ]);
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      await releaseAdvisoryLock(connection.execute, {
-        lockId: migrationsLockId,
-      });
-      results = await runs;
-    } finally {
-      await connection.close();
-    }
+      ),
+    );
 
     const rejected = results.filter((result) => result.status === 'rejected');
     assert.strictEqual(rejected.length, 1);
