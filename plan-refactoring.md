@@ -235,7 +235,7 @@ Fix every failure. Report each command and its result.
 Update `src/docs/schema-migrations.md` and `src/packages/dumbo/README.md`:
 
 - Assurance always runs outside session transactions.
-- Concurrent first operations may each run the check.
+- Concurrent first operations may each find the same migration pending. One applies it; the others fail with `UniqueConstraintError`.
 - `db.sql` operations ensure the schema.
 - Rename under `None` waits for explicit migration.
 - Remove "concurrent assurance calls share the same work".
@@ -259,5 +259,43 @@ npm run test:int:cloudflare
 ## Out of scope
 
 - Emmett work from `spec.md`.
-- Concurrent assurance sharing one run. Concurrent first operations each run the check; the PostgreSQL advisory lock and SQLite's single writer serialize them.
+- Concurrent assurance sharing one run, and retries. Concurrent first operations each run the check; one applies the migration, the others fail with `UniqueConstraintError`.
 - `spec.md` and `qa.md` at the repo root are staged; Oskar handles Git.
+
+## Follow-ups
+
+None of these is approved for implementation yet.
+
+### Derived index names
+
+Rule: when `indexName` is missing, derive it from the table name. The database schema comes from the schema component. An explicit `indexName` works as today.
+
+| Declaration                           | PostgreSQL            | SQLite                |
+| ------------------------------------- | --------------------- | --------------------- |
+| no `indexName`, default schema        | `users_email_idx`     | `users_email_idx`     |
+| no `indexName`, schema `crm`          | `crm.users_email_idx` | `crm.users_email_idx` |
+| `indexName: 'by_email'`, schema `crm` | `crm.by_email`        | `crm.by_email`        |
+
+- JSON-path indexes (Pongo) all have the column `data`. Derive their names from `indexTargetNames`, with `.` replaced by `_`.
+- Two indexes with the same derived name in one table (for example, unique and non-unique on the same columns): throw an error that asks for an explicit name.
+- A derived name longer than the PostgreSQL limit of 63 bytes: throw an error. Do not let PostgreSQL truncate it.
+- Decision needed, table rename: a derived name changes with the table. After `users` is renamed to `customers`, `CREATE INDEX IF NOT EXISTS customers_email_idx` creates a second index next to `users_email_idx`. Explicit names do not have this problem.
+  - A (recommended): rename derived indexes in the table-rename migration (PostgreSQL `ALTER INDEX ... RENAME`, SQLite drop and create).
+  - B: derive the name from `renamedFrom`. This breaks after chained renames.
+- Decision needed: the branch for this work.
+
+### Dumbo
+
+- Make `databaseSchemaName` optional in `sqliteTableName` and `sqliteIndexName`.
+- Validate `.` in names when components are declared.
+- Add an optional `tableName` filter to `indexExists`.
+- The test "reserves dotted names in the native SQLite namespace" in `sqlitePhysicalNames.unit.spec.ts` is hard to understand.
+
+### Emmett
+
+- Delete `emmett-postgresql/src/testing/schemaObjects.ts`. Use Dumbo's `tableExists`, `functionExists`, `indexExists` and `sequenceExists` with the `{ databaseSchemaName }` option.
+- Switch to `schemaComponentMigrator`: `await (autoMigration === 'None' ? migrator.ensureMigrated() : migrator.migrate())`.
+
+### Verification
+
+- `npm test` does not run the bundle project. After a change that adds an import reachable from the root `dumbo` entry, run a `tsdown` build and `npm run test:bundles`.

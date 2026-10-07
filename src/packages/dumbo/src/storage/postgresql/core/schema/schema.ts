@@ -45,6 +45,29 @@ export const tableExists = async (
 ): Promise<boolean> =>
   exists(execute.query(tableExistsSQL(tableName, options), options));
 
+export const columnExistsSQL = (
+  tableName: string,
+  columnName: string,
+  options?: { databaseSchemaName?: string | undefined },
+): SQL =>
+  SQL`
+  SELECT EXISTS (
+    SELECT FROM information_schema.columns
+    WHERE table_name = ${tableName}
+      AND column_name = ${columnName}
+      AND table_schema = ANY(${databaseSchemaNames(options?.databaseSchemaName)})
+  ) AS exists;`;
+
+export const columnExists = async (
+  execute: SQLExecutor,
+  tableName: string,
+  columnName: string,
+  options?: { databaseSchemaName?: string | undefined } & SQLQueryOptions,
+): Promise<boolean> =>
+  exists(
+    execute.query(columnExistsSQL(tableName, columnName, options), options),
+  );
+
 export const functionExistsSQL = (
   functionName: string,
   options?: { databaseSchemaName?: string | undefined },
@@ -64,6 +87,26 @@ export const functionExists = async (
   options?: { databaseSchemaName?: string | undefined } & SQLQueryOptions,
 ): Promise<boolean> =>
   exists(execute.query(functionExistsSQL(functionName, options), options));
+
+export const createFunctionIfDoesNotExistSQL = (
+  functionName: string,
+  functionDefinition: SQL,
+  options?: { databaseSchemaName?: string | undefined },
+): SQL =>
+  SQL`
+DO $$
+BEGIN
+IF NOT EXISTS (
+  SELECT 1
+  FROM pg_proc p
+  JOIN pg_namespace n ON n.oid = p.pronamespace
+  WHERE n.nspname = ${options?.databaseSchemaName === undefined ? SQL`current_schema()` : SQL.literal(options.databaseSchemaName)}
+    AND p.proname = ${SQL.literal(functionName)}
+) THEN
+  ${functionDefinition}
+END IF;
+END $$;
+`;
 
 export const indexExistsSQL = (
   indexName: string,

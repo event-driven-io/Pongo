@@ -1,6 +1,10 @@
 import { type Dumbo, JSONSerializer } from '../..';
 import type { DatabaseTransactionOptions } from '../../connections';
-import { type DatabaseType, fromDatabaseDriverType } from '../../drivers';
+import {
+  type DatabaseDriverType,
+  type DatabaseType,
+  fromDatabaseDriverType,
+} from '../../drivers';
 import { InvalidOperationError, NotRegisteredError } from '../../errors';
 import type { SQLExecutor } from '../../execute';
 import {
@@ -8,10 +12,10 @@ import {
   type DatabaseLockOptions,
   NoDatabaseLock,
 } from '../../locks';
-import { singleOrNull } from '../../query';
 import type { SQLFormatter, SQLTableReference } from '../../sql';
 import { SQL, getFormatter } from '../../sql';
 import { tracer } from '../../tracing';
+import { getDatabaseMetadata } from '../databaseMetadata/databaseMetadata';
 import type { SQLMigration } from '../sqlMigration';
 import { migrationTableComponentFor } from './migrationTableComponent';
 
@@ -68,67 +72,112 @@ export type RunSQLMigrationsResult = {
   skipped: SQLMigration[];
 };
 
-export const runSQLMigrations = (
+export class PendingMigrationsError extends Error {
+  readonly pendingMigrations: ReadonlyArray<SQLMigration>;
+  constructor(pendingMigrations: ReadonlyArray<SQLMigration>) {
+    super(
+      `Pending migrations: ${pendingMigrations.map(({ name }) => name).join(', ')}`,
+    );
+    this.name = 'PendingMigrationsError';
+    this.pendingMigrations = Object.freeze([...pendingMigrations]);
+  }
+}
+
+export const ensureSQLMigrations = async (
+  pool: Dumbo,
+  migrations: ReadonlyArray<SQLMigration>,
+  partialOptions?: Partial<MigratorOptions>,
+): Promise<void> => {
+  const options = migratorOptionsFor(pool.driverType, partialOptions);
+  const pending = await pendingSQLMigrations(
+    pool.driverType,
+    options.execute ?? pool.execute,
+    migrations,
+    options,
+  );
+  if (pending.length)
+    throw new PendingMigrationsError(pending.map(({ migration }) => migration));
+};
+
+export const runSQLMigrations = async (
   pool: Dumbo,
   migrations: ReadonlyArray<SQLMigration>,
   partialOptions?: Partial<MigratorOptions>,
 ): Promise<RunSQLMigrationsResult> => {
-  const providedExecutor = partialOptions?.execute;
+  const options = migratorOptionsFor(pool.driverType, partialOptions);
+  const pending = await pendingSQLMigrations(
+    pool.driverType,
+    options.execute ?? pool.execute,
+    migrations,
+    options,
+  );
+  const applied = pending.map(({ migration }) => migration);
+  const result = {
+    applied,
+    skipped: migrations.filter((migration) => !applied.includes(migration)),
+  };
 
-  return providedExecutor !== undefined
-    ? applySQLMigrations(pool, providedExecutor, migrations, partialOptions)
-    : pool.withTransaction(
-        async ({ execute }) => ({
-          success: partialOptions?.dryRun ? false : true,
-          result: await applySQLMigrations(
-            pool,
-            execute,
-            migrations,
-            partialOptions,
-          ),
-        }),
-        partialOptions?.transactionOptions,
-      );
+  if (pending.length === 0) return result;
+
+  if (options.execute) {
+    await applySQLMigrations(
+      pool.driverType,
+      options.execute,
+      pending,
+      options,
+    );
+    return result;
+  }
+
+  return pool.withTransaction(async ({ execute }) => {
+    await applySQLMigrations(pool.driverType, execute, pending, options);
+    return { success: !options.dryRun, result };
+  }, options.transactionOptions);
+};
+
+const migratorOptionsFor = (
+  driverType: DatabaseDriverType,
+  partialOptions: Partial<MigratorOptions> = {},
+): MigratorOptions => {
+  const databaseType = fromDatabaseDriverType(driverType).databaseType;
+  const defaultOptions = getDefaultMigratorOptionsFromRegistry(databaseType);
+
+  return {
+    ...defaultOptions,
+    ...partialOptions,
+    migrationTable:
+      partialOptions.migrationTable ?? defaultOptions.migrationTable,
+    lock: {
+      ...defaultOptions.lock,
+      ...partialOptions.lock,
+      options: {
+        ...defaultOptions.lock?.options,
+        ...partialOptions.lock?.options,
+      },
+    },
+    dryRun: partialOptions.dryRun ?? defaultOptions.dryRun,
+    ignoreMigrationHashMismatch:
+      partialOptions.ignoreMigrationHashMismatch ??
+      defaultOptions.ignoreMigrationHashMismatch,
+    migrationTimeoutMS:
+      partialOptions.migrationTimeoutMS ?? defaultOptions.migrationTimeoutMS,
+  };
 };
 
 const applySQLMigrations = async (
-  pool: Dumbo,
+  driverType: DatabaseDriverType,
   execute: SQLExecutor,
-  migrations: ReadonlyArray<SQLMigration>,
-  partialOptions?: Partial<MigratorOptions>,
-): Promise<RunSQLMigrationsResult> => {
-  for (const migration of migrations) {
+  pending: { migration: SQLMigration; sqls: SQL[]; sqlHash: string }[],
+  options: MigratorOptions,
+): Promise<void> => {
+  for (const { migration } of pending) {
     if (migration.name.length > maxMigrationNameLength)
       throw new InvalidOperationError(
         `Migration name "${migration.name}" is ${migration.name.length} characters long, exceeding the maximum of ${maxMigrationNameLength} characters.`,
       );
   }
 
-  const databaseType = fromDatabaseDriverType(pool.driverType).databaseType;
-  const defaultOptions = getDefaultMigratorOptionsFromRegistry(databaseType);
-  partialOptions ??= {};
-
-  const options: MigratorOptions = {
-    ...defaultOptions,
-    ...partialOptions,
-    migrationTable:
-      partialOptions?.migrationTable ?? defaultOptions.migrationTable,
-    lock: {
-      ...defaultOptions.lock,
-      ...partialOptions?.lock,
-      options: {
-        lockId: MIGRATIONS_LOCK_ID,
-        ...defaultOptions.lock?.options,
-        ...partialOptions?.lock?.options,
-      },
-    },
-    dryRun: partialOptions?.dryRun ?? defaultOptions.dryRun,
-    ignoreMigrationHashMismatch:
-      partialOptions?.ignoreMigrationHashMismatch ??
-      defaultOptions.ignoreMigrationHashMismatch,
-    migrationTimeoutMS:
-      partialOptions?.migrationTimeoutMS ?? defaultOptions.migrationTimeoutMS,
-  };
+  const databaseType = fromDatabaseDriverType(driverType).databaseType;
 
   const databaseLock = options.lock?.databaseLock ?? NoDatabaseLock;
 
@@ -137,18 +186,9 @@ const applySQLMigrations = async (
     ...options.lock?.options,
   };
 
-  const migrationTableOptions = options.migrationTable;
-  const schemaName = migrationTableOptions?.schemaName;
-
-  const tableName = migrationTableOptions?.tableName ?? 'dmb_migrations';
-  const migrationTable = migrationTableComponentFor({
-    schemaName,
-    tableName,
-  });
+  const migrationTable = migrationTableComponentFor(options.migrationTable);
   const migrationTableReference = migrationTable.fullName;
   const coreMigrations = migrationTable.migrations();
-
-  const result: RunSQLMigrationsResult = { applied: [], skipped: [] };
 
   await databaseLock.withAcquire(
     execute,
@@ -165,114 +205,38 @@ const applySQLMigrations = async (
         });
       }
 
-      for (const migration of migrations) {
-        const wasApplied = await runSQLMigration(
-          databaseType,
-          execute,
-          migration,
-          migrationTableReference,
-          {
-            ignoreMigrationHashMismatch:
-              options.ignoreMigrationHashMismatch ?? false,
-            migrationTimeoutMS: options.migrationTimeoutMS,
-          },
-        );
-        if (wasApplied) {
-          result.applied.push(migration);
-        } else {
-          result.skipped.push(migration);
+      for (const { migration, sqlHash, sqls } of pending) {
+        const newMigration = {
+          name: migration.name,
+          sqlHash,
+        };
+        try {
+          await execute.batchCommand(
+            [
+              recordMigrationSQL(newMigration, migrationTableReference),
+              ...sqls,
+            ],
+            { timeoutMS: options.migrationTimeoutMS },
+          );
+          tracer.info('migration-applied', {
+            migrationName: migration.name,
+          });
+        } catch (error) {
+          tracer.error('migration-error', {
+            migationName: migration.name,
+            error: error,
+          });
+          throw error;
         }
       }
     },
     lockOptions,
   );
-
-  return result;
 };
 
 export const rendersNothing = (sql: SQL, formatter: SQLFormatter): boolean =>
   formatter.format(sql, { serializer: JSONSerializer }).query.trim().length ===
   0;
-
-const runSQLMigration = async (
-  databaseType: DatabaseType,
-  execute: SQLExecutor,
-  migration: SQLMigration,
-  migrationTableReference: SQLTableReference,
-  options?: {
-    ignoreMigrationHashMismatch?: boolean;
-    migrationTimeoutMS?: number | undefined;
-  },
-): Promise<boolean> => {
-  const formatter = getFormatter(databaseType);
-  const sqls = combineMigrations(migration).filter(
-    (sql) => !rendersNothing(sql, formatter),
-  );
-
-  if (sqls.length === 0) return false;
-
-  const sqlHash = await getMigrationHash(sqls, formatter);
-
-  try {
-    const newMigration = {
-      name: migration.name,
-      sqlHash,
-    };
-
-    const checkResult = await ensureMigrationWasNotAppliedYet(
-      execute,
-      newMigration,
-      migrationTableReference,
-      options?.migrationTimeoutMS,
-    );
-
-    if (checkResult.exists === true) {
-      if (checkResult.hashesMatch === true) {
-        tracer.info('migration-already-applied', {
-          migrationName: migration.name,
-        });
-        return false;
-      }
-      if (
-        migration.ignoreHashMismatch !== true &&
-        options?.ignoreMigrationHashMismatch !== true
-      )
-        throw new InvalidOperationError(
-          `Migration hash mismatch for "${migration.name}". Aborting migration.`,
-        );
-
-      tracer.warn('migration-hash-mismatch', {
-        migrationName: migration.name,
-        expectedHash: sqlHash,
-        actualHash: checkResult.hashFromDB,
-      });
-
-      if (migration.ignoreHashMismatch === true) return false;
-
-      await updateMigrationHash(
-        execute,
-        newMigration,
-        migrationTableReference,
-        options?.migrationTimeoutMS,
-      );
-
-      return false;
-    }
-
-    await execute.batchCommand(
-      [...sqls, recordMigrationSQL(newMigration, migrationTableReference)],
-      { timeoutMS: options?.migrationTimeoutMS },
-    );
-    return true;
-    // console.log(`Migration "${newMigration.name}" applied successfully.`);
-  } catch (error) {
-    tracer.error('migration-error', {
-      migationName: migration.name,
-      error: error,
-    });
-    throw error;
-  }
-};
 
 export const getMigrationHash = async (
   sqls: SQL[],
@@ -293,33 +257,85 @@ export const combineMigrations = (
   ...migration: Pick<SQLMigration, 'sqls'>[]
 ): SQL[] => migration.flatMap((m) => m.sqls);
 
-type EnsureMigrationResult =
-  | { exists: false }
-  | { exists: true; hashesMatch: true }
-  | { exists: true; hashesMatch: false; hashFromDB: string };
-
-const ensureMigrationWasNotAppliedYet = async (
+const pendingSQLMigrations = async (
+  driverType: DatabaseDriverType,
   execute: SQLExecutor,
-  migration: { name: string; sqlHash: string },
-  migrationTableReference: SQLTableReference,
-  timeoutMS: number | undefined,
-): Promise<EnsureMigrationResult> => {
-  const result = await singleOrNull(
-    execute.query<{ sqlHash: string }>(
-      SQL`SELECT sql_hash as "sqlHash" FROM ${migrationTableReference} WHERE name = ${migration.name}`,
-      { timeoutMS },
-    ),
+  migrations: ReadonlyArray<SQLMigration>,
+  options: MigratorOptions,
+) => {
+  const databaseType = fromDatabaseDriverType(driverType).databaseType;
+  const metadata = getDatabaseMetadata(driverType);
+  if (!metadata)
+    throw new NotRegisteredError(
+      `No database metadata registered for database type: ${databaseType}`,
+    );
+
+  const migrationTable = migrationTableComponentFor(
+    options.migrationTable,
+  ).fullName;
+  const migrationTableExists = await metadata.tableExists(
+    execute,
+    migrationTable.tableName,
+    {
+      timeoutMS: options.migrationTimeoutMS,
+      databaseSchemaName: options.migrationTable?.schemaName,
+    },
   );
+  const history = new Map<string, string>();
+  if (migrationTableExists) {
+    const { rows } = await execute.query<{ name: string; sqlHash: string }>(
+      SQL`SELECT name, sql_hash AS "sqlHash" FROM ${migrationTable}`,
+      { timeoutMS: options.migrationTimeoutMS },
+    );
+    for (const { name, sqlHash } of rows) history.set(name, sqlHash);
+  }
 
-  if (result === null) return { exists: false };
+  const formatter = getFormatter(databaseType);
 
-  const { sqlHash } = result;
+  const pending: { migration: SQLMigration; sqls: SQL[]; sqlHash: string }[] =
+    [];
+  for (const migration of migrations) {
+    const sqls = combineMigrations(migration).filter(
+      (sql) => !rendersNothing(sql, formatter),
+    );
+    if (sqls.length === 0) continue;
 
-  return {
-    exists: true,
-    hashesMatch: sqlHash === migration.sqlHash,
-    hashFromDB: sqlHash,
-  };
+    const sqlHash = await getMigrationHash(sqls, formatter);
+    const recordedHash = history.get(migration.name);
+
+    if (recordedHash === undefined) {
+      pending.push({ migration, sqls, sqlHash });
+      continue;
+    }
+
+    if (recordedHash === sqlHash) {
+      tracer.info('migration-already-applied', {
+        migrationName: migration.name,
+      });
+      continue;
+    }
+
+    if (
+      migration.ignoreHashMismatch !== true &&
+      options.ignoreMigrationHashMismatch !== true
+    ) {
+      const error = new InvalidOperationError(
+        `Migration hash mismatch for "${migration.name}". Aborting migration.`,
+      );
+      tracer.error('migration-error', {
+        migationName: migration.name,
+        error: error,
+      });
+      throw error;
+    }
+
+    tracer.warn('migration-hash-mismatch', {
+      migrationName: migration.name,
+      expectedHash: sqlHash,
+      actualHash: recordedHash,
+    });
+  }
+  return pending;
 };
 
 const recordMigrationSQL = (
@@ -329,19 +345,3 @@ const recordMigrationSQL = (
   SQL`
       INSERT INTO ${migrationTableReference} (name, sql_hash)
       VALUES (${migration.name}, ${migration.sqlHash})`;
-
-const updateMigrationHash = async (
-  execute: SQLExecutor,
-  migration: { name: string; sqlHash: string },
-  migrationTableReference: SQLTableReference,
-  timeoutMS: number | undefined,
-): Promise<void> => {
-  await execute.command(
-    SQL`
-      UPDATE ${migrationTableReference}
-      SET sql_hash = ${migration.sqlHash}, timestamp = ${new Date()}
-      WHERE name = ${migration.name}
-      `,
-    { timeoutMS },
-  );
-};

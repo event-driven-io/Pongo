@@ -15,12 +15,14 @@ import {
 import { PostgreSQLConnectionString, tableExists } from '..';
 import { dumbo, type Dumbo } from '../../../..';
 import {
+  combineMigrations,
   count,
   databaseComponent,
   databaseSchemaComponent,
   dumboSchema,
   indexComponent,
   jsonDocumentIndexTarget,
+  migrationTableComponentFor,
   runSQLMigrations,
   extensionComponent,
   QueryCanceledError,
@@ -28,6 +30,7 @@ import {
   SQL,
   sqlMigration,
   tableComponent,
+  UniqueConstraintError,
   type SQLMigration,
 } from '../../../../core';
 import { pgDumboDriver, pgPool } from '../../pg';
@@ -328,6 +331,40 @@ describe('Migration Integration Tests', () => {
     assert.ok(wasCreated, 'The concurrent_table should exist.');
   });
 
+  it('fails with a UniqueConstraintError when a concurrent run already applied the same migration', async () => {
+    const migration = sqlMigration('duplicated_concurrent_migration', [
+      SQL`CREATE TABLE duplicated_concurrent_table (id SERIAL PRIMARY KEY);`,
+    ]);
+
+    const connection = await pool.connection();
+    let results: PromiseSettledResult<unknown>[];
+    try {
+      await acquireAdvisoryLock(connection.execute, {
+        lockId: migrationsLockId,
+      });
+      const runs = Promise.allSettled([
+        runSQLMigrations(pool, [migration], {
+          lock: { options: { lockId: migrationsLockId } },
+        }),
+        runSQLMigrations(pool, [migration], {
+          lock: { options: { lockId: migrationsLockId } },
+        }),
+      ]);
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      await releaseAdvisoryLock(connection.execute, {
+        lockId: migrationsLockId,
+      });
+      results = await runs;
+    } finally {
+      await connection.close();
+    }
+
+    const rejected = results.filter((result) => result.status === 'rejected');
+    assert.strictEqual(rejected.length, 1);
+    assert.ok(rejected[0]!.reason instanceof UniqueConstraintError);
+    assert.ok(await tableExists(pool.execute, 'duplicated_concurrent_table'));
+  });
+
   it('should correctly apply a migration if the hash matches the previous migration with the same name', async () => {
     const migration: SQLMigration = {
       name: 'hash_check_migration',
@@ -396,7 +433,7 @@ describe('Migration Integration Tests', () => {
     }
   });
 
-  it('should silently be not applied but update hash if a migration with the same name has a different hash with ignoreMigrationHashMismatch setting', async () => {
+  it('skips an already applied migration and keeps its recorded hash when its SQL changes and the migrator ignores hash mismatches', async () => {
     const migration: SQLMigration = {
       name: 'hash_check_migration',
       sqls: [
@@ -438,16 +475,12 @@ describe('Migration Integration Tests', () => {
       'The modified migration should be skipped due to hash mismatch.',
     );
 
-    const { sql_hash: updatedHash } = await single(
+    const { sql_hash: recordedHash } = await single(
       pool.execute.query<{ sql_hash: string }>(
         SQL`SELECT sql_hash FROM dmb_migrations WHERE name = 'hash_check_migration'`,
       ),
     );
-    assert.notStrictEqual(
-      initialHash,
-      updatedHash,
-      'The migration hash should be updated in the database.',
-    );
+    assert.strictEqual(recordedHash, initialHash);
   });
 
   it('skips an already applied migration with ignored hash mismatch when its SQL changes', async () => {
@@ -587,7 +620,9 @@ describe('Migration Integration Tests', () => {
     let blocker: pg.Client;
 
     beforeEach(async () => {
-      await runSQLMigrations(pool, []);
+      await pool.execute.batchCommand(
+        combineMigrations(...migrationTableComponentFor().migrations()),
+      );
       blocker = new pg.Client({ connectionString });
       await blocker.connect();
       await blocker.query('BEGIN');
@@ -623,25 +658,6 @@ describe('Migration Integration Tests', () => {
             pool,
             [sqlMigration('timeout:record', [SQL`SELECT 1;`])],
             { migrationTimeoutMS: 100 },
-          ),
-        QueryCanceledError,
-      );
-    });
-
-    it('cancels updating the hash of an applied migration when it exceeds migrationTimeoutMS', async () => {
-      await runSQLMigrations(pool, [
-        sqlMigration('timeout:hash', [SQL`SELECT 1;`]),
-      ]);
-      await blocker.query(
-        `UPDATE dmb_migrations SET timestamp = now() WHERE name = 'timeout:hash'`,
-      );
-
-      await assert.rejects(
-        () =>
-          runSQLMigrations(
-            pool,
-            [sqlMigration('timeout:hash', [SQL`SELECT 2;`])],
-            { migrationTimeoutMS: 100, ignoreMigrationHashMismatch: true },
           ),
         QueryCanceledError,
       );

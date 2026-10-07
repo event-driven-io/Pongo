@@ -1,6 +1,8 @@
 # Schema migrations
 
-Pongo migrates a database as one ordered plan containing its database schema and all registered collections. Register the collections before provisioning, then call `db.schema.migrate()` once:
+Pongo stores each collection in its own table. By default, Pongo creates that table on the first operation on the collection. You can also create the tables in a deployment step and let the application only use them. This page shows both setups.
+
+## Default: tables are created when needed
 
 ```ts
 import { pongoClient } from '@event-driven-io/pongo';
@@ -9,81 +11,116 @@ import { pongoDriver } from '@event-driven-io/pongo/pg';
 const client = pongoClient({
   driver: pongoDriver,
   connectionString: 'postgresql://localhost/pongo',
-  schema: { autoMigration: 'None' },
 });
-const db = client.db();
-const users = db.collection<{ name: string }>('users');
-const orders = db.collection<{ total: number }>('orders');
+const users = client.db().collection<{ name: string }>('users');
 
-await db.schema.migrate();
+// creates the users table, then inserts the document
 await users.insertOne({ name: 'Anita' });
-await orders.insertOne({ total: 42 });
 ```
 
-`PongoDb.schema` is the operational migration boundary. It exposes `component`, `sql()`, `print()`, `migrate()`, and `ensureMigrated()`, plus Pongo's `migrations` and `renameCollection()` members. `sql()` returns SQL for the database's component graph; `print()` writes that SQL to the console. Both exclude migration-history table creation, locks, and migration-record bookkeeping and don't check or apply migrations.
+Pongo checks the schema once per database. Later operations skip the check. When you add another collection, the next operation checks again and creates the new table.
 
-`collection.schema.component` is a declarative Dumbo schema component. It describes collection migrations for composition with a storage owner; it does not own a connection. The deprecated `collection.schema.migrate()` calls `db.schema.migrate()` and migrates the whole database, not only the collection. A component can be reused with different databases without sharing migration state.
+## Migrate in a deployment step
 
-## Automatic migration
+Register all collections, then call `db.schema.migrate()`. It creates the missing tables in one transaction:
 
-Pongo defaults to `schema: { autoMigration: 'CreateOrUpdate' }`. Before collection operations and raw SQL through `db.sql.query()` and `db.sql.command()`, Pongo uses this setting to choose the migrator call. Under `CreateOrUpdate`, it calls `migrate()`, which applies pending migrations. Under `None`, it calls `ensureMigrated()`, which throws a Dumbo `PendingMigrationsError` when migrations are pending. Its `pendingMigrations` property contains the pending `SQLMigration` values.
+```ts
+const client = pongoClient({
+  driver: pongoDriver,
+  connectionString: 'postgresql://localhost/pongo',
+});
+const db = client.db();
+db.collection<{ name: string }>('users');
+db.collection<{ total: number }>('orders');
 
-Every `migrate()` and `ensureMigrated()` call first reads the migration history without a transaction, DDL, or migration lock, and returns without writing when nothing is pending. Missing migrations and hash mismatches count as pending. A missing history table counts as empty history. Extra historical migrations are ignored, and `ignoreMigrationHashMismatch` controls whether differing hashes count as pending. This check compares migration records; it does not inspect the actual tables or indexes.
+await db.schema.migrate();
+```
 
-`db.schema.ensureMigrated()` runs only that check, whatever the `autoMigration` setting is:
+Run the application with `autoMigration: 'None'`:
+
+```ts
+const client = pongoClient({
+  driver: pongoDriver,
+  connectionString: 'postgresql://localhost/pongo',
+  schema: { autoMigration: 'None' },
+});
+```
+
+With `None`, the first operation only reads the migration history. The application's database user needs read access to the history table and read and write access to the collection tables. If the deployment step missed a migration, the operation throws `PendingMigrationsError`. Its `pendingMigrations` property lists the missing migrations.
+
+To run the same check yourself, for example at startup or in a health check, call:
 
 ```ts
 await db.schema.ensureMigrated();
 ```
 
-An explicit `db.schema.migrate()` always applies pending migrations, also under `None`. Provisioning code calls it, while runtime clients keep `autoMigration: 'None'`. The migration table comes from the client or database options and stays the same for every call.
+`ensureMigrated()` reads the history under any `autoMigration` setting.
 
-Automatic migration runs in its own migration transaction, outside any session transaction. On D1, which cannot open these transactions, it runs directly on the pool. If the first operation on a collection runs inside a session transaction that later aborts, the collection's table stays in place, while the documents written in that transaction roll back.
+## Preview the SQL
 
-Explicit schema operations behave differently. `db.schema.migrate({ session })`, `collection.createCollection({ session })`, and `collection.rename(newName, { session })` run inside the session's active transaction and roll back with it. A rename and the document writes in one transaction therefore commit or roll back together.
+`db.schema.sql()` returns the SQL that creates the registered collections, and `db.schema.print()` writes it to the console. Both work without a database connection.
 
-Once `migrate()` or `ensureMigrated()` finds nothing pending, or `migrate()` applies the pending migrations, the database's migrator remembers it, so later calls skip the database. A dry run and a `migrate()` inside a session's active transaction aren't remembered, because their changes roll back. Concurrent first operations may each run the check; the PostgreSQL advisory lock and SQLite's single writer serialize them, so each migration is applied once. Failed calls can retry. Registering another collection replaces the database's migrator; the next operation checks the expanded graph and applies or reports new migrations according to the configured `autoMigration`.
-
-Renaming a collection under `autoMigration: 'None'` registers the rename migration without applying it, because runtime clients often do not have DDL permissions. The table keeps its old name until `db.schema.migrate()`, and until then operations on the renamed collection throw `PendingMigrationsError`. Under `CreateOrUpdate`, the rename is applied immediately.
-
-## Dry runs
+A dry run executes the migrations against the database and rolls them back:
 
 ```ts
 await db.schema.migrate({ dryRun: true });
 ```
 
-A dry run executes migration SQL inside a transaction and rolls it back on PostgreSQL, sqlite3, and Durable Object storage. It requires the privileges needed to execute that SQL, and its result isn't remembered. Cloudflare D1 does not support these migration transactions, so Pongo rejects `schema.migrate({ dryRun: true })` on D1. To preview SQL without executing it on any backend, use `db.schema.sql()` or `db.schema.print()`. To check recorded migration state without DDL, call `ensureMigrated()`.
+The database user needs permissions to create tables. Cloudflare D1 can't roll back these migrations, so on D1 a dry run throws `D1TransactionNotSupportedError`. Use `db.schema.sql()` there.
 
-## Dumbo schema component migrators
+## Migration history
 
-Dumbo separates the storage-agnostic `AnySchemaComponent` graph from the database-bound `SchemaComponentMigrator`. Bind a component to an existing Dumbo pool with `schemaComponentMigrator()`:
+Pongo records each applied migration and a hash of its SQL in the `dmb_migrations` table. To use another table, pass `migrationTable` to `pongoClient()` or `client.db()`:
+
+```ts
+const client = pongoClient({
+  driver: pongoDriver,
+  connectionString: 'postgresql://localhost/pongo',
+  migrationTable: { tableName: 'app_migrations' },
+});
+```
+
+If the SQL of an applied migration changes, its hash no longer matches the recorded one. Pongo then throws `InvalidOperationError` with the message `Migration hash mismatch for "<name>". Aborting migration.` before it writes anything. To accept the change, call:
+
+```ts
+await db.schema.migrate({ ignoreMigrationHashMismatch: true });
+```
+
+Pongo then treats that migration as applied, keeps the table as it is, and keeps the recorded hash.
+
+## Transactions
+
+Automatic migration runs in its own transaction, outside your session. If the first operation on a collection runs in a session transaction that later aborts, the table stays and the documents written in that transaction roll back.
+
+`db.schema.migrate({ session })`, `collection.createCollection({ session })`, and `collection.rename(newName, { session })` run in the session's transaction and roll back with it. For example, a rename and the document writes in one transaction commit or roll back together.
+
+On D1, automatic migration runs directly on the database. D1 writes each migration together with its history record, so a failed migration leaves neither.
+
+## Renaming a collection
+
+Under `CreateOrUpdate`, `collection.rename(newName)` renames the table immediately.
+
+Under `None`, `rename()` registers the rename migration, and the table keeps its old name until your deployment step calls `db.schema.migrate()`. Until then, operations on the renamed collection throw `PendingMigrationsError`.
+
+## Several application instances
+
+When several instances, or concurrent first operations in one instance, try to apply the same migration at the same time, one of them applies it. The others fail with Dumbo's `UniqueConstraintError`, and their migration transactions roll back. When you retry such an operation, Pongo finds the migration recorded and continues.
+
+To avoid these failures, migrate in a deployment step and run the instances with `autoMigration: 'None'`.
+
+## Composing schemas with Dumbo
+
+`db.schema.component` and `collection.schema.component` are Dumbo schema components. A library such as Emmett can add them to its own schema and migrate everything in one call with Dumbo's `schemaComponentMigrator()`:
 
 ```ts
 import { schemaComponentMigrator } from '@event-driven-io/dumbo';
 
 const migrator = schemaComponentMigrator({
-  component: db.schema.component,
   pool,
-  ignoreMigrationHashMismatch: false,
+  component: db.schema.component,
 });
 
-const sql = migrator.sql();
-await migrator.ensureMigrated();
 await migrator.migrate();
 ```
 
-Here `pool` is the concrete Dumbo pool for the database to migrate. The factory also accepts the existing migration-table configuration, executor, timeout, lock, and migration defaults. `migrate()` applies pending migrations. `ensureMigrated()` only reads the migration history on the configured executor or the pool; only `migrate()` accepts a per-call `execute`. Its component graph and history-table configuration remain fixed for its lifetime. Create a new migrator when either changes. Pongo performs this replacement for you when its collection graph changes.
-
-The migrator does not read `autoMigration`. Code that migrates automatically chooses the call itself, as Pongo does:
-
-```ts
-await (autoMigration === 'None'
-  ? migrator.ensureMigrated()
-  : migrator.migrate());
-```
-
-Dumbo flattens component migrations in composition order. Equivalent SQL with the same migration name is included once; conflicting SQL for the same name is rejected before migration execution. The composed plan uses one runner and its database transaction.
-
-## Beta migration note
-
-Replace the deprecated `collection.schema.migrate()` with `db.schema.migrate()`. Register every required collection before migrating so the database plan includes them all. Use `collection.schema.component` when contributing a collection schema to another storage owner's graph.
+`pool` is the Dumbo pool for the database. The Dumbo README describes the migrator's options and behavior.

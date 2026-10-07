@@ -37,6 +37,36 @@ export const tableExists = async (
     ),
   );
 
+const columnExistsSQL = (tableName: string, columnName: string): SQL =>
+  SQL`
+  SELECT EXISTS (
+    SELECT 1
+    FROM pragma_table_info(${tableName})
+    WHERE name = ${columnName}
+  ) AS "exists"
+   `;
+
+export const columnExists = async (
+  execute: SQLExecutor,
+  tableName: string,
+  columnName: string,
+  options?: { databaseSchemaName?: string | undefined } & SQLQueryOptions,
+): Promise<boolean> =>
+  exists(
+    execute.query(
+      columnExistsSQL(
+        options?.databaseSchemaName === undefined
+          ? tableName
+          : sqliteTableName({
+              databaseSchemaName: options.databaseSchemaName,
+              tableName,
+            }),
+        columnName,
+      ),
+      options,
+    ),
+  );
+
 const indexExistsSQL = (indexName: string): SQL =>
   SQL`
   SELECT EXISTS (
