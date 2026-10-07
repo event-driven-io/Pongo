@@ -1,14 +1,10 @@
 import { type Dumbo, JSONSerializer } from '../..';
 import { fromDatabaseDriverType } from '../../drivers';
-import { describeSQL, getFormatter, SQL } from '../../sql';
-import { getDatabaseMetadata } from '../databaseMetadata/databaseMetadata';
+import { describeSQL, getFormatter } from '../../sql';
 import type { AnySchemaComponent } from '../schemaComponent';
-import type { SQLMigration } from '../sqlMigration';
-import { migrationTableComponentFor } from './migrationTableComponent';
 import {
-  getMigrationHash,
+  ensureSQLMigrations,
   type MigratorOptions,
-  rendersNothing,
   runSQLMigrations,
   type RunSQLMigrationsResult,
 } from './migrator';
@@ -43,17 +39,6 @@ export type SchemaComponentMigrator<
   ): Promise<void>;
 }>;
 
-export class PendingMigrationsError extends Error {
-  readonly pendingMigrations: ReadonlyArray<SQLMigration>;
-  constructor(pendingMigrations: ReadonlyArray<SQLMigration>) {
-    super(
-      `Pending migrations: ${pendingMigrations.map(({ name }) => name).join(', ')}`,
-    );
-    this.name = 'PendingMigrationsError';
-    this.pendingMigrations = Object.freeze([...pendingMigrations]);
-  }
-}
-
 export const schemaComponentMigrator = <Component extends AnySchemaComponent>(
   options: SchemaComponentMigratorOptions<Component>,
 ): SchemaComponentMigrator<Component> => {
@@ -85,49 +70,6 @@ export const schemaComponentMigrator = <Component extends AnySchemaComponent>(
       JSONSerializer,
     );
 
-  const pendingMigrations = async ({
-    execute = pool.execute,
-    migrationTable,
-    ignoreMigrationHashMismatch,
-    migrationTimeoutMS,
-  }: MigratorOptions): Promise<SQLMigration[]> => {
-    const formatter = getFormatter(databaseType);
-    const table = migrationTableComponentFor(migrationTable).fullName;
-    const queryOptions = { timeoutMS: migrationTimeoutMS };
-
-    const history = new Map<string, string>();
-    const migrationTableExists = await getDatabaseMetadata(
-      pool.driverType,
-    )?.tableExists(execute, table.tableName, {
-      ...queryOptions,
-      databaseSchemaName: migrationTable?.schemaName,
-    });
-    if (migrationTableExists) {
-      const result = await execute.query<{ name: string; sqlHash: string }>(
-        SQL`SELECT name, sql_hash AS "sqlHash" FROM ${table}`,
-        queryOptions,
-      );
-      for (const { name, sqlHash } of result.rows) history.set(name, sqlHash);
-    }
-
-    const pending: SQLMigration[] = [];
-    for (const migration of component.migrations()) {
-      const sqls = migration.sqls.filter(
-        (statement) => !rendersNothing(statement, formatter),
-      );
-      if (sqls.length === 0) continue;
-      const recorded = history.get(migration.name);
-      if (
-        recorded === undefined ||
-        (!ignoreMigrationHashMismatch &&
-          !migration.ignoreHashMismatch &&
-          recorded !== (await getMigrationHash(sqls, formatter)))
-      )
-        pending.push(migration);
-    }
-    return pending;
-  };
-
   const ensureMigrated = async (
     overrides?: Pick<
       MigratorOptions,
@@ -135,8 +77,11 @@ export const schemaComponentMigrator = <Component extends AnySchemaComponent>(
     >,
   ): Promise<void> => {
     if (migrated) return;
-    const pending = await pendingMigrations(optionsFor(overrides));
-    if (pending.length) throw new PendingMigrationsError(pending);
+    await ensureSQLMigrations(
+      pool,
+      component.migrations(),
+      optionsFor(overrides),
+    );
     migrated = true;
   };
 
@@ -150,16 +95,10 @@ export const schemaComponentMigrator = <Component extends AnySchemaComponent>(
     > = {},
   ): Promise<RunSQLMigrationsResult> => {
     const migrations = component.migrations();
+    if (migrated) return { applied: [], skipped: [...migrations] };
+
     const { execute, ...migrationOptions } = optionsFor(overrides);
     const inCallerTransaction = overrides.execute !== undefined;
-
-    const pending = migrated
-      ? []
-      : await pendingMigrations({ ...migrationOptions, execute });
-    if (pending.length === 0) {
-      if (!inCallerTransaction) migrated = true;
-      return { applied: [], skipped: [...migrations] };
-    }
 
     const result = await runSQLMigrations(
       pool,

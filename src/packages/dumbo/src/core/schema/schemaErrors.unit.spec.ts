@@ -11,6 +11,7 @@ import {
   registerDefaultMigratorOptions,
   runSQLMigrations,
 } from './migrators';
+import { dumboDatabaseMetadataRegistry } from './databaseMetadata';
 import { sqlMigration } from './sqlMigration';
 
 const migratorDatabaseType = 'SchemaErrorsTest';
@@ -26,6 +27,21 @@ const alwaysRenderingFormatter: SQLFormatter = SQLFormatter({
 
 registerFormatter(migratorDatabaseType, alwaysRenderingFormatter);
 registerDefaultMigratorOptions(migratorDatabaseType, {});
+dumboDatabaseMetadataRegistry.register(migratorDatabaseType, {
+  databaseType: migratorDatabaseType,
+  defaultDatabaseName: 'test',
+  capabilities: {
+    supportsMultipleDatabases: false,
+    supportsSchemas: false,
+    supportsFunctions: false,
+  },
+  tableExists: () => Promise.resolve(true),
+});
+
+const databaseTypeWithoutMetadata = 'SchemaErrorsWithoutMetadataTest';
+
+registerFormatter(databaseTypeWithoutMetadata, alwaysRenderingFormatter);
+registerDefaultMigratorOptions(databaseTypeWithoutMetadata, {});
 
 const noopExecutor = {
   query: () => Promise.resolve({ rowCount: 0, rows: [] }),
@@ -34,10 +50,10 @@ const noopExecutor = {
   batchCommand: () => Promise.resolve([]),
 } satisfies SQLExecutor;
 
-const executorWithRecordedHash = (sqlHash: string): SQLExecutor =>
+const executorWithRecordedHash = (name: string, sqlHash: string): SQLExecutor =>
   ({
     ...noopExecutor,
-    query: () => Promise.resolve({ rowCount: 1, rows: [{ sqlHash }] }),
+    query: () => Promise.resolve({ rowCount: 1, rows: [{ name, sqlHash }] }),
   }) as unknown as SQLExecutor;
 
 const tooLongMigrationName = 'a'.repeat(256);
@@ -51,6 +67,23 @@ describe('migrator typed errors', () => {
         errorCode: 500,
         message:
           'No default migrator options registered for database type: NotRegisteredDatabaseType',
+      },
+    ));
+
+  it('fails with a NotRegisteredError when running migrations for a database type without metadata', () =>
+    assertRejectsDumboError(
+      () =>
+        runSQLMigrations(
+          {
+            driverType: `${databaseTypeWithoutMetadata}:test`,
+          } as unknown as Dumbo,
+          [sqlMigration('without-metadata:001', [SQL`SELECT 1`])],
+          { execute: noopExecutor },
+        ),
+      {
+        errorType: 'NotRegisteredError',
+        errorCode: 500,
+        message: `No database metadata registered for database type: ${databaseTypeWithoutMetadata}`,
       },
     ));
 
@@ -77,6 +110,7 @@ describe('migrator typed errors', () => {
           [sqlMigration('mismatched:001', [SQL`SELECT 1`])],
           {
             execute: executorWithRecordedHash(
+              'mismatched:001',
               'hash-recorded-by-a-different-migration',
             ),
           },

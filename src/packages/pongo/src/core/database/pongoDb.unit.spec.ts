@@ -2,6 +2,7 @@ import {
   databaseSchemaComponent,
   DefaultDatabaseSchemaName,
   DumboError,
+  dumboDatabaseMetadataRegistry,
   dumboSchema,
   JSONSerializer,
   registerDefaultMigratorOptions,
@@ -60,6 +61,16 @@ registerFormatter(
   }),
 );
 registerDefaultMigratorOptions('test', {});
+dumboDatabaseMetadataRegistry.register('test', {
+  databaseType: 'test',
+  defaultDatabaseName: 'test',
+  capabilities: {
+    supportsMultipleDatabases: false,
+    supportsSchemas: false,
+    supportsFunctions: false,
+  },
+  tableExists: () => Promise.resolve(false),
+});
 
 type ExecutedCall = {
   method: keyof SQLExecutor;

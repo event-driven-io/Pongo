@@ -96,13 +96,15 @@ const usersFromDb = await users.find({ age: { $lt: 40 } }).toArray();
 
 ## Schema migrations
 
-Register your collections, then provision the database with one `await pongoDb.schema.migrate()` call. `PongoDb.schema` is the database-wide migration API: it exposes `component`, `sql()`, `print()`, `migrate()`, and `ensureMigrated()`, plus Pongo's `migrations` and `renameCollection()` members. Collection schema objects expose the declarative `collection.schema.component`.
+By default, Pongo creates a collection's table on the first operation on that collection. To create the tables in a deployment step instead, register your collections and call `migrate()`:
 
-Normal operations lazily migrate the registered database schema. The default `CreateOrUpdate` setting applies pending migrations. With `schema: { autoMigration: 'None' }`, operations read migration history without DDL or migration locks and throw Dumbo's `PendingMigrationsError` when migrations are missing or hash-mismatched; `schema.ensureMigrated()` runs the same check under any setting. Explicit `schema.migrate()` applies migrations under any setting. A successful check or migration is remembered until the collection graph changes.
+```ts
+pongoDb.collection<User>('users');
 
-`schema.sql()` and `schema.print()` describe component SQL without migration bookkeeping. On PostgreSQL, sqlite3, and Durable Object storage, `schema.migrate({ dryRun: true })` executes inside a transaction and rolls back; it requires DDL privileges and its result isn't remembered. Pongo rejects migration dry runs on D1, which does not support these transactions; use `schema.sql()` to preview its SQL.
+await pongoDb.schema.migrate();
+```
 
-**Beta migration:** replace `collection.schema.migrate()` with `pongoDb.schema.migrate()` after registering all required collections. See the [schema migration guide](./src/docs/schema-migrations.md) for provisioning examples and Dumbo's shared `SchemaComponentMigrator`.
+Run the application with `schema: { autoMigration: 'None' }`. With `None`, Pongo only checks the migration history and throws `PendingMigrationsError` when a migration is missing. See the [schema migration guide](./src/docs/schema-migrations.md) for SQL previews, dry runs, transactions, and upgrading from `collection.schema.migrate()`.
 
 ## How does it work?
 

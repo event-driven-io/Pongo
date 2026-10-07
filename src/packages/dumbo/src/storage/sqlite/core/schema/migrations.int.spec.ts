@@ -14,10 +14,12 @@ import {
   type Dumbo,
 } from '../../../..';
 import {
+  combineMigrations,
   databaseComponent,
   databaseSchemaComponent,
   extensionComponent,
   indexComponent,
+  migrationTableComponentFor,
   runSQLMigrations,
   sqlMigration,
   tableComponent,
@@ -266,6 +268,9 @@ describe('Migration Integration Tests', () => {
 
       it('does not record a migration whose statements all render empty SQL', async () => {
         const migration = sqlMigration('all-empty:001', [SQL.EMPTY, SQL.EMPTY]);
+        await pool.execute.batchCommand(
+          combineMigrations(...migrationTableComponentFor().migrations()),
+        );
 
         const result = await runSQLMigrations(pool, [migration]);
         const recorded = await count(
@@ -526,7 +531,7 @@ describe('Migration Integration Tests', () => {
         }
       });
 
-      it('should silently be not applied but update hash if a migration with the same name has a different hash with ignoreMigrationHashMismatch setting', async () => {
+      it('skips an already applied migration and keeps its recorded hash when its SQL changes and the migrator ignores hash mismatches', async () => {
         const migration: SQLMigration = {
           name: 'hash_check_migration',
           sqls: [
@@ -568,16 +573,12 @@ describe('Migration Integration Tests', () => {
           'The modified migration should be skipped due to hash mismatch.',
         );
 
-        const { sql_hash: updatedHash } = await single(
+        const { sql_hash: recordedHash } = await single(
           pool.execute.query<{ sql_hash: string }>(
             SQL`SELECT sql_hash FROM dmb_migrations WHERE name = 'hash_check_migration'`,
           ),
         );
-        assert.notStrictEqual(
-          initialHash,
-          updatedHash,
-          'The migration hash should be updated in the database.',
-        );
+        assert.strictEqual(recordedHash, initialHash);
       });
 
       it('skips an already applied migration with ignored hash mismatch when its SQL changes', async () => {

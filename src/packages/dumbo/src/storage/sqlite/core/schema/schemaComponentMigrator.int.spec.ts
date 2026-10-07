@@ -3,11 +3,13 @@ import { afterEach, beforeEach, describe, it } from 'vitest';
 import {
   schemaComponentMigrator,
   dumbo,
+  InvalidOperationError,
   PendingMigrationsError,
   schemaComponent,
   SQL,
   sqlMigration,
   type Dumbo,
+  UniqueConstraintError,
 } from '../../../..';
 import { SQLite3DriverType } from '../../sqlite3';
 import { InMemorySQLiteDatabase } from '..';
@@ -79,16 +81,20 @@ describe('SQLite schema component migrator', () => {
       await assert.doesNotReject(migrator.ensureMigrated());
     });
 
-    it('reports a migration whose SQL changed after it was applied', async () => {
+    it('reports a hash mismatch for a migration whose SQL changed after it was applied', async () => {
       await schemaComponentMigrator({ pool, component: users }).migrate();
       const migrator = schemaComponentMigrator({
         pool,
         component: usersWithChangedSQL,
       });
 
-      await assertRejectsWithPendingMigrations(migrator.ensureMigrated(), [
-        'users:create',
-      ]);
+      await assert.rejects(
+        migrator.ensureMigrated(),
+        (error) =>
+          error instanceof InvalidOperationError &&
+          error.message ===
+            'Migration hash mismatch for "users:create". Aborting migration.',
+      );
     });
 
     it('accepts changed SQL when the migrator ignores hash mismatches', async () => {
@@ -144,11 +150,17 @@ describe('SQLite schema component migrator', () => {
       assert.equal(await tableExists(pool.execute, 'users'), true);
     });
 
-    it('applies pending migrations for concurrent calls', async () => {
+    it('fails with a UniqueConstraintError when a concurrent call already applied the same migration', async () => {
       const migrator = schemaComponentMigrator({ pool, component: users });
 
-      await Promise.all([migrator.migrate(), migrator.migrate()]);
+      const results = await Promise.allSettled([
+        migrator.migrate(),
+        migrator.migrate(),
+      ]);
 
+      const rejected = results.filter((result) => result.status === 'rejected');
+      assert.equal(rejected.length, 1);
+      assert.ok(rejected[0]!.reason instanceof UniqueConstraintError);
       assert.equal(await tableExists(pool.execute, 'users'), true);
     });
 
