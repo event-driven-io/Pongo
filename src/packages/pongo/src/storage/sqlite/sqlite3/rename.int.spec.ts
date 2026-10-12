@@ -267,11 +267,42 @@ describe('renaming a SQLite Pongo collection', () => {
     }
   });
 
-  it('rejects operations on a renamed collection until the rename is migrated when autoMigration is None', async () => {
+  it('does not apply the rename when autoMigration is EnsureMigrated', async () => {
     const manualClient = pongoClient({
       driver: sqlite3Driver,
       connectionString,
-      schema: { autoMigration: 'None' },
+      schema: { autoMigration: 'EnsureMigrated' },
+    });
+    const tableNames = async () => {
+      const tables = await pool.execute.query<{ name: string }>(
+        SQL`
+          SELECT name
+          FROM sqlite_master
+          WHERE type = 'table' AND name IN ('users', 'archived_users')
+          ORDER BY name`,
+      );
+      return tables.rows.map(({ name }) => name);
+    };
+
+    try {
+      const manualDb = manualClient.db('database');
+      const users = manualDb.collection<User>('users');
+      await manualDb.schema.migrate();
+      await users.insertOne({ name: 'Oskar' });
+
+      await users.rename('archived_users');
+
+      assert.deepStrictEqual(await tableNames(), ['users']);
+    } finally {
+      await manualClient.close();
+    }
+  });
+
+  it('rejects operations on a renamed collection until the rename is migrated when autoMigration is EnsureMigrated', async () => {
+    const manualClient = pongoClient({
+      driver: sqlite3Driver,
+      connectionString,
+      schema: { autoMigration: 'EnsureMigrated' },
     });
 
     try {

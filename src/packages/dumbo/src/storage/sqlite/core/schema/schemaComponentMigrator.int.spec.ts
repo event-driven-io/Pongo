@@ -296,6 +296,46 @@ describe('SQLite schema component migrator', () => {
       assert.equal(await tableExists(pool.execute, 'users'), true);
     });
 
+    it('overrides recorded hashes of migrations whose SQL changed without running them again', async () => {
+      await schemaComponentMigrator({ pool, component: users }).migrate();
+      const migrator = schemaComponentMigrator({
+        pool,
+        component: usersWithChangedSQL,
+      });
+
+      const result = await migrator.migrate({ overrideMigrationHashes: true });
+
+      assert.deepEqual(result.applied, []);
+      assert.deepEqual(
+        result.skipped.map(({ name }) => name),
+        ['users:create'],
+      );
+      await assert.doesNotReject(
+        schemaComponentMigrator({
+          pool,
+          component: usersWithChangedSQL,
+        }).ensureMigrated(),
+      );
+    });
+
+    it('keeps recorded hashes in a dry run that overrides them', async () => {
+      await schemaComponentMigrator({ pool, component: users }).migrate();
+      const migrator = schemaComponentMigrator({
+        pool,
+        component: usersWithChangedSQL,
+      });
+
+      await migrator.migrate({ overrideMigrationHashes: true, dryRun: true });
+
+      await assert.rejects(
+        schemaComponentMigrator({
+          pool,
+          component: usersWithChangedSQL,
+        }).ensureMigrated(),
+        InvalidOperationError,
+      );
+    });
+
     it('keeps ignoring hash mismatches when a call passes undefined', async () => {
       await schemaComponentMigrator({ pool, component: users }).migrate();
       const migrator = schemaComponentMigrator({

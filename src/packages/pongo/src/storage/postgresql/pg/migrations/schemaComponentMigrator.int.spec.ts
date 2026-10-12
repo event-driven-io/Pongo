@@ -33,11 +33,11 @@ describe('PostgreSQL schema component migrator', () => {
     await postgres?.stop();
   });
   schemaComponentMigratorTests({
-    client: (autoMigration) => {
+    client: (autoMigration, schema) => {
       const client = pongoClient({
         driver: pongoDriver,
         connectionString,
-        schema: { autoMigration },
+        schema: { autoMigration, ...schema },
       });
       clients.push(client);
       return client;

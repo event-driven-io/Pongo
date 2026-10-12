@@ -36,17 +36,17 @@ db.collection<{ total: number }>('orders');
 await db.schema.migrate();
 ```
 
-Run the application with `autoMigration: 'None'`:
+Run the application with `autoMigration: 'EnsureMigrated'`:
 
 ```ts
 const client = pongoClient({
   driver: pongoDriver,
   connectionString: 'postgresql://localhost/pongo',
-  schema: { autoMigration: 'None' },
+  schema: { autoMigration: 'EnsureMigrated' },
 });
 ```
 
-With `None`, the first operation only reads the migration history. The application's database user needs read access to the history table and read and write access to the collection tables. If the deployment step missed a migration, the operation throws `PendingMigrationsError`. Its `pendingMigrations` property lists the missing migrations.
+With `EnsureMigrated`, the first operation only reads the migration history. The application's database user needs read access to the history table and read and write access to the collection tables. If the deployment step missed a migration, the operation throws `PendingMigrationsError`. Its `pendingMigrations` property lists the missing migrations.
 
 To run the same check yourself, for example at startup or in a health check, call:
 
@@ -55,6 +55,8 @@ await db.schema.ensureMigrated();
 ```
 
 `ensureMigrated()` reads the history under any `autoMigration` setting.
+
+With `autoMigration: 'None'`, Pongo neither migrates nor reads the migration history. Operations on a missing table fail with the database error. Use it when your application or library runs the migrations or the checks itself.
 
 ## Preview the SQL
 
@@ -88,6 +90,26 @@ await db.schema.migrate({ ignoreMigrationHashMismatch: true });
 
 Pongo then treats that migration as applied, keeps the table as it is, and keeps the recorded hash.
 
+Because the recorded hash stays, the next check without the option throws again. To ignore hash mismatches in every check and migration of a client, including automatic ones, set it on the client:
+
+```ts
+const client = pongoClient({
+  driver: pongoDriver,
+  connectionString: 'postgresql://localhost/pongo',
+  schema: { ignoreMigrationHashMismatch: true },
+});
+```
+
+A `migrate()` call can still override it with its own `ignoreMigrationHashMismatch`.
+
+To record the new hashes instead, so that no option is needed later, call `migrate()` once with `overrideMigrationHashes`:
+
+```ts
+await db.schema.migrate({ overrideMigrationHashes: true });
+```
+
+Pongo then writes the new hash of each changed migration into the history, without running its SQL again. You can't combine it with `ignoreMigrationHashMismatch: false`.
+
 ## Transactions
 
 Automatic migration runs in its own transaction, outside your session. If the first operation on a collection runs in a session transaction that later aborts, the table stays and the documents written in that transaction roll back.
@@ -100,13 +122,13 @@ On D1, automatic migration runs directly on the database. D1 writes each migrati
 
 Under `CreateOrUpdate`, `collection.rename(newName)` renames the table immediately.
 
-Under `None`, `rename()` registers the rename migration, and the table keeps its old name until your deployment step calls `db.schema.migrate()`. Until then, operations on the renamed collection throw `PendingMigrationsError`.
+Under `EnsureMigrated` and `None`, `rename()` registers the rename migration, and the table keeps its old name until your deployment step calls `db.schema.migrate()`. Until then, under `EnsureMigrated`, operations on the renamed collection throw `PendingMigrationsError`. Under `None`, they fail with the database error for the missing table.
 
 ## Several application instances
 
 When several instances, or concurrent first operations in one instance, try to apply the same migration at the same time, one of them applies it. The others fail with Dumbo's `UniqueConstraintError`, and their migration transactions roll back. When you retry such an operation, Pongo finds the migration recorded and continues.
 
-To avoid these failures, migrate in a deployment step and run the instances with `autoMigration: 'None'`.
+To avoid these failures, migrate in a deployment step and run the instances with `autoMigration: 'EnsureMigrated'`.
 
 ## Composing schemas with Dumbo
 

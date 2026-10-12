@@ -30,11 +30,11 @@ describe('sqlite3 schema component migrator', () => {
     );
   });
   schemaComponentMigratorTests({
-    client: (autoMigration) => {
+    client: (autoMigration, schema) => {
       const client = pongoClient({
         driver: sqlite3Driver,
         connectionString: SQLiteConnectionString(`file:${fileName}`),
-        schema: { autoMigration },
+        schema: { autoMigration, ...schema },
       });
       clients.push(client);
       return client;

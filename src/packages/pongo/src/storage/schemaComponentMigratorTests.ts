@@ -1,4 +1,5 @@
 import {
+  InvalidOperationError,
   PendingMigrationsError,
   SQL,
   type MigrationStyle,
@@ -24,7 +25,10 @@ const assertRejectsWithPendingMigrations = (
   });
 
 export const schemaComponentMigratorTests = (options: {
-  client: (autoMigration: MigrationStyle) => PongoClient;
+  client: (
+    autoMigration: MigrationStyle,
+    schema?: { ignoreMigrationHashMismatch?: boolean },
+  ) => PongoClient;
   tables: () => Promise<string[]>;
   supportsRollback?: boolean;
 }) => {
@@ -38,25 +42,38 @@ export const schemaComponentMigratorTests = (options: {
       ]);
     });
 
-    it('rejects collection operations without creating tables while migrations are pending', async () => {
+    it('runs collection operations without reading the migration history', async () => {
+      const provisioningDb = options.client('None').db();
+      provisioningDb.collection<User>('users');
+      await provisioningDb.schema.migrate();
+      await provisioningDb.sql.command(SQL`DROP TABLE dmb_migrations`);
+      const users = options.client('None').db().collection<User>('users');
+
+      await users.insertOne({ name: 'Oskar' });
+
+      assert.equal((await users.findOne({ name: 'Oskar' }))?.name, 'Oskar');
+      assert.ok(!(await options.tables()).includes('dmb_migrations'));
+    });
+
+    it('fails collection operations on a missing table without creating tables', async () => {
       const users = options.client('None').db().collection<User>('users');
 
       await assert.rejects(
         users.insertOne({ name: 'Oskar' }),
-        PendingMigrationsError,
+        (error) => !(error instanceof PendingMigrationsError),
       );
 
       assert.deepEqual(await options.tables(), []);
     });
 
-    it('rejects raw SQL while migrations are pending', async () => {
+    it('runs raw SQL without reading the migration history', async () => {
       const db = options.client('None').db();
       db.collection<User>('users');
 
-      await assert.rejects(
-        db.sql.query(SQL`SELECT 1 AS one`),
-        PendingMigrationsError,
-      );
+      const rows = await db.sql.query<{ one: number }>(SQL`SELECT 1 AS one`);
+
+      assert.equal(rows.length, 1);
+      assert.deepEqual(await options.tables(), []);
     });
 
     it('runs operations on collections migrated by another client', async () => {
@@ -93,6 +110,46 @@ export const schemaComponentMigratorTests = (options: {
     });
   });
 
+  describe('with automatic migration check', () => {
+    it('rejects collection operations without creating tables while migrations are pending', async () => {
+      const users = options
+        .client('EnsureMigrated')
+        .db()
+        .collection<User>('users');
+
+      await assertRejectsWithPendingMigrations(
+        users.insertOne({ name: 'Oskar' }),
+        ['table:pongo_collection:users:create'],
+      );
+
+      assert.deepEqual(await options.tables(), []);
+    });
+
+    it('rejects raw SQL while migrations are pending', async () => {
+      const db = options.client('EnsureMigrated').db();
+      db.collection<User>('users');
+
+      await assert.rejects(
+        db.sql.query(SQL`SELECT 1 AS one`),
+        PendingMigrationsError,
+      );
+    });
+
+    it('runs operations on collections migrated by another client', async () => {
+      const provisioningDb = options.client('None').db();
+      provisioningDb.collection<User>('users');
+      await provisioningDb.schema.migrate();
+      const users = options
+        .client('EnsureMigrated')
+        .db()
+        .collection<User>('users');
+
+      await users.insertOne({ name: 'Oskar' });
+
+      assert.equal((await users.findOne({ name: 'Oskar' }))?.name, 'Oskar');
+    });
+  });
+
   describe('with automatic migration', () => {
     it('reports pending migrations on ensuring without creating tables', async () => {
       const db = options.client('CreateOrUpdate').db();
@@ -122,6 +179,80 @@ export const schemaComponentMigratorTests = (options: {
       const rows = await db.sql.query(SQL`SELECT * FROM users`);
 
       assert.deepEqual(rows, []);
+    });
+  });
+
+  describe('with a changed migration hash', () => {
+    const migrateUsersAndChangeTheirHash = async () => {
+      const provisioningDb = options.client('None').db();
+      provisioningDb.collection<User>('users');
+      await provisioningDb.schema.migrate();
+      await provisioningDb.sql.command(
+        SQL`UPDATE dmb_migrations SET sql_hash = 'changed'`,
+      );
+    };
+
+    it('runs collection operations when the client ignores hash mismatches', async () => {
+      await migrateUsersAndChangeTheirHash();
+      const users = options
+        .client('CreateOrUpdate', { ignoreMigrationHashMismatch: true })
+        .db()
+        .collection<User>('users');
+
+      await users.insertOne({ name: 'Oskar' });
+
+      assert.equal((await users.findOne({ name: 'Oskar' }))?.name, 'Oskar');
+    });
+
+    it('rejects collection operations when the client does not ignore hash mismatches', async () => {
+      await migrateUsersAndChangeTheirHash();
+      const users = options
+        .client('CreateOrUpdate')
+        .db()
+        .collection<User>('users');
+
+      await assert.rejects(
+        users.insertOne({ name: 'Oskar' }),
+        InvalidOperationError,
+      );
+    });
+
+    it('ensures migrations when the client ignores hash mismatches', async () => {
+      await migrateUsersAndChangeTheirHash();
+      const db = options
+        .client('EnsureMigrated', { ignoreMigrationHashMismatch: true })
+        .db();
+      db.collection<User>('users');
+
+      await db.schema.ensureMigrated();
+    });
+
+    it('runs collection operations without ignoring hash mismatches after a migration overrode the hashes', async () => {
+      await migrateUsersAndChangeTheirHash();
+      const db = options.client('None').db();
+      db.collection<User>('users');
+      await db.schema.migrate({ overrideMigrationHashes: true });
+      const users = options
+        .client('CreateOrUpdate')
+        .db()
+        .collection<User>('users');
+
+      await users.insertOne({ name: 'Oskar' });
+
+      assert.equal((await users.findOne({ name: 'Oskar' }))?.name, 'Oskar');
+    });
+
+    it('rejects a migration that does not ignore hash mismatches although the client does', async () => {
+      await migrateUsersAndChangeTheirHash();
+      const db = options
+        .client('None', { ignoreMigrationHashMismatch: true })
+        .db();
+      db.collection<User>('users');
+
+      await assert.rejects(
+        db.schema.migrate({ ignoreMigrationHashMismatch: false }),
+        InvalidOperationError,
+      );
     });
   });
 

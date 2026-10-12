@@ -1,4 +1,7 @@
-import { PendingMigrationsError } from '@event-driven-io/dumbo';
+import {
+  PendingMigrationsError,
+  type MigrationStyle,
+} from '@event-driven-io/dumbo';
 import { SQLiteConnectionString } from '@event-driven-io/dumbo/sqlite3';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -14,11 +17,11 @@ describe('SQLite3 schema migrations', () => {
   let fileName: string;
   let clients: PongoClient[];
 
-  const client = () => {
+  const client = (autoMigration: MigrationStyle = 'None') => {
     const created = pongoClient({
       driver: sqlite3Driver,
       connectionString: SQLiteConnectionString(`file:${fileName}`),
-      schema: { autoMigration: 'None' },
+      schema: { autoMigration },
     });
     clients.push(created);
     return created;
@@ -46,7 +49,7 @@ describe('SQLite3 schema migrations', () => {
 
   it('runtime client reads and writes collections migrated by a provisioning client', async () => {
     await provisionUsers();
-    const users = client().db().collection<User>('users');
+    const users = client('EnsureMigrated').db().collection<User>('users');
 
     await users.insertOne({ name: 'Anita', age: 25 });
     await users.updateOne({ name: 'Anita' }, { $set: { age: 26 } });
@@ -57,7 +60,7 @@ describe('SQLite3 schema migrations', () => {
 
   it('runtime client reports a collection registered only at runtime as pending', async () => {
     await provisionUsers();
-    const orders = client().db().collection<Order>('orders');
+    const orders = client('EnsureMigrated').db().collection<Order>('orders');
 
     await assert.rejects(orders.insertOne({ total: 10 }), (error) => {
       assert.ok(error instanceof PendingMigrationsError);

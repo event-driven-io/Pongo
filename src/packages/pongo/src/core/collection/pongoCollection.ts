@@ -946,7 +946,7 @@ export const pongoCollection = <
       component = db.schema.renameCollection(component, newName);
       SqlFor = sqlBuilderFor(component);
 
-      if (schema?.autoMigration !== 'None')
+      if ((schema?.autoMigration ?? 'CreateOrUpdate') === 'CreateOrUpdate')
         await db.schema.migrate({
           session: options?.session,
           migrationTimeoutMS: timeoutMSOf(options),

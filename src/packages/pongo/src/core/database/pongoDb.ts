@@ -61,6 +61,7 @@ export type PongoDatabaseOptions<
   schema?:
     | {
         autoMigration?: MigrationStyle;
+        ignoreMigrationHashMismatch?: boolean;
         definition?: Definition;
       }
     | undefined;
@@ -135,6 +136,12 @@ export const PongoDatabase = <
     createMigrator: (component) =>
       schemaComponentMigrator({
         ...options.migrationOptions,
+        ...(options.schema?.ignoreMigrationHashMismatch === undefined
+          ? {}
+          : {
+              ignoreMigrationHashMismatch:
+                options.schema.ignoreMigrationHashMismatch,
+            }),
         pool,
         component,
         migrationTable: options.migrationTable,
@@ -162,11 +169,14 @@ export const PongoDatabase = <
   const ensureSchema = async (
     operationOptions?: CollectionOperationOptions,
   ) => {
+    const autoMigration = options.schema?.autoMigration ?? 'CreateOrUpdate';
+    if (autoMigration === 'None') return;
+
     const { migrator } = databaseComponent;
     const migrationOptions = {
       migrationTimeoutMS: timeoutMSOf(operationOptions),
     };
-    await (options.schema?.autoMigration === 'None'
+    await (autoMigration === 'EnsureMigrated'
       ? migrator.ensureMigrated(migrationOptions)
       : migrator.migrate(migrationOptions));
   };

@@ -1,7 +1,7 @@
 import { JSONSerializer } from '../serializer';
 import type { SQL } from '../sql';
 
-export type MigrationStyle = 'None' | 'CreateOrUpdate';
+export type MigrationStyle = 'None' | 'EnsureMigrated' | 'CreateOrUpdate';
 
 export type SQLMigrationOptions = {
   ignoreHashMismatch?: boolean | undefined;

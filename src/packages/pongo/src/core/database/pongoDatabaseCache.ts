@@ -70,6 +70,7 @@ export const PongoDatabaseCache = <
       } & JSONSerializationOptions & {
           schema?: {
             autoMigration?: MigrationStyle;
+            ignoreMigrationHashMismatch?: boolean;
             definition?: PongoDbSchema;
           };
         },
@@ -117,6 +118,7 @@ export const PongoDatabaseCache = <
 
       const schemaOptions: {
         autoMigration?: MigrationStyle;
+        ignoreMigrationHashMismatch?: boolean;
         definition?: PongoDbSchema;
       } = { ...createOptions.schema };
       const schemaDefinitionForDatabase = definition ?? schemaDefinition;

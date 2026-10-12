@@ -4,6 +4,7 @@ import { describeSQL, getFormatter } from '../../sql';
 import type { AnySchemaComponent } from '../schemaComponent';
 import {
   ensureSQLMigrations,
+  type MigrationHashMismatchOptions,
   type MigratorOptions,
   runSQLMigrations,
   type RunSQLMigrationsResult,
@@ -16,6 +17,12 @@ export type SchemaComponentMigratorOptions<
   component: Component;
 };
 
+export type SchemaComponentMigrateOptions = Pick<
+  MigratorOptions,
+  'execute' | 'dryRun' | 'migrationTimeoutMS'
+> &
+  MigrationHashMismatchOptions;
+
 export type SchemaComponentMigrator<
   Component extends AnySchemaComponent = AnySchemaComponent,
 > = Readonly<{
@@ -23,13 +30,7 @@ export type SchemaComponentMigrator<
   sql(): string;
   print(): void;
   migrate(
-    options?: Pick<
-      MigratorOptions,
-      | 'execute'
-      | 'dryRun'
-      | 'ignoreMigrationHashMismatch'
-      | 'migrationTimeoutMS'
-    >,
+    options?: SchemaComponentMigrateOptions,
   ): Promise<RunSQLMigrationsResult>;
   ensureMigrated(
     options?: Pick<
@@ -47,14 +48,8 @@ export const schemaComponentMigrator = <Component extends AnySchemaComponent>(
   let migrated = false;
 
   const optionsFor = (
-    overrides?: Pick<
-      MigratorOptions,
-      | 'execute'
-      | 'dryRun'
-      | 'ignoreMigrationHashMismatch'
-      | 'migrationTimeoutMS'
-    >,
-  ): MigratorOptions => ({
+    overrides?: SchemaComponentMigrateOptions,
+  ): Partial<MigratorOptions> & MigrationHashMismatchOptions => ({
     ...configured,
     ...Object.fromEntries(
       Object.entries(overrides ?? {}).filter(
@@ -86,13 +81,7 @@ export const schemaComponentMigrator = <Component extends AnySchemaComponent>(
   };
 
   const migrate = async (
-    overrides: Pick<
-      MigratorOptions,
-      | 'execute'
-      | 'dryRun'
-      | 'ignoreMigrationHashMismatch'
-      | 'migrationTimeoutMS'
-    > = {},
+    overrides: SchemaComponentMigrateOptions = {},
   ): Promise<RunSQLMigrationsResult> => {
     const migrations = component.migrations();
     if (migrated) return { applied: [], skipped: [...migrations] };

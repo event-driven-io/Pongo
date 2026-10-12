@@ -78,10 +78,14 @@ export const pongoClient = <
     cacheOptions === 'disabled' || cacheOptions === undefined
       ? 'disabled'
       : pongoCache(cacheOptions);
-  const schemaOptions =
-    schema?.autoMigration === undefined
+  const schemaOptions = {
+    ...(schema?.autoMigration === undefined
       ? {}
-      : { autoMigration: schema.autoMigration };
+      : { autoMigration: schema.autoMigration }),
+    ...(schema?.ignoreMigrationHashMismatch === undefined
+      ? {}
+      : { ignoreMigrationHashMismatch: schema.ignoreMigrationHashMismatch }),
+  };
 
   const core: PongoClient<
     DatabaseDriver['driverType'],
