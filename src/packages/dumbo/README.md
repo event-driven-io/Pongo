@@ -36,10 +36,11 @@ await migrator.ensureMigrated();
 Use it in applications whose database user can't create tables, after a deployment step called `migrate()`. If your library has an automatic-migration setting, pick the call from it:
 
 ```ts
-await (autoMigration === 'None'
-  ? migrator.ensureMigrated()
-  : migrator.migrate());
+if (autoMigration === 'CreateOrUpdate') await migrator.migrate();
+else if (autoMigration === 'EnsureMigrated') await migrator.ensureMigrated();
 ```
+
+`MigrationStyle` lists these values: `'CreateOrUpdate'` migrates, `'EnsureMigrated'` only checks, and `'None'` does neither.
 
 ### Composing components
 
@@ -65,7 +66,7 @@ A migrator is bound to one component and one history table. When either changes,
 - `lock`: the database lock taken while migrations run. On PostgreSQL, the default is an advisory lock.
 - `dryRun`, `ignoreMigrationHashMismatch`, `migrationTimeoutMS`: described below.
 
-`migrate()` also accepts `execute`, `dryRun`, `ignoreMigrationHashMismatch`, and `migrationTimeoutMS` per call. Pass `execute` to run the migrations in your own transaction, so they commit or roll back with it. Because your transaction can still roll back, the next call checks the database again.
+`migrate()` also accepts `execute`, `dryRun`, `ignoreMigrationHashMismatch`, `overrideMigrationHashes`, and `migrationTimeoutMS` per call. Pass `execute` to run the migrations in your own transaction, so they commit or roll back with it. Because your transaction can still roll back, the next call checks the database again.
 
 ### Previews and dry runs
 
@@ -85,7 +86,15 @@ sqlMigration('users:create', [SQL`CREATE TABLE users (id TEXT)`], {
 });
 ```
 
-Dumbo then treats the migration as applied: the database keeps what the original SQL created, and the history keeps the original hash.
+Dumbo then treats the migration as applied: the database keeps what the original SQL created, and the history keeps the original hash. So every later check without the option throws again.
+
+To record the new hashes instead, call `migrate()` once with `overrideMigrationHashes`:
+
+```ts
+await migrator.migrate({ overrideMigrationHashes: true });
+```
+
+Dumbo then writes the new hash of each changed migration into the history, without running its SQL again. It does this in the migration transaction, under the migration lock. Later checks pass without any option. `overrideMigrationHashes` is a per-call option only, and you can't combine it with `ignoreMigrationHashMismatch: false`.
 
 ### Concurrent migrations
 

@@ -67,6 +67,16 @@ export type MigratorOptions = {
   migrationTimeoutMS?: number | undefined;
 };
 
+export type MigrationHashMismatchOptions =
+  | {
+      ignoreMigrationHashMismatch?: boolean | undefined;
+      overrideMigrationHashes?: false | undefined;
+    }
+  | {
+      ignoreMigrationHashMismatch?: true | undefined;
+      overrideMigrationHashes: true;
+    };
+
 export type RunSQLMigrationsResult = {
   applied: SQLMigration[];
   skipped: SQLMigration[];
@@ -102,7 +112,7 @@ export const ensureSQLMigrations = async (
 export const runSQLMigrations = async (
   pool: Dumbo,
   migrations: ReadonlyArray<SQLMigration>,
-  partialOptions?: Partial<MigratorOptions>,
+  partialOptions?: Partial<MigratorOptions> & MigrationHashMismatchOptions,
 ): Promise<RunSQLMigrationsResult> => {
   const options = migratorOptionsFor(pool.driverType, partialOptions);
   const pending = await pendingSQLMigrations(
@@ -110,8 +120,11 @@ export const runSQLMigrations = async (
     options.execute ?? pool.execute,
     migrations,
     options,
+    partialOptions?.overrideMigrationHashes === true,
   );
-  const applied = pending.map(({ migration }) => migration);
+  const applied = pending
+    .filter(({ overridesHash }) => !overridesHash)
+    .map(({ migration }) => migration);
   const result = {
     applied,
     skipped: migrations.filter((migration) => !applied.includes(migration)),
@@ -167,7 +180,12 @@ const migratorOptionsFor = (
 const applySQLMigrations = async (
   driverType: DatabaseDriverType,
   execute: SQLExecutor,
-  pending: { migration: SQLMigration; sqls: SQL[]; sqlHash: string }[],
+  pending: {
+    migration: SQLMigration;
+    sqls: SQL[];
+    sqlHash: string;
+    overridesHash: boolean;
+  }[],
   options: MigratorOptions,
 ): Promise<void> => {
   for (const { migration } of pending) {
@@ -205,7 +223,7 @@ const applySQLMigrations = async (
         });
       }
 
-      for (const { migration, sqlHash, sqls } of pending) {
+      for (const { migration, sqlHash, sqls, overridesHash } of pending) {
         const newMigration = {
           name: migration.name,
           sqlHash,
@@ -213,14 +231,22 @@ const applySQLMigrations = async (
         try {
           await execute.batchCommand(
             [
-              recordMigrationSQL(newMigration, migrationTableReference),
+              overridesHash
+                ? overrideMigrationHashSQL(
+                    newMigration,
+                    migrationTableReference,
+                  )
+                : recordMigrationSQL(newMigration, migrationTableReference),
               ...sqls,
             ],
             { timeoutMS: options.migrationTimeoutMS },
           );
-          tracer.info('migration-applied', {
-            migrationName: migration.name,
-          });
+          tracer.info(
+            overridesHash ? 'migration-hash-overridden' : 'migration-applied',
+            {
+              migrationName: migration.name,
+            },
+          );
         } catch (error) {
           tracer.error('migration-error', {
             migationName: migration.name,
@@ -262,6 +288,7 @@ const pendingSQLMigrations = async (
   execute: SQLExecutor,
   migrations: ReadonlyArray<SQLMigration>,
   options: MigratorOptions,
+  overrideMigrationHashes = false,
 ) => {
   const databaseType = fromDatabaseDriverType(driverType).databaseType;
   const metadata = getDatabaseMetadata(driverType);
@@ -292,8 +319,12 @@ const pendingSQLMigrations = async (
 
   const formatter = getFormatter(databaseType);
 
-  const pending: { migration: SQLMigration; sqls: SQL[]; sqlHash: string }[] =
-    [];
+  const pending: {
+    migration: SQLMigration;
+    sqls: SQL[];
+    sqlHash: string;
+    overridesHash: boolean;
+  }[] = [];
   for (const migration of migrations) {
     const sqls = combineMigrations(migration).filter(
       (sql) => !rendersNothing(sql, formatter),
@@ -304,7 +335,7 @@ const pendingSQLMigrations = async (
     const recordedHash = history.get(migration.name);
 
     if (recordedHash === undefined) {
-      pending.push({ migration, sqls, sqlHash });
+      pending.push({ migration, sqls, sqlHash, overridesHash: false });
       continue;
     }
 
@@ -312,6 +343,11 @@ const pendingSQLMigrations = async (
       tracer.info('migration-already-applied', {
         migrationName: migration.name,
       });
+      continue;
+    }
+
+    if (overrideMigrationHashes) {
+      pending.push({ migration, sqls: [], sqlHash, overridesHash: true });
       continue;
     }
 
@@ -345,3 +381,12 @@ const recordMigrationSQL = (
   SQL`
       INSERT INTO ${migrationTableReference} (name, sql_hash)
       VALUES (${migration.name}, ${migration.sqlHash})`;
+
+const overrideMigrationHashSQL = (
+  migration: { name: string; sqlHash: string },
+  migrationTableReference: SQLTableReference,
+): SQL =>
+  SQL`
+      UPDATE ${migrationTableReference}
+      SET sql_hash = ${migration.sqlHash}
+      WHERE name = ${migration.name}`;

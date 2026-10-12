@@ -102,7 +102,7 @@ pongoDb.collection<User>('users');
 await pongoDb.schema.migrate();
 ```
 
-Run the application with `schema: { autoMigration: 'None' }`. With `None`, Pongo only checks the migration history and throws `PendingMigrationsError` when a migration is missing. See the [schema migration guide](./schema-migrations) for SQL previews, dry runs, transactions, and upgrading from `collection.schema.migrate()`.
+Run the application with `schema: { autoMigration: 'EnsureMigrated' }`. With `EnsureMigrated`, Pongo only checks the migration history and throws `PendingMigrationsError` when a migration is missing. With `None`, Pongo neither checks nor migrates. See the [schema migration guide](./schema-migrations) for SQL previews, dry runs, transactions, and upgrading from `collection.schema.migrate()`.
 
 ## How does it work?
 

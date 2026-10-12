@@ -7,6 +7,7 @@ import type {
   DatabaseTransaction,
   JSONSerializationOptions,
   JSONSerializer,
+  MigrationHashMismatchOptions,
   MigrationTableOptions,
   MigrationStyle,
   QueryResult,
@@ -75,6 +76,7 @@ export type PongoClientOptions<
           schema?:
             | {
                 autoMigration?: MigrationStyle;
+                ignoreMigrationHashMismatch?: boolean;
                 definition?: SchemaDefinition;
               }
             | undefined;
@@ -196,9 +198,8 @@ export type AnyPongoDb = PongoDb<DatabaseDriverType>;
 export type PongoMigrationOptions = {
   session?: PongoSession | undefined;
   dryRun?: boolean | undefined;
-  ignoreMigrationHashMismatch?: boolean | undefined;
   migrationTimeoutMS?: number | undefined;
-};
+} & MigrationHashMismatchOptions;
 
 export type CollectionOperationOptions = {
   session?: PongoSession;

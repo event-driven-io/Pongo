@@ -248,12 +248,34 @@ describe('renaming a PostgreSQL Pongo collection', () => {
     }
   });
 
-  it('rejects operations on a renamed collection until the rename is migrated when autoMigration is None', async () => {
+  it('does not apply the rename when autoMigration is EnsureMigrated', async () => {
     const manualClient = pongoClient({
       driver: pgDriver,
       connectionString,
       defaultSchemaName: 'public',
-      schema: { autoMigration: 'None' },
+      schema: { autoMigration: 'EnsureMigrated' },
+    });
+
+    try {
+      const manualDb = manualClient.db('database');
+      const users = manualDb.collection<User>('users');
+      await manualDb.schema.migrate();
+      await users.insertOne({ name: 'Oskar' });
+
+      await users.rename('archived_users');
+
+      assert.deepStrictEqual(await tablesIn('public'), ['users']);
+    } finally {
+      await manualClient.close();
+    }
+  });
+
+  it('rejects operations on a renamed collection until the rename is migrated when autoMigration is EnsureMigrated', async () => {
+    const manualClient = pongoClient({
+      driver: pgDriver,
+      connectionString,
+      defaultSchemaName: 'public',
+      schema: { autoMigration: 'EnsureMigrated' },
     });
 
     try {

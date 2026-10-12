@@ -22,11 +22,11 @@ describe('Durable Object schema component migrator', () => {
     });
   });
   schemaComponentMigratorTests({
-    client: (autoMigration) => {
+    client: (autoMigration, schema) => {
       const client = pongoClient({
         driver: cloudflareDurableObjectSQLiteDriver,
         storage,
-        schema: { autoMigration },
+        schema: { autoMigration, ...schema },
       });
       clients.push(client);
       return client;

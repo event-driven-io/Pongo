@@ -3,6 +3,7 @@ import {
   PendingMigrationsError,
   SQL,
   type Dumbo,
+  type MigrationStyle,
 } from '@event-driven-io/dumbo';
 import { PostgreSQLConnectionString } from '@event-driven-io/dumbo/pg';
 import {
@@ -31,11 +32,14 @@ describe('PostgreSQL schema migrations', () => {
   let runtimeConnectionString: PostgreSQLConnectionString;
   let clients: PongoClient[];
 
-  const client = (connectionString: PostgreSQLConnectionString) => {
+  const client = (
+    connectionString: PostgreSQLConnectionString,
+    autoMigration: MigrationStyle = 'None',
+  ) => {
     const created = pongoClient({
       driver: pongoDriver,
       connectionString,
-      schema: { autoMigration: 'None' },
+      schema: { autoMigration },
     });
     clients.push(created);
     return created;
@@ -83,7 +87,7 @@ describe('PostgreSQL schema migrations', () => {
 
   it('runtime role that cannot create database objects reads and writes collections migrated by a provisioning client', async () => {
     await provisionUsers();
-    const users = client(runtimeConnectionString)
+    const users = client(runtimeConnectionString, 'EnsureMigrated')
       .db()
       .collection<User>('users');
 
@@ -96,7 +100,7 @@ describe('PostgreSQL schema migrations', () => {
 
   it('runtime role reports a collection registered only at runtime as pending', async () => {
     await provisionUsers();
-    const orders = client(runtimeConnectionString)
+    const orders = client(runtimeConnectionString, 'EnsureMigrated')
       .db()
       .collection<Order>('orders');
 

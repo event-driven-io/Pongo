@@ -14,13 +14,16 @@ describe('D1 schema component migrator', () => {
 
   const client = (
     autoMigration: MigrationStyle,
-    options?: Pick<D1DatabaseDriverOptions, 'transactionOptions'>,
+    options?: Pick<D1DatabaseDriverOptions, 'transactionOptions'> & {
+      schema?: { ignoreMigrationHashMismatch?: boolean } | undefined;
+    },
   ) => {
+    const { schema, ...driverOptions } = options ?? {};
     const created = pongoClient({
       driver: d1Driver,
       database,
-      schema: { autoMigration },
-      ...options,
+      schema: { autoMigration, ...schema },
+      ...driverOptions,
     });
     clients.push(created);
     return created;
@@ -78,7 +81,7 @@ describe('D1 schema component migrator', () => {
 
   schemaComponentMigratorTests({
     supportsRollback: false,
-    client,
+    client: (autoMigration, schema) => client(autoMigration, { schema }),
     tables,
   });
 });

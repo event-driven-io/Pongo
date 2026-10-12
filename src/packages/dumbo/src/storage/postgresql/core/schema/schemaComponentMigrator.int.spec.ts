@@ -7,6 +7,7 @@ import { afterAll, beforeAll, beforeEach, describe, it } from 'vitest';
 import {
   schemaComponentMigrator,
   dumbo,
+  InvalidOperationError,
   PendingMigrationsError,
   schemaComponent,
   SQL,
@@ -20,6 +21,12 @@ import { tableExists } from './schema';
 const users = schemaComponent('users', {
   migrations: () => [
     sqlMigration('users:create', [SQL`CREATE TABLE users (id INTEGER)`]),
+  ],
+});
+
+const usersWithChangedSQL = schemaComponent('users', {
+  migrations: () => [
+    sqlMigration('users:create', [SQL`CREATE TABLE users (id TEXT)`]),
   ],
 });
 
@@ -68,6 +75,46 @@ describe('PostgreSQL schema component migrator', () => {
     const migrator = schemaComponentMigrator({ pool, component: users });
 
     await assert.doesNotReject(migrator.ensureMigrated());
+  });
+
+  it('overrides recorded hashes of migrations whose SQL changed without running them again', async () => {
+    await schemaComponentMigrator({ pool, component: users }).migrate();
+    const migrator = schemaComponentMigrator({
+      pool,
+      component: usersWithChangedSQL,
+    });
+
+    const result = await migrator.migrate({ overrideMigrationHashes: true });
+
+    assert.deepEqual(result.applied, []);
+    assert.deepEqual(
+      result.skipped.map(({ name }) => name),
+      ['users:create'],
+    );
+    await assert.doesNotReject(
+      schemaComponentMigrator({
+        pool,
+        component: usersWithChangedSQL,
+      }).ensureMigrated(),
+    );
+  });
+
+  it('keeps recorded hashes in a dry run that overrides them', async () => {
+    await schemaComponentMigrator({ pool, component: users }).migrate();
+    const migrator = schemaComponentMigrator({
+      pool,
+      component: usersWithChangedSQL,
+    });
+
+    await migrator.migrate({ overrideMigrationHashes: true, dryRun: true });
+
+    await assert.rejects(
+      schemaComponentMigrator({
+        pool,
+        component: usersWithChangedSQL,
+      }).ensureMigrated(),
+      InvalidOperationError,
+    );
   });
 
   it('finds migration history in a migration table in another database schema', async () => {

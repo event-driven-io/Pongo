@@ -229,11 +229,32 @@ describe('renaming a Cloudflare Durable Object SQLite Pongo collection', () => {
     }
   });
 
-  it('rejects operations on a renamed collection until the rename is migrated when autoMigration is None', async () => {
+  it('does not apply the rename when autoMigration is EnsureMigrated', async () => {
     const manualClient = pongoClient({
       driver: cloudflareDurableObjectSQLiteDriver,
       storage,
-      schema: { autoMigration: 'None' },
+      schema: { autoMigration: 'EnsureMigrated' },
+    });
+
+    try {
+      const manualDb = manualClient.db('database');
+      const users = manualDb.collection<User>('users');
+      await manualDb.schema.migrate();
+      await users.insertOne({ name: 'Oskar' });
+
+      await users.rename('archived_users');
+
+      assert.deepStrictEqual(tableNames(), ['users']);
+    } finally {
+      await manualClient.close();
+    }
+  });
+
+  it('rejects operations on a renamed collection until the rename is migrated when autoMigration is EnsureMigrated', async () => {
+    const manualClient = pongoClient({
+      driver: cloudflareDurableObjectSQLiteDriver,
+      storage,
+      schema: { autoMigration: 'EnsureMigrated' },
     });
 
     try {
