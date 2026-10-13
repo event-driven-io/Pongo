@@ -195,7 +195,16 @@ describe('SQLite schema component migrator', () => {
 
     it('applies migrations after a dry run', async () => {
       const migrator = schemaComponentMigrator({ pool, component: users });
-      await migrator.migrate({ dryRun: true });
+      await migrator.migrate({ dryRun: 'transactional' });
+
+      await migrator.migrate();
+
+      assert.equal(await tableExists(pool.execute, 'users'), true);
+    });
+
+    it('applies migrations after a diff dry run', async () => {
+      const migrator = schemaComponentMigrator({ pool, component: users });
+      await migrator.migrate({ dryRun: 'diff' });
 
       await migrator.migrate();
 
@@ -206,7 +215,7 @@ describe('SQLite schema component migrator', () => {
       const migrator = schemaComponentMigrator({
         pool,
         component: users,
-        dryRun: true,
+        dryRun: 'transactional',
       });
       await migrator.migrate();
 
@@ -255,7 +264,7 @@ describe('SQLite schema component migrator', () => {
     it('does not apply migrations in a dry run', async () => {
       const migrator = schemaComponentMigrator({ pool, component: users });
 
-      await migrator.migrate({ dryRun: true });
+      await migrator.migrate({ dryRun: 'transactional' });
 
       assert.equal(await tableExists(pool.execute, 'users'), false);
     });
@@ -267,7 +276,19 @@ describe('SQLite schema component migrator', () => {
         execute: pool.execute,
       });
 
-      await migrator.migrate({ dryRun: true });
+      await migrator.migrate({ dryRun: 'transactional' });
+
+      assert.equal(await tableExists(pool.execute, 'users'), false);
+    });
+
+    it('does not apply migrations in a diff dry run on the configured executor', async () => {
+      const migrator = schemaComponentMigrator({
+        pool,
+        component: users,
+        execute: pool.execute,
+      });
+
+      await migrator.migrate({ dryRun: 'diff' });
 
       assert.equal(await tableExists(pool.execute, 'users'), false);
     });
@@ -276,7 +297,7 @@ describe('SQLite schema component migrator', () => {
       const migrator = schemaComponentMigrator({
         pool,
         component: users,
-        dryRun: true,
+        dryRun: 'transactional',
       });
 
       await migrator.migrate({ dryRun: undefined });
@@ -288,7 +309,7 @@ describe('SQLite schema component migrator', () => {
       const migrator = schemaComponentMigrator({
         pool,
         component: users,
-        dryRun: true,
+        dryRun: 'transactional',
       });
 
       await migrator.migrate({ dryRun: false });
@@ -325,7 +346,10 @@ describe('SQLite schema component migrator', () => {
         component: usersWithChangedSQL,
       });
 
-      await migrator.migrate({ overrideMigrationHashes: true, dryRun: true });
+      await migrator.migrate({
+        overrideMigrationHashes: true,
+        dryRun: 'transactional',
+      });
 
       await assert.rejects(
         schemaComponentMigrator({

@@ -1,9 +1,14 @@
 import assert from 'assert';
 import { Miniflare } from 'miniflare';
 import { afterEach, beforeEach, describe, it } from 'vitest';
-import { runSQLMigrations, SQL, sqlMigration } from '../../../core';
+import {
+  InvalidOperationError,
+  runSQLMigrations,
+  SQL,
+  sqlMigration,
+} from '../../../core';
 import { tableExists } from '../core/schema';
-import { d1Pool } from './pool';
+import { d1Pool } from '.';
 
 describe('D1 migrations', () => {
   let mf: Miniflare;
@@ -34,5 +39,33 @@ describe('D1 migrations', () => {
     );
 
     assert.equal(await tableExists(pool.execute, 'users'), false);
+  });
+
+  it('rejects a transactional dry run without applying migrations', async () => {
+    const migration = sqlMigration('users:create', [
+      SQL`CREATE TABLE users (id INTEGER)`,
+    ]);
+
+    await assert.rejects(
+      runSQLMigrations(pool, [migration], { dryRun: 'transactional' }),
+      InvalidOperationError,
+    );
+
+    assert.equal(await tableExists(pool.execute, 'users'), false);
+    assert.equal(await tableExists(pool.execute, 'dmb_migrations'), false);
+  });
+
+  it('returns pending migrations without applying them in a diff dry run', async () => {
+    const migration = sqlMigration('users:create', [
+      SQL`CREATE TABLE users (id INTEGER)`,
+    ]);
+
+    const result = await runSQLMigrations(pool, [migration], {
+      dryRun: 'diff',
+    });
+
+    assert.deepEqual(result, { applied: [migration], skipped: [] });
+    assert.equal(await tableExists(pool.execute, 'users'), false);
+    assert.equal(await tableExists(pool.execute, 'dmb_migrations'), false);
   });
 });

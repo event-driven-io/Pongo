@@ -100,6 +100,7 @@ const testPongoDriver = ({
           supportsMultipleDatabases,
           supportsSchemas: true,
           supportsFunctions: false,
+          supportsTransactions: true,
         },
         parseDatabaseName,
         tableExists: () => Promise.resolve(false),

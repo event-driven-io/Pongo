@@ -106,7 +106,10 @@ describe('PostgreSQL schema component migrator', () => {
       component: usersWithChangedSQL,
     });
 
-    await migrator.migrate({ overrideMigrationHashes: true, dryRun: true });
+    await migrator.migrate({
+      overrideMigrationHashes: true,
+      dryRun: 'transactional',
+    });
 
     await assert.rejects(
       schemaComponentMigrator({

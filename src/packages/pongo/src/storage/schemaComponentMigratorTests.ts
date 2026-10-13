@@ -266,7 +266,7 @@ export const schemaComponentMigratorTests = (options: {
         await client.withSession((session) =>
           db.schema.migrate({
             session,
-            dryRun: true,
+            dryRun: 'transactional',
           }),
         );
 

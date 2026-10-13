@@ -62,13 +62,19 @@ With `autoMigration: 'None'`, Pongo neither migrates nor reads the migration his
 
 `db.schema.sql()` returns the SQL that creates the registered collections, and `db.schema.print()` writes it to the console. Both work without a database connection.
 
-A dry run executes the migrations against the database and rolls them back:
+A transactional dry run executes the migrations against the database and rolls them back:
 
 ```ts
-await db.schema.migrate({ dryRun: true });
+await db.schema.migrate({ dryRun: 'transactional' });
 ```
 
-The database user needs permissions to create tables. Cloudflare D1 can't roll back these migrations, so on D1 a dry run throws `D1TransactionNotSupportedError`. Use `db.schema.sql()` there.
+The database user needs permissions to create tables. Cloudflare D1 does not support transactions, so on D1 a transactional dry run throws `InvalidOperationError`.
+
+A diff dry run only reads the migration history. It returns the migrations that `migrate()` would apply, and works on every database, including D1:
+
+```ts
+const { applied } = await db.schema.migrate({ dryRun: 'diff' });
+```
 
 ## Migration history
 

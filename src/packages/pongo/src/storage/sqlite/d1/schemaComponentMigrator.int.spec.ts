@@ -1,6 +1,8 @@
-import type { MigrationStyle } from '@event-driven-io/dumbo';
+import {
+  InvalidOperationError,
+  type MigrationStyle,
+} from '@event-driven-io/dumbo';
 import { Miniflare } from 'miniflare';
-import { D1TransactionNotSupportedError } from '@event-driven-io/dumbo/cloudflare';
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'vitest';
 import { pongoClient, type PongoClient } from '../../../core';
@@ -53,29 +55,44 @@ describe('D1 schema component migrator', () => {
     await mf.dispose();
   });
 
-  it('rejects dry runs without creating tables', async () => {
+  it('rejects transactional dry runs without creating tables', async () => {
     const db = client('None').db();
     db.collection('users');
 
     await assert.rejects(
-      db.schema.migrate({ dryRun: true }),
-      D1TransactionNotSupportedError,
+      // @ts-expect-error D1 does not support transactional dry runs
+      db.schema.migrate({ dryRun: 'transactional' }),
+      InvalidOperationError,
     );
 
     assert.deepEqual(await tables(), []);
   });
 
-  it('rejects dry runs without creating tables when session-based transactions are enabled', async () => {
+  it('rejects transactional dry runs without creating tables when session-based transactions are enabled', async () => {
     const db = client('None', {
       transactionOptions: { mode: 'session_based' },
     }).db();
     db.collection('users');
 
     await assert.rejects(
-      db.schema.migrate({ dryRun: true }),
-      D1TransactionNotSupportedError,
+      // @ts-expect-error D1 does not support transactional dry runs
+      db.schema.migrate({ dryRun: 'transactional' }),
+      InvalidOperationError,
     );
 
+    assert.deepEqual(await tables(), []);
+  });
+
+  it('returns pending migrations without creating tables in a diff dry run', async () => {
+    const db = client('None').db();
+    db.collection('users');
+
+    const result = await db.schema.migrate({ dryRun: 'diff' });
+
+    assert.deepEqual(
+      result.applied.map(({ name }) => name),
+      ['table:pongo_collection:users:create'],
+    );
     assert.deepEqual(await tables(), []);
   });
 

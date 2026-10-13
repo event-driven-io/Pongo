@@ -53,6 +53,10 @@ export type MigrationTableOptions = {
   tableName?: string | undefined;
 };
 
+export type MigrationDryRun<SupportsTransactions extends boolean = boolean> =
+  | false
+  | (SupportsTransactions extends true ? 'transactional' | 'diff' : 'diff');
+
 export type MigratorOptions = {
   migrationTable?: MigrationTableOptions | undefined;
   execute?: SQLExecutor | undefined;
@@ -62,7 +66,7 @@ export type MigratorOptions = {
       Partial<Pick<DatabaseLockOptions, 'lockId'>>;
   };
   transactionOptions?: DatabaseTransactionOptions | undefined;
-  dryRun?: boolean | undefined;
+  dryRun?: MigrationDryRun | undefined;
   ignoreMigrationHashMismatch?: boolean | undefined;
   migrationTimeoutMS?: number | undefined;
 };
@@ -115,6 +119,15 @@ export const runSQLMigrations = async (
   partialOptions?: Partial<MigratorOptions> & MigrationHashMismatchOptions,
 ): Promise<RunSQLMigrationsResult> => {
   const options = migratorOptionsFor(pool.driverType, partialOptions);
+  if (
+    options.dryRun === 'transactional' &&
+    getDatabaseMetadata(pool.driverType)?.capabilities.supportsTransactions ===
+      false
+  )
+    throw new InvalidOperationError(
+      `${pool.driverType} does not support transactions, so it cannot run a transactional dry run. Use dryRun: 'diff' instead.`,
+    );
+
   const pending = await pendingSQLMigrations(
     pool.driverType,
     options.execute ?? pool.execute,
@@ -130,7 +143,7 @@ export const runSQLMigrations = async (
     skipped: migrations.filter((migration) => !applied.includes(migration)),
   };
 
-  if (pending.length === 0) return result;
+  if (pending.length === 0 || options.dryRun === 'diff') return result;
 
   if (options.execute) {
     await applySQLMigrations(
@@ -144,7 +157,7 @@ export const runSQLMigrations = async (
 
   return pool.withTransaction(async ({ execute }) => {
     await applySQLMigrations(pool.driverType, execute, pending, options);
-    return { success: !options.dryRun, result };
+    return { success: options.dryRun !== 'transactional', result };
   }, options.transactionOptions);
 };
 

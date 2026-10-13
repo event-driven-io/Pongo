@@ -3,6 +3,7 @@ import type { D1Database } from '@cloudflare/workers-types';
 import type { D1ConnectionPool } from '../../../cloudflare';
 import {
   dumboDatabaseDriverRegistry,
+  type DatabaseMetadata,
   type DumboConnectionOptions,
   type DumboDatabaseDriver,
 } from '../../../core';
@@ -16,6 +17,14 @@ import { d1Pool, type D1PoolOptions } from './pool';
 
 export type D1DumboOptions = D1PoolOptions;
 
+export const d1Metadata = {
+  ...sqliteMetadata,
+  capabilities: {
+    ...sqliteMetadata.capabilities,
+    supportsTransactions: false,
+  },
+} as const satisfies DatabaseMetadata<false, false, false, false>;
+
 export const d1DumboDriver: DumboDatabaseDriver<
   D1Connection,
   D1DumboOptions,
@@ -28,7 +37,7 @@ export const d1DumboDriver: DumboDatabaseDriver<
   canHandle: (options) => {
     return options.driverType === D1DriverType && 'database' in options;
   },
-  databaseMetadata: sqliteMetadata,
+  databaseMetadata: d1Metadata,
 };
 
 export const useD1DumboDriver = () => {

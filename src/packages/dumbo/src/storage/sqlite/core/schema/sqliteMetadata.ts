@@ -8,8 +8,9 @@ export const sqliteMetadata = {
     supportsSchemas: false,
     supportsFunctions: false,
     supportsMultipleDatabases: false,
+    supportsTransactions: true,
   },
   tableExists,
-} as const satisfies DatabaseMetadata<false, false, false>;
+} as const satisfies DatabaseMetadata<false, false, false, true>;
 
 dumboDatabaseMetadataRegistry.register('SQLite', sqliteMetadata);

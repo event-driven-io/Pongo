@@ -25,13 +25,12 @@ export type D1DatabaseDriverOptions = PongoDriverOptions<typeof dumboDriver> & {
   transactionOptions?: D1TransactionOptions | undefined;
 };
 
-const d1MigrationOptions = (pool: D1ConnectionPool): MigratorOptions => {
-  const transactionOptions: D1TransactionOptions = { mode: 'strict' };
-  return { execute: pool.execute, transactionOptions };
-};
+const d1MigrationOptions = (pool: D1ConnectionPool): MigratorOptions => ({
+  execute: pool.execute,
+});
 
 const d1PongoDriver: PongoDriver<
-  PongoDb<D1DriverType>,
+  PongoDb<D1DriverType, false>,
   typeof dumboDriver,
   D1DatabaseDriverOptions
 > = {
