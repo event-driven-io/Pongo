@@ -269,14 +269,13 @@ describe('SQLite schema component migrator', () => {
       assert.equal(await tableExists(pool.execute, 'users'), false);
     });
 
-    it('does not apply migrations in a dry run on the configured executor', async () => {
-      const migrator = schemaComponentMigrator({
-        pool,
-        component: users,
-        execute: pool.execute,
-      });
+    it('does not apply migrations in a dry run when the caller rolls back its transaction', async () => {
+      const migrator = schemaComponentMigrator({ pool, component: users });
 
-      await migrator.migrate({ dryRun: 'transactional' });
+      await pool.withTransaction(async ({ execute }) => {
+        await migrator.migrate({ execute, dryRun: 'transactional' });
+        return { success: false, result: undefined };
+      });
 
       assert.equal(await tableExists(pool.execute, 'users'), false);
     });

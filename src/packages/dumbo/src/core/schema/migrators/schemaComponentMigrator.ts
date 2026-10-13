@@ -86,17 +86,11 @@ export const schemaComponentMigrator = <Component extends AnySchemaComponent>(
     const migrations = component.migrations();
     if (migrated) return { applied: [], skipped: [...migrations] };
 
-    const { execute, ...migrationOptions } = optionsFor(overrides);
-    const inCallerTransaction = overrides.execute !== undefined;
+    const migrationOptions = optionsFor(overrides);
 
-    const result = await runSQLMigrations(
-      pool,
-      migrations,
-      migrationOptions.dryRun === 'transactional'
-        ? migrationOptions
-        : { ...migrationOptions, execute },
-    );
-    if (!migrationOptions.dryRun && !inCallerTransaction) migrated = true;
+    const result = await runSQLMigrations(pool, migrations, migrationOptions);
+    if (!migrationOptions.dryRun && overrides.execute === undefined)
+      migrated = true;
     return result;
   };
 
