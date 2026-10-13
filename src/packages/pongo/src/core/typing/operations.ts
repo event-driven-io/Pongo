@@ -9,6 +9,7 @@ import type {
   JSONSerializer,
   MigrationHashMismatchOptions,
   MigrationTableOptions,
+  MigrationDryRun,
   MigrationStyle,
   QueryResult,
   QueryResultRow,
@@ -155,13 +156,17 @@ export type PongoDbOptions = {
   migrationTable?: MigrationTableOptions | undefined;
 };
 
-export interface PongoDatabaseSchema {
+export interface PongoDatabaseSchema<
+  SupportsTransactions extends boolean = boolean,
+> {
   readonly component: AnyDatabaseComponent;
   sql(): string;
   print(): void;
   ensureMigrated(): Promise<void>;
   readonly migrations: ReturnType<DatabaseComponent['migrations']>;
-  migrate(options?: PongoMigrationOptions): Promise<RunSQLMigrationsResult>;
+  migrate(
+    options?: PongoMigrationOptions<SupportsTransactions>,
+  ): Promise<RunSQLMigrationsResult>;
   renameCollection<Document extends PongoDocument>(
     collection: PongoCollectionComponent<Document>,
     newCollectionName: string,
@@ -170,6 +175,7 @@ export interface PongoDatabaseSchema {
 
 export interface PongoDb<
   DriverType extends DatabaseDriverType = DatabaseDriverType,
+  SupportsTransactions extends boolean = boolean,
 > extends WithDatabaseTransactionFactory<AnyConnection> {
   driverType: DriverType;
   databaseName: string;
@@ -180,7 +186,7 @@ export interface PongoDb<
     options?: PongoDBCollectionOptions<T, Payload>,
   ): PongoCollection<T>;
   collections(): ReadonlyArray<PongoCollection<PongoDocument>>;
-  readonly schema: PongoDatabaseSchema;
+  readonly schema: PongoDatabaseSchema<SupportsTransactions>;
   sql: {
     query<Result extends QueryResultRow = QueryResultRow>(
       sql: SQL,
@@ -195,9 +201,11 @@ export interface PongoDb<
 
 export type AnyPongoDb = PongoDb<DatabaseDriverType>;
 
-export type PongoMigrationOptions = {
+export type PongoMigrationOptions<
+  SupportsTransactions extends boolean = boolean,
+> = {
   session?: PongoSession | undefined;
-  dryRun?: boolean | undefined;
+  dryRun?: MigrationDryRun<SupportsTransactions> | undefined;
   migrationTimeoutMS?: number | undefined;
 } & MigrationHashMismatchOptions;
 

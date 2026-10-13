@@ -6,13 +6,14 @@ import {
   tableExists,
 } from './schema';
 
-export const postgreSQLMetadata: DatabaseMetadata<true, true, true> = {
+export const postgreSQLMetadata: DatabaseMetadata<true, true, true, true> = {
   databaseType: 'PostgreSQL',
   defaultDatabaseName: defaultPostgreSqlDatabase,
   capabilities: {
     supportsSchemas: true,
     supportsFunctions: true,
     supportsMultipleDatabases: true,
+    supportsTransactions: true,
   },
   tableExists,
   functionExists,

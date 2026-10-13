@@ -34,6 +34,7 @@ dumboDatabaseMetadataRegistry.register(migratorDatabaseType, {
     supportsMultipleDatabases: false,
     supportsSchemas: false,
     supportsFunctions: false,
+    supportsTransactions: true,
   },
   tableExists: () => Promise.resolve(true),
 });

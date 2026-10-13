@@ -72,7 +72,7 @@ A migrator is bound to one component and one history table. When either changes,
 
 `sql()` returns the SQL of the component's migrations, and `print()` writes it to the console. Both work without a database connection.
 
-`migrate({ dryRun: true })` runs the migrations in a transaction and rolls it back. After a dry run, the next call checks the database again.
+`migrate({ dryRun: 'transactional' })` runs the migrations in a transaction and rolls it back. Drivers without transactions, such as Cloudflare D1, throw `InvalidOperationError` for it. `migrate({ dryRun: 'diff' })` only reads the migration history and returns the migrations it would apply. After a dry run, the next call checks the database again.
 
 ### Hash mismatches
 

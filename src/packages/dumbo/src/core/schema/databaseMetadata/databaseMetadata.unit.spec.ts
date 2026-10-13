@@ -15,6 +15,7 @@ const stubMetadata = (
     supportsSchemas: false,
     supportsFunctions: false,
     supportsMultipleDatabases: false,
+    supportsTransactions: true,
   },
   tableExists: () => Promise.resolve(false),
   ...overrides,

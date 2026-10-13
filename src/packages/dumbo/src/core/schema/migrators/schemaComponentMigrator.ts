@@ -92,7 +92,7 @@ export const schemaComponentMigrator = <Component extends AnySchemaComponent>(
     const result = await runSQLMigrations(
       pool,
       migrations,
-      migrationOptions.dryRun
+      migrationOptions.dryRun === 'transactional'
         ? migrationOptions
         : { ...migrationOptions, execute },
     );

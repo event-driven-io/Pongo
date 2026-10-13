@@ -68,6 +68,7 @@ dumboDatabaseMetadataRegistry.register('test', {
     supportsMultipleDatabases: false,
     supportsSchemas: false,
     supportsFunctions: false,
+    supportsTransactions: true,
   },
   tableExists: () => Promise.resolve(false),
 });

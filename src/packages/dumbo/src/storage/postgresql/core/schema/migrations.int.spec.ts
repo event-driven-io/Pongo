@@ -186,7 +186,28 @@ describe('Migration Integration Tests', () => {
     ]);
 
     const result = await runSQLMigrations(pool, [migration], {
-      dryRun: true,
+      dryRun: 'transactional',
+    });
+
+    assert.deepStrictEqual(result.applied, [migration]);
+    assert.deepStrictEqual(result.skipped, []);
+    assert.strictEqual(
+      await tableExists(pool.execute, 'dry_run_result'),
+      false,
+    );
+    assert.strictEqual(
+      await tableExists(pool.execute, 'dmb_migrations'),
+      false,
+    );
+  });
+
+  it('returns pending migrations without running them in a diff dry run', async () => {
+    const migration = sqlMigration('dry-run:001', [
+      SQL`CREATE TABLE dry_run_result (id TEXT PRIMARY KEY);`,
+    ]);
+
+    const result = await runSQLMigrations(pool, [migration], {
+      dryRun: 'diff',
     });
 
     assert.deepStrictEqual(result.applied, [migration]);

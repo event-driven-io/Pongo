@@ -1,4 +1,5 @@
 import {
+  dumboDatabaseDriverRegistry,
   fromDatabaseDriverType,
   type DatabaseDriverType,
   type DatabaseType,
@@ -9,23 +10,27 @@ export interface DatabaseCapabilities<
   SupportsMultipleDatabases extends boolean,
   SupportsSchemas extends boolean,
   SupportsFunctions extends boolean,
+  SupportsTransactions extends boolean,
 > {
   readonly supportsMultipleDatabases: SupportsMultipleDatabases;
   readonly supportsSchemas: SupportsSchemas;
   readonly supportsFunctions: SupportsFunctions;
+  readonly supportsTransactions: SupportsTransactions;
 }
 
 export type DatabaseMetadata<
   SupportsMultipleDatabases extends boolean = boolean,
   SupportsSchemas extends boolean = boolean,
   SupportsFunctions extends boolean = boolean,
+  SupportsTransactions extends boolean = boolean,
 > = {
   readonly databaseType: DatabaseType;
   readonly defaultDatabaseName: string;
   readonly capabilities: DatabaseCapabilities<
     SupportsMultipleDatabases,
     SupportsSchemas,
-    SupportsFunctions
+    SupportsFunctions,
+    SupportsTransactions
   >;
   readonly tableExists: (
     pool: SQLExecutor,
@@ -124,6 +129,9 @@ export const dumboDatabaseMetadataRegistry =
 export const getDatabaseMetadata = (
   driverType: DatabaseDriverType,
 ): DatabaseMetadata | null => {
+  const driver = dumboDatabaseDriverRegistry.tryGet({ driverType });
+  if (driver) return driver.databaseMetadata;
+
   const { databaseType } = fromDatabaseDriverType(driverType);
   return dumboDatabaseMetadataRegistry.tryGet(databaseType);
 };

@@ -5,8 +5,9 @@ import {
   parseConnectionString,
   runSQLMigrations,
   type DatabaseDriverType,
+  type MigratorOptions,
 } from '@event-driven-io/dumbo';
-import { Command } from 'commander';
+import { Command, Option } from 'commander';
 import {
   pongoDriverRegistry,
   pongoSchema,
@@ -24,7 +25,7 @@ interface MigrateRunOptions {
   databaseName?: string | undefined;
   databaseDriver: string;
   config?: string;
-  dryRun?: boolean;
+  dryRun?: MigratorOptions['dryRun'];
   timeout?: number;
 }
 
@@ -73,7 +74,14 @@ migrateCommand
     [] as string[],
   )
   .option('-f, --config <path>', 'Path to configuration file with Pongo config')
-  .option('--dr, --dryRun', 'Perform dry run without commiting changes', false)
+  .addOption(
+    new Option(
+      '--dr, --dryRun [mode]',
+      'Perform dry run without commiting changes',
+    )
+      .choices(['transactional', 'diff'])
+      .preset('transactional'),
+  )
   .option(
     '--t, --timeout <ms>',
     'Set the migration timeout in milliseconds',

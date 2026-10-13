@@ -57,4 +57,55 @@ describe('pongo migrate run', () => {
       await blocker.end();
     }
   });
+
+  const tableExists = async (tableName: string) => {
+    const client = new pg.Client({ connectionString });
+    await client.connect();
+    try {
+      const { rows } = await client.query<{ exists: boolean }>(
+        'SELECT to_regclass($1) IS NOT NULL AS exists',
+        [tableName],
+      );
+      return rows[0]!.exists;
+    } finally {
+      await client.end();
+    }
+  };
+
+  it('does not create collections with --dryRun', async () => {
+    await migrateCommand.parseAsync(
+      [
+        'run',
+        '--cs',
+        connectionString,
+        '--drv',
+        'pg',
+        '--col',
+        'transactional_dry_run_users',
+        '--dryRun',
+      ],
+      { from: 'user' },
+    );
+
+    assert.equal(await tableExists('transactional_dry_run_users'), false);
+  });
+
+  it('does not create collections with --dryRun diff', async () => {
+    await migrateCommand.parseAsync(
+      [
+        'run',
+        '--cs',
+        connectionString,
+        '--drv',
+        'pg',
+        '--col',
+        'diff_dry_run_users',
+        '--dryRun',
+        'diff',
+      ],
+      { from: 'user' },
+    );
+
+    assert.equal(await tableExists('diff_dry_run_users'), false);
+  });
 });
