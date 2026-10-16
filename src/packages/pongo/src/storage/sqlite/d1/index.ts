@@ -11,7 +11,6 @@ import {
 } from '@event-driven-io/dumbo/cloudflare';
 import {
   PongoDatabase,
-  PongoError,
   pongoDriverRegistry,
   withPongoTransactionOptions,
   type PongoDb,
@@ -67,14 +66,11 @@ const d1PongoDriver: PongoDriver<
         ? options.connectionOptions.database
         : undefined);
 
-    if (!database) {
-      throw new PongoError('D1 database or connection is required');
-    }
-
+    const { database: _database, ...driverOptions } = options;
     const pongoConnectionOptions = withPongoTransactionOptions({
-      ...options,
+      ...driverOptions,
       ...options.connectionOptions,
-      database,
+      ...(database ? { database } : {}),
     });
     const pool = options.pool ?? d1Pool(pongoConnectionOptions);
 
