@@ -16,11 +16,11 @@
     "./mongodb/globalSetup": "./src/mongodb/sharedMongoDBGlobalSetup.ts"
   },
   "peerDependencies": {
-    "@testcontainers/mongodb": "^11.14.0",
-    "@testcontainers/postgresql": "^11.14.0",
-    "mongodb": "^7.4.0",
-    "pg": "^8.20.0",
-    "vitest": "^4.1.4"
+    "@testcontainers/mongodb": "^12.2.1",
+    "@testcontainers/postgresql": "^12.2.1",
+    "mongodb": "^7.7.0",
+    "pg": "^8.23.1",
+    "vitest": "^5.0.5"
   },
   "peerDependenciesMeta": {
     "@testcontainers/mongodb": {

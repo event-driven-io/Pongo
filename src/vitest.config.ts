@@ -16,6 +16,7 @@ export default defineConfig({
       'packages/testing/vitest.postgresql.config.ts',
       'packages/testing/vitest.mongodb.config.ts',
       {
+        extends: false,
         test: {
           name: 'bundle',
           environment: 'node',
@@ -24,6 +25,7 @@ export default defineConfig({
         },
       },
       {
+        extends: false,
         test: {
           name: 'agents',
           environment: 'node',

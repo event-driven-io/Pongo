@@ -148,6 +148,8 @@ export const pongoClient = <
   const pongoClient = new Proxy(core, {
     get: (target, property) => {
       if (property in target) {
+        // Core methods use closures and can be returned without binding this.
+        // eslint-disable-next-line @typescript-eslint/unbound-method
         return target[property as keyof typeof target];
       }
       if (typeof property !== 'string') return undefined;

@@ -126,12 +126,12 @@
     "dist"
   ],
   "dependencies": {
-    "uuid": "^14.0.0"
+    "uuid": "^14.0.3"
   },
   "peerDependencies": {
-    "@cloudflare/workers-types": "^5.20260831.1",
-    "@types/pg": "^8.20.0",
-    "pg": "^8.20.0",
+    "@cloudflare/workers-types": "^5.20261024.1",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.1",
     "sqlite3": "^6.0.1"
   },
   "peerDependenciesMeta": {
@@ -149,10 +149,10 @@
     }
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "5.20260831.1",
-    "@types/node": "^25.6.0",
-    "@types/pg": "^8.20.0",
-    "pg": "^8.20.0",
+    "@cloudflare/workers-types": "5.20261024.1",
+    "@types/node": "^26.6.5",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.1",
     "sqlite3": "^6.0.1"
   }
 }
