@@ -1,6 +1,6 @@
 {
   "name": "@event-driven-io/pongo-core",
-  "version": "0.17.0-beta.60",
+  "version": "0.17.0-rc.1",
   "description": "Pongo - like Mongo but on Postgres or SQLite, with strong consistency benefits",
   "type": "module",
   "engines": {
