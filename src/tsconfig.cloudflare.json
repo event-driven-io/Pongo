@@ -2,6 +2,15 @@
   "extends": "./tsconfig.shared.json",
   "compilerOptions": {
     "moduleResolution": "bundler",
+    "paths": {
+      "@event-driven-io/dumbo/*": ["./packages/dumbo/src/*"],
+      "@event-driven-io/pongo/*": ["./packages/pongo/src/*"],
+      "@event-driven-io/dumbo": ["./packages/dumbo/src"],
+      "@event-driven-io/pongo": ["./packages/pongo/src"],
+      "@event-driven-io/pongo-shims/mongodb": [
+        "./packages/pongo-shims/src/mongodb.ts"
+      ]
+    },
     "types": [
       "node",
       "@cloudflare/vitest-plugin/types",

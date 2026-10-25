@@ -4,6 +4,7 @@ export default defineConfig({
   test: {
     ...(process.env.CI ? {} : { maxWorkers: '50%' }),
     projects: [
+      'packages/pongo-shims/vitest.config.ts',
       'packages/dumbo/vitest.unit.config.ts',
       'packages/dumbo/vitest.sqlite.config.ts',
       'packages/dumbo/vitest.postgresql.config.ts',

@@ -26,7 +26,7 @@
   "typescript.preferences.importModuleSpecifier": "relative",
   "eslint.workingDirectories": [{ "mode": "auto" }],
   "debug.javascript.terminalOptions": {
-    "nodeVersionHint": 20
+    "nodeVersionHint": 24
   },
   "nodejs-testing.include": ["./**/**"],
   "nodejs-testing.extensions": [

@@ -16,7 +16,7 @@ export default [
       'vitest.cloudflare.config.ts',
       '**/dist/',
       '**/lib/',
-      '**/cache/',
+      '**/.cache/',
       'node_modules/*',
       '**/node_modules',
       'dist/*coverage/*',
@@ -201,7 +201,7 @@ export default [
     files: ['packages/pongo/src/core/**/*.ts'],
     rules: {
       'no-restricted-imports': [
-        'warn',
+        'error',
         {
           patterns: [
             {

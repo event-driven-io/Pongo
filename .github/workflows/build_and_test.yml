@@ -44,10 +44,6 @@ jobs:
       - name: Ensure specific npm version
         run: npm install -g npm@11.9.0
 
-      # - name: Install Playwright chromium browser
-      #   working-directory: ./src/e2e/browser
-      #   run: npx playwright install chromium
-
       - name: Verify generated Cloudflare types
         run: npm run types:cloudflare:check
 
@@ -62,6 +58,9 @@ jobs:
 
       - name: Verify bundle boundaries
         run: npm run test:bundles
+
+      - name: Verify browser and ESM/CommonJS package compatibility
+        run: npm run test:compat
 
       - name: Test
         run: npm run test

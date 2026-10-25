@@ -9,14 +9,17 @@
   ],
   "compilerOptions": {
     "composite": true,
-    "outDir": "./dist" /* Redirect output structure to the directory. */,
-    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo",
+    "outDir": "./lib" /* Redirect output structure to the directory. */,
+    "tsBuildInfoFile": "./lib/tsconfig.tsbuildinfo",
     "rootDir": "./src",
     "paths": {
-      "@event-driven-io/dumbo": ["../dumbo/src"]
+      "@event-driven-io/dumbo": ["../dumbo/src"],
+      "@event-driven-io/dumbo/*": ["../dumbo/src/*"],
+      "@event-driven-io/pongo-shims/mongodb": ["../pongo-shims/src/mongodb.ts"]
     }
   },
   "references": [
+    { "path": "../pongo-shims/" },
     {
       "path": "../dumbo/"
     },

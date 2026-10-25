@@ -2,3 +2,4 @@
 **/lib/
 **/cache/
 !packages/pongo/src/core/cache
+packages/pongo-shims/licenses/

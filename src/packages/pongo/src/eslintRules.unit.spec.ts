@@ -1,4 +1,4 @@
-import { Linter } from 'eslint';
+import { ESLint, Linter } from 'eslint';
 import assert from 'node:assert';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -85,7 +85,71 @@ const assertRestrictedSyntaxMessage = (
   );
 };
 
+describe('Pongo ESLint storage import restrictions', () => {
+  it.each([
+    ['../../storage/sqlite/sqlite3', true],
+    ['../../sqlite3', false],
+  ] as const)(
+    'checks %s imports in core integration tests',
+    async (source, restricted) => {
+      const eslint = new ESLint({
+        cwd: repoRoot,
+        overrideConfig: {
+          languageOptions: {
+            parserOptions: { disallowAutomaticSingleRunInference: true },
+          },
+        },
+      });
+      const results = await eslint.lintText(
+        `export { sqlite3Driver } from '${source}';\n`,
+        {
+          filePath: path.join(
+            repoRoot,
+            'packages/pongo/src/core/cache/collectionCache.int.spec.ts',
+          ),
+        },
+      );
+      const messages = results
+        .flatMap(({ messages }) => messages)
+        .filter(({ ruleId }) => ruleId === 'no-restricted-imports');
+
+      assert.deepStrictEqual(
+        messages.map(({ severity }) => severity),
+        restricted ? [2] : [],
+      );
+    },
+  );
+});
+
 describe('Pongo ESLint raw error restrictions', () => {
+  it('enforces library restrictions in production cache code', async () => {
+    const eslint = new ESLint({
+      cwd: repoRoot,
+      overrideConfig: {
+        languageOptions: {
+          parserOptions: { disallowAutomaticSingleRunInference: true },
+        },
+      },
+    });
+    const results = await eslint.lintText(
+      `export const probe = () => {
+  throw new Error('probe');
+};
+`,
+      {
+        filePath: path.join(
+          repoRoot,
+          'packages/pongo/src/core/cache/providers/lruCache.ts',
+        ),
+      },
+    );
+
+    assertRestrictedSyntaxMessage(
+      results.flatMap(({ messages }) => messages),
+      rawErrorMessageFragment,
+    );
+  });
+
   it('rejects raw Error constructors in production code', async () => {
     const pongoLibraryRules = await noRestrictedSyntaxOptionsFor([
       'packages/pongo/src/**/*.ts',

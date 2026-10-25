@@ -2,8 +2,9 @@
   "extends": "./tsconfig.shared.json",
   "include": [
     "docs/**/*.ts",
-    "./tsup.config.ts",
+    "packages/*/tsdown.config.ts",
     "vitest.config.ts",
+    "vitest.types.config.ts",
     "vitest.shared.ts",
     "packages/*/vitest.config.ts",
     "packages/*/vitest.*.config.ts"
@@ -14,11 +15,17 @@
     "noEmit": true /* Do not emit outputs. */,
     "allowImportingTsExtensions": true,
     "paths": {
+      "@event-driven-io/dumbo/*": ["./packages/dumbo/src/*"],
+      "@event-driven-io/pongo/*": ["./packages/pongo/src/*"],
       "@event-driven-io/dumbo": ["./packages/dumbo/src"],
+      "@event-driven-io/pongo-shims/mongodb": [
+        "./packages/pongo-shims/src/mongodb.ts"
+      ],
       "@event-driven-io/pongo": ["./packages/pongo/src"]
     }
   },
   "references": [
+    { "path": "./packages/pongo-shims/" },
     {
       "path": "./packages/dumbo/"
     },

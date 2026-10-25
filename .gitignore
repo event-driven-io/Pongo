@@ -119,6 +119,7 @@ dist
 # vitepress
 src/docs/.vitepress/dist
 src/docs/.vitepress/cache
+src/docs/.vitepress/.temp
 lib
 
 .DS_Store

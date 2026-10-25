@@ -192,16 +192,10 @@ export const pongoTransactionCache = (options?: {
             await op.mainCache.setMany(op.entries);
             break;
           case 'update':
-            await op.mainCache.update(
-              op.key,
-              op.updater as unknown as PongoUpdate<PongoDocument>,
-            );
+            await op.mainCache.update(op.key, op.updater);
             break;
           case 'updateMany':
-            await op.mainCache.updateMany(
-              op.keys,
-              op.updater as unknown as PongoUpdate<PongoDocument>,
-            );
+            await op.mainCache.updateMany(op.keys, op.updater);
             break;
           case 'delete':
             await op.mainCache.delete(op.key);

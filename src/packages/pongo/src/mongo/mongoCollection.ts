@@ -59,8 +59,7 @@ import type {
   WithId,
   WithoutId,
   WriteConcern,
-} from 'mongodb';
-import type { Key } from 'readline';
+} from '@event-driven-io/pongo-shims/mongodb';
 import {
   NotImplementedError,
   type CollectionOperationOptions,
@@ -437,9 +436,7 @@ export class Collection<T extends Document> implements MongoCollection<T> {
     _key: unknown,
     _filter?: unknown,
     _options?: unknown,
-  ):
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/consistent-type-imports
-    Promise<any[]> | Promise<import('mongodb').Flatten<WithId<T>[Key]>[]> {
+  ): Promise<unknown[]> {
     throw new NotImplementedError();
   }
   indexes(

@@ -8,8 +8,8 @@
   ],
   "compilerOptions": {
     "composite": true,
-    "outDir": "./dist" /* Redirect output structure to the directory. */,
-    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo",
+    "outDir": "./lib" /* Redirect output structure to the directory. */,
+    "tsBuildInfoFile": "./lib/tsconfig.tsbuildinfo",
     "rootDir": "./src",
     "paths": {}
   },

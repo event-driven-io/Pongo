@@ -1,4 +1,4 @@
-import { defineConfig } from 'tsdown';
+import { defineConfig, type UserConfig } from 'tsdown';
 
 const entries = [
   'src/index.ts',
@@ -15,18 +15,17 @@ const sharedConfig = {
   target: 'esnext',
   outDir: 'dist',
   deps: {
-    skipNodeModulesBundle: true,
     neverBundle: [
       '@cloudflare/workers-types',
-      '@types/mongodb',
       '@types/pg',
       'pg',
       'sqlite3',
-      'ansis',
       'cli-table3',
       'commander',
       'uuid',
       '@event-driven-io/dumbo',
+      '@event-driven-io/pongo-shims',
+      '@event-driven-io/pongo-shims/mongodb',
       '@event-driven-io/dumbo/pg',
       '@event-driven-io/dumbo/sqlite3',
       '@event-driven-io/dumbo/cloudflare',
@@ -35,9 +34,9 @@ const sharedConfig = {
     ],
   },
   tsconfig: 'tsconfig.build.json',
-} as const;
+} satisfies UserConfig;
 
-const jsEntries = entries.map((entry) => ({
+const jsEntries = entries.map((entry): UserConfig => ({
   ...sharedConfig,
   dts: false,
   format: ['esm', 'cjs'],
@@ -45,7 +44,7 @@ const jsEntries = entries.map((entry) => ({
   entry,
 }));
 
-const declarationBundle = (dtsExtension?: '.d.cts') => ({
+const declarationBundle = (dtsExtension?: '.d.cts'): UserConfig => ({
   ...sharedConfig,
   clean: false,
   dts: {
