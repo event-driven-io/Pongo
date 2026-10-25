@@ -6,27 +6,28 @@
   "scripts": {
     "setup": "cat .nvmrc | nvm install; nvm use",
     "build": "tsdown",
-    "build:ts": "tsc",
+    "build:ts": "tsc -b",
     "build:ts:watch": "tsc -b --watch",
     "start": "tsx ./src/index.ts",
     "start:shim": "tsx ./src/shim.ts",
     "start:typed": "tsx ./src/typedClient.ts",
     "lint": "npm run lint:eslint && npm run lint:prettier",
-    "lint:prettier": "prettier --cache --check \"**/**/*.{json,md}\"",
+    "lint:prettier": "prettier --cache --check \"**/**/*.{json,md}\" \"!docker/**\"",
     "lint:eslint": "eslint --cache '**/*.ts'",
     "fix": "run-s fix:eslint fix:prettier",
-    "fix:prettier": "prettier --cache --write \"**/**/*.{json,md}\"",
+    "fix:prettier": "prettier --cache --write \"**/**/*.{json,md}\" \"!docker/**\"",
     "fix:eslint": "eslint --cache '**/*.ts' --fix",
     "test": "run-s test:unit test:int test:e2e",
-    "test:unit": "glob -d -c \"node --import tsx --test\" **/*.unit.spec.ts",
-    "test:int": "glob -d -c \"node --import tsx --test\" **/*.int.spec.ts",
-    "test:e2e": "glob -d -c \"node --import tsx --test\" **/*.e2e.spec.ts",
-    "test:watch": "run-p test:unit:watch test:int:watch test:e2e:watch",
-    "test:unit:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.unit.spec.ts",
-    "test:int:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.int.spec.ts",
-    "test:e2e:watch": "glob -d -c \"node --import tsx --test --watch\" **/*.e2e.spec.ts",
+    "test:unit": "vitest run .unit.spec",
+    "test:int": "vitest run .int.spec",
+    "test:e2e": "vitest run .e2e.spec",
+    "test:watch": "vitest",
+    "test:unit:watch": "vitest .unit.spec",
+    "test:int:watch": "vitest .int.spec",
+    "test:e2e:watch": "vitest .e2e.spec",
     "migrate": "pongo migrate run --config ./dist/pongo.config.js --connectionString postgresql://postgres:postgres@localhost:5432/postgres",
-    "shell": "pongo shell"
+    "shell": "pongo shell",
+    "agent:check": "run-s fix build:ts"
   },
   "repository": {
     "type": "git",
@@ -43,20 +44,21 @@
   "homepage": "https://github.com/event-driven-io/Pongo#readme",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@types/node": "^25.6.0",
-    "@typescript-eslint/eslint-plugin": "^8.59.0",
-    "@typescript-eslint/parser": "^8.59.0",
-    "eslint": "^10.2.1",
+    "@types/node": "^24.19.2",
+    "@types/pg": "8.23.1",
+    "@typescript-eslint/eslint-plugin": "^8.72.0",
+    "@typescript-eslint/parser": "^8.72.0",
+    "@typescript/native": "npm:typescript@^7.0.2",
+    "eslint": "^10.13.0",
     "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.5",
-    "glob": "^11.0.3",
-    "globals": "^17.5.0",
-    "npm-run-all2": "^8.0.4",
-    "prettier": "^3.8.3",
-    "tsconfig-paths": "4.2.0",
-    "tsdown": "0.21.9",
-    "tsx": "4.21.0",
-    "typescript": "^6.0.3"
+    "eslint-plugin-prettier": "^5.5.7",
+    "globals": "^17.13.0",
+    "npm-run-all2": "^9.0.4",
+    "prettier": "^3.9.10",
+    "tsdown": "0.23.2",
+    "tsx": "4.23.15",
+    "typescript": "npm:@typescript/typescript6@6.0.2",
+    "vitest": "^5.0.5"
   },
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -65,6 +67,11 @@
     "dist"
   ],
   "dependencies": {
-    "@event-driven-io/pongo": "0.17.0-beta.45"
+    "@event-driven-io/dumbo": "0.13.0-rc.1",
+    "@event-driven-io/pongo": "0.17.0-rc.1",
+    "pg": "8.23.1"
+  },
+  "engines": {
+    "node": ">=24.22.1"
   }
 }

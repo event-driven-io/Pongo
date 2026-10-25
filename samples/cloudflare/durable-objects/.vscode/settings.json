@@ -26,5 +26,10 @@
     {
       "mode": "auto"
     }
-  ]
+  ],
+  "js/ts.experimental.useTsgo": true,
+  "js/ts.tsdk.path": "./node_modules/@typescript/native",
+  "debug.javascript.terminalOptions": {
+    "nodeVersionHint": 24
+  }
 }

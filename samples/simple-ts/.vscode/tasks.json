@@ -8,9 +8,10 @@
         "kind": "build",
         "isDefault": true
       },
-      "problemMatcher": [],
+      "problemMatcher": ["$tsc-watch"],
       "label": "npm: build:ts:watch",
-      "detail": "tsc -b --watch"
+      "detail": "tsc -b --watch",
+      "isBackground": true
     },
     {
       "label": "Install All Recommended Extensions",

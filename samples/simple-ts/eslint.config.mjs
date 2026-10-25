@@ -6,11 +6,14 @@ import globals from 'globals';
 
 export default defineConfig([
   globalIgnores([
-    'node_modules/*',
-    'dist/*coverage/*',
+    '**/node_modules/',
+    '**/dist/',
+    '**/coverage/',
+    '**/.cache/',
+    'docker/',
     '**/*.d.ts',
     'src/types/',
-    '!**/.eslintrc.js',
+    'eslint.config.mjs',
   ]),
   js.configs.recommended,
   ...typescriptEslint.configs['flat/recommended'],

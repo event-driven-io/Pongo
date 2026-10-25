@@ -24,16 +24,10 @@
   "files.eol": "\n",
 
   "typescript.preferences.importModuleSpecifier": "relative",
+  "js/ts.experimental.useTsgo": true,
+  "js/ts.tsdk.path": "./src/node_modules/@typescript/native",
   "eslint.workingDirectories": [{ "mode": "auto" }],
   "debug.javascript.terminalOptions": {
     "nodeVersionHint": 24
-  },
-  "nodejs-testing.include": ["./**/**"],
-  "nodejs-testing.extensions": [
-    {
-      "extensions": ["ts", "mts"],
-      "filePatterns": ["**/*.spec.ts", "**/*.spec.mts"],
-      "parameters": ["--import", "tsx"]
-    }
-  ]
+  }
 }

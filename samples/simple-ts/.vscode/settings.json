@@ -2,37 +2,30 @@
   "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnPaste": false,
   "editor.formatOnSave": true,
-
   "editor.codeActionsOnSave": {
     "source.organizeImports": "explicit",
     "source.fixAll.eslint": "explicit",
     "source.addMissingImports": "always"
   },
-
   "[typescript]": {
     "editor.formatOnSave": false
   },
-
   "editor.tabSize": 2,
-
   "files.exclude": {
     "**/*.tsbuildinfo": true,
     "**/node_modules": true,
     "**/dist": true
   },
   "files.eol": "\n",
-
   "typescript.preferences.importModuleSpecifier": "relative",
-  "eslint.workingDirectories": [{ "mode": "auto" }],
-  "debug.javascript.terminalOptions": {
-    "nodeVersionHint": 20
-  },
-  "nodejs-testing.include": ["./**/**"],
-  "nodejs-testing.extensions": [
+  "eslint.workingDirectories": [
     {
-      "extensions": ["ts", "mts"],
-      "filePatterns": ["**/*.spec.ts", "**/*.spec.mts"],
-      "parameters": ["--import", "tsx"]
+      "mode": "auto"
     }
-  ]
+  ],
+  "debug.javascript.terminalOptions": {
+    "nodeVersionHint": 24
+  },
+  "js/ts.experimental.useTsgo": true,
+  "js/ts.tsdk.path": "./node_modules/@typescript/native"
 }

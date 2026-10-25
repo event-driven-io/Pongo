@@ -5,7 +5,9 @@ export type User = { _id?: string; name: string; age: number };
 export default {
   schema: pongoSchema.client({
     database: pongoSchema.db({
-      users: pongoSchema.collection<User>('users'),
+      collections: {
+        users: pongoSchema.collection<User>('users'),
+      },
     }),
   }),
 };

@@ -13,7 +13,9 @@
       "./worker-configuration.d.ts",
       "@cloudflare/vitest-plugin",
       "node"
-    ]
+    ],
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true
   },
   "include": ["src/**/*.ts", "*.ts"]
 }
