@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    "module": "NodeNext",
+    "target": "ESNext",
+    "types": [],
+    "declaration": true,
+    "declarationMap": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "strict": true,
+    "isolatedModules": true,
+    "noUncheckedSideEffectImports": true,
+    "moduleDetection": "force",
+    "skipLibCheck": false
+  },
+  "include": ["src/client.ts", "src/shim.ts"]
+}

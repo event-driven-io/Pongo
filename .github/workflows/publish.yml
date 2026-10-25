@@ -41,7 +41,7 @@ jobs:
 
       - name: Publish packages on NPM 📦
         run: |
-          for pkg_dir in packages/*/; do
+          for pkg_dir in packages/pongo-shims/ packages/dumbo/ packages/pongo/ packages/testing/; do
             [ -f "${pkg_dir}package.json" ] || { echo "⏭  ${pkg_dir} has no package.json — skipping"; continue; }
 
             read -r pkg_name pkg_version pkg_private < <(node -p "

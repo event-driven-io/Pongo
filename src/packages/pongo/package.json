@@ -1,7 +1,7 @@
 {
   "name": "@event-driven-io/pongo",
   "version": "0.17.0-beta.60",
-  "description": "Pongo - Mongo with strong consistency on top of PostgreSQL",
+  "description": "Pongo - like Mongo but on Postgres or SQLite, with strong consistency benefits",
   "type": "module",
   "scripts": {
     "build": "tsdown",
@@ -133,8 +133,7 @@
   },
   "dependencies": {
     "@event-driven-io/dumbo": "0.13.0-beta.60",
-    "@types/mongodb": "^4.0.7",
-    "ansis": "^4.4.0",
+    "@event-driven-io/pongo-shims": "0.17.0-beta.60",
     "cli-table3": "^0.6.5",
     "commander": "^15.0.0",
     "lru-cache": "^11.5.3",
@@ -162,8 +161,9 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "5.20261024.1",
-    "@types/node": "^26.6.5",
+    "@types/node": "^24.19.2",
     "@types/pg": "^8.23.1",
+    "mongodb": "^7.7.0",
     "pg": "^8.23.1",
     "sqlite3": "^6.0.1"
   }

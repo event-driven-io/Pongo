@@ -1,0 +1,63 @@
+{
+  "name": "@event-driven-io/pongo-shims",
+  "version": "0.17.0-beta.60",
+  "description": "Bundled type declarations for Pongo compatibility shims",
+  "type": "module",
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "tsdown",
+    "build:ts": "tsc -b",
+    "build:ts:watch": "tsc -b --watch",
+    "test": "run-s test:types test:unit test:int test:e2e",
+    "test:types": "vitest run --config vitest.types.config.ts",
+    "test:unit": "vitest run \".unit.spec\"",
+    "test:int": "vitest run \".int.spec\"",
+    "test:e2e": "vitest run \".e2e.spec\"",
+    "test:watch": "vitest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/event-driven-io/Pongo.git",
+    "directory": "src/packages/pongo-shims"
+  },
+  "author": "Oskar Dudycz",
+  "homepage": "https://event-driven-io.github.io/Pongo/",
+  "types": "./dist/mongodb.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/mongodb.d.ts"
+      },
+      "require": {
+        "types": "./dist/mongodb.d.cts"
+      }
+    },
+    "./mongodb": {
+      "import": {
+        "types": "./dist/mongodb.d.ts"
+      },
+      "require": {
+        "types": "./dist/mongodb.d.cts"
+      }
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "mongodb": [
+        "./dist/mongodb.d.ts"
+      ]
+    }
+  },
+  "files": [
+    "dist/**/*.d.ts",
+    "dist/**/*.d.cts",
+    "LICENSE",
+    "NOTICE",
+    "licenses"
+  ],
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "bson": "7.3.3",
+    "mongodb": "7.7.0"
+  }
+}

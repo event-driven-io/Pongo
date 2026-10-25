@@ -1,11 +1,11 @@
 {
   "extends": "./tsconfig.shared.json",
   "include": [
+    "./vitest.types.config.ts",
     "./packages/**/*.ts",
     "./docs/**/*.ts",
     "./docs/**/*.mts",
-    "./docs/.vitepress/**/*.mts",
-    "./tsup.config.ts"
+    "./docs/.vitepress/**/*.mts"
   ],
   "exclude": [
     "node_modules",
@@ -21,6 +21,15 @@
   ],
   "files": [],
   "compilerOptions": {
+    "paths": {
+      "@event-driven-io/dumbo/*": ["./packages/dumbo/src/*"],
+      "@event-driven-io/pongo/*": ["./packages/pongo/src/*"],
+      "@event-driven-io/dumbo": ["./packages/dumbo/src"],
+      "@event-driven-io/pongo": ["./packages/pongo/src"],
+      "@event-driven-io/pongo-shims/mongodb": [
+        "./packages/pongo-shims/src/mongodb.ts"
+      ]
+    },
     "noEmit": true /* Do not emit outputs. */
   }
 }

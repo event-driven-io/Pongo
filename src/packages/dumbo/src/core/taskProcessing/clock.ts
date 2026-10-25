@@ -18,7 +18,7 @@ export type TimerHandle = ReturnType<typeof setTimeout>;
 type ClockAnchor = {
   epochMilliseconds: number;
   elapsedMs: number;
-  performance: Performance;
+  performance: typeof performance;
   temporal: typeof Temporal | undefined;
 };
 

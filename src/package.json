@@ -1,7 +1,7 @@
 {
   "name": "@event-driven-io/pongo-core",
   "version": "0.17.0-beta.60",
-  "description": "Pongo - Mongo with strong consistency on top of PostgreSQL",
+  "description": "Pongo - like Mongo but on Postgres or SQLite, with strong consistency benefits",
   "type": "module",
   "engines": {
     "node": ">=24.22.1"
@@ -9,11 +9,12 @@
   "private": true,
   "scripts": {
     "setup": "cat .nvmrc | nvm install; nvm use",
-    "build": "run-s build:ts build:dumbo build:pongo",
+    "build": "run-s build:ts build:shims build:dumbo build:pongo",
     "build:ts": "tsc -b tsconfig.json tsconfig.cloudflare.json",
     "build:ts:clean": "tsc --build --clean",
     "build:ts:watch": "tsc -b tsconfig.json tsconfig.cloudflare.json --watch",
     "build:dumbo": "npm run build -w packages/dumbo",
+    "build:shims": "npm run build -w packages/pongo-shims",
     "build:pongo": "npm run build -w packages/pongo",
     "lint": "npm run lint:eslint && npm run lint:prettier",
     "lint:prettier": "prettier --cache --config .prettierrc.json --check \"**/**/*.{json,md}\" \"../*.md\" \"../.{claude,codex,opencode}/**/*.{json,md,ts}\" \"../.agents/**/*.{json,ts}\"",
@@ -22,7 +23,8 @@
     "agent:check": "run-s fix build:ts",
     "fix:prettier": "prettier --cache --config .prettierrc.json --write \"**/**/*.{json,md}\" \"../*.md\" \"../.{claude,codex,opencode}/**/*.{json,md,ts}\" \"../.agents/**/*.{json,ts}\"",
     "fix:eslint": "eslint --cache '**/*.ts' --fix",
-    "test": "run-s test:unit test:int test:e2e",
+    "test": "run-s test:types test:unit test:int test:e2e",
+    "test:types": "vitest run --config vitest.types.config.ts",
     "test:postgresql": "run-s test:unit:postgresql test:int:postgresql test:e2e:postgresql",
     "test:sqlite": "run-s test:unit:sqlite test:int:sqlite test:e2e:sqlite",
     "test:unit": "vitest run \".unit.spec\"",
@@ -38,6 +40,10 @@
     "test:e2e:postgresql": "vitest run --project \"*(postgresql)\" --project \"*(mongodb)\" \".e2e.spec\"",
     "test:e2e:sqlite": "vitest run --project \"*(sqlite)\" --project @event-driven-io/cloudflare \".e2e.spec\"",
     "test:bundles": "vitest run --project bundle",
+    "test:compat": "run-s test:compat:browser test:compat:types:esm test:compat:types:commonjs",
+    "test:compat:browser": "node e2e/installLocalPackages.ts npm e2e/browser dumbo pongo-shims pongo",
+    "test:compat:types:esm": "node e2e/installLocalPackages.ts npm e2e/libraryDeclarations/esm dumbo pongo-shims pongo",
+    "test:compat:types:commonjs": "node e2e/installLocalPackages.ts npm e2e/libraryDeclarations/commonjs dumbo pongo-shims pongo",
     "test:file": "vitest run --no-file-parallelism",
     "test:watch": "vitest",
     "test:unit:watch": "vitest \".unit.spec\"",
@@ -88,11 +94,14 @@
     "@faker-js/faker": "^10.6.0",
     "@testcontainers/mongodb": "^12.2.1",
     "@testcontainers/postgresql": "^12.2.1",
-    "@types/mongodb": "^4.0.7",
-    "@types/node": "^26.6.5",
+    "@types/node": "^24.19.2",
     "@types/pg": "^8.23.1",
     "@typescript-eslint/eslint-plugin": "^8.72.0",
     "@typescript-eslint/parser": "^8.72.0",
+    "@typescript/native": "npm:typescript@^7.0.2",
+    "ansis": "^4.4.0",
+    "cli-table3": "^0.6.5",
+    "commander": "^15.0.0",
     "cpy-cli": "^7.0.0",
     "dotenv": "^18.0.9",
     "eslint": "^10.13.0",
@@ -102,39 +111,25 @@
     "globals": "^17.13.0",
     "miniflare": "^4.20260730.0",
     "mitata": "^1.0.34",
+    "mongodb": "^7.7.0",
     "npm-run-all2": "^9.0.4",
+    "pg": "^8.23.1",
     "prettier": "^3.9.10",
+    "sqlite3": "^6.0.1",
     "testcontainers": "^12.2.1",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
     "tsdown": "^0.23.2",
     "tsx": "^4.23.15",
-    "typescript": "^6.0.3",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
     "uuid": "^14.0.3",
-    "vitepress": "^1.6.4",
+    "vitepress": "2.0.0-alpha.21",
     "vitest": "^5.0.5",
     "wrangler": "4.152.0"
   },
-  "peerDependencies": {
-    "ansis": "^4.4.0",
-    "cli-table3": "^0.6.5",
-    "commander": "^15.0.0",
-    "pg": "^8.23.1",
-    "sqlite3": "^6.0.1"
-  },
-  "peerDependenciesMeta": {
-    "@types/pg": {
-      "optional": true
-    },
-    "pg": {
-      "optional": true
-    },
-    "sqlite3": {
-      "optional": true
-    }
-  },
   "workspaces": [
     "packages/dumbo",
+    "packages/pongo-shims",
     "packages/pongo",
     "packages/testing"
   ]

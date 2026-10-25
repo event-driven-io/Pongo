@@ -1,6 +1,5 @@
-import { describe, it } from 'vitest';
+import { describe, expectTypeOf, it } from 'vitest';
 import { SQL } from '../../../sql';
-import type { Equals, Expect } from '../../../testing';
 import type { TypeValidationResult } from '../../../typing';
 import { dumboSchema } from '../../dumboSchema';
 import type { InferTableComponentColumns } from '../table';
@@ -61,7 +60,7 @@ describe('CollectRelationshipErrors', () => {
       TestSchemas
     >;
 
-    type _Then = Expect<Equals<Result, []>>;
+    expectTypeOf<Result>().toEqualTypeOf<[]>();
   });
 
   it('collects errors for invalid references', () => {
@@ -104,7 +103,7 @@ describe('CollectRelationshipErrors', () => {
       >,
     ];
 
-    type _Then = Expect<Equals<Result, Expected>>;
+    expectTypeOf<Result>().toEqualTypeOf<Expected>();
   });
 
   it('collects errors from multiple invalid relationships', () => {
@@ -165,7 +164,8 @@ describe('CollectRelationshipErrors', () => {
       >,
     ];
 
-    type _Then = Expect<Equals<Result, Expected>>;
+    expectTypeOf<Result[number]>().toEqualTypeOf<Expected[number]>();
+    expectTypeOf<Result['length']>().toEqualTypeOf<Expected['length']>();
   });
 
   it('collects type mismatch errors', () => {
@@ -206,7 +206,7 @@ describe('CollectRelationshipErrors', () => {
       >,
     ];
 
-    type _Then = Expect<Equals<Result, Expected>>;
+    expectTypeOf<Result>().toEqualTypeOf<Expected>();
   });
 
   it('collects length mismatch errors', () => {
@@ -251,7 +251,7 @@ describe('CollectRelationshipErrors', () => {
       >,
     ];
 
-    type _Then = Expect<Equals<Result, Expected>>;
+    expectTypeOf<Result>().toEqualTypeOf<Expected>();
   });
 
   it('skips valid relationships and only collects errors', () => {
@@ -296,7 +296,7 @@ describe('CollectRelationshipErrors', () => {
       >,
     ];
 
-    type _Then = Expect<Equals<Result, Expected>>;
+    expectTypeOf<Result>().toEqualTypeOf<Expected>();
   });
 
   it('handles composite foreign keys', () => {
@@ -341,6 +341,6 @@ describe('CollectRelationshipErrors', () => {
       CompositeSchemas
     >;
 
-    type _Then = Expect<Equals<Result, []>>;
+    expectTypeOf<Result>().toEqualTypeOf<[]>();
   });
 });

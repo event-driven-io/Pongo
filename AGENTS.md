@@ -1,13 +1,14 @@
 # Pongo
 
-Pongo provides a MongoDB-style document API backed by PostgreSQL and SQLite.
+Pongo - Mongo but on Postgres or SQLite, with strong consistency benefits
 
 ## Repository structure
 
-Repository is using npm workspaces and have three packages;
+Repository is using npm workspaces and has four packages;
 
 - `src/packages/dumbo`: relational database foundations (connection pooling, management, SQL querying, etc.).
 - `src/packages/pongo`: MongoDB-compatible document database API.
+- `src/packages/pongo-shims`: bundled third-party type declarations used by Pongo's compatibility shims.
 - `src/packages/testing`: private helpers sharing one database container per test run. Prepared to move to its own repository.
 
 Besides that:
@@ -42,8 +43,7 @@ npx vitest run packages/dumbo/src/core/taskProcessing/clock.unit.spec.ts -t "tes
 Available test suites:
 
 - `npm run test:unit`: run the unit tests. These are fast and avoid external I/O.
-- `npm run test:int`: run the integration tests. These use external I/O and may
-  start Docker containers through Testcontainers.
+- `npm run test:int`: run the integration tests. These use external I/O and may start Docker containers through Testcontainers.
 - `npm run test:e2e`: run the end-to-end usage scenarios.
 - `npm test`: run the unit, integration, and end-to-end test suites.
 
@@ -51,17 +51,13 @@ Available test suites:
 
 The completion hook runs `npm run agent:check` automatically. See `.agents/README.md` for how skills and the change-check hooks work.
 
-For documentation or agent-configuration changes, validate only the changed files
-and configuration. Application test suites are not required.
+For documentation or agent-configuration changes, validate only the changed files and configuration. Application test suites are not required.
 
-While changing application code, identify and run the smallest relevant set of
-tests covering the affected behavior and applicable backends or variants. Before
-reporting a development phase as complete, also run `npm run test:unit`.
+While changing application code, identify and run the smallest relevant set of tests covering the affected behavior and applicable backends or variants. Before reporting a development phase as complete, also run `npm run test:unit`.
 
 Before the final handoff of completed application-code work, run `npm test`. If a test run is interrupted, ask before running it again.
 
-Report which verification commands were run, whether they passed, and why any
-relevant checks were skipped.
+Report which verification commands were run, whether they passed, and why any relevant checks were skipped.
 
 ## Coding guide
 
@@ -69,23 +65,15 @@ relevant checks were skipped.
 
 ## Working rules
 
-- Use simple, direct language. Keep explanations concise, example-based, and
-  focused on the problem. Simplify without oversimplifying.
+- Use simple, direct, straightforward language (STE English). Keep explanations concise, example-based, and focused on the problem. Simplify without oversimplifying.
 - If a requirement or intended behavior is unclear, ask instead of assuming.
-- Do not monkey-patch globals, prototypes, or third-party modules. If a change
-  appears to require monkey-patching, stop and ask first.
-- Prefer simple, easily removable code over premature abstractions. Do not
-  introduce a new abstraction unless explicitly requested.
-- Use a test-first approach for behavior changes. Name tests after observable
-  behavior from the usage perspective, not implementation details.
-- Treat questions, design discussions, and requests for opinions as read-only.
-  Wait for explicit approval before editing files or running mutating commands.
-- Use subagents, when available, for independent work that can usefully run in
-  parallel, such as research, repository exploration, focused implementation,
-  verification, and review. Keep user interaction, cross-cutting decisions, and
-  final synthesis in the main context. Give subagents sufficient context and
-  require concrete, evidence-backed findings so important details are not lost.
-- Do not commit, create branches or tags, rebase, reset, or otherwise modify Git
-  history unless explicitly requested.
+- Do not monkey-patch globals, prototypes, or third-party modules. If a change appears to require monkey-patching, stop and ask first.
+- Prefer simple, easily removable code over premature abstractions. Do not introduce a new abstraction unless explicitly requested.
+- Do not use comments inside the code unless asked. Make the code self-explanatory instead.
+- Use a test-first approach for behavior changes. Name tests after observable behavior from the usage perspective, not implementation details.
+- Treat questions, design discussions, and requests for opinions as read-only. Wait for explicit approval before editing files or running mutating commands.
+- Never reverse a decision already agreed to (a requirement, a behaviour, a test that guards it) unless that specific reversal is explicitly approved. Ask the user and explain the tradeoffs.
+- Plan to use subagents, when available, for independent, non-sequential work that can usefully run in parallel, such as research, repository exploration, focused implementation, verification, and review. Keep user interaction, cross-cutting decisions, and final synthesis in the main context. Ask before using subagents. Give subagents sufficient context and require concrete, evidence-backed findings so important details are not lost.
+- Do not commit, create branches or tags, rebase, reset, or otherwise modify Git history unless explicitly requested.
 - When the user asks for work on a branch, use the current workspace so the changes remain visible in their Git view. Do not create or use a Git worktree unless the user explicitly requests one.
 - Do not add manual line breaks inside Markdown paragraphs. Keep each paragraph on a single line and let the renderer or editor wrap it.

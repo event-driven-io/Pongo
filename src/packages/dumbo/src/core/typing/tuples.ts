@@ -83,12 +83,12 @@ type ToKeyValue<T extends [any, any][]> = {
   [I in keyof T]: { key: T[I][0]; value: T[I][1] };
 };
 
-export type EntriesToTuple<T> = ToKeyValue<
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  UnionToTuple<TaggedUnion<T>> extends [any, any][]
-    ? UnionToTuple<TaggedUnion<T>>
-    : never
->;
+export type EntriesToTuple<T> =
+  UnionToTuple<TaggedUnion<T>> extends infer Entries
+    ? Entries extends [unknown, unknown][]
+      ? ToKeyValue<Entries>
+      : never
+    : never;
 
 export type ZipTuplesCollectErrors<
   TupleA extends readonly unknown[],

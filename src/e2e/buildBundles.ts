@@ -3,7 +3,11 @@ import { spawnSync } from 'node:child_process';
 // The boundaries are a property of what tsdown emits, so the suite builds the
 // packages itself rather than reading whatever happens to be in dist.
 export default function buildBundles(): void {
-  for (const workspace of ['packages/dumbo', 'packages/pongo']) {
+  for (const workspace of [
+    'packages/pongo-shims',
+    'packages/dumbo',
+    'packages/pongo',
+  ]) {
     const build = spawnSync('npm', ['run', 'build', '-w', workspace], {
       encoding: 'utf8',
     });

@@ -1,0 +1,13 @@
+This package redistributes bundled TypeScript declarations from:
+
+mongodb 7.7.0
+https://github.com/mongodb/node-mongodb-native
+Licensed under Apache-2.0; see licenses/mongodb-LICENSE.md.
+
+bson 7.3.3
+https://github.com/mongodb/js-bson
+Licensed under Apache-2.0; see licenses/bson-LICENSE.md.
+
+Changes: the declarations are bundled into ESM and CommonJS type entry points.
+Imports between the upstream declarations are resolved within the type bundle.
+The MongoDB driver and BSON JavaScript implementations are not distributed.

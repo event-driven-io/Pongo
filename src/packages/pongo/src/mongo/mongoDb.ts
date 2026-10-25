@@ -1,5 +1,8 @@
-import type { Collection as MongoCollection, ObjectId } from 'mongodb';
-import type { Document } from 'mongodb';
+import type {
+  Collection as MongoCollection,
+  ObjectId,
+} from '@event-driven-io/pongo-shims/mongodb';
+import type { Document } from '@event-driven-io/pongo-shims/mongodb';
 import type {
   DocumentHandler,
   HandleOptions,

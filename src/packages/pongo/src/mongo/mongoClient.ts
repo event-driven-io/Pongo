@@ -6,7 +6,7 @@ import type {
   ClientSession,
   ClientSessionOptions,
   WithSessionCallback,
-} from 'mongodb';
+} from '@event-driven-io/pongo-shims/mongodb';
 import {
   pongoClient,
   pongoSession,

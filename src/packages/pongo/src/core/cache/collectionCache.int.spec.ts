@@ -9,7 +9,7 @@ import {
 } from 'vitest';
 import { DefaultDatabaseSchemaName } from '@event-driven-io/dumbo';
 import { pongoClient, type PongoCache, type PongoClient } from '..';
-import { sqlite3Driver } from '../../storage/sqlite/sqlite3';
+import { sqlite3Driver } from '../../sqlite3';
 import { lruCache } from './providers';
 
 type User = { _id?: string; name: string; age?: number };
@@ -19,11 +19,11 @@ const spyCache = (
 ): {
   cache: PongoCache;
   spies: {
-    get: Mock;
-    set: Mock;
-    setMany: Mock;
-    deleteMany: Mock;
-    delete: Mock;
+    get: Mock<PongoCache['get']>;
+    set: Mock<PongoCache['set']>;
+    setMany: Mock<PongoCache['setMany']>;
+    deleteMany: Mock<PongoCache['deleteMany']>;
+    delete: Mock<PongoCache['delete']>;
   };
 } => {
   const raw = lruCache({ max: 100 });
@@ -258,7 +258,7 @@ describe('pongoCollection cache integration', () => {
 
       const doc = await withCache.findOne({
         name: 'GraceUpdated',
-      } as unknown as { _id: string });
+      });
       expect(doc?.name).toBe('GraceUpdated');
     });
 
@@ -349,9 +349,7 @@ describe('pongoCollection cache integration', () => {
         const { insertedId } = await col.insertOne({ name });
         ids.push(insertedId!);
       }
-      await col.deleteMany({ _id: { $in: ids } } as unknown as {
-        _id: string;
-      });
+      await col.deleteMany({ _id: { $in: ids } });
 
       for (const id of ids) {
         expect(await col.findOne({ _id: id })).toBeNull();
@@ -369,7 +367,7 @@ describe('pongoCollection cache integration', () => {
       }
       spies.setMany.mockClear();
 
-      await col.deleteMany({ _id: { $in: ids } } as unknown as { _id: string });
+      await col.deleteMany({ _id: { $in: ids } });
 
       expect(spies.deleteMany).toHaveBeenCalledWith(
         expect.arrayContaining(ids.map(defaultUsersCacheKey)),
@@ -453,9 +451,7 @@ describe('pongoCollection cache integration', () => {
       const { insertedId } = await col.insertOne({ name: 'Real' });
       const ghostId = 'ghost-999';
 
-      await col.find({ _id: { $in: [insertedId!, ghostId] } } as unknown as {
-        _id: string;
-      });
+      await col.find({ _id: { $in: [insertedId!, ghostId] } });
 
       spies.set.mockClear();
       const result = await col.findOne({ _id: ghostId });
