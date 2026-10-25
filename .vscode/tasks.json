@@ -8,9 +8,10 @@
         "kind": "build",
         "isDefault": true
       },
-      "problemMatcher": [],
+      "problemMatcher": ["$tsc-watch"],
+      "isBackground": true,
       "label": "npm: build:ts:watch",
-      "detail": "tsc -b --watch",
+      "detail": "tsc -b tsconfig.json tsconfig.cloudflare.json --watch",
       "options": {
         "cwd": "${workspaceFolder}/src/"
       }
