@@ -3,11 +3,11 @@ import {
   DataError,
   NotRegisteredError,
   SQLArray,
-  SQLProcessor,
+  type SQLProcessor,
   type SQLProcessorContext,
 } from '../../../../../core';
 
-export const PostgreSQLArrayProcessor: SQLProcessor<SQLArray> = SQLProcessor({
+export const PostgreSQLArrayProcessor: SQLProcessor<SQLArray> = {
   canHandle: 'SQL_ARRAY',
   handle: (
     token: SQLArray,
@@ -26,41 +26,37 @@ export const PostgreSQLArrayProcessor: SQLProcessor<SQLArray> = SQLProcessor({
       builder.addParam(mappedValue);
     }
   },
-});
+};
 
-export const PostgreSQLExpandSQLInProcessor: SQLProcessor<SQLIn> = SQLProcessor(
-  {
-    canHandle: 'SQL_IN',
-    handle: (token: SQLIn, context: SQLProcessorContext) => {
-      const { builder, mapper, processorsRegistry } = context;
-      const { values: inValues, column, mode } = token;
+export const PostgreSQLExpandSQLInProcessor: SQLProcessor<SQLIn> = {
+  canHandle: 'SQL_IN',
+  handle: (token: SQLIn, context: SQLProcessorContext) => {
+    const { builder, mapper, processorsRegistry } = context;
+    const { values: inValues, column, mode } = token;
 
-      if (inValues.value.length === 0) {
-        builder.addParam(mapper.mapValue(false, context.serializer));
-        return;
-      }
+    if (inValues.value.length === 0) {
+      builder.addParam(mapper.mapValue(false, context.serializer));
+      return;
+    }
 
-      builder.addSQL(
-        mapper.mapValue(column.value, context.serializer) as string,
+    builder.addSQL(mapper.mapValue(column.value, context.serializer) as string);
+    const arrayProcessor = processorsRegistry.get(SQLArray.type);
+
+    if (!arrayProcessor) {
+      throw new NotRegisteredError(
+        'No sql processor registered for an array. Cannot expand IN statement',
       );
-      const arrayProcessor = processorsRegistry.get(SQLArray.type);
+    }
 
-      if (!arrayProcessor) {
-        throw new NotRegisteredError(
-          'No sql processor registered for an array. Cannot expand IN statement',
-        );
-      }
-
-      if (mode === 'params') {
-        builder.addSQL(` IN (`);
-        const expandedArray = { ...inValues, mode: 'params' as const };
-        arrayProcessor.handle(expandedArray, context);
-        builder.addSQL(`)`);
-      } else {
-        builder.addSQL(` = ANY (`);
-        arrayProcessor.handle(inValues, context);
-        builder.addSQL(`)`);
-      }
-    },
+    if (mode === 'params') {
+      builder.addSQL(` IN (`);
+      const expandedArray = { ...inValues, mode: 'params' as const };
+      arrayProcessor.handle(expandedArray, context);
+      builder.addSQL(`)`);
+    } else {
+      builder.addSQL(` = ANY (`);
+      arrayProcessor.handle(inValues, context);
+      builder.addSQL(`)`);
+    }
   },
-);
+};

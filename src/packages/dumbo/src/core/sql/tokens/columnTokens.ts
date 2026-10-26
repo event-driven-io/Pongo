@@ -1,5 +1,6 @@
 import { DataError } from '../../errors';
 import { SQLToken } from './sqlToken';
+import { sqlToken } from './sqlTokenFactory';
 
 export type JSONValueType =
   Record<string, unknown> | Array<unknown> | string | number | boolean | null;
@@ -72,6 +73,7 @@ export type ColumnTypeToken<
   jsTypeName: JSValueTypeName;
 };
 
+/* @__NO_SIDE_EFFECTS__ */
 export const ColumnTypeToken = <
   SQLTokenType extends AnyColumnTypeToken,
   TInput = keyof Omit<
@@ -328,18 +330,42 @@ export type SQLColumnTypeTokens = {
 };
 
 export const SQLColumnTypeTokensFactory = {
-  AutoIncrement: AutoIncrementSQLColumnToken.from,
-  BigInteger: BigIntegerToken.from(),
-  BigSerial: BigSerialToken.from(),
-  Boolean: BooleanToken.from(),
-  Integer: IntegerToken.from(),
-  JSON: JSONToken.from,
-  JSONB: JSONBToken.from,
-  Serial: SerialToken.from(),
-  Text: TextToken.from(),
-  Timestamp: TimestampToken.from(),
-  Timestamptz: TimestamptzToken.from(),
-  Varchar: VarcharToken.from,
+  get AutoIncrement() {
+    return AutoIncrementSQLColumnToken.from;
+  },
+  get BigInteger() {
+    return BigIntegerToken.from();
+  },
+  get BigSerial() {
+    return BigSerialToken.from();
+  },
+  get Boolean() {
+    return BooleanToken.from();
+  },
+  get Integer() {
+    return IntegerToken.from();
+  },
+  get JSON() {
+    return JSONToken.from;
+  },
+  get JSONB() {
+    return JSONBToken.from;
+  },
+  get Serial() {
+    return SerialToken.from();
+  },
+  get Text() {
+    return TextToken.from();
+  },
+  get Timestamp() {
+    return TimestampToken.from();
+  },
+  get Timestamptz() {
+    return TimestamptzToken.from();
+  },
+  get Varchar() {
+    return VarcharToken.from;
+  },
 };
 
 export type DefaultSQLColumnToken =
@@ -356,4 +382,4 @@ export type DefaultSQLColumnToken =
   | TimestamptzToken
   | VarcharToken;
 
-export const SQLColumnToken = SQLToken<SQLColumnToken>('SQL_COLUMN');
+export const SQLColumnToken = sqlToken<SQLColumnToken>('SQL_COLUMN');

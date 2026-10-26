@@ -15,16 +15,14 @@ const sharedConfig = {
   target: 'esnext',
   outDir: 'dist',
   deps: {
-    neverBundle: [
-      '@cloudflare/workers-types',
-      '@types/pg',
-      'ansis',
-      'pg',
-      'sqlite3',
-      'uuid',
-    ],
+    neverBundle: true,
   },
   tsconfig: 'tsconfig.build.json',
+  publint: true,
+  attw: {
+    profile: 'strict',
+    level: 'error',
+  },
 } satisfies UserConfig;
 
 const jsEntries = entries.map((entry): UserConfig => ({

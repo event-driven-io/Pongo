@@ -11,6 +11,11 @@ const sharedConfig = {
     dts: { alwaysBundle: ['mongodb', 'bson'] },
   },
   tsconfig: 'tsconfig.build.json',
+  publint: true,
+  attw: {
+    profile: 'strict',
+    level: 'error',
+  },
   banner: {
     dts: '/* Bundled and adapted from mongodb 7.7.0 and bson 7.3.3 under Apache-2.0. See NOTICE and licenses for attribution and license terms. */',
   },

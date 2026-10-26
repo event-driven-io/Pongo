@@ -15,11 +15,21 @@ declare global {
   var defaultProcessorsRegistry: ReturnType<typeof SQLProcessorsRegistry>;
 }
 
-export const defaultProcessorsRegistry = (globalThis.defaultProcessorsRegistry =
-  globalThis.defaultProcessorsRegistry ??
-  SQLProcessorsRegistry().register(
-    FormatIdentifierProcessor,
-    MapLiteralProcessor,
-    ExpandArrayProcessor,
-    ExpandSQLInProcessor,
-  ));
+const globalDefaultProcessorsRegistry = () =>
+  (globalThis.defaultProcessorsRegistry =
+    globalThis.defaultProcessorsRegistry ??
+    SQLProcessorsRegistry().register(
+      FormatIdentifierProcessor,
+      MapLiteralProcessor,
+      ExpandArrayProcessor,
+      ExpandSQLInProcessor,
+    ));
+
+export const defaultProcessorsRegistry: SQLProcessorsRegistry = {
+  get register() {
+    // eslint-disable-next-line @typescript-eslint/unbound-method
+    return globalDefaultProcessorsRegistry().register;
+  },
+  get: (tokenType) => globalDefaultProcessorsRegistry().get(tokenType),
+  all: () => globalDefaultProcessorsRegistry().all(),
+};

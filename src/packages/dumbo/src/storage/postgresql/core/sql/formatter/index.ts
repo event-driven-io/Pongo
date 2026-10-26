@@ -18,23 +18,29 @@ import {
 } from '../processors';
 import reservedMap from './reserved';
 
-const postgreSQLProcessorsRegistry = SQLProcessorsRegistry({
-  from: defaultProcessorsRegistry,
-})
-  .register(postgreSQLColumnProcessors)
-  .register(
-    PostgreSQLArrayProcessor,
-    PostgreSQLExpandSQLInProcessor,
-    PostgreSQLTableReferenceProcessor,
-    PostgreSQLCreateSchemaProcessor,
-    PostgreSQLRenameTableProcessor,
-    PostgreSQLIndexReferenceProcessor,
-    PostgreSQLJSONDocumentIndexTargetProcessor,
-    PostgreSQLJSONPathTargetProcessor,
-  );
+let postgreSQLProcessors: SQLProcessorsRegistry | undefined;
+
+const postgreSQLProcessorsRegistry = (): SQLProcessorsRegistry =>
+  (postgreSQLProcessors ??= SQLProcessorsRegistry({
+    from: defaultProcessorsRegistry,
+  })
+    .register(postgreSQLColumnProcessors)
+    .register(
+      PostgreSQLArrayProcessor,
+      PostgreSQLExpandSQLInProcessor,
+      PostgreSQLTableReferenceProcessor,
+      PostgreSQLCreateSchemaProcessor,
+      PostgreSQLRenameTableProcessor,
+      PostgreSQLIndexReferenceProcessor,
+      PostgreSQLJSONDocumentIndexTargetProcessor,
+      PostgreSQLJSONPathTargetProcessor,
+    ));
 
 const pgFormatter: SQLFormatter = SQLFormatter({
-  processorsRegistry: postgreSQLProcessorsRegistry,
+  processorsRegistry: {
+    get: (tokenType) => postgreSQLProcessorsRegistry().get(tokenType),
+    all: () => postgreSQLProcessorsRegistry().all(),
+  },
   valueMapper: {
     mapDate: (value: Date): unknown =>
       value.toISOString().replace('T', ' ').replace('Z', '+00'),

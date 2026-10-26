@@ -1,4 +1,5 @@
 import type { SerializationCodec, Serializer } from '..';
+import { withProps } from '../../utils/withProps';
 
 interface JSONSerializer<
   SerializeOptions extends JSONSerializeOptions = JSONSerializeOptions,
@@ -210,6 +211,7 @@ type ClassicJsonReviver =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (this: any, key: string, value: any) => any;
 
+/* @__NO_SIDE_EFFECTS__ */
 const jsonSerializer = (
   options?: JSONSerializerOptions &
     JSONDeserializeOptions &
@@ -247,7 +249,7 @@ const JSONSerializer: JSONSerializer & {
   >(
     options?: JSONSerializationOptions<SerializeOptions, DeserializeOptions>,
   ) => JSONSerializer<SerializeOptions, DeserializeOptions>;
-} = Object.assign(jsonSerializer(), {
+} = withProps(jsonSerializer(), {
   from: <
     SerializeOptions extends JSONSerializeOptions = JSONSerializeOptions,
     DeserializeOptions extends JSONDeserializeOptions = JSONDeserializeOptions,

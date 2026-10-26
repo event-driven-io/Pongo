@@ -121,10 +121,26 @@ declare global {
   >;
 }
 
-export const dumboDatabaseMetadataRegistry =
+const globalDumboDatabaseMetadataRegistry = () =>
   (globalThis.dumboDatabaseMetadataRegistry =
     globalThis.dumboDatabaseMetadataRegistry ??
     DumboDatabaseMetadataRegistry());
+
+export const dumboDatabaseMetadataRegistry: ReturnType<
+  typeof DumboDatabaseMetadataRegistry
+> = {
+  register: (databaseType, info) =>
+    globalDumboDatabaseMetadataRegistry().register(databaseType, info),
+  tryResolve: (databaseType) =>
+    globalDumboDatabaseMetadataRegistry().tryResolve(databaseType),
+  tryGet: (databaseType) =>
+    globalDumboDatabaseMetadataRegistry().tryGet(databaseType),
+  has: (databaseType) =>
+    globalDumboDatabaseMetadataRegistry().has(databaseType),
+  get databaseTypes() {
+    return globalDumboDatabaseMetadataRegistry().databaseTypes;
+  },
+};
 
 export const getDatabaseMetadata = (
   driverType: DatabaseDriverType,

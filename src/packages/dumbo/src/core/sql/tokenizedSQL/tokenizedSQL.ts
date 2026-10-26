@@ -5,6 +5,7 @@ import {
   SQLToken,
   type AnySQLToken,
 } from '../tokens';
+import { withProps } from '../../utils/withProps';
 
 export type TokenizedSQL = Readonly<{
   __brand: 'tokenized-sql';
@@ -41,7 +42,7 @@ const TokenizedSQLBuilder = () => {
   };
 };
 
-export const TokenizedSQL = (
+const tokenizedSQL = (
   strings: ReadonlyArray<string>,
   values: unknown[],
 ): TokenizedSQL => {
@@ -83,10 +84,11 @@ export const isTokenizedSQL = (value: unknown): value is TokenizedSQL => {
   );
 };
 
-TokenizedSQL.paramPlaceholder = `__P__`;
-
-TokenizedSQL.empty = {
-  __brand: 'tokenized-sql',
-  sqlChunks: [''],
-  sqlTokens: [],
-} satisfies TokenizedSQL;
+export const TokenizedSQL = withProps(tokenizedSQL, {
+  paramPlaceholder: `__P__`,
+  empty: {
+    __brand: 'tokenized-sql',
+    sqlChunks: [''],
+    sqlTokens: [],
+  } satisfies TokenizedSQL,
+});

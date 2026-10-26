@@ -1,8 +1,15 @@
+import type {
+  AnyDatabaseComponent,
+  DatabaseComponent,
+  dumboSchema,
+} from '@event-driven-io/dumbo';
 import type { PgPool } from '@event-driven-io/dumbo/pg';
 import type {
   AnyPongoDriver,
   PongoClientOptions,
   PongoCollection,
+  PongoCollectionComponent,
+  pongoSchema,
   PongoUpdateResult,
   WithIdAndVersion,
 } from '@event-driven-io/pongo';
@@ -79,6 +86,20 @@ describe('PostgreSQL package declarations', () => {
     users.findOne({ name: 123 });
     // @ts-expect-error points is a number
     users.updateOne({ name: 'Alice' }, { $inc: { points: 'one' } });
+  });
+});
+
+describe('Schema package declarations', () => {
+  it('builds database and collection schemas from names', () => {
+    expectTypeOf<typeof dumboSchema.database.from>()
+      .toBeCallableWith('app', ['public'])
+      .returns.toEqualTypeOf<DatabaseComponent>();
+    expectTypeOf<typeof pongoSchema.db.from>()
+      .toBeCallableWith('app', ['users'])
+      .returns.toEqualTypeOf<AnyDatabaseComponent>();
+    expectTypeOf<typeof pongoSchema.collection.from>()
+      .toBeCallableWith(['users'])
+      .returns.toEqualTypeOf<Record<string, PongoCollectionComponent>>();
   });
 });
 

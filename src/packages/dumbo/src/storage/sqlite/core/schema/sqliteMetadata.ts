@@ -1,4 +1,7 @@
-import type { DatabaseMetadata } from '../../../../core';
+import {
+  dumboDatabaseMetadataRegistry,
+  type DatabaseMetadata,
+} from '../../../../core';
 import { tableExists } from './schema';
 
 export const sqliteMetadata = {

@@ -10,7 +10,7 @@ import {
 import {
   DefaultSQLiteMigratorOptions,
   sqliteFormatter,
-  sqliteMetadata,
+  tableExists,
 } from '../core';
 import { D1DriverType, type D1Connection } from './connections';
 import { d1Pool, type D1PoolOptions } from './pool';
@@ -18,11 +18,15 @@ import { d1Pool, type D1PoolOptions } from './pool';
 export type D1DumboOptions = D1PoolOptions;
 
 export const d1Metadata = {
-  ...sqliteMetadata,
+  databaseType: 'SQLite',
+  defaultDatabaseName: 'main',
   capabilities: {
-    ...sqliteMetadata.capabilities,
+    supportsSchemas: false,
+    supportsFunctions: false,
+    supportsMultipleDatabases: false,
     supportsTransactions: false,
   },
+  tableExists,
 } as const satisfies DatabaseMetadata<false, false, false, false>;
 
 export const d1DumboDriver: DumboDatabaseDriver<
