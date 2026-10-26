@@ -2,12 +2,12 @@ import chalk from './color';
 
 const TWO_SPACES = '  ';
 
-const COLOR_STRING = chalk.hex('#98c379'); // Soft green for strings
-const COLOR_KEY = chalk.hex('#61afef'); // Muted cyan for keys
-const COLOR_NUMBER_OR_DATE = chalk.hex('#d19a66'); // Light orange for numbers
-const COLOR_BOOLEAN = chalk.hex('#c678dd'); // Light purple for booleans
-const COLOR_NULL_OR_UNDEFINED = chalk.hex('#c678dd'); // Light purple for null
-const COLOR_BRACKETS = chalk.hex('#abb2bf'); // Soft white for object and array brackets
+const COLOR_STRING = (text: string) => chalk.hex('#98c379')(text); // Soft green for strings
+const COLOR_KEY = (text: string) => chalk.hex('#61afef')(text); // Muted cyan for keys
+const COLOR_NUMBER_OR_DATE = (text: string) => chalk.hex('#d19a66')(text); // Light orange for numbers
+const COLOR_BOOLEAN = (text: string) => chalk.hex('#c678dd')(text); // Light purple for booleans
+const COLOR_NULL_OR_UNDEFINED = (text: string) => chalk.hex('#c678dd')(text); // Light purple for null
+const COLOR_BRACKETS = (text: string) => chalk.hex('#abb2bf')(text); // Soft white for object and array brackets
 
 const processString = (
   str: string,

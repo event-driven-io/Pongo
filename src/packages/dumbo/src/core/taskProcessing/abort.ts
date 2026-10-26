@@ -17,11 +17,12 @@ export type AbortScope = Abort & {
   dispose: () => void;
 };
 
-const never: Abort = {
-  signal: new AbortController().signal,
-};
+let neverAbort: Abort | undefined;
 
-const from = (options?: AbortOptions): Abort => options?.abort ?? never;
+const never = (): Abort =>
+  (neverAbort ??= { signal: new AbortController().signal });
+
+const from = (options?: AbortOptions): Abort => options?.abort ?? never();
 
 const getSignal = (abort: Abort | AbortSignal): AbortSignal =>
   'signal' in abort ? abort.signal : abort;
@@ -136,7 +137,9 @@ const onAbortSignal = (
 export const Abort = {
   execute,
   from,
-  never,
+  get never() {
+    return never();
+  },
   onAbort: onAbortSignal,
   reason,
   rejectIfAborted,

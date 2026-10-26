@@ -1,7 +1,6 @@
 import { JSONSerializer } from '../serializer';
 import { prettyJson } from './printing';
-
-export const tracer = () => {};
+import { withProps } from '../utils/withProps';
 
 export type LogLevel = 'DISABLED' | 'INFO' | 'LOG' | 'WARN' | 'ERROR';
 
@@ -125,20 +124,22 @@ const recordTraceEvent = (
   record(event);
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-tracer.info = (eventName: string, attributes?: Record<string, any>) =>
-  recordTraceEvent(LogLevel.INFO, eventName, attributes);
+export const tracer = withProps(() => {}, {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  info: (eventName: string, attributes?: Record<string, any>) =>
+    recordTraceEvent(LogLevel.INFO, eventName, attributes),
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-tracer.warn = (eventName: string, attributes?: Record<string, any>) =>
-  recordTraceEvent(LogLevel.WARN, eventName, attributes);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  warn: (eventName: string, attributes?: Record<string, any>) =>
+    recordTraceEvent(LogLevel.WARN, eventName, attributes),
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-tracer.log = (eventName: string, attributes?: Record<string, any>) =>
-  recordTraceEvent(LogLevel.LOG, eventName, attributes);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  log: (eventName: string, attributes?: Record<string, any>) =>
+    recordTraceEvent(LogLevel.LOG, eventName, attributes),
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-tracer.error = (eventName: string, attributes?: Record<string, any>) =>
-  recordTraceEvent(LogLevel.ERROR, eventName, attributes);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  error: (eventName: string, attributes?: Record<string, any>) =>
+    recordTraceEvent(LogLevel.ERROR, eventName, attributes),
+});
 
 export * from './printing';

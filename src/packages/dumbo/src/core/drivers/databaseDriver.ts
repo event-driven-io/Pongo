@@ -35,6 +35,7 @@ export type ExtractDumboTypeFromDriver<DatabaseDriver> =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   DatabaseDriver extends DumboDatabaseDriver<any, any, infer D> ? D : never;
 
+/* @__NO_SIDE_EFFECTS__ */
 export const canHandleDriverWithConnectionString =
   <
     DatabaseDriver extends AnyDumboDatabaseDriver = AnyDumboDatabaseDriver,
@@ -140,6 +141,20 @@ declare global {
   >;
 }
 
-export const dumboDatabaseDriverRegistry =
+const globalDumboDatabaseDriverRegistry = () =>
   (globalThis.dumboDatabaseDriverRegistry =
     globalThis.dumboDatabaseDriverRegistry ?? DumboDatabaseDriverRegistry());
+
+export const dumboDatabaseDriverRegistry: ReturnType<
+  typeof DumboDatabaseDriverRegistry
+> = {
+  register: (driverType, plugin) =>
+    globalDumboDatabaseDriverRegistry().register(driverType, plugin),
+  tryResolve: (options) =>
+    globalDumboDatabaseDriverRegistry().tryResolve(options),
+  tryGet: (options) => globalDumboDatabaseDriverRegistry().tryGet(options),
+  has: (driverType) => globalDumboDatabaseDriverRegistry().has(driverType),
+  get databaseDriverTypes() {
+    return globalDumboDatabaseDriverRegistry().databaseDriverTypes;
+  },
+};

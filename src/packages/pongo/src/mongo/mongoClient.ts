@@ -9,6 +9,7 @@ import type {
 } from '@event-driven-io/pongo-shims/mongodb';
 import {
   pongoClient,
+  pongoDriverRegistry,
   pongoSession,
   PongoError,
   type AnyPongoDriver,

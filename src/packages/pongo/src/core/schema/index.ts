@@ -33,6 +33,12 @@ import {
 } from '../typing';
 import { PongoError } from '../errors';
 
+/* @__NO_SIDE_EFFECTS__ */
+const withProps = <Target extends object, Props extends object>(
+  target: Target,
+  props: Props,
+): Target & Props => Object.assign(target, props);
+
 type EmptyComponentRecord = Readonly<Record<never, never>>;
 
 export type PongoIndexComponent<Name extends string = string> = IndexComponent<
@@ -47,11 +53,11 @@ export type PongoCollectionIndexes = Readonly<
   Record<string, PongoIndexComponent>
 >;
 
-const { column, table } = dumboSchema;
-const { BigInteger, Boolean, JSON, Text, Timestamptz } = SQL.column.type;
+const pongoCollectionColumns = <Document extends PongoDocument>() => {
+  const { column } = dumboSchema;
+  const { BigInteger, Boolean, JSON, Text, Timestamptz } = SQL.column.type;
 
-const pongoCollectionColumns = <Document extends PongoDocument>() =>
-  ({
+  return {
     _id: column('_id', Text, {
       primaryKey: true,
       notNull: true,
@@ -83,7 +89,8 @@ const pongoCollectionColumns = <Document extends PongoDocument>() =>
       notNull: true,
       default: SQL.plain('CURRENT_TIMESTAMP'),
     }),
-  }) satisfies Record<string, AnyColumnSchemaComponent>;
+  } satisfies Record<string, AnyColumnSchemaComponent>;
+};
 
 export type PongoCollectionColumns<Document extends PongoDocument> = ReturnType<
   typeof pongoCollectionColumns<Document>
@@ -105,7 +112,7 @@ const pongoCollectionTable = <
   TableRelationships<keyof PongoCollectionColumns<Document>>,
   'pongo_collection'
 > =>
-  table(name, {
+  dumboSchema.table(name, {
     columns: pongoCollectionColumns<Document>(),
     ...options,
     kind: 'pongo_collection',
@@ -307,12 +314,12 @@ const pongoCollection = <
   });
 };
 
-pongoCollection.from = (
-  collectionNames: string[],
-): Record<string, PongoCollectionComponent> =>
-  Object.fromEntries(
-    collectionNames.map((name) => [name, pongoCollection(name)]),
-  );
+const pongoCollectionFactory = withProps(pongoCollection, {
+  from: (collectionNames: string[]): Record<string, PongoCollectionComponent> =>
+    Object.fromEntries(
+      collectionNames.map((name) => [name, pongoCollection(name)]),
+    ),
+});
 
 const pongoDatabaseSchema = <
   const Collections extends Readonly<Record<string, PongoCollectionComponent>>,
@@ -389,47 +396,55 @@ function pongoDatabase(
       });
 }
 
-pongoDatabase.from = (
-  databaseName: string | undefined,
-  collections: ReadonlyArray<string | PongoCollectionSchemaMetadata>,
-): AnyDatabaseComponent => {
-  const placed = collections.map((collection) =>
-    typeof collection === 'string' ? { name: collection } : collection,
-  );
-
-  const collectionsIn = (databaseSchemaName: string) =>
-    pongoCollection.from(
-      placed
-        .filter(
-          (collection) => collection.databaseSchemaName === databaseSchemaName,
-        )
-        .map(({ name }) => name),
+const pongoDatabaseFactory = withProps(pongoDatabase, {
+  from: (
+    databaseName: string | undefined,
+    collections: ReadonlyArray<string | PongoCollectionSchemaMetadata>,
+  ): AnyDatabaseComponent => {
+    const placed = collections.map((collection) =>
+      typeof collection === 'string' ? { name: collection } : collection,
     );
 
-  const inDefaultSchema = placed
-    .filter(({ databaseSchemaName }) =>
-      isDefaultDatabaseSchema(databaseSchemaName),
-    )
-    .map(({ name }) => name);
+    const collectionsIn = (databaseSchemaName: string) =>
+      pongoCollectionFactory.from(
+        placed
+          .filter(
+            (collection) =>
+              collection.databaseSchemaName === databaseSchemaName,
+          )
+          .map(({ name }) => name),
+      );
 
-  const databaseSchemaNames = [
-    ...new Set(
-      placed
-        .map(({ databaseSchemaName }) => databaseSchemaName)
-        .filter((name): name is string => !isDefaultDatabaseSchema(name)),
-    ),
-  ];
+    const inDefaultSchema = placed
+      .filter(({ databaseSchemaName }) =>
+        isDefaultDatabaseSchema(databaseSchemaName),
+      )
+      .map(({ name }) => name);
 
-  const definition = { collections: pongoCollection.from(inDefaultSchema) };
+    const databaseSchemaNames = [
+      ...new Set(
+        placed
+          .map(({ databaseSchemaName }) => databaseSchemaName)
+          .filter((name): name is string => !isDefaultDatabaseSchema(name)),
+      ),
+    ];
 
-  return databaseSchemaNames.reduce<AnyDatabaseComponent>(
-    (database, databaseSchemaName) =>
-      database.withTable(collectionsIn(databaseSchemaName), databaseSchemaName),
-    databaseName === undefined
-      ? pongoDatabase(definition)
-      : pongoDatabase(databaseName, definition),
-  );
-};
+    const definition = {
+      collections: pongoCollectionFactory.from(inDefaultSchema),
+    };
+
+    return databaseSchemaNames.reduce<AnyDatabaseComponent>(
+      (database, databaseSchemaName) =>
+        database.withTable(
+          collectionsIn(databaseSchemaName),
+          databaseSchemaName,
+        ),
+      databaseName === undefined
+        ? pongoDatabase(definition)
+        : pongoDatabase(databaseName, definition),
+    );
+  },
+});
 
 const pongoClientSchema = <
   const Databases extends Readonly<Record<string, PongoDbSchema>>,
@@ -437,7 +452,7 @@ const pongoClientSchema = <
   dbs: Databases,
 ): PongoClientSchema<Databases> => ({ dbs });
 
-const pongoIndexFactory = Object.assign(
+const pongoIndexFactory = withProps(
   <const Name extends string, const Path extends string | readonly string[]>(
     name: Name,
     path: Path,
@@ -451,9 +466,9 @@ const pongoIndexFactory = Object.assign(
 
 export const pongoSchema = {
   client: pongoClientSchema,
-  db: pongoDatabase,
+  db: pongoDatabaseFactory,
   schema: pongoDatabaseSchema,
-  collection: pongoCollection,
+  collection: pongoCollectionFactory,
   index: pongoIndexFactory,
 };
 

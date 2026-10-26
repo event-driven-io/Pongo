@@ -15,25 +15,14 @@ const sharedConfig = {
   target: 'esnext',
   outDir: 'dist',
   deps: {
-    neverBundle: [
-      '@cloudflare/workers-types',
-      '@types/pg',
-      'pg',
-      'sqlite3',
-      'cli-table3',
-      'commander',
-      'uuid',
-      '@event-driven-io/dumbo',
-      '@event-driven-io/pongo-shims',
-      '@event-driven-io/pongo-shims/mongodb',
-      '@event-driven-io/dumbo/pg',
-      '@event-driven-io/dumbo/sqlite3',
-      '@event-driven-io/dumbo/cloudflare',
-      '@event-driven-io/dumbo/postgresql',
-      '@event-driven-io/dumbo/sqlite',
-    ],
+    neverBundle: true,
   },
   tsconfig: 'tsconfig.build.json',
+  publint: true,
+  attw: {
+    profile: 'strict',
+    level: 'error',
+  },
 } satisfies UserConfig;
 
 const jsEntries = entries.map((entry): UserConfig => ({

@@ -25,6 +25,7 @@ import {
   type ValidateDatabaseSchemas,
 } from '../components';
 import type { SQLMigration } from '../sqlMigration';
+import { withProps } from '../../utils/withProps';
 
 function dumboColumn<
   const ColumnType extends AnyColumnTypeToken | string,
@@ -213,23 +214,25 @@ function dumboDatabase(
     : databaseComponent({ databaseName, ...shared, tables });
 }
 
-dumboDatabase.from = (
-  databaseName: string | undefined,
-  schemaNames: string[],
-): DatabaseComponent => {
-  const schemas = Object.fromEntries(
-    schemaNames.map((schemaName) => [
-      schemaName,
-      dumboDatabaseSchema(schemaName, {}),
-    ]),
-  );
-  return databaseName === undefined
-    ? dumboDatabase({ schemas })
-    : dumboDatabase(databaseName, { schemas });
-};
+const databaseFactory = withProps(dumboDatabase, {
+  from: (
+    databaseName: string | undefined,
+    schemaNames: string[],
+  ): DatabaseComponent => {
+    const schemas = Object.fromEntries(
+      schemaNames.map((schemaName) => [
+        schemaName,
+        dumboDatabaseSchema(schemaName, {}),
+      ]),
+    );
+    return databaseName === undefined
+      ? dumboDatabase({ schemas })
+      : dumboDatabase(databaseName, { schemas });
+  },
+});
 
 export const dumboSchema = {
-  database: dumboDatabase,
+  database: databaseFactory,
   schema: dumboDatabaseSchema,
   table: dumboTable,
   column: dumboColumn,

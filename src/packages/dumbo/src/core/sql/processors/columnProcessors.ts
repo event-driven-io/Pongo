@@ -47,6 +47,7 @@ const inlineDefault = (
   builder.addSQL(`'${serialized.replaceAll("'", "''")}'`);
 };
 
+/* @__NO_SIDE_EFFECTS__ */
 export const mapDefaultSQLColumnProcessors = (
   mapColumnType: (
     token: DefaultSQLColumnToken,

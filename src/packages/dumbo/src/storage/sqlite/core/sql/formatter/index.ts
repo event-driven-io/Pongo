@@ -14,21 +14,27 @@ import {
   SQLiteTableReferenceProcessor,
 } from '../processors';
 
-const sqliteSQLProcessorsRegistry = SQLProcessorsRegistry({
-  from: defaultProcessorsRegistry,
-})
-  .register(sqliteColumnProcessors)
-  .register(
-    SQLiteTableReferenceProcessor,
-    SQLiteCreateSchemaProcessor,
-    SQLiteRenameTableProcessor,
-    SQLiteIndexReferenceProcessor,
-    SQLiteJSONDocumentIndexTargetProcessor,
-    SQLiteJSONPathTargetProcessor,
-  );
+let sqliteSQLProcessors: SQLProcessorsRegistry | undefined;
+
+const sqliteSQLProcessorsRegistry = (): SQLProcessorsRegistry =>
+  (sqliteSQLProcessors ??= SQLProcessorsRegistry({
+    from: defaultProcessorsRegistry,
+  })
+    .register(sqliteColumnProcessors)
+    .register(
+      SQLiteTableReferenceProcessor,
+      SQLiteCreateSchemaProcessor,
+      SQLiteRenameTableProcessor,
+      SQLiteIndexReferenceProcessor,
+      SQLiteJSONDocumentIndexTargetProcessor,
+      SQLiteJSONPathTargetProcessor,
+    ));
 
 const sqliteFormatter: SQLFormatter = SQLFormatter({
-  processorsRegistry: sqliteSQLProcessorsRegistry,
+  processorsRegistry: {
+    get: (tokenType) => sqliteSQLProcessorsRegistry().get(tokenType),
+    all: () => sqliteSQLProcessorsRegistry().all(),
+  },
 });
 
 registerFormatter('SQLite', sqliteFormatter);

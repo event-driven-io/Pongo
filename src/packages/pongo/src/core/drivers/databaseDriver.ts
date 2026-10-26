@@ -150,5 +150,18 @@ declare global {
   var pongoDriverRegistry: ReturnType<typeof PongoDriverRegistry>;
 }
 
-export const pongoDriverRegistry = (globalThis.pongoDriverRegistry =
-  globalThis.pongoDriverRegistry ?? PongoDriverRegistry());
+const globalPongoDriverRegistry = () =>
+  (globalThis.pongoDriverRegistry =
+    globalThis.pongoDriverRegistry ?? PongoDriverRegistry());
+
+export const pongoDriverRegistry: ReturnType<typeof PongoDriverRegistry> = {
+  register: (driverType, driver) =>
+    globalPongoDriverRegistry().register(driverType, driver),
+  tryResolve: (driverType) =>
+    globalPongoDriverRegistry().tryResolve(driverType),
+  tryGet: (driverType) => globalPongoDriverRegistry().tryGet(driverType),
+  has: (driverType) => globalPongoDriverRegistry().has(driverType),
+  get databaseDriverTypes() {
+    return globalPongoDriverRegistry().databaseDriverTypes;
+  },
+};

@@ -1,11 +1,15 @@
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import { builtinModules } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
+import { build } from 'esbuild';
+import { rolldown } from 'rolldown';
 import ts from 'typescript';
 
 export type ModuleFormat = 'cjs' | 'js';
 export type PackageName = 'dumbo' | 'pongo';
+export type Bundler = 'esbuild' | 'rolldown';
 
 const localImportPatterns: Record<ModuleFormat, RegExp> = {
   cjs: /require\(['"]\.\/([^'"]+\.cjs)['"]\)/g,
@@ -13,8 +17,8 @@ const localImportPatterns: Record<ModuleFormat, RegExp> = {
 };
 
 const moduleSpecifierPatterns: Record<ModuleFormat, RegExp> = {
-  cjs: /require\(['"]([^'"]+)['"]\)/g,
-  js: /(?:from\s+|import\s*\()\s*['"]([^'"]+)['"]/g,
+  cjs: /\brequire\(\s*['"]([^'"]+)['"]\s*\)/g,
+  js: /(?<![\w$.'"])(?:from|import)\s*\(?\s*['"]([^'"\n]+)['"]/g,
 };
 
 export const reachableFiles = (
@@ -57,6 +61,76 @@ export const externalImports = (
         !specifier.startsWith('.') &&
         !specifier.startsWith('node:'),
     );
+};
+
+export const nodeBuiltInImports = (
+  distDirectory: string,
+  file: string,
+  format: ModuleFormat,
+): string[] => {
+  const source = fs.readFileSync(path.join(distDirectory, file), 'utf8');
+
+  return [...source.matchAll(moduleSpecifierPatterns[format])]
+    .map((match) => match[1])
+    .filter(
+      (specifier): specifier is string =>
+        specifier !== undefined && isNodeBuiltIn(specifier),
+    );
+};
+
+export const bareImports = (file: string): string[] => {
+  const source = fs.readFileSync(file, 'utf8');
+
+  return [
+    ...new Set(
+      ts
+        .preProcessFile(source, true, true)
+        .importedFiles.map(({ fileName }) => fileName)
+        .filter(
+          (specifier) =>
+            !specifier.startsWith('.') &&
+            !isNodeBuiltIn(specifier) &&
+            !specifier.startsWith('cloudflare:'),
+        )
+        .map(packageNameOf),
+    ),
+  ];
+};
+
+export const bundledSources = (distDirectory: string): string[] => [
+  ...new Set(
+    fs
+      .readdirSync(distDirectory)
+      .filter((file) => file.endsWith('.map'))
+      .flatMap((file) => sourceMapSources(path.join(distDirectory, file))),
+  ),
+];
+
+export const isInside = (directory: string, file: string): boolean => {
+  const relativePath = path.relative(directory, file);
+
+  return !relativePath.startsWith('..') && !path.isAbsolute(relativePath);
+};
+
+const isNodeBuiltIn = (specifier: string): boolean =>
+  specifier.startsWith('node:') || builtinModules.includes(specifier);
+
+const packageNameOf = (specifier: string): string => {
+  const segments = specifier.split('/');
+
+  return specifier.startsWith('@')
+    ? segments.slice(0, 2).join('/')
+    : segments[0]!;
+};
+
+const sourceMapSources = (sourceMapFile: string): string[] => {
+  const sourceMap = JSON.parse(fs.readFileSync(sourceMapFile, 'utf8')) as {
+    sources: string[];
+  };
+
+  return sourceMap.sources.map((source) =>
+    path.resolve(path.dirname(sourceMapFile), source),
+  );
 };
 
 export const bundledPackageSources = (
@@ -127,9 +201,14 @@ export const typeCheckConsumer = (
   }
 };
 
-export const runNodeConsumer = (format: ModuleFormat, source: string) => {
+export const runNodeConsumer = (
+  format: ModuleFormat,
+  source: string,
+  parentDirectory = os.tmpdir(),
+) => {
+  fs.mkdirSync(parentDirectory, { recursive: true });
   const tempDirectory = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'pongo-runtime-'),
+    path.join(parentDirectory, 'pongo-runtime-'),
   );
   const consumerFile = path.join(
     tempDirectory,
@@ -139,6 +218,46 @@ export const runNodeConsumer = (format: ModuleFormat, source: string) => {
   try {
     fs.writeFileSync(consumerFile, source);
     return spawnSync(process.execPath, [consumerFile], { encoding: 'utf8' });
+  } finally {
+    fs.rmSync(tempDirectory, { recursive: true, force: true });
+  }
+};
+
+export const bundleConsumer = async (
+  bundler: Bundler,
+  files: Readonly<Record<string, string>>,
+): Promise<string> => {
+  const tempDirectory = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'pongo-consumer-'),
+  );
+
+  try {
+    for (const [file, source] of Object.entries(files)) {
+      fs.writeFileSync(path.join(tempDirectory, file), source);
+    }
+    const consumerFile = path.join(tempDirectory, 'consumer.js');
+
+    if (bundler === 'esbuild') {
+      const result = await build({
+        entryPoints: [consumerFile],
+        bundle: true,
+        write: false,
+        format: 'esm',
+        platform: 'neutral',
+        packages: 'external',
+        tsconfigRaw: '{}',
+        logLevel: 'silent',
+      });
+      return result.outputFiles[0]!.text;
+    }
+
+    const bundle = await rolldown({
+      input: consumerFile,
+      external: /^[^./]/,
+      logLevel: 'silent',
+    });
+    const { output } = await bundle.generate({ format: 'esm' });
+    return output[0].code;
   } finally {
     fs.rmSync(tempDirectory, { recursive: true, force: true });
   }

@@ -18,9 +18,9 @@ import {
 import { mapSqliteError } from '../errors';
 import { sqliteSQLExecutor, type SQLiteErrorMapper } from '../execute';
 import { sqliteTransaction, type SQLiteTransactionMode } from '../transactions';
-import {
+import type {
   SQLiteConnectionString,
-  type SQLitePragmaOptions,
+  SQLitePragmaOptions,
 } from './connectionString';
 
 export type SQLiteCommandOptions = SQLCommandOptions & {
@@ -359,7 +359,7 @@ export function sqliteConnection<
 }
 
 export type InMemorySQLiteDatabase = ':memory:';
-export const InMemorySQLiteDatabase = SQLiteConnectionString(':memory:');
+export const InMemorySQLiteDatabase = ':memory:' as SQLiteConnectionString;
 
 export type { SQLitePragmaOptions } from './connectionString';
 

@@ -6,8 +6,6 @@ import {
 } from '../components';
 import type { AnySchemaComponent } from '../schemaComponent';
 
-const { AutoIncrement, Varchar, Timestamp } = SQL.column.type;
-
 export const migrationTableComponentFor = ({
   schemaName,
   tableName = 'dmb_migrations',
@@ -15,6 +13,7 @@ export const migrationTableComponentFor = ({
   schemaName?: string | undefined;
   tableName?: string | undefined;
 } = {}): AnySchemaComponent & { fullName: SQLTableReference } => {
+  const { AutoIncrement, Varchar, Timestamp } = SQL.column.type;
   const migrationTable = tableComponent({
     tableName,
     databaseSchemaName: schemaName,

@@ -1,4 +1,5 @@
 import { JSONSerializer } from '../serializer';
+import { withProps } from '../utils/withProps';
 import type { SQLFormatter } from './formatters';
 import { describeSQL, formatSQL, type FormatSQLOptions } from './formatters';
 import type { ParametrizedSQL } from './parametrizedSQL';
@@ -188,14 +189,13 @@ const isEmpty = (sql: SQL): boolean => {
   return false;
 };
 
-const columnFactory: typeof SQLColumnToken.from & {
-  type: typeof SQLColumnTypeTokensFactory;
-} = SQLColumnToken.from as unknown as typeof SQLColumnToken.from & {
-  type: typeof SQLColumnTypeTokensFactory;
-};
-columnFactory.type = SQLColumnTypeTokensFactory;
+const columnFactory = withProps(
+  (input: Omit<SQLColumnToken, 'sqlTokenType'>): SQLColumnToken =>
+    SQLColumnToken.from(input),
+  { type: SQLColumnTypeTokensFactory },
+);
 
-export const SQL: SQLTag = Object.assign(createSQL, {
+export const SQL: SQLTag = withProps(createSQL, {
   EMPTY: emptySQL,
   concat: concatSQL,
   merge: mergeSQL,
@@ -223,17 +223,18 @@ export const SQL: SQLTag = Object.assign(createSQL, {
     SQLArray.from(
       options?.mode ? { value: values, mode: options.mode } : values,
     ),
-  identifier: SQLIdentifier.from,
-  plain: SQLPlain.from,
+  identifier: (value: string): SQLIdentifier => SQLIdentifier.from(value),
+  plain: (value: string): SQLPlain => SQLPlain.from(value),
   literal,
   check: {
     isSQL,
     isTokenizedSQL: (value: unknown): value is TokenizedSQL =>
       isTokenizedSQL(value),
     isEmpty,
-    isIdentifier: SQLIdentifier.check,
-    isPlain: SQLPlain.check,
-    isSQLIn: SQLIn.check,
+    isIdentifier: (value: unknown): value is SQLIdentifier =>
+      SQLIdentifier.check(value),
+    isPlain: (value: unknown): value is SQLPlain => SQLPlain.check(value),
+    isSQLIn: (value: unknown): value is SQLIn => SQLIn.check(value),
   },
   column: columnFactory,
 });

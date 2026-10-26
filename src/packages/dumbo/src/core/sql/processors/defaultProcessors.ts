@@ -1,9 +1,9 @@
 import { DataError, NotRegisteredError } from '../../errors';
 import type { SQLIdentifier, SQLIn, SQLLiteral } from '../tokens';
 import { SQLArray } from '../tokens';
-import { SQLProcessor, type SQLProcessorContext } from './sqlProcessor';
+import type { SQLProcessor, SQLProcessorContext } from './sqlProcessor';
 
-export const ExpandArrayProcessor: SQLProcessor<SQLArray> = SQLProcessor({
+export const ExpandArrayProcessor: SQLProcessor<SQLArray> = {
   canHandle: 'SQL_ARRAY',
   handle: (
     token: SQLArray,
@@ -16,9 +16,9 @@ export const ExpandArrayProcessor: SQLProcessor<SQLArray> = SQLProcessor({
     }
     builder.addParams(mapper.mapValue(token.value, serializer) as unknown[]);
   },
-});
+};
 
-export const ExpandSQLInProcessor: SQLProcessor<SQLIn> = SQLProcessor({
+export const ExpandSQLInProcessor: SQLProcessor<SQLIn> = {
   canHandle: 'SQL_IN',
   handle: (token: SQLIn, context: SQLProcessorContext) => {
     const { builder, mapper, processorsRegistry, serializer } = context;
@@ -48,24 +48,23 @@ export const ExpandSQLInProcessor: SQLProcessor<SQLIn> = SQLProcessor({
     });
     builder.addSQL(`)`);
   },
-});
+};
 
-export const FormatIdentifierProcessor: SQLProcessor<SQLIdentifier> =
-  SQLProcessor({
-    canHandle: 'SQL_IDENTIFIER',
-    handle: (
-      token: SQLIdentifier,
-      { builder, mapper, serializer }: SQLProcessorContext,
-    ) => {
-      // TODO: use MapIdentifier from mapper
-      builder.addSQL(mapper.mapValue(token, serializer) as string);
-    },
-  });
+export const FormatIdentifierProcessor: SQLProcessor<SQLIdentifier> = {
+  canHandle: 'SQL_IDENTIFIER',
+  handle: (
+    token: SQLIdentifier,
+    { builder, mapper, serializer }: SQLProcessorContext,
+  ) => {
+    // TODO: use MapIdentifier from mapper
+    builder.addSQL(mapper.mapValue(token, serializer) as string);
+  },
+};
 
-export const MapLiteralProcessor: SQLProcessor<SQLLiteral> = SQLProcessor({
+export const MapLiteralProcessor: SQLProcessor<SQLLiteral> = {
   canHandle: 'SQL_LITERAL',
   handle: (
     token: SQLLiteral,
     { builder, mapper, serializer }: SQLProcessorContext,
   ) => builder.addParam(mapper.mapValue(token.value, serializer)),
-});
+};

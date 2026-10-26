@@ -1,4 +1,5 @@
-import { DataError } from '../../errors';
+import { withProps } from '../../utils/withProps';
+import { isSQLToken, sqlToken } from './sqlTokenFactory';
 
 export type SQLToken<
   TSymbol extends string = string,
@@ -19,52 +20,12 @@ export type ExtractSQLTokenType<T> = T extends (...args: never[]) => infer R
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AnySQLToken = SQLToken<string, any>;
 
-export const SQLToken = <
-  SQLTokenType extends AnySQLToken,
-  TInput = keyof Omit<SQLTokenType, 'sqlTokenType'> extends never
-    ? void
-    : Omit<SQLTokenType, 'sqlTokenType'>,
->(
-  sqlTokenType: SQLTokenType['sqlTokenType'],
-  map?: (input: TInput) => Omit<SQLTokenType, 'sqlTokenType'>,
-) => {
-  const factory = (input: TInput): SQLTokenType => {
-    let props: Omit<SQLTokenType, 'sqlTokenType'>;
-
-    if (map !== undefined) {
-      props = map(input);
-    } else if (input === undefined || input === null) {
-      props = {} as Omit<SQLTokenType, 'sqlTokenType'>;
-    } else if (typeof input === 'object' && !Array.isArray(input)) {
-      // If input is already an object (but not array), spread it
-      props = input as Omit<SQLTokenType, 'sqlTokenType'>;
-    } else {
-      throw new DataError(
-        // eslint-disable-next-line @typescript-eslint/restrict-template-expressions
-        `Cannot create SQLToken of type ${sqlTokenType} with input: ${input}`,
-      );
-    }
-
-    return {
-      sqlTokenType: sqlTokenType,
-      [sqlTokenType]: true,
-      ...props,
-    } as unknown as SQLTokenType;
-  };
-
-  const check = (token: unknown): token is SQLTokenType =>
-    SQLToken.check(token) && token.sqlTokenType === sqlTokenType;
-
-  return { from: factory, check: check, type: sqlTokenType };
-};
-
-SQLToken.check = <SQLTokenType extends AnySQLToken>(
-  token: unknown,
-): token is SQLTokenType =>
-  token !== null && typeof token === 'object' && 'sqlTokenType' in token;
+export const SQLToken = withProps(sqlToken, {
+  check: isSQLToken,
+});
 
 export type SQLIdentifier = SQLToken<'SQL_IDENTIFIER', { value: string }>;
-export const SQLIdentifier = SQLToken<SQLIdentifier, string>(
+export const SQLIdentifier = sqlToken<SQLIdentifier, string>(
   'SQL_IDENTIFIER',
   (value) => ({
     value,
@@ -78,7 +39,7 @@ export type SQLTableReference = SQLToken<
     tableName: string;
   }
 >;
-export const SQLTableReference = SQLToken<SQLTableReference>(
+export const SQLTableReference = sqlToken<SQLTableReference>(
   'SQL_TABLE_REFERENCE',
 );
 
@@ -96,7 +57,7 @@ export type SQLRenameTable = SQLToken<
     newTableName: string;
   }
 >;
-export const SQLRenameTable = SQLToken<SQLRenameTable>('SQL_RENAME_TABLE');
+export const SQLRenameTable = sqlToken<SQLRenameTable>('SQL_RENAME_TABLE');
 
 export type SQLIndexReference = SQLToken<
   'SQL_INDEX_REFERENCE',
@@ -106,7 +67,7 @@ export type SQLIndexReference = SQLToken<
     indexName: string;
   }
 >;
-export const SQLIndexReference = SQLToken<SQLIndexReference>(
+export const SQLIndexReference = sqlToken<SQLIndexReference>(
   'SQL_INDEX_REFERENCE',
 );
 
@@ -114,13 +75,13 @@ export type SQLCreateSchema = SQLToken<
   'SQL_CREATE_SCHEMA',
   { databaseSchemaName: string }
 >;
-export const SQLCreateSchema = SQLToken<SQLCreateSchema>('SQL_CREATE_SCHEMA');
+export const SQLCreateSchema = sqlToken<SQLCreateSchema>('SQL_CREATE_SCHEMA');
 
 export type SQLJSONDocumentIndexTarget = SQLToken<
   'SQL_JSON_DOCUMENT_INDEX_TARGET',
   { columnName: string; isUnique: boolean }
 >;
-export const SQLJSONDocumentIndexTarget = SQLToken<SQLJSONDocumentIndexTarget>(
+export const SQLJSONDocumentIndexTarget = sqlToken<SQLJSONDocumentIndexTarget>(
   'SQL_JSON_DOCUMENT_INDEX_TARGET',
 );
 
@@ -128,17 +89,17 @@ export type SQLJSONPathTarget = SQLToken<
   'SQL_JSON_PATH_TARGET',
   { columnName: string; path: readonly string[] }
 >;
-export const SQLJSONPathTarget = SQLToken<SQLJSONPathTarget>(
+export const SQLJSONPathTarget = sqlToken<SQLJSONPathTarget>(
   'SQL_JSON_PATH_TARGET',
 );
 
 export type SQLPlain = SQLToken<'SQL_RAW', { value: string }>;
-export const SQLPlain = SQLToken<SQLPlain, string>('SQL_RAW', (value) => ({
+export const SQLPlain = sqlToken<SQLPlain, string>('SQL_RAW', (value) => ({
   value,
 }));
 
 export type SQLLiteral = SQLToken<'SQL_LITERAL', { value: unknown }>;
-export const SQLLiteral = SQLToken<SQLLiteral, unknown>(
+export const SQLLiteral = sqlToken<SQLLiteral, unknown>(
   'SQL_LITERAL',
   (value) => ({
     value,
@@ -152,7 +113,7 @@ export type SQLArray = SQLToken<
   { value: unknown[]; mode?: SQLArrayMode }
 >;
 
-export const SQLArray = SQLToken<
+export const SQLArray = sqlToken<
   SQLArray,
   unknown[] | { value: unknown[]; mode?: SQLArrayMode }
 >('SQL_ARRAY', (input) => {
@@ -169,7 +130,7 @@ export type SQLIn = SQLToken<
   { column: SQLIdentifier; values: SQLArray; mode?: SQLArrayMode }
 >;
 
-export const SQLIn = SQLToken<
+export const SQLIn = sqlToken<
   SQLIn,
   { column: string; values: unknown[]; mode?: SQLArrayMode }
 >('SQL_IN', ({ column, values, mode }) =>

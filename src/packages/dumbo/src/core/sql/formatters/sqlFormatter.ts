@@ -35,6 +35,7 @@ export type SQLFormatterOptions = Partial<Omit<SQLFormatter, 'valueMapper'>> & {
   processorsRegistry?: SQLProcessorsReadonlyRegistry;
 };
 
+/* @__NO_SIDE_EFFECTS__ */
 export const SQLFormatter = ({
   format,
   describe,
@@ -134,24 +135,24 @@ declare global {
   var dumboSQLFormatters: Record<string, SQLFormatter>;
 }
 
-const dumboSQLFormatters = (globalThis.dumboSQLFormatters =
-  globalThis.dumboSQLFormatters ?? {});
+const dumboSQLFormatters = () =>
+  (globalThis.dumboSQLFormatters = globalThis.dumboSQLFormatters ?? {});
 
 export const registerFormatter = (
   dialect: string,
   formatter: SQLFormatter,
 ): void => {
-  dumboSQLFormatters[dialect] = formatter;
+  dumboSQLFormatters()[dialect] = formatter;
 };
 
 export const getFormatter = (dialect: string): SQLFormatter => {
-  const formatterKey = dialect;
-  if (!dumboSQLFormatters[formatterKey]) {
+  const formatter = dumboSQLFormatters()[dialect];
+  if (!formatter) {
     throw new NotRegisteredError(
       `No SQL formatter registered for dialect: ${dialect}`,
     );
   }
-  return dumboSQLFormatters[formatterKey];
+  return formatter;
 };
 
 export function formatSQL(

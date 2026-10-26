@@ -1,12 +1,12 @@
 import {
   processSQLToken,
   SQLIdentifier,
-  SQLProcessor,
   SQLTableReference,
   type SQLCreateSchema,
   type SQLIndexReference,
   type SQLJSONDocumentIndexTarget,
   type SQLJSONPathTarget,
+  type SQLProcessor,
   type SQLProcessorContext,
   type SQLRenameTable,
 } from '../../../../../core';
@@ -25,60 +25,55 @@ const addIdentifier = (
   );
 };
 
-export const SQLiteTableReferenceProcessor: SQLProcessor<SQLTableReference> =
-  SQLProcessor({
-    canHandle: 'SQL_TABLE_REFERENCE',
-    handle: (token, context) => addIdentifier(sqliteTableName(token), context),
-  });
+export const SQLiteTableReferenceProcessor: SQLProcessor<SQLTableReference> = {
+  canHandle: 'SQL_TABLE_REFERENCE',
+  handle: (token, context) => addIdentifier(sqliteTableName(token), context),
+};
 
-export const SQLiteRenameTableProcessor: SQLProcessor<SQLRenameTable> =
-  SQLProcessor({
-    canHandle: 'SQL_RENAME_TABLE',
-    handle: (token, context) => {
-      const { table, newTableName } = token;
+export const SQLiteRenameTableProcessor: SQLProcessor<SQLRenameTable> = {
+  canHandle: 'SQL_RENAME_TABLE',
+  handle: (token, context) => {
+    const { table, newTableName } = token;
 
-      context.builder.addSQL('ALTER TABLE ');
-      processSQLToken(table, context);
-      context.builder.addSQL(' RENAME TO ');
-      processSQLToken(
-        SQLTableReference.from({
-          databaseSchemaName: table.databaseSchemaName,
-          tableName: newTableName,
-        }),
-        context,
-      );
-    },
-  });
+    context.builder.addSQL('ALTER TABLE ');
+    processSQLToken(table, context);
+    context.builder.addSQL(' RENAME TO ');
+    processSQLToken(
+      SQLTableReference.from({
+        databaseSchemaName: table.databaseSchemaName,
+        tableName: newTableName,
+      }),
+      context,
+    );
+  },
+};
 
-export const SQLiteIndexReferenceProcessor: SQLProcessor<SQLIndexReference> =
-  SQLProcessor({
-    canHandle: 'SQL_INDEX_REFERENCE',
-    handle: (token, context) => addIdentifier(sqliteIndexName(token), context),
-  });
+export const SQLiteIndexReferenceProcessor: SQLProcessor<SQLIndexReference> = {
+  canHandle: 'SQL_INDEX_REFERENCE',
+  handle: (token, context) => addIdentifier(sqliteIndexName(token), context),
+};
 
 export const SQLiteJSONDocumentIndexTargetProcessor: SQLProcessor<SQLJSONDocumentIndexTarget> =
-  SQLProcessor({
+  {
     canHandle: 'SQL_JSON_DOCUMENT_INDEX_TARGET',
     handle: (token, context) => {
       context.builder.addSQL('(');
       addIdentifier(token.columnName, context);
       context.builder.addSQL(')');
     },
-  });
+  };
 
-export const SQLiteJSONPathTargetProcessor: SQLProcessor<SQLJSONPathTarget> =
-  SQLProcessor({
-    canHandle: 'SQL_JSON_PATH_TARGET',
-    handle: (token, context) => {
-      context.builder.addSQL('(json_extract(');
-      addIdentifier(token.columnName, context);
-      context.builder.addSQL(`, ${SQLiteJSON.path(token.path).value}))`);
-    },
-  });
+export const SQLiteJSONPathTargetProcessor: SQLProcessor<SQLJSONPathTarget> = {
+  canHandle: 'SQL_JSON_PATH_TARGET',
+  handle: (token, context) => {
+    context.builder.addSQL('(json_extract(');
+    addIdentifier(token.columnName, context);
+    context.builder.addSQL(`, ${SQLiteJSON.path(token.path).value}))`);
+  },
+};
 
 // SQLite has no schemas — a logical schema lives in the mapped table name
-export const SQLiteCreateSchemaProcessor: SQLProcessor<SQLCreateSchema> =
-  SQLProcessor({
-    canHandle: 'SQL_CREATE_SCHEMA',
-    handle: () => {},
-  });
+export const SQLiteCreateSchemaProcessor: SQLProcessor<SQLCreateSchema> = {
+  canHandle: 'SQL_CREATE_SCHEMA',
+  handle: () => {},
+};

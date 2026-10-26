@@ -1,4 +1,4 @@
-import { PongoError } from './core';
+import { PongoError, pongoDriverRegistry } from './core';
 import type { AnyPongoDriver as PongoDriverForLoader } from './core/drivers';
 
 export * from './core';

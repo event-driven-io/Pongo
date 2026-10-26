@@ -60,7 +60,8 @@ We recommend using VSCode and installing the following extensions:
 
 - [ESLint](https://marketplace.visualstudio.com/items?itemName=dbaeumer.vscode-eslint),
 - [Prettier](https://marketplace.visualstudio.com/items?itemName=esbenp.prettier-vscode),
-- [Vitest test runner](https://marketplace.visualstudio.com/items?itemName=connor4312.nodejs-testing)
+- [TypeScript Native Preview](https://marketplace.visualstudio.com/items?itemName=TypeScriptTeam.native-preview),
+- [Vitest test runner](https://marketplace.visualstudio.com/items?itemName=vitest.explorer)
 
 This will ensure that all workspace settings around code style will be automatically applied.
 

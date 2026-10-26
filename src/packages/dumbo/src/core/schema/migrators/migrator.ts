@@ -27,25 +27,26 @@ declare global {
   var defaultMigratorOptions: Record<DatabaseType, MigratorOptions>;
 }
 
-const defaultMigratorOptions = (globalThis.defaultMigratorOptions =
-  globalThis.defaultMigratorOptions ?? {});
+const defaultMigratorOptions = () =>
+  (globalThis.defaultMigratorOptions = globalThis.defaultMigratorOptions ?? {});
 
 export const registerDefaultMigratorOptions = (
   databaseType: DatabaseType,
   options: MigratorOptions,
 ): void => {
-  defaultMigratorOptions[databaseType] = options;
+  defaultMigratorOptions()[databaseType] = options;
 };
 
 export const getDefaultMigratorOptionsFromRegistry = (
   databaseType: DatabaseType,
 ): MigratorOptions => {
-  if (!defaultMigratorOptions[databaseType]) {
+  const options = defaultMigratorOptions()[databaseType];
+  if (!options) {
     throw new NotRegisteredError(
       `No default migrator options registered for database type: ${databaseType}`,
     );
   }
-  return defaultMigratorOptions[databaseType];
+  return options;
 };
 
 export type MigrationTableOptions = {
