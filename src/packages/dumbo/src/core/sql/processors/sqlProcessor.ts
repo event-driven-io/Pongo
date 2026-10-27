@@ -25,6 +25,7 @@ export type SQLProcessorOptions<Token extends AnySQLToken = AnySQLToken> = {
   handle: (value: Token, context: SQLProcessorContext) => void;
 };
 
+/* @__NO_SIDE_EFFECTS__ */
 export const SQLProcessor = <Token extends AnySQLToken = AnySQLToken>(
   options: SQLProcessorOptions<Token>,
 ): SQLProcessor<Token> => options;
