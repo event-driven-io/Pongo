@@ -1,7 +1,7 @@
 import type { Connection } from '../connections';
 import { Abort, type AbortContext, type AbortOptions } from '../taskProcessing';
 import type { DatabaseDriverType } from '../drivers';
-import { DumboError } from '../errors';
+import { DumboError, type DumboErrorOptions } from '../errors';
 import type { QueryResult, QueryResultRow } from '../query';
 import type { JSONDeserializeOptions, JSONSerializer } from '../serializer';
 import type { SQL, SQLFormatter } from '../sql';
@@ -87,12 +87,20 @@ export class BatchCommandNoChangesError extends DumboError {
 
   readonly statementIndex: number;
 
-  constructor(statementIndex: number) {
+  constructor(
+    statementIndex: number,
+    options?: string | Omit<DumboErrorOptions, 'status'>,
+  ) {
+    const { message, ...rest } =
+      typeof options === 'string' ? { message: options } : (options ?? {});
     super({
-      errorCode: BatchCommandNoChangesError.ErrorCode,
-      errorType: BatchCommandNoChangesError.ErrorType,
-      message: `Batch command at index ${statementIndex} affected no rows`,
+      ...rest,
+      status: BatchCommandNoChangesError.ErrorCode,
+      code: rest.code ?? 'DMB_ERR_BATCH_COMMAND_NO_CHANGES',
+      message:
+        message ?? `Batch command at index ${statementIndex} affected no rows`,
     });
+    this.errorType = BatchCommandNoChangesError.ErrorType;
     this.name = 'BatchCommandNoChangesError';
     this.statementIndex = statementIndex;
 

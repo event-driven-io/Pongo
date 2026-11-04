@@ -10,6 +10,10 @@ export default defineConfig({
       },
     }),
   ],
+  tsconfig: './tsconfig.cloudflare.json',
+  resolve: {
+    tsconfigPaths: true,
+  },
   test: {
     name: '@event-driven-io/cloudflare',
     include: [
