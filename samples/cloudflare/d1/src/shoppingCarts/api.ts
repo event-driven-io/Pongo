@@ -1,8 +1,4 @@
-import {
-  ConcurrencyError,
-  DumboError,
-  UniqueConstraintError,
-} from '@event-driven-io/dumbo';
+import { DumboError } from '@event-driven-io/dumbo';
 import {
   assertNotEmptyString,
   assertUnsignedBigInt,
@@ -266,10 +262,8 @@ export const shoppingCartApi =
   };
 
 const isConflict = (error: unknown) =>
-  DumboError.isInstanceOf(error, { errorType: ConcurrencyError.ErrorType }) ||
-  DumboError.isInstanceOf(error, {
-    errorType: UniqueConstraintError.ErrorType,
-  });
+  DumboError.isInstanceOf(error, { code: 'DMB_ERR_CONCURRENCY' }) ||
+  DumboError.isInstanceOf(error, { code: 'DMB_ERR_UNIQUE_CONSTRAINT' });
 
 type ProductItemRequest = { productId?: unknown; quantity?: unknown };
 

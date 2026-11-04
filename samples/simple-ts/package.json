@@ -67,8 +67,8 @@
     "dist"
   ],
   "dependencies": {
-    "@event-driven-io/dumbo": "0.13.0-rc.1",
-    "@event-driven-io/pongo": "0.17.0-rc.1",
+    "@event-driven-io/dumbo": "0.13.0-rc.2",
+    "@event-driven-io/pongo": "0.17.0-rc.2",
     "pg": "8.23.1"
   },
   "engines": {
