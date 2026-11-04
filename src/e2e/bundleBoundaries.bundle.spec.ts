@@ -598,7 +598,7 @@ function dumboErrorConsumer(
   return `${imports}
     const error = driver.${scenario.mapper}(${scenario.databaseError});
     const recognised = dumbo.DumboError.isInstanceOf(error, {
-      errorType: dumbo.InvalidOperationError.ErrorType,
+      code: 'DMB_ERR_INVALID_OPERATION',
     });
 
     if (!recognised) {
